@@ -113,6 +113,10 @@ Found while documenting, for Mark:
 - **The typicality corridor in z.** The provider takes the corridor in z units; the pages define it as (lo − x̄)/SD and (hi − x̄)/SD over the same window, the only reading of that. No presenter builds it yet.
 - **Badge previews.** The windowed sheets set each word under its mark, so the graded, technical-layer and measurement-limited badge previews (`previews/badge_graded.png`, `badge_technical_limited.png`) are cut from the Session 2 offscreen grid (`/mnt/swingdata/scratch/variability/renders/s2/grid_instrument_light_dpr1.png`, software painter, dpr 1). Every other preview is cut from the windowed renders of the current build (Metal, dpr 2, 7 Nov ~15:50, `/mnt/swingdata/scratch/variability/renders/windowed/`): the sheets, the funnel and the typicality gallery. They show the fixed ghost jitter (ghosts spread vertically), the chevrons one unit outboard, the dark-theme ×3 wash (`mark_needle_dark.png`) and the synthetic funnel bases on the latest unbroken run, capped at 12 ("over 4 sessions", "over 12 sessions").
 
+### Session 5: audit and retrospective application
+
+- **The family guide moved out of the README (Mark, 7 Nov).** The README's "Variability words" and "Variability marks" sections outweighed every other component's entry, so their text moved word for word to `docs/design/system/variability.md` (principles, family, eligibility, classification, rules, words, phrasing, basis strings). The README keeps one bullet under Content and one under Cards and marks, each linking there; the component pages and the index link to it too.
+
 ## 3. Open items
 
 - **Windows D3D11 is unmeasured.** The cabin PC has only a shipping build, with the probe hook compiled out. Check frame time and clipping when Session 5 puts the marks on real screens.

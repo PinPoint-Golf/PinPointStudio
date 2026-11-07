@@ -2,7 +2,7 @@
 
 How much something varies, or how far a reading can be trusted, as a grade drawn in geometry: 5 the least variable (or the steadiest reading), 1 the most, 0 no grade. The typicality variants draw this swing against the golfer's usual instead, and are never graded. The mark never draws text: its word goes beside it in a `PpVariabilityBadge`, and into its accessible name.
 
-Source: `src/Gui/components/PpVariabilityMark.qml`. Geometry: `src/Gui/variability/variability_geometry.h` (the `VariabilityGeometry` singleton). Words: the four vocabulary singletons (`ConsistencyVocabulary`, `MeasurementVocabulary`, `TrendVocabulary`, `TypicalityVocabulary`), listed in the [README, Content](../README.md#variability-words).
+Source: `src/Gui/components/PpVariabilityMark.qml`. Geometry: `src/Gui/variability/variability_geometry.h` (the `VariabilityGeometry` singleton). Words: the four vocabulary singletons (`ConsistencyVocabulary`, `MeasurementVocabulary`, `TrendVocabulary`, `TypicalityVocabulary`), listed in [variability.md, Words](../variability.md#words).
 
 ![The graded variants, grades 5 to 0, Instrument Light](../../variability-mark/previews/marks_instrument_light.png)
 
@@ -66,7 +66,7 @@ Don't nest children in a PpVariabilityMark: it is a leaf graphic.
 | 1 | Scattered | Noisy | `colorWarn` |
 | 0 | Not enough swings | Checking | `colorText3` |
 
-Grades 5 and 4 share a tone, and so do 2 and 1: the shape and the word tell them apart, so colour is never the only channel. Typicality wears `colorAccent` and has no grade. The lines for each word are in the README, Content.
+Grades 5 and 4 share a tone, and so do 2 and 1: the shape and the word tell them apart, so colour is never the only channel. Typicality wears `colorAccent` and has no grade. The lines for each word are in [variability.md, Words](../variability.md#words).
 
 ## Variants × forms
 | variant | Icon | Cell |

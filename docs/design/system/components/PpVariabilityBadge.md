@@ -84,7 +84,7 @@ Every variant and form of the mark (see [PpVariabilityMark](PpVariabilityMark.md
 - **Tone changes** ease over `Theme.durationSlow` (0 under reduced motion), word and mark together.
 
 ## Tooltip
-Golfer layer only, on screen only: the word's line (§7 of the spec; listed in the README, Content) after 400 ms of hover, through the Controls attached `ToolTip`, as `PpButton` and `PpRowAction` do. Never on the technical layer, never on paper.
+Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [variability.md, Words](../variability.md#words)) after 400 ms of hover, through the Controls attached `ToolTip`, as `PpButton` and `PpRowAction` do. Never on the technical layer, never on paper.
 
 ## Print
 - `medium` passes to the mark (fills × `variabilityPrintAlphaScale`, clamped to 1; never `variabilityWashAlpha`, which is the mark's screen multiplier on its washes, 1 light and 3 dark).
@@ -182,7 +182,7 @@ PpVariabilityBadge {
 - Don't replace a technical-layer box plot: pair it. A golfer-layer box plot that shows position against the corridor stays as it is for now.
 
 ## Not repeated here
-The geometry tables (spec §4, §6; `src/Gui/variability/variability_geometry.cpp`) and the grade basis (spec §8; `src/Metrics/variability/`). The words, lines and basis strings are in the design-system README, Content.
+The geometry tables (spec §4, §6; `src/Gui/variability/variability_geometry.cpp`) and the grade basis (spec §8; `src/Metrics/variability/`). The words, lines and basis strings, and the family rules, are in [variability.md](../variability.md).
 
 ## Used by
 None yet: Session 5 of the plan retrofits the app's displays. Inside the design system: `PpVariabilityFunnel` (its too-few-sessions label). The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws the badges.
