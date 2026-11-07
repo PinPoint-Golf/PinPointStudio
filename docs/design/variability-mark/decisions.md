@@ -134,7 +134,117 @@ The audit's classification and copy audit were posted and ruled on one question 
 - **R9, client report pages.** A badge replaces only the figures that describe spread; the pages' other figures stay.
 - **R10, work-ons.** The consistency badge sits beside a work-on's status wherever it shows. Easing and cleared still follow the firing rule alone.
 - **R11, wording.** The design system's words apply everywhere, through the vocabularies. Ungraded spreads use statistic words; level trends say "no change"; the median is "median"; "Repeatable?" becomes "Consistency"; "Sequence not repeatable" becomes "Sequence changes from swing to swing". The old-words table is in `variability.md`.
+- **R12, one-sided norms (review, 7 Nov).** A floor or ceiling is how a value is judged, not how wide the golfer may spread. Grade against (σLo + σHi)/2 whenever the norm states both, whatever its shape; only a norm without them is ungraded. The launch-monitor panel follows the same rule.
+- **R13, warm-ups (review, 7 Nov).** Warm-ups stay in every variability window: the golfer should be warmed up before PinPoint assesses them. The ledger's first-shots down-weighting is diagnostics' own and doesn't apply here. Guarded readings (an untrusted P-ladder) are still left out.
+- **R14, a work-on's report page** grades that session only; Home grades the last 20 readings. They can differ, by design.
+- **R15, dead code.** `consistency_summary` and the other code the review found dead is removed; the old `consistency.json` files stay in the libraries, unread.
+- **Ball flight has no badge at all** (R4), typicality included: no typicality badge on the launch monitor's ball tiles or ledger rows, or on the Consistency tab's carry line.
+- **R16, traces ungraded until calibrated (renders, 7 Nov).** No trace has a corridor, and on the grader's fallbacks (10 % of the mean peak, 20 ms timing) every session curve read Scattered. Until a trace has a real corridor (calibration proposal 5), the fallback rungs count as no scale: no Overlay badge on session curves and no TypicalityTrace badge on Against.
+- **R17, the marks take the host's `roles` on screen (Mark approved, 7 Nov).** In a typeset panel the badge's word and basis, the mark's size and the funnel's label follow the host's PpTypeset on screen as they already do on paper; with no `roles` they read Theme as before. A design-system behaviour change, approved before it was built.
+- **R18, typicality's basis says "average".** The basis reads "this swing 612 · average 620": it is the window mean (z needs it), and it sits beside median columns, so it never says "usual".
+- **R19, the Launch monitor appendix is the technical layer:** its badges keep their basis strings on paper.
+- **R20, Posture and Wrist on paper: one badge per row (review sheet, 7 Nov).** The client report's Posture and Wrist pages give each row one golfer-layer badge, the cell rule (R1, loosest third) over the row's graded positions, beside the row's name. The per-position badges stay on the Charts screens.
+- **R21, Wrist P2 keeps its badge;** the most/least ranking still starts at P3 ("ranked from P3 on").
+- **R22, typicality uses the robust z everywhere:** z = (x − median) / (IQR/1.349) over the same window (R8), for the band, the ghosts and the corridor in z. The basis reads "this swing X · median Y" (supersedes R18's "average"). Spec §8.7 (mean/SD) is amended. It now agrees with the stand-out pick (robust z ≥ 3.5) and with the medians the screens show.
+- **R23, the common order** is graded over the segments the common-order sentence uses (a segment that is never or rarely placed, such as the face-on chest, drops out), with k = m! for those m segments; the basis names them ("Same order in 12 of 15 swings · pelvis, lead arm, club").
+- **R24, the condition rename stays;** sessions regrade lazily, once each, when next opened. No sweep.
+- **The 5 Oct matrix after the fixes** ("backswing repeatable … impact position moves most") matches Mark's sense of the session.
 - **Work on `main`.** The plan's branch instructions were replaced: every session commits on `main`.
+
+#### Session 5: applied (7 Nov)
+
+What the retrofit left alone, what has no surface yet, the measurement surfaces still without a Needle, and the readings the build had to make. Where each badge, mark and funnel now sits: the component pages' "Used by". The Consistency feature's own record: `docs/design/consistency_design.md` §10.
+
+**Leave rows.** Unchanged, each with its reason.
+
+| surface | display | why it is left |
+|---|---|---|
+| Home | Trend chips, the Trend column | How often a fault fires from session to session, not spread. Level trends say "no change" (R11). |
+| Home | What you do well | The in-band share: accuracy, not repeatability. |
+| Home | Typical value against the corridor | Position against the corridor (accuracy). |
+| Home | Work-on status (active, easing, cleared) | Follows the firing rule (R10); the badge sits beside it and doesn't change it. |
+| Home | Matchups | Faults that occur together: co-occurrence, not spread. |
+| Session diagnostics | Shot-by-shot strip, medians, key figures, out-by | Per-shot values or location against the norm (accuracy). |
+| Session diagnostics | Kendall trend | Drift in the level through a session, not spread. |
+| Session diagnostics | Direction agreement | How far the readings agree on a direction: a finding's certainty. |
+| Session diagnostics | Bookends | First shots against last: a comparison of level. |
+| Session diagnostics | Usually yours | A typical value (the median): level. Its trend words follow R11. |
+| Session diagnostics | Causes | A causal finding: `PpStrengthMark`'s job. |
+| Session diagnostics | Norm tags | A label naming the norm, not a figure. |
+| Diagnostic model | Model browser | The model's structure, with no swing data. |
+| Sequence | Peak-timing spread (R6) | Its only yardstick is a cohort (19 touring professionals); it waits for a scale decision. |
+| Sequence | "In sequence" | Accuracy (the right order). The common order is graded separately, as an ordinal. |
+| Charts | P-timing ticks; the peak-time middle half | An ungraded spread, named by its statistic. Timing traces have no corridor (R16). |
+| Charts | Wrist score | How closely a style is matched: accuracy. |
+| Charts | At address | Set-up positions against the norm. |
+| Charts | Usually / median | Location; it now says "median" (R11). |
+| Charts | Flight scatter, shot shape | Ball flight (R4). |
+| Charts | Relations | Co-movement between readings, not one reading's spread. |
+| Charts | Kinds | Groups of shots; spread across kinds is expected. |
+| Charts | Findings' confidence | Certainty: `PpStrengthMark`. |
+| Charts | Box legends | A key, not a value. |
+| Launch monitor | Scatters | Ball flight (R4): the plot stays, no badge. |
+| Launch monitor | Notes | Text. |
+| Launch monitor | Classifier vote | Detector confidence: never a Needle. |
+| Launch monitor | Inferred reads | Provenance, not spread. |
+| Launch monitor | Outside | Position against a range (accuracy). |
+| Everywhere | Ball flight (R4) | No intent is recorded: no badge on the dispersion, tiles, ledger, appendix ball rows or the Consistency ball line, typicality included. |
+| Club delivery | The plane, its spread | Ungraded: no corridor. Its words follow R11 ("Narrowest at … widest at …"). |
+| Every panel | Trust gates, data warnings, dropouts, detector confidence, vendor ranges | The Needle's never-list (`variability.md`, Rules); not golfer spread either. |
+| Session report | Cover ball tiles | Ball flight (R4). |
+| Session report | Numbers page "Typical" | The median: "typical" for a median is left alone (`variability.md`, Phrasing). |
+| Session report | Earlier today | A comparison with an earlier session's level. |
+| Session report | Trust caveats | Trust gates. |
+| Session report | Work-on run chart | The values against the corridor shot by shot; the work-on's Consistency badge sits beside it (R10, R14). |
+| Session report | Cause dots | A finding's strength. |
+
+**Rules with no surface yet.**
+- **Intent grouping.** No shot records an intent, so there is nothing to group by; meanwhile outcome measures are ungraded (R4).
+- **Roster.** No roster or multi-golfer screen exists.
+- **Cohort scales.** No cohort norms exist, so the "never mix cohort and universal scales" rule has no column to apply to.
+- **Work-on completion gating (R10).** Display only: the badge sits beside the status, and achieved, easing and cleared still follow the firing rule.
+
+**Needle surfaces still without a Needle.** Each is a measurement figure (class Measurement), and none can be graded: no metric sets `measurementTolerance`, so the grader has no measurement basis.
+- **PPCP clock-sync σ:** the session toolbar ("sync ±N ms", warns over 5 ms), Settings → Phones ("Clock agreement ± N ms", warns over 5 ms) and the Resource monitor's phone card (warns over 2 ms). The two thresholds disagree: for Mark.
+- **Charts' ±σ chips and the sequence table's ±σ:** a reading's propagated σ.
+- **Review chart σ** (`PpChartPlot`, `PpChartSummary`): dormant.
+- **HackMotion rest angle** (setup).
+- **Stereo / triangulation** (setup): a placeholder, with no figure.
+- **IMU noise and drift:** no figure exists.
+
+**Gaps the build filled, and interpretations worth keeping.**
+- **Data-warning shots are graded.** Home and the report used to skip every shot carrying a data warning (4 July: 15 of 15; 5 Oct: 29 of 31), which left Home with no readings. The ledger's NotAssessable decides instead (work-on rule version 2).
+- **One outcome rule, by measure** (`src/Metrics/variability/variability_outcome.h`): ball flight and smash are ungraded everywhere (Home, the report's work-on, the diagnostics Spread box and funnel, the launch monitor). Club delivery is any launch-monitor key that is not an outcome, so spin loft and closure rate are eligible too.
+- **Posture and Wrist badges** sit in a line per club under each row ("P4 [badge]"), not under each column: a badge, its word and basis don't fit a P column. Gate-warned and joints-only ⚠ readings are left out (the guarded rule).
+- **Wrist grades** use the dominant style's band, on screen too, although the screen shades the picked shot's band. The ranking reads "ranked from P3 on".
+- **Launch-monitor badges** sit in a named list under the tiles: too wide for a tile.
+- **Span readings** (Consistency): each of the five points is graded, and the reading takes the median point by ρ.
+- **The common order** (Charts) counts only swings with every segment placed. Face-on loses the chest, so the badge rarely shows.
+- **The matrix's short form** shows the grade's figure, 5 to 1 (0 for Not enough swings), ⚠ for Checking and "-". The old · ◐ ● are gone.
+- **Key figures** split the badge's basis onto its own line when the column can't hold it, column-wide.
+- **The Launch monitor appendix badge** sits on its own line under each graded row: a ninth column overflows the 674 px page.
+- **The report's work-on badge** grades that session only (R14), through the rule Home shares (`src/Gui/variability/variability_ledger.h`).
+- **Traces are ungraded** (R16): the Overlay and TypicalityTrace hosts stay in place and show nothing until a trace has a corridor.
+- **Diagnostics never sets measurement-limited:** ledger rows store no σ. Setting it would need a ledger schema change (`diagnostic_ledger.h`).
+- **Typicality's basis** says "average" (R18), so Replay's "median 72 mph" can sit beside "average 74 mph". Both are right.
+- **The Home column** widened from `sp(96)` to `sp(136)`. A plain Active work-on has no NOW line, so its badge shows only on the area row.
+- **Tuning values changed** in `gate_catalogue_rules.h` along with the texts: minShots 5 → `variability.nMin` 8, `minClubShots` 3, `cellLoosestPercentile` 0.67. They can be reverted.
+- **Retired** (R15): `consistency_summary.{h,cpp}`, the matrix verdicts and cell words, Home's roll-up, `consistency_dump`, `consistency_tally.py`, `consistency_make_goldens.sh` and the Home goldens. `goldens_1005_consistency.json` is frozen, and only its stand-outs, flags and shuffle figures are still read. The `consistency.json` files in the libraries stay, unread.
+
+**Still open for Mark** (collected during the build, not yet ruled):
+- The common order needs every segment placed: allow "probable" peaks?
+- A Consistency "stood out" row (robust z ≥ 3.5) can read "Your usual" (mean and SD, |z| ≤ 1): two rules, both by design. Should typicality on stand-outs use the robust z?
+- The matrix's short form on paper: grade figures on a golfer-layer page?
+- `PpChMatrix`'s full-form threshold was sized for "steady": "Not enough swings" and "Repeatable" may overflow at middle widths (a design-system change if they do).
+- The report's Posture page is badge-heavy (up to 6 badges a row, on 2 lines); a smaller paper badge would be a design-system change.
+- The Launch monitor appendix badge on its own line: OK, or a shorter basis? The longest basis (attack angle) crosses the AVG column's edge.
+- `core.json`'s new label ("Sequence changes from swing to swing") changes the pack's content stamp, so every session's `diagnostics.json` regrades once when next opened. The library and corpus sweeps (cabin PC).
+- `SESSION_DIAG_MARKS_SOURCES` (`src/Analysis/tests/CMakeLists.txt`) now feeds `regrade_ledger`, `diag_uncertainty_report` and `diag_rank_diff`: the cabin build must pick it up.
+- Diagnostics measurement-limited needs a σ in the ledger (a schema change).
+- `gate_words`' consistencyVerdict split needs a new gate id.
+- Launch-monitor data the build listed as unread (the launch / spin, path / face and strike ellipses) is still published; check its readers before removing it.
+- Old consistency words in QML test fixtures (`tst_*.qml`, `src/Gui/tests/qml/data/session_report/*.json`), not run; the frozen `jess.json` fixture keeps "Sequence not repeatable".
+- `build/report-build/REPORT_MAP.md` (untracked) should gain `workOns[].consistency` and the Launch monitor appendix rows' `variability`.
 
 ## 3. Open items
 
@@ -162,4 +272,4 @@ The audit's classification and copy audit were posted and ruled on one question 
   - the reviewer's contrast note (S4 cold read): at ×3 in dark themes the innermost Needle wedge composites to about 91 % of the tone, so the full-tone needle is nearly lost inside it at grades 1–3; and the funnel band's fill (48 %) sits close to its 55 % edge. The wedge widths still carry the grade.
 - **Funnel accessibility, too-few state (open).** The embedded badge's mark is a second accessible Graphic inside the funnel's own, so a screen reader may read the grade twice. A clean fix needs a badge property (a design-system API change), so it is left for Session 5 or Mark.
 - **Verification.** Full ctest 281/281 (qml_ui run once), 7 Nov 2026.
-- **README line 10** still names "the PinPoint Studio design system artifact on claude.ai" as the visual reference. Left unchanged: Mark has not ruled on it, and since the design system is now the repo folder, it may need rewording.
+- **README line 10** named "the PinPoint Studio design system artifact on claude.ai" as the visual reference. Reworded in Session 5: the design system is the repo folder, and the visual reference is the component pages and their previews (`previews/`).

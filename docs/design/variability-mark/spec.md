@@ -364,6 +364,8 @@ Observed spread includes measurement noise: SD²obs = SD²golfer + σ²noise.
 
 ### 8.7 Typicality
 
+> **Amended 7 Nov (decisions.md §2, R22):** z is the robust z, `(x − median)/(IQR/1.349)`, for the scalar, the trace's z(t), the ghosts and the corridor; the basis reads "· median". Circular angles keep the circular mean and SD.
+
 - **Scalar:** `z = (x − x̄)/SD` over the window, with n ≥ `N_MIN`.
 - **Trace:** the RMS of z(t), plus the timing and amplitude deviations used for the basis string.
 - **Never graded.** Words come from the |z| thresholds (§7.4).

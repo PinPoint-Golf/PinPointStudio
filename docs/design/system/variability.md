@@ -36,6 +36,7 @@ All three must hold: the spread is repeatability (the same measure, across swing
 
 - **Clubs.** Spread about each club's own median, pooled across clubs, is within-club spread and is eligible: one grade. A display that pools raw values from several clubs gets **one badge per club**, each named ("7-iron · Settling · Driver · Repeatable"); the plot beside it stays as drawn. A club with fewer than `Variability.nMin` (8) swings shows "Not enough swings".
 - **Outcome or movement.** Without a recorded intent, outcome measures get no grade: ball flight (carry, total, offline, ball speed, launch, spin, peak height, shot shape) and smash factor. Club delivery at impact is movement and stays eligible: club speed, path, face, face to path, attack, dynamic loft, lie, low point, strike location.
+- **Traces wait for a corridor.** The grader's trace fallbacks (10 % of the mean peak, `TIMING_SCALE_MS`) are uncalibrated: a surface treats a trace graded only on them as ungraded, so no Overlay or TypicalityTrace badge shows until the trace has a corridor.
 - **The scale is the band the reader sees.** Grade against the norm corridor. Where a display draws a different band (a posture pattern's, a wrist style's), grade against that band's σ, (σLo + σHi)/2; its basis string says "of scale", never "of corridor".
 - **Cells that pool readings.** A table cell that rolls up several readings (an area at a span) takes the grade at its loosest third: the 67th-percentile ρ of its graded readings, through the scalar bands. The cell shows the word alone; the marks go on the readings it opens to. Ungraded readings don't count. No graded reading: "-". Every graded reading under 8 swings: "Not enough swings". A measurement-limited cell reads "Checking".
 
@@ -46,7 +47,7 @@ All three must hold: the spread is repeatability (the same measure, across swing
 | Replace | Golfer layer, eligible | Remove the σ or spread-only box plot. Show the badge, its line as the tooltip. |
 | Pair | Technical layer, eligible | Keep the σ and any box plot. Add the badge with its basis string. |
 | Measurement | The figure describes the measurement, not the golfer | The Needle with measurement words. |
-| Typicality | A per-swing "vs average" or outlier display | Your group, or trace on envelope. |
+| Typicality | A per-swing "vs your usual" or outlier display | Your group, or trace on envelope. |
 | Funnel | A multi-session spread or trend display | The spread funnel. |
 | Leave | Not eligible, or ungraded | Unchanged. Record the reason. |
 
@@ -58,8 +59,10 @@ All three must hold: the spread is repeatability (the same measure, across swing
 - Intent: grade within each shot shape or type, never across. With no intent, outcome measures get no grade; body-movement measures stay eligible.
 - A work-on is achieved only when its mean is in the corridor **and** its consistency is Repeatable or better over at least 8 swings (`Variability.nMin`). Show both: wherever a work-on's status shows, its consistency badge sits beside it. The status itself (active, easing, cleared) still follows the firing rule.
 - Typicality ("your usual") is this swing against the session's **other** swings with the same club, at least `Variability.nMin` (8) of them. Fewer: no typicality badge.
+- Typicality's z is the robust z: z = (x − median) / (IQR / 1.349) over that window (R22, decisions.md). The band, the ghosts and the corridor in z take the same scale; a trace's envelope is the per-point median ± IQR/1.349, and its peak timing and amplitude are judged the same way. A window with IQR 0 has no spread: z is 0 at the median and ±∞ anywhere else. An angle that wraps (`ScaleType::Circular`) keeps the circular mean and circular SD, as there is no circular median yet.
 - The strength mark sits with the finding; the variability mark sits with the measure.
 - Print and greyscale: the shape and the word carry the grade without colour. On paper the marks take the page's `roles` and lift their fills by `variabilityPrintAlphaScale`, never by `variabilityWashAlpha`.
+- In a typeset panel, pass the panel's PpTypeset as `roles`; on screen and paper the marks then follow its type.
 - On a client report page (the golfer layer on paper), a badge replaces the figures that only describe spread (a middle-half width, "N wide", ±½ middle half, a "most / least repeatable" line). The page's other figures are not the marks' business. An ungraded spread figure stays, in statistic words.
 - Once cohort norms exist, never mix cohort and universal scales in one column without saying so in its header.
 - Launch-monitor ball flight: keep the dispersion plot and add a per-club Dispersion badge ("7-iron · Settling"), per club and per intent; a pooled view isn't graded. No Needle for launch-monitor error. Until shots record an intent, ball flight has no badge.
@@ -117,7 +120,7 @@ Every variability word, line and accessible name lives in one of four singletons
 | `aLittleOff` (1 < \|z\| ≤ 2) | A little off | This swing was a little different from your usual. |
 | `unusual` (\|z\| > 2) | Unusual | This swing was quite different from your usual, for better or worse. |
 
-- Zone labels: "most swings" (±1 SD, `zoneMost`) and "nearly all" (±2 SD, `zoneNearlyAll`), in lower case. Never "normal" or "abnormal".
+- Zone labels: "most swings" (|z| ≤ 1, `zoneMost`) and "nearly all" (|z| ≤ 2, `zoneNearlyAll`), in lower case. Never "normal" or "abnormal".
 - Accessible names: "Consistency: Repeatable (4 of 5)", "Measurement: Steady (4 of 5)", "Consistency: Not enough swings (0 of 5)"; typicality has no grade, "Typicality: Your usual". The funnel: "Pelvis rotation at top: Repeatable, tightening over 6 sessions".
 
 ### Phrasing
@@ -140,18 +143,18 @@ As the grader builds them:
 | Scalar, CV fallback (a ratio measure with no corridor or scale) | "σ 4.1 km/h · CV 0.04 · n 24" | the same |
 | Trace, timing sets the grade | "σ peak 18 ms · n 24" | the same |
 | Trace, amplitude sets the grade | the scalar form, with the RMS of SD(t) and ρₐ: "σ 3.2° · 0.48 of scale · n 24". "of corridor" against a corridor; the 10 %-of-peak fallback reads "of scale". | the same |
-| Ordinal (an order or checkpoint) | "Same order in 21 of 24 swings" | the same |
+| Ordinal (an order or checkpoint) | "Same order in 21 of 24 swings"; an order names the segments it was graded over, appended by the presenter: "… · pelvis, lead arm, club" | the same |
 | Measurement-limited | the consistency string, then " · measurement-limited" | the same |
 | Needle (measurement) | none: the string is empty | the same |
 | Grade 0, or ungraded | none | the same |
 | Trend | "ρ 0.62 → 0.38 over 6 sessions"; empty with no trend | `TrendResult::basisString` |
-| Typicality, scalar | "this swing 5.2 cm · usual 4.8 cm" | `ScalarTypicality::basisString` |
+| Typicality, scalar | "this swing 5.2 cm · median 4.8 cm" (the window median, R22); an angle that wraps reads "· average" (its circular mean) | `ScalarTypicality::basisString` |
 | Typicality, trace | "peak on time", "peak 25 ms early", "peak 45 ms late, higher", "… lower" | `TraceTypicality::basisString` |
 | Ball flight (launch monitor, per club) | "offline ±6 yd · carry ±5 yd · 12 shots" | `ballFlightBasisString` |
 
 - A fallback scale is never called a corridor.
 - σ takes the measure's own decimals; ρ and CV two places; milliseconds none. "°", "%" and ":" sit against the number ("2.1°"); any other unit follows a space ("4.8 cm").
-- "Peak on time" means within the golfer's usual spread of time-to-peak (|z| ≤ 1), or a deviation that rounds to 0 ms. "higher" or "lower" appears only past |z| 1 of the window's peaks.
+- "Peak on time" means within the golfer's usual spread of time-to-peak (|z| ≤ 1 about the median peak time), or a deviation that rounds to 0 ms. "higher" or "lower" appears only past |z| 1 of the window's peaks.
 
 ### Old words
 
@@ -167,7 +170,7 @@ The words the app used before the vocabularies, and what replaces them. Don't br
 | Repeatable? | Posture, Wrist headings | Consistency |
 | most repeatable … least …; the tightest … the loosest | Wrist, Posture | The grade words, ranked by ρ ("Most: %1 · Grooved   Least: %2 · Variable") |
 | Steadiest at … loosest at … | Club delivery (ungraded) | Narrowest at … widest at … |
-| close to your usual, against your usual | Consistency flagged swings | The typicality badge; basis "this swing … · usual …" |
+| close to your usual, against your usual | Consistency flagged swings | The typicality badge; basis "this swing … · median …" |
 | your usual swing | This shot → Against | the session median |
 | typical (the session median) | Replay, session figure | median |
 | Sequence not repeatable | Condition name | Sequence changes from swing to swing |

@@ -155,13 +155,13 @@
 2. **Classify** each entry as **replace**, **pair**, **measurement**, **typicality**, **funnel** or **leave** (spec §9.2), with a reason for each. **Post the table before changing anything.**
 3. **Copy audit.** List every relevant user-facing string with its replacement from the vocabularies. Old words without a one-to-one mapping get a proposed mapping; never silently drop meaning.
 4. **Apply** in logical commits, one per screen or area. Apply the §9.5 rules where their surfaces exist (intent grouping, work-on completion, strength-mark separation, print, roster) and the launch-monitor rules (§9.6).
-5. **Record** every **leave** row, every rule with no surface yet, and the remaining Needle surfaces in `decisions.md`.
+5. **Record** every **leave** row, every rule with no surface yet, and the remaining Needle surfaces in `decisions.md`. Done: `decisions.md`, "Session 5: applied".
 
 **Done:**
-- [ ] Classification table and copy audit posted.
-- [ ] Every row except **leave** applied.
-- [ ] No variability copy remains outside the vocabularies.
-- [ ] Tests pass, with no new QML warnings.
+- [x] Classification table and copy audit posted (ruled 7 Nov: `decisions.md` §2, R1–R19).
+- [x] Every row except **leave** applied.
+- [x] No variability copy remains outside the vocabularies.
+- [x] Tests pass, with no new QML warnings (the touched ctest targets; the qml_ui suite was not run; the final offscreen renders logged no QML warnings).
 
 **Prompt:**
 > Read the design-system documentation for the variability marks, and `docs/design/variability-mark/plan.md`. You are doing **Session 5: audit and retrospective application**. Use the design system as your reference. If it's missing a rule you need, fix the documentation first. Post the classification table and the copy audit, then wait for approval before applying.

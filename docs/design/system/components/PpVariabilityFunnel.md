@@ -42,7 +42,7 @@ QML never computes ρ, a grade or a trend.
 | contentLayer | string | `"golfer"` | `"golfer"` or `"technical"`. |
 | wide | bool | false | false: compact, `sp(120)` wide, label beside. true: fills the item's width, label beneath. |
 | variant | enum | `PpVariabilityMark.Dispersion` | The measure's own mark, for the too-few badge: `Dispersion` (scalar) or `Overlay` (time series). Anything else warns and draws Dispersion. |
-| roles | var | null | A `PpTypeset`, optional; for paper. |
+| roles | var | null | The host's `PpTypeset`, optional. When given, on screen and on paper, its sizes, gaps, type and inks replace Theme's (see Typeset hosts). |
 | medium | string | `roles ? roles.medium : "screen"` | `"screen"` or `"print"`. |
 
 Read-only: `currentGrade` (the last listed session's grade, even when that session has no ρ and is not drawn), `trendAfter3` (true while the latest unbroken run has fewer than 3 sessions), `sessionCount` (sessions in that run), `tone`, `label` (the label as one string, without the basis), `minimumWidth` (96 px).
@@ -70,9 +70,13 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 - **More than 12 sessions:** the latest 12 are drawn, and the trend reads the same 12.
 - **Changes:** a new session list redraws at once (the geometry never animates); the tone eases over `Theme.durationSlow` (0 under reduced motion).
 
+## Typeset hosts
+- **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike the compact width and the height are then `roles.u()`, the gaps `roles.g()`, the words `roles.fBody` and the basis `roles.fFig`; tones are `roles.good` / `attention` / `warn` / `ink3`; `colorBorderStrong` → `roles.baseline`, `colorBorderMid` → `roles.grid`, each at its opacity; `colorText2` → `ink2`, `colorText3` → `ink3`. The label reads in proportion to the panel's own words.
+- On screen the band keeps `variabilityWashAlpha`; on paper it takes `variabilityPrintAlphaScale`. Without `roles` the funnel reads Theme, as before.
+
 ## Print
 - `medium: "print"`: the band's fill multiplies its alpha by `Theme.variabilityPrintAlphaScale` (1.5), clamped to 1, and never by `variabilityWashAlpha`; strokes (the edge, the centre line, ticks) keep theirs.
-- With `roles` on paper: the compact width and the height are `roles.u()`, the gaps `roles.g()`, the words `roles.fBody` and the basis `roles.fFig`; tones are `roles.good` / `attention` / `warn` / `ink3`; `colorBorderStrong` → `roles.baseline`, `colorBorderMid` → `roles.grid`, each at its opacity; `colorText2` → `ink2`, `colorText3` → `ink3`.
+- With `roles` on paper: as Typeset hosts, in the page's print-scale `u()`.
 - On paper without roles, gaps are `sp()`, never `gap()`, so the funnel never follows Density on paper. Inks are Theme's.
 - **On paper, always pass `roles`** (the page's PpTypeset). Without it, print draws from the live screen theme: a dark screen theme puts its dark-theme inks on white paper. This is a known limitation (decisions.md).
 - **Layer on paper:** a printed client report is the golfer layer (`contentLayer: "golfer"`); only the technical appendix uses `"technical"`.
@@ -83,7 +87,7 @@ Everything is in pixels, never scaled: the strokes, padding and marker radii sta
 - Colour is never the only channel: the band's width and the words carry it.
 
 ## Tokens
-`variabilityFunnelH`, `variabilityWashAlpha` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorText2`, `colorBorderStrong`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the badge's. On paper with roles: `roles.u()`, `roles.g()`, `fBody`, `fFig`, `good`, `attention`, `warn`, `ink2`, `ink3`, `baseline`, `grid`.
+`variabilityFunnelH`, `variabilityWashAlpha` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorText2`, `colorBorderStrong`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the badge's. With roles (screen or paper): `roles.u()`, `roles.g()`, `fBody`, `fFig`, `good`, `attention`, `warn`, `ink2`, `ink3`, `baseline`, `grid`.
 
 ## objectNames
 `funnelGraphic`, `funnelShape` (the centre line's Shape), `funnelCentre`, `funnelBand` (one per run), `funnelTicks`, `funnelMarker`, `funnelCurrentMarker`, `funnelLabel`, `funnelBadge` (too few), `funnelWord`, `funnelTrend`, `funnelTrendAfter3`, `funnelBasis`.
@@ -129,4 +133,6 @@ PpVariabilityFunnel {
 The funnel's geometry is spec §6.1 as built in `src/Gui/variability/variability_geometry.cpp` (`DataVariabilityGeometry::funnel`); the trend rule is spec §8.8 in `src/Metrics/variability/variability_trend.h`. Where the build fills a gap (break placement, dash pattern, the label layout), `docs/design/variability-mark/decisions.md` says so.
 
 ## Used by
-None yet: Session 5 of the plan retrofits the app's displays. The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws real and synthetic funnels.
+- `src/Gui/diagnostics/PpFigureRow.qml` — Session diagnostics, the Across-sessions figure, one funnel per club, in Analyse (`PpDiagAnalyse`) and the printed appendix (`PpDiagPrint`) · wide, Dispersion · technical (Session 5, 7 Nov 2026).
+
+The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws real and synthetic funnels.

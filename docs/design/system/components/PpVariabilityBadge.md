@@ -22,7 +22,7 @@ The graded and technical previews are offscreen renders (software painter, dpr 1
 - **Golfer layer** (Home, a work-on, a coaching card): the badge **replaces** a σ, or a box plot that only shows spread. Word and tooltip line only, never a figure.
 - **Technical layer** (Swing diagnostics, session screens, a technical catalogue): the badge is **paired** with the σ and any box plot, which stay. It shows the word, then the basis string.
 - **Measurement** (a device, rig, calibration or capture-quality surface): a Needle badge, next to the reading's name.
-- **Typicality** (a per-swing "vs your average" or outlier display): a Typicality or TypicalityTrace badge.
+- **Typicality** (a per-swing "vs your usual" or outlier display): a Typicality or TypicalityTrace badge.
 - **Launch-monitor ball flight:** keep the existing dispersion plot and add a per-club Dispersion badge as its summary ("7-iron · Settling"), once shots record an intent. Until then ball flight has no badge.
 
 Pick the variant from the grader's basis: `scalar` → Dispersion, `trace` → Overlay, `measurement` → Needle. An `ordinal` result has no named variant in the spec; use the recommended default, Dispersion (an open item in decisions.md).
@@ -32,7 +32,7 @@ Pick the form from the place: **Icon** for prose, cards and lists (Dispersion is
 **Not for:** a multi-session trend (`PpVariabilityFunnel`), the certainty of a finding (`PpStrengthMark`), or a measure the grader left ungraded (no badge at all).
 
 ## Consumer supplies
-From the presenter's `variabilityResult` (`src/Gui/variability/variability_facade.h`): `grade`, `measurementLimited`, `basisText`, and `graded` for whether to show the badge at all. For typicality, `values` (and `basisText`, the grader's "this swing … · usual …" or "peak …" string). Which layer the surface is (`contentLayer`) is the surface's call: the result carries both. How a presenter grades and builds the result: [PpVariabilityMark, Where the numbers come from](PpVariabilityMark.md#consumer-supplies).
+From the presenter's `variabilityResult` (`src/Gui/variability/variability_facade.h`): `grade`, `measurementLimited`, `basisText`, and `graded` for whether to show the badge at all. For typicality, `values` (and `basisText`, the grader's "this swing … · median …" or "peak …" string). Which layer the surface is (`contentLayer`) is the surface's call: the result carries both. How a presenter grades and builds the result: [PpVariabilityMark, Where the numbers come from](PpVariabilityMark.md#consumer-supplies).
 
 ## Props
 | name | type | default | meaning |
@@ -47,7 +47,7 @@ From the presenter's `variabilityResult` (`src/Gui/variability/variability_facad
 | values | var | null | The typicality variants only: passed to the mark (`{ z, ghosts, corridor, band }` or `{ mean, sd, swing, corridor, band }`). |
 | showCorridor | bool | false | The typicality variants only: passed to the mark. |
 | tone | color | the shown grade's tone; `colorAccent` for typicality | The mark's and the word's tone. Overridable, never to change the meaning. |
-| roles | var | null | A `PpTypeset`, optional; for paper. |
+| roles | var | null | The host's `PpTypeset`, optional. When given, on screen and on paper, its sizes, gaps, type and inks replace Theme's (see Typeset hosts). |
 | medium | string | `roles ? roles.medium : "screen"` | `"screen"` or `"print"`; passed to the mark. |
 
 Read-only: `substituted` (the golfer layer is showing "Checking" for a measurement-limited grade), `shownGrade` (0 when substituted, else `grade`), `word` (the word shown), `line` (the golfer-layer line of the word shown).
@@ -61,6 +61,8 @@ The badge has no `label` or `vocabulary` of its own: the word always comes from 
 | Cell | `sp(variabilityCellH)` = 24 high, 80 wide | `gap(10)` | as Icon | as Icon |
 
 The row is vertically centred. Gaps are `gap()`, so they follow Density; sizes are `sp()`, so they don't. A Cell badge (24 high) fits `Theme.rowH` at every density. In a table, the mark's column is `Theme.sp(Theme.variabilityCellW)` (80) wide; the word and basis follow it, so give the cell room for them or let the row's own column hold the σ.
+
+With `roles` (a typeset host), the same layout in the host's units: the mark `roles.u(variabilityIconSize)` (`dense`: `roles.u(16)`) or `roles.u(variabilityCellH)` high, the gaps `roles.g(6)` / `roles.g(10)`, the word in `roles.fBody`, the basis in `roles.fFig`. On screen `u()` is `sp()` and `g()` is `gap()`, so the badge still follows Density; only the faces and type sizes become the host's.
 
 The badge takes its implicit size from its content; don't stretch it. Hide it with `visible` (a hidden badge in a Row or Layout takes no room).
 
@@ -86,9 +88,14 @@ Every variant and form of the mark (see [PpVariabilityMark](PpVariabilityMark.md
 ## Tooltip
 Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [variability.md, Words](../variability.md#words)) after 400 ms of hover, through the Controls attached `ToolTip`, as `PpButton` and `PpRowAction` do. Never on the technical layer, never on paper.
 
+## Typeset hosts
+- **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike the badge then takes the host's type: sizes are `roles.u()`, gaps `roles.g()`, the word is set in `roles.fBody`, the basis in `roles.fFig`, and the inks are the host's (the tone by grade from `roles.good` / `attention` / `warn`, grade 0 `roles.ink3`, the basis `roles.ink2`). It reads in proportion to the panel's own words and figures.
+- Without `roles` the badge reads Theme exactly as before (`sp()`, `gap()`, the body and data tokens above).
+- `roles` changes faces, sizes and inks only. What belongs to a medium stays with `medium`: the tooltip is screen-only; the mark's washes take `variabilityWashAlpha` on screen and `variabilityPrintAlphaScale` on paper.
+
 ## Print
 - `medium` passes to the mark (fills × `variabilityPrintAlphaScale`, clamped to 1; never `variabilityWashAlpha`, which is the mark's screen multiplier on its washes, 1 light and 3 dark).
-- With `roles` on paper: sizes are `roles.u()`, gaps `roles.g()`, the word is set in `roles.fBody`, the basis in `roles.fFig`, and the inks are the page's (the tone by grade from `roles.good` / `attention` / `warn`, grade 0 `roles.ink3`, the basis `roles.ink2`).
+- With `roles` on paper: as Typeset hosts, with the page's `u()` (print scale) for both sizes and gaps.
 - On paper without roles, gaps are `sp()`, never `gap()`, so a printed badge does not follow the screen's Density. Inks are Theme's.
 - **On paper, always pass `roles`** (the page's PpTypeset). Without it, print draws from the live screen theme: a dark screen theme puts its dark-theme inks on white paper. This is a known limitation (decisions.md).
 - **Layer on paper:** a printed client report is the golfer layer (`contentLayer: "golfer"`); only the technical appendix uses `"technical"`.
@@ -98,7 +105,7 @@ Golfer layer only, on screen only: the word's line (§7 of the spec; listed in [
 The mark is the badge's one accessible element: "Consistency: Repeatable (4 of 5)", "Measurement: Checking (0 of 5)" when substituted, "Typicality: A little off". The drawn word, separator and basis are `Accessible.ignored`, so nothing is read twice. The basis string is not in the accessible name.
 
 ## Tokens
-`variabilityIconSize`, `variabilityCellH`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `colorText2`, `colorText3`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the mark's. On paper with roles: `roles.u()`, `roles.g()`, `fBody`, `fFig`, `ink2`, `ink3`.
+`variabilityIconSize`, `variabilityCellH`, `fontBody`, `fontSzBody2`, `fontBodyWeight`, `fontData`, `fontSzDataSm`, `trackingData`, `colorText2`, `colorText3`, `durationSlow`, `Theme.sp()`, `Theme.gap()`, and the mark's. With roles (screen or paper): `roles.u()`, `roles.g()`, `fBody`, `fFig`, `ink2`, `ink3`.
 
 ## objectNames
 `variabilityMark` (the mark; its own names are on its page), `variabilityWord`, `variabilityBasisSeparator`, `variabilityBasis`.
@@ -150,7 +157,7 @@ PpVariabilityBadge {
     values: swing.typicality                   // { z, ghosts: [{ swingId, z }], corridor: { loZ, hiZ }, band }
     showCorridor: true
     contentLayer: "technical"
-    basisText: swing.typicalityBasis           // "this swing 5.2 cm · usual 4.8 cm"
+    basisText: swing.typicalityBasis           // "this swing 5.2 cm · median 4.8 cm"
 }
 ```
 Ball flight, per club and per intent, under the existing launch-monitor plot, the club named beside it ("7-iron · Settling"). The grade is graded against per-club offline and carry tolerances (`variabilityScale`), none of which are set yet; how the offline and carry grades combine into the one badge is not built or specified, and no shot records an intent yet, so this badge is not shown anywhere today (decisions.md).
@@ -185,4 +192,36 @@ PpVariabilityBadge {
 The geometry tables (spec §4, §6; `src/Gui/variability/variability_geometry.cpp`) and the grade basis (spec §8; `src/Metrics/variability/`). The words, lines and basis strings, and the family rules, are in [variability.md](../variability.md).
 
 ## Used by
-None yet: Session 5 of the plan retrofits the app's displays. Inside the design system: `PpVariabilityFunnel` (its too-few-sessions label). The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws the badges.
+Session 5's retrofit (7 Nov 2026; `docs/design/variability-mark/decisions.md`, "Session 5: applied"). One line per host: surface · variant and form · layer.
+
+Home
+- `src/Gui/home/HmAreaRow.qml` — Your swing table, Consistency column: the Biggest fault's measure over its last 20 readings (R5) · Dispersion Icon · golfer.
+- `src/Gui/home/HmAreaRow.qml` — an opened area's fault rows, beside each work-on's status (R5, R10) · Dispersion Icon · golfer.
+- `src/Gui/home/HmFaultDetail.qml` — a fault's detail, beside the work-on status (R10) · Dispersion Icon · golfer.
+
+Session diagnostics
+- `src/Gui/diagnostics/PpFigureRow.qml` — Analyse figure row (`PpDiagAnalyse`) and the printed appendix (`PpDiagPrint`): the Spread box, one badge per club (R2b) · Dispersion Icon · technical.
+- `src/Gui/charts/PpChProfile.qml` in `src/Gui/diagnostics/PpConsistencyView.qml` — Consistency tab: an opened cell's reading rows · Dispersion Cell · technical; the picked shot's "What stood out" club and swing rows (R8) · Typicality Icon · technical.
+
+Charts
+- `src/Gui/charts/PpChProfile.qml` in `PpChartsReadingsView.qml` — Readings rows · Typicality Icon · technical.
+- `src/Gui/charts/PpChProfile.qml` in `PpChartsShotView.qml` — This shot, Apart from the session rows · Typicality Icon · technical.
+- `src/Gui/charts/PpChKeyFigures.qml` — This shot, key figures (KS peak times included) · Typicality Icon · technical where the column holds the basis, else the word with the basis on its own line.
+- `src/Gui/charts/PpChTraceFigure.qml` — This shot, Against · TypicalityTrace Cell · technical. Hidden until a trace has a corridor (R16).
+- `src/Gui/charts/PpChSessionFigure.qml` — Session curves, one per club · Overlay Cell · technical. Hidden until a trace has a corridor (R16).
+- `src/Gui/charts/PpChSeqSession.qml` — Session, common order, one per club (ordinal: the default Dispersion) · Dispersion Icon · technical.
+- `src/Gui/charts/PpChReplaySession.qml` — Session, Replay's lead reading · Typicality Icon · technical.
+- `src/Gui/charts/PpChPostureSession.qml`, `PpChWristSession.qml` — Session, Posture and Wrist "Consistency" lines (Most / Least, R7) · Dispersion Icon · technical.
+- `src/Gui/charts/PpChPositionProfile.qml` (through `PpChPostureProfile`, `PpChWristProfile`) — Session, Posture and Wrist rows: a line per club under each row, a badge per graded position (R2b, R7) · Dispersion Icon dense · technical (`gradeLayer`).
+
+Launch monitor
+- `src/Gui/session/PpLmGraphicsBody.qml` (in `PpLaunchMonitorPanel`, `PpSessionDiagnosticsPanel`) — a named list under the tiles: club delivery spread (R4b) · Dispersion Icon · technical; this shot's club readings (R8) · Typicality Icon · technical. Ledger rows, club readings only · Typicality Icon · technical. Ball flight has none (R4).
+
+Session report (paper)
+- `src/Gui/report/PpConsistencyPage.qml` — Consistency page, flagged shots' rows · Typicality Icon · golfer.
+- `src/Gui/report/PpPosturePage.qml`, `PpWristPage.qml` — Consistency lines (Most / Least) · Dispersion Icon · golfer.
+- `src/Gui/report/PpReportProfile.qml` (on the Posture and Wrist pages) — a line per club under each row · Dispersion Icon dense · golfer.
+- `src/Gui/report/PpWorkOnPage.qml` — a work-on's "Consistency", this session's readings (R10, R14) · Dispersion Icon · golfer.
+- `src/Gui/report/PpLmAppendix.qml` — Launch monitor appendix, on its own line under each graded row (R19) · Dispersion Icon dense · technical.
+
+Inside the design system: `PpVariabilityFunnel` (its too-few-sessions label). The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws every badge. No surface hosts a Needle badge yet (decisions.md, "Session 5: applied").

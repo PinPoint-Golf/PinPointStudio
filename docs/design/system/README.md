@@ -7,7 +7,7 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 - `src/Gui/theme/Theme.qml` — the source of truth. Every colour, font, size and space a component uses is a `Theme.*` property.
 - [`tokens.json`](tokens.json) — every Theme value with a usage note, per theme. **Generated** from Theme.qml by `tools/theme/make_design_system.py`; never edit it by hand (`--check` fails when it is stale).
 - [`components/`](components/README.md) — one page per shared `Pp*` control: when to use it, its properties, the tokens it reads, its states.
-- The visual reference (swatches, type specimens, rendered component previews across the themes) is the PinPoint Studio design system artifact on claude.ai. Where it and this folder differ, this folder and Theme.qml win.
+- The design system is this folder and Theme.qml; nothing is synced to a claude.ai artifact (Mark, 7 Nov 2026). The visual reference is the component pages and the previews they show (the variability marks' in `docs/design/variability-mark/previews/`).
 - `pinpoint_qml_design_system.md` (one level up) is the design history and reasoning — the coaching-card look (§13), themes as data (§14), the typeset system (§15). Its older value tables are superseded by Theme.qml and `tokens.json`.
 
 ## The non-negotiables

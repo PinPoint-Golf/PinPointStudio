@@ -26,16 +26,16 @@ Recommended defaults: Dispersion for icons and the golfer layer; Overlay Cell fo
 
 ## Consumer supplies
 A grade, or for the typicality variants `values`, from C++. QML never grades, never computes ρ or z, and never builds a basis string.
-- **Graded variants:** `grade` from a `variabilityResult` (the façade value type, `src/Gui/variability/variability_facade.h`): `grade`, `graded`, `measurementLimited`, `basisText`, `domain`, `n`, `rho`/`hasRho`, `ungradedReason`.
-- **Typicality:** `values: { z, ghosts: [{ swingId, z }], corridor: { loZ, hiZ } | null, band }`. `z` is this swing's (x − x̄)/SD over the window; `ghosts` are up to 12 recent other swings, oldest first, each with its z (only the latest 12 are drawn); `corridor` is the measure's corridor in the same window's z, (lo − x̄)/SD and (hi − x̄)/SD; `band` is `"usual"`, `"aLittleOff"` or `"unusual"` (the grader's `TypicalityBand`, `src/Metrics/variability/variability_typicality.h`).
-- **TypicalityTrace:** `values: { mean: [101], sd: [101], swing: [101], corridor: { loT, hiT } | null, band }`. Three curves on the 101-point grid, top to impact, from the grader's window; `corridor` is a window in normalised time 0…1 (the spec leaves the trace corridor undefined; this is the build's reading, open for Mark); `band` from the trace's RMS z.
-- No C++ helper spells `TypicalityBand` as these tokens yet: the presenter writes the three strings exactly as above.
+- **Graded variants:** `grade` from a `variabilityResult` (the façade value type, `src/Gui/variability/variability_facade.h`): `grade`, `graded`, `measurementLimited`, `basisText`, `domain`, `n`, `rho`/`hasRho`, `ungradedReason`. A presenter's result map always carries `hasRho`, `rho` (JS `null` when there is none) and `domain`.
+- **Typicality:** `values: { z, ghosts: [{ swingId, z }], corridor: { loZ, hiZ } | null, band }`. `z` is this swing's robust z over the window, (x − median)/s with s = IQR/1.349 (R22); `ghosts` are up to 12 recent other swings, oldest first, each with its z on the same scale (only the latest 12 are drawn); `corridor` is the measure's corridor in the same window's z, (lo − median)/s and (hi − median)/s; `band` is `"usual"`, `"aLittleOff"` or `"unusual"` (the grader's `TypicalityBand`, `src/Metrics/variability/variability_typicality.h`).
+- **TypicalityTrace:** `values: { mean: [101], sd: [101], swing: [101], corridor: { loT, hiT } | null, band }`. Three curves on the 101-point grid, top to impact, from the grader's window. The keys keep their names, but `mean` carries the per-point median and `sd` the per-point robust spread IQR/1.349 (R22), so the envelope is median ± robust spread; `corridor` is a window in normalised time 0…1 (the spec leaves the trace corridor undefined; this is the build's reading, open for Mark); `band` from the trace's RMS z.
+- `typicalityBandToken()` (`src/Gui/variability/variability_facade.h`) spells `TypicalityBand` as these tokens; `typicalityPayload` builds the whole `values` map and basis.
 
 **Where the numbers come from** (C++, in the presenter; `src/Metrics/variability/`):
-- A grade: `makeVariabilityGrader(basis)` → `grade(VariabilityInput)` → a `VariabilityResult`. The input carries the window's values (or curves, or categories), the scale (the corridor half-width or `variabilityScale` from `makeVariabilityScaleProvider`, `src/Gui/charts/variability_env.h`), the measure's `scaleType`, and the source's Needle grade when known. Grade on the observed spread: a propagated σ is never passed as σnoise, but a spread no larger than it marks the result measurement-limited. The window is the session, or the last `N_WINDOW` (20) swings for Home and trends; outliers and mishits are left out (no general flag exists yet: warm-up swings and guarded readings are); grade within one club and one intent.
+- A grade: `makeVariabilityGrader(basis)` → `grade(VariabilityInput)` → a `VariabilityResult`. The input carries the window's values (or curves, or categories), the scale (the corridor half-width or `variabilityScale` from `makeVariabilityScaleProvider`, `src/Gui/charts/variability_env.h`), the measure's `scaleType`, and the source's Needle grade when known. Grade on the observed spread: a propagated σ is never passed as σnoise, but a spread no larger than it marks the result measurement-limited. The window is the session, or the last `N_WINDOW` (20) swings for Home and trends; outliers and mishits are left out (no general flag exists yet: guarded readings, an untrusted P-ladder, are). Warm-ups stay in (R13): the golfer should be warmed up before PinPoint assesses them. Grade within one club and one intent.
 - To QML: `VariabilityResultView::fromResult(result, unit, decimals)` gives the `variabilityResult` value type, basis string included (built with the measure's unit and display decimals).
 - Live sessions pass the result through `hysteresisGrade(bandValue, lastShownGrade, bands)`; frozen assessments use the plain grade.
-- Typicality: `scalarTypicality(value, window, scaleType)` gives this swing's `z`, `band` and basis string; each ghost's `z` is taken against the same window. `traceTypicality(...)` gives the trace's band and basis; `mean` and `sd` are the window's per-point mean and SD on the same grid.
+- Typicality: `scalarTypicality(value, window, scaleType)` gives this swing's `z`, `band` and basis string; each ghost's `z` is taken against the same window. `traceTypicality(...)` gives the trace's band and basis; `mean` and `sd` are the window's per-point median and IQR/1.349 on the same grid. An angle that wraps (`ScaleType::Circular`) takes the circular mean and circular SD in their place.
 
 ## Props
 | name | type | default | meaning |
@@ -43,13 +43,13 @@ A grade, or for the typicality variants `values`, from C++. QML never grades, ne
 | grade | int | 0 | 0–5. Out of range is clamped, with a console warning. Ignored by the typicality variants. |
 | variant | enum | `PpVariabilityMark.Dispersion` | `Dispersion` \| `Overlay` \| `Needle` \| `Typicality` \| `TypicalityTrace` |
 | form | enum | `PpVariabilityMark.Icon` | `Icon` (square) \| `Cell` (80 : 24). TypicalityTrace is always drawn as a Cell. |
-| size | real | `Theme.sp(Theme.variabilityIconSize)` (20); `roles.u(20)` on paper with roles | The Icon's edge, or the Cell's **height**. **A bare Cell needs `size: Theme.sp(Theme.variabilityCellH)`**, or it draws 20 high (67 wide). |
+| size | real | `Theme.sp(Theme.variabilityIconSize)` (20); `roles.u(20)` with roles | The Icon's edge, or the Cell's **height**. **A bare Cell needs `size: Theme.sp(Theme.variabilityCellH)`**, or it draws 20 high (67 wide). |
 | tone | color | from the grade (below); `colorAccent` for the typicality variants | Overridable, but never to change the meaning. |
 | vocabulary | QtObject | `ConsistencyVocabulary` (Dispersion, Overlay), `MeasurementVocabulary` (Needle), `TypicalityVocabulary` (typicality) | Where the word and accessible name come from. |
 | label | string | `vocabulary.word(grade)`, or `word(values.band)` | The word. Used for the accessible name only; the mark never draws it. |
 | values | var | null | The typicality variants' per-instance data (above). Named `values`, not `data`, which is Item's own child list. |
 | showCorridor | bool | false | The typicality variants only: draws the measure's corridor as a 1.5 px `colorGood` bracket under the visual. |
-| roles | var | null | A `PpTypeset`, optional. On paper, its inks and sizes replace Theme's. |
+| roles | var | null | The host's `PpTypeset`, optional. When given, on screen and on paper, its inks and sizes replace Theme's (see Typeset hosts). |
 | medium | string | `roles ? roles.medium : "screen"` | `"screen"` or `"print"`. |
 
 Implicit size: Icon `size` × `size`; Cell `size × 80 / 24` × `size`. Never scale the item: set `size`, so strokes stay at their pixel widths.
@@ -74,8 +74,8 @@ Grades 5 and 4 share a tone, and so do 2 and 1: the shape and the word tell them
 | Dispersion | A neutral ring with three tone dots that close into one dot at grade 5. | A neutral target line, a tone wash ellipse and seven dots that close in on the line. |
 | Overlay | A neutral baseline with three traces that converge at grade 5. | A baseline with five traces. |
 | Needle | A neutral gauge arc, a needle and pivot, and three stacked translucent wedges that narrow to nothing at grade 5. | A ruler with ticks, a needle and three stacked triangles. |
-| Typicality | A dashed circle ("nearly all", ±2 SD), a faint disc ("most swings", ±1 SD) and this swing's accent ring. No ghosts, centre dot or chevron. | A dashed ellipse (±2 SD), a faint inner ellipse (±1 SD), up to 12 grey ghost dots (recent swings), this swing's accent ring with a centre dot. |
-| TypicalityTrace | None: drawn as the Cell, with a warning. In an icon context use Typicality with the trace's RMS z. | A baseline, the golfer's envelope (mean ± SD(t), faint), the dashed mean and this swing's trace in the accent. |
+| Typicality | A dashed circle ("nearly all", \|z\| 2), a faint disc ("most swings", \|z\| 1) and this swing's accent ring. No ghosts, centre dot or chevron. | A dashed ellipse (\|z\| 2), a faint inner ellipse (\|z\| 1), up to 12 grey ghost dots (recent swings), this swing's accent ring with a centre dot. |
+| TypicalityTrace | None: drawn as the Cell, with a warning. In an icon context use Typicality with the trace's RMS z. | A baseline, the golfer's envelope (median ± robust spread at t, faint), the dashed median and this swing's trace in the accent. |
 
 ![Dispersion, grades 5 to 0](../../variability-mark/previews/mark_dispersion.png)
 ![Overlay, grades 5 to 0](../../variability-mark/previews/mark_overlay.png)
@@ -119,9 +119,14 @@ Trace on envelope: on time, late and higher, early and lower; bottom row with `s
 - **Grade changes:** the geometry never animates; the colour eases over `Theme.durationSlow` (0 under reduced motion). In a table with delegate reuse, a reused row's new tone fades in from the last row's (an open item for Mark).
 - **Live sessions:** the grader applies the hysteresis (`variabilityHysteresis`, 0.05) before the grade reaches the mark. Frozen assessments use the plain bands. The mark draws whatever grade it is given.
 
+## Typeset hosts
+- **In a typeset panel or page, pass the host's PpTypeset as `roles`** (Mark's ruling R17, 7 Nov 2026). On screen and on paper alike its inks and sizes replace Theme's: the default size is `roles.u(20)`; tones are `roles.good` / `attention` / `warn` / `ink3`, typicality `roles.accent`; `colorBorderStrong` → `roles.baseline` and `colorBorderMid` → `roles.grid`, each at its opacity; `colorText` / `2` / `3` → `ink` / `ink2` / `ink3`; `colorGood` → `good`.
+- What belongs to a medium stays with `medium`: on screen the washes take `variabilityWashAlpha` and the typicality ring's knock-out stays `colorSurface`; on paper the fills take `variabilityPrintAlphaScale` and the knock-out is `roles.paper`.
+- Without `roles` the mark reads Theme, as before.
+
 ## Print
 - `medium: "print"`: every translucent **fill** (the Dispersion dots and ellipse, the Needle wedges, the typicality inner zone and ghosts, the envelope) multiplies its alpha by `Theme.variabilityPrintAlphaScale` (1.5), clamped to 1. Strokes keep theirs. It never uses `roles.tintK`, and never `variabilityWashAlpha`: paper is light, whatever the screen's theme.
-- With `roles` (a PpTypeset) on paper, the page's inks and sizes replace the screen's, so a printed page never depends on a screen setting: the default size is `roles.u(20)`; tones are `roles.good` / `attention` / `warn` / `ink3`, typicality `roles.accent`; `colorBorderStrong` → `roles.baseline` and `colorBorderMid` → `roles.grid`, each at its opacity; `colorText` / `2` / `3` → `ink` / `ink2` / `ink3`; `colorSurface` → `paper`; `colorGood` → `good`.
+- With `roles` (a PpTypeset) on paper, the page's inks and sizes (Typeset hosts, above) replace the screen's, and `colorSurface` → `paper`, so a printed page never depends on a screen setting.
 - Without `roles`, on paper or screen, the mark reads Theme.
 - **On paper, always pass `roles`** (the page's PpTypeset). Without it, print draws from the live screen theme: a dark screen theme puts its dark-theme inks on white paper. This is a known limitation (decisions.md).
 - **Layer on paper** (for the badge or funnel the mark sits in): a printed client report is the golfer layer (`contentLayer: "golfer"`); only the technical appendix uses `"technical"`.
@@ -135,7 +140,7 @@ Trace on envelope: on time, late and higher, early and lower; bottom row with `s
 - Colour is never the only channel: the shape and the word carry every grade.
 
 ## Tokens
-`variabilityIconSize`, `variabilityCellH` (through the badge), `variabilityWashAlpha` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorAccent`, `colorBorderStrong`, `colorBorderMid`, `colorText`, `colorText2`, `colorSurface`, `durationSlow`, `Theme.sp()`. On paper with roles: `roles.u()`, `good`, `attention`, `warn`, `ink`, `ink2`, `ink3`, `accent`, `paper`, `baseline` / `baselineOpacity`, `grid` / `gridOpacity`.
+`variabilityIconSize`, `variabilityCellH` (through the badge), `variabilityWashAlpha` (screen), `variabilityPrintAlphaScale` (print), `colorGood`, `colorAttention`, `colorWarn`, `colorText3`, `colorAccent`, `colorBorderStrong`, `colorBorderMid`, `colorText`, `colorText2`, `colorSurface`, `durationSlow`, `Theme.sp()`. With roles (screen or paper): `roles.u()`, `good`, `attention`, `warn`, `ink`, `ink2`, `ink3`, `accent`, `baseline` / `baselineOpacity`, `grid` / `gridOpacity`; on paper also `paper`.
 
 ## objectNames
 `variabilityShapeLoader`, `variabilityShape` (the one Shape, CurveRenderer), and its paths: `variabilityArc` (ring, gauge), `variabilityLine` (target line, baselines, ruler), `variabilityTicks`, `variabilityEllipse`, `variabilityDot` (group dots), `variabilityTrace`, `variabilityWedge`, `variabilityNeedle`, `variabilityPivot`; typicality `variabilityZoneOuter`, `variabilityZoneInner`, `variabilityGhost`, `variabilityRing`, `variabilityCentre`, `variabilityChevron`, `variabilityCorridor`, `variabilityEnvelope`, `variabilityMean`, `variabilitySwing`.
@@ -191,4 +196,10 @@ PpVariabilityMark { roles: ro; variant: PpVariabilityMark.Dispersion; grade: r.g
 The §4 and §6 geometry tables (coordinates in design units, the per-grade arrays, alphas, small-size variants) live in `docs/design/variability-mark/spec.md` §4 and §6, and are built in `src/Gui/variability/variability_geometry.cpp`. The grade basis and its constants (§8) are in the spec and `src/Metrics/variability/variability_constants.h`. Where the build fills a gap in the spec, `docs/design/variability-mark/decisions.md` says so.
 
 ## Used by
-None yet: Session 5 of the plan (`docs/design/variability-mark/plan.md`) retrofits the app's displays. Inside the design system: `PpVariabilityBadge` (its mark) and `PpVariabilityFunnel` (through the too-few badge). The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws every variant.
+No screen hosts a bare mark: every host draws it through `PpVariabilityBadge`, so the hosts are the badge's ([PpVariabilityBadge, Used by](PpVariabilityBadge.md#used-by)). Variants in use after Session 5 (7 Nov 2026):
+- **Dispersion** Icon (Home, Session diagnostics' Spread box, Charts' common order and Posture / Wrist lines, the launch monitor's club delivery, the report pages) and Cell (the Consistency tab's opened rows).
+- **Typicality** Icon (the Consistency tab's stand-outs, Charts' Readings, Apart, key figures and Replay, the launch monitor's club readings, the report's Consistency page).
+- **Overlay** Cell (Charts Session curves) and **TypicalityTrace** Cell (This shot, Against): hosted, but never shown until a trace has a corridor (R16).
+- **Needle**: none. Every remaining Needle surface lacks a computable figure (decisions.md, "Session 5: applied").
+
+Inside the design system: `PpVariabilityBadge` (its mark) and `PpVariabilityFunnel` (through the too-few badge). The probe gallery `src/Gui/tests/probes/variability_gallery.qml` draws every variant.
