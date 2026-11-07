@@ -24,6 +24,7 @@
 
 #include "variability_constants.h"
 #include "variability_grader.h"
+#include "variability_outcome.h"
 #include "variability_result.h"
 #include "variability_trend.h"
 #include "variability_typicality.h"
@@ -31,6 +32,7 @@
 #include <QtTest>
 
 #include <cmath>
+#include <limits>
 
 using namespace pinpoint::variability;
 
@@ -57,6 +59,16 @@ VariabilityResult gradeScalar(const std::vector<double> &values, std::optional<d
     in.corridorHalfWidth = corridor;
     in.scaleType = type;
     return makeVariabilityGrader(Basis::Scalar)->grade(in);
+}
+
+// Evenly spaced values whose type-7 median is `median` and whose robust spread IQR/1.349 is `spread`
+// exactly: typicality's scale (R22). Spacing k puts the quartiles (n − 1)/4 steps either side of the median.
+std::vector<double> withSpread(double spread, int n = 24, double median = 0.0)
+{
+    const double k = 2.0 * 1.349 * spread / double(n - 1);
+    std::vector<double> v(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) v[size_t(i)] = median + (i - (n - 1) / 2.0) * k;
+    return v;
 }
 
 // A smooth bump on the trace grid, peak 100 at the middle.
@@ -639,10 +651,10 @@ private slots:
         QCOMPARE(o, 4);
     }
 
-    // ---- Typicality (§8.7) ------------------------------------------------------------------
+    // ---- Typicality (§8.7, amended by R22: the robust z) ---------------------------------------
     void scalarTypicalityBands()
     {
-        const std::vector<double> window = withSd(1.0, 24, 10.0);
+        const std::vector<double> window = withSpread(1.0, 24, 10.0);
         QCOMPARE(scalarTypicality(10.9, window)->band, TypicalityBand::Usual);       // z 0.9
         QCOMPARE(scalarTypicality(8.5, window)->band, TypicalityBand::ALittleOff);   // z −1.5
         QCOMPARE(scalarTypicality(11.9, window)->band, TypicalityBand::ALittleOff);  // z 1.9
@@ -650,13 +662,33 @@ private slots:
         QCOMPARE(typicalityBand(-2.0), TypicalityBand::ALittleOff);
         QCOMPARE(scalarTypicality(12.5, window)->band, TypicalityBand::Unusual);
         QVERIFY(near(scalarTypicality(12.5, window)->z, 2.5, 1e-9));
-        QVERIFY(!scalarTypicality(10.0, withSd(1.0, kNMin - 1, 10.0)));
+        QVERIFY(!scalarTypicality(10.0, withSpread(1.0, kNMin - 1, 10.0)));
 
         std::vector<double> seam;
         for (int i = 0; i < 12; ++i) { seam.push_back(179.0 - 0.1 * i); seam.push_back(-179.0 + 0.1 * i); }
         const auto c = scalarTypicality(-179.5, seam, ScaleType::Circular);
         QVERIFY(c);
         QCOMPARE(c->band, TypicalityBand::Usual);
+    }
+
+    // R22: z is (x − median)/(IQR/1.349), so one wild swing in the window moves neither the centre nor the
+    // scale much. By hand: {1…7, 100}: median 4.5, Q1 2.75, Q3 6.25 (type 7), spread 3.5/1.349.
+    void typicalityIsTheRobustZ()
+    {
+        const std::vector<double> window{ 1, 2, 3, 4, 5, 6, 7, 100 };
+        const auto t = scalarTypicality(8.0, window);
+        QVERIFY(t);
+        QVERIFY(near(t->usual, 4.5, 1e-12));
+        QVERIFY(near(t->sd, 3.5 / 1.349, 1e-12));
+        QVERIFY(near(t->z, 1.349, 1e-12));
+        QVERIFY(t->median);
+        QCOMPARE(t->band, TypicalityBand::ALittleOff);   // the mean (16) and SD (≈ 34) would have said usual
+        QCOMPARE(t->basisString(QString(), 1), QStringLiteral("this swing 8.0 · median 4.5"));
+
+        // Half the window on one value: IQR 0 is no spread, as a flat window (the zero-spread rule).
+        const std::vector<double> stacked{ 5, 5, 5, 5, 5, 5, 4, 9 };
+        QCOMPARE(scalarTypicality(5.0, stacked)->z, 0.0);
+        QVERIFY(std::isinf(scalarTypicality(5.5, stacked)->z));
     }
 
     void zeroSpreadTypicality()
@@ -690,6 +722,22 @@ private slots:
         QCOMPARE(far->band, TypicalityBand::Unusual);
         const auto turn = scalarTypicality(-177.0 + 360.0, window, ScaleType::Circular);
         QVERIFY(near(turn->z, off->z, 1e-9));
+        // Circular keeps the circular mean (no circular median in the code), so its basis keeps "average".
+        QVERIFY(!off->median);
+        QVERIFY(off->basisString(QStringLiteral("°"), 1).contains(QStringLiteral(" · average ")));
+    }
+
+    // ---- The outcome rule (R4, R4b) ----------------------------------------------------------
+    void outcomeRule()
+    {
+        for (const char *k : { "lm.carryDistance", "lm.totalDistance", "lm.offline", "lm.launchDirection", "lm.ballSpeed",
+                               "lm.launchAngle", "lm.spinRate", "lm.spinAxis", "lm.peakHeight", "lm.smashFactor",
+                               "ballSpeed", "launchDirection", "compoundMiss" })
+            QVERIFY2(isOutcomeMetric(QString::fromLatin1(k)), k);
+        for (const char *k : { "lm.clubheadSpeed", "lm.clubPath", "lm.faceAngle", "lm.faceToPath", "lm.attackAngle",
+                               "lm.dynamicLoft", "lm.lieAngle", "lm.lowPointAhead", "lm.strikeLocation", "lm.strikeHeight",
+                               "clubPath", "lowPointAhead", "headRise" })
+            QVERIFY2(!isOutcomeMetric(QString::fromLatin1(k)), k);
     }
 
     // ---- Basis strings (§7.5) ---------------------------------------------------------------
@@ -699,6 +747,15 @@ private slots:
         VariabilityResult r = gradeScalar(withSd(2.1), 5.0);
         QCOMPARE(r.basisString(QStringLiteral("°"), 1), QStringLiteral("σ 2.1° · 0.42 of corridor · n 24"));
         QCOMPARE(r.basisString(QStringLiteral("cm"), 1), QStringLiteral("σ 2.1 cm · 0.42 of corridor · n 24"));
+        // A σ always shows two significant figures: the measure's places, or more where those would print fewer.
+        QCOMPARE(gradeScalar(withSd(3.2), 10.0).basisString(QStringLiteral("% stance width"), 0),
+                 QStringLiteral("σ 3.2% stance width · 0.32 of corridor · n 24"));
+        QCOMPARE(gradeScalar(withSd(0.04), 0.1).basisString(QStringLiteral("°"), 1), QStringLiteral("σ 0.040° · 0.40 of corridor · n 24"));
+        QCOMPARE(gradeScalar(withSd(45.0), 100.0).basisString(QStringLiteral("°/s"), 0), QStringLiteral("σ 45°/s · 0.45 of corridor · n 24"));
+        // A figure that rounds to zero is never "-0".
+        QCOMPARE(formatWithUnit(-0.04, QStringLiteral("°"), 1), QStringLiteral("0.0°"));
+        QCOMPARE(formatWithUnit(-0.4, QStringLiteral("cm"), 0), QStringLiteral("0 cm"));
+        QCOMPARE(formatWithUnit(-0.6, QStringLiteral("cm"), 0), QStringLiteral("-1 cm"));
 
         // Units that start with °, % or : sit against the number; others follow a space.
         QCOMPARE(formatWithUnit(12.34, QStringLiteral("% stance width"), 1), QStringLiteral("12.3% stance width"));
@@ -751,14 +808,17 @@ private slots:
         QCOMPARE(t.basisString(), QStringLiteral("ρ 0.62 → 0.38 over 6 sessions"));
 
         // Typicality, scalar.
-        const auto s = scalarTypicality(5.2, withSd(0.5, 24, 4.8));
+        const auto s = scalarTypicality(5.2, withSpread(0.5, 24, 4.8));
         QVERIFY(s);
-        QCOMPARE(s->basisString(QStringLiteral("cm"), 1), QStringLiteral("this swing 5.2 cm · usual 4.8 cm"));
+        QCOMPARE(s->basisString(QStringLiteral("cm"), 1), QStringLiteral("this swing 5.2 cm · median 4.8 cm"));
+        // a surface's own figure format (the launch monitor's "3.5° L")
+        QCOMPARE(s->basisString([](double v) { return QString::number(v, 'f', 1) + QStringLiteral(" u"); }),
+                 QStringLiteral("this swing 5.2 u · median 4.8 u"));
 
         // Typicality, trace: on time, early, late and higher.
         TraceTypicalityInput ti;
-        const std::vector<double> amps  = withSd(0.05, 24, 1.0);
-        const std::vector<double> peaks = withSd(10.0, 24, 200.0);
+        const std::vector<double> amps  = withSpread(0.05, 24, 1.0);
+        const std::vector<double> peaks = withSpread(10.0, 24, 200.0);
         for (int i = 0; i < 24; ++i) {
             ti.windowCurves.push_back(bump(amps[size_t(i)]));
             ti.windowPeakTimesMs.push_back(peaks[size_t(i)]);
@@ -785,7 +845,7 @@ private slots:
 
         // A deviation that rounds to 0 ms is on time, however tight the window's timing.
         TraceTypicalityInput tight = ti;
-        tight.windowPeakTimesMs = withSd(0.1, 24, 200.0);
+        tight.windowPeakTimesMs = withSpread(0.1, 24, 200.0);
         tight.curve = bump(1.0);
         tight.peakTimeMs = 200.3;   // z 3, but 0 ms
         tt = traceTypicality(tight);
@@ -797,6 +857,261 @@ private slots:
         ti.windowCurves.resize(kNMin - 1);
         ti.windowPeakTimesMs.resize(kNMin - 1);
         QVERIFY(!traceTypicality(ti));
+    }
+
+    // ---- R3: the propagated σ marks, never subtracts ---------------------------------------
+    void propagatedSigmaMarksMeasurementLimited()
+    {
+        VariabilityInput in;
+        in.values = withSd(1.0);
+        in.corridorHalfWidth = 5.0;
+        const auto grader = makeVariabilityGrader(Basis::Scalar);
+
+        const VariabilityResult plain = grader->grade(in);   // absent
+        QVERIFY(!plain.measurementLimited);
+        QCOMPARE(plain.grade, 5);                              // ρ 0.20
+
+        in.propagatedSigma = 1.5;                              // SD 1.0 inside it
+        VariabilityResult r = grader->grade(in);
+        QVERIFY(r.measurementLimited);
+        QCOMPARE(r.grade, plain.grade);                        // grade unchanged
+        QCOMPARE(r.sd, r.sdObserved);                          // never subtracted
+        QCOMPARE(r.rho, plain.rho);
+        QCOMPARE(r.basisString(QStringLiteral("°"), 1),
+                 QStringLiteral("σ 1.0° · 0.20 of corridor · n 24 · measurement-limited"));
+
+        in.propagatedSigma = 0.5;                              // SD above it
+        r = grader->grade(in);
+        QVERIFY(!r.measurementLimited);
+        QCOMPARE(r.basisString(QStringLiteral("°"), 1), QStringLiteral("σ 1.0° · 0.20 of corridor · n 24"));
+
+        for (double unusable : {0.0, -1.0, std::numeric_limits<double>::quiet_NaN(),
+                                std::numeric_limits<double>::infinity()}) {
+            in.propagatedSigma = unusable;
+            QVERIFY(!grader->grade(in).measurementLimited);
+        }
+
+        // Grade 0: no spread was taken, so nothing to compare.
+        VariabilityInput few = in;
+        few.values = withSd(1.0, kNMin - 1);
+        few.propagatedSigma = 10.0;
+        const VariabilityResult f = grader->grade(few);
+        QCOMPARE(f.grade, 0);
+        QVERIFY(!f.measurementLimited);
+    }
+
+    void propagatedSigmaTestsTheObservedSdNotTheNoiseFreeOne()
+    {
+        // The noiseSd path is unchanged, and the R3 test reads the OBSERVED SD, before it.
+        VariabilityInput in;
+        in.values = withSd(1.0);
+        in.corridorHalfWidth = 2.0;
+        in.noiseSd = 0.6;
+        in.propagatedSigma = 0.9;   // above the noise-free 0.8, below the observed 1.0
+        const VariabilityResult r = makeVariabilityGrader(Basis::Scalar)->grade(in);
+        QVERIFY(near(r.sd, 0.8, 1e-12));
+        QVERIFY(near(r.sdObserved, 1.0, 1e-12));
+        QVERIFY(near(r.rho, 0.4, 1e-12));
+        QVERIFY(!r.measurementLimited);
+    }
+
+    void propagatedSigmaOnACircularScalarUsesTheCircularSd()
+    {
+        // 2° of spread across the seam: the linear SD is ~180°, the circular one ~2°.
+        VariabilityInput in;
+        for (double x : withSd(2.0, 24, 180.0)) in.values.push_back(wrapDeg(x));
+        in.scaleType = ScaleType::Circular;
+        in.corridorHalfWidth = 10.0;
+        in.propagatedSigma = 3.0;
+        const VariabilityResult r = makeVariabilityGrader(Basis::Scalar)->grade(in);
+        QVERIFY(r.sdObserved < 3.0);
+        QVERIFY(r.measurementLimited);
+        in.propagatedSigma = 1.0;
+        QVERIFY(!makeVariabilityGrader(Basis::Scalar)->grade(in).measurementLimited);
+    }
+
+    void propagatedSigmaOnATraceUsesTheRmsObservedSd()
+    {
+        VariabilityInput in;
+        const std::vector<double> amps = withSd(0.06, 24, 1.0);
+        for (double a : amps) { in.curves.push_back(bump(a)); in.peakTimesMs.push_back(250.0); }
+        const double rmsSd = 0.06 * rms(bump());
+        in.corridorHalfWidth = 2.0 * rmsSd;
+        const auto grader = makeVariabilityGrader(Basis::Trace);
+        const VariabilityResult plain = grader->grade(in);
+        QVERIFY(!plain.measurementLimited);
+
+        in.propagatedSigma = rmsSd * 1.01;
+        const VariabilityResult r = grader->grade(in);
+        QVERIFY(r.measurementLimited);
+        QCOMPARE(r.grade, plain.grade);
+        QCOMPARE(r.sd, r.sdObserved);
+        QVERIFY(r.basisString(QStringLiteral("°/s"), 1).endsWith(QStringLiteral(" · measurement-limited")));
+
+        in.propagatedSigma = rmsSd * 0.99;
+        QVERIFY(!grader->grade(in).measurementLimited);
+
+        // Timing sets the grade: an amplitude inside its own σ does not limit it.
+        in.propagatedSigma = rmsSd * 1.01;
+        const std::vector<double> peaks = withSd(200.0, 24, 250.0);
+        for (size_t i = 0; i < in.peakTimesMs.size(); ++i) in.peakTimesMs[i] = peaks[i];
+        const VariabilityResult t = grader->grade(in);
+        QCOMPARE(t.limitedBy, TraceLimiter::Timing);
+        QVERIFY(!t.measurementLimited);
+    }
+
+    // ---- R1: a cell takes its loosest third --------------------------------------------------
+    void cellGradeTakesTheSecondLoosestOfSix()
+    {
+        // Six ρ, shuffled: n = 6 → index ⌈4.02⌉ − 1 = 4 of the sorted, the 5th smallest (0.80).
+        std::vector<VariabilityResult> rs;
+        for (double rho : {0.60, 0.10, 0.90, 0.30, 0.80, 0.20}) {
+            VariabilityResult r;
+            r.graded = true;
+            r.rho = rho;
+            r.grade = bandGrade(rho, kBands.ratio);
+            rs.push_back(r);
+        }
+        rs[4].measurementLimited = true;   // the 0.80, which sets the grade
+        rs[2].measurementLimited = false;  // the loosest does not
+        const CellGrade c = cellGrade(rs);
+        QVERIFY(c.graded);
+        QCOMPARE(c.n, 6);
+        QCOMPARE(c.setting, 4);
+        QCOMPARE(c.rho, 0.80);
+        QCOMPARE(c.grade, 2);              // 0.75 < 0.80 ≤ 1.00
+        QVERIFY(c.measurementLimited);
+
+        rs[4].measurementLimited = false;
+        rs[2].measurementLimited = true;
+        QVERIFY(!cellGrade(rs).measurementLimited);   // follows the setting reading only
+
+        // n = 1 and n = 3: the only one, and the loosest.
+        QCOMPARE(cellGrade({rs[0]}).setting, 0);
+        QCOMPARE(cellGrade({rs[1], rs[3], rs[5]}).setting, 1);   // 0.30 of 0.10/0.30/0.20
+    }
+
+    void cellGradeIgnoresUngradedAndZeroReadings()
+    {
+        std::vector<VariabilityResult> rs;
+        auto graded = [](double rho) {
+            VariabilityResult r;
+            r.graded = true; r.rho = rho; r.grade = bandGrade(rho, kBands.ratio);
+            return r;
+        };
+        VariabilityResult ungraded;                        // no scale: graded false
+        ungraded.rho = 5.0;
+        VariabilityResult zero;                            // too few swings
+        zero.graded = true; zero.grade = 0; zero.ungradedReason = UngradedReason::TooFewSwings;
+        VariabilityResult ordinal;                         // graded, but no ρ
+        ordinal.basis = Basis::Ordinal; ordinal.graded = true; ordinal.grade = 1;
+        rs = {ungraded, graded(0.2), zero, ordinal, graded(0.4)};
+        const CellGrade c = cellGrade(rs);
+        QCOMPARE(c.n, 2);
+        QCOMPARE(c.setting, 4);                            // ⌈1.34⌉ − 1 = 1: the 0.4
+        QCOMPARE(c.grade, 4);
+
+        // Every graded reading under N_MIN: grade 0.
+        const CellGrade z = cellGrade({ungraded, zero, zero});
+        QVERIFY(z.graded);
+        QCOMPARE(z.grade, 0);
+        QCOMPARE(z.n, 0);
+        QCOMPARE(z.setting, -1);
+        QVERIFY(!z.measurementLimited);
+
+        // None graded: no grade at all, the cell's "-".
+        const CellGrade none = cellGrade({ungraded, ungraded});
+        QVERIFY(!none.graded);
+        QCOMPARE(none.grade, 0);
+        QVERIFY(!cellGrade({}).graded);
+    }
+
+    // ---- R8: typicality against the session's other same-club swings ------------------------
+    void scalarTypicalityWindowIsTheOtherSameClubSwings()
+    {
+        // 20 seven-iron swings (robust spread 1 about a median of 10), 10 drivers far away, one swing under test.
+        std::vector<TypicalitySwing> swings;
+        const std::vector<double> sevens = withSpread(1.0, 20, 10.0);
+        for (int i = 0; i < 20; ++i) {
+            swings.push_back({QStringLiteral("7i-%1").arg(i), QStringLiteral("7i"), sevens[size_t(i)]});
+            if (i < 10) swings.push_back({QStringLiteral("dr-%1").arg(i), QStringLiteral("DR"), 100.0 + i});
+        }
+        swings.push_back({QStringLiteral("me"), QStringLiteral("7i"), 11.5});
+        swings.push_back({QStringLiteral("gap"), QStringLiteral("7i"), std::numeric_limits<double>::quiet_NaN()});
+
+        const auto w = scalarTypicalityWindow(swings, QStringLiteral("me"));
+        QVERIFY(w);
+        // Same club only, this swing out: exactly the 20 sevens.
+        QCOMPARE(w->typicality.n, 20);
+        QVERIFY(near(w->typicality.usual, 10.0, 1e-9));
+        QVERIFY(near(w->typicality.sd, 1.0, 1e-9));
+        QVERIFY(near(w->typicality.z, 1.5, 1e-9));
+        QCOMPARE(w->typicality.band, TypicalityBand::ALittleOff);
+        QCOMPARE(w->typicality.basisString(QStringLiteral("cm"), 1), QStringLiteral("this swing 11.5 cm · median 10.0 cm"));
+
+        // Ghosts: the latest 12 others of the club, oldest first, z against the same window.
+        QCOMPARE(int(w->ghosts.size()), kTypicalityMaxGhosts);
+        for (int g = 0; g < kTypicalityMaxGhosts; ++g) {
+            const int i = 20 - kTypicalityMaxGhosts + g;
+            QCOMPARE(w->ghosts[size_t(g)].swingId, QStringLiteral("7i-%1").arg(i));
+            QVERIFY(near(w->ghosts[size_t(g)].z, sevens[size_t(i)] - 10.0, 1e-9));
+        }
+        QVERIFY(!w->corridor);
+
+        // The corridor in the window's z.
+        const auto c = scalarTypicalityWindow(swings, QStringLiteral("me"), ScaleType::Interval, 8.5, 11.0);
+        QVERIFY(c && c->corridor);
+        QVERIFY(near(c->corridor->loZ, -1.5, 1e-9));
+        QVERIFY(near(c->corridor->hiZ, 1.0, 1e-9));
+        QVERIFY(!scalarTypicalityWindow(swings, QStringLiteral("me"), ScaleType::Interval, 8.5, {})->corridor);
+
+        // A window swing is graded against the others, itself out: n stays 20 (19 others + "me").
+        QCOMPARE(scalarTypicalityWindow(swings, QStringLiteral("7i-3"))->typicality.n, 20);
+
+        // No result: unknown swing, its own value missing, fewer than N_MIN others.
+        QVERIFY(!scalarTypicalityWindow(swings, QStringLiteral("nobody")));
+        QVERIFY(!scalarTypicalityWindow(swings, QStringLiteral("gap")));
+        std::vector<TypicalitySwing> few;
+        for (int i = 0; i < kNMin; ++i)
+            few.push_back({QStringLiteral("s%1").arg(i), QStringLiteral("7i"), double(i)});
+        QVERIFY(!scalarTypicalityWindow(few, QStringLiteral("s0")));   // 7 others
+        few.push_back({QStringLiteral("s8"), QStringLiteral("7i"), 8.0});
+        const auto eight = scalarTypicalityWindow(few, QStringLiteral("s0"));   // 8 others
+        QVERIFY(eight);
+        QCOMPARE(int(eight->ghosts.size()), kNMin);
+        QCOMPARE(eight->ghosts.front().swingId, QStringLiteral("s1"));
+        QVERIFY(!scalarTypicalityWindow(few, QStringLiteral("dr-0")));
+    }
+
+    void traceTypicalityWindowCarriesTheEnvelope()
+    {
+        std::vector<TypicalityTraceSwing> swings;
+        const std::vector<double> amps = withSpread(0.1, 12, 1.0);
+        for (int i = 0; i < 12; ++i)
+            swings.push_back({QStringLiteral("7i-%1").arg(i), QStringLiteral("7i"), bump(amps[size_t(i)]), 250.0 + i});
+        for (int i = 0; i < 4; ++i)
+            swings.push_back({QStringLiteral("dr-%1").arg(i), QStringLiteral("DR"), bump(5.0), 100.0});
+        swings.push_back({QStringLiteral("me"), QStringLiteral("7i"), bump(1.0), 255.5});
+
+        const auto w = traceTypicalityWindow(swings, QStringLiteral("me"), ScaleType::Interval, 0.2, 0.6);
+        QVERIFY(w);
+        QCOMPARE(w->typicality.n, 12);
+        QCOMPARE(int(w->mean.size()), kTraceGridPoints);
+        QCOMPARE(int(w->sd.size()), kTraceGridPoints);
+        QCOMPARE(int(w->swing.size()), kTraceGridPoints);
+        QVERIFY(near(w->mean[50], 100.0, 1e-9));        // the per-point median; the drivers' bump(5) is not in it
+        QVERIFY(near(w->sd[50], 10.0, 1e-9));           // the per-point IQR/1.349 (R22)
+        QVERIFY(w->swing == bump(1.0));
+        QCOMPARE(w->typicality.band, TypicalityBand::Usual);
+        QVERIFY(w->corridor);
+        QCOMPARE(w->corridor->loT, 0.2);
+        QCOMPARE(w->corridor->hiT, 0.6);
+        QVERIFY(!traceTypicalityWindow(swings, QStringLiteral("me"), ScaleType::Interval, 0.6, 0.2)->corridor);
+        QVERIFY(!traceTypicalityWindow(swings, QStringLiteral("me"))->corridor);
+
+        // Fewer than N_MIN others of the club: none (the drivers have 3 others).
+        QVERIFY(!traceTypicalityWindow(swings, QStringLiteral("dr-0")));
+        QVERIFY(!traceTypicalityWindow(swings, QStringLiteral("nobody")));
     }
 };
 

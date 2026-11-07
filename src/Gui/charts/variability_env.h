@@ -44,9 +44,12 @@
 //   Otherwise None. The third rung (CV, Ratio only) is the GRADER's: it needs the values, and it reads
 //   scaleType() to decide.
 //
-// σnoise (§8.6) is the reading's own measurement σ, ConsistencyReading::ownSigma, which consistencyInput
+// noiseSigma() is the reading's own measurement σ, ConsistencyReading::ownSigma, which consistencyInput
 // already works out (a position's median phase σ, else the series σ). It is a PROPAGATED σ — the
-// producer's error budget — not a validation RMSE.
+// producer's error budget — not a validation RMSE and not σnoise. It goes to the grader as
+// VariabilityInput::propagatedSigma, the measurement-limited test (Mark's ruling R3, 7 Nov: an observed
+// spread no larger than it is measurement-limited), and NEVER as VariabilityInput::noiseSd: grades are
+// taken on the observed spread, and a propagated σ is never subtracted.
 //
 // Assembled ON DEMAND (makeVariabilityScaleProvider), mirroring makeNormProvider(): no self-registering
 // statics. The production provider holds a ConsistencyEnv by value, so it keeps that env's threading
@@ -84,7 +87,8 @@ public:
     virtual std::optional<double> variabilityScale(const QString &key) const = 0;
     virtual std::optional<double> measurementTolerance(const QString &key) const = 0;
 
-    // σnoise for a reading (§8.6): its ownSigma when finite and positive, else NaN (not known).
+    // A reading's propagated σ: its ownSigma when finite and positive, else NaN (not known). For
+    // VariabilityInput::propagatedSigma (R3), never for VariabilityInput::noiseSd (see the header comment).
     virtual double noiseSigma(const ConsistencyReading &reading) const = 0;
 };
 

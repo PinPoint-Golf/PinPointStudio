@@ -41,6 +41,13 @@ bool limitedByNeedle(const VariabilityInput &in)
     return in.sourceNeedleGrade && *in.sourceNeedleGrade >= 1 && *in.sourceNeedleGrade <= 2;
 }
 
+// R3: the observed spread is no larger than the reading's own propagated σ, so it cannot be told from
+// the measurement's. False without a usable σ or a finite spread.
+bool withinPropagatedSigma(double sdObserved, const std::optional<double> &propagatedSigma)
+{
+    return usable(propagatedSigma) && std::isfinite(sdObserved) && sdObserved <= *propagatedSigma;
+}
+
 // §8.6: the golfer's SD with the known measurement noise taken out. Never negative; an identity when
 // σnoise is absent, not finite, or zero.
 double withoutNoise(double sdObs, const std::optional<double> &noiseSd)
@@ -118,6 +125,7 @@ public:
         r.rho        = r.sd / r.scale;
         r.graded     = true;
         r.grade      = bandGrade(r.rho, kBands.ratio);
+        if (withinPropagatedSigma(r.sdObserved, in.propagatedSigma)) r.measurementLimited = true;
         return r;
     }
 };
@@ -201,6 +209,10 @@ public:
         r.sdObserved = std::sqrt(sumSqObs / kTraceGridPoints);
         r.sd         = std::sqrt(sumSq / kTraceGridPoints);
         r.rhoAmp     = r.sd / r.scale;
+        // R3 on the amplitude: the RMS of the OBSERVED SD(t) against the propagated σ. The propagated σ
+        // is in the curve's units, so it can only limit the amplitude half; it is applied below, once
+        // the half that sets the grade is known.
+        const bool ampWithinOwnSigma = withinPropagatedSigma(r.sdObserved, in.propagatedSigma);
 
         // Timing: SD of time-to-peak in real milliseconds.
         std::vector<double> peaks;
@@ -212,6 +224,9 @@ public:
         // The WORSE of the two (step 4). A tie is called timing: it is the half averaging would hide.
         r.limitedBy = r.rhoTiming >= r.rhoAmp ? TraceLimiter::Timing : TraceLimiter::Amplitude;
         r.rho       = std::max(r.rhoAmp, r.rhoTiming);
+        // Measurement-limited only when the amplitude sets the grade: a timing spread is not measured
+        // in the curve's units, so an amplitude inside its own σ says nothing about it.
+        if (ampWithinOwnSigma && r.limitedBy == TraceLimiter::Amplitude) r.measurementLimited = true;
         r.graded    = true;
         r.grade     = bandGrade(r.rho, kBands.ratio);
         return r;
@@ -326,6 +341,36 @@ std::unique_ptr<IVariabilityGrader> makeVariabilityGrader(Basis basis)
     case Basis::Measurement: return std::make_unique<MeasurementGrader>();
     }
     return nullptr;
+}
+
+CellGrade cellGrade(const std::vector<VariabilityResult> &readings)
+{
+    CellGrade cell;
+    std::vector<size_t> considered;
+    bool anyGradeZero = false;
+    for (size_t i = 0; i < readings.size(); ++i) {
+        const VariabilityResult &r = readings[i];
+        if (!r.graded) continue;
+        if (r.grade == 0) { anyGradeZero = true; continue; }
+        if (r.grade >= 1 && std::isfinite(r.rho)) considered.push_back(i);
+    }
+    if (considered.empty()) {
+        // Every graded reading was under N_MIN: the grade-0 cell. Nothing graded at all: "-".
+        cell.graded = anyGradeZero;
+        return cell;
+    }
+    std::stable_sort(considered.begin(), considered.end(),
+                     [&](size_t a, size_t b) { return readings[a].rho < readings[b].rho; });
+    const int n = int(considered.size());
+    const int rank = std::clamp(int(std::ceil(kCellLoosestPercentile * n)), 1, n);
+    const size_t at = considered[size_t(rank - 1)];
+    cell.graded             = true;
+    cell.n                  = n;
+    cell.setting            = int(at);
+    cell.rho                = readings[at].rho;
+    cell.grade              = bandGrade(cell.rho, kBands.ratio);
+    cell.measurementLimited = readings[at].measurementLimited;
+    return cell;
 }
 
 int bandGrade(double value, const GradeBands &bands)

@@ -18,8 +18,10 @@
 
 #include "variability_typicality.h"
 
-#include "variability_grader.h"   // sampleSd, circular helpers, tracePeak
+#include "variability_grader.h"   // circular helpers, tracePeak, peakMagnitude
 #include "variability_result.h"   // formatWithUnit
+
+#include "../../Gui/typeset/box_stats.h"   // quantile7: the one type-7 quantile (header-only, no Qt)
 
 #include <QCoreApplication>
 
@@ -33,11 +35,20 @@ namespace {
 
 constexpr double kInf = std::numeric_limits<double>::infinity();
 
-double mean(const std::vector<double> &v)
+// R22: the robust spread is the middle half ÷ 1.349 (a normal's IQR is 1.349 σ), as the stand-out pick
+// (session_consistency.h kConsistencySpreadDivisor) and the matrix's consistency spread take it.
+constexpr double kRobustSpreadDivisor = 1.349;
+
+// The robust centre and spread of finite values: the type-7 median and IQR/1.349.
+struct RobustCentre {
+    double median = 0.0;
+    double spread = 0.0;
+};
+
+RobustCentre robustCentre(const std::vector<double> &v)
 {
-    double s = 0.0;
-    for (double x : v) s += x;
-    return s / double(v.size());
+    using pinpoint::box::quantile7;
+    return RobustCentre{ quantile7(v, 0.5), (quantile7(v, 0.75) - quantile7(v, 0.25)) / kRobustSpreadDivisor };
 }
 
 // A z that stays honest when the window has no spread: 0 for the same value, ±∞ for any other.
@@ -83,9 +94,11 @@ std::optional<ScalarTypicality> scalarTypicality(double value, const std::vector
         t.sd    = circularSdDeg(v);
         if (!std::isfinite(t.usual)) return std::nullopt;   // the window points every way at once
         deviation = wrapDeg(value - t.usual);
+        t.median = false;
     } else {
-        t.usual   = mean(v);
-        t.sd      = sampleSd(v);
+        const RobustCentre c = robustCentre(v);
+        t.usual   = c.median;
+        t.sd      = c.spread;
         deviation = value - t.usual;
     }
     t.z    = zOf(deviation, t.sd);
@@ -95,10 +108,20 @@ std::optional<ScalarTypicality> scalarTypicality(double value, const std::vector
 
 QString ScalarTypicality::basisString(const QString &unit, int decimals) const
 {
-    //: Technical-layer typicality basis (variability spec §7.5). %1 this swing's value, %2 the
-    //: golfer's usual (window mean), both with their unit.
-    return QCoreApplication::translate("VariabilityBasis", "this swing %1 · usual %2")
-        .arg(formatWithUnit(value, unit, decimals), formatWithUnit(usual, unit, decimals));
+    return basisString([&unit, decimals](double v) { return formatWithUnit(v, unit, decimals); });
+}
+
+QString ScalarTypicality::basisString(const std::function<QString(double)> &formatValue) const
+{
+    if (!median)
+        //: Technical-layer typicality basis (variability spec §7.5) for an angle that wraps. %1 this swing's
+        //: value, %2 the circular mean of the golfer's other swings, both with their unit.
+        return QCoreApplication::translate("VariabilityBasis", "this swing %1 · average %2")
+            .arg(formatValue(value), formatValue(usual));
+    //: Technical-layer typicality basis (variability spec §7.5; ruling R22). %1 this swing's value, %2 the
+    //: median of the golfer's other swings, both with their unit.
+    return QCoreApplication::translate("VariabilityBasis", "this swing %1 · median %2")
+        .arg(formatValue(value), formatValue(usual));
 }
 
 std::optional<TraceTypicality> traceTypicality(const TraceTypicalityInput &in)
@@ -123,23 +146,27 @@ std::optional<TraceTypicality> traceTypicality(const TraceTypicalityInput &in)
     TraceTypicality t;
     t.n = n;
 
-    // Shape: RMS over t of z(t). A grid point with no spread in the window carries no z; nor does a
-    // circular one whose readings point every way at once (no circular mean).
+    // Shape: RMS over t of z(t), the robust z about the per-point median (R22; Circular: circular mean and
+    // SD). A grid point with no spread in the window carries no z; nor does a circular one whose readings
+    // point every way at once (no circular mean).
     const bool circular = in.scaleType == ScaleType::Circular;
     double sumZ2 = 0.0;
     int    used  = 0;
     std::vector<double> column(static_cast<size_t>(n));
     for (int g = 0; g < kTraceGridPoints; ++g) {
         for (int j = 0; j < n; ++j) column[size_t(j)] = in.windowCurves[keep[size_t(j)]][size_t(g)];
-        const double sd = circular ? circularSdDeg(column) : sampleSd(column);
-        if (!(sd > 0.0) || !std::isfinite(sd)) continue;
-        double deviation = 0.0;
+        double sd = 0.0, deviation = 0.0;
         if (circular) {
+            sd = circularSdDeg(column);
+            if (!(sd > 0.0) || !std::isfinite(sd)) continue;
             const double centre = circularMeanDeg(column);
             if (!std::isfinite(centre)) continue;
             deviation = wrapDeg(in.curve[size_t(g)] - centre);
         } else {
-            deviation = in.curve[size_t(g)] - mean(column);
+            const RobustCentre c = robustCentre(column);
+            sd = c.spread;
+            if (!(sd > 0.0) || !std::isfinite(sd)) continue;
+            deviation = in.curve[size_t(g)] - c.median;
         }
         const double z = deviation / sd;
         sumZ2 += z * z;
@@ -149,25 +176,115 @@ std::optional<TraceTypicality> traceTypicality(const TraceTypicalityInput &in)
     t.rmsZ = std::sqrt(sumZ2 / used);
     t.band = typicalityBand(t.rmsZ);
 
-    // Timing: this swing's peak against the window's, in real milliseconds.
+    // Timing: this swing's peak against the window's, in real milliseconds, by the robust z (R22).
     std::vector<double> peakTimes, peakValues;
     for (size_t i : keep) {
         peakTimes.push_back(in.windowPeakTimesMs[i]);
         peakValues.push_back(in.windowPeakValues.empty() ? tracePeak(in.windowCurves[i], in.scaleType)
                                                          : peakMagnitude(in.windowPeakValues[i], in.scaleType));
     }
-    t.timingDeviationMs = in.peakTimeMs - mean(peakTimes);
-    t.timingZ           = zOf(t.timingDeviationMs, sampleSd(peakTimes));
+    const RobustCentre timing = robustCentre(peakTimes);
+    t.timingDeviationMs = in.peakTimeMs - timing.median;
+    t.timingZ           = zOf(t.timingDeviationMs, timing.spread);
     t.timing = std::abs(t.timingZ) <= kTypicalityUsualZ || std::round(std::abs(t.timingDeviationMs)) == 0.0
                  ? PeakTiming::OnTime
              : t.timingDeviationMs < 0.0               ? PeakTiming::Early
                                                        : PeakTiming::Late;
 
-    // Amplitude: this swing's peak against the window's peaks, as a sign.
+    // Amplitude: this swing's peak against the window's peaks, as a sign. Peaks are magnitudes (a wrapped
+    // angle's included), so the robust z applies whatever the scale type.
     const double peak = in.peakValue ? peakMagnitude(*in.peakValue, in.scaleType) : tracePeak(in.curve, in.scaleType);
-    t.amplitudeZ    = zOf(peak - mean(peakValues), sampleSd(peakValues));
+    const RobustCentre peaks = robustCentre(peakValues);
+    t.amplitudeZ    = zOf(peak - peaks.median, peaks.spread);
     t.amplitudeSign = std::abs(t.amplitudeZ) <= kTypicalityUsualZ ? 0 : (t.amplitudeZ > 0.0 ? 1 : -1);
     return t;
+}
+
+std::optional<ScalarTypicalityWindow> scalarTypicalityWindow(const std::vector<TypicalitySwing> &swings,
+                                                             const QString &swingId, ScaleType scaleType,
+                                                             std::optional<double> corridorLo,
+                                                             std::optional<double> corridorHi)
+{
+    const auto self = std::find_if(swings.begin(), swings.end(),
+                                   [&](const TypicalitySwing &s) { return s.swingId == swingId; });
+    if (self == swings.end() || !std::isfinite(self->value)) return std::nullopt;
+
+    // The window: the session's other swings of this club with a value, strike order.
+    std::vector<const TypicalitySwing *> others;
+    std::vector<double> window;
+    for (const TypicalitySwing &s : swings) {
+        if (&s == &*self || s.club != self->club || !std::isfinite(s.value)) continue;
+        others.push_back(&s);
+        window.push_back(s.value);
+    }
+    const std::optional<ScalarTypicality> t = scalarTypicality(self->value, window, scaleType);
+    if (!t) return std::nullopt;
+
+    ScalarTypicalityWindow w;
+    w.typicality = *t;
+    const bool circular = scaleType == ScaleType::Circular;
+    auto zAgainstWindow = [&](double x) {
+        return zOf(circular ? wrapDeg(x - t->usual) : x - t->usual, t->sd);
+    };
+    const size_t first = others.size() > size_t(kTypicalityMaxGhosts) ? others.size() - size_t(kTypicalityMaxGhosts) : 0;
+    for (size_t i = first; i < others.size(); ++i)
+        w.ghosts.push_back(TypicalityGhost{ others[i]->swingId, zAgainstWindow(others[i]->value) });
+    if (corridorLo && corridorHi && std::isfinite(*corridorLo) && std::isfinite(*corridorHi)
+        && t->sd > 0.0 && std::isfinite(t->sd))
+        w.corridor = TypicalityCorridorZ{ zAgainstWindow(*corridorLo), zAgainstWindow(*corridorHi) };
+    return w;
+}
+
+std::optional<TraceTypicalityWindow> traceTypicalityWindow(const std::vector<TypicalityTraceSwing> &swings,
+                                                           const QString &swingId, ScaleType scaleType,
+                                                           std::optional<double> corridorLoT,
+                                                           std::optional<double> corridorHiT)
+{
+    const auto self = std::find_if(swings.begin(), swings.end(),
+                                   [&](const TypicalityTraceSwing &s) { return s.swingId == swingId; });
+    if (self == swings.end() || !whole(self->curve) || !std::isfinite(self->peakTimeMs)) return std::nullopt;
+
+    // The window: the other swings of this club with a whole reading, so the envelope below is over exactly
+    // the curves traceTypicality() reads.
+    TraceTypicalityInput in;
+    in.curve      = self->curve;
+    in.peakTimeMs = self->peakTimeMs;
+    in.scaleType  = scaleType;
+    for (const TypicalityTraceSwing &s : swings) {
+        if (&s == &*self || s.club != self->club || !whole(s.curve) || !std::isfinite(s.peakTimeMs)) continue;
+        in.windowCurves.push_back(s.curve);
+        in.windowPeakTimesMs.push_back(s.peakTimeMs);
+    }
+    const std::optional<TraceTypicality> t = traceTypicality(in);
+    if (!t) return std::nullopt;
+
+    TraceTypicalityWindow w;
+    w.typicality = *t;
+    const bool circular = scaleType == ScaleType::Circular;
+    const size_t n = in.windowCurves.size();
+    w.mean.resize(size_t(kTraceGridPoints));
+    w.sd.resize(size_t(kTraceGridPoints));
+    w.swing = self->curve;
+    std::vector<double> column(n);
+    for (int g = 0; g < kTraceGridPoints; ++g) {
+        for (size_t j = 0; j < n; ++j) column[j] = in.windowCurves[j][size_t(g)];
+        const size_t at = size_t(g);
+        if (circular) {
+            w.mean[at] = circularMeanDeg(column);
+            w.sd[at]   = circularSdDeg(column);
+            // Drawn beside the envelope, so the swing sits on the mean's side of the seam.
+            if (std::isfinite(w.mean[at])) w.swing[at] = w.mean[at] + wrapDeg(self->curve[at] - w.mean[at]);
+        } else {
+            // R22: `mean` and `sd` carry the per-point median and IQR/1.349 (the payload's key names stay).
+            const RobustCentre c = robustCentre(column);
+            w.mean[at] = c.median;
+            w.sd[at]   = c.spread;
+        }
+    }
+    if (corridorLoT && corridorHiT && std::isfinite(*corridorLoT) && std::isfinite(*corridorHiT)
+        && *corridorLoT <= *corridorHiT)
+        w.corridor = TypicalityTimeCorridor{ *corridorLoT, *corridorHiT };
+    return w;
 }
 
 QString TraceTypicality::basisString() const

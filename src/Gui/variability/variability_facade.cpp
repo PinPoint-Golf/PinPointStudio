@@ -18,7 +18,24 @@
 
 #include "variability_facade.h"
 
+#include <QVariantList>
+
 namespace pinpoint::variability {
+
+namespace {
+
+QVariantList listOf(const std::vector<double> &v)
+{
+    QVariantList out;
+    out.reserve(qsizetype(v.size()));
+    for (double x : v) out << x;
+    return out;
+}
+
+// A JS null, so `corridor` is present and null rather than undefined.
+QVariant jsNull() { return QVariant::fromValue(nullptr); }
+
+} // namespace
 
 QString VariabilityResultView::basisToken(Basis basis)
 {
@@ -49,6 +66,92 @@ QString VariabilityResultView::ungradedReasonToken(UngradedReason reason)
     case UngradedReason::MalformedInput:      return QStringLiteral("malformedInput");
     }
     return {};
+}
+
+QString VariabilityResultView::typicalityBandToken(TypicalityBand band)
+{
+    switch (band) {
+    case TypicalityBand::Usual:      return QStringLiteral("usual");
+    case TypicalityBand::ALittleOff: return QStringLiteral("aLittleOff");
+    case TypicalityBand::Unusual:    return QStringLiteral("unusual");
+    }
+    return QStringLiteral("usual");
+}
+
+QString VariabilityResultView::trendDirectionToken(TrendDirection direction)
+{
+    switch (direction) {
+    case TrendDirection::Tightening:   return QStringLiteral("tightening");
+    case TrendDirection::Loosening:    return QStringLiteral("loosening");
+    case TrendDirection::Holding:      return QStringLiteral("holding");
+    case TrendDirection::Insufficient: return QStringLiteral("insufficient");
+    }
+    return QStringLiteral("insufficient");
+}
+
+VariabilityResultView VariabilityResultView::fromCellGrade(const CellGrade &cell)
+{
+    VariabilityResultView v;
+    v.m_grade              = cell.grade;
+    v.m_graded             = cell.graded;
+    v.m_basis              = basisToken(Basis::Scalar);
+    v.m_ungradedReason     = cell.graded && cell.grade == 0 ? ungradedReasonToken(UngradedReason::TooFewSwings)
+                                                            : QString();
+    v.m_measurementLimited = cell.measurementLimited;
+    v.m_n                  = cell.n;
+    v.m_rho                = std::isfinite(cell.rho) ? cell.rho : VariabilityResult::kNaN;
+    v.m_domain             = domainToken(Basis::Scalar);
+    return v;
+}
+
+QVariantMap VariabilityResultView::toMap() const
+{
+    return { { QStringLiteral("grade"), m_grade }, { QStringLiteral("graded"), m_graded }, { QStringLiteral("basis"), m_basis },
+             { QStringLiteral("ungradedReason"), m_ungradedReason }, { QStringLiteral("measurementLimited"), m_measurementLimited },
+             { QStringLiteral("n"), m_n }, { QStringLiteral("hasRho"), hasRho() },
+             { QStringLiteral("rho"), hasRho() ? QVariant(m_rho) : jsNull() }, { QStringLiteral("basisText"), m_basisText },
+             { QStringLiteral("domain"), m_domain } };
+}
+
+TypicalityPayload typicalityPayload(const ScalarTypicalityWindow &window, const QString &unit, int decimals)
+{
+    return typicalityPayload(window, [&unit, decimals](double v) { return formatWithUnit(v, unit, decimals); });
+}
+
+TypicalityPayload typicalityPayload(const ScalarTypicalityWindow &window, const std::function<QString(double)> &formatValue)
+{
+    QVariantList ghosts;
+    for (const TypicalityGhost &g : window.ghosts)
+        ghosts << QVariantMap{ { QStringLiteral("swingId"), g.swingId }, { QStringLiteral("z"), g.z } };
+    TypicalityPayload p;
+    p.values = QVariantMap{
+        { QStringLiteral("z"), window.typicality.z },
+        { QStringLiteral("ghosts"), ghosts },
+        { QStringLiteral("corridor"),
+          window.corridor ? QVariant(QVariantMap{ { QStringLiteral("loZ"), window.corridor->loZ },
+                                                  { QStringLiteral("hiZ"), window.corridor->hiZ } })
+                          : jsNull() },
+        { QStringLiteral("band"), VariabilityResultView::typicalityBandToken(window.typicality.band) },
+    };
+    p.basisText = window.typicality.basisString(formatValue);
+    return p;
+}
+
+TypicalityPayload typicalityTracePayload(const TraceTypicalityWindow &window)
+{
+    TypicalityPayload p;
+    p.values = QVariantMap{
+        { QStringLiteral("mean"), listOf(window.mean) },
+        { QStringLiteral("sd"), listOf(window.sd) },
+        { QStringLiteral("swing"), listOf(window.swing) },
+        { QStringLiteral("corridor"),
+          window.corridor ? QVariant(QVariantMap{ { QStringLiteral("loT"), window.corridor->loT },
+                                                  { QStringLiteral("hiT"), window.corridor->hiT } })
+                          : jsNull() },
+        { QStringLiteral("band"), VariabilityResultView::typicalityBandToken(window.typicality.band) },
+    };
+    p.basisText = window.typicality.basisString();
+    return p;
 }
 
 VariabilityResultView VariabilityResultView::fromResult(const VariabilityResult &result, const QString &unit,

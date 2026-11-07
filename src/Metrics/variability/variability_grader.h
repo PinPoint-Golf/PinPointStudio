@@ -54,7 +54,16 @@ struct VariabilityInput {
     ScaleType             scaleType = ScaleType::Interval;
 
     // ---- Coupling to measurement (§8.6; Scalar and Trace amplitude) -----------------------------
-    std::optional<double> noiseSd;               // σnoise in the measure's units, when known
+    // σnoise in the measure's units: a VALIDATED noise figure, subtracted from the observed SD. No
+    // reading has one yet. ⚠ NEVER a propagated σ (Mark's ruling R3, 7 Nov: grades are taken on the
+    // observed spread) — that goes in `propagatedSigma` below.
+    std::optional<double> noiseSd;
+    // The reading's own PROPAGATED measurement σ (ConsistencyReading::ownSigma, the producer's error
+    // budget), in the measure's units. Never subtracted. When finite and positive and the OBSERVED SD
+    // (Circular: the circular SD; Trace: the RMS over t of the observed SD(t)) is no larger than it, the
+    // spread cannot be told from the measurement's own and the result is measurementLimited (R3). The
+    // grade is unchanged.
+    std::optional<double> propagatedSigma;
     std::optional<int>    sourceNeedleGrade;     // the source's Needle grade; 1–2 sets measurementLimited
 
     // ---- Scalar (§8.2) --------------------------------------------------------------------------
@@ -120,6 +129,30 @@ int bandGrade(double value, const GradeBands &bands);
 // imposes nothing and the plain grade is returned. Frozen assessments call bandGrade() instead.
 int hysteresisGrade(double value, int previousGrade, const GradeBands &bands,
                     double margin = kHysteresis);
+
+// ---- Cells that pool readings (Mark's ruling R1, 7 Nov; docs/design/system/variability.md) --------
+
+// The grade of a table cell that rolls up several readings (the Consistency matrix's area at a span).
+// It is the grade at the cell's LOOSEST THIRD: the 67th-percentile ρ of its graded readings, by nearest
+// rank, through the scalar bands (kBands.ratio). The cell shows the word alone; the marks go on the
+// readings it opens to.
+//   graded, grade 1..5   the cell's grade; `rho` and `measurementLimited` are the setting reading's
+//   graded, grade 0      no reading had a ρ, but one was graded 0 ("Not enough swings")
+//   not graded           no reading was graded: the cell shows "-"
+struct CellGrade {
+    bool   graded             = false;
+    int    grade              = 0;
+    bool   measurementLimited = false;   // the setting reading's; golfer layer "Checking" (R3)
+    double rho                = VariabilityResult::kNaN;   // the setting reading's ρ
+    int    n                  = 0;       // readings considered: graded, grade ≥ 1, finite ρ
+    int    setting            = -1;      // index into the input of the reading that set the grade; −1 for none
+};
+
+// The rank is kCellLoosestPercentile's nearest rank: of n readings sorted by ρ ascending, index
+// ⌈0.67·n⌉ − 1 (n = 6 → the 5th smallest, the 2nd loosest).
+// `readings`: the cell's readings, each already graded on its own. Considered: `graded`, grade ≥ 1 and a
+// finite ρ (ordinal and Needle results carry no ρ and do not count). Ties in ρ keep input order.
+CellGrade cellGrade(const std::vector<VariabilityResult> &readings);
 
 // ---- Spread helpers, shared with typicality --------------------------------------------------------
 

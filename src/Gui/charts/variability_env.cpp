@@ -19,6 +19,7 @@
 #include "variability_env.h"
 
 #include "consistency_env.h"                        // consistencyEnvFromPacks
+#include "../variability/variability_measures.h"       // variabilityManifest: the one manifest every lookup reads
 #include "../../Metrics/metric_catalogue.h"
 
 #include <cmath>
@@ -97,26 +98,13 @@ private:
     VariabilityDescriptorLookup m_descriptors;
 };
 
-// The manifest alone, as ConsistencyPacks reads it: only the descriptors are needed, and
-// makeMetricCatalogue() also writes a process-wide labeller. Built once; never changed after, so its
-// readers take no lock.
-struct VariabilityManifest {
-    VariabilityManifest() { pa::installMetricManifest(catalogue); }
-    pa::MetricCatalogue catalogue;
-};
-
-const pa::MetricCatalogue &manifestCatalogue()
-{
-    static const VariabilityManifest manifest;     // C++ builds a function-local static once, under its own lock
-    return manifest.catalogue;
-}
-
 } // namespace
 
 std::unique_ptr<IVariabilityScaleProvider> makeVariabilityScaleProvider()
 {
     // consistencyEnvFromPacks() checks and logs its own first-call thread rule.
-    const pa::MetricCatalogue *catalogue = &manifestCatalogue();
+    // The manifest alone, the one every variability lookup reads (variability_measures.h): built once, never changed.
+    const pa::MetricCatalogue *catalogue = &pv::variabilityManifest();
     return makeVariabilityScaleProvider(consistencyEnvFromPacks(),
                                         [catalogue](const QString &key) { return catalogue->descriptor(key); });
 }

@@ -72,4 +72,12 @@ inline constexpr int    kTraceGridPoints   = 101;   // TODO(calibrate)
 // from the spec, not a statistical threshold, so it is not for calibration.
 inline constexpr int    kFunnelMaxSessions = 12;
 
+// Mark's rulings on the Session 5 audit (7 Nov; docs/design/variability-mark/decisions.md §2), not spec
+// §8.10 thresholds, so not for calibration:
+//   R1  a cell that pools readings takes the grade at its loosest third, the 67th-percentile ρ of its
+//       graded readings (nearest rank: index ⌈0.67·n⌉ − 1 of the ρ sorted ascending).
+//   §6.2 the Your-group Cell draws at most 12 ghosts, the most recent other swings.
+inline constexpr double kCellLoosestPercentile = 0.67;
+inline constexpr int    kTypicalityMaxGhosts   = 12;
+
 } // namespace pinpoint::variability

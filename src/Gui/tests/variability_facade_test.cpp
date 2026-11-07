@@ -69,6 +69,11 @@ private slots:
     void equalityTreatsNanRhoAsEqual();
     void constantsAreTheHeaders();
     void facadeHasNoInvokables();
+    void typicalityBandTokens();
+    void trendDirectionTokens();
+    void fromCellGradeMapsTheCell();
+    void typicalityPayloadShape();
+    void typicalityTracePayloadShape();
 };
 
 void VariabilityFacadeTest::fromResultMapsEveryField()
@@ -315,6 +320,115 @@ void VariabilityFacadeTest::facadeHasNoInvokables()
     QCOMPARE(mo.methodCount() - mo.methodOffset(), 0);
     const QMetaObject &vo = VariabilityResultView::staticMetaObject;
     QCOMPARE(vo.methodCount() - vo.methodOffset(), 0);
+}
+
+void VariabilityFacadeTest::typicalityBandTokens()
+{
+    QCOMPARE(VariabilityResultView::typicalityBandToken(TypicalityBand::Usual),      QStringLiteral("usual"));
+    QCOMPARE(VariabilityResultView::typicalityBandToken(TypicalityBand::ALittleOff), QStringLiteral("aLittleOff"));
+    QCOMPARE(VariabilityResultView::typicalityBandToken(TypicalityBand::Unusual),    QStringLiteral("unusual"));
+}
+
+void VariabilityFacadeTest::trendDirectionTokens()
+{
+    QCOMPARE(VariabilityResultView::trendDirectionToken(TrendDirection::Tightening),   QStringLiteral("tightening"));
+    QCOMPARE(VariabilityResultView::trendDirectionToken(TrendDirection::Loosening),    QStringLiteral("loosening"));
+    QCOMPARE(VariabilityResultView::trendDirectionToken(TrendDirection::Holding),      QStringLiteral("holding"));
+    QCOMPARE(VariabilityResultView::trendDirectionToken(TrendDirection::Insufficient), QStringLiteral("insufficient"));
+}
+
+void VariabilityFacadeTest::fromCellGradeMapsTheCell()
+{
+    CellGrade c;
+    c.graded = true;
+    c.grade = 2;
+    c.measurementLimited = true;
+    c.rho = 0.8;
+    c.n = 6;
+    c.setting = 4;
+    const auto v = VariabilityResultView::fromCellGrade(c);
+    QCOMPARE(v.grade(), 2);
+    QCOMPARE(v.graded(), true);
+    QCOMPARE(v.measurementLimited(), true);
+    QCOMPARE(v.n(), 6);
+    QCOMPARE(v.rho(), 0.8);
+    QVERIFY(v.hasRho());
+    QCOMPARE(v.basis(), QStringLiteral("scalar"));
+    QCOMPARE(v.domain(), QStringLiteral("consistency"));
+    QVERIFY(v.ungradedReason().isEmpty());
+    QVERIFY(v.basisText().isEmpty());
+
+    CellGrade zero;
+    zero.graded = true;
+    const auto z = VariabilityResultView::fromCellGrade(zero);
+    QCOMPARE(z.graded(), true);
+    QCOMPARE(z.grade(), 0);
+    QCOMPARE(z.ungradedReason(), QStringLiteral("tooFewSwings"));
+    QVERIFY(!z.hasRho());
+
+    const auto none = VariabilityResultView::fromCellGrade(CellGrade{});
+    QCOMPARE(none.graded(), false);
+    QVERIFY(none.ungradedReason().isEmpty());
+    QVERIFY(none == VariabilityResultView());   // the same "no mark" a surface starts with
+}
+
+void VariabilityFacadeTest::typicalityPayloadShape()
+{
+    ScalarTypicalityWindow w;
+    w.typicality.value = 5.2;
+    w.typicality.usual = 4.8;
+    w.typicality.sd = 0.4;
+    w.typicality.z = 1.0;
+    w.typicality.band = TypicalityBand::Usual;
+    w.ghosts = { { QStringLiteral("a"), -0.5 }, { QStringLiteral("b"), 1.25 } };
+    const TypicalityPayload p = typicalityPayload(w, QStringLiteral("cm"), 1);
+    QCOMPARE(p.values.keys(), (QStringList{ QStringLiteral("band"), QStringLiteral("corridor"),
+                                            QStringLiteral("ghosts"), QStringLiteral("z") }));
+    QCOMPARE(p.values.value(QStringLiteral("z")).toDouble(), 1.0);
+    QCOMPARE(p.values.value(QStringLiteral("band")).toString(), QStringLiteral("usual"));
+    const QVariant corridor = p.values.value(QStringLiteral("corridor"));
+    QVERIFY(corridor.isValid());
+    QVERIFY(corridor.isNull());
+    QCOMPARE(corridor.metaType(), QMetaType::fromType<std::nullptr_t>());
+    const QVariantList ghosts = p.values.value(QStringLiteral("ghosts")).toList();
+    QCOMPARE(ghosts.size(), 2);
+    QCOMPARE(ghosts[0].toMap().value(QStringLiteral("swingId")).toString(), QStringLiteral("a"));
+    QCOMPARE(ghosts[0].toMap().value(QStringLiteral("z")).toDouble(), -0.5);
+    QCOMPARE(ghosts[1].toMap().value(QStringLiteral("swingId")).toString(), QStringLiteral("b"));
+    QCOMPARE(p.basisText, QStringLiteral("this swing 5.2 cm · median 4.8 cm"));   // R22: the window median
+
+    w.corridor = TypicalityCorridorZ{ -1.5, 2.0 };
+    w.typicality.band = TypicalityBand::Unusual;
+    const TypicalityPayload q = typicalityPayload(w);
+    const QVariantMap c = q.values.value(QStringLiteral("corridor")).toMap();
+    QCOMPARE(c.value(QStringLiteral("loZ")).toDouble(), -1.5);
+    QCOMPARE(c.value(QStringLiteral("hiZ")).toDouble(), 2.0);
+    QCOMPARE(q.values.value(QStringLiteral("band")).toString(), QStringLiteral("unusual"));
+}
+
+void VariabilityFacadeTest::typicalityTracePayloadShape()
+{
+    TraceTypicalityWindow w;
+    w.mean.assign(size_t(kTraceGridPoints), 1.0);
+    w.sd.assign(size_t(kTraceGridPoints), 0.5);
+    w.swing.assign(size_t(kTraceGridPoints), 2.0);
+    w.typicality.band = TypicalityBand::ALittleOff;
+    w.typicality.timing = PeakTiming::Late;
+    w.typicality.timingDeviationMs = 25.0;
+    const TypicalityPayload p = typicalityTracePayload(w);
+    QCOMPARE(p.values.keys(), (QStringList{ QStringLiteral("band"), QStringLiteral("corridor"), QStringLiteral("mean"),
+                                            QStringLiteral("sd"), QStringLiteral("swing") }));
+    QCOMPARE(p.values.value(QStringLiteral("mean")).toList().size(), kTraceGridPoints);
+    QCOMPARE(p.values.value(QStringLiteral("sd")).toList().at(7).toDouble(), 0.5);
+    QCOMPARE(p.values.value(QStringLiteral("swing")).toList().at(100).toDouble(), 2.0);
+    QCOMPARE(p.values.value(QStringLiteral("band")).toString(), QStringLiteral("aLittleOff"));
+    QVERIFY(p.values.value(QStringLiteral("corridor")).isNull());
+    QCOMPARE(p.basisText, QStringLiteral("peak 25 ms late"));
+
+    w.corridor = TypicalityTimeCorridor{ 0.2, 0.6 };
+    const QVariantMap c = typicalityTracePayload(w).values.value(QStringLiteral("corridor")).toMap();
+    QCOMPARE(c.value(QStringLiteral("loT")).toDouble(), 0.2);
+    QCOMPARE(c.value(QStringLiteral("hiT")).toDouble(), 0.6);
 }
 
 QTEST_GUILESS_MAIN(VariabilityFacadeTest)

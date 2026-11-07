@@ -27,13 +27,18 @@
 // Large payloads (a session of results, a funnel's per-swing series) go to QML through QmlPayload
 // (src/Gui/shot/qml_payload.h), not as a QVariantMap property: this value type is for ONE result.
 
+#include "../../Metrics/variability/variability_grader.h"       // CellGrade
 #include "../../Metrics/variability/variability_result.h"
+#include "../../Metrics/variability/variability_trend.h"        // TrendDirection
+#include "../../Metrics/variability/variability_typicality.h"   // TypicalityBand, the session windows
 
 #include <QObject>
 #include <QString>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
 #include <cmath>
+#include <functional>
 
 namespace pinpoint::variability {
 
@@ -51,6 +56,8 @@ namespace pinpoint::variability {
 //   ungradedReason  "" (none) | "tooFewSwings" | "noScale" | "nonPositiveForRatio" | "noUncertainty"
 //                   | "scaleTypeMismatch" | "malformedInput"
 //                   Empty when there is no reason, so `if (r.ungradedReason)` reads as "is there one".
+//   typicalityBand  "usual" | "aLittleOff" | "unusual"                (PpVariabilityMark `values.band`)
+//   trendDirection  "tightening" | "loosening" | "holding" | "insufficient"   (PpVariabilityFunnel `trend`)
 class VariabilityResultView
 {
     Q_GADGET
@@ -77,11 +84,24 @@ public:
     static VariabilityResultView fromResult(const VariabilityResult &result, const QString &unit = {},
                                             int decimals = 1);
 
+    // A pooled cell's grade (cellGrade(), R1) as the same value type, so a cell and a reading reach QML
+    // alike: `grade`, `graded`, `measurementLimited`, `n` (the readings considered) and `rho` (the setting
+    // reading's). Basis "scalar", domain "consistency"; `ungradedReason` "tooFewSwings" for the grade-0
+    // cell, else "". `basisText` is empty: a cell shows the word alone.
+    static VariabilityResultView fromCellGrade(const CellGrade &cell);
+
+    // The same fields as a plain QVariantMap, for a payload that travels where a gadget does not survive (a report's
+    // map to the print host, a probe's JSON dump, a launch monitor graphics map, a Consistency tab payload). `rho` is
+    // a JS null when there is none. The one result-to-map conversion every surface uses.
+    QVariantMap toMap() const;
+
     // The token spellings, public so a presenter writing a QVariantMap (and the test) names the same
     // words this type does.
     static QString basisToken(Basis basis);
     static QString domainToken(Basis basis);
     static QString ungradedReasonToken(UngradedReason reason);
+    static QString typicalityBandToken(TypicalityBand band);
+    static QString trendDirectionToken(TrendDirection direction);
 
     int     grade() const              { return m_grade; }
     bool    graded() const             { return m_graded; }
@@ -120,6 +140,28 @@ private:
     QString m_basisText;
     QString m_domain             = domainToken(Basis::Scalar);
 };
+
+// A typicality mark's data: `values` for PpVariabilityMark (Typicality or TypicalityTrace), in exactly
+// the shape its page specifies (docs/design/system/components/PpVariabilityMark.md, "Consumer supplies"),
+// and the technical-layer basis string beside it.
+//   Typicality       { z, ghosts: [{ swingId, z }], corridor: { loZ, hiZ } | null, band }
+//   TypicalityTrace  { mean: [101], sd: [101], swing: [101], corridor: { loT, hiT } | null, band }
+// Every z is the robust z (R22): (x − median)/(IQR/1.349) over the window. The trace's `mean` and `sd` keys
+// keep their names but carry the per-point MEDIAN and ROBUST SPREAD IQR/1.349 (a Circular trace: the
+// circular mean and circular SD), so the envelope is median ± robust spread.
+// No corridor is a null, never an absent key. A z may be ±Infinity (a window with no spread: IQR 0).
+struct TypicalityPayload {
+    QVariantMap values;
+    QString     basisText;   // ScalarTypicality / TraceTypicality::basisString()
+};
+
+// `unit` and `decimals` are the measure's, for the basis string ("this swing 5.2 cm · median 4.8 cm").
+TypicalityPayload typicalityPayload(const ScalarTypicalityWindow &window, const QString &unit = {},
+                                    int decimals = 1);
+// The same, its basis figures set by `formatValue` (ScalarTypicality::basisString's formatter overload).
+TypicalityPayload typicalityPayload(const ScalarTypicalityWindow &window,
+                                    const std::function<QString(double)> &formatValue);
+TypicalityPayload typicalityTracePayload(const TraceTypicalityWindow &window);
 
 // `Variability` in QML: the §8.10 constants a surface may legitimately need ("Not enough swings" counts
 // against N_MIN; a window label names N_WINDOW; a trend needs TREND_MIN_SESSIONS). Read from

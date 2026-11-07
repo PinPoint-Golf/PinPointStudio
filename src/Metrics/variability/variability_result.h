@@ -86,7 +86,8 @@ struct VariabilityResult {
     double         scale          = kNaN;   // what ρ (or ρₐ, or ρm) was divided by
     ScaleSource    scaleSource    = ScaleSource::None;
 
-    // §8.6. Set when the source's Needle grade is 1–2; never set for Basis::Measurement.
+    // §8.6 and R3. Set when the source's Needle grade is 1–2, or when the observed spread is no larger
+    // than the reading's own propagated σ (VariabilityInput::propagatedSigma); never for Basis::Measurement.
     bool           measurementLimited = false;
 
     // Scalar (§8.2). `sd` is the spread GRADED: the golfer SD after any σnoise subtraction (§8.6);

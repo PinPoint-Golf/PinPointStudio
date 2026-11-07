@@ -2904,6 +2904,7 @@ target_sources(PinPointStudio PRIVATE
     src/Metrics/variability/variability_grader.h
     src/Metrics/variability/variability_grader.cpp
     src/Metrics/variability/variability_typicality.h
+    src/Metrics/variability/variability_outcome.h
     src/Metrics/variability/variability_typicality.cpp
     src/Metrics/variability/variability_trend.h
     src/Metrics/variability/variability_trend.cpp

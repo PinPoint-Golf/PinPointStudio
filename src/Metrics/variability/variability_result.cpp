@@ -21,6 +21,8 @@
 #include <QCoreApplication>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 // The §7.5 basis strings. Every call names its literal so lupdate sees it; the "VariabilityBasis"
 // context keeps them together for a translator. Arrow glyphs and the computed numbers are arguments,
@@ -30,13 +32,44 @@ namespace pinpoint::variability {
 
 namespace {
 
-QString num(double v, int decimals) { return QString::number(v, 'f', std::max(0, decimals)); }
+// A figure at `decimals` places. One that rounds to zero is "0", never "-0": rounding a value just below zero is no
+// measurement of a side.
+QString num(double v, int decimals)
+{
+    QString s = QString::number(v, 'f', std::max(0, decimals));
+    if (s.startsWith(QLatin1Char('-')) && std::all_of(s.cbegin() + 1, s.cend(), [](QChar c) { return c == QLatin1Char('0') || c == QLatin1Char('.'); }))
+        s.remove(0, 1);
+    return s;
+}
+
+// A spread's places: the measure's own, or more while that would print fewer than two significant figures, so a
+// spread of 3.2 % never reads "σ 3%" and one of 0.04° never reads "σ 0.0°". One rule for every basis string.
+// Counted on the printed figure, so a σ of 0.99996 that prints "1.0" is two figures already.
+int sigmaDecimals(double sd, int decimals)
+{
+    decimals = std::max(0, decimals);
+    if (!std::isfinite(sd) || !(std::fabs(sd) > 0.0)) return decimals;
+    const auto figures = [sd](int d) {
+        const QString s = QString::number(std::fabs(sd), 'f', d);
+        int n = 0;
+        bool leading = true;
+        for (QChar c : s) {
+            if (!c.isDigit()) continue;
+            if (leading && c == QLatin1Char('0')) continue;
+            leading = false;
+            ++n;
+        }
+        return n;
+    };
+    while (figures(decimals) < 2 && decimals < std::numeric_limits<double>::digits10) ++decimals;
+    return decimals;
+}
 
 // "σ 2.1° · 0.42 of corridor · n 24", named for the scale actually used: a fallback scale is never
 // called a corridor, and a CV reads as one.
 QString spreadString(double sd, double rho, ScaleSource source, int n, const QString &unit, int decimals)
 {
-    const QString sigma = formatWithUnit(sd, unit, decimals);
+    const QString sigma = formatWithUnit(sd, unit, sigmaDecimals(sd, decimals));
     const QString ratio = num(rho, 2);
     const QString count = QString::number(n);
     switch (source) {
@@ -122,7 +155,8 @@ QString VariabilityResult::basisString(const QString &unit, int decimals) const
 
     if (measurementLimited)
         //: Appended to a consistency basis when the source's measurement grade is Unsteady or Noisy
-        //: (variability spec §8.6). %1 is the consistency basis string.
+        //: (variability spec §8.6), or the observed spread is no larger than the reading's own
+        //: propagated measurement σ. %1 is the consistency basis string.
         out = QCoreApplication::translate("VariabilityBasis", "%1 · measurement-limited").arg(out);
     return out;
 }

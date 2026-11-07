@@ -157,11 +157,15 @@ pp_add_test(navigation_controller_test
 # The variability façade (variability/variability_facade.h, docs/design/variability-mark/spec.md §4.1, §8):
 # the `variabilityResult` value type QML is handed — every field mapped, the token spellings, a NaN ρ — and
 # the `Variability` singleton's §8.10 constants against variability_constants.h. Hand-built results; the
-# grading itself is variability_grader_test's. variability_result.cpp builds the §7.5 basis strings.
+# grading itself is variability_grader_test's. variability_result.cpp builds the §7.5 basis strings; the
+# typicality payloads take theirs from variability_typicality.cpp, which needs the grader's spread helpers.
+# Also the typicality-band and trend-direction tokens, the cell grade's view and the typicality QVariant shapes.
 pp_add_test(variability_facade_test
     SOURCES variability_facade_test.cpp
             ${GUI}/variability/variability_facade.cpp
             ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
     INCLUDE ${GUI} ${GUI}/variability ${SRC}
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
@@ -292,7 +296,18 @@ pp_add_test(lm_session_model_test
             ${SRC}/Diagnostics/norms/merged_norm_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis
+            # the variability marks (R4b per-club grades, R8 typicality) and each reading's scaleType,
+            # from the manifest: the catalogue chain chart_metrics_test links
+            ${GUI}/variability/variability_facade.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
+            ${SRC}/Metrics/metric_catalogue.cpp
+            ${SRC}/Metrics/metric_resolver.cpp
+            ${SRC}/Metrics/metric_catalogue_manifest.cpp
+            ${SRC}/Metrics/metric_providers.cpp
+            ${SRC}/Wrist/reference_bands.cpp
+    INCLUDE ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis
             ${SRC}/Diagnostics ${SRC}/Metrics
     LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
 set_tests_properties(lm_session_model_test PROPERTIES

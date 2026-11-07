@@ -565,8 +565,17 @@ set(PP_QML_SOURCES
     # Its production env: areas and norm sigma from the packs.
     src/Gui/charts/consistency_env.h
     src/Gui/charts/consistency_env.cpp
-    src/Gui/charts/consistency_summary.h
-    src/Gui/charts/consistency_summary.cpp
+    # Clubs and the variability grade (R2a pooled within-club, R2b per club): the grader's inputs from
+    # per-swing (club, value) readings. Needs session_consistency.cpp (above) and src/Metrics/variability/.
+    src/Gui/charts/variability_clubs.h
+    src/Gui/charts/variability_clubs.cpp
+    # The variability scale provider (spec §8.2 step 4): what a reading is graded against, from the norms and the
+    # catalogue. Make it on the GUI thread. Needs consistency_env.cpp (above).
+    src/Gui/charts/variability_env.h
+    src/Gui/charts/variability_env.cpp
+    # The Consistency tab's grades (R1, R2a, R3): every reading and cell graded. Needs variability_clubs.cpp (above).
+    src/Gui/charts/consistency_grades.h
+    src/Gui/charts/consistency_grades.cpp
     src/Gui/charts/session_sequence.h
     src/Gui/charts/session_sequence.cpp
     src/Gui/charts/session_bridge.h
@@ -626,6 +635,10 @@ set(PP_QML_SOURCES
     # link closures of qml_ui_test and session_setup_ui_test in src/Gui/CMakeLists.txt).
     src/Gui/variability/variability_facade.h
     src/Gui/variability/variability_facade.cpp
+    # What a measure is for a mark (scale type, outcome, norm half-width), and the ledger consistency rule Home's
+    # work-ons and the report's work-on pages share. Header-only.
+    src/Gui/variability/variability_measures.h
+    src/Gui/variability/variability_ledger.h
     # The variability geometry provider (spec §4.4 – §4.7, §11): the `VariabilityGeometry` singleton
     # PpVariabilityMark draws from. Self-contained: Qt Core, Gui and Qml only, no further closure.
     src/Gui/variability/variability_geometry.h

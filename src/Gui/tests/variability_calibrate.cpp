@@ -26,12 +26,13 @@
 //   variability_trend.csv        §8.8 across each athlete's sessions
 //   gallery_fixture.json         real numbers for the mark gallery, from Mark-Liversedge's 7-iron sessions
 //
-// Each session is loaded and aligned as consistency_dump does, and its readings are consistencyInput's. Every
+// Each session is loaded and aligned as the Consistency tests load a fixture, and its readings are consistencyInput's. Every
 // grade is WITHIN ONE CLUB: clubs are never pooled (spec §9.1, §9.5.1). A blank club label is a club of its own.
 //
 //   Scalar (§8.2)       every Position reading, flagged phaseListed (phaseCheck). A guarded shot is left out where consistencyGuardCovers says the
 //                       reading rests on the P-ladder. Scale: the provider's corridor, else variabilityScale; the
-//                       grader takes the CV rung itself. σnoise = the reading's ownSigma.
+//                       grader takes the CV rung itself. The reading's ownSigma is its propagatedSigma (R3): never
+//                       subtracted, but an observed SD no larger than it sets measurementLimited.
 //   Measurement (§8.5)  beside each scalar row: ownSigma (a PROPAGATED σ, fed as the nearest rung, the live
 //                       residual RMSE; the CSV says so) over measurementTolerance, else MEAS_TOL_FRACTION × the
 //                       corridor. Its grade sets the scalar row's measurementLimited (§8.6) and nothing else.
@@ -185,7 +186,7 @@ struct CalibrationRow {
     pv::VariabilityResult r;
     double  rhoM = kNaN;                  // scalar rows: the coupled §8.5 ρm
     int     offered = 0;                  // shots of the club offered to the grader
-    int     excluded = 0;                 // shots of the club left out (guard, warm-up)
+    int     excluded = 0;                 // shots of the club left out (the guard; warm-ups count, R13)
     QString detail;                       // ordinal: the modal order
     QString ksSegments;                   // ordinal: the window's placed-segment set, "leadArm,club"
     int     ksExcluded = -1;              // ordinal: resolved swings with another set, plus unresolved ones
@@ -229,13 +230,6 @@ struct SessionGallery {
 const QString kGalleryAthlete = QStringLiteral("Mark-Liversedge");
 const QString kGalleryClub    = QStringLiteral("7 IRON");
 const QString kGalleryDate    = QStringLiteral("2026-10-07");
-
-bool excludedShot(const ShotSeries &shot)
-{
-    // Warm-up swings are excluded (spec §8.2 step 1, decisions log). The extract carries no warm-up flag, so this
-    // is false on every shot of the current fixtures; it is kept so a re-extract that does carry one is honoured.
-    return shot.diagnostics.warmUp;
-}
 
 std::optional<double> some(double x) { return std::isfinite(x) ? std::optional<double>(x) : std::nullopt; }
 
@@ -402,7 +396,7 @@ private:
                 int offered = 0, excluded = 0, finite = 0;
                 for (size_t i = 0; i < m_in.shots.size(); ++i) {
                     if (m_in.shots[i].club != club) continue;
-                    if ((covered && m_in.shots[i].guarded) || excludedShot(*m_s.shots[i])) { ++excluded; continue; }
+                    if (covered && m_in.shots[i].guarded) { ++excluded; continue; }
                     ++offered;
                     const double v = reading.at(int(i), 0);
                     values.push_back(v);
@@ -425,7 +419,7 @@ private:
                 if (scale.source == pv::ScaleSource::Corridor) si.corridorHalfWidth = scale.scale;
                 if (scale.source == pv::ScaleSource::VariabilityScale) si.variabilityScale = scale.scale;
                 si.scaleType = scaleType;
-                si.noiseSd = some(noise);
+                si.propagatedSigma = some(noise);   // R3: never σnoise
                 if (meas.graded && meas.grade >= 1) si.sourceNeedleGrade = meas.grade;
                 si.values = values;
                 const pv::VariabilityResult res = m_scalar->grade(si);
@@ -474,7 +468,6 @@ private:
                 int offered = 0, excluded = 0, finite = 0;
                 for (size_t i = 0; i < m_s.shots.size(); ++i) {
                     if (m_in.shots[i].club != club) continue;
-                    if (excludedShot(*m_s.shots[i])) { ++excluded; continue; }
                     ++offered;
                     double v = kNaN;
                     if (const MetricSeries *m = m_s.shots[i]->metric(key))
@@ -503,7 +496,7 @@ private:
         }
     }
 
-    // The σnoise of a curve: the series σ its span readings carry (consistencyInput's seriesSigma).
+    // The propagated σ of a curve: the series σ its span readings carry (consistencyInput's seriesSigma).
     double traceNoise(const QString &key) const
     {
         for (const ConsistencyReading &r : m_in.readings)
@@ -539,7 +532,7 @@ private:
                 pv::VariabilityInput ti;
                 ti.variabilityScale = m_provider.variabilityScale(key);
                 ti.scaleType = m_provider.scaleType(key);
-                ti.noiseSd = some(noise);
+                ti.propagatedSigma = some(noise);   // R3: never σnoise
                 QStringList swings;
                 std::vector<double> peaksCanon;           // each offered swing's peak on the canonical axis
                 int offered = 0, excluded = 0, withCurve = 0;
@@ -548,7 +541,7 @@ private:
                     const MetricSeries *m = m_s.shots[i]->metric(key);
                     if (!m || !m->hasCurve()) continue;
                     ++withCurve;
-                    if (m_in.shots[i].guarded || excludedShot(*m_s.shots[i])) { ++excluded; continue; }
+                    if (m_in.shots[i].guarded) { ++excluded; continue; }
                     ++offered;
                     if (!haveWindow) continue;
                     const TraceCurve &c = aligned[i];
@@ -634,11 +627,10 @@ private:
     {
         if (!ks) return;
         for (const QString &club : m_clubs) {
-            int warmUp = 0, unresolved = 0, guarded = 0;
+            int unresolved = 0, guarded = 0;
             std::vector<std::pair<QString, QString>> resolved;     // (set, order) per resolved swing
             for (size_t i = 0; i < m_s.shots.size(); ++i) {
                 if (m_in.shots[i].club != club) continue;
-                if (excludedShot(*m_s.shots[i])) { ++warmUp; continue; }
                 // The stored order rests on the same P-ladder timing a trace does, so a guarded swing is out.
                 if (m_in.shots[i].guarded) { ++guarded; continue; }
                 const auto it = ks->constFind(m_s.shots[i]->swingDir);
@@ -676,7 +668,7 @@ private:
             row.phase = QStringLiteral("P4-P8");
             row.scaleType = pv::ScaleType::Ordinal;
             row.offered = int(oi.categories.size());
-            row.excluded = warmUp;
+            row.excluded = guarded;
             row.r = res;
             row.detail = modalOrder;
             row.ksSegments = modal;

@@ -88,8 +88,8 @@ set_tests_properties(variability_env_test PROPERTIES ENVIRONMENT "${CONSISTENCY_
 
 # The Consistency maths (src/Gui/charts/session_consistency.{h,cpp}, consistency_design.md §4): the rules on a stub
 # env and synthetic shots, the guard and sampling on the 4 July fixture, and the 5 Oct fixture on the real env for
-# its timing and its golden (goldens_1005_consistency.json, cut by consistency_tally.py from a dump of that fixture).
-# tools/diagnostics/consistency_make_goldens.sh cuts it and goldens_home_consistency.json again.
+# its timing and its golden stand-outs (goldens_1005_consistency.json: frozen since the matrix verdicts and the tally that
+# cut it were retired, Mark 7 Nov; its `standouts`, `flags` and shuffle figures are still the rules' own).
 set(CONSISTENCY_MATHS_SOURCES
     ${GUI}/charts/session_consistency.cpp
     ${GUI}/charts/session_curves.cpp
@@ -103,14 +103,18 @@ pp_add_test(session_consistency_test
     AUTOMOC)
 set_tests_properties(session_consistency_test PROPERTIES ENVIRONMENT "${CONSISTENCY_ENV_ENV}")
 
-# consistency_dump <fixture.json> <out.json>: both layers on the production env, for consistency_tally.py to recompute
-# and diff. A tool, not a test: no ctest entry. The shipped files' paths are compiled in as its defaults.
-pp_require_swingstore()
-add_executable(consistency_dump consistency_dump.cpp ${CONSISTENCY_MATHS_SOURCES} ${CONSISTENCY_ENV_SOURCES})
-target_include_directories(consistency_dump PRIVATE ${PP_BUFFER} ${CONSISTENCY_ENV_INCLUDE})
-target_compile_definitions(consistency_dump PRIVATE PP_DIAGNOSTICS_DIR="${SRC}/Resources/diagnostics")
-target_link_libraries(consistency_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
-set_target_properties(consistency_dump PROPERTIES AUTOMOC ON)
+# Clubs and the variability grade (src/Gui/charts/variability_clubs.{h,cpp}; Mark's rulings R2a and R2b, 7 Nov): the
+# pooled within-club input (residuals about each club's median, consistencyResiduals' own centring, clubs under 3
+# swings left out) and the per-club windows (ordered by readings, a club under N_MIN still graded 0), scalar and
+# trace. Synthetic swings; no env is read.
+pp_add_test(variability_clubs_test
+    SOURCES variability_clubs_test.cpp ${GUI}/charts/variability_clubs.cpp ${CONSISTENCY_MATHS_SOURCES}
+            ${CONSISTENCY_ENV_SOURCES}
+            ${SRC}/Metrics/variability/variability_grader.cpp ${SRC}/Metrics/variability/variability_result.cpp
+    INCLUDE ${CONSISTENCY_ENV_INCLUDE}
+    LINK    Qt6::Qml Qt6::Test
+    AUTOMOC)
+
 
 # variability_calibrate <fixtures-root> <ks-root> <out-dir>: the variability grader (src/Metrics/variability/, spec
 # §8) over a read-only extract of every athlete's sessions, for calibrating the §8.10 constants: the calibration and
