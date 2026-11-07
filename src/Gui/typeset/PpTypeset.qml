@@ -133,6 +133,10 @@ QtObject {
     readonly property color ink3: _fm ? _fm.colorText3 : Theme.colorText3
     readonly property color warn: _fm ? _fm.colorWarn : Theme.colorWarn            // "outside its corridor", and nothing else
     readonly property color attention: _fm ? _fm.colorAttention : Theme.colorAttention   // "how much": a table cell's heat, never a fault
+    // "repeats well": a variability mark's grades 4–5 on paper (docs/design/variability-mark/spec.md §3,
+    // §9.5.4; Mark, 7 Nov 2026). Read like warn and attention: the fixed aesthetic's light colorGood (Folio's
+    // on the session report), else the app's.
+    readonly property color good: _fm ? _fm.colorGood : Theme.colorGood
     readonly property color accent: _fm ? _fm.colorAccent : Theme.colorAccent
     readonly property bool _dark: _fm ? false : Theme.dark
     readonly property color paper: isPrint ? "#FFFFFF" : (_fm ? _fm.colorBg : Theme.colorBg)

@@ -100,8 +100,10 @@ QtObject {
     // chartGridOpacity, chartBaseline, chartBaselineOpacity, chartFrame, chartCurveWidth,
     // chartMarkerHollow, typeset (a block of typeset roles, §15.3 — see _typesetDefault), and the table and
     // mark geometry (tableRadius, rowH, rowH2, itemRowH, tableHeaderH, rowPadH, itemIndent, colorHairline,
-    // meterSeg*, colorMeterUnlit, pipSize, pipGap, bandBarH, tabUnderline, fontSzTab, capDot). Optional keys may
-    // also sit in a mode block when they differ between light and dark (Folio's chart greys).
+    // meterSeg*, colorMeterUnlit, pipSize, pipGap, bandBarH, tabUnderline, fontSzTab, capDot, variabilityIconSize,
+    // variabilityCellW, variabilityCellH, variabilityFunnelH, variabilityPrintAlphaScale, variabilityWashAlpha).
+    // Optional keys may also sit in a mode block when they differ between light and dark (Folio's chart
+    // greys); variabilityWashAlpha's default already differs (1 light, 3 dark).
     readonly property var _themes: ({
         instrument: {
             label: "Instrument", swatch: ["#B5701A", "#E6AC54"], fontBody: serifFamily, fontData: "DM Mono", fontDisplay: serifFamily,
@@ -814,6 +816,29 @@ QtObject {
     readonly property int fontSzTab:    _v("fontSzTab", 22)
     // A capability row's dot.
     readonly property int capDot: _v("capDot", 8)
+    // The variability marks (docs/design/variability-mark/spec.md §10): PpVariabilityMark, its badge
+    // and the spread funnel. Design pixels like the rest of this block (sp() them).
+    readonly property int variabilityIconSize: _v("variabilityIconSize", 20)   // an Icon mark's edge (16 in dense lists)
+    readonly property int variabilityCellW:    _v("variabilityCellW", 80)      // a Cell mark's width (drawn at size × 80/24); fits Theme.rowH
+    readonly property int variabilityCellH:    _v("variabilityCellH", 24)
+    readonly property int variabilityFunnelH:  _v("variabilityFunnelH", 32)    // the spread funnel graphic's height, compact and wide
+    // On paper a mark's translucent fills (the dots at 85 %, the group ellipse, the Needle's wedges, the
+    // typicality ghosts, inner zone and envelope, the funnel band)
+    // multiply their alpha by this, clamped to 1, so a wash that reads on screen still prints. Strokes
+    // keep theirs.
+    readonly property real variabilityPrintAlphaScale: _v("variabilityPrintAlphaScale", 1.5)
+    // On SCREEN every translucent wash of the variability marks multiplies its alpha by this, clamped
+    // to 1: the Dispersion Cell's group ellipse, the Needle's wedges (Icon and Cell, small sizes too),
+    // the funnel's band fill, the typicality inner zone and the trace's envelope. Not a wash: strokes,
+    // the band's edge, the 70–85 % dots, the ghost dots, the dashed outer zone, any line. 1 in light
+    // themes, 3 in dark, where the 12/16/24 % Needle wedges could not be told apart (Mark, 7 Nov 2026;
+    // spec §3, §10). A theme or mode block may set its own. Print never reads it: paper is light, and
+    // a printed fill takes variabilityPrintAlphaScale instead.
+    readonly property real variabilityWashAlpha: _v("variabilityWashAlpha", dark ? 3 : 1)
+    // Live-session grade hysteresis (§8.9): a grade changes only when ρ (or s′) crosses a band edge by
+    // this much. NOT a theme key: it MUST equal kHysteresis in src/Metrics/variability/variability_constants.h,
+    // the value the grader uses, and a theme that changed it would make the two disagree. TODO(calibrate)
+    readonly property real variabilityHysteresis: 0.05
 
     // A numeric trend figure ("+2", "−1", "±0"): up is better, down worse, none quiet. The figure is
     // printed with its sign, so colour is never the only channel.

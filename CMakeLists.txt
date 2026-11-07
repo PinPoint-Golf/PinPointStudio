@@ -844,7 +844,7 @@ target_include_directories(PinPointStudio PRIVATE
     src/Gui
     src/Gui/app src/Gui/shell src/Gui/athlete src/Gui/monitor src/Gui/cameras
     src/Gui/imu src/Gui/viz src/Gui/swing3d src/Gui/session src/Gui/shot src/Gui/review
-    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup src/Gui/charts src/Gui/trust
+    src/Gui/media src/Gui/calibration src/Gui/diagnostics src/Gui/markup src/Gui/charts src/Gui/trust src/Gui/variability
     src/Gui/characteristics src/Gui/diagnosticmodel src/Gui/launchmonitor src/Gui/print
     src/IMU src/LaunchMonitor src/Audio src/Video src/Pose src/STT src/TTS src/LLM src/Secrets src/Core src/Buffer
     src/Analysis src/Club src/Wrist src/Body src/Timeline src/Ball src/Kinematics src/Skeleton3d
@@ -2894,6 +2894,19 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/mp4_frame_reader.cpp
     src/Metrics/metric_type.h
     src/Metrics/metric_descriptor.h
+    src/Metrics/variability/variability_scale_type.h
+    # The variability grader (docs/design/variability-mark/spec.md §8): scalar, trace, ordinal and
+    # measurement grades, typicality, trend, and the §7.5 basis strings. QML sees only its results,
+    # through src/Gui/variability/variability_facade.h.
+    src/Metrics/variability/variability_constants.h
+    src/Metrics/variability/variability_result.h
+    src/Metrics/variability/variability_result.cpp
+    src/Metrics/variability/variability_grader.h
+    src/Metrics/variability/variability_grader.cpp
+    src/Metrics/variability/variability_typicality.h
+    src/Metrics/variability/variability_typicality.cpp
+    src/Metrics/variability/variability_trend.h
+    src/Metrics/variability/variability_trend.cpp
     src/Metrics/metric_provider.h
     src/Metrics/metric_catalogue.h
     src/Metrics/metric_catalogue.cpp

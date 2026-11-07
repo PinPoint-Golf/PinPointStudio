@@ -30,6 +30,11 @@
 set(PP_QML_SINGLETONS
     src/Gui/theme/Theme.qml
     src/Gui/components/ClubFormat.qml
+    # The variability words (docs/design/variability-mark/spec.md §7): the ONLY home for them.
+    src/Gui/components/ConsistencyVocabulary.qml
+    src/Gui/components/MeasurementVocabulary.qml
+    src/Gui/components/TrendVocabulary.qml
+    src/Gui/components/TypicalityVocabulary.qml
     src/Gui/shot/DataWarningFormat.qml
     src/Gui/settings/SettingsIndex.qml
     src/Gui/session/ViewLayout.qml
@@ -44,6 +49,11 @@ set(PP_QML_SINGLETONS
 set(PP_QML_FILES
     src/Gui/theme/Theme.qml
     src/Gui/components/ClubFormat.qml
+    # The variability words (docs/design/variability-mark/spec.md §7): the ONLY home for them.
+    src/Gui/components/ConsistencyVocabulary.qml
+    src/Gui/components/MeasurementVocabulary.qml
+    src/Gui/components/TrendVocabulary.qml
+    src/Gui/components/TypicalityVocabulary.qml
     src/Gui/shot/DataWarningFormat.qml
     src/Gui/session/ViewLayout.qml
     src/Gui/session/SessionMode.qml
@@ -104,6 +114,11 @@ set(PP_QML_FILES
     src/Gui/components/PpDeviceFilterBar.qml
     src/Gui/components/PpDeviceTags.qml
     src/Gui/components/PpStrengthMark.qml
+    # The variability mark (docs/design/variability-mark/spec.md §4) and its badge, the mark plus its word (§5).
+    src/Gui/components/PpVariabilityMark.qml
+    src/Gui/components/PpVariabilityBadge.qml
+    # The spread funnel (spec §6.1): a group's spread as a band along time.
+    src/Gui/components/PpVariabilityFunnel.qml
     src/Gui/components/PpSwingTimeline.qml
     src/Gui/components/PpInset.qml
     src/Gui/components/PpLink.qml
@@ -605,6 +620,16 @@ set(PP_QML_SOURCES
     src/Gui/trust/trust_presenter.cpp
     src/Gui/trust/trust_words.h
     src/Gui/trust/trust_words.cpp
+    # The variability façade (docs/design/variability-mark/spec.md §4.1, §8): the `variabilityResult` value
+    # type and the `Variability` constants singleton. RESULTS only; the grader it reads is
+    # src/Metrics/variability/, which every consumer must compile (the app's Metrics list, and the
+    # link closures of qml_ui_test and session_setup_ui_test in src/Gui/CMakeLists.txt).
+    src/Gui/variability/variability_facade.h
+    src/Gui/variability/variability_facade.cpp
+    # The variability geometry provider (spec §4.4 – §4.7, §11): the `VariabilityGeometry` singleton
+    # PpVariabilityMark draws from. Self-contained: Qt Core, Gui and Qml only, no further closure.
+    src/Gui/variability/variability_geometry.h
+    src/Gui/variability/variability_geometry.cpp
     src/Gui/review/metric_catalog.h
     src/Gui/review/metric_catalog.cpp
     # metric_catalog.cpp's setupSummary() — listed here, not beside the other Metrics sources, so

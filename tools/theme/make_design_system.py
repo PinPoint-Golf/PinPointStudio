@@ -27,6 +27,24 @@ def geo(name):
     raise SystemExit("make_design_system: cannot find %s in Theme.qml" % name)
 
 
+def real(name):
+    """A real token's value from Theme.qml, as written there ("1.5"): `_v("name", x)` or a plain `x`."""
+    for pat in (r"property\s+real\s+%s:\s*_v\(\"%s\",\s*([\d.]+)\)" % (name, name), r"property\s+real\s+%s:\s*([\d.]+)\s*$" % name):
+        m = re.search(pat, qml, re.M)
+        if m: return m.group(1)
+    raise SystemExit("make_design_system: cannot find %s in Theme.qml" % name)
+
+
+# Theme.variabilityHysteresis is the QML copy of the grader's kHysteresis (spec §8.9, §10): the two must
+# never disagree, so the token file refuses to generate (and --check fails) when they do.
+_vc = open(os.path.join(ROOT, "src", "Metrics", "variability", "variability_constants.h"), encoding="utf-8").read()
+m = re.search(r"constexpr\s+double\s+kHysteresis\s*=\s*([\d.]+)", _vc)
+if not m: raise SystemExit("make_design_system: kHysteresis not found in src/Metrics/variability/variability_constants.h")
+if float(m.group(1)) != float(real("variabilityHysteresis")):
+    raise SystemExit("make_design_system: Theme.variabilityHysteresis (%s) != kHysteresis (%s) in variability_constants.h"
+                     % (real("variabilityHysteresis"), m.group(1)))
+
+
 m = re.search(r'densityScale:\s*density === "compact" \? ([\d.]+) : density === "spacious" \? ([\d.]+) : ([\d.]+)', qml)
 if not m: raise SystemExit("make_design_system: Theme.densityScale not found — apply the density change first")
 DENS = {"compact": m.group(1), "spacious": m.group(2), "default": m.group(3)}
@@ -94,6 +112,17 @@ for a in AES:
 METRIC_NAMES = list(metric["studio"]["dark"].keys())
 
 THEMES = [f"{a}-{m}" for a in AES for m in ("light", "dark")]
+
+# Theme.variabilityWashAlpha: an optional key whose default differs by mode (`dark ? D : L`); a theme
+# or its mode block may set its own. Read per theme so tokens.json shows what each one draws.
+m = re.search(r'property\s+real\s+variabilityWashAlpha:\s*_v\("variabilityWashAlpha",\s*dark \? ([\d.]+) : ([\d.]+)\)', qml)
+if not m: raise SystemExit("make_design_system: cannot find variabilityWashAlpha in Theme.qml")
+WASH_DEFAULT = {"dark": m.group(1), "light": m.group(2)}
+def wash_alpha(a, mode):
+    t = block(themes_txt, r"\n\s+%s: \{" % a)
+    mb = re.search(r"\bvariabilityWashAlpha:\s*([\d.]+)", block(t, r"\b%s:\s*\{" % mode))
+    sh = re.search(r"\bvariabilityWashAlpha:\s*([\d.]+)", t.split("light:")[0])
+    return (mb or sh).group(1) if (mb or sh) else WASH_DEFAULT[mode]
 
 def per(fn):
     return {f"{a}-{m}": fn(a, m) for a in AES for m in ("light", "dark")}
@@ -271,7 +300,11 @@ for n, u in [("meterSegW", "A how-often meter segment's width (PpMeter, ten segm
              ("bandBarH", "The area band bar's height (PpBandBar)."), ("tabUnderline", "The current title-size tab's accent underline."),
              ("fontSzTab", "Title-size tab label size (PpTabs size 'title')."), ("capDot", "A capability row's dot."),
              ("cardRule", "The tone rule across a card's top."), ("heroRule", "The tone rule across the hero card's top."),
-             ("borderWidth", "Every border and hairline: 1 px at translucent ink.")]:
+             ("borderWidth", "Every border and hairline: 1 px at translucent ink."),
+             ("variabilityIconSize", "A variability mark's Icon edge: PpVariabilityMark's default `size`, and the Icon badge's mark (PpVariabilityBadge). A `dense` badge draws its mark at sp(16), a number, not a token."),
+             ("variabilityCellW", "A variability mark's Cell width at variabilityCellH; a Cell fits Theme.rowH at every density. No component reads it: a Cell is drawn `size` × 80 / 24 wide, which is this at the token height. Use it to size a table column."),
+             ("variabilityCellH", "A variability mark's Cell height: the Cell badge's mark. A bare Cell mark defaults to variabilityIconSize, so set `size: Theme.sp(Theme.variabilityCellH)` on one."),
+             ("variabilityFunnelH", "The spread funnel's graphic height (PpVariabilityFunnel), compact and wide alike. The compact graphic is sp(120) wide, a number, not a token.")]:
     spacing.append((n, geo(n), u))
 radius = []
 for a in AES:
@@ -299,6 +332,14 @@ tokens = {
         {"name": "borderOpacityNormal", "value": "0.5", "usage": "Border opacity, normal."},
         {"name": "borderOpacityStrong", "value": "0.75", "usage": "Border opacity, strong."},
         {"name": "overlayOpacity", "value": "0.7", "usage": "Default opacity of overlays drawn on video (user setting)."},
+        {"name": "variabilityPrintAlphaScale", "value": real("variabilityPrintAlphaScale"),
+         "usage": "On paper (medium \"print\"), every translucent fill of the variability marks multiplies its alpha by this, clamped to 1, so the wash still prints: the Dispersion dots and group ellipse, the Needle's wedges, the typicality inner zone and ghost dots, the trace's envelope and the funnel's band. Strokes keep theirs (the Overlay traces, rings, lines, the band's edge). Used in place of roles.tintK, never with it."},
+        {"name": "variabilityWashAlpha", "value": per(wash_alpha),
+         "usage": "On screen, every translucent wash of the variability marks multiplies its alpha by this, clamped to 1: the Dispersion Cell's group ellipse, the Needle's wedges (Icon and Cell, small-size alphas too), the funnel's band fill, the typicality inner zone and the trace's envelope. Not washes: strokes, the band's edge, the 70–85 % dots, the ghost dots, the dashed outer zone, any line. 1 in light themes, 3 in dark (Mark, 7 Nov 2026: the 12/16/24 % Needle wedges could not be told apart in dark themes); a theme or mode block may set its own. Print never reads it: on paper the fills take variabilityPrintAlphaScale instead."},
+    ]},
+    "behaviour": {"note": "Not a look: numbers that decide WHEN a look changes (the grader in C++ applies the hysteresis; Theme mirrors it for QML). Not theme keys.", "tokens": [
+        {"name": "variabilityHysteresis", "value": real("variabilityHysteresis"),
+         "usage": "Live-session grade hysteresis (variability spec §8.9): a grade changes only when ρ (or s′, or ρm) crosses a band edge by this much. The C++ grader applies it (hysteresisGrade); no component reads it, and a mark draws whatever grade it is given. Equals kHysteresis in src/Metrics/variability/variability_constants.h (the generator checks); frozen session assessments use the plain bands."},
     ]},
     "meta": {"source": "src/Gui/theme/Theme.qml", "generator": "tools/theme/make_design_system.py",
              "aesthetics": AES, "note": "Generated — edit Theme.qml and rerun, never this file."},

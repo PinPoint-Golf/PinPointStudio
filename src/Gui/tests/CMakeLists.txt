@@ -154,6 +154,42 @@ pp_add_test(navigation_controller_test
     INCLUDE ${GUI} ${GUI}/shell ${SRC}
     LINK    Qt6::Qml Qt6::Test  AUTOMOC)
 
+# The variability façade (variability/variability_facade.h, docs/design/variability-mark/spec.md §4.1, §8):
+# the `variabilityResult` value type QML is handed — every field mapped, the token spellings, a NaN ρ — and
+# the `Variability` singleton's §8.10 constants against variability_constants.h. Hand-built results; the
+# grading itself is variability_grader_test's. variability_result.cpp builds the §7.5 basis strings.
+pp_add_test(variability_facade_test
+    SOURCES variability_facade_test.cpp
+            ${GUI}/variability/variability_facade.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+    INCLUDE ${GUI} ${GUI}/variability ${SRC}
+    LINK    Qt6::Qml Qt6::Test  AUTOMOC)
+
+# The variability geometry provider (variability/variability_geometry.h, spec §4.4 – §4.7, §11): the §4
+# tables spot-checked, the grade ladder (spread never grows, grade 5 converges, grade 0 is the neutral
+# element alone), clamping, the stroke widths and small-size radii, and the `VariabilityGeometry`
+# singleton's one-object-per-key cache, then its path call fed to a real PathPolyline (hence Quick and
+# offscreen; no window is shown).
+find_package(Qt6 REQUIRED COMPONENTS Quick)
+pp_add_test(variability_geometry_test
+    SOURCES variability_geometry_test.cpp
+            ${GUI}/variability/variability_geometry.cpp
+    INCLUDE ${GUI} ${GUI}/variability ${SRC}
+    LINK    Qt6::Qml Qt6::Quick Qt6::Test  AUTOMOC)
+set_tests_properties(variability_geometry_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+# The per-instance variability geometry (DataVariabilityGeometry in variability/variability_geometry.h,
+# spec §6.1, §6.2, §11): the spread funnel's half-width, breaks, fewer-than-3 state and 12-session cap;
+# Your group's ring, clamp and chevron, zones, deterministic ghost jitter and corridor bracket; the trace
+# envelope and its vertical scale; then the singleton's per-instance calls as plain JS objects and
+# polygon() fed to a real PathPolyline (hence Quick and offscreen; no window is shown).
+pp_add_test(variability_data_geometry_test
+    SOURCES variability_data_geometry_test.cpp
+            ${GUI}/variability/variability_geometry.cpp
+    INCLUDE ${GUI} ${GUI}/variability ${SRC}
+    LINK    Qt6::Qml Qt6::Quick Qt6::Test  AUTOMOC)
+set_tests_properties(variability_data_geometry_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 # Role-keyed IMU placement (session_wizard_refactor_design.md §4.13) — the pure half
 # ImuManager and AppSettings delegate to (imu_role_map): the imu/placement → imu/roles
 # migration and its marker, the derived legacy view, the owner ladder, one claim per role,

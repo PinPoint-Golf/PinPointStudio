@@ -89,6 +89,13 @@ else()
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
         # the chest's gap bridge (session_bridge.cpp bridges older swings with it)
         ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
+        # the variability grader: the façade (variability/variability_facade.cpp) needs only variability_result.cpp
+        # (its basis strings); the other three are here for the presenters that will grade. variability_grader_test
+        # compiles the same four
+        ${PP_ROOT}/src/Metrics/variability/variability_result.cpp
+        ${PP_ROOT}/src/Metrics/variability/variability_grader.cpp
+        ${PP_ROOT}/src/Metrics/variability/variability_typicality.cpp
+        ${PP_ROOT}/src/Metrics/variability/variability_trend.cpp
         ${PP_ROOT}/src/Core/pp_log_stream.cpp
         ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 
@@ -137,7 +144,7 @@ else()
         ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics
         ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
         ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
-        ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell)
+        ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell ${CMAKE_CURRENT_SOURCE_DIR}/variability)
     # PP_DIAG_RESOURCES_DIR: the shipped diagnostics content, which the binary falls back to for any
     # PINPOINT_CORE_* variable its caller did not set (issue #140; see the qml_ui ENVIRONMENT below).
     set(_pp_diag "${PP_ROOT}/src/Resources/diagnostics")
@@ -221,6 +228,10 @@ else()
             ${PP_ROOT}/src/Export/swing_paths.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
+            ${PP_ROOT}/src/Metrics/variability/variability_result.cpp
+            ${PP_ROOT}/src/Metrics/variability/variability_grader.cpp
+            ${PP_ROOT}/src/Metrics/variability/variability_typicality.cpp
+            ${PP_ROOT}/src/Metrics/variability/variability_trend.cpp
             ${PP_ROOT}/src/Core/pp_log_stream.cpp
             ${PP_ROOT}/src/Core/PpMessageLog.cpp)
 
@@ -290,7 +301,7 @@ else()
             ${SRC} ${PP_ROOT}/src/Core ${PP_ROOT}/src/Buffer ${PP_ROOT}/src/Metrics ${PP_ROOT}/src/Analysis ${PP_ROOT}/src/Diagnostics
             ${PP_ROOT}/src/Export ${PP_ROOT}/src/LaunchMonitor ${PP_ROOT}/src/Audio ${PP_ROOT}/src/Video
             ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/app ${CMAKE_CURRENT_SOURCE_DIR}/review ${CMAKE_CURRENT_SOURCE_DIR}/viz ${CMAKE_CURRENT_SOURCE_DIR}/swing3d ${CMAKE_CURRENT_SOURCE_DIR}/shot ${CMAKE_CURRENT_SOURCE_DIR}/launchmonitor
-            ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell
+            ${CMAKE_CURRENT_SOURCE_DIR}/diagnosticmodel ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics ${CMAKE_CURRENT_SOURCE_DIR}/print ${CMAKE_CURRENT_SOURCE_DIR}/charts ${CMAKE_CURRENT_SOURCE_DIR}/trust ${CMAKE_CURRENT_SOURCE_DIR}/shell ${CMAKE_CURRENT_SOURCE_DIR}/variability
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/setup)
         # Its own QUICK_TEST_SOURCE_DIR: the tst_*.qml and fakes/ are read live from the source
         # tree, so editing them needs no rebuild.
