@@ -48,6 +48,17 @@ class INormProvider;
 using LmShotValues = QHash<QString, double>;
 }
 
+// ── The variability marks on this panel (docs/design/system/variability.md; decisions.md §2, R4, R4b, R8) ──
+namespace pinpoint::lm {
+
+// R4b: the readings that are CLUB DELIVERY — movement, so a consistency grade and a typicality are allowed, per
+// club: every launch monitor reading that is not an outcome (isOutcomeMetric, the one rule every surface uses: ball
+// flight and smash factor). Club speed, path, face, face to path, attack, dynamic and spin loft, lie, closure, low
+// point and strike location and height.
+bool lmIsClubDelivery(const QString &key);
+
+} // namespace pinpoint::lm
+
 // The launch monitor session board's model (PpLaunchMonitorPanel).
 //
 // Every number is lmSessionStats()' — this class only decides WHICH SHOTS it is asked
@@ -171,6 +182,15 @@ class LmSessionModel : public QAbstractListModel
     // is left out, its raw readings and its club evidence), `clubs` (per effective club: the
     // statistics and the four enclosing ellipses), `mismatch` (the note) and `device` (whose
     // club markers the Impact face carries). See sessionGraphics() in the .cpp.
+    //
+    // THE VARIABILITY MARKS (the technical layer; docs/design/system/variability.md). Two more keys:
+    //   clubs[].stats[key].variability   a club-delivery reading's per-club grade (R4b; lmIsClubDelivery),
+    //                                    the `variabilityResult` fields as a map — clubDeliveryGrade().
+    //                                    Ball flight and smash factor never carry one (R4).
+    //   typicality[key]                  the headline shot against the session's OTHER shots of its club,
+    //                                    not left out, with that reading (R8: at least N_MIN of them):
+    //                                    { values, basisText }, the Typicality badge's. Absent: no result.
+    //                                    Every reading, ball included: typicality is not a grade.
     Q_PROPERTY(QVariantMap graphics READ graphics NOTIFY graphicsChanged)
 
 public:
@@ -276,6 +296,15 @@ private:
     QHash<QString, QString> gradesFor(const std::vector<pinpoint::analysis::LmFieldStats> &stats,
                                       const QString &contextId);
 
+    // ONE CLUB'S SPREAD OF ONE CLUB-DELIVERY READING, graded (R4b): `values` are the club's included
+    // shots' readings (not left out, carrying a reading), in strike order. The scale is the reading's
+    // tolerance corridor in the club's own context (lmToleranceHalfWidth), else the grader's own rungs —
+    // the CV for a Ratio reading (club speed); an Interval reading with no corridor stays ungraded. As
+    // the `variabilityResult` fields in a plain map (graded, grade, measurementLimited, basisText, basis,
+    // ungradedReason, n), so it survives a JSON trip (the report). Empty for a blank club: a mixed bag is
+    // never graded. Live (not reviewing) the grade passes through the §8.9 hysteresis.
+    QVariantMap clubDeliveryGrade(const QString &club, const QString &key, std::vector<double> values);
+
     struct Band {
         QString      name;
         QVariantList tiles;
@@ -314,4 +343,8 @@ private:
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_pack;
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
     QString                                                          m_policyName;
+
+    // The grade each (club, reading) badge showed last, for the live hysteresis (§8.9): keyed
+    // "club|key", lower case. Cleared when reviewing and when the shot list changes.
+    QHash<QString, int> m_shownGrades;
 };

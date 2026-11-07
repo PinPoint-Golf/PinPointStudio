@@ -235,6 +235,46 @@ inline QString lmFormat(double v, int decimals)
     return s.replace(QLatin1Char('-'), QChar(0x2212));
 }
 
+// THE BOARD'S DIRECTION WORDS, for text C++ writes beside the board's own figures (a variability basis string): a
+// directional reading is its size and a word, never a sign — "3.5° L", "0.2° DOWN", "9 mm HEEL". The same table as
+// the panel's (PpLmGraphicsBody.qml, dirKinds / dirWordOf), which the panel spells for itself:
+//   path, face, start, offline, spin axis, side spin   R / L, target-relative, never flipped
+//   attack, lie                                        UP / DOWN (lie: toe up)
+//   face to path                                       OPEN / CLOSED, flipped for a left-handed golfer
+//   strike location                                    TOE / HEEL;  strike height  HIGH / LOW
+// "" for a key with no direction, and for a value that prints as zero.
+inline QString lmDirectionWord(const QString &key, bool negative, bool leftHanded)
+{
+    if (key == QLatin1String("lm.launchDirection") || key == QLatin1String("lm.offline") || key == QLatin1String("lm.spinAxis")
+        || key == QLatin1String("lm.sideSpin") || key == QLatin1String("lm.clubPath") || key == QLatin1String("lm.faceAngle"))
+        return negative ? QStringLiteral("L") : QStringLiteral("R");
+    if (key == QLatin1String("lm.attackAngle") || key == QLatin1String("lm.lieAngle"))
+        return negative ? QStringLiteral("DOWN") : QStringLiteral("UP");
+    if (key == QLatin1String("lm.faceToPath"))
+        return negative != leftHanded ? QStringLiteral("CLOSED") : QStringLiteral("OPEN");
+    if (key == QLatin1String("lm.strikeLocation")) return negative ? QStringLiteral("HEEL") : QStringLiteral("TOE");
+    if (key == QLatin1String("lm.strikeHeight"))   return negative ? QStringLiteral("LOW") : QStringLiteral("HIGH");
+    return QString();
+}
+
+// A reading as the board prints it, with its unit: a directional one as its size, the unit and the word ("3.5° L",
+// "9 mm HEEL"); any other signed with the typographic minus. `unit` is the catalogue's; "ratio" prints no unit, and
+// every unit but ° and % follows a space.
+inline QString lmDirectedText(const QString &key, double v, int decimals, const QString &unit, bool leftHanded)
+{
+    const QString u = unit == QLatin1String("ratio") ? QString() : unit;
+    const auto withUnit = [&u](const QString &n) {
+        if (u.isEmpty()) return n;
+        return u.startsWith(QStringLiteral("°")) || u.startsWith(QLatin1Char('%')) ? n + u : n + QLatin1Char(' ') + u;
+    };
+    if (!std::isfinite(v)) return lmFormat(v, decimals);
+    const QString size = lmFormat(std::fabs(v), decimals);
+    const QString word = lmDirectionWord(key, v < 0.0, leftHanded);
+    if (word.isEmpty()) return withUnit(lmFormat(v, decimals));
+    const bool zero = std::all_of(size.cbegin(), size.cend(), [](QChar c) { return c == QLatin1Char('0') || c == QLatin1Char('.'); });
+    return zero ? withUnit(size) : withUnit(size) + QLatin1Char(' ') + word;
+}
+
 // ── joint spread: the dispersion ELLIPSE ─────────────────────────────────────
 //
 // Two fields taken together, for the regions the schematics shade behind a vector.

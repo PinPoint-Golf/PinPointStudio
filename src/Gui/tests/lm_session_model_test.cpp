@@ -24,8 +24,14 @@
 //   no shot has a reading                → "No launch monitor readings in this session".
 // graphics.has is the headline shot's; graphics.sessionHas the scope's, which gates the Session view.
 // Rows are built in memory (addPersistedShot with an analysisDetail), so nothing is read from disk.
+//
+// And the variability marks the panel shows (docs/design/system/variability.md): G, club delivery's
+// grade per club (R4b) — a two-sided corridor's half-width, the CV for club speed, ungraded without a
+// scale, never smash factor or ball flight (R4), never across clubs; H, typicality — this shot against
+// the session's other shots of its club, this one left out, at least N_MIN of them (R8).
 
 #include "launchmonitor/lm_session_model.h"
+#include "variability/variability_measures.h"
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
 #include "Analysis/swing_analysis.h"
@@ -39,6 +45,7 @@
 
 #include <cstdio>
 #include <initializer_list>
+#include <optional>
 
 using namespace pinpoint;
 
@@ -96,6 +103,51 @@ static int idOf(const ShotListModel &m, int ordinal)
         if (m.data(m.index(r), ShotListModel::OrdinalRole).toInt() == ordinal)
             return m.data(m.index(r), ShotListModel::ShotIdRole).toInt();
     return -1;
+}
+
+// ── the variability marks: rows with readings of our choosing ──
+// One shot's readings, every one a PointInTime sample at Impact.
+static QVariantMap lmDetailOf(const QVariantMap &values)
+{
+    QVariantList series;
+    for (auto it = values.constBegin(); it != values.constEnd(); ++it) {
+        const QVariantMap sample{ { QStringLiteral("phase"), int(analysis::Phase::Impact) },
+                                  { QStringLiteral("value"), it.value().toDouble() } };
+        series.append(QVariantMap{ { QStringLiteral("key"), it.key() },
+                                   { QStringLiteral("phaseSamples"), QVariantList{ sample } } });
+    }
+    return { { QStringLiteral("series"), series } };
+}
+
+// One shot, appended in capture order with the next ordinal.
+static void addShot(ShotListModel &m, const QString &club, const QVariantMap &values, bool leftOut = false)
+{
+    const int ord = m.rowCount() + 1;
+    m.addPersistedShot(QStringLiteral("/nonexistent/swing_%1").arg(ord, 4, 10, QLatin1Char('0')), ord,
+                       QStringLiteral("11:%1").arg(ord, 2, 10, QLatin1Char('0')), club,
+                       false, QUrl(), 0, 0, QString(), {}, lmDetailOf(values), false,
+                       QStringLiteral("gcquad"), {}, leftOut);
+}
+
+// A club's statistics in graphics.clubs, by its effective club label.
+static QVariantMap clubStats(const LmSessionModel &b, const QString &club)
+{
+    for (const QVariant &c : b.graphics().value(QStringLiteral("clubs")).toList())
+        if (c.toMap().value(QStringLiteral("club")).toString() == club)
+            return c.toMap().value(QStringLiteral("stats")).toMap();
+    return {};
+}
+static QVariantMap varOf(const QVariantMap &stats, const char *key)
+{
+    return stats.value(QString::fromLatin1(key)).toMap().value(QStringLiteral("variability")).toMap();
+}
+static bool hasVar(const QVariantMap &stats, const char *key)
+{
+    return stats.value(QString::fromLatin1(key)).toMap().contains(QStringLiteral("variability"));
+}
+static QVariantMap typOf(const LmSessionModel &b, const char *key)
+{
+    return b.graphics().value(QStringLiteral("typicality")).toMap().value(QString::fromLatin1(key)).toMap();
 }
 
 static bool has(const LmSessionModel &b)        { return b.graphics().value(QStringLiteral("has")).toBool(); }
@@ -211,6 +263,143 @@ int main(int argc, char **argv)
         board.setFocusedShotId(-1);
         check(QStringLiteral("C3 nothing picked, nothing read: the whole session (scope \"%1\")").arg(board.scopeText()),
               board.scopeText().contains(QLatin1String("all clubs")));
+    }
+
+    {
+        std::printf("\nG — club delivery is graded per club (R4b); ball flight and smash are not (R4)\n");
+        // 11 7 irons (shot 6 left out) and 5 drivers. Path, attack and face to path have two-sided
+        // corridors (core norms); club speed's is one-sided, graded on its σ all the same (R12); face, lie and strike height
+        // have no corridor (Interval: ungraded); smash factor's norm is a floor, and an outcome.
+        ShotListModel shots;
+        for (int i = 0; i < 11; ++i)
+            addShot(shots, QStringLiteral("7 IRON"), QVariantMap{
+                { QStringLiteral("lm.clubPath"),       -1.0 + 0.2 * (i % 5) },
+                { QStringLiteral("lm.attackAngle"),    -4.0 + 0.3 * ((i * 3) % 5) },
+                { QStringLiteral("lm.faceToPath"),      0.5 * ((i % 4) - 1.5) },
+                { QStringLiteral("lm.clubheadSpeed"),  80.0 + 0.5 * (i % 4) },
+                { QStringLiteral("lm.faceAngle"),       0.4 * (i % 3) },
+                { QStringLiteral("lm.lieAngle"),        1.0 + 0.1 * (i % 3) },
+                { QStringLiteral("lm.strikeLocation"),  2.0 * ((i % 5) - 2) },
+                { QStringLiteral("lm.strikeHeight"),    double((i % 3) - 1) },
+                { QStringLiteral("lm.smashFactor"),     1.35 + 0.01 * (i % 3) },
+                { QStringLiteral("lm.carryDistance"), 150.0 + i },
+                { QStringLiteral("lm.ballSpeed"),     110.0 + (i % 3) } }, i == 5);
+        for (int i = 0; i < 5; ++i)
+            addShot(shots, QStringLiteral("DRIVER"), QVariantMap{
+                { QStringLiteral("lm.clubPath"),       3.0 + 2.0 * (i % 5) },
+                { QStringLiteral("lm.attackAngle"),    2.0 + 0.5 * i },
+                { QStringLiteral("lm.clubheadSpeed"), 100.0 + i },
+                { QStringLiteral("lm.carryDistance"), 240.0 + 3 * i } });
+        LmSessionModel board;
+        board.setReviewing(true);
+        board.setShotModel(&shots);
+
+        const QVariantMap iron = clubStats(board, QStringLiteral("7 IRON"));
+        const QVariantMap drv  = clubStats(board, QStringLiteral("DRIVER"));
+        const QVariantMap path = varOf(iron, "lm.clubPath");
+        check(QStringLiteral("G1 7 iron path: graded on its 10 included shots (n %1, \"%2\")")
+                  .arg(path.value(QStringLiteral("n")).toInt()).arg(path.value(QStringLiteral("basisText")).toString()),
+              path.value(QStringLiteral("graded")).toBool() && path.value(QStringLiteral("grade")).toInt() >= 1
+                  && path.value(QStringLiteral("n")).toInt() == 10);
+        check("G1 7 iron path: against its corridor",
+              path.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+        check("G1 7 iron attack and face to path: graded against their corridors",
+              varOf(iron, "lm.attackAngle").value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor"))
+                  && varOf(iron, "lm.faceToPath").value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+        const QVariantMap speed = varOf(iron, "lm.clubheadSpeed");
+        check(QStringLiteral("G2 club speed (a one-sided norm): graded against its (σLo + σHi)/2, R12 (\"%1\")").arg(speed.value(QStringLiteral("basisText")).toString()),
+              speed.value(QStringLiteral("graded")).toBool()
+                  && speed.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor"))
+                  && speed.value(QStringLiteral("basisText")).toString().contains(QLatin1String("mph")));
+        check("G3 face, lie, strike height (Interval, no corridor): ungraded, noScale",
+              !varOf(iron, "lm.faceAngle").value(QStringLiteral("graded")).toBool()
+                  && varOf(iron, "lm.faceAngle").value(QStringLiteral("ungradedReason")).toString() == QLatin1String("noScale")
+                  && !varOf(iron, "lm.lieAngle").value(QStringLiteral("graded")).toBool()
+                  && !varOf(iron, "lm.strikeHeight").value(QStringLiteral("graded")).toBool());
+        check("G3 strike location (H): graded against its corridor",
+              varOf(iron, "lm.strikeLocation").value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+        check("G4 smash factor: no grade at all (an outcome, R4b)", !hasVar(iron, "lm.smashFactor"));
+        check("G4 carry and ball speed: no grade at all (ball flight, R4)",
+              !hasVar(iron, "lm.carryDistance") && !hasVar(iron, "lm.ballSpeed") && !hasVar(drv, "lm.carryDistance"));
+        const QVariantMap dpath = varOf(drv, "lm.clubPath");
+        check(QStringLiteral("G5 driver path: its own 5 shots, never pooled with the irons (grade %1, n %2, %3)")
+                  .arg(dpath.value(QStringLiteral("grade")).toInt()).arg(dpath.value(QStringLiteral("n")).toInt())
+                  .arg(dpath.value(QStringLiteral("ungradedReason")).toString()),
+              dpath.value(QStringLiteral("graded")).toBool() && dpath.value(QStringLiteral("grade")).toInt() == 0
+                  && dpath.value(QStringLiteral("n")).toInt() == 5
+                  && dpath.value(QStringLiteral("ungradedReason")).toString() == QLatin1String("tooFewSwings"));
+        check("G6 the focused shot changes no club's grade",
+              [&] { board.setFocusedShotId(idOf(shots, 14));
+                    return varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path; }());
+
+        // The scale rule on its own (R12): (σLo + σHi)/2 whatever the norm's shape; no σ, no scale.
+        check("G7 a norm's (σLo + σHi)/2", pinpoint::variability::corridorHalfWidthOf(1.0, 2.0) == 1.5);
+        check("G7 a floor's or a ceiling's σ grade it too (R12)", pinpoint::variability::corridorHalfWidthOf(0.06, 0.06) == 0.06);
+        check("G7 a zero σ: no scale", std::isnan(pinpoint::variability::corridorHalfWidthOf(0.0, 0.0)));
+        check("G8 the outcome rule: path, lie, strike height, spin loft in; smash, carry, offline out",
+              lm::lmIsClubDelivery(QStringLiteral("lm.clubPath")) && lm::lmIsClubDelivery(QStringLiteral("lm.lieAngle"))
+                  && lm::lmIsClubDelivery(QStringLiteral("lm.strikeHeight"))
+                  && lm::lmIsClubDelivery(QStringLiteral("lm.spinLoft"))
+                  && !lm::lmIsClubDelivery(QStringLiteral("lm.smashFactor"))
+                  && !lm::lmIsClubDelivery(QStringLiteral("lm.carryDistance"))
+                  && !lm::lmIsClubDelivery(QStringLiteral("lm.offline")));
+    }
+    {
+        std::printf("\nH — typicality: this shot against the OTHER shots of its club (R8)\n");
+        // 9 7 irons: shots 1-8 at club speeds 78..82 (median 80), shot 9 at 100; then a driver. With shot 9 in its own
+        // window the mean would read 82.2; left out, the median is exactly 80. Path 3.5° left at the median, shot 9 1.2° left.
+        auto session = [](ShotListModel &shots, int leftOut) {
+            const double others[] = { 78, 79, 80, 81, 82, 79, 80, 81 };
+            const double paths[]  = { -3.0, -4.0, -3.5, -3.0, -4.0, -3.5, -3.5, -3.5 };
+            int ord = 0;
+            for (int i = 0; i < 8; ++i)
+                addShot(shots, QStringLiteral("7 IRON"), QVariantMap{ { QStringLiteral("lm.clubheadSpeed"), others[i] },
+                                                                    { QStringLiteral("lm.clubPath"), paths[i] },
+                                                                    { QStringLiteral("lm.ballSpeed"), others[i] * 1.35 },
+                                                                    { QStringLiteral("lm.carryDistance"), 150.0 + others[i] - 80.0 } },
+                        ++ord == leftOut);
+            addShot(shots, QStringLiteral("7 IRON"), QVariantMap{ { QStringLiteral("lm.clubheadSpeed"), 100.0 },
+                                                                 { QStringLiteral("lm.clubPath"), -1.2 },
+                                                                 { QStringLiteral("lm.ballSpeed"), 130.0 },
+                                                                 { QStringLiteral("lm.carryDistance"), 150.0 } });
+            addShot(shots, QStringLiteral("DRIVER"), QVariantMap{ { QStringLiteral("lm.clubheadSpeed"), 110.0 } });
+        };
+        {
+            ShotListModel shots;
+            session(shots, 0);
+            LmSessionModel board;
+            board.setReviewing(true);
+            board.setShotModel(&shots);
+            board.setFocusedShotId(idOf(shots, 9));
+            const QVariantMap t = typOf(board, "lm.clubheadSpeed");
+            const QString basis = t.value(QStringLiteral("basisText")).toString();
+            checkStr("H1 8 others: a result, the median without this shot (R22)", basis,
+                     QStringLiteral("this swing 100.0 mph · median 80.0 mph"));
+            checkStr("H1 the band", t.value(QStringLiteral("values")).toMap().value(QStringLiteral("band")).toString(),
+                     QStringLiteral("unusual"));
+            checkStr("H1 a directional reading's basis reads as the board does: size and side, no sign",
+                     typOf(board, "lm.clubPath").value(QStringLiteral("basisText")).toString(),
+                     QStringLiteral("this swing 1.2° L · median 3.5° L"));
+            check("H1 ball flight has no typicality at all (R4): no ball speed, no carry",
+                  typOf(board, "lm.ballSpeed").isEmpty() && typOf(board, "lm.carryDistance").isEmpty());
+            board.setFocusedShotId(idOf(shots, 10));
+            check("H2 the driver (no other drivers): no result", typOf(board, "lm.clubheadSpeed").isEmpty());
+            board.setFocusedShotId(-1);
+            check("H3 nothing picked: the headline is the latest shot, the lone driver: no result",
+                  typOf(board, "lm.clubheadSpeed").isEmpty());
+        }
+        {
+            // One other 7 iron left out: 7 others, under N_MIN, and the driver does not make up the count.
+            ShotListModel shots;
+            session(shots, 3);
+            LmSessionModel board;
+            board.setReviewing(true);
+            board.setShotModel(&shots);
+            board.setFocusedShotId(idOf(shots, 9));
+            check("H4 7 same-club others (one left out, a driver beside): no result",
+                  typOf(board, "lm.clubheadSpeed").isEmpty()
+                      && board.graphics().value(QStringLiteral("typicality")).toMap().isEmpty());
+        }
     }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);

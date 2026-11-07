@@ -321,7 +321,8 @@ Item {
     // TH: strike location → "9 mm HEEL" / "TOE"; HL: strike height → "1 mm LOW" / "HIGH". A value of exactly 0
     // has no word. The device's values are target-relative for both hands (graphics.leftHanded publishes the
     // convention): R/L never flip, OPEN/CLOSED flips for a left-handed golfer, heel/toe, up/down and
-    // high/low are the club's own and never flip.
+    // high/low are the club's own and never flip. KEEP IN SYNC with lmDirectionWord (src/LaunchMonitor/
+    // lm_session_reductions.h), which spells the same words for the C++ basis strings and reports.
     readonly property var dirKinds: ({ "lm.launchDirection": "LR", "lm.offline": "LR", "lm.spinAxis": "LR", "lm.sideSpin": "LR",
         "lm.clubPath": "LR", "lm.faceAngle": "LR", "lm.faceToPath": "OC", "lm.attackAngle": "UD", "lm.lieAngle": "UD",
         "lm.strikeLocation": "TH", "lm.strikeHeight": "HL" })
@@ -445,8 +446,27 @@ Item {
     function sesTile(key, lab) {
         const st = statsFor(key), p = dirParts(key, st ? fmtKey(key, st.mean) : "-")
         return { key: key, label: lab, value: p.num, dir: p.dir, unit: unitWord(unitOf(key)), footL: (st ? st.n : scopeN) + " shots",
-                 footR: st && st.hasSpread ? "±" + fmtKey(key, st.sd) : "", out: false, strip: stripFor(key) }
+                 footR: st && st.hasSpread ? "±" + fmtKey(key, st.sd) : "", out: false, strip: stripFor(key), vr: varOf(key) }
     }
+    // ═══ THE VARIABILITY MARKS (the technical layer; docs/design/system/variability.md) ═══
+    // A club-delivery reading's grade over the scoped club's shots (R4b): graphics.clubs[].stats[key].variability,
+    // the model's. The model publishes one only for club delivery, so ball flight and smash factor never carry
+    // one (R4). null when ungraded: no mark, never a raw SD in its place.
+    function varOf(key) {
+        const c = focusClub, s = c && c.stats ? c.stats[key] : null, v = s ? s.variability : null
+        return v && v.graded === true ? v : null
+    }
+    // The headline shot against the other shots of its club, without it (R8): graphics.typicality[key],
+    // { values, basisText }; null with no result (fewer than Variability.nMin others). The model publishes club
+    // readings only: ball flight has no badge at all (R4), so a ball tile or ledger row never gets a mark line.
+    function typOf(key) { const t = g && g.typicality ? g.typicality[key] : null; return t && t.values ? t : null }
+    // the named marks under a block of tiles: [{ label, typ, r }], only the tiles with a result (a Flow: none leaves
+    // no row)
+    readonly property var glanceMarks: isCast ? [] : heroDefs.filter(d => !!typOf(d.key)).map(d => ({ label: d.label, typ: true, r: typOf(d.key) }))
+    readonly property var clubMarks: clubTiles.filter(t => !!t.vr).map(t => ({ label: t.label, typ: false, r: t.vr }))
+        .concat([{ label: "H impact", key: "lm.strikeLocation" }, { label: "V impact", key: "lm.strikeHeight" }]
+                .filter(d => !!varOf(d.key)).map(d => ({ label: d.label, typ: false, r: varOf(d.key) })))
+    readonly property bool anyTyp: !!g && !!g.typicality && Object.keys(g.typicality).length > 0
     // the scoped shots' extremes (range, spray): a selection from the shots' own values, not a statistic
     // a club's extremes (range, spray): graphics.clubs[].stats.<key>.min / .max, over the shots not left out. Until
     // the model publishes them, the club's shots' own values are scanned (a selection, not a statistic).
@@ -495,6 +515,7 @@ Item {
     }
     readonly property string statKey: "Footers: shots · ±1 SD under an average; shortest · longest, or furthest left · right, under a range. Strips: every shot on ±3 SD, the band ±1 SD" + (focusInScope ? ", the dark tick shot " + shotNo : "") + "."
     readonly property string clubKeyText: "Footers: shots · ±1 SD. Strips: every shot" + (focusInScope ? ", the dark tick shot " + shotNo : "") + "." + (statsFor("lm.lowPointAhead") ? "" : " Low point: not measured by the device, so no spread.")
+        + (clubMarks.length ? " Marks: each reading's SD over these shots, as a share of its corridor, or of its mean (CV)." : "")
     readonly property var strikeEll: { const e = focusClub && focusClub.ellipses ? focusClub.ellipses.strike : null; return ellOk(e) ? e : null }
     readonly property string mapCaption: {
         const n = scopedShots.filter(s => isFinite(shotV(s, "lm.strikeLocation")) && isFinite(shotV(s, "lm.strikeHeight"))).length
@@ -531,6 +552,7 @@ Item {
         // round 4b, This shot: the tiles first (the glance, always in view), then the club & impact figures in the height
         // left, then the flight in whatever room the club leaves (shotLayout)
         readonly property real tilesH: rowsFor(tileDefs.length, mainW) * (root.tileH + root.tileGap) + (foldedDefs.length || (replay && root.glanceExtra.length) ? root.labLH * 1.6 : 0)
+                                       + glanceBlock.marksH
         readonly property real shotFigH: height - chromeH - tilesH - gut * 1.6
         // Session: the figure row (dispersion, launch × spin | impact map, path × face) takes the height left
         // over the half's head, the club key and two rows of tiles (rule 12), inside its minimum and maximum
@@ -599,8 +621,8 @@ Item {
                         visible: !page.session
                         width: page.mainW
                         spacing: page.gut * 0.8
-                        TileBlock { width: parent.width; defs: page.tileDefs; folded: page.foldedDefs; showAlso: true; h: root
-                                    extra: page.replay ? root.glanceExtra : [] }
+                        TileBlock { id: glanceBlock; width: parent.width; defs: page.tileDefs; folded: page.foldedDefs; showAlso: true; h: root
+                                    extra: page.replay ? root.glanceExtra : []; marks: root.glanceMarks }
                         ShotFigures { visible: !root.isCast; width: parent.width; availH: page.shotFigH; h: root }
                         // the auto-closing cast's glance: the tiles and the flight only
                         FlightFigure {
@@ -661,11 +683,13 @@ Item {
         + " readings carry a corridor; a reading outside it is set in warn with the word, and inside looks like no corridor at all. "
         + "† measured, as the device labels it. The shot shape and the strike are PinPoint's inferred reads, not the device's. "
         + "Path and Spin draw angles ×" + lr.angleGain + "; Loft is true. " + patchLine + " Session holds every shot, the spreads, the dispersion and the impact map."
+        + (glanceMarks.length ? " The marks under the tiles set shot " + headNo + " against the other " + (focusClub ? focusClub.name : "") + " shots, without it." : "")
     readonly property string sessionNotes:
         "The " + scopeN + " " + (focusClub ? focusClub.name : "") + " shots in scope" + (focusInScope ? ", against which shot " + shotNo + " is read" : "")
         + ": the ball half (where it landed, how it launched) and the club half (where it struck, how it was delivered). The strip runs ±3 SD; the shaded band is ±1 SD"
         + (focusInScope ? " and the tick is shot " + shotNo : "") + ". Each ellipse is the smallest that holds every shot of its club (none under three shots), drawn by PinPoint from the shots; other clubs are ghosts, dots and ellipse. "
         + "The dispersion's distance axis starts at the first arc that holds a landing; the tee is behind the break."
+        + (anyTyp ? " The marks in the ledger set shot " + headNo + " against the other " + (focusClub ? focusClub.name : "") + " shots, without it." : "")
 
     // ═══ PRINT ═══
     Item {
@@ -703,7 +727,7 @@ Item {
             Column {
                 visible: paper.on("tiles"); width: parent.width; spacing: ts.g(5)
                 FigHead { width: parent.width; h: root; n: 1; title: "Shot " + root.headNo; sub: "under each figure: the " + (root.focusClub ? root.focusClub.name : "") + " session average · ±1 SD" }
-                TileBlock { width: parent.width; defs: root.heroTiles; folded: []; h: root }
+                TileBlock { width: parent.width; defs: root.heroTiles; folded: []; h: root; marks: root.glanceMarks }
             }
             Column {
                 visible: paper.on("club"); width: parent.width; spacing: ts.g(5)
@@ -745,7 +769,7 @@ Item {
             // round 2: the Session's two halves, as figures 4 (ball) and 5 (club)
             Column {
                 visible: paper.on("ballHalf"); width: parent.width; spacing: ts.g(5)
-                FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 4; title: "Ball"; sub: "dispersion, launch × spin and consistency · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
+                FigHead { width: parent.width; h: root; n: root.figNo > 0 ? root.figNo : 4; title: "Ball"; sub: "dispersion and launch × spin · " + (root.focusClub ? root.focusClub.name + ", " + root.scopeN + " shots" : "") }
                 BallHalf { width: parent.width; figH: ts.u(190); bare: true; h: root }
             }
             Column {
@@ -946,6 +970,8 @@ Item {
         property bool showAlso: false
         property var extra: []                       // readings added to the "also" line (the glance: closure, peak, descent)
         property string inlineSubject: ""            // a gated tile's reason, open under the block (Trust panel off)
+        property var marks: []                       // the named variability marks under the tiles ([{ label, typ, r }])
+        readonly property real marksH: tbMarks.visible ? tbMarks.height + spacing : 0
         readonly property var alsoList: folded.concat(extra)
         readonly property int n: defs.length
         readonly property int fit: h.ts.columns(width, h.lr.tileMinEm, h.tileGap)
@@ -983,12 +1009,48 @@ Item {
                                      + (tb.h.isOut(d.key) ? " " + tb.h.ts.toneHtml("outside", tb.h.ts.warn) : "")).join("&nbsp;&nbsp; · &nbsp;&nbsp;")
             font: tb.h.ts.fMicro; color: tb.h.ts.ink3
         }
+        MarkList { id: tbMarks; width: parent.width; h: tb.h; items: tb.marks }
         PpTrustInlineFor {
             width: parent.width
             roles: tb.h.ts
             subject: tb.inlineSubject
             swingDir: tb.h.gateSwingDir
             onClosed: tb.inlineSubject = ""
+        }
+    }
+
+    // THE VARIABILITY MARKS under a block of tiles (the technical layer; docs/design/system/variability.md): one
+    // named badge per reading, the tile's label, " · ", then the badge with the grader's basis ("CLUB SPEED · ◎
+    // Repeatable · σ 0.4 mph · CV 0.01 · n 10"). Under the tiles rather than in them: a technical badge with its
+    // basis is wider than a tile. `typ`: a Typicality badge (this shot against the other shots of its club, R8);
+    // else a Dispersion one (the club's spread, R4b). `items` hold only results: a reading with none is not listed.
+    component MarkList: Flow {
+        id: ml
+        property var h
+        property var items: []                       // [{ label, typ, r }]
+        visible: items.length > 0
+        spacing: h.ts.g(16)
+        Repeater {
+            model: ml.items
+            delegate: Row {
+                id: mr
+                required property var modelData
+                Text { anchors.verticalCenter: parent.verticalCenter; text: mr.modelData.label; font: ml.h.fTileLabel; color: ml.h.ts.ink2 }
+                Text { anchors.verticalCenter: parent.verticalCenter; text: " · "; font: ml.h.ts.fFigLabel; color: ml.h.ts.ink3 }
+                PpVariabilityBadge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: mr.modelData.typ ? !!mr.modelData.r.values : mr.modelData.r.graded === true
+                    variant: mr.modelData.typ ? PpVariabilityMark.Typicality : PpVariabilityMark.Dispersion
+                    form: PpVariabilityMark.Icon
+                    dense: true
+                    contentLayer: "technical"
+                    grade: mr.modelData.typ ? 0 : mr.modelData.r.grade
+                    measurementLimited: !mr.modelData.typ && mr.modelData.r.measurementLimited === true
+                    values: mr.modelData.typ ? mr.modelData.r.values : null
+                    basisText: mr.modelData.r.basisText || ""
+                    roles: ml.h.ts
+                }
+            }
         }
     }
 
@@ -1315,6 +1377,7 @@ Item {
         }
         Text { width: parent.width; wrapMode: Text.WordWrap; text: chf.h.mapCaption; font: chf.h.ts.fMicro; color: chf.h.ts.ink3 }
         TileBlock { width: parent.width; defs: chf.h.clubTiles; folded: []; h: chf.h }
+        MarkList { width: parent.width; h: chf.h; items: chf.h.clubMarks }
         Text { width: parent.width; wrapMode: Text.WordWrap; text: chf.h.clubKeyText; font: chf.h.ts.fMicro; color: chf.h.ts.ink3 }
     }
     // a scatter of the scoped shots: "pf" path × face (square, the face-to-path diagonal, quadrant words) or
@@ -1573,7 +1636,10 @@ Item {
         readonly property var c: h.ledgerCols(width, full && !indexOnly, indexOnly)
         readonly property bool out: h.isOut(tile.key)
         readonly property real lineH: Math.ceil(h.ts.fBody.pixelSize * 1.55)
-        height: full || indexOnly ? lineH : lineH + Math.ceil(h.ts.fMicro.pixelSize * 1.5) + h.ts.u(2)
+        readonly property real baseH: full || indexOnly ? lineH : lineH + Math.ceil(h.ts.fMicro.pixelSize * 1.5) + h.ts.u(2)
+        // this shot against the other shots of its club, without it (R8): a line of its own under the reading
+        readonly property var typ: indexOnly ? null : h.typOf(tile.key)
+        height: baseH + (typB.visible ? typB.implicitHeight + h.ts.g(3) : 0)
         Text { id: nm; x: 0; y: (lrw.lineH - height) / 2; width: lrw.c.nameW; elide: Text.ElideNone; wrapMode: Text.NoWrap
                text: lrw.h.label(lrw.tile.key) + (lrw.h.measured(lrw.tile.key) ? " †" : ""); font: lrw.h.ts.fBody; color: lrw.h.ts.ink }
         // round 4: the size in the figure column (aligned with every other row), its direction word after the unit
@@ -1599,6 +1665,19 @@ Item {
             Rectangle { x: parent.width / 2; width: lrw.h.ts.hw; height: parent.height; color: lrw.h.ts.hair }
             Rectangle { visible: lrw.tile.hasLatest === true; x: Math.round(parent.width * (lrw.tile.tickPct || 50) / 100 - width / 2); width: Math.max(2, lrw.h.ts.stripBar * 0.7); height: parent.height
                         color: lrw.out ? lrw.h.ts.warn : lrw.h.ts.ink }
+        }
+        PpVariabilityBadge {
+            id: typB
+            visible: !!lrw.typ                       // no result: no badge, never a shape without its word
+            // inset: an Unusual ring sits past the icon's edge (the mark's geometry), so it never meets the column's
+            x: lrw.h.ts.u(3); y: lrw.baseH
+            variant: PpVariabilityMark.Typicality
+            form: PpVariabilityMark.Icon
+            dense: true
+            contentLayer: "technical"
+            values: lrw.typ ? lrw.typ.values : null
+            basisText: lrw.typ ? lrw.typ.basisText : ""
+            roles: lrw.h.ts
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: lrw.h.ts.hw; color: lrw.h.ts.hair }
     }

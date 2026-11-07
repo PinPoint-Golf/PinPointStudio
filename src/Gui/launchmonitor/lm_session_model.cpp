@@ -34,6 +34,11 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 
+#include "../../Metrics/variability/variability_grader.h"
+#include "../../Metrics/variability/variability_typicality.h"
+#include "../variability/variability_facade.h"
+#include "../variability/variability_measures.h"   // metricScaleType, corridorHalfWidthOf, isOutcomeMetric
+
 #include <QPointF>
 #include <QRegularExpression>
 #include <QStringList>
@@ -41,12 +46,40 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <cmath>
+#include <functional>
 #include <limits>
 #include <optional>
 
 using namespace pinpoint::analysis;
 
+namespace pinpoint::lm {
+
+bool lmIsClubDelivery(const QString &key)
+{
+    return key.startsWith(QLatin1String("lm.")) && !pinpoint::variability::isOutcomeMetric(key);
+}
+
+} // namespace pinpoint::lm
+
 namespace {
+
+namespace pv = pinpoint::variability;
+
+// A reading's scale type: the one lookup (variability_measures.h). Ratio for club speed, which gives the grader its CV
+// rung; Interval for a key the manifest does not know.
+pv::ScaleType lmScaleType(const QString &key) { return pv::metricScaleType(key); }
+
+// The unit and decimals a basis string is built with: the reading's own, as the board prints it. A
+// ratio (smash factor) has no unit to print.
+QString lmBasisUnit(const QString &unit)
+{
+    return unit == QLatin1String("ratio") ? QString() : unit;
+}
+
+// The `variabilityResult` fields QML reads, as a plain map (VariabilityResultView::toMap): the launch monitor's graphics
+// travel through the report's map too, and a gadget would not survive a JSON trip there.
+QVariantMap variabilityMap(const pv::VariabilityResultView &v) { return v.toMap(); }
 
 // One shot's launch monitor readings, out of the row's analysisDetail.
 //
@@ -396,8 +429,66 @@ void addEllipse(QVariantMap &into, const char *name, const std::vector<const LmS
 // graphics.shots, .clubs, .mismatch and .device — the FSX session half's data (lm_panel_fsx.md,
 // "LmSessionModel additions"). `rows` is the whole session in list order; `focusRow` indexes
 // it or is −1.
+// R8, "your usual": the headline shot (rows[headRow]) against the session's OTHER shots of its
+// effective club that are not left out and carry the reading — at least N_MIN of them, or no result.
+// The board's μ and SD include the headline shot; this window never does (scalarTypicalityWindow
+// leaves `swingId` out). The headline shot itself may be left out: it is still "this shot". A blank
+// club is a mixed bag and has no "usual". Club-delivery readings only: ball flight has no badge at all,
+// typicality included (R4, "Ball flight has no badge at all"). Keyed by metric key: { values, basisText },
+// the Typicality badge's; the basis sets each figure as the board does ("this swing 3.5° L · median
+// 5.6° L"), never as a signed number beside a row that reads in words.
+QVariantMap typicalityFor(const std::vector<LmShotRow> &rows, int headRow, bool leftHanded)
+{
+    QVariantMap out;
+    if (headRow < 0 || size_t(headRow) >= rows.size())
+        return out;
+    const LmShotRow &head = rows[size_t(headRow)];
+    const QString club = head.club.trimmed();
+    if (club.isEmpty() || head.values.isEmpty())
+        return out;
+    std::vector<const LmShotRow *> window;
+    for (const LmShotRow &r : rows) {
+        if (&r != &head && (r.excluded || r.values.isEmpty() || !sameClub(r.club, club)))
+            continue;
+        window.push_back(&r);
+    }
+    std::stable_sort(window.begin(), window.end(),
+                     [](const LmShotRow *a, const LmShotRow *b) { return a->ordinal < b->ordinal; });
+    const QString headId = QString::number(head.id);
+    for (const pinpoint::lm::FieldDef &f : pinpoint::lm::fieldDefs()) {
+        const QString key = QString::fromLatin1(f.key);
+        if (!pinpoint::lm::lmIsClubDelivery(key))
+            continue;
+        std::vector<pv::TypicalitySwing> swings;
+        swings.reserve(window.size());
+        for (const LmShotRow *r : window) {
+            const std::optional<double> x = readingOf(r->values, f.key);
+            // One club label for the whole window: the effective clubs were matched above as the
+            // board matches them (sameClub), which the window's exact comparison would not.
+            swings.push_back({ QString::number(r->id), club,
+                               x ? *x : std::numeric_limits<double>::quiet_NaN() });
+        }
+        const std::optional<pv::ScalarTypicalityWindow> w =
+            pv::scalarTypicalityWindow(swings, headId, lmScaleType(key));
+        if (!w)
+            continue;
+        const QString unit = QString::fromUtf8(f.unit);
+        const int decimals = lmDecimals(unit);
+        const pv::TypicalityPayload p = pv::typicalityPayload(*w, [&key, &unit, decimals, leftHanded](double v) {
+            return lmDirectedText(key, v, decimals, unit, leftHanded);
+        });
+        out.insert(key, QVariantMap{ { QStringLiteral("values"),    p.values },
+                                     { QStringLiteral("basisText"), p.basisText } });
+    }
+    return out;
+}
+
+// `gradeClub(club, key, values)` grades one club's spread of one club-delivery reading
+// (LmSessionModel::clubDeliveryGrade); an empty map is no grade to publish.
+using ClubGrader = std::function<QVariantMap(const QString &club, const QString &key, std::vector<double> values)>;
+
 QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
-                            const QString &liveDeviceName, bool reviewing)
+                            const QString &liveDeviceName, bool reviewing, const ClubGrader &gradeClub)
 {
     QVariantMap g;
 
@@ -470,7 +561,7 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
         for (const LmShotRow *r : gr.shots) vals.push_back(r->values);
         QVariantMap stats;
         for (const LmFieldStats &st : lmSessionStats(vals, -1)) {
-            stats.insert(st.key, QVariantMap{
+            QVariantMap one{
                 { QStringLiteral("mean"),      st.mean },
                 // The n−1 sample SD, 0 under two values. `hasSpread` is the board's own rule
                 // (n ≥ 3 and sd > 0): below it the panel prints "-", never "±0".
@@ -481,7 +572,22 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
                 // Session tiles' range and spray are max − min of these.
                 { QStringLiteral("min"),       st.min },
                 { QStringLiteral("max"),       st.max },
-            });
+            };
+            // R4b: a club-delivery reading's spread over this club's included shots, graded per club —
+            // the same shots as the mean and SD beside it, never another club's. Ball flight and
+            // smash factor carry none (R4).
+            if (gradeClub && pinpoint::lm::lmIsClubDelivery(st.key)) {
+                std::vector<double> xs;
+                xs.reserve(gr.shots.size());
+                for (const LmShotRow *r : gr.shots) {
+                    const auto it = r->values.constFind(st.key);
+                    if (it != r->values.constEnd() && std::isfinite(*it)) xs.push_back(*it);
+                }
+                const QVariantMap vr = gradeClub(gr.club, st.key, std::move(xs));
+                if (!vr.isEmpty())
+                    one.insert(QStringLiteral("variability"), vr);
+            }
+            stats.insert(st.key, one);
         }
         QVariantMap ellipses;
         addEllipse(ellipses, "dispersion", gr.shots, "lm.carryDistance", "lm.offline");   // yd, yd
@@ -624,6 +730,7 @@ void LmSessionModel::setShotModel(ShotListModel *m)
         m_shots->disconnect(this);
     m_shots = m;
     m_diskDetail.clear();
+    m_shownGrades.clear();
     connectShotModel();
     emit shotModelChanged();
     rebuild();
@@ -640,6 +747,7 @@ void LmSessionModel::connectShotModel()
     connect(m_shots, &QAbstractItemModel::rowsRemoved,    this, &LmSessionModel::scheduleRebuild);
     connect(m_shots, &QAbstractItemModel::modelReset, this, [this]() {
         m_diskDetail.clear();                     // a reload is a fresh read of the disk
+        m_shownGrades.clear();                    // and a fresh session's grades
         scheduleRebuild();
     });
     connect(m_shots, &QAbstractItemModel::dataChanged, this,
@@ -774,6 +882,46 @@ QHash<QString, QString> LmSessionModel::gradesFor(const std::vector<LmFieldStats
         out.insert(st.key, gradeName(g));
     }
     return out;
+}
+
+QVariantMap LmSessionModel::clubDeliveryGrade(const QString &club, const QString &key, std::vector<double> values)
+{
+    // A blank club is a mixed bag: never graded (variability.md, Clubs), as the board never takes
+    // its corridor against one.
+    const QString contextId = club.trimmed().isEmpty() ? QString() : contextIdForClub(club);
+    if (contextId.isEmpty())
+        return {};
+
+    pv::VariabilityInput in;
+    in.values    = std::move(values);
+    in.scaleType = lmScaleType(key);
+    // The scale: the reading's corridor in THIS club's context, through the same lookup the tiles'
+    // corridors use (gradesFor): its norm's (σLo + σHi)/2 whatever its shape, a floor or a ceiling
+    // included (R12). Without a norm the grader's own rungs decide: the CV for a Ratio reading, else
+    // no grade.
+    if (m_pack && m_norms) {
+        const std::optional<MetricCorridor> c =
+            corridorForMetricAtPhase(m_pack->pack(), *m_norms, key, Phase::Impact, contextId,
+                                     gradePolicyByName(m_policyName));
+        if (c) {
+            const double hw = pv::normCorridorHalfWidth(m_norms.get(), c->measureId, contextId);
+            if (std::isfinite(hw))
+                in.corridorHalfWidth = hw;
+        }
+    }
+    pv::VariabilityResult r = pv::makeVariabilityGrader(pv::Basis::Scalar)->grade(in);
+
+    // Live, a grade moves only once its ρ is past the band edge by the hysteresis margin (§8.9).
+    if (!m_reviewing && r.graded && r.grade >= 1) {
+        const QString memo = club.trimmed().toLower() + QLatin1Char('|') + key;
+        r.grade = pv::hysteresisGrade(r.bandValue(), m_shownGrades.value(memo, 0), r.bands());
+        m_shownGrades.insert(memo, r.grade);
+    }
+
+    QString unit;
+    for (const pinpoint::lm::FieldDef &f : pinpoint::lm::fieldDefs())
+        if (key == QLatin1String(f.key)) { unit = QString::fromUtf8(f.unit); break; }
+    return variabilityMap(pv::VariabilityResultView::fromResult(r, lmBasisUnit(unit), lmDecimals(unit)));
 }
 
 QVariantList LmSessionModel::bandCounts() const
@@ -1031,7 +1179,12 @@ void LmSessionModel::rebuild()
     // The FSX session half: every shot, every effective club with its ellipses, the note and
     // the device. Computed from the SAME rows the board just scoped, so a shot cannot be left
     // out of one and counted in the other.
-    const QVariantMap session = sessionGraphics(rows, focusedRow, m_deviceName, m_reviewing);
+    // A reviewed session's grades are frozen: no hysteresis memory to keep.
+    if (m_reviewing)
+        m_shownGrades.clear();
+    const QVariantMap session = sessionGraphics(
+        rows, focusedRow, m_deviceName, m_reviewing,
+        [this](const QString &c, const QString &k, std::vector<double> xs) { return clubDeliveryGrade(c, k, std::move(xs)); });
     for (auto it = session.constBegin(); it != session.constEnd(); ++it)
         m_graphics.insert(it.key(), it.value());
 
@@ -1056,6 +1209,8 @@ void LmSessionModel::rebuild()
         // Session view scopes to its club when nothing is picked, as the model does.
         m_graphics.insert(QStringLiteral("headlineShotId"),
                           hr >= 0 && size_t(hr) < rows.size() ? rows[size_t(hr)].id : -1);
+        // The headline shot against your usual (R8) — the shot the tiles and the ledger read.
+        m_graphics.insert(QStringLiteral("typicality"), typicalityFor(rows, hr, m_leftHanded));
     }
 
     endResetModel();
