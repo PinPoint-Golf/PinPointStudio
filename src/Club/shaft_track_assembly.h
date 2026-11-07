@@ -331,6 +331,11 @@ struct ShaftV3Config {
     // veto's downswing revisit horizon). bs0 < top' (merged-run collapse)
     // never reseeds — the walk-back already starts from pre-top motion.
     bool    topRepairOnsetReseed    = true;
+    // The repair's other side (#160, 2026-11-07): a top more than topRepairMaxDownswingUs before the
+    // impact anchor is re-derived in the same window, and the onset walk-back restarts from the
+    // backswing run before the new top (not pin-gated: the ranking's bs0 is then a waggle in the
+    // address hold, so its walk-back stays there). false = the top can sit any distance before impact.
+    bool    topRepairTooEarly       = true;
     // C2 body ROI
     double  bodyMargin = 34.0;       // px inflation of the body polygon
     double  bodyRLo    = 45.0;       // ray-sample radii for the inside-fraction test

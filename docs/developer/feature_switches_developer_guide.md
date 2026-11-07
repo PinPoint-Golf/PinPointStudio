@@ -190,6 +190,7 @@ History:
 | `head.enabled` / `head.projPrior` | `clubhead_track.h:69/143` | LIVE | Measured clubhead pass and its projected-reach prior. |
 | `handAxisPrior.enabled` | `shaft_track_assembly.h:110` | **DARK** | WB4 hand-axis θ prior. |
 | `topRepair.enabled` / `onsetReseed` | :294 / :321 | LIVE | Re-derives a collapsed Top; then re-runs onset from the lost backswing run. |
+| `topRepair.tooEarly` | :338 | LIVE | Re-derives a top more than 600 ms before impact; then re-runs onset from the backswing run before it (#160). |
 | `addr.ballWell` / `trailArmVeto` / `refuse` / `decoyCheck` | AddrConfig :359–371 | LIVE | Ball θ-well on still address frames; trail-arm veto; refuse (club metrics show "-") on a P1/length conflict with the ball; drop a decoy ball. |
 | `phase.retry` | :389 | LIVE | Re-segments a suspect phase model at swSpd×0.75, at most twice. |
 | `hands.enabled` | :400 | LIVE | Hand-pair / glitch cleaning, used only when the raw-hands track is invalid. |
@@ -215,6 +216,7 @@ History:
 - **impactBoundary** — 3c201a58 (2026-09-06), with `kinematics.composed` and `synth.curveRate`. On the six 08-18 LM pairs the speed peak moved −17…−19 ms → −1…−9 ms and the pre-impact SD went 3.3 → 1.8 mph. Two deeper probes were rejected and are not in the tree: splitting the φ Gaussian at impact, and DP prior ×0.25 across contact (SD 1.9 → 5.2 mph).
 - **impactGeom** — 7ee515cd dark, 02cf2b0f ON (2026-08-10): fixed 8 clamp-corrupted impacts (0703_0002 +234 → −10 ms). One-sided override from 02e04113 (2026-09-11). From #158 (2026-11-06) `shaft.impactGeom.maxBeforeRawAnchorUs` (100 ms, ≤ 0 off) stops the search reaching back past the top, where a wander of the track could override a correct anchor.
 - **finishAfterImpact** — #159 (2026-11-06), `shaft.finishAfterImpact`, ON; `shaft.finishFloorAfterImpactUs` 400 ms. The phase model keeps the raw run through impact when the net-displacement gate rejects its chain, the two-longest ranking must hold a run ending after impact, and with no such run the finish sits at the floor. False restores the old model.
+- **topRepair.tooEarly** — #160 (2026-11-07), `shaft.topRepair.tooEarly`, ON. The top repair's other side: a top more than `topRepair.maxDownswingUs` (600 ms) before the impact anchor is re-derived in the same window, and the address walk-back restarts from the backswing run before the new top. A waggle in the address hold had outlasted each burst of a broken-up backswing and taken the top's place on 2 Nov W01 s2. False restores the old model.
 - **followThrough** — df044ff2 (2026-09-17), triggered by 15 Sept pitch shots where the tracker captured the lead arm (a 190° flip in 80 ms). Sample angles and timing were unchanged elsewhere; 28/55 swings touched, a median of 2 samples each.
 
 ### 3.10 P-positions & blur wedge

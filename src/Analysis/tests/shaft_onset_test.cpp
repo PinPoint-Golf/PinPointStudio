@@ -672,6 +672,60 @@ int main()
               "without an anchor the rule is inert");
     }
 
+    // ── A top cannot sit further before impact than a downswing lasts (#160) ──
+    // 2 Nov W01 s2 on a cabin pose: the real backswing came apart into short bursts, a waggle in the
+    // address hold outlasted each of them, and the two-longest ranking paired the waggle with the
+    // downswing. The top went to the stillness after the waggle, 1.17 s before impact.
+    {
+        std::printf("top too early\n");
+        struct Leg { int frames; double perFrame; };
+        const auto path = [](const std::vector<Leg>& legs) {
+            std::vector<double> gy{ 800.0 };
+            for (const Leg& l : legs)
+                for (int f = 0; f < l.frames; ++f) gy.push_back(gy.back() + l.perFrame);
+            return gy;
+        };
+        // Address 100, waggle 16 (out and back), hold 60, then four 10-frame backswing bursts with
+        // slow climbing (3 px/f: under swSpd, over swLow) between them, a 10-frame top, the
+        // downswing and through as one run, and the finish hold.
+        std::vector<Leg> legs{ { 100, 0 }, { 8, -15 }, { 8, 15 }, { 60, 0 } };
+        for (int k = 0; k < 4; ++k) { legs.push_back({ 10, -15 }); if (k < 3) legs.push_back({ 14, -3 }); }
+        legs.push_back({ 10, 0 });
+        const int downStart = 100 + 16 + 60 + 4 * 10 + 3 * 14 + 10;   // 268
+        const double rise = 4 * 10 * 15.0 + 3 * 14 * 3.0;
+        legs.push_back({ 20, rise / 20.0 });
+        legs.push_back({ 20, -20 });
+        legs.push_back({ 150, 0 });
+        const std::vector<double> gy = path(legs);
+        const int nf = int(gy.size()), impact = downStart + 20;
+        const std::vector<double> gx(nf, 400.0);
+        const int firstBurst = 176, maxDs = 90;   // 600 ms at 150 fps
+        ShaftV3Config cfg;
+        ShaftV3Config off = cfg;
+        off.topRepairTooEarly = false;
+        const PhaseModel was = segmentPhases(gx, gy, nf, 150.0, impact, off, nullptr);
+        check(impact - was.top > maxDs, "off: the waggle wins a slot and the top falls over 600 ms before impact");
+        check(was.bs0 < firstBurst, "off: the address walk-back starts from the waggle");
+        const PhaseModel now = segmentPhases(gx, gy, nf, 150.0, impact, cfg, nullptr);
+        check(now.top >= downStart - 12 && now.top <= downStart, "the top is the dwell before the downswing");
+        check(now.topPreRepair == was.top, "the repair records the top it replaced");
+        check(now.bs0 >= firstBurst - 6 && now.bs0 <= firstBurst + 2,
+              "the walk-back restarts from the backswing: the onset is the first burst, not the waggle");
+        check(!now.suspect, "the repaired model passes its self-check");
+
+        // A swing the model already reads is untouched, and so is one without an anchor.
+        const std::vector<double> clean = path({ { 100, 0 }, { 40, -20 }, { 40, 0 }, { 20, 20 }, { 30, -8.5 }, { 200, 0 } });
+        const int nD = int(clean.size());
+        const std::vector<double> gxD(nD, 400.0);
+        const PhaseModel cOff = segmentPhases(gxD, clean, nD, 150.0, 200, off, nullptr);
+        const PhaseModel cOn  = segmentPhases(gxD, clean, nD, 150.0, 200, cfg, nullptr);
+        check(cOn.top == cOff.top && cOn.bs0 == cOff.bs0 && cOn.fin0 == cOff.fin0,
+              "a clean swing's model is the same with the rule on or off");
+        const PhaseModel nOff = segmentPhases(gx, gy, nf, 150.0, -1, off, nullptr);
+        const PhaseModel nOn  = segmentPhases(gx, gy, nf, 150.0, -1, cfg, nullptr);
+        check(nOn.top == nOff.top && nOn.bs0 == nOff.bs0, "without an anchor the rule is inert");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
     return g_fail;
 }

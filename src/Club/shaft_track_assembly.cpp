@@ -513,6 +513,7 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "shaft.topRepair.minDownswingUs", c.topRepairMinDownswingUs);
     apply(ov, "shaft.topRepair.maxDownswingUs", c.topRepairMaxDownswingUs);
     apply(ov, "shaft.topRepair.onsetReseed", c.topRepairOnsetReseed);
+    apply(ov, "shaft.topRepair.tooEarly", c.topRepairTooEarly);
     apply(ov, "shaft.spanBound", c.spanBound);
     // 2026-10-01 robustness (tracker_robustness): address geometry inside the
     // DP, the trail-arm veto, the self-checks and the phase-model retry ladder.
@@ -978,11 +979,21 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
     // fin0/dsEnd deliberately untouched: dsEnd is the motion-settle into the
     // finish hold, a legitimate "finish begins"; it is top that invaded its
     // neighborhood, not vice versa.
+    // The other side (#160, cfg.topRepairTooEarly): a top MORE than maxDs before the anchor is just as
+    // impossible — no downswing lasts that long. It happens when the real backswing breaks into short
+    // bursts, one of them is bridged onto the downswing chain that the m3gate then drops, and what is
+    // left of it loses the two-longest race to a waggle in the address hold (2 Nov W01 s2 on a cabin
+    // pose: a 12-frame waggle at 1.23 s beat a 10-frame backswing burst, top 1.354 s, impact 2.52 s).
+    // The same window and rule re-derive the top, and the onset walk-back always restarts from the
+    // backswing run before it: bs0 is the waggle, so the walk-back from it would keep the address in
+    // the hold.
     int reseedBs0 = -1;   // pin-gated onset-reseed candidate (a fired repair may set it)
+    bool topWasTooEarly = false;   // the #160 repair fired: Stage A restarts from reseedBs0 unconditionally
     if (cfg.topRepairEnabled && impactFrame >= 0) {
         const int minDs = int(std::lround(double(cfg.topRepairMinDownswingUs) * 1e-6 * fps));
         const int maxDs = int(std::lround(double(cfg.topRepairMaxDownswingUs) * 1e-6 * fps));
-        if (impactFrame - top < minDs) {
+        const bool tooEarly = cfg.topRepairTooEarly && impactFrame - top > maxDs;
+        if (impactFrame - top < minDs || tooEarly) {
             const int lo = std::clamp(impactFrame - maxDs, 0, nf - 1);
             const int hi = std::clamp(impactFrame - minDs, 0, nf - 1);
             if (hi > lo) {
@@ -996,6 +1007,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
                 for (int f = rLo; f <= rHi; ++f) if (spdS[f] < spdS[amin]) amin = f;
                 m.topPreRepair = top;
                 top = amin;
+                topWasTooEarly = tooEarly;
                 // Onset-reseed CANDIDATE (dark: topRepair.onsetReseed). In
                 // collapse mode bs0 is the mis-picked DOWNSWING run start,
                 // after the repaired top — the Stage A walk-back below parks
@@ -1013,7 +1025,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
                 // swings onto the FAR edge). bs0 < top' (merged-run collapse)
                 // never yields a candidate: the walk-back already starts from
                 // pre-top motion there.
-                if (cfg.topRepairOnsetReseed && cfg.swLow > 0.0 && bs0 > top) {
+                if (cfg.topRepairOnsetReseed && cfg.swLow > 0.0 && (bs0 > top || topWasTooEarly)) {
                     int runStart = -1;
                     for (const auto& r : runs)
                         if (r.first <= top && r.first > runStart) runStart = r.first;
@@ -1142,7 +1154,7 @@ PhaseModel segmentPhases(const std::vector<double>& gx, const std::vector<double
             // Takeaway at exactly impact − bsMin). Only then re-run from the
             // recovered backswing start; a repaired swing the A2/veto
             // machinery already resolved below the edge keeps its onset.
-            if (reseedBs0 >= 0 && onset > hiEdge) {
+            if (reseedBs0 >= 0 && (onset > hiEdge || topWasTooEarly)) {
                 wb = walkBack(reseedBs0);
                 onset = wb.first;
                 m.onsetRule = 1;
