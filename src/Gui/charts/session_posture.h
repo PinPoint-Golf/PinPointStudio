@@ -64,8 +64,10 @@
 //      extremum whose window holds it (early extension's peak over P5–P7 draws on P5, P6 and P7). The
 //      edge is where the signal fires: the later of the Ideal edge and the deviation edge (norm.h
 //      deviationEdges, as characteristic_engine.cpp's outsideCorridor does).
-//   6. REPEATABILITY compares middle halves NORMALISED BY THE BAND's σ (IQR / σ), so cm, ° and %
-//      rows can be ranked together; the words give the middle half in the row's own unit.
+//   6. CONSISTENCY IS GRADED AGAINST THE BAND THE PROFILE DRAWS (Mark's ruling R7, 7 Nov): the pattern's band σ,
+//      (σLo + σHi)/2 (PostureBand::sigma), as the grader's `variabilityScale` — so the basis reads "of scale", never
+//      "of corridor" — on the readings postureGradedValues() gives, one window per club (R2b). The grading and the
+//      ranking by ρ live in the presenter (charts_posture_presenter.cpp); the core only says which readings count.
 //   7. Figures: cm to one decimal, ° and % stance in whole units; U+2212 minus; "-" when missing.
 //   8. AN EXIT IS NAMED BY A DEPARTURE ONLY WHEN ONE OF THAT DEPARTURE'S CONDITIONS FIRED (§8: "it
 //      grades nothing new"). This shot: the shot's own ShotDiagnostics.fired. Session (the medians):
@@ -224,6 +226,9 @@ struct PostureBand {
     QString citation;
     int     n = 0;
     double z(double v) const;                 // on the side's σ; NaN without a band or a value
+    // The band's σ, (σLo + σHi)/2: the scale its consistency grade is taken against (decision 6, R7). NaN without
+    // a band or with a σ that is not positive.
+    double sigma() const;
 };
 using PostureBandGrid = std::array<std::array<PostureBand, kPosturePositions>, kPostureRows>;
 
@@ -551,14 +556,6 @@ struct PostureDepartureCount {
     int     firstPos = -1;             // the earliest position it starts at on any shot
 };
 
-struct PostureRepeat {
-    bool    has = false;
-    PostureRow row = PostureRow::Head;
-    int     pos = 0;
-    double  iqr = kNaN, iqrOverSigma = kNaN;
-    QString words;                     // "head at P7, middle half 2.1 cm"
-};
-
 struct PostureSessionRow {
     PostureRowView view;               // cells hold the MEDIAN, against the session's pattern
     std::array<box::BoxStats, kPosturePositions> boxes;
@@ -580,8 +577,6 @@ struct PostureSessionView {
     int     onPattern = 0;             // shots whose own nearest is the session's pattern (not between)
     std::vector<PostureDepartureCount> departureCounts;   // across shots, most shots first: a shot counts when the
                                                           // departure is NAMED on it (its condition fired there)
-    PostureRepeat tightest, loosest;
-    QString repeatWords;
     PostureTrailStyle trail;
     PostureMoved top, impact;
     QString headline;
@@ -590,8 +585,7 @@ struct PostureSessionView {
     PostureTrust trust;
 };
 
-// The session: medians, boxes, the pattern (from ≥ 5 shots unless chosen), the strip, departures,
-// repeatability. `patternMode` −1 Auto, 0 Level, 1 Squat and push. `tiers`: the ledger's session tier
+// The session: medians, boxes, the pattern (from ≥ 5 shots unless chosen), the strip, departures. `patternMode` −1 Auto, 0 Level, 1 Squat and push. `tiers`: the ledger's session tier
 // per condition (SessionSnapshot::tiers), which names the medians' exits (decision 8); may be null.
 // `workOnOrder`: SessionSnapshot::workOnOrder, which leads the head line (decision 9); may be null.
 // `noun`: what the words count, plural — "shots" (Charts), "swings" (the report; decision 14).
@@ -600,6 +594,13 @@ PostureSessionView postureSession(const std::vector<PostureShotInput> &shots, co
                                   int patternMode = -1, const QHash<QString, QString> *tiers = nullptr,
                                   const QStringList *workOnOrder = nullptr, const QString &noun = QStringLiteral("shots"),
                                   const PostureAddressHistory *history = nullptr);
+
+// THE READINGS A CELL'S CONSISTENCY IS GRADED ON (decision 6), one per shot of `shots`, in its order (NaN: not
+// counted). The match's own readings: a gate-warned reading is left out (a guarded reading never enters a grade),
+// and hip depth at P3–P5 reads the butt line alone when any shot has one there (decision 15). A cell the session
+// draws under the ⚠ because only the hip joints read it is not graded at all: every value is NaN. A shot that
+// carries no posture row is NaN everywhere.
+std::vector<double> postureGradedValues(const std::vector<PostureShotInput> &shots, PostureRow r, int pos);
 
 // One shot, judged against the session's pattern when the session chose one (≥ 5 shots), else its
 // own nearest, said so; `patternMode` ≥ 0 overrides both. `session` may be null (no session).

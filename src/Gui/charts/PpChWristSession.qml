@@ -21,16 +21,18 @@ import PinPointStudio
 
 // PPCHWRISTSESSION — THE WRIST SECTION OF SESSION (docs/design/wrist_motion_into_charts.md §4; PpChartsSessionView
 // draws it under its own section head "Wrist", after the standard session content): "what is my wrist style, and
-// how repeatable is it?" The head and standfirst (the style each shot was graded as, the score's median, the most
-// and least repeatable checkpoint, the resemblance index against what Auto chose, the session's size said);
+// how much does it vary?" The head and standfirst (the style each shot was graded as, the score's median, the
+// resemblance index against what Auto chose, the session's size said);
 // the checkpoint profile as one box per checkpoint across the shots over the picked shot's band, this shot
-// ringed, the median and how wide the middle half is under each, its caption, and under it the section's own
+// ringed, the median and how wide the middle half is under each and each row's consistency per club (a
+// technical-layer badge per graded checkpoint, against the dominant style's band: Mark's rulings R2b, R7), its
+// caption, then "Consistency" (per club, the most and least consistent checkpoint from P3 on, by grade), and the section's own
 // "How far can I trust this?" (PpChTrustFold, closed: session.trust.lines verbatim — the sources and confidence, the
 // shots with no reading / refused / not graded, the bands' sources and the style rule, no resemblance index, a small
 // session); then — in a right rail at wide — the score shot
 // by shot with its box (PpChRunBox), the style table, and what keeps firing as a mark per shot that picks that
 // swing. Every word and number is ChartsWristPresenter.session's.
-// objectNames: chWristSession, chWristTrust (+ chWristTrustToggle, chWristTrustLine).
+// objectNames: chWristSession, chWristTrust (+ chWristTrustToggle, chWristTrustLine), chWristConsistency (+ chWristConsistencyLine: club).
 // A PpChSection with no head of its own (PpChartsSessionView heads and folds it).
 PpChSection {
     id: ws
@@ -73,6 +75,56 @@ PpChSection {
             // how far the session's wrist read can be trusted, said once, under the profile (closed)
             PpChTrustFold { prefix: "chWrist"; width: parent.width; roles: ws.roles
                             lines: ws.available && ws.se.trust ? (ws.se.trust.lines || []) : [] }
+        }
+        // ── consistency: per club, the most and the least consistent checkpoint from P3 on, by grade (R7) ──
+        Column {
+            objectName: "chWristConsistency"
+            readonly property var lines: ws.available && ws.se.consistency ? (ws.se.consistency.lines || []) : []
+            visible: ws.available && lines.length > 0
+            width: parent.width; spacing: ws.ok ? ws.roles.g(4) : Theme.gap(4)
+            PpSectionHead { width: parent.width; roles: ws.roles; title: "Consistency"
+                            sub: ws.available && ws.se.consistency ? (ws.se.consistency.sub || "") : "" }
+            Repeater {
+                model: parent.lines
+                delegate: Flow {
+                    id: cl
+                    required property var modelData
+                    objectName: "chWristConsistencyLine"
+                    readonly property string club: modelData.club || ""
+                    width: mainCol.width
+                    spacing: ws.roles.g(18)
+                    // the club, named in a mixed session (R2b)
+                    Text { visible: cl.modelData.named === true; height: ws.roles.u(24); verticalAlignment: Text.AlignVCenter
+                           text: ClubFormat.display(cl.club) + " · "; font: ws.roles.fBodyM; color: ws.roles.ink }
+                    // too few swings of the club: one badge
+                    Row {
+                        readonly property var res: cl.modelData.tooFew === true ? cl.modelData.result : null
+                        visible: !!res && res.graded
+                        height: ws.roles.u(24)
+                        PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: ws.roles; contentLayer: "technical"
+                                             grade: parent.res ? parent.res.grade : 0
+                                             measurementLimited: parent.res ? parent.res.measurementLimited : false
+                                             basisText: parent.res ? parent.res.basisText : "" }
+                    }
+                    // "Most: lead wrist hinge at P4 · ◯ Repeatable · σ …" and "Least: …"
+                    Repeater {
+                        model: cl.modelData.tooFew === true ? [] : [{ text: cl.modelData.mostText || "", res: cl.modelData.most },
+                                                                    { text: cl.modelData.leastText || "", res: cl.modelData.least }]
+                        delegate: Row {
+                            id: ce
+                            required property var modelData
+                            visible: ce.modelData.text !== "" && !!ce.modelData.res && ce.modelData.res.graded
+                            height: ws.roles.u(24)
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: ce.modelData.text + " · "
+                                   font: ws.roles.fBody; color: ws.roles.ink }
+                            PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: ws.roles; contentLayer: "technical"
+                                                 grade: ce.modelData.res ? ce.modelData.res.grade : 0
+                                                 measurementLimited: ce.modelData.res ? ce.modelData.res.measurementLimited : false
+                                                 basisText: ce.modelData.res ? ce.modelData.res.basisText : "" }
+                        }
+                    }
+                }
+            }
         }
         Loader { active: !ws.rail && ws.available; visible: active; width: parent.width; sourceComponent: sideC }
     }

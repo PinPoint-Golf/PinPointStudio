@@ -164,7 +164,18 @@
 //  TRUST = { lines: [string] } — said once, in order, only lines that are true; the Posture presenter's shape.
 //      Golfer's words: the sensor is "the wrist sensor", the camera "the face-on camera", never a product's name.
 //  BOXCELL = { box: BOX, values: [per shot Δ° | null], n, median (| null, n < 3), medianText,
-//              wide (q3 − q1 | null), wideText ("2° wide" | ""), picked (this shot's Δ | null) }
+//              wide (q3 − q1 | null), wideText ("2° wide" | ""), graded (some club's consistency is graded here: the
+//              dominant style has a band at the checkpoint; never P1), picked (this shot's Δ | null) }
+//  (Session rows add grades: [GRADE], as the Posture presenter's: per club { club, named, tooFew, result, cells: [{ index,
+//   tag, result (variabilityResult: Dispersion, scalar, against the dominant style's band σ, "σ 3° · 0.40 of scale · n 12")
+//   }] } — Mark's rulings R2b, R7: one window per club, the band the session draws, its σ the Ideal half-width.
+//   And rowGrades: [{ club, named, result (a plain map: VariabilityResultView::fromCellGrade(cellGrade(…)).toMap(), the
+//   cell rule R1 — the loosest third — over the club's graded checkpoints from P2 on) }] — Mark's ruling R20: the
+//   report's Wrist page draws one badge per row from it; the Charts screen keeps grades, a badge per checkpoint.)
+//  consistency (Session) = { sub ("ranked from P3 on"), lines: [{ club, named, tooFew, result (the grade-0 result when tooFew),
+//              mostText ("Most: lead wrist hinge at P4"), most, leastText ("Least: …" | ""), least }] } — per club, its
+//              graded checkpoints from P3 on ranked by ρ (no longer the raw middle half in degrees); a DOF or checkpoint
+//              with no band is ungraded and never ranked. The grade words are the badge's (QML).
 //
 //  movesWith: ChartsRelationsPresenter::movesWith(snapshot, "<lead bow/cup key>@5", 4, 3) — { available,
 //    refusal, upId, up, head, chance{…, line}, rows: [LEDGER ROW], note } — plus sub (string),
@@ -192,7 +203,7 @@ namespace pinpoint::charts {
 //     sub (no "this shot ringed"), dominant { archetype, name, n, of };
 //   · the standfirst's parts as lines: scoreLine ("Wrist score median 84, middle half 78–90" | "No swing's wrist
 //     conditions have been graded yet"), styleLine (the resemblance index's clause alone, "By the resemblance index,
-//     most resemble …" | "" with no index: the head says the style counts), repeat ("From P3 on, most repeatable: … ." | ""), sizeLine ("Six swings
+//     most resemble …" | "" with no index: the head says the style counts), repeat ("" — retired: the old "most repeatable" clause; consistency is `consistency`), sizeLine ("Six swings
 //     is a small session: each box is drawn from 6 values." — the trust lines carry it; paper does not print it
 //     twice); `standfirst` stays;
 //   · scoreRun adds ticks ([{ v, text }], ChartsRelationsPresenter::axisTicks over its yRange: paper has no ticker);

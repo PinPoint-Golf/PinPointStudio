@@ -38,6 +38,8 @@
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "report/report_posture.h"
+#include "variability/variability_facade.h"
+#include "Metrics/variability/variability_grader.h"
 #include "Diagnostics/measures/measure_sample.h"
 #include "Diagnostics/norms/norm_provider.h"
 #include "Export/swing_store.h"
@@ -392,7 +394,8 @@ private slots:
 
         const QVariantMap s = p.session();
         requireKeys(s, { "available", "n", "shots", "small", "kicker", "fromSession", "head", "headText", "pattern", "patternLine",
-                         "profile", "strip", "departures", "departuresEmpty", "repeat", "whatMoved", "address", "absolutes", "trust" }, "session");
+                         "profile", "strip", "departures", "departuresEmpty", "consistency", "whatMoved", "address", "absolutes", "trust" }, "session");
+        QVERIFY(!s.contains(QStringLiteral("repeat")));   // the old "the tightest … the loosest" words are gone (R11)
         QVERIFY(s.value(QStringLiteral("available")).toBool());
         QVERIFY(s.value(QStringLiteral("fromSession")).toBool());
         QCOMPARE(s.value(QStringLiteral("shots")).toInt(), 5);
@@ -409,14 +412,25 @@ private slots:
             requireKeys(d.toMap(), { "id", "name", "conditionIds", "shots", "countText", "ordinals", "marks", "firstTag", "line" }, "COUNT");
             QVERIFY(!d.toMap().value(QStringLiteral("conditionIds")).toStringList().isEmpty());
         }
-        requireKeys(s.value(QStringLiteral("repeat")).toMap(), { "tightest", "loosest", "words" }, "repeat");
-        requireKeys(s.value(QStringLiteral("repeat")).toMap().value(QStringLiteral("tightest")).toMap(),
-                    { "has", "row", "rowLabel", "tag", "iqr", "iqrText", "words" }, "REPEAT");
+        {   // five shots of one club: too few to grade (N_MIN 8), said once, unnamed (one club)
+            const QVariantList lines = s.value(QStringLiteral("consistency")).toMap().value(QStringLiteral("lines")).toList();
+            QCOMPARE(lines.size(), 1);
+            const QVariantMap l = lines.first().toMap();
+            requireKeys(l, { "club", "named", "tooFew", "result", "mostText", "most", "leastText", "least" }, "CONSISTENCY LINE");
+            QVERIFY(l.value(QStringLiteral("tooFew")).toBool());
+            QVERIFY(!l.value(QStringLiteral("named")).toBool());
+            const auto r = qvariant_cast<pinpoint::variability::VariabilityResultView>(l.value(QStringLiteral("result")));
+            QVERIFY(r.graded());
+            QCOMPARE(r.grade(), 0);
+            QCOMPARE(r.basisText(), QString());   // grade 0 has no basis
+        }
         const QVariantMap hipsS = rowOf(s, QStringLiteral("hips"));
         const QVariantList boxes = hipsS.value(QStringLiteral("boxes")).toList();
         QCOMPARE(boxes.size(), 8);
         const QVariantMap b7 = boxes.at(6).toMap();
-        requireKeys(b7, { "box", "n", "median", "medianText", "wide", "wideText", "picked" }, "BOXCELL");
+        requireKeys(b7, { "box", "n", "median", "medianText", "wide", "wideText", "picked", "graded" }, "BOXCELL");
+        QVERIFY(!boxes.at(0).toMap().value(QStringLiteral("graded")).toBool());   // P1 is address: never graded
+        requireKeys(hipsS, { "grades" }, "ROW");
         QCOMPARE(b7.value(QStringLiteral("n")).toInt(), 5);
         QVERIFY(!b7.value(QStringLiteral("picked")).isNull());   // this shot ringed
         QVERIFY(!b7.value(QStringLiteral("wideText")).toString().isEmpty());
@@ -461,6 +475,153 @@ private slots:
     }
 
     // ── Mark's honesty rule (22 Oct; decision 16): every reading shown, under a ⚠ where it may be unreliable ──
+    // ── consistency: per club, against the band the profile draws (R2b, R7) ───────────────────────────
+    void consistencyGrades()
+    {
+        namespace pv = pinpoint::variability;
+        // ten 7-irons and six drivers, the swing's changes from address scaled a little differently on each
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = kSession;
+        snap->revision = 1;
+        for (int i = 0; i < 16; ++i) {
+            auto sh = copyOf(*m_nick, i + 1, 0.8 + 0.035 * i + (i % 3) * 0.04);
+            sh->club = i < 10 ? QStringLiteral("7 IRON") : QStringLiteral("DRIVER");
+            snap->shots.push_back(sh);
+        }
+        const QVariantMap s = postureSessionReportPayload(*snap);
+        QVERIFY(s.value(QStringLiteral("available")).toBool());
+
+        // the core's own reading of the same shots: the band each cell draws, and the readings it grades
+        const PostureEnv &env = postureSharedEnv();
+        std::vector<PostureShotInput> in;
+        for (const auto &sh : snap->shots) in.push_back(postureInputFromShot(*sh, env));
+        const PostureSessionView sv = postureSession(in, env);
+
+        const auto grader = pv::makeVariabilityGrader(pv::Basis::Scalar);
+        int gradedCells = 0, rowsGraded = 0;
+        double minRho = 1e9, maxRho = -1e9;
+        for (const QVariant &rv : s.value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList()) {
+            const QVariantMap row = rv.toMap();
+            const PostureRowSpec *spec = nullptr;
+            for (const PostureRowSpec &x : postureRowSpecs()) if (x.key == row.value(QStringLiteral("key")).toString()) spec = &x;
+            QVERIFY(spec);
+            const int r = int(spec->row);
+            const QVariantList boxes = row.value(QStringLiteral("boxes")).toList();
+            const QVariantList grades = row.value(QStringLiteral("grades")).toList();
+            for (int p = 1; p < 8; ++p) {
+                const bool banded = std::isfinite(sv.rows[size_t(r)].view.cells[size_t(p)].band.sigma());
+                const bool read = [&] { for (double x : postureGradedValues(in, spec->row, p)) if (std::isfinite(x)) return true; return false; }();
+                QCOMPARE(boxes.at(p).toMap().value(QStringLiteral("graded")).toBool(), banded && read);
+            }
+            if (grades.isEmpty()) continue;
+            // the clubs most shots first, each named (the session is mixed)
+            QCOMPARE(grades.size(), 2);
+            const QVariantMap iron = grades.at(0).toMap(), driver = grades.at(1).toMap();
+            QCOMPARE(iron.value(QStringLiteral("club")).toString(), QStringLiteral("7 IRON"));
+            QCOMPARE(driver.value(QStringLiteral("club")).toString(), QStringLiteral("DRIVER"));
+            QVERIFY(iron.value(QStringLiteral("named")).toBool() && driver.value(QStringLiteral("named")).toBool());
+            // six drivers: under N_MIN, one grade-0 badge for the row
+            QVERIFY(driver.value(QStringLiteral("tooFew")).toBool());
+            QVERIFY(driver.value(QStringLiteral("cells")).toList().isEmpty());
+            QCOMPARE(qvariant_cast<pv::VariabilityResultView>(driver.value(QStringLiteral("result"))).grade(), 0);
+            QVERIFY(!iron.value(QStringLiteral("tooFew")).toBool());
+            std::vector<pv::VariabilityResult> ironCells;   // the 7-iron's graded positions on the row, for its row grade
+            for (const QVariant &cv : iron.value(QStringLiteral("cells")).toList()) {
+                const QVariantMap c = cv.toMap();
+                const int p = c.value(QStringLiteral("index")).toInt();
+                QVERIFY(p >= 1 && p < 8);
+                QCOMPARE(c.value(QStringLiteral("tag")).toString(), posturePositionTag(p));
+                QVERIFY(boxes.at(p).toMap().value(QStringLiteral("graded")).toBool());
+                const auto v = qvariant_cast<pv::VariabilityResultView>(c.value(QStringLiteral("result")));
+                // graded against the BAND's σ, (σLo + σHi)/2, as a variabilityScale: "of scale", never "of corridor"
+                const double sigma = sv.rows[size_t(r)].view.cells[size_t(p)].band.sigma();
+                QVERIFY(std::isfinite(sigma));
+                pv::VariabilityInput want;
+                want.variabilityScale = sigma;
+                const std::vector<double> xs = postureGradedValues(in, spec->row, p);
+                for (size_t i = 0; i < 10; ++i) want.values.push_back(xs[i]);   // the 7-irons
+                const pv::VariabilityResult w = grader->grade(want);
+                ironCells.push_back(w);
+                QVERIFY(v.graded());
+                QCOMPARE(v.grade(), w.grade);
+                QCOMPARE(v.n(), w.n);
+                QVERIFY(std::fabs(v.rho() - w.rho) < 1e-9);
+                QVERIFY(std::fabs(w.rho - pv::sampleSd(std::vector<double>(xs.begin(), xs.begin() + 10)) / sigma) < 1e-9);
+                if (v.grade() > 0) {
+                    QVERIFY2(v.basisText().contains(QStringLiteral(" of scale · n 10")), qPrintable(v.basisText()));
+                    QVERIFY(!v.basisText().contains(QStringLiteral("corridor")));
+                    minRho = std::min(minRho, v.rho());
+                    maxRho = std::max(maxRho, v.rho());
+                }
+                ++gradedCells;
+            }
+            // R20: the row's ONE grade per club, the cell rule (R1, the loosest third) over its graded positions, as a
+            // plain map; the driver's, every position "Not enough swings", is grade 0
+            const QVariantList rowGrades = row.value(QStringLiteral("rowGrades")).toList();
+            QCOMPARE(rowGrades.size(), 2);
+            const QVariantMap ri = rowGrades.at(0).toMap(), rd = rowGrades.at(1).toMap();
+            QCOMPARE(ri.value(QStringLiteral("club")).toString(), QStringLiteral("7 IRON"));
+            QCOMPARE(rd.value(QStringLiteral("club")).toString(), QStringLiteral("DRIVER"));
+            QVERIFY(ri.value(QStringLiteral("named")).toBool() && rd.value(QStringLiteral("named")).toBool());
+            const pv::CellGrade want = pv::cellGrade(ironCells);
+            const QVariantMap rir = ri.value(QStringLiteral("result")).toMap(), rdr = rd.value(QStringLiteral("result")).toMap();
+            QCOMPARE(rir.value(QStringLiteral("graded")).toBool(), want.graded);
+            QCOMPARE(rir.value(QStringLiteral("grade")).toInt(), want.grade);
+            QCOMPARE(rir.value(QStringLiteral("n")).toInt(), want.n);
+            QVERIFY(rir.value(QStringLiteral("basisText")).toString().isEmpty());   // a cell shows the word alone
+            if (want.grade >= 1) {
+                // the loosest third: no graded position of the row is looser than the row's grade by more than a third
+                int looser = 0;
+                for (const pv::VariabilityResult &x : ironCells) if (x.grade >= 1 && x.grade < want.grade) ++looser;
+                QVERIFY(looser * 3 <= int(ironCells.size()));
+            }
+            QVERIFY(rdr.value(QStringLiteral("graded")).toBool());
+            QCOMPARE(rdr.value(QStringLiteral("grade")).toInt(), 0);
+            ++rowsGraded;
+        }
+        QVERIFY(gradedCells > 0);
+        QVERIFY(rowsGraded > 0);
+
+        // Consistency: one line per club, named; the 7-iron's most and least by ρ, the driver too few
+        const QVariantList lines = s.value(QStringLiteral("consistency")).toMap().value(QStringLiteral("lines")).toList();
+        QCOMPARE(lines.size(), 2);
+        const QVariantMap a = lines.at(0).toMap(), b = lines.at(1).toMap();
+        QCOMPARE(a.value(QStringLiteral("club")).toString(), QStringLiteral("7 IRON"));
+        QVERIFY(a.value(QStringLiteral("named")).toBool());
+        QVERIFY(!a.value(QStringLiteral("tooFew")).toBool());
+        QVERIFY(a.value(QStringLiteral("mostText")).toString().startsWith(QStringLiteral("Most: ")));
+        QVERIFY(a.value(QStringLiteral("leastText")).toString().startsWith(QStringLiteral("Least: ")));
+        const auto most = qvariant_cast<pv::VariabilityResultView>(a.value(QStringLiteral("most")));
+        const auto least = qvariant_cast<pv::VariabilityResultView>(a.value(QStringLiteral("least")));
+        QVERIFY(most.grade() >= 1 && least.grade() >= 1);
+        QCOMPARE(most.rho(), minRho);
+        QCOMPARE(least.rho(), maxRho);
+        QVERIFY(most.grade() >= least.grade());
+        QCOMPARE(b.value(QStringLiteral("club")).toString(), QStringLiteral("DRIVER"));
+        QVERIFY(b.value(QStringLiteral("tooFew")).toBool());
+        QCOMPARE(qvariant_cast<pv::VariabilityResultView>(b.value(QStringLiteral("result"))).grade(), 0);
+        // no variability word in a presenter's text (R11): the vocabularies' words come through the badge
+        for (const char *k : { "mostText", "leastText" })
+            for (const char *bad : { "repeat", "Repeat", "steady", "tight", "loose", "consistent", "Grooved", "Settling", "Variable", "Scattered" })
+                QVERIFY2(!a.value(QString::fromLatin1(k)).toString().contains(QString::fromLatin1(bad)), bad);
+
+        // the report's block carries the lines verbatim, and each row's grades
+        const QVariant block = pinpoint::report::postureReportBlock(s, {});
+        QVERIFY(!block.isNull());
+        const QVariantList bl = block.toMap().value(QStringLiteral("consistency")).toList();
+        QCOMPARE(bl.size(), 2);
+        QCOMPARE(bl.at(0).toMap().value(QStringLiteral("mostText")).toString(), a.value(QStringLiteral("mostText")).toString());
+        QCOMPARE(block.toMap().value(QStringLiteral("repeat")).toString(), QString());
+        // and each row's one grade per club (R20), verbatim
+        const QVariantList srows = s.value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList();
+        for (const QVariant &rv : block.toMap().value(QStringLiteral("profile")).toMap().value(QStringLiteral("rows")).toList()) {
+            const QVariantMap br = rv.toMap();
+            for (const QVariant &sv2 : srows)
+                if (sv2.toMap().value(QStringLiteral("key")) == br.value(QStringLiteral("key")))
+                    QCOMPARE(br.value(QStringLiteral("rowGrades")).toList(), sv2.toMap().value(QStringLiteral("rowGrades")).toList());
+        }
+    }
+
     void honestReadings()
     {
         ChartsPosturePresenter p;

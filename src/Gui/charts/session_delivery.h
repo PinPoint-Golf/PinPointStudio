@@ -67,11 +67,12 @@
 //      plane, so the two coincide. On the 165 library swings of the evidence CSV the gap is < 0.5° at P2
 //      on 165, at P4 on 164 and at P6 on 127, and on 5 at P1, 20 at P3 and 5 at P7: the hands carry P2,
 //      the top and the downswing to P6, the shaft carries address, P3 and impact — §1.1's own account.
-//   6. "YOUR USUAL" is the session's median; a reading is in its usual place within kDeliveryUsualDeg. The head's
+//   6. THE SESSION MEDIAN (the head's words name it so, never "your usual": R11); a reading is close to it within
+//      kDeliveryUsualDeg. The head's
 //      rule 1 on the plane at P6 places it by the fit's own tertiles (decision 8), as the ball-flight line does.
 //      The no-monitor head (§4.3 rule 3) names the story reading (P1, P3, P4, P6, P7, steepening) whose
-//      departure from its median is largest in degrees; under kDeliveryUsualDeg it says "where it
-//      usually is". With fewer than kDeliverySessionBandShots shots there is no usual: the head is the
+//      departure from its median is largest in degrees; under kDeliveryUsualDeg it says "close to the
+//      session median". With fewer than kDeliverySessionBandShots shots there is no median: the head is the
 //      story's set and delivered.
 //   7. THE STRONGER PATH FIT is the larger |r| of path ~ P6 plane and path ~ steepening, among fits that
 //      hold; when neither holds, the larger |r| is the one said refused.
@@ -97,7 +98,8 @@
 //      At a loft ≤ kDeliveryLieBarelyLoftDeg (a 3-wood and the driver) the line says the lie barely matters.
 //  12. THE SESSION'S BAND (§4.7) is a box per position, P1..P7, of the shots' swing plane curve (shown from
 //      kDeliverySessionBandShots shots); the session figure already draws the curves' middle half on its
-//      own clock. "Varies most" names the widest middle half; "steadiest" the narrowest.
+//      own clock. Ungraded (no swing-plane corridor or scale): the words are the statistic's, "narrowest" and
+//      "widest" middle half (R11).
 //  13. THE FITS POOL THE GOLFER'S DAY (§4.4, §8.2 as revised 29 Oct): this session's shots and the golfer's other
 //      sessions on the same date — one camera set-up, so the uncalibrated camera's offset cancels — read from their
 //      swing_phasegrid.json alone (deliveryInputFromPhaseGrid; the presenter never opens a sibling swing document). The
@@ -336,7 +338,7 @@ struct DeliveryVaries {
     bool    has = false;
     int     tightest = -1, loosest = -1;   // positions
     double  tightHalf = kNaN, looseHalf = kNaN;   // half the middle half, °
-    QString words;                 // "Steadiest at P1 (middle half ±0.5°), loosest at P3 (±2.1°) — your path follows your
+    QString words;                 // "Narrowest at P1 (middle half ±0.5°), widest at P3 (±2.1°) — your path follows your
                                    //  plane (r −0.80)."
 };
 DeliveryVaries deliveryVariesMost(const DeliveryBand &band, const DeliveryFits &fits);

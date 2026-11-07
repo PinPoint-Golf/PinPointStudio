@@ -84,7 +84,7 @@ double handAt(const std::vector<double> &t, const std::vector<double> &v, const 
     return v[j - 1] + a * (v[j] - v[j - 1]);
 }
 
-// The plane story's readings, by name (decision 6), and their sentence against the usual.
+// The plane story's readings, by name (decision 6), and their sentence against the session median.
 struct StoryReading { const char *name; int pos; };   // pos −1 = the steepening
 const std::array<StoryReading, 6> kStoryReadings{ { { "P1", kP1 }, { "P3", kP3 }, { "P4", kP4 }, { "P6", kP6 },
                                                     { "P7", kP7 }, { "steepening", -1 } } };
@@ -92,12 +92,12 @@ QString usualWords(int pos, double d)
 {
     const QString fig = absDeg(d);
     switch (pos) {
-    case kP1: return QStringLiteral("You set up %1 %2 than your usual.").arg(fig, steeperWord(d));
-    case kP3: return QStringLiteral("You went back %1 %2 than your usual at P3.").arg(fig, steeperWord(d));
-    case kP4: return QStringLiteral("You reached the top %1 %2 than your usual.").arg(fig, steeperWord(d));
-    case kP6: return QStringLiteral("You came down %1 %2 than your usual.").arg(fig, steeperWord(d));
-    case kP7: return QStringLiteral("You delivered %1 %2 than your usual.").arg(fig, steeperWord(d));
-    default:  return QStringLiteral("Your hands steepened %1 %2 than your usual coming down.")
+    case kP1: return QStringLiteral("You set up %1 %2 than the session median.").arg(fig, steeperWord(d));
+    case kP3: return QStringLiteral("You went back %1 %2 than the session median at P3.").arg(fig, steeperWord(d));
+    case kP4: return QStringLiteral("You reached the top %1 %2 than the session median.").arg(fig, steeperWord(d));
+    case kP6: return QStringLiteral("You came down %1 %2 than the session median.").arg(fig, steeperWord(d));
+    case kP7: return QStringLiteral("You delivered %1 %2 than the session median.").arg(fig, steeperWord(d));
+    default:  return QStringLiteral("Your hands steepened %1 %2 than the session median coming down.")
                      .arg(fig, d >= 0 ? QStringLiteral("more") : QStringLiteral("less"));
     }
 }
@@ -782,7 +782,7 @@ DeliveryVaries deliveryVariesMost(const DeliveryBand &band, const DeliveryFits &
     const QString tail = f.holds ? QStringLiteral(" — your path follows your plane (r %1).").arg(W::fig(f.r, 2))
                        : f.n >= kDeliveryFitMinShots ? QStringLiteral(" — your path does not follow your plane (r %1).").arg(W::fig(f.r, 2))
                        : QStringLiteral(".");
-    v.words = QStringLiteral("Steadiest at %1 (middle half ±%2), loosest at %3 (±%4)%5")
+    v.words = QStringLiteral("Narrowest at %1 (middle half ±%2), widest at %3 (±%4)%5")
                   .arg(deliveryPositionTag(v.tightest), deliveryDeg1(v.tightHalf), deliveryPositionTag(v.loosest),
                        deliveryDeg1(v.looseHalf), tail);
     return v;
@@ -832,8 +832,8 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
         if (fin(p6) && haveUsual && fin(usual.plane[kP6])) {
             const double d = p6 - usual.plane[kP6];
             plane = std::fabs(d) < kDeliveryUsualDeg
-                ? QStringLiteral("your plane was in its usual place, so look at the face and the strike.")
-                : QStringLiteral("your plane was %1 %2 than your usual at P6.").arg(absDeg(d), steeperWord(d));
+                ? QStringLiteral("your plane was close to the session median, so look at the face and the strike.")
+                : QStringLiteral("your plane was %1 %2 than the session median at P6.").arg(absDeg(d), steeperWord(d));
         } else if (fin(p6)) {
             plane = QStringLiteral("your plane was %1 at P6.").arg(deliveryDeg(p6));
         } else {
@@ -842,7 +842,7 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
         h.text = QStringLiteral("Path %1; %2").arg(deliveryDirection(in.lmPath), plane);
         return h;
     }
-    // rule 3: no monitor — the story's largest departure from the golfer's usual
+    // rule 3: no monitor — the story's largest departure from the session median
     h.rule = 3;
     if (haveUsual) {
         int best = -2;
@@ -854,7 +854,7 @@ DeliveryHead deliveryHead(const DeliveryShotInput &in, const std::vector<Deliver
             if (best == -2 || std::fabs(v - m) > std::fabs(bestD)) { best = r.pos; bestD = v - m; }
         }
         if (best != -2) {
-            h.text = std::fabs(bestD) >= kDeliveryUsualDeg ? usualWords(best, bestD) : QStringLiteral("Your plane was where it usually is.");
+            h.text = std::fabs(bestD) >= kDeliveryUsualDeg ? usualWords(best, bestD) : QStringLiteral("Your plane was close to the session median.");
             return h;
         }
     }

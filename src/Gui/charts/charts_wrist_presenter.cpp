@@ -26,6 +26,9 @@
 #include "session_series_model.h"
 #include "session_warp.h"
 #include "session_wrist.h"
+#include "variability_clubs.h"                    // perClubInputs: one window per club (R2b)
+#include "../variability/variability_facade.h"    // VariabilityResultView: the `variabilityResult` QML reads
+#include "../../Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/condition_reading.h"
@@ -1258,6 +1261,206 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
 
 // ── Session ─────────────────────────────────────────────────────────────────────────────────
 
+// THE DOMINANT STYLE: the style most shots were graded as; a tie goes to the earlier of Neutral, Bowed, Cupped.
+// With the style set by hand every shot is graded as it, so it is that style.
+int dominantStyle(const Ctx &c)
+{
+    std::array<int, 3> graded{};
+    for (const Profile &p : c.profs) if (p.has) ++graded[size_t(std::clamp(p.archetype, 0, 2))];
+    int dom = 0;
+    for (int s = 1; s < 3; ++s) if (graded[size_t(s)] > graded[size_t(dom)]) dom = s;
+    return dom;
+}
+
+// The dominant style's band at a checkpoint: off a shot graded as it, else a shot carrying the row re-graded to it
+// (`regraded` caches that re-grade per DOF). False where the style has no band there.
+bool dominantBandAt(const Ctx &c, int dom, std::map<QString, Profile> &regraded, const QString &id, int p, double *lo, double *hi)
+{
+    for (const Profile &pf : c.profs) {
+        if (!pf.has || pf.archetype != dom) continue;
+        const Dof *d = pf.dof(id);
+        if (!d || !d->hasStrip) continue;
+        const Cell &cl = d->cells[size_t(p)];
+        if (cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi)) { *lo = cl.lo; *hi = cl.hi; return true; }
+    }
+    auto it = regraded.find(id);
+    if (it == regraded.end()) {
+        Profile rp;
+        for (int i = 0; i < c.n; ++i)
+            if (c.profs[size_t(i)].has && c.profs[size_t(i)].dof(id)) {
+                const ShotSeries &s = *c.snap->shots[size_t(i)];
+                rp = parseProfile(regradeWristPayload(s, s.wrist, dom));
+                break;
+            }
+        it = regraded.emplace(id, rp).first;
+    }
+    const Dof *d = it->second.dof(id);
+    if (!d) return false;
+    const Cell &cl = d->cells[size_t(p)];
+    if (!(cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi))) return false;
+    *lo = cl.lo; *hi = cl.hi;
+    return true;
+}
+
+// ── consistency (Mark's rulings R2b, R7, R11) ───────────────────────────────────────────────────
+//
+// Each DOF at each checkpoint from P2 on is graded per club: the club's shots' Δ from address there, against the
+// band the panel draws for the session — the DOMINANT style's (the report shades it; the screen shades the picked
+// shot's, which is that style whenever the picked shot was graded as it). The band is the Ideal band, μ − σLo … μ + σHi,
+// so its σ, (σLo + σHi)/2, is its half-width; it goes to the grader as `variabilityScale`, so the basis reads
+// "of scale". A checkpoint with no band is ungraded: no badge, out of the ranking. No propagated σ is known for a
+// wrist cell, so none is passed. The grade words are the vocabularies' (QML); this file spells none.
+
+namespace pv = pinpoint::variability;
+
+struct WristClubGrades {
+    QString club;
+    int     shots = 0;    // the club's shots with a wrist reading: the order the clubs are named in
+    std::map<QString, std::array<pv::VariabilityResult, kP>> result;   // by DOF id
+    std::map<QString, std::array<bool, kP>> has;
+};
+
+std::vector<WristClubGrades> wristGrades(const Ctx &c, const std::vector<DofAgg> &aggs)
+{
+    std::vector<WristClubGrades> out;
+    std::map<QString, int> count;
+    for (int i = 0; i < c.n; ++i) if (c.profs[size_t(i)].has) ++count[c.snap->shots[size_t(i)]->club];
+    for (const auto &[club, n] : count) { WristClubGrades g; g.club = club; g.shots = n; out.push_back(g); }
+    std::stable_sort(out.begin(), out.end(), [](const WristClubGrades &a, const WristClubGrades &b) { return a.shots > b.shots; });
+    if (out.empty()) return out;
+    const int dom = dominantStyle(c);
+    std::map<QString, Profile> regraded;
+    const auto grader = pv::makeVariabilityGrader(pv::Basis::Scalar);
+    for (const DofAgg &a : aggs) {
+        for (WristClubGrades &g : out) { g.result[a.id]; g.has[a.id].fill(false); }
+        for (int p = 1; p < kP; ++p) {   // P1 is address, the reference every Δ is taken from
+            double lo = kNaN, hi = kNaN;
+            if (!dominantBandAt(c, dom, regraded, a.id, p, &lo, &hi)) continue;
+            const double sigma = (hi - lo) / 2.0;
+            if (!(std::isfinite(sigma) && sigma > 0.0)) continue;
+            std::vector<VariabilityClubValue> swings;
+            for (int i = 0; i < c.n; ++i)
+                if (c.profs[size_t(i)].has) swings.push_back({ c.snap->shots[size_t(i)]->club, a.values[size_t(p)][size_t(i)] });
+            pv::VariabilityInput base;
+            base.scaleType = pv::ScaleType::Interval;
+            base.variabilityScale = sigma;
+            for (const VariabilityClubWindow &w : perClubInputs(swings, base))
+                for (WristClubGrades &g : out)
+                    if (g.club == w.club) {
+                        g.result[a.id][size_t(p)] = grader->grade(w.input);
+                        g.has[a.id][size_t(p)] = g.result[a.id][size_t(p)].graded;
+                    }
+        }
+    }
+    return out;
+}
+
+bool wristHas(const WristClubGrades &g, const QString &id, int p)
+{
+    const auto it = g.has.find(id);
+    return it != g.has.end() && it->second[size_t(p)];
+}
+
+QVariant wristResultOf(const pv::VariabilityResult &res)
+{
+    return QVariant::fromValue(pv::VariabilityResultView::fromResult(res, QStringLiteral("°"), 0));
+}
+
+QString wristTagOf(const Profile *wash, int p)
+{
+    return wash && !wash->cps[size_t(p)].tag.isEmpty() ? wash->cps[size_t(p)].tag : QStringLiteral("P%1").arg(p + 1);
+}
+
+// ROW.grades: per club, the graded checkpoints (or the one grade-0 result for a club too few to grade).
+QVariantList wristRowGrades(const std::vector<WristClubGrades> &grades, const QString &id, const Profile *wash)
+{
+    QVariantList out;
+    const bool named = grades.size() > 1;
+    for (const WristClubGrades &g : grades) {
+        QVariantList cells;
+        QVariant first;
+        bool tooFew = true;
+        for (int p = 1; p < kP; ++p) {
+            if (!wristHas(g, id, p)) continue;
+            const pv::VariabilityResult &res = g.result.at(id)[size_t(p)];
+            const QVariant rv = wristResultOf(res);
+            if (!first.isValid()) first = rv;
+            if (res.grade != 0) tooFew = false;
+            cells.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), wristTagOf(wash, p) },
+                                      { QStringLiteral("result"), rv } });
+        }
+        if (cells.isEmpty()) continue;
+        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
+                                { QStringLiteral("tooFew"), tooFew }, { QStringLiteral("result"), tooFew ? first : nullv() },
+                                { QStringLiteral("cells"), tooFew ? QVariantList{} : cells } });
+    }
+    return out;
+}
+
+// ROW.rowGrades (Mark's ruling R20): per club, ONE grade for the row — the cell rule (R1, cellGrade: the loosest third)
+// over the DOF's graded checkpoints for that club (P2 on: R21 keeps P2's grade; only the Most / Least ranking starts at
+// P3), as a plain map (toMap) so it travels to paper. A club with no graded checkpoint has no entry. The report's Wrist
+// page draws it beside the row's name; the Charts screen keeps ROW.grades, the badge per checkpoint.
+QVariantList wristRowCellGrades(const std::vector<WristClubGrades> &grades, const QString &id)
+{
+    QVariantList out;
+    const bool named = grades.size() > 1;
+    for (const WristClubGrades &g : grades) {
+        std::vector<pv::VariabilityResult> readings;
+        for (int p = 1; p < kP; ++p)
+            if (wristHas(g, id, p)) readings.push_back(g.result.at(id)[size_t(p)]);
+        if (readings.empty()) continue;
+        const pv::CellGrade cell = pv::cellGrade(readings);
+        if (!cell.graded) continue;
+        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
+                                { QStringLiteral("result"), pv::VariabilityResultView::fromCellGrade(cell).toMap() } });
+    }
+    return out;
+}
+
+// consistency.lines: per club, its most and least consistent checkpoint FROM P3 ON, ranked by ρ (graded 1–5 only).
+QVariantMap wristConsistency(const std::vector<WristClubGrades> &grades, const std::vector<DofAgg> &aggs, const Profile *wash)
+{
+    QVariantList lines;
+    const bool named = grades.size() > 1;
+    for (const WristClubGrades &g : grades) {
+        struct Ranked { QString id; int p; double rho; };
+        std::vector<Ranked> ranked;
+        QVariant zero;
+        for (const DofAgg &a : aggs)
+            for (int p = 2; p < kP; ++p) {
+                if (!wristHas(g, a.id, p)) continue;
+                const pv::VariabilityResult &res = g.result.at(a.id)[size_t(p)];
+                if (res.grade >= 1 && std::isfinite(res.rho)) ranked.push_back({ a.id, p, res.rho });
+                else if (res.grade == 0 && !zero.isValid()) zero = wristResultOf(res);
+            }
+        QVariantMap line{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named } };
+        if (ranked.empty()) {
+            if (!zero.isValid()) continue;   // nothing graded for this club: no line
+            line.insert(QStringLiteral("tooFew"), true);
+            line.insert(QStringLiteral("result"), zero);
+            line.insert(QStringLiteral("mostText"), QString());
+            line.insert(QStringLiteral("most"), nullv());
+            line.insert(QStringLiteral("leastText"), QString());
+            line.insert(QStringLiteral("least"), nullv());
+            lines.append(line);
+            continue;
+        }
+        std::stable_sort(ranked.begin(), ranked.end(), [](const Ranked &x, const Ranked &y) { return x.rho < y.rho; });
+        const Ranked &lo = ranked.front(), &hi = ranked.back();
+        const auto where = [&](const Ranked &x) { return QStringLiteral("%1 at %2").arg(longName(x.id), wristTagOf(wash, x.p)); };
+        line.insert(QStringLiteral("tooFew"), false);
+        line.insert(QStringLiteral("result"), nullv());
+        line.insert(QStringLiteral("mostText"), QStringLiteral("Most: ") + where(lo));
+        line.insert(QStringLiteral("most"), wristResultOf(g.result.at(lo.id)[size_t(lo.p)]));
+        const bool two = ranked.size() >= 2;
+        line.insert(QStringLiteral("leastText"), two ? QStringLiteral("Least: ") + where(hi) : QString());
+        line.insert(QStringLiteral("least"), two ? wristResultOf(g.result.at(hi.id)[size_t(hi.p)]) : nullv());
+        lines.append(line);
+    }
+    return { { QStringLiteral("sub"), QStringLiteral("ranked from P3 on") }, { QStringLiteral("lines"), lines } };
+}
+
 QVariantMap driftMap(const Correlation &d, int n)
 {
     QVariantMap out{ { QStringLiteral("defined"), d.defined }, { QStringLiteral("r"), nv(d.r) }, { QStringLiteral("lo"), nv(d.lo) },
@@ -1321,7 +1524,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     }
     out.insert(QStringLiteral("head"), head.toVariant());
 
-    // THE STANDFIRST: the score, the most and least repeatable checkpoint, the resemblance index, the n
+    // THE STANDFIRST: the score, the resemblance index, the n (consistency is its own block: `consistency`)
     const BoxStats sb = boxStats(scores);
     // built in its four parts (score, repeat, resemblance, size) and joined, run for run, into the one standfirst
     // the screen sets; paper prints the parts as lines of their own (sessionParts)
@@ -1336,19 +1539,8 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     }
     else
         stScore.append(QStringLiteral("No %1's wrist conditions have been graded yet. ").arg(c.one));
-    struct Spread { QString name, tag; double w; };
-    std::vector<Spread> spreads;
-    for (const DofAgg &a : aggs)
-        for (int p = 2; p < kP; ++p)
-            if (a.box[size_t(p)].n >= 3)
-                spreads.push_back({ longName(a.id), wash->cps[size_t(p)].tag.isEmpty() ? QStringLiteral("P%1").arg(p + 1) : wash->cps[size_t(p)].tag,
-                                    a.box[size_t(p)].q3 - a.box[size_t(p)].q1 });
-    std::stable_sort(spreads.begin(), spreads.end(), [](const Spread &a, const Spread &b) { return a.w < b.w; });
-    if (spreads.size() >= 2) {
-        const Spread &a = spreads.front(), &b = spreads.back();
-        stRepeat.append(QStringLiteral("From P3 on, most repeatable: %1 at %2 (middle half ").arg(a.name, a.tag)).figure(degBare(a.w))
-          .append(QStringLiteral(" wide); least: %1 at %2 (").arg(b.name, b.tag)).figure(degBare(b.w)).append(QStringLiteral("). "));
-    }
+    // the old "most repeatable … least" clause is gone (R7, R11): the checkpoints are graded and ranked by ρ in
+    // `consistency`, below; stRepeat stays empty, so the joined standfirst and paper's `repeat` part say nothing
     QMap<QString, int> most;
     int withRes = 0, disagree = 0;
     for (const Profile &p : c.profs) {
@@ -1409,7 +1601,9 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     }
     out.insert(QStringLiteral("standfirst"), st.toVariant());
 
-    // THE CHECKPOINT BOXES
+    // THE CHECKPOINT BOXES, with each DOF's consistency per club against the dominant style's band
+    const std::vector<WristClubGrades> grades = wristGrades(c, aggs);
+    out.insert(QStringLiteral("consistency"), wristConsistency(grades, aggs, wash));
     QVariantList rows;
     for (const DofAgg &a : aggs) {
         const Dof *meta = c.pick.dof(a.id);
@@ -1436,6 +1630,8 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
                                       { QStringLiteral("medianText"), b.n >= 3 ? degText(med) : QStringLiteral("-") },
                                       { QStringLiteral("wide"), nv(wide) },
                                       { QStringLiteral("wideText"), b.n >= 3 ? W::fig(wide) + QStringLiteral("° wide") : QString() },
+                                      { QStringLiteral("graded"), std::any_of(grades.begin(), grades.end(),
+                                                                              [&](const WristClubGrades &g) { return wristHas(g, a.id, p); }) },
                                       { QStringLiteral("picked"), mine ? nv(mine->cells[size_t(p)].delta) : nullv() } });
         }
         sc.finish();
@@ -1449,7 +1645,9 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             { QStringLiteral("poleTopText"), meta->poleTop.isEmpty() ? QString() : QStringLiteral("↑ ") + meta->poleTop },
             { QStringLiteral("poleBottomText"), meta->poleBottom.isEmpty() ? QString() : QStringLiteral("↓ ") + meta->poleBottom },
             { QStringLiteral("points"), points }, { QStringLiteral("ghost"), nullv() }, { QStringLiteral("trace"), QVariantList{} },
-            { QStringLiteral("boxes"), boxes }, { QStringLiteral("yLo"), sc.lo }, { QStringLiteral("yHi"), sc.hi }, { QStringLiteral("outCount"), 0 } });
+            { QStringLiteral("boxes"), boxes }, { QStringLiteral("yLo"), sc.lo }, { QStringLiteral("yHi"), sc.hi }, { QStringLiteral("outCount"), 0 },
+            { QStringLiteral("grades"), wristRowGrades(grades, a.id, wash) },
+            { QStringLiteral("rowGrades"), wristRowCellGrades(grades, a.id) } });
     }
     out.insert(QStringLiteral("rows"), rows);
     const QString pickedWord = c.index >= 0 ? QStringLiteral("%1 %2’s").arg(c.one).arg(c.shot->ordinal) : QStringLiteral("this swing’s");
@@ -1746,11 +1944,10 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
         c.profs.push_back(parseProfile(regradeWristPayload(*s, s->wrist, mode)));
         if (c.profs.back().has) ++c.ready;
     }
-    // THE DOMINANT STYLE: the style most shots were graded as; a tie goes to the earlier of Neutral, Bowed, Cupped
+    // THE DOMINANT STYLE (dominantStyle: the style most shots were graded as)
     std::array<int, 3> graded{};
     for (const Profile &p : c.profs) if (p.has) ++graded[size_t(std::clamp(p.archetype, 0, 2))];
-    int dom = 0;
-    for (int s = 1; s < 3; ++s) if (graded[size_t(s)] > graded[size_t(dom)]) dom = s;
+    const int dom = dominantStyle(c);
     if (c.ready > 0) c.washStyle = dom;
 
     const std::vector<DofAgg> aggs = aggregates(c);
@@ -1769,34 +1966,9 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
         out.insert(QStringLiteral("scoreRun"), sr);
     }
 
-    // the dominant style's band at a checkpoint: off a shot graded as it, else a shot carrying the row re-graded to it
+    // the dominant style's band at a checkpoint (dominantBandAt: the one the session's consistency is graded against)
     std::map<QString, Profile> regraded;
-    const auto bandAt = [&](const QString &id, int p, double *lo, double *hi) {
-        for (const Profile &pf : c.profs) {
-            if (!pf.has || pf.archetype != dom) continue;
-            const Dof *d = pf.dof(id);
-            if (!d || !d->hasStrip) continue;
-            const Cell &cl = d->cells[size_t(p)];
-            if (cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi)) { *lo = cl.lo; *hi = cl.hi; return true; }
-        }
-        auto it = regraded.find(id);
-        if (it == regraded.end()) {
-            Profile rp;
-            for (int i = 0; i < c.n; ++i)
-                if (c.profs[size_t(i)].has && c.profs[size_t(i)].dof(id)) {
-                    const ShotSeries &s = *snapshot.shots[size_t(i)];
-                    rp = parseProfile(regradeWristPayload(s, s.wrist, dom));
-                    break;
-                }
-            it = regraded.emplace(id, rp).first;
-        }
-        const Dof *d = it->second.dof(id);
-        if (!d) return false;
-        const Cell &cl = d->cells[size_t(p)];
-        if (!(cl.banded && std::isfinite(cl.lo) && std::isfinite(cl.hi))) return false;
-        *lo = cl.lo; *hi = cl.hi;
-        return true;
-    };
+    const auto bandAt = [&](const QString &id, int p, double *lo, double *hi) { return dominantBandAt(c, dom, regraded, id, p, lo, hi); };
 
     QVariantList rows;
     for (const QVariant &rv : out.value(QStringLiteral("rows")).toList()) {

@@ -27,6 +27,9 @@ import PinPointStudio
 // Beside the name, this shot's verdict (Mark, 17 Oct 2026: "just glance at the readings that need attention"): All ·
 // Faults (past the fault line) · Outside (out of the corridor, faults included) · Inside (graded clean), each with its
 // count under the name filter; a reading no condition graded shows under All only (row.verdict, the presenter's).
+// Each row carries this shot's technical Typicality badge when R8 gives one (row.variability: this shot against the
+// other shots with its club, at least eight), on the row's second line (PpChProfile); the session box, pooled across
+// clubs, stays as drawn, and so do the median and place.
 // objectName: chReadingsView, chReadingsFilter, chReadingsVerdict:<all|fault|outside|inside>.
 PpChViewBase {
     id: rv

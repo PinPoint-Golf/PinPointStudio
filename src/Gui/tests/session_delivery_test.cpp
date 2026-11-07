@@ -279,15 +279,19 @@ private slots:
         const DeliveryShotView v1 = head(QStringLiteral("swing_0001"));
         QCOMPARE(v1.mode, QStringLiteral("noMonitor"));
         QCOMPARE(v1.head.rule, 3);
-        QCOMPARE(v1.head.text, QStringLiteral("You went back 8° steeper than your usual at P3."));
-        QCOMPARE(head(QStringLiteral("swing_0006")).head.text, QStringLiteral("Your plane was where it usually is."));
-        QCOMPARE(head(QStringLiteral("swing_0008")).head.text, QStringLiteral("Your hands steepened 3° less than your usual coming down."));
+        QCOMPARE(v1.head.text, QStringLiteral("You went back 8° steeper than the session median at P3."));
+        QCOMPARE(head(QStringLiteral("swing_0006")).head.text, QStringLiteral("Your plane was close to the session median."));
+        QCOMPARE(head(QStringLiteral("swing_0008")).head.text, QStringLiteral("Your hands steepened 3° less than the session median coming down."));
         QVERIFY(!v1.flightAvailable);
         QVERIFY(v1.story.available);
         // the session's own band and where it varies
         QVERIFY(sv.band.shown);
         QVERIFY(sv.varies.has);
         QVERIFY(sv.varies.words.endsWith(QStringLiteral(").")));
+        // ungraded (no swing-plane corridor): the statistic's words, never a variability word (R11)
+        QVERIFY(sv.varies.words.startsWith(QStringLiteral("Narrowest at ")));
+        QVERIFY(sv.varies.words.contains(QStringLiteral(", widest at ")));
+        QVERIFY(!sv.varies.words.contains(QStringLiteral("Steadiest")) && !sv.varies.words.contains(QStringLiteral("loosest")));
         QVERIFY(sv.head.startsWith(QStringLiteral("Your plane: set on 59°, delivered at 60°, hands 5° steeper coming down (47 shots).")));
     }
 

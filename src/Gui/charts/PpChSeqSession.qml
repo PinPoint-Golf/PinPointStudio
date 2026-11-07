@@ -27,7 +27,10 @@ import PinPointStudio
 // A PROBABLE peak (the chest bridged across the camera's gap, §2.2.1) keeps its rank and its mark, with its ⚠: the
 // segment's name carries the ⚠, its ranks are set in italic, its marks carry their ± as a whisker, and the ⚠'s
 // few words sit once under the dot plot (chSeqWarn; the full reason is the trust fold's).
-// objectNames: chSeqBarcode, chSeqDots, chSeqWarn.
+// THE COMMON ORDER'S CONSISTENCY (docs/design/system/variability.md; spec §8.4), under the sentence: one technical
+// Dispersion badge per club, named ("7 iron · Settling · Same order in 9 of 12 swings"), graded on the swings with
+// every segment KEPT placed: the segments the sentence names that are placed on at least nMin swings (R23, sequence.orderGrades). The sentence and the peak-time figures stay as they are.
+// objectNames: chSeqBarcode, chSeqDots, chSeqWarn, chSeqOrderGrades.
 Column {
     id: ss
     property QtObject roles: null
@@ -58,6 +61,34 @@ Column {
     visible: !!sequence && sequence.present === true
 
     PpChText { roles: ss.roles; sentence: ss.sequence ? ss.sequence.stand : null; measure: false; width: Math.min(ss.width, ss.roles ? ss.roles.measureW(ss.width) * 1.2 : ss.width) }
+    readonly property var orderGrades: (sequence && sequence.orderGrades ? sequence.orderGrades : []).filter(function (g) { return !!g.result && g.result.graded })
+    Flow {
+        objectName: "chSeqOrderGrades"
+        visible: ss.orderGrades.length > 0
+        width: ss.width
+        spacing: ss.roles ? ss.roles.g(16) : Theme.gap(16)
+        Repeater {
+            model: ss.orderGrades
+            delegate: Row {
+                id: og
+                required property var modelData
+                readonly property string club: ClubFormat.display(modelData.club)
+                Text { visible: og.club !== ""; anchors.verticalCenter: parent.verticalCenter; text: og.club + " · "
+                       font: ss.roles ? ss.roles.fSmall : Qt.application.font; color: ss.roles ? ss.roles.ink2 : Theme.colorText2 }
+                PpVariabilityBadge {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: og.modelData.result.graded
+                    variant: PpVariabilityMark.Dispersion      // an ordinal result: the design system's default
+                    form: PpVariabilityMark.Icon
+                    contentLayer: "technical"
+                    roles: ss.roles
+                    grade: og.modelData.result.grade
+                    measurementLimited: og.modelData.result.measurementLimited
+                    basisText: og.modelData.result.basisText
+                }
+            }
+        }
+    }
 
     // ── the order barcode ──
     Item {

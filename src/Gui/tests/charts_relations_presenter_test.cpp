@@ -32,6 +32,9 @@
 #include "charts/session_series_model.h"
 #include "charts/session_warp.h"
 #include "charts_maths_fixture.h"
+#include "Metrics/metric_catalogue.h"
+#include "Metrics/variability/variability_outcome.h"
+#include "Metrics/variability/variability_typicality.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -126,6 +129,63 @@ void checkApart(const SessionSnapshot &s, int ordinal, const QVariantList &rows)
         QVERIFY(value >= box.value(QStringLiteral("min")).toDouble() && value <= box.value(QStringLiteral("max")).toDouble());
         QVERIFY(r.value(QStringLiteral("apart")).toBool());     // 3.5 spreads from the median is past either whisker
     }
+}
+
+// R8's window, worked out here apart from the presenter: shot `ordinal`'s value in `values` (a row's, one per shot)
+// against the session's other shots with its club, guarded P-ladders left out (warm-ups count, R13). nullopt below eight.
+std::optional<pinpoint::variability::ScalarTypicality> expectedTypicality(const SessionSnapshot &s, int ordinal, const QVariantList &values,
+                                                                          const QString &key)
+{
+    const SessionAlignment al = alignSession(s);
+    const ShotSeries &me = *s.shots[size_t(ordinal - 1)];
+    std::vector<double> window;
+    for (const auto &sh : s.shots) {
+        if (sh->ordinal == ordinal || sh->club != me.club || consistencyGuarded(*sh, al.warpFor(sh->ordinal))) continue;
+        const QVariant v = values.value(sh->ordinal - 1);
+        if (!v.isNull()) window.push_back(v.toDouble());
+    }
+    static const pinpoint::analysis::MetricCatalogue cat = pinpoint::analysis::makeMetricCatalogue();
+    const pinpoint::analysis::MetricDescriptor *d = cat.descriptor(key);
+    const QVariant mine = values.value(ordinal - 1);
+    if (mine.isNull()) return std::nullopt;
+    return pinpoint::variability::scalarTypicality(mine.toDouble(), window, d ? d->scaleType : pinpoint::variability::ScaleType::Interval);
+}
+
+// A copy of a session with some shots given another club, or marked warm-ups.
+std::shared_ptr<SessionSnapshot> withShots(const SessionSnapshot &in, const QList<int> &ordinals, const QString &club, bool warmUp = false)
+{
+    auto s = std::make_shared<SessionSnapshot>(in);
+    ++s->revision;
+    for (auto &sp : s->shots) {
+        if (!ordinals.contains(sp->ordinal)) continue;
+        auto c = std::make_shared<ShotSeries>(*sp);
+        if (!club.isEmpty()) { c->club = club; c->diagnostics.club = club; }
+        if (warmUp) c->diagnostics.warmUp = true;
+        sp = c;
+    }
+    return s;
+}
+
+// A typicality payload's checks: the presenter's z is the window's, this shot is no ghost, nor any of `notIn`.
+void checkTypicality(const QVariantMap &variability, const pinpoint::variability::ScalarTypicality &want, int ordinal,
+                     const QList<int> &notIn = {})
+{
+    QCOMPARE(variability.value(QStringLiteral("kind")).toString(), QStringLiteral("typicality"));
+    const QVariantMap v = variability.value(QStringLiteral("values")).toMap();
+    QVERIFY2(std::abs(v.value(QStringLiteral("z")).toDouble() - want.z) < 1e-9,
+             qPrintable(QStringLiteral("z %1, want %2").arg(v.value(QStringLiteral("z")).toDouble()).arg(want.z)));
+    QVERIFY(QStringList({ QStringLiteral("usual"), QStringLiteral("aLittleOff"), QStringLiteral("unusual") }).contains(v.value(QStringLiteral("band")).toString()));
+    QVERIFY2(variability.value(QStringLiteral("basisText")).toString().startsWith(QStringLiteral("this swing ")),
+             qPrintable(variability.value(QStringLiteral("basisText")).toString()));
+    QVERIFY(variability.value(QStringLiteral("basisText")).toString().contains(QStringLiteral(" · median ")));   // R22
+    const QVariantList ghosts = v.value(QStringLiteral("ghosts")).toList();
+    QVERIFY(!ghosts.isEmpty() && ghosts.size() <= 12);
+    for (const QVariant &g : ghosts) {
+        const int o = g.toMap().value(QStringLiteral("swingId")).toInt();
+        QVERIFY2(o != ordinal, "this shot is in its own usual");
+        QVERIFY2(!notIn.contains(o), qPrintable(QStringLiteral("shot %1 is not in the window").arg(o)));
+    }
+    QCOMPARE(variability.value(QStringLiteral("showCorridor")).toBool(), !v.value(QStringLiteral("corridor")).isNull());
 }
 
 QVariantMap rowOf(const QVariantMap &thisShot, const QString &id)
@@ -872,6 +932,123 @@ private slots:
     }
 
     // ── Replay Session follows the playhead (D6) ──────────────────────────────────────────
+
+    // ── Typicality (R8): this shot against the other shots with its club, at least eight ─────────
+
+    // A Readings row and a key figure carry this shot's typicality against the other 7-iron shots, never itself;
+    // shots with another club are out of the window, and with seven others there is no badge at all.
+    void readingsRowsCarryTypicalityAgainstTheClub()
+    {
+        const QString id = QStringLiteral("clubheadSpeed@5");
+        {
+            auto p = make(m_snap, 8, QStringLiteral("replay"));
+            const QVariantMap row = rowOf(p->thisShot(), id);
+            QVERIFY(!row.isEmpty());
+            const auto want = expectedTypicality(*m_snap, 8, row.value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed"));
+            QVERIFY(want);
+            checkTypicality(row.value(QStringLiteral("variability")).toMap(), *want, 8);
+            qInfo().noquote() << "typicality:" << row.value(QStringLiteral("variability")).toMap().value(QStringLiteral("basisText")).toString();
+            // the key figure carries the same badge; its foot stays
+            QVariantMap fig;
+            for (const QVariant &i : p->thisShot().value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
+                if (i.toMap().value(QStringLiteral("readingId")) == id) fig = i.toMap();
+            QVERIFY(!fig.isEmpty());
+            checkTypicality(fig.value(QStringLiteral("typicality")).toMap(), *want, 8);
+            QVERIFY(fig.value(QStringLiteral("foot")).toString().startsWith(QStringLiteral("median ")));
+        }
+        {   // four shots with a driver: out of the window, which still holds eight 7-irons
+            const QList<int> drivers{ 1, 2, 3, 4 };
+            auto snap = withShots(*m_snap, drivers, QStringLiteral("DRIVER"));
+            auto p = make(snap, 8, QStringLiteral("replay"));
+            const QVariantMap row = rowOf(p->thisShot(), id);
+            const auto want = expectedTypicality(*snap, 8, row.value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed"));
+            QVERIFY(want);
+            checkTypicality(row.value(QStringLiteral("variability")).toMap(), *want, 8, drivers);
+        }
+        {   // seven others with the club: no badge on any row, nor on a key figure
+            auto snap = withShots(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, QStringLiteral("DRIVER"));
+            auto p = make(snap, 8, QStringLiteral("replay"));
+            const QVariantMap ts = p->thisShot();
+            QVERIFY(!expectedTypicality(*snap, 8, rowOf(ts, id).value(QStringLiteral("values")).toList(), QStringLiteral("clubheadSpeed")));
+            for (const QVariant &g : ts.value(QStringLiteral("groups")).toList())
+                for (const QVariant &r : g.toMap().value(QStringLiteral("rows")).toList())
+                    QVERIFY2(!r.toMap().contains(QStringLiteral("variability")), qPrintable(r.toMap().value(QStringLiteral("readingId")).toString()));
+            for (const QVariant &r : ts.value(QStringLiteral("apart")).toList()) QVERIFY(!r.toMap().contains(QStringLiteral("variability")));
+            for (const QVariant &i : ts.value(QStringLiteral("keyFigures")).toMap().value(QStringLiteral("items")).toList())
+                QVERIFY(i.toMap().value(QStringLiteral("typicality")).isNull());
+        }
+    }
+
+    // An Apart row (the launch monitor's, on 5 Oct) carries its typicality over the row's own values — unless it is an
+    // outcome: ball flight and smash factor have no badge at all (R4). Warm-ups count towards the usual (R13): marking
+    // every other shot a warm-up changes no row's badge.
+    void apartRowsCarryTypicality()
+    {
+        const charts_test::Fixture oct = charts_test::loadFixture(kDataDir + QStringLiteral("/session_1005.json"));
+        QVERIFY(oct.ok);
+        auto snap = withDirs(oct.session);
+        QList<int> warm;
+        for (int o = 1; o <= snap->count(); ++o) if (o != 7) warm << o;
+        int outcomes = 0;
+        const auto checkRows = [&outcomes](const SessionSnapshot &s, const QVariantMap &ts) {
+            for (const QVariant &v : ts.value(QStringLiteral("apart")).toList()) {
+                const QVariantMap row = v.toMap();
+                const QString key = row.value(QStringLiteral("key")).toString();
+                if (pinpoint::variability::isOutcomeMetric(key)) {
+                    ++outcomes;
+                    QVERIFY2(!row.contains(QStringLiteral("variability")), qPrintable(key + QStringLiteral(": an outcome has no typicality")));
+                    continue;
+                }
+                const auto want = expectedTypicality(s, 7, row.value(QStringLiteral("values")).toList(), key);
+                if (want) checkTypicality(row.value(QStringLiteral("variability")).toMap(), *want, 7);
+                else QVERIFY2(!row.contains(QStringLiteral("variability")), qPrintable(key));
+            }
+        };
+        auto p = make(snap, 7);
+        const QVariantMap ts = p->thisShot();
+        checkRows(*snap, ts);
+        QVERIFY2(outcomes > 0, "the fixture's Apart has a ball-flight or smash row (smash factor on shot 7)");
+        auto w = withShots(*snap, warm, QString(), true);
+        auto pw = make(w, 7);
+        const QVariantMap tw = pw->thisShot();
+        checkRows(*w, tw);
+        const auto badges = [](const QVariantMap &t) {
+            QStringList out;
+            for (const QVariant &v : t.value(QStringLiteral("apart")).toList())
+                out << v.toMap().value(QStringLiteral("key")).toString() + QLatin1Char(':')
+                           + v.toMap().value(QStringLiteral("variability")).toMap().value(QStringLiteral("basisText")).toString();
+            return out;
+        };
+        QCOMPARE(badges(tw), badges(ts));
+    }
+
+    // R11: Replay's "now" says the median is the median; with a result, the typicality rides beside it.
+    void replayNowSaysMedian()
+    {
+        auto p = make(m_snap, 8, QStringLiteral("replay"));
+        p->setPlayheadUs(m_snap->shots[7]->impactUs);
+        const QVariantMap now = p->replaySession().value(QStringLiteral("now")).toMap();
+        const QString s = text(now.value(QStringLiteral("sentence")));
+        QVERIFY2(s.startsWith(QStringLiteral("This shot ")) && s.contains(QStringLiteral("; median ") + now.value(QStringLiteral("medianText")).toString()),
+                 qPrintable(s));
+        QVERIFY2(!s.contains(QStringLiteral("typical")) && !s.contains(QStringLiteral("the session median")), qPrintable(s));
+        QVERIFY(now.value(QStringLiteral("typicality")).toMap().value(QStringLiteral("basisText")).toString().startsWith(QStringLiteral("this swing ")));
+        // not measured on this shot: "Not measured on this shot; median 72 mph.", and no badge
+        auto snap = std::make_shared<SessionSnapshot>(*m_snap);
+        ++snap->revision;
+        auto c8 = std::make_shared<ShotSeries>(*snap->shots[7]);
+        MetricSeries chs = *c8->metric(QStringLiteral("clubheadSpeed"));
+        for (PhaseSample &ps : chs.phaseSamples) if (ps.phase == 5) ps.value = kNaN;
+        c8->metrics.insert(chs.key, chs);
+        snap->shots[7] = c8;
+        auto q = make(snap, 8, QStringLiteral("replay"));
+        q->setPlayheadUs(c8->impactUs);
+        QCOMPARE(q->replaySession().value(QStringLiteral("tag")).toString(), QStringLiteral("P7"));
+        const QVariantMap un = q->replaySession().value(QStringLiteral("now")).toMap();
+        QCOMPARE(text(un.value(QStringLiteral("sentence"))), QStringLiteral("Not measured on this shot; median ") + un.value(QStringLiteral("medianText")).toString()
+                                                             + QStringLiteral("."));
+        QVERIFY(un.value(QStringLiteral("typicality")).isNull());
+    }
 
     void replaySessionFollowsThePlayhead()
     {

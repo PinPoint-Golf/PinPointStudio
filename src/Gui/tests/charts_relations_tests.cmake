@@ -11,6 +11,11 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_relations_presenter_test
     SOURCES charts_relations_presenter_test.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
+            # R8 typicality (Apart, Readings, the key figures, Replay's "now"): the session window and the façade's payload
+            ${GUI}/variability/variability_facade.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp
             ${GUI}/charts/session_curves.cpp
@@ -52,11 +57,19 @@ set_tests_properties(charts_relations_presenter_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 
 # The Consistency tab's presenter (src/Gui/charts/charts_consistency_presenter.{h,cpp}, consistency_design.md §3, §4.3 to
-# §4.5): the same chain, as it builds its rows with the relations presenter's. The fixtures are 5 Oct, with a launch
+# §4.5): the same chain, as it builds its rows with the relations presenter's, and the variability grades it shows
+# (consistency_grades.cpp, the grader, the scale provider and the façade's views; docs/design/system/variability.md). The fixtures are 5 Oct, with a launch
 # monitor and its Consistency golden, and 4 July, with none.
 pp_add_test(charts_consistency_presenter_test
     SOURCES charts_consistency_presenter_test.cpp
             ${GUI}/charts/charts_consistency_presenter.cpp
+            ${GUI}/charts/consistency_grades.cpp
+            ${GUI}/charts/variability_clubs.cpp
+            ${GUI}/charts/variability_env.cpp
+            ${GUI}/variability/variability_facade.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
             ${GUI}/charts/charts_relations_presenter.cpp
             ${GUI}/charts/session_consistency.cpp
             ${GUI}/charts/consistency_env.cpp

@@ -31,10 +31,12 @@ import PinPointStudio
 //     that swing;
 //   · the departures as counts across the shots, each name opening its condition in Session diagnostics (when
 //     that panel is up);
-//   · repeatability: the tightest and the loosest row and position.
+//   · consistency: per club (named in a mixed session), the most and the least consistent row and position, each with
+//     its technical-layer Dispersion badge — graded against the pattern's band, ranked by ρ (Mark's rulings R2b, R7);
+//     the profile carries a badge per graded position under each row (PpChPositionProfile, ROW.grades).
 // Every word and number is ChartsPosturePresenter.session's (body.pSession).
 // objectNames: chPostureSession, chPostureSessionHead, chPostureStrip (marks chPostureMark + ordinal, differs),
-// chPostureDepartures (rows chPostureDeparture + id), chPostureRepeat.
+// chPostureDepartures (rows chPostureDeparture + id), chPostureRepeat (the Consistency block; lines chPostureConsistencyLine + club).
 // A PpChSection with no head of its own (PpChartsSessionView heads and folds it); a column seeks through it.
 PpChSection {
     id: ss
@@ -45,7 +47,7 @@ PpChSection {
     readonly property bool available: ok && !!se && se.available === true
     readonly property var prof: available ? (se.profile || ({})) : ({})
     readonly property var strip: available ? (se.strip || ({})) : ({})
-    readonly property var rep: available ? (se.repeat || ({})) : ({})
+    readonly property var consLines: available && se.consistency ? (se.consistency.lines || []) : []
     readonly property bool canOpen: interactive && !!body && body.canOpenCondition
 
     Column {
@@ -175,14 +177,53 @@ PpChSection {
             }
         }
 
-        // ── repeatability: the tightest and the loosest row and position ──
+        // ── consistency: per club, the most and the least consistent reading and position, by grade (R7) ──
         Column {
             objectName: "chPostureRepeat"
-            visible: ss.available && (!!ss.rep.words || (!!ss.rep.tightest && ss.rep.tightest.has) || (!!ss.rep.loosest && ss.rep.loosest.has))
+            visible: ss.available && ss.consLines.length > 0
             width: ss.width; spacing: ss.ok ? ss.roles.g(4) : Theme.gap(4)
-            PpSectionHead { width: parent.width; roles: ss.roles; title: "Repeatable?"; sub: "" }
-            Text { visible: text !== ""; width: ss.ok ? ss.roles.measureW(parent.width) : 0; wrapMode: Text.WordWrap
-                   text: ss.rep.words || ""; font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
+            PpSectionHead { width: parent.width; roles: ss.roles; title: "Consistency"; sub: "" }
+            Repeater {
+                model: ss.consLines
+                delegate: Flow {
+                    id: cl
+                    required property var modelData
+                    objectName: "chPostureConsistencyLine"
+                    readonly property string club: modelData.club || ""
+                    width: ss.width
+                    spacing: ss.roles.g(18)
+                    // the club, named in a mixed session (R2b)
+                    Text { visible: cl.modelData.named === true; height: ss.roles.u(24); verticalAlignment: Text.AlignVCenter
+                           text: ClubFormat.display(cl.club) + " · "; font: ss.roles.fBodyM; color: ss.roles.ink }
+                    // too few swings of the club: one badge
+                    Row {
+                        readonly property var res: cl.modelData.tooFew === true ? cl.modelData.result : null
+                        visible: !!res && res.graded
+                        height: ss.roles.u(24)
+                        PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: ss.roles; contentLayer: "technical"
+                                             grade: parent.res ? parent.res.grade : 0
+                                             measurementLimited: parent.res ? parent.res.measurementLimited : false
+                                             basisText: parent.res ? parent.res.basisText : "" }
+                    }
+                    // "Most: hips at P7 · ◯ Grooved · σ …" and "Least: …": the words the presenter's, the grade the badge's
+                    Repeater {
+                        model: cl.modelData.tooFew === true ? [] : [{ text: cl.modelData.mostText || "", res: cl.modelData.most },
+                                                                    { text: cl.modelData.leastText || "", res: cl.modelData.least }]
+                        delegate: Row {
+                            id: ce
+                            required property var modelData
+                            visible: ce.modelData.text !== "" && !!ce.modelData.res && ce.modelData.res.graded
+                            height: ss.roles.u(24)
+                            Text { anchors.verticalCenter: parent.verticalCenter; text: ce.modelData.text + " · "
+                                   font: ss.roles.fBody; color: ss.roles.ink }
+                            PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: ss.roles; contentLayer: "technical"
+                                                 grade: ce.modelData.res ? ce.modelData.res.grade : 0
+                                                 measurementLimited: ce.modelData.res ? ce.modelData.res.measurementLimited : false
+                                                 basisText: ce.modelData.res ? ce.modelData.res.basisText : "" }
+                        }
+                    }
+                }
+            }
         }
     }
 }

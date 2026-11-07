@@ -28,6 +28,11 @@
 #include "charts/session_sequence.h"
 #include "charts/session_series_model.h"
 #include "charts/session_warp.h"
+#include "charts/variability_env.h"
+#include "Metrics/metric_catalogue.h"
+#include "variability/variability_facade.h"
+#include "Metrics/variability/variability_constants.h"
+#include "Metrics/variability/variability_grader.h"
 
 #include <QElapsedTimer>
 #include <QFile>
@@ -35,11 +40,13 @@
 #include <QFileInfo>
 #include <QJSEngine>
 #include <QStandardPaths>
+#include <QSet>
 #include <QTest>
 
 #include <cmath>
 #include <cstdio>
 #include <functional>
+#include <map>
 
 using namespace pinpoint::charts;
 
@@ -109,6 +116,37 @@ QVariantMap detailOf(const ShotSeries &s)
              { QStringLiteral("kinematicSequence"), s.kinematicSequence } };
 }
 
+pinpoint::variability::VariabilityResultView resultOf(const QVariant &entry)
+{
+    return entry.toMap().value(QStringLiteral("result")).value<pinpoint::variability::VariabilityResultView>();
+}
+
+// The fixture with shots `ords` (1-based) on another club.
+std::shared_ptr<SessionSnapshot> withClub(const SessionSnapshot &base, std::initializer_list<int> ords, const QString &club, quint64 revision)
+{
+    auto mixed = std::make_shared<SessionSnapshot>(base);
+    mixed->revision = revision;
+    for (int o : ords) {
+        auto c = std::make_shared<ShotSeries>(*mixed->shots[size_t(o - 1)]);
+        c->club = club;
+        mixed->shots[size_t(o - 1)] = c;
+    }
+    return mixed;
+}
+
+// The snapshot with shots `ords` (1-based) marked warm-up in their diagnostics row.
+std::shared_ptr<SessionSnapshot> withWarmUp(const SessionSnapshot &base, std::initializer_list<int> ords, quint64 revision)
+{
+    auto s = std::make_shared<SessionSnapshot>(base);
+    s->revision = revision;
+    for (int o : ords) {
+        auto c = std::make_shared<ShotSeries>(*s->shots[size_t(o - 1)]);
+        c->diagnostics.warmUp = true;
+        s->shots[size_t(o - 1)] = c;
+    }
+    return s;
+}
+
 QVariantMap rowOf(const QVariantList &rows, const QString &key)
 {
     for (const QVariant &r : rows) if (r.toMap().value(QStringLiteral("key")).toString() == key) return r.toMap();
@@ -131,6 +169,27 @@ class ChartsTracesPresenterTest : public QObject
     std::shared_ptr<SessionSnapshot> m_snap;
 
     // A presenter on the fixture, picked on shot 8, synchronous.
+    // The catalogue's descriptors with every metric given a variabilityScale of `scale` (its own units): R16 grades a
+    // trace only against a scale of its own, which no descriptor states yet, so the grading tests state one.
+    static std::shared_ptr<const IVariabilityScaleProvider> scaledTraces(double scale)
+    {
+        namespace pa = pinpoint::analysis;
+        static const pa::MetricCatalogue catalogue = [] { pa::MetricCatalogue c; pa::installMetricManifest(c); return c; }();
+        auto copies = std::make_shared<std::map<QString, pa::MetricDescriptor>>();     // map nodes stay put
+        return std::shared_ptr<const IVariabilityScaleProvider>(makeVariabilityScaleProvider(
+            ConsistencyEnv{}, [copies, scale](const QString &key) -> const pa::MetricDescriptor * {
+                auto it = copies->find(key);
+                if (it == copies->end()) {
+                    const pa::MetricDescriptor *d = catalogue.descriptor(key);
+                    if (!d) return nullptr;
+                    pa::MetricDescriptor c = *d;
+                    c.variabilityScale = scale;
+                    it = copies->emplace(key, std::move(c)).first;
+                }
+                return &it->second;
+            }));
+    }
+
     void setUp(ChartsTracesPresenter &p, std::shared_ptr<const SessionSnapshot> snap = {}, int picked = 8)
     {
         p.setSynchronous(true);
@@ -335,7 +394,7 @@ private slots:
             QVERIFY(row.value(QStringLiteral("bridges")).toList().isEmpty());     // a median's blank stays blank
         }
         const QString head = text(r.value(QStringLiteral("head")));
-        QVERIFY2(head.startsWith(QStringLiteral("Shot 8 left your usual swing furthest ")), qPrintable(head));
+        QVERIFY2(head.startsWith(QStringLiteral("Shot 8 left the session median furthest ")), qPrintable(head));
         QVERIFY2(head.contains(QStringLiteral("impact")), qPrintable(head));
         // the playhead reads "now" against the reference
         p.setPlayheadUs(s8.impactUs - 40000);
@@ -345,6 +404,300 @@ private slots:
         QVERIFY(!nr.value(QStringLiteral("refText")).toString().isEmpty());
         QVERIFY(nr.value(QStringLiteral("addrText")).toString().startsWith(QStringLiteral("Δ ")));
         report("    against median: %s\n", qPrintable(head));
+    }
+
+    // ── the variability marks (Session 5): the curves' per-club grade, the order's, typicality ─────
+    // R16: no trace has a scale of its own yet, so on the catalogue's scales no session curve is graded: the grader's
+    // fallback rungs alone are no scale.
+    void sessionCurvesUngradedUntilCalibrated()
+    {
+        ChartsTracesPresenter p;
+        setUp(p);
+        const QVariantList rows = p.session().value(QStringLiteral("rows")).toList();
+        QVERIFY(!rows.isEmpty());
+        for (const QVariant &rv : rows)
+            QVERIFY2(rv.toMap().value(QStringLiteral("clubGrades")).toList().isEmpty(),
+                     qPrintable(rv.toMap().value(QStringLiteral("key")).toString()));
+    }
+
+    // Session curves (R2b), once a trace has a scale of its own: one Overlay (trace) grade per club, readings
+    // descending; a club under N_MIN is graded 0 ("Not enough swings"); the group fit has none.
+    void sessionCurvesGradedPerClub()
+    {
+        namespace pv = pinpoint::variability;
+        ChartsTracesPresenter one;
+        one.setVariabilityScalesForTest(scaledTraces(10.0));
+        setUp(one);
+        {
+            const QVariantList rows = one.session().value(QStringLiteral("rows")).toList();
+            QVERIFY(!rows.isEmpty());
+            int graded = 0;
+            for (const QVariant &rv : rows) {
+                const QVariantList g = rv.toMap().value(QStringLiteral("clubGrades")).toList();
+                QVERIFY2(g.size() <= 1, "one club, one grade");
+                if (g.isEmpty()) { report("    session %s: no swing has a whole top → impact reading\n", qPrintable(rv.toMap().value(QStringLiteral("key")).toString())); continue; }
+                QCOMPARE(g[0].toMap().value(QStringLiteral("club")).toString(), m_snap->shots[0]->club);
+                const pv::VariabilityResultView r = resultOf(g[0]);
+                QCOMPARE(r.basis(), QStringLiteral("trace"));
+                if (r.graded() && r.grade() >= 1) {
+                    ++graded;
+                    QVERIFY(r.n() >= pv::kNMin && r.n() <= 15);
+                    QVERIFY2(!r.basisText().isEmpty(), "the technical layer's basis string");
+                    // no trace corridor: the amplitude half reads "of scale", never "of corridor"
+                    QVERIFY2(!r.basisText().contains(QStringLiteral("corridor")), qPrintable(r.basisText()));
+                }
+                report("    session %s: %s\n", qPrintable(rv.toMap().value(QStringLiteral("key")).toString()),
+                       qPrintable(QStringLiteral("grade %1 · %2").arg(r.grade()).arg(r.basisText())));
+            }
+            QVERIFY2(graded > 0, "some curve of the fixture is graded");
+        }
+        // a warm-up swing stays in every window (R13): one warm-up shot, the same readings everywhere
+        {
+            const auto readingsOf = [](ChartsTracesPresenter &pp) {
+                QHash<QString, int> out;
+                for (const QVariant &rv : pp.session().value(QStringLiteral("rows")).toList()) {
+                    const QVariantList g = rv.toMap().value(QStringLiteral("clubGrades")).toList();
+                    out.insert(rv.toMap().value(QStringLiteral("key")).toString(), g.isEmpty() ? 0 : g[0].toMap().value(QStringLiteral("readings")).toInt());
+                }
+                return out;
+            };
+            ChartsTracesPresenter w;
+            w.setVariabilityScalesForTest(scaledTraces(10.0));
+            setUp(w, withWarmUp(*m_snap, { 3 }, 34));
+            const QHash<QString, int> base = readingsOf(one), warm = readingsOf(w);
+            QVERIFY(!base.isEmpty());
+            for (auto it = base.begin(); it != base.end(); ++it)
+                QVERIFY2(it.value() == warm.value(it.key()), qPrintable(it.key()));
+        }
+        // two clubs: two grades per row, the bigger club first, the 2-swing club graded 0
+        ChartsTracesPresenter p;
+        p.setVariabilityScalesForTest(scaledTraces(10.0));
+        setUp(p, withClub(*m_snap, { 3, 6 }, QStringLiteral("GAP WEDGE"), 30));
+        const QVariantMap s = p.session();
+        QVERIFY(!text(s.value(QStringLiteral("clubNote"))).isEmpty());   // the mixed-club note stays
+        bool seen = false;
+        for (const QVariant &rv : s.value(QStringLiteral("rows")).toList()) {
+            const QVariantList g = rv.toMap().value(QStringLiteral("clubGrades")).toList();
+            if (g.size() < 2) continue;
+            seen = true;
+            QCOMPARE(g.size(), 2);
+            QCOMPARE(g[1].toMap().value(QStringLiteral("club")).toString(), QStringLiteral("GAP WEDGE"));
+            QVERIFY(g[0].toMap().value(QStringLiteral("readings")).toInt() >= g[1].toMap().value(QStringLiteral("readings")).toInt());
+            const pv::VariabilityResultView small = resultOf(g[1]);
+            QVERIFY(small.graded());
+            QCOMPARE(small.grade(), 0);
+            QCOMPARE(small.ungradedReason(), QStringLiteral("tooFewSwings"));
+            QVERIFY(small.basisText().isEmpty());
+        }
+        QVERIFY2(seen, "a row is graded for both clubs");
+        // the group fit: a model's curve, no grade
+        p.setBand(QStringLiteral("fit"));
+        for (const QVariant &rv : p.session().value(QStringLiteral("rows")).toList())
+            QVERIFY(rv.toMap().value(QStringLiteral("clubGrades")).toList().isEmpty());
+    }
+
+    // The common order (spec §8.4; R23), per club: graded over the segments the common-order sentence uses (a segment
+    // the sentence leaves out, such as the face-on chest, drops), k = m! for those m; a swing counts when every kept
+    // segment is placed; the basis names the kept segments. The sentence stays.
+    void sessionOrderGradedPerClub()
+    {
+        namespace pv = pinpoint::variability;
+        const auto res = [](const QVariant &entry) { return entry.toMap().value(QStringLiteral("result")).toMap(); };
+        ChartsTracesPresenter p;
+        setUp(p);
+        const QVariantMap sq = p.session().value(QStringLiteral("sequence")).toMap();
+        QVERIFY(sq.value(QStringLiteral("present")).toBool());
+        const QString stand = text(sq.value(QStringLiteral("stand")));
+        QVERIFY(stand.contains(QStringLiteral(" shots")));
+        // the expectation, from the session's sequence directly (placed peaks; the presenter's bridges add probable
+        // ones only): the kept segments are those the sentence names that the analysis placed on N_MIN swings or more
+        const SessionSequence q = sessionSequence(*m_snap);
+        const QVariantList g = sq.value(QStringLiteral("orderGrades")).toList();
+        const auto wordOf = [](const QString &id) {
+            static const QHash<QString, QString> w{ { QStringLiteral("pelvis"), QStringLiteral("pelvis") }, { QStringLiteral("thorax"), QStringLiteral("chest") },
+                                                    { QStringLiteral("leadArm"), QStringLiteral("lead arm") }, { QStringLiteral("club"), QStringLiteral("club") } };
+            return w.value(id);
+        };
+        QStringList kept, keptWords;
+        for (int i = 0; i < kSequenceSegments; ++i) {
+            const QString id = sequenceSegmentIds()[size_t(i)];
+            if (q.segments[size_t(i)].placed < pv::kNMin) continue;
+            QVERIFY2(stand.toLower().contains(wordOf(id)), qPrintable(stand));   // the sentence names it
+            kept << id;
+            keptWords << wordOf(id);
+        }
+        const int m = int(kept.size());
+        int k = 1;
+        for (int j = 2; j <= m; ++j) k *= j;
+        QStringList tokens;
+        for (const ShotSequence &sh : q.shots) {
+            bool whole = true;
+            for (const QString &id : kept) {
+                const int i = int(std::find(sequenceSegmentIds().begin(), sequenceSegmentIds().end(), id) - sequenceSegmentIds().begin());
+                whole = whole && sh.segments[size_t(i)].placed;
+            }
+            QStringList order;
+            for (const QString &id : sh.order) if (kept.contains(id)) order << id;
+            tokens << (whole && order.size() == m ? order.join(QLatin1Char('>')) : QString());
+        }
+        const int whole = int(std::count_if(tokens.begin(), tokens.end(), [](const QString &t) { return !t.isEmpty(); }));
+        report("    order: kept %s; %d of 15 shots with every kept segment placed · %s\n", qPrintable(kept.join(QLatin1Char(','))), whole, qPrintable(stand));
+        // the face-on fixture never places the chest (the sentence orders its probable peak): it drops, three are graded
+        QVERIFY2(!kept.contains(QStringLiteral("thorax")), qPrintable(q.commonOrder));
+        QCOMPARE(m, 3);
+        QVERIFY2(whole >= pv::kNMin, "the fixture places pelvis, lead arm and club on enough swings");
+        QCOMPARE(g.size(), 1);
+        QCOMPARE(g[0].toMap().value(QStringLiteral("k")).toInt(), 6);
+        QCOMPARE(g[0].toMap().value(QStringLiteral("readings")).toInt(), whole);
+        QCOMPARE(g[0].toMap().value(QStringLiteral("segments")).toStringList(), kept);
+        {
+            pv::VariabilityInput in;
+            in.scaleType = pv::ScaleType::Ordinal;
+            in.categories = tokens;
+            in.k = k;
+            const pv::VariabilityResult want = pv::makeVariabilityGrader(pv::Basis::Ordinal)->grade(in);
+            const QVariantMap r = res(g[0]);
+            QCOMPARE(r.value(QStringLiteral("basis")).toString(), QStringLiteral("ordinal"));
+            QVERIFY(r.value(QStringLiteral("graded")).toBool());
+            QCOMPARE(r.value(QStringLiteral("grade")).toInt(), want.grade);
+            QCOMPARE(r.value(QStringLiteral("n")).toInt(), whole);
+            QVERIFY(want.grade >= 1);
+            QCOMPARE(r.value(QStringLiteral("basisText")).toString(), want.basisString() + QStringLiteral(" · ") + keptWords.join(QStringLiteral(", ")));
+            QVERIFY2(r.value(QStringLiteral("basisText")).toString().startsWith(QStringLiteral("Same order in ")), qPrintable(r.value(QStringLiteral("basisText")).toString()));
+            report("    order (fixture): grade %d · %s\n", want.grade, qPrintable(r.value(QStringLiteral("basisText")).toString()));
+        }
+        // every segment placed on every shot (a synthetic sequence): 12 in order, 3 with the chest first.
+        // s = 12/15; with k = 4! = 24, s′ = (0.8 − 1/24)/(1 − 1/24) = 0.79, grade 4 (s′ ≥ 0.65); k = 2 would be 0.6, grade 3
+        auto full = std::make_shared<SessionSnapshot>(*m_snap);
+        full->revision = 33;
+        for (size_t i = 0; i < full->shots.size(); ++i) {
+            auto c = std::make_shared<ShotSeries>(*full->shots[i]);
+            const bool swapped = i >= 12;
+            const QStringList order = swapped ? QStringList{ QStringLiteral("thorax"), QStringLiteral("pelvis"), QStringLiteral("leadArm"), QStringLiteral("club") }
+                                              : QStringList{ QStringLiteral("pelvis"), QStringLiteral("thorax"), QStringLiteral("leadArm"), QStringLiteral("club") };
+            const QHash<QString, double> before{ { QStringLiteral("pelvis"), swapped ? 40.0 : 60.0 }, { QStringLiteral("thorax"), swapped ? 60.0 : 40.0 },
+                                                 { QStringLiteral("leadArm"), 20.0 }, { QStringLiteral("club"), 5.0 } };
+            QVariantList nodes;
+            for (const QString &seg : order)
+                nodes << QVariantMap{ { QStringLiteral("segment"), seg }, { QStringLiteral("tPeakUs"), 1 }, { QStringLiteral("placed"), true },
+                                      { QStringLiteral("beforeImpactMs"), before.value(seg) } };
+            c->kinematicSequence = QVariantMap{ { QStringLiteral("order"), QVariant(order) }, { QStringLiteral("nodes"), nodes } };
+            full->shots[i] = c;
+        }
+        {
+            ChartsTracesPresenter f;
+            setUp(f, full);
+            const QVariantList gf = f.session().value(QStringLiteral("sequence")).toMap().value(QStringLiteral("orderGrades")).toList();
+            QCOMPARE(gf.size(), 1);
+            QCOMPARE(gf[0].toMap().value(QStringLiteral("k")).toInt(), 24);
+            QCOMPARE(gf[0].toMap().value(QStringLiteral("readings")).toInt(), 15);
+            const QVariantMap r = res(gf[0]);
+            QCOMPARE(r.value(QStringLiteral("basis")).toString(), QStringLiteral("ordinal"));
+            QCOMPARE(r.value(QStringLiteral("grade")).toInt(), 4);
+            QCOMPARE(r.value(QStringLiteral("n")).toInt(), 15);
+            QCOMPARE(r.value(QStringLiteral("basisText")).toString(), QStringLiteral("Same order in 12 of 15 swings · pelvis, chest, lead arm, club"));
+            report("    order (synthetic): grade %d · %s\n", r.value(QStringLiteral("grade")).toInt(), qPrintable(r.value(QStringLiteral("basisText")).toString()));
+        }
+        {   // a warm-up swing keeps its token (R13): shot 1 (in order) a warm-up, still 12 of 15
+            ChartsTracesPresenter f;
+            setUp(f, withWarmUp(*full, { 1 }, 35));
+            const QVariantList gf = f.session().value(QStringLiteral("sequence")).toMap().value(QStringLiteral("orderGrades")).toList();
+            QCOMPARE(gf.size(), 1);
+            QCOMPARE(gf[0].toMap().value(QStringLiteral("readings")).toInt(), 15);
+            QCOMPARE(res(gf[0]).value(QStringLiteral("basisText")).toString(), QStringLiteral("Same order in 12 of 15 swings · pelvis, chest, lead arm, club"));
+        }
+        {   // fewer than two segments kept: ungraded, no entry — every shot places the club alone
+            auto one = std::make_shared<SessionSnapshot>(*m_snap);
+            one->revision = 37;
+            for (size_t i = 0; i < one->shots.size(); ++i) {
+                auto c = std::make_shared<ShotSeries>(*one->shots[i]);
+                c->kinematicSequence = QVariantMap{ { QStringLiteral("order"), QVariant(QStringList{ QStringLiteral("club") }) },
+                                                    { QStringLiteral("nodes"), QVariantList{ QVariantMap{ { QStringLiteral("segment"), QStringLiteral("club") },
+                                                        { QStringLiteral("tPeakUs"), 1 }, { QStringLiteral("placed"), true }, { QStringLiteral("beforeImpactMs"), 5.0 } } } } };
+                one->shots[i] = c;
+            }
+            ChartsTracesPresenter f;
+            setUp(f, one);
+            QVERIFY(f.session().value(QStringLiteral("sequence")).toMap().value(QStringLiteral("orderGrades")).toList().isEmpty());
+        }
+        // two clubs: one grade each, over the same kept segments
+        ChartsTracesPresenter mx;
+        setUp(mx, withClub(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, QStringLiteral("GAP WEDGE"), 31));
+        const QVariantList g2 = mx.session().value(QStringLiteral("sequence")).toMap().value(QStringLiteral("orderGrades")).toList();
+        QSet<QString> clubs;
+        for (const QVariant &e : g2) { clubs.insert(e.toMap().value(QStringLiteral("club")).toString()); QCOMPARE(e.toMap().value(QStringLiteral("k")).toInt(), 6); }
+        QCOMPARE(int(clubs.size()), g2.size());
+        QVERIFY(g2.size() >= 1 && g2.size() <= 2);
+    }
+
+    // Against (R8): the session median and the most typical shot carry this shot's typicality against its club's
+    // other shots (at least 8), once the trace has a scale of its own (R16); other references, and a club with fewer,
+    // carry null. On the catalogue's scales (no trace has one yet) every row carries null.
+    void againstTypicality()
+    {
+        namespace pv = pinpoint::variability;
+        const auto typOf = [](const QVariantMap &ref) {
+            QVariantMap out;
+            for (const QVariant &rv : ref.value(QStringLiteral("rows")).toList()) {
+                const QVariant t = rv.toMap().value(QStringLiteral("typicality"));
+                out.insert(rv.toMap().value(QStringLiteral("key")).toString(), t);
+            }
+            return out;
+        };
+        {
+            ChartsTracesPresenter u;
+            setUp(u);
+            u.setAgainst(QStringLiteral("median"));
+            QVERIFY(u.reference().value(QStringLiteral("active")).toBool());
+            for (const QVariant &t : typOf(u.reference())) QVERIFY2(t.metaType().id() != QMetaType::QVariantMap, "R16: no scale, no badge");
+        }
+        ChartsTracesPresenter p;
+        p.setVariabilityScalesForTest(scaledTraces(10.0));
+        setUp(p);
+        for (const QString &mode : { QStringLiteral("median"), QStringLiteral("typical") }) {
+            p.setAgainst(mode);
+            const QVariantMap ref = p.reference();
+            QVERIFY2(ref.value(QStringLiteral("active")).toBool(), qPrintable(mode));
+            int with = 0;
+            for (const QVariant &t : typOf(ref)) {
+                if (t.metaType().id() != QMetaType::QVariantMap) continue;
+                ++with;
+                const QVariantMap v = t.toMap().value(QStringLiteral("values")).toMap();
+                QCOMPARE(int(v.value(QStringLiteral("mean")).toList().size()), pv::kTraceGridPoints);
+                QCOMPARE(int(v.value(QStringLiteral("sd")).toList().size()), pv::kTraceGridPoints);
+                QCOMPARE(int(v.value(QStringLiteral("swing")).toList().size()), pv::kTraceGridPoints);
+                QVERIFY(QStringList({ QStringLiteral("usual"), QStringLiteral("aLittleOff"), QStringLiteral("unusual") })
+                            .contains(v.value(QStringLiteral("band")).toString()));
+                QVERIFY(v.value(QStringLiteral("corridor")).isNull());          // no trace corridor
+                QVERIFY(t.toMap().value(QStringLiteral("basisText")).toString().startsWith(QStringLiteral("peak ")));
+            }
+            QVERIFY2(with > 0, qPrintable(mode + QStringLiteral(": some curve has a typicality")));
+        }
+        for (const QString &mode : { QStringLiteral("previous"), QStringLiteral("next"), QStringLiteral("leastTypical") }) {
+            p.setAgainst(mode);
+            for (const QVariant &t : typOf(p.reference())) QVERIFY2(t.metaType().id() != QMetaType::QVariantMap, qPrintable(mode));
+        }
+        // warm-ups are in the window (R13): shots 1-7 warm-ups still leave shot 8 its fourteen others
+        {
+            ChartsTracesPresenter w;
+            w.setVariabilityScalesForTest(scaledTraces(10.0));
+            setUp(w, withWarmUp(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, 36));
+            w.setAgainst(QStringLiteral("median"));
+            const QVariantMap ref = w.reference();
+            QVERIFY(ref.value(QStringLiteral("active")).toBool());
+            int with = 0;
+            for (const QVariant &t : typOf(ref)) with += t.metaType().id() == QMetaType::QVariantMap ? 1 : 0;
+            QVERIFY2(with > 0, "warm-ups count towards the usual");
+        }
+        // a club with fewer than 8 other shots: none (shot 2 is one of 7 gap wedges: 6 others)
+        ChartsTracesPresenter q;
+        q.setVariabilityScalesForTest(scaledTraces(10.0));
+        setUp(q, withClub(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, QStringLiteral("GAP WEDGE"), 32), 2);
+        q.setAgainst(QStringLiteral("median"));
+        const QVariantMap ref = q.reference();
+        QVERIFY(ref.value(QStringLiteral("active")).toBool());
+        QVERIFY(!ref.value(QStringLiteral("rows")).toList().isEmpty());
+        for (const QVariant &t : typOf(ref)) QVERIFY(t.metaType().id() != QMetaType::QVariantMap);
     }
 
     // ── Against the ★ reference (build/wrist-tab): any session's swing, listed first, no session needed ──
@@ -468,7 +821,7 @@ private slots:
         QCOMPARE(qs.first().toMap().value(QStringLiteral("id")).toString(), QStringLiteral("part"));
         QVERIFY(text(qs.first().toMap().value(QStringLiteral("answer"))).contains(QStringLiteral("outside the middle half")));
         report("    session head: %s\n    %s\n", qPrintable(head), qPrintable(text(qs.first().toMap().value(QStringLiteral("answer")))));
-        // Replay (D6): "now" against "typical" at the playhead
+        // Replay (D6): "now" against the session median at the playhead
         const ShotSeries &s8 = *m_snap->shots[7];
         p.setPlayheadUs(s8.impactUs - 30000);
         const QVariantMap nr = rowOf(p.now().value(QStringLiteral("rows")).toList(), QStringLiteral("clubAngularSpeed"));

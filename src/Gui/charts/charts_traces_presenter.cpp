@@ -26,6 +26,11 @@
 #include "session_sequence.h"
 #include "session_bridge.h"     // the chest's probable peak (Session only)
 #include "session_series_model.h"
+#include "variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
+#include "variability_env.h"        // the scale provider: each curve's scale type
+#include "../variability/variability_facade.h"                 // variabilityResult, typicalityTracePayload
+#include "../../Metrics/variability/variability_grader.h"      // the trace and ordinal graders
+#include "../../Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
 #include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
@@ -52,6 +57,7 @@
 #include <cmath>
 #include <limits>
 #include <numeric>
+#include <map>
 #include <optional>
 
 namespace pinpoint::charts {
@@ -134,6 +140,12 @@ struct ChartsTracesPresenter::Worker {
     QHash<QString, QVariantMap> domains, specs;      // ChartMetrics, per key (catalogue reads)
     QHash<QString, bool> draws;
 
+    // THE VARIABILITY MARKS (docs/design/system/variability.md; Session 5 of the plan): the scale provider,
+    // MADE ON THE GUI THREAD by the presenter's constructor (variability_env.h's threading rule) and only read
+    // here, and the two graders the Session and Against views use. The graders are pure maths, made on first use.
+    std::shared_ptr<const IVariabilityScaleProvider> scales;
+    std::unique_ptr<variability::IVariabilityGrader> traceGrader, ordinalGrader;
+
     // The ★ reference swing (Against "reference"), as last read: by its cleaned dir and its document's
     // stamp, so an unchanged swing is a stat per job. Not per revision: it lives outside the session.
     QString refDir;
@@ -154,6 +166,8 @@ struct ChartsTracesPresenter::Worker {
     {
         if (!cm) cm = std::make_unique<ChartMetrics>();
         if (!tl) tl = std::make_unique<TimelineLabels>();
+        if (!traceGrader) traceGrader = variability::makeVariabilityGrader(variability::Basis::Trace);
+        if (!ordinalGrader) ordinalGrader = variability::makeVariabilityGrader(variability::Basis::Ordinal);
     }
     const QVariantMap &domainFor(const QString &key)
     {
@@ -2294,6 +2308,239 @@ bool sessionDrawable(const Ctx &c)
     return n >= 3 && alignedCount(c) >= 3 && !c.sessionKeys.isEmpty() && !c.grid.empty();
 }
 
+// ── THE VARIABILITY MARKS (docs/design/system/variability.md; Mark's rulings R2b, R8, 7 Nov) ───────────────
+// The grader's inputs are built here, from what the views already line up; the grading is the grader's
+// (src/Metrics/variability/) and the words are QML's vocabularies. Display only: no analysis stage changes.
+//
+// ONE SWING'S TRACE READING (spec §8.3 step 1): the curve from TOP to IMPACT, time-normalised between the
+// session's P-positions — the presenter's own P-alignment (pAlignment, whichever way Session lines the shots
+// up) — and resampled to kTraceGridPoints on the canonical axis from the canonical top to impact (0). Only a
+// shot put on the axis by its own P-positions or its own curve's landmarks is time-normalised; one that is
+// tempo-fitted to the median curve or only shifted to impact is not, so it has no reading. A grid point that
+// is not a measurement (bridged, or off the curve by more than one sample step) leaves the swing without a
+// reading (the grader drops it).
+// Its time-to-peak is the largest |x| among the measured samples in that stretch (the grader's tracePeak
+// measure), in REAL ms from impact on the shot's own clock.
+struct VariabilityTrace {
+    std::vector<double> curve;           // kTraceGridPoints, or empty: no reading
+    double peakMs = kNaN;                // ms from impact, the shot's own clock
+    double sigma  = kNaN;                // the series' propagated σ (TraceCurve::sigma)
+};
+
+double canonicalTopMs(const Ctx &c)
+{
+    const CanonicalPhase *top = c.w->pAlignment.canonicalOf(phase::Top);
+    return top && std::isfinite(top->tMs) && top->tMs < 0.0 ? top->tMs : kNaN;
+}
+
+VariabilityTrace variabilityTraceOf(const TraceCurve &canon, const ShotWarp &w, double tTop, variability::ScaleType st)
+{
+    VariabilityTrace out;
+    out.sigma = canon.sigma;
+    // Two samples at least: the end tolerance below reads the curve's first and last steps.
+    if (canon.empty() || canon.t.size() < 2 || canon.v.size() != canon.t.size() || canon.ok.size() != canon.t.size()
+        || !std::isfinite(tTop)) return out;
+    if (w.route != AlignRoute::PAnchors && w.route != AlignRoute::Landmarks) return out;
+    const int n = variability::kTraceGridPoints;
+    out.curve.resize(size_t(n));
+    // A window end that falls short of the curve by less than one of the curve's own sample steps reads the
+    // curve's end sample (when measured): a curve that starts on the first frame after top (4 July's club, 3 ms
+    // after it) is not a missing reading. Nothing is extrapolated further than that.
+    const size_t last = canon.t.size() - 1;
+    const auto at = [&](double x) {
+        if (x < canon.t.front() && canon.t.front() - x < canon.t[1] - canon.t.front()) return canon.ok.front() ? canon.v.front() : kNaN;
+        if (x > canon.t.back() && x - canon.t.back() < canon.t.back() - canon.t[last - 1]) return canon.ok.back() ? canon.v.back() : kNaN;
+        return valueAt(canon, x);
+    };
+    for (int j = 0; j < n; ++j) out.curve[size_t(j)] = at(tTop * (1.0 - double(j) / double(n - 1)));
+    double best = -1.0, bestT = kNaN;
+    for (size_t i = 0; i < canon.t.size(); ++i) {
+        if (!canon.ok[i] || canon.t[i] < tTop - 1e-6 || canon.t[i] > 1e-6) continue;
+        const double m = variability::peakMagnitude(canon.v[i], st);
+        if (std::isfinite(m) && m > best) { best = m; bestT = canon.t[i]; }
+    }
+    if (std::isfinite(bestT)) out.peakMs = w.unwarpMs(bestT);
+    return out;
+}
+
+bool wholeReading(const VariabilityTrace &r)
+{
+    return int(r.curve.size()) == variability::kTraceGridPoints && std::isfinite(r.peakMs)
+        && std::all_of(r.curve.begin(), r.curve.end(), [](double x) { return std::isfinite(x); });
+}
+
+// OUT OF EVERY VARIABILITY WINDOW: a shot whose P-ladder cannot be trusted to time-normalise it (consistencyGuarded,
+// the Consistency matrix's own guard, on the P-alignment's warp). Both kinds of reading here — the top → impact curve
+// and the peak order — rest on that ladder. Warm-ups stay in (R13: the golfer should be warmed up before PinPoint
+// assesses them).
+bool outOfVariabilityWindow(const Ctx &c, size_t i)
+{
+    const ShotSeries &s = *c.snap->shots[i];
+    const SessionAlignment &pa = c.w->pAlignment;
+    return consistencyGuarded(s, i < pa.shots.size() ? &pa.shots[i] : nullptr);
+}
+
+// Every session shot's reading of `key`, parallel to snap->shots (on the P-alignment: in "lined up at impact"
+// the aligned cache holds the impact-only curves, so the shot's curve is put on the P-alignment afresh). A shot
+// out of the window (above) has no reading, except `keep` (this shot, for typicality: it is compared, not counted).
+std::vector<VariabilityTrace> sessionVariabilityTraces(Ctx &c, const QString &key, variability::ScaleType st, int keep = -1)
+{
+    std::vector<VariabilityTrace> out(c.snap ? c.snap->shots.size() : 0);
+    const double tTop = canonicalTopMs(c);
+    if (!std::isfinite(tTop)) return out;
+    const SessionAlignment &pa = c.w->pAlignment;
+    const auto cached = c.w->impactAligned ? nullptr : c.w->alignedOf(key);
+    for (size_t i = 0; i < out.size() && i < pa.shots.size(); ++i) {
+        if (int(i) != keep && outOfVariabilityWindow(c, i)) continue;
+        const TraceCurve canon = cached ? (*cached)[i] : alignedCurve(shotCurve(*c.snap->shots[i], key), pa.shots[i]);
+        out[i] = variabilityTraceOf(canon, pa.shots[i], tTop, st);
+    }
+    return out;
+}
+
+// R16: a trace is graded for display only against a scale of its own — a corridor, a descriptor's variabilityScale or
+// a timing corridor. On the grader's fallback rungs alone (TRACE_AMP_FRACTION of the mean peak, TIMING_SCALE_MS) every
+// session curve read Scattered, so until a trace is calibrated (calibration proposal 5) those rungs count as no scale:
+// no Overlay grade and no TypicalityTrace badge. The grader's maths is unchanged.
+bool traceHasOwnScale(const variability::VariabilityInput &in)
+{
+    const auto positive = [](const std::optional<double> &x) { return x && std::isfinite(*x) && *x > 0.0; };
+    return positive(in.corridorHalfWidth) || positive(in.variabilityScale) || positive(in.timingCorridorHalfWidthMs);
+}
+
+// R2b: one technical Overlay grade per club for a Session row — [{ club, result }] in the order of
+// perClubTraceInputs (readings descending, then label). No trace corridor exists, so a trace is graded only where its
+// descriptor sets a variabilityScale (R16, traceHasOwnScale); otherwise the list is empty and the row has no badge.
+// The propagated σ is the median of the club's swings' series σ (R3: the measurement-limited test, never noiseSd).
+QVariantList clubGradesOf(Ctx &c, const QString &key)
+{
+    QVariantList out;
+    if (!c.snap || !c.w->scales || !c.w->traceGrader) return out;
+    {
+        variability::VariabilityInput scale;
+        scale.variabilityScale = c.w->scales->variabilityScale(key);
+        if (!traceHasOwnScale(scale)) return out;      // R16: the fallback rungs alone are no scale
+    }
+    const variability::ScaleType st = c.w->scales->scaleType(key);
+    const std::vector<VariabilityTrace> reads = sessionVariabilityTraces(c, key, st);
+    std::vector<VariabilityClubCurve> swings;
+    swings.reserve(reads.size());
+    for (size_t i = 0; i < reads.size(); ++i)
+        swings.push_back(VariabilityClubCurve{ c.snap->shots[i]->club, reads[i].curve, reads[i].peakMs });
+    variability::VariabilityInput base;
+    base.scaleType = st;
+    base.variabilityScale = c.w->scales->variabilityScale(key);
+    const QString unit = shortUnitOf(c, c.unitOf(key));
+    const int dec = W::decimalsFor(c.unitOf(key));
+    for (VariabilityClubWindow &win : perClubTraceInputs(swings, base)) {
+        std::vector<double> sig;
+        for (size_t i = 0; i < reads.size(); ++i)
+            if (swings[i].club == win.club && wholeReading(reads[i]) && std::isfinite(reads[i].sigma) && reads[i].sigma > 0)
+                sig.push_back(reads[i].sigma);
+        if (!sig.empty()) win.input.propagatedSigma = medianOf(sig);
+        const variability::VariabilityResult r = c.w->traceGrader->grade(win.input);
+        out << QVariantMap{ { QStringLiteral("club"), win.club }, { QStringLiteral("readings"), win.readings },
+                            { QStringLiteral("result"), QVariant::fromValue(variability::VariabilityResultView::fromResult(r, unit, dec)) } };
+    }
+    return out;
+}
+
+// The session's common order, graded per club (spec §8.4; Mark's ruling R23): over the SAME segments the common-order
+// sentence uses (q.commonOrder), less a segment never or rarely placed (fewer than N_MIN placed peaks in the session:
+// the face-on chest, whose peak the sentence orders as a probable one, drops out), k = m! orders
+// of those m segments. Each swing's token is its peak order cut to the kept segments ("pelvis>leadArm>club"); only a
+// swing with every KEPT segment placed has one; a guarded shot none (warm-ups count, R13). The basis names the kept
+// segments, appended here to the grader's own string: "Same order in 12 of 15 swings · pelvis, lead arm, club".
+// Fewer than two segments kept: ungraded, no entry.
+// [{ club, readings, k, segments: [ids], result (a plain variabilityResult map) }], clubs by readings descending, then
+// label; a club with no token is left out.
+QVariantList orderGradesOf(Ctx &c)
+{
+    QVariantList out;
+    if (!c.snap || !c.w->ordinalGrader) return out;
+    const SessionSequence &q = c.w->sequence;
+    // the kept segments, in the segments' own order (pelvis, chest, lead arm, club): those the sentence names, less one
+    // the analysis placed on fewer than N_MIN swings — the face-on chest, timed only as a probable peak bridged across
+    // the camera's gap, or a segment rarely placed, could never give a swing a whole order to count
+    const QStringList named = q.commonOrder.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    std::vector<int> kept;
+    QStringList keptIds, keptWords;
+    for (int i = 0; i < kSequenceSegments; ++i) {
+        const QString &id = sequenceSegmentIds()[size_t(i)];
+        if (!named.contains(id) || q.segments[size_t(i)].placed < variability::kNMin) continue;
+        kept.push_back(i);
+        keptIds << id;
+        keptWords << segWord(i).toLower();
+    }
+    const int m = int(kept.size());
+    if (m < 2) return out;
+    int k = 1;
+    for (int j = 2; j <= m; ++j) k *= j;
+    std::map<QString, QStringList> tokens;
+    std::map<QString, int> readings;
+    for (size_t i = 0; i < q.shots.size() && i < c.snap->shots.size(); ++i) {
+        const ShotSequence &s = q.shots[i];
+        const QString club = c.snap->shots[i]->club;
+        bool whole = !outOfVariabilityWindow(c, i);
+        for (int seg : kept) whole = whole && s.segments[size_t(seg)].placed;
+        QStringList order;
+        if (whole) for (const QString &id : s.order) if (keptIds.contains(id)) order << id;
+        whole = whole && order.size() == m;
+        tokens[club] << (whole ? order.join(QLatin1Char('>')) : QString());
+        readings[club] += whole ? 1 : 0;
+    }
+    std::vector<QString> clubs;
+    for (const auto &[club, n] : readings) if (n > 0) clubs.push_back(club);
+    std::stable_sort(clubs.begin(), clubs.end(), [&](const QString &a, const QString &b) { return readings[a] > readings[b]; });
+    for (const QString &club : clubs) {
+        variability::VariabilityInput in;
+        in.scaleType = variability::ScaleType::Ordinal;
+        in.categories = tokens[club];
+        in.k = k;
+        const variability::VariabilityResult r = c.w->ordinalGrader->grade(in);
+        QVariantMap res = variability::VariabilityResultView::fromResult(r).toMap();
+        const QString basis = res.value(QStringLiteral("basisText")).toString();
+        if (!basis.isEmpty()) res.insert(QStringLiteral("basisText"), basis + QStringLiteral(" · ") + keptWords.join(QStringLiteral(", ")));
+        out << QVariantMap{ { QStringLiteral("club"), club }, { QStringLiteral("readings"), readings[club] }, { QStringLiteral("k"), k },
+                            { QStringLiteral("segments"), keptIds }, { QStringLiteral("result"), res } };
+    }
+    return out;
+}
+
+// R8: this shot's top → impact curve of `key` against the session's OTHER shots with its club (this shot left
+// out, at least N_MIN), as the TypicalityTrace mark draws it: { values, basisText } (typicalityTracePayload),
+// or a JS null when there is no result (fewer than 8, no reading for this shot, no top in the session). A
+// shot that is not in the session is lined up on the P-alignment as Against lines it up (warpAgainst).
+QVariant typicalityOf(Ctx &c, const QString &key)
+{
+    const QVariant none = QVariant::fromValue(nullptr);
+    if (!c.snap || !c.shot || !c.w->scales) return none;
+    {
+        variability::VariabilityInput scale;     // R16: no TypicalityTrace badge until the trace has a scale of its own
+        scale.variabilityScale = c.w->scales->variabilityScale(key);
+        if (!traceHasOwnScale(scale)) return none;
+    }
+    const double tTop = canonicalTopMs(c);
+    if (!std::isfinite(tTop)) return none;
+    const variability::ScaleType st = c.w->scales->scaleType(key);
+    const std::vector<VariabilityTrace> reads = sessionVariabilityTraces(c, key, st, c.index);
+    std::vector<variability::TypicalityTraceSwing> swings;
+    for (size_t i = 0; i < reads.size(); ++i)
+        swings.push_back(variability::TypicalityTraceSwing{ c.snap->shots[i]->swingDir, c.snap->shots[i]->club, reads[i].curve, reads[i].peakMs });
+    QString id;
+    if (c.index >= 0) id = c.snap->shots[size_t(c.index)]->swingDir;
+    else {
+        const ShotWarp w = warpAgainst(*c.shot, c.w->pAlignment);
+        const VariabilityTrace mine = variabilityTraceOf(alignedCurve(shotCurve(*c.shot, key), w), w, tTop, st);
+        id = QStringLiteral("picked:") + c.shot->swingDir;
+        swings.push_back(variability::TypicalityTraceSwing{ id, c.shot->club, mine.curve, mine.peakMs });
+    }
+    const auto win = variability::traceTypicalityWindow(swings, id, st);
+    if (!win) return none;
+    const variability::TypicalityPayload pl = variability::typicalityTracePayload(*win);
+    return QVariantMap{ { QStringLiteral("values"), pl.values }, { QStringLiteral("basisText"), pl.basisText } };
+}
+
 void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
 {
     QVariantMap out;
@@ -2337,7 +2584,7 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         phrase = QStringLiteral("your reference ★");
     } else if (mode == QLatin1String("median")) {
         label = QStringLiteral("session median");
-        phrase = QStringLiteral("your usual swing");
+        phrase = QStringLiteral("the session median");
     } else if (mode == QLatin1String("typical") || mode == QLatin1String("leastTypical")) {
         const bool least = mode == QLatin1String("leastTypical");
         refOrd = scoreOf(c, least, c.ordinal).ordinal;
@@ -2386,6 +2633,7 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
     if (c.snap) for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
     const double w0 = shotMsOf(c, c.win.startUs), w1 = shotMsOf(c, c.win.endUs), sp = w1 - w0;
     QVariantList rows;
+    const bool typicalityWanted = mode == QLatin1String("median") || mode == QLatin1String("typical");
     double bestZ = -1;
     QString bestKey;
     TraceGap bestGap;
@@ -2444,7 +2692,10 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         rows << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("t"), dl(rt) }, { QStringLiteral("v"), dl(rv) },
                              { QStringLiteral("diff"), dl(diff) }, { QStringLiteral("gap"), gm },
                              { QStringLiteral("bridges"), refBridges },
-                             { QStringLiteral("diffLo"), diffMax > 0 ? -diffMax : kNaN }, { QStringLiteral("diffHi"), diffMax > 0 ? diffMax : kNaN } };
+                             { QStringLiteral("diffLo"), diffMax > 0 ? -diffMax : kNaN }, { QStringLiteral("diffHi"), diffMax > 0 ? diffMax : kNaN },
+                             // R8: against the session median or the most typical shot, this shot against its club's
+                             // other shots (TypicalityTrace); null for every other reference, and with no result
+                             { QStringLiteral("typicality"), typicalityWanted ? typicalityOf(c, k) : QVariant::fromValue(nullptr) } };
         ChartsTracesPresenter::NowRow *nr = nullptr;
         for (auto &x : R.now.rows) if (x.key == k) nr = &x;
         if (nr) { nr->refT = rt; nr->refV = rv; }
@@ -2560,6 +2811,8 @@ QVariantMap sessionSequenceBlock(Ctx &c)
             .append(QStringLiteral(" placed shots. ") + W::latePelvisNote());
     }
     out.insert(QStringLiteral("stand"), s.toVariant());
+    // the common order's consistency, one technical grade per club (spec §8.4); the sentence above stays
+    out.insert(QStringLiteral("orderGrades"), orderGradesOf(c));
     return out;
 }
 
@@ -2889,9 +3142,12 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                              { QStringLiteral("yTicks"), ticksAsDoubles(niceTicksList(c, lo, hi)) },
                              { QStringLiteral("panels"), panels }, { QStringLiteral("picked"), picked },
                              { QStringLiteral("coverage"), coverage }, { QStringLiteral("part"), partMap },
-                             { QStringLiteral("figures"), figs } };
+                             { QStringLiteral("figures"), figs },
+                             // R2b: the curves' consistency, one technical Overlay grade per club (none for the
+                             // group fit: a model's curve, not the shots')
+                             { QStringLiteral("clubGrades"), fit ? QVariantList{} : clubGradesOf(c, k) } };
         infos.push_back(std::move(info));
-        // the session median for the playhead's "typical"
+        // the session median for the playhead's "median" (now.rows[].typicalText)
         for (auto &nr : R.now.rows)
             if (nr.key == k) { nr.medT = ea.t; nr.medV = ea.med; }
     }
@@ -3257,6 +3513,8 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
 ChartsTracesPresenter::ChartsTracesPresenter(QObject *parent)
     : QObject(parent), m_worker(std::make_shared<Worker>())
 {
+    // the scale provider is made HERE, on the GUI thread (variability_env.h), before any job can read it
+    m_worker->scales = makeVariabilityScaleProvider();
     m_pool.setMaxThreadCount(1);
     m_pool.setObjectName(QStringLiteral("ChartsTracesPresenter"));
     schedule();
@@ -3387,6 +3645,14 @@ void ChartsTracesPresenter::flushIfSynchronous()
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     apply(computeAll(*m_worker, in));
+}
+
+void ChartsTracesPresenter::setVariabilityScalesForTest(std::shared_ptr<const IVariabilityScaleProvider> scales)
+{
+    m_pool.waitForDone();
+    m_worker->scales = std::move(scales);
+    m_dirty = true;
+    schedule();
 }
 
 void ChartsTracesPresenter::setSynchronous(bool on)

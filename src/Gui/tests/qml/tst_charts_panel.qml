@@ -249,7 +249,7 @@ Item {
             pickInline("chAgainstOption", "median")
             compare(hn.body.against, "median")
             const head = textOf(oneShown("chAgainstHead"))
-            verify(head.indexOf("Shot 8 left your usual swing furthest") === 0, head)
+            verify(head.indexOf("Shot 8 left the session median furthest") === 0, head)
             for (const m of hn.body.tChoices.metrics.filter(function (x) { return x.on && x.curve })) {
                 const ref = layers(oneShown("chTrace:" + m.key), function (l) { return l.k === "line" && l.z === 1 })
                 compare(ref.length, 1, m.key + ": the session median drawn")

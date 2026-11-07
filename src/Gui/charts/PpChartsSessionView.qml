@@ -26,7 +26,7 @@ import PinPointStudio
 //     (Metrics, Window, Show: middle half · every shot · group fit, Line up: P-positions · impact (§2.2.1), Draw: small
 //     multiples · overlaid (This shot's choice, shared), Facet: none by default, D3); up to three questions answered in place (a facet or band set, the
 //     lit shots); then the sequence across the session (order barcode and peak-time dot plot), folded.
-//   Replay (D6: follows the playhead): the head, the figure with "now" against "typical" in its column, and
+//   Replay (D6: follows the playhead): the head, the figure with "now" against the "median" in its column, and
 //     the lead reading at the latest P-position the playhead has passed (PpChReplaySession).
 // A session the presenter refuses (n < 3, nothing aligned) says its own sentence (session.why).
 // Then, in Analyse, the wrist section ("Wrist", PpChWristSession) when some shot of the session carries a wrist

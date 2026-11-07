@@ -107,7 +107,10 @@
 //         signalLo, signalHi, faultLo, faultHi } — the norm's bands under the grade policy, as Session
 //         diagnostics draws them; known false when no condition grades the reading), boxText ({ lo, q1, med, q3, hi
 //         [, signalLo, signalHi, faultLo, faultHi] } — the plot's numbers as text, for the hover labels), hasCurve (this shot
-//         has the curve and the catalogue draws it), opens ("trace"|"run") }
+//         has the curve and the catalogue draws it), opens ("trace"|"run"),
+//         variability (thisShot.apart and thisShot.groups only; ABSENT when there is no result): { kind "typicality",
+//         values ({ z, ghosts, corridor, band }, PpVariabilityMark's Typicality shape), basisText ("this swing 82 mph ·
+//         usual 72 mph"), showCorridor (the reading's norm corridor is in values) } — see TYPICALITY below }
 //   · A RUN (RunBox) = { readingId, key, label, tag, unit, unitText, caption (string),
 //       points: [{ ordinal, shotId, swingDir, value|null, measured, fired, picked }], box,
 //       yRange { lo, hi }, drift { defined, r, lo, hi, clear, rText, ciText, slope, intercept,
@@ -142,7 +145,8 @@
 //     DATA — the reader's choice, else the register's default, Club delivery, then manifest order, the
 //     first holding a reading this shot measured):
 //     { family, sequence (bool), items: [{ readingId, key, label, figure, unit, foot, median,
-//     place, warn, warnWord (as a row's firedWord; "late" for a sequence peak), sentence ("82 mph, median 72, 3rd highest") }] },
+//     place, warn, warnWord (as a row's firedWord; "late" for a sequence peak), sentence ("82 mph, median 72, 3rd highest"),
+//     typicality ({ kind, values, basisText, showCorridor } as a row's `variability`, or null) }] },
 //   lead: { readingId, trace (TRACE) | null }      — the family's lead reading on this shot (any n)
 //   familyRows: [READING ROW]                      — the family's other readings (Replay)
 //   apart: [READING ROW]                           — the launch monitor's rows, then the stand-outs (below)
@@ -218,12 +222,22 @@
 //   text does — never per frame for nothing): {} or { readingId, key, label, tag, phaseName,
 //   head (Sentence "Clubhead speed at P7, impact, every shot"), follows ("follows the video"),
 //   phases: [{ phase, tag, seekUs, current }], run: RUN,
-//   now: { valueText, medianText, place, sentence ("This shot 82 mph; typical 72 mph, the session median") },
+//   now: { valueText, medianText, place, sentence ("This shot 82 mph; median 72 mph; 3rd highest."; unmeasured: "Not
+//     measured on this shot; median 72 mph."), typicality ({ kind, values, basisText, showCorridor } or null) },
 //   partner: { readingId, label, tag, rText, scatter: SCATTER } | null,
 //   movesWith: [{ readingId, label, tag, same, sameMark, r, rText, lo, hi, ciText, n, clear, sentence }] (3),
 //   note (Sentence "With 15 shots an r inside ±.51 is what chance gives. <co-note>") }
 // playhead (NOTIFY playheadChanged): { openValueText ("82 mph" | ""), leadValueText, replayIndex } — the
 //   open row's and the lead trace's value at the playhead, as text.
+//
+// ── TYPICALITY (Mark's ruling R8; docs/design/system/variability.md) ─────────────────────────
+// Charts is the technical layer, and Apart, Readings, the key figures and Replay's "now" are all this shot against
+// "the usual": a Typicality badge with the grader's basis, never a grade. The window is the session's OTHER shots with
+// this shot's club, this shot left out, shots whose P-ladder is guarded (consistencyGuarded) left out (warm-ups count,
+// R13), at least N_MIN (8) of them (scalarTypicalityWindow); fewer, and there is no badge. Ball flight and smash factor
+// have none (R4, isOutcomeMetric). The value set is what the row shows
+// (a stand-out's point, a launch-monitor row's club values); the corridor is the reading's norm corridor where both
+// edges are closed. Apart's pick rule and every other number are unchanged.
 //
 // Unit-tested in src/Gui/tests/charts_relations_presenter_test.cpp.
 

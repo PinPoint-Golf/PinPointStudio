@@ -132,7 +132,19 @@
 //            picked (Session: this shot's value | null; This shot: = value), pickedText }
 //  FAULT = { edge, edgeText ("+5.0"), conditionId, label }
 //  BOXCELL = { box: BOX, n, median (| null), medianText, wide (q3 − q1 | null), wideText ("2.1 cm wide" | ""; "" at P1),
-//              picked (this shot's value | null), values: [per shot, index = ordinal − 1, null unmeasured] }
+//              picked (this shot's value | null), values: [per shot, index = ordinal − 1, null unmeasured],
+//              graded (Session: some club's consistency is graded here — the cell has a band; the report's golfer layer
+//              then shows the badge, not the width) }
+//  GRADES (ROW.grades, Session only) = [{ club (the id, "7 IRON": QML names it through ClubFormat), named (the session
+//              holds more than one club: name each), tooFew (every graded cell of the row is grade 0 for this club: the one
+//              `result` stands for the row), result (variabilityResult | null), cells: [{ index, tag ("P4"), result
+//              (variabilityResult: Dispersion, scalar, against the band's σ, basis "σ 1.2 cm · 0.40 of scale · n 12") }]
+//              (the graded positions from P2 on; empty when tooFew) }] — the clubs most shots first
+//  ROWGRADES (ROW.rowGrades, Session only; Mark's ruling R20) = [{ club, named, result (a plain map, VariabilityResultView::
+//              fromCellGrade(cellGrade(…)).toMap(): the cell rule R1, the loosest third, over this club's graded positions
+//              on the row; grade 0 when every one is "Not enough swings"; basisText "") }] — the clubs as GRADES, a club with
+//              no graded position left out. The report's Posture page draws it, one badge per row beside its name; the
+//              Charts screen keeps GRADES, a badge per position.
 //  EXIT  = { row (key), rowLabel, pos, tag, value, valueText, z, zText, departure (the candidate: "D1" | ""), name
 //            (the candidate's), conditionIds, named (one of conditionIds fired on this shot / is a session pattern:
 //            only then do the words name it), words ("P6 hips +6.5 cm: Hips in" | "P2 head +4.7 cm: outside the
@@ -179,7 +191,7 @@
 //          between the two: "Between Level and Squat and push: Level on 17, between on 30 of 50 shots; …"),
 //    pattern: PATTERN (on the medians), patternLine,
 //    profile: { positions: [POS] (the picked shot's, else the first shot with a reading), rows: [ROW with
-//               cells = the MEDIAN against the session's pattern, `picked` = this shot, and boxes], sub, caption },
+//               cells = the MEDIAN against the session's pattern, `picked` = this shot, boxes and GRADES], sub, caption },
 //    strip: { marks: [{ ordinal, shotId, swingDir, ok, nearest (0|1 | null), nearestName, between, differs
 //               (ringed), picked, dLevel, dSquatPush (| null), word ("Level" | "Squat and push" | "between" | "-"),
 //               label ("shot 3: between") }],
@@ -188,7 +200,10 @@
 //                   swingDir }], firstTag, line ("Hips in, from P5: 15 of 15 shots"),
 //                   detail ("from P5  ·  15 of 15 shots": the line without the name, beside the name's link) }],
 //    departuresEmpty ("No shot left the pattern's band." ),
-//    repeat: { tightest: REPEAT, loosest: REPEAT, words }   REPEAT = { has, row, rowLabel, tag, iqr (| null), iqrText, words },
+//    consistency: { lines: [{ club, named, tooFew, result (variabilityResult | null: the grade-0 result when tooFew),
+//                   mostText ("Most: hips at P7" | ""), most (variabilityResult | null), leastText ("Least: head at P4" | ""),
+//                   least (variabilityResult | null) }] } — per club, its cells from P2 on ranked by ρ (Mark's ruling R7: the
+//                   grade against the band, not the raw middle half); the QML adds the grade word through the badge,}
 //    whatMoved: { top: MOVED, impact: MOVED } (on the medians; seekUs = the picked shot's),
 //    address: ADDRESSBLOCK (the session's box per reading, the median as its number), absolutes: [ADDRESS], trust: TRUST }
 //

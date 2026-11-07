@@ -25,8 +25,8 @@ import PinPointStudio
 //   · the head (the fit's finding, or the plane's when there is no monitor);
 //   · the plane, position by position: one box per P-position over the session's shots on one shared scale (PpChBoxCell
 //     → PpBoxPlot, the ONE box plot; the hover lays the values on the plot), this shot ringed, the median and how wide
-//     the middle half is under each — drawn from 5 shots with the curve (band.shown); then where it varies most;
-//   · the usual set-up: the median address line, shoulder plane and the hands' steepening (the plot's lines are these);
+//     the middle half is under each — drawn from 5 shots with the curve (band.shown); then where the middle half is narrowest and widest;
+//   · the set-up: the median address line, shoulder plane and the hands' steepening (the plot's lines are these);
 //   · side by side when the width allows: "Ball flight" (PpChDeliveryFlight, the golfer's day, this shot ringed) | "Shot
 //     shape" (PpChShotShapeGrid, every shot; a dot opens its swing);
 //   · "How far can I trust this?" under them, closed (said once).
@@ -107,12 +107,12 @@ PpChSection {
                    font: ss.ok ? ss.roles.fBody : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
         }
 
-        // ── the usual set-up: the lines on the plot, and the hands' steepening ──
+        // ── the set-up, the session median: the lines on the plot, and the hands' steepening ──
         Flow {
             objectName: "chDeliveryUsual"
             visible: ss.available
             width: ss.width; spacing: ss.ok ? ss.roles.g(10) : Theme.gap(10)
-            Text { text: "Usually"; font: ss.ok ? ss.roles.fKicker : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
+            Text { text: "Median"; font: ss.ok ? ss.roles.fKicker : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
             Text { text: "address"; font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }
             Text { text: ss.usual.addressText || "-"; font: ss.ok ? ss.roles.fFigS : Qt.application.font; color: ss.ok ? ss.roles.ink : "black" }
             Text { text: "shoulders"; font: ss.ok ? ss.roles.fSmall : Qt.application.font; color: ss.ok ? ss.roles.ink3 : "grey" }

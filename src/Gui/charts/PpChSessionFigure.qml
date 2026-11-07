@@ -41,8 +41,11 @@ import PinPointStudio
 //   • THE CHEST'S BRIDGE (§2.2.1): each shot's fit across its gap dashed in the metric's hue (row.picked.estimate
 //     with its ± 1 sd as the wash, panel.others[].estimate), and the median dashed where a third or more of the
 //     shots are bridged (panel.medEst) — an estimate is never drawn solid. The straight bridge it replaces goes.
+//   • THE CURVES' CONSISTENCY (docs/design/system/variability.md, R2b), under the figure: for each row, one technical
+//     Overlay Cell badge per club, named ("7 iron · Repeatable · σ peak 18 ms · n 12"), graded top → impact
+//     (row.clubGrades); the curves and the middle half stay as drawn. The group fit has none (a model's curve).
 // objectNames: chSessionFigure, chEnvelope:<key> (chEnvelope:overlay overlaid), chFit:<key>, chCoverage:<key>, chPartAt,
-// chSessionKey:<key> (overlaid).
+// chSessionKey:<key> (overlaid), chSessionGrades, chSessionGrade:<key>.
 Item {
     id: sf
     objectName: "chSessionFigure"
@@ -51,7 +54,7 @@ Item {
     property QtObject presenter: null           // ChartsTracesPresenter: seekUsFor, shotAt
     property bool interactive: true
     property var session: null                  // tracesP.session
-    property var nowRows: []                    // now.rows (Replay: now against typical)
+    property var nowRows: []                    // now.rows (Replay: now against the session median)
     property real playCanon: NaN                // now.canonMs
     property string figMode: "figures"          // "figures" | "now"
     property int pickedOrdinal: 0
@@ -143,6 +146,10 @@ Item {
     }
 
     implicitHeight: topH + rowsCol.height + (roles ? roles.u(34) : 0) + cap.height + whenFlow.height + (roles ? roles.u(6) : 0)
+                    + (gradesCol.visible ? gradesCol.height + (roles ? roles.u(10) : 0) : 0)
+    // the rows with a graded club (the group fit has none): what the consistency block under the figure lists
+    function gradedOf(r) { return (r && r.clubGrades ? r.clubGrades : []).filter(function (g) { return !!g.result && g.result.graded }) }
+    readonly property var gradeRows: band === "fit" ? [] : rows.filter(function (r) { return sf.gradedOf(r).length > 0 })
     height: implicitHeight
 
     // ── facet heads and the P tags, once, over each panel ──
@@ -211,7 +218,7 @@ Item {
                 readonly property var figs: ov ? [].concat.apply([], sf.rows.map(function (q) {
                                                      return [{ label: q.label, text: "", head: true, key: q.key }].concat(q.figures || []) }))
                                             : sf.figMode === "now" && nw
-                                            ? [{ label: "now", text: nw.text }, { label: "typical", text: nw.typicalText }]
+                                            ? [{ label: "now", text: nw.text }, { label: "median", text: nw.typicalText }]
                                             : (r.figures || [])
                 width: sf.width
                 height: rw.ph + cov + (sf.figSide ? 0 : foldFlow.height + sf.roles.u(2)) + sf.roles.u(8)
@@ -449,6 +456,50 @@ Item {
                 spacing: sf.roles.g(4)
                 Text { text: modelData.tag; font: sf.roles.fFigLabel; color: sf.roles.ink2 }
                 Text { text: modelData.when; font: sf.roles.fFigLabel; color: sf.roles.ink3 }
+            }
+        }
+    }
+    // ── the curves' consistency, top → impact, one technical Overlay badge per club (R2b), named by the club ──
+    Column {
+        id: gradesCol
+        objectName: "chSessionGrades"
+        visible: sf.roles !== null && sf.gradeRows.length > 0
+        x: sf.yGut; y: whenFlow.y + whenFlow.height + (sf.roles ? sf.roles.u(10) : 0); width: sf.areaW - sf.yGut
+        spacing: sf.roles ? sf.roles.g(6) : Theme.gap(6)
+        Repeater {
+            model: sf.roles ? sf.gradeRows : []
+            delegate: Column {
+                id: gr
+                required property var modelData
+                objectName: "chSessionGrade:" + modelData.key
+                width: gradesCol.width
+                spacing: sf.roles.g(2)
+                Text { text: gr.modelData.label; font: sf.roles.fSmallM; color: sf.roles.ink }
+                Flow {
+                    width: gr.width
+                    spacing: sf.roles.g(16)
+                    Repeater {
+                        model: sf.gradedOf(gr.modelData)
+                        delegate: Row {
+                            id: cg
+                            required property var modelData
+                            readonly property string club: ClubFormat.display(modelData.club)
+                            Text { visible: cg.club !== ""; anchors.verticalCenter: parent.verticalCenter
+                                   text: cg.club + " · "; font: sf.roles.fSmall; color: sf.roles.ink2 }
+                            PpVariabilityBadge {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: cg.modelData.result.graded
+                                variant: PpVariabilityMark.Overlay
+                                form: PpVariabilityMark.Cell
+                                contentLayer: "technical"
+                                roles: sf.roles
+                                grade: cg.modelData.result.grade
+                                measurementLimited: cg.modelData.result.measurementLimited
+                                basisText: cg.modelData.result.basisText
+                            }
+                        }
+                    }
+                }
             }
         }
     }

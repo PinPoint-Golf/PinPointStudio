@@ -39,8 +39,12 @@ import PinPointStudio
 // The figure column (tier 2; below compact it folds to one line under each plot): Analyse shows the row's
 // figures (peak ± σ, order, at P7) and the reading at the playhead with its Δ from Address (F5); Replay shows
 // the readings at the playhead ("now").
+// TYPICALITY (docs/design/system/variability.md, R8): against the session median or the most typical shot, under each
+// trace a technical TypicalityTrace Cell badge — this shot's top → impact curve on the envelope of the session's
+// other shots with its club ("A little off · peak 25 ms early"), reference.rows[].typicality. With fewer than 8 such
+// shots, or any other reference, there is no badge (the presenter hands null).
 // objectNames: chTraces, chTrace:<key>, chTraceLabel:<key>, chTraceRaw:<key>, chPeak:<segment>,
-// chRising:<segment>, chPlayhead, chSeek, chDiffStrip:<key>, chCrosshair.
+// chRising:<segment>, chPlayhead, chSeek, chDiffStrip:<key>, chCrosshair, chTypicality:<key>.
 Item {
     id: tf
     objectName: "chTraces"
@@ -157,7 +161,10 @@ Item {
     readonly property var xTicks: (msTicks || []).filter(function (t, i) { return i % xStep === 0 })
     readonly property int nRows: overlay ? 1 : Math.max(1, (rows || []).length)
 
-    implicitHeight: topH + rowsCol.height + footH
+    // the overlaid row's height past its plot's own (its figure column running taller beside it): the x labels stay
+    // under the plot, and the figure keeps room for the column
+    property real footLift: 0
+    implicitHeight: topH + Math.max(rowsCol.height - footLift + footH, rowsCol.height)
     height: implicitHeight
 
     // ── the top band: P tags (thinned by width; impact kept), the playhead's or the hover's time ──
@@ -222,9 +229,26 @@ Item {
                 readonly property var rref: ov ? null : tf.refRowOf(key)
                 readonly property bool hasDiff: tf.diffOn && !ov && !!rref && tf.roles.fin(rref.diffLo)
                 readonly property var diffGap: hasDiff && rref.gap && rref.gap.found ? rref.gap : null
+                // R8: this shot against its club's other shots, a badge per curve with a result (overlaid, each named)
+                readonly property var typItems: {
+                    if (!tf.refOn) return []
+                    const out = []
+                    for (const q of (ov ? tf.rows : [r])) {
+                        const rr = tf.refRowOf(q.key)
+                        if (rr && rr.typicality && rr.typicality.values) out.push({ key: q.key, label: q.label, typ: rr.typicality })
+                    }
+                    return out
+                }
+                readonly property real typTop: ph + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4)) + tf.roles.u(4)
+                readonly property real typH: typCol.visible ? typCol.height + tf.roles.u(4) : 0
+                // what the row draws under its plot (the folded figures, typicality, the difference strip); the overlaid
+                // row's figure column may run taller beside it, and the row then grows to hold it, but the plot keeps
+                // its x labels right under it (tf.footLift)
+                readonly property real bodyH: ph + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4))
+                                              + typH + (hasDiff ? tf.diffH + tf.roles.u(4) : 0) + tf.roles.u(8)
                 width: tf.width
-                height: Math.max(ph, ov && tf.figSide ? figCol.stillH : 0) + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4))
-                        + (hasDiff ? tf.diffH + tf.roles.u(4) : 0) + tf.roles.u(8)
+                height: Math.max(bodyH, ov && tf.figSide ? figCol.stillH + tf.roles.u(8) : 0)
+                Binding { target: tf; property: "footLift"; value: rw.height - rw.bodyH; when: rw.ov }
 
                 PpChPlot {
                     id: plot
@@ -556,11 +580,39 @@ Item {
                         }
                     }
                 }
+                // ── typicality (R8): this shot's top → impact curve against its club's other shots ──
+                Column {
+                    id: typCol
+                    visible: rw.typItems.length > 0
+                    x: tf.yGut; y: rw.typTop; width: tf.innerW
+                    spacing: tf.roles.g(4)
+                    Repeater {
+                        model: rw.typItems
+                        delegate: Row {
+                            id: ty
+                            required property var modelData
+                            objectName: "chTypicality:" + modelData.key
+                            Text { visible: rw.ov; anchors.verticalCenter: parent.verticalCenter; text: ty.modelData.label + " · "
+                                   font: tf.roles.fSmall; color: tf.roles.ink2 }
+                            PpVariabilityBadge {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: !!ty.modelData.typ.values      // null: no result, never a shape without its word
+                                variant: PpVariabilityMark.TypicalityTrace
+                                form: PpVariabilityMark.Cell
+                                contentLayer: "technical"
+                                roles: tf.roles
+                                values: ty.modelData.typ.values
+                                showCorridor: false                     // no trace corridor exists
+                                basisText: ty.modelData.typ.basisText || ""
+                            }
+                        }
+                    }
+                }
                 // ── the difference strip: this − the reference, symmetric about zero, the largest gap marked ──
                 Item {
                     objectName: "chDiffStrip:" + rw.key
                     visible: rw.hasDiff
-                    y: rw.ph + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4)) + tf.roles.u(4)
+                    y: rw.ph + (tf.figSide ? 0 : foldMeasure.height + tf.roles.u(4)) + rw.typH + tf.roles.u(4)
                     width: tf.areaW; height: tf.diffH
                     PpChPlot {
                         id: dplot
@@ -591,7 +643,7 @@ Item {
 
     // ── the foot: ms from impact, once ──
     Item {
-        y: tf.topH + rowsCol.height - (tf.roles ? tf.roles.u(6) : 0)
+        y: tf.topH + rowsCol.height - tf.footLift - (tf.roles ? tf.roles.u(6) : 0)
         width: tf.areaW; height: tf.footH
         Repeater {
             model: tf.xTicks

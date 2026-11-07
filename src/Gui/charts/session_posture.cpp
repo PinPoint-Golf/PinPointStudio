@@ -668,6 +668,13 @@ double PostureBand::z(double v) const
     return s > 0.0 ? (v - mu) / s : kNaN;
 }
 
+double PostureBand::sigma() const
+{
+    if (!has) return kNaN;
+    const double s = 0.5 * (sigmaLo + sigmaHi);
+    return fin(s) && s > 0.0 ? s : kNaN;
+}
+
 // ── environment ─────────────────────────────────────────────────────────────────────────────────
 
 namespace {
@@ -1431,6 +1438,33 @@ QStringList addressLines(const std::vector<PostureAbsoluteView> &rows, const std
 
 } // namespace
 
+std::vector<double> postureGradedValues(const std::vector<PostureShotInput> &shots, PostureRow r, int pos)
+{
+    std::vector<double> out(shots.size(), kNaN);
+    if (pos < 0 || pos >= kPosturePositions) return out;
+    const auto carries = [](const PostureShotInput &s) { return std::any_of(s.present.begin(), s.present.end(), [](bool b) { return b; }); };
+    // decision 15, as postureSession's medians read it: the butt line alone where any shot has one, else the joints,
+    // and then the session draws the cell under the ⚠ — not graded
+    const bool hipCell = r == PostureRow::Hips && postureHipButtPos(pos);
+    int butt = 0, joints = 0;
+    if (hipCell)
+        for (const PostureShotInput &s : shots) {
+            if (!carries(s)) continue;
+            if (s.hipSource[size_t(pos)] == PostureHipSource::ButtLine) ++butt;
+            else if (s.hipSource[size_t(pos)] == PostureHipSource::Joints) ++joints;
+        }
+    const bool buttOnly = hipCell && butt > 0;
+    if (hipCell && !buttOnly && joints > 0) return out;
+    for (size_t i = 0; i < shots.size(); ++i) {
+        const PostureShotInput &s = shots[i];
+        if (!carries(s)) continue;
+        if (s.gateWarn[size_t(ri(r))][size_t(pos)]) continue;
+        if (buttOnly && s.hipSource[size_t(pos)] != PostureHipSource::ButtLine) continue;
+        out[i] = s.value[size_t(ri(r))][size_t(pos)];
+    }
+    return out;
+}
+
 PostureSessionView postureSession(const std::vector<PostureShotInput> &shots, const PostureEnv &env, int patternMode,
                                   const QHash<QString, QString> *tiers, const QStringList *workOnOrder, const QString &noun,
                                   const PostureAddressHistory *history)
@@ -1567,23 +1601,7 @@ PostureSessionView postureSession(const std::vector<PostureShotInput> &shots, co
     std::stable_sort(v.departureCounts.begin(), v.departureCounts.end(),
                      [](const PostureDepartureCount &a, const PostureDepartureCount &b) { return a.shots > b.shots; });
 
-    // repeatability (decision 6): the middle half over the band's σ
-    for (int r = 0; r < kPostureRows; ++r)
-        for (int p = kP2; p < kPosturePositions; ++p) {
-            const box::BoxStats &b = boxes[size_t(r)][size_t(p)];
-            const PostureBand &band = v.rows[size_t(r)].view.cells[size_t(p)].band;
-            if (b.n < 3 || !band.has || !fin(b.iqr)) continue;
-            const double sigma = 0.5 * (band.sigmaLo + band.sigmaHi);
-            if (!(sigma > 0.0)) continue;
-            PostureRepeat rp;
-            rp.has = true; rp.row = PostureRow(r); rp.pos = p; rp.iqr = b.iqr; rp.iqrOverSigma = b.iqr / sigma;
-            rp.words = QStringLiteral("%1 at %2, middle half %3").arg(postureRowSpec(rp.row).noun, posturePositionTag(p),
-                                                                    absFig(rp.row, b.iqr));
-            if (!v.tightest.has || rp.iqrOverSigma < v.tightest.iqrOverSigma) v.tightest = rp;
-            if (!v.loosest.has || rp.iqrOverSigma > v.loosest.iqrOverSigma) v.loosest = rp;
-        }
-    if (v.tightest.has)
-        v.repeatWords = QStringLiteral("the tightest: %1 · the loosest: %2").arg(v.tightest.words, v.loosest.words);
+    // consistency (decision 6) is graded by the presenter, on postureGradedValues()
 
     // the head line (§5.5) and the pattern line
     if (!v.fromSession) {

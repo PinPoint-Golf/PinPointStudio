@@ -23,6 +23,10 @@
 #include "posture_picture.h"
 #include "session_posture.h"
 #include "session_series_model.h"
+#include "variability_clubs.h"                              // perClubInputs: one window per club (R2b)
+
+#include "../variability/variability_facade.h"              // VariabilityResultView: the `variabilityResult` QML reads
+#include "../../Metrics/variability/variability_grader.h"
 
 #include "../../Core/pp_debug.h"
 #include "../../Diagnostics/engine/characteristic.h"
@@ -52,6 +56,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <optional>
 
 // The value types the worker keeps. A NAMED namespace, not an anonymous one: Worker (a member type of a
@@ -1001,13 +1006,160 @@ QString clubsWords(const std::vector<PostureShotInput> &inputs)
     return clubs.size() == 1 ? QStringLiteral("  ·  ") + clubs.first() : clubs.size() > 1 ? QStringLiteral("  ·  mixed clubs") : QString();
 }
 
-QVariantMap repeatMap(const PostureRepeat &r)
+// ── consistency (session_posture.h decision 6; Mark's rulings R2b, R7, R11) ─────────────────────
+//
+// Each (row, position) from P2 on is graded per club: the club's swings' change from address there
+// (postureGradedValues: the match's readings, no ⚠), against the band the profile draws — its σ, (σLo + σHi)/2, as
+// the grader's `variabilityScale`, so the basis reads "of scale". A cell with no band is ungraded: no badge, and it
+// stays out of the ranking. No propagated σ is known for a posture cell, so none is passed (no measurement-limited
+// test). The grade words are the vocabularies' (QML); this file spells none.
+
+namespace pv = pinpoint::variability;
+
+// One club's grade at every cell, [row][pos]; `has` false where the cell is ungraded (no band, or no reading).
+struct PostureClubGrades {
+    QString club;
+    int     shots = 0;    // the club's shots carrying a posture reading: the order the clubs are named in
+    std::array<std::array<pv::VariabilityResult, kPos>, kPostureRows> result{};
+    std::array<std::array<bool, kPos>, kPostureRows> has{};
+};
+
+std::vector<PostureClubGrades> postureGrades(const std::vector<PostureShotInput> &inputs, const PostureSessionView &sv)
 {
-    return { { QStringLiteral("has"), r.has }, { QStringLiteral("row"), r.has ? specOf(r.row).key : QString() },
-             { QStringLiteral("rowLabel"), r.has ? specOf(r.row).label : QString() },
-             { QStringLiteral("tag"), r.has ? posturePositionTag(r.pos) : QString() },
-             { QStringLiteral("iqr"), nv(r.iqr) }, { QStringLiteral("iqrText"), r.has ? bareText(r.row, r.iqr) : QStringLiteral("-") },
-             { QStringLiteral("words"), r.words } };
+    std::vector<PostureClubGrades> out;
+    // the clubs, most shots first, then by label (as perClubInputs orders a cell's windows)
+    std::map<QString, int> count;
+    for (const PostureShotInput &s : inputs) if (hasPosture(s)) ++count[s.club];
+    for (const auto &[club, n] : count) { PostureClubGrades g; g.club = club; g.shots = n; out.push_back(g); }
+    std::stable_sort(out.begin(), out.end(), [](const PostureClubGrades &a, const PostureClubGrades &b) { return a.shots > b.shots; });
+    if (out.empty()) return out;
+    const auto grader = pv::makeVariabilityGrader(pv::Basis::Scalar);
+    for (int r = 0; r < kPostureRows; ++r)
+        for (int p = 1; p < kPos; ++p) {   // P1 is address itself: the change from it is 0
+            const double sigma = sv.rows[size_t(r)].view.cells[size_t(p)].band.sigma();
+            if (!fin(sigma)) continue;
+            const std::vector<double> xs = postureGradedValues(inputs, PostureRow(r), p);
+            std::vector<VariabilityClubValue> swings;
+            for (size_t i = 0; i < inputs.size(); ++i)
+                if (hasPosture(inputs[i])) swings.push_back({ inputs[i].club, xs[i] });
+            pv::VariabilityInput base;
+            base.scaleType = pv::ScaleType::Interval;
+            base.variabilityScale = sigma;
+            for (const VariabilityClubWindow &w : perClubInputs(swings, base))
+                for (PostureClubGrades &g : out)
+                    if (g.club == w.club) {
+                        g.result[size_t(r)][size_t(p)] = grader->grade(w.input);
+                        g.has[size_t(r)][size_t(p)] = g.result[size_t(r)][size_t(p)].graded;
+                    }
+        }
+    return out;
+}
+
+QVariant postureResultOf(const pv::VariabilityResult &res, PostureRow r)
+{
+    return QVariant::fromValue(pv::VariabilityResultView::fromResult(res, specOf(r).unit, specOf(r).decimals));
+}
+
+// A club's cells on one row are all "Not enough swings": the row names the club once, with that grade.
+bool postureRowTooFew(const PostureClubGrades &g, int r)
+{
+    bool any = false;
+    for (int p = 1; p < kPos; ++p) {
+        if (!g.has[size_t(r)][size_t(p)]) continue;
+        if (g.result[size_t(r)][size_t(p)].grade != 0) return false;
+        any = true;
+    }
+    return any;
+}
+
+// ROW.grades: per club, the graded cells (or the one grade-0 result for a club too few to grade).
+QVariantList postureRowGrades(const std::vector<PostureClubGrades> &grades, int r)
+{
+    QVariantList out;
+    const bool named = grades.size() > 1;
+    for (const PostureClubGrades &g : grades) {
+        QVariantList cells;
+        QVariant first;
+        for (int p = 1; p < kPos; ++p) {
+            if (!g.has[size_t(r)][size_t(p)]) continue;
+            const QVariant res = postureResultOf(g.result[size_t(r)][size_t(p)], PostureRow(r));
+            if (!first.isValid()) first = res;
+            cells.append(QVariantMap{ { QStringLiteral("index"), p }, { QStringLiteral("tag"), posturePositionTag(p) },
+                                      { QStringLiteral("result"), res } });
+        }
+        if (cells.isEmpty()) continue;
+        const bool tooFew = postureRowTooFew(g, r);
+        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
+                                { QStringLiteral("tooFew"), tooFew }, { QStringLiteral("result"), tooFew ? first : nullv() },
+                                { QStringLiteral("cells"), tooFew ? QVariantList{} : cells } });
+    }
+    return out;
+}
+
+// ROW.rowGrades (Mark's ruling R20): per club, ONE grade for the row — the cell rule (R1, cellGrade: the loosest third)
+// over the row's graded positions for that club, as a plain map (toMap) so it travels to paper. A club with no graded
+// position on the row has no entry. The report's Posture and Wrist pages draw it beside the row's name; the Charts
+// screens keep ROW.grades, the badge per position.
+QVariantList postureRowCellGrades(const std::vector<PostureClubGrades> &grades, int r)
+{
+    QVariantList out;
+    const bool named = grades.size() > 1;
+    for (const PostureClubGrades &g : grades) {
+        std::vector<pv::VariabilityResult> readings;
+        for (int p = 1; p < kPos; ++p)
+            if (g.has[size_t(r)][size_t(p)]) readings.push_back(g.result[size_t(r)][size_t(p)]);
+        if (readings.empty()) continue;
+        const pv::CellGrade cell = pv::cellGrade(readings);
+        if (!cell.graded) continue;
+        out.append(QVariantMap{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named },
+                                { QStringLiteral("result"), pv::VariabilityResultView::fromCellGrade(cell).toMap() } });
+    }
+    return out;
+}
+
+// consistency.lines: per club, its most and least consistent cell from P2 on, ranked by ρ (graded 1–5 only).
+QVariantMap postureConsistency(const std::vector<PostureClubGrades> &grades)
+{
+    QVariantList lines;
+    const bool named = grades.size() > 1;
+    for (const PostureClubGrades &g : grades) {
+        struct Ranked { int r, p; double rho; };
+        std::vector<Ranked> ranked;
+        QVariant zero;
+        for (int r = 0; r < kPostureRows; ++r)
+            for (int p = 1; p < kPos; ++p) {
+                if (!g.has[size_t(r)][size_t(p)]) continue;
+                const pv::VariabilityResult &res = g.result[size_t(r)][size_t(p)];
+                if (res.grade >= 1 && fin(res.rho)) ranked.push_back({ r, p, res.rho });
+                else if (res.grade == 0 && !zero.isValid()) zero = postureResultOf(res, PostureRow(r));
+            }
+        QVariantMap line{ { QStringLiteral("club"), g.club }, { QStringLiteral("named"), named } };
+        if (ranked.empty()) {
+            if (!zero.isValid()) continue;   // nothing graded for this club: no line
+            line.insert(QStringLiteral("tooFew"), true);
+            line.insert(QStringLiteral("result"), zero);
+            line.insert(QStringLiteral("mostText"), QString());
+            line.insert(QStringLiteral("most"), nullv());
+            line.insert(QStringLiteral("leastText"), QString());
+            line.insert(QStringLiteral("least"), nullv());
+            lines.append(line);
+            continue;
+        }
+        std::stable_sort(ranked.begin(), ranked.end(), [](const Ranked &a, const Ranked &b) { return a.rho < b.rho; });
+        const Ranked &lo = ranked.front(), &hi = ranked.back();
+        const auto where = [](const Ranked &x) {
+            return QStringLiteral("%1 at %2").arg(postureRowSpec(PostureRow(x.r)).noun, posturePositionTag(x.p));
+        };
+        line.insert(QStringLiteral("tooFew"), false);
+        line.insert(QStringLiteral("result"), nullv());
+        line.insert(QStringLiteral("mostText"), QStringLiteral("Most: ") + where(lo));
+        line.insert(QStringLiteral("most"), postureResultOf(g.result[size_t(lo.r)][size_t(lo.p)], PostureRow(lo.r)));
+        const bool two = ranked.size() >= 2;
+        line.insert(QStringLiteral("leastText"), two ? QStringLiteral("Least: ") + where(hi) : QString());
+        line.insert(QStringLiteral("least"), two ? postureResultOf(g.result[size_t(hi.r)][size_t(hi.p)], PostureRow(hi.r)) : nullv());
+        lines.append(line);
+    }
+    return { { QStringLiteral("lines"), lines } };
 }
 
 // `picked` may be a shot outside the snapshot (its own detail): then nothing in the strip is picked. `noun`:
@@ -1056,12 +1208,26 @@ QVariantMap sessionMapOf(const std::vector<PostureShotInput> &inputs, const Post
                                                      sv.patternLine, sv.match, sv.match, sv.trail));
 
     // THE PROFILE: the medians against the session's pattern, a box per position, this shot ringed
+    // consistency, per club against the band (decision 6, R7): each row's badges, and each box marked graded or not
+    const std::vector<PostureClubGrades> grades = postureGrades(inputs, sv);
     QVariantList rows;
     for (int r = 0; r < kPostureRows; ++r) {
         const PostureSessionRow &sr = sv.rows[size_t(r)];
         std::array<double, kPos> pk = nanRow();
         if (picked) pk = picked->value[size_t(r)];
-        rows.append(rowMap(sr.view, nanRow(), pk, us, &sr.boxes, pool, &inputs));
+        QVariantMap rm = rowMap(sr.view, nanRow(), pk, us, &sr.boxes, pool, &inputs);
+        QVariantList bx = rm.value(QStringLiteral("boxes")).toList();
+        for (int p = 0; p < bx.size(); ++p) {
+            bool graded = false;
+            for (const PostureClubGrades &g : grades) graded = graded || (p > 0 && p < kPos && g.has[size_t(r)][size_t(p)]);
+            QVariantMap b = bx[p].toMap();
+            b.insert(QStringLiteral("graded"), graded);
+            bx[p] = b;
+        }
+        rm.insert(QStringLiteral("boxes"), bx);
+        rm.insert(QStringLiteral("grades"), postureRowGrades(grades, r));
+        rm.insert(QStringLiteral("rowGrades"), postureRowCellGrades(grades, r));
+        rows.append(rm);
     }
     out.insert(QStringLiteral("profile"), QVariantMap{
         { QStringLiteral("positions"), positionsList(us) }, { QStringLiteral("rows"), rows },
@@ -1109,9 +1275,7 @@ QVariantMap sessionMapOf(const std::vector<PostureShotInput> &inputs, const Post
                                                                  + count } });
     }
     out.insert(QStringLiteral("departures"), deps);
-    out.insert(QStringLiteral("repeat"), QVariantMap{ { QStringLiteral("tightest"), repeatMap(sv.tightest) },
-                                                       { QStringLiteral("loosest"), repeatMap(sv.loosest) },
-                                                       { QStringLiteral("words"), sv.repeatWords } });
+    out.insert(QStringLiteral("consistency"), postureConsistency(grades));
     out.insert(QStringLiteral("whatMoved"), QVariantMap{ { QStringLiteral("top"), movedMap(sv.top, us) },
                                                           { QStringLiteral("impact"), movedMap(sv.impact, us) } });
     const QVariantMap address = addressMapOf(sv.absolutes, sv.addressLines, postureSharedEnv(), inputs, pool, false, many);

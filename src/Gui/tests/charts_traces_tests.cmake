@@ -4,7 +4,9 @@
 # through SessionSeriesModel (read-only), where the STEP2A budgets are measured and printed.
 #
 # It links the REAL metric catalogue (ChartMetrics: presets, domains, card specs, sequenceTable) — the
-# chart_metrics_test chain — plus the session maths and the session model with its pack chain.
+# chart_metrics_test chain — plus the session maths and the session model with its pack chain, and the
+# variability marks' chain (Session 5): the grader, the per-club windows (variability_clubs, which needs
+# session_consistency), the scale provider on the real env (variability_env, consistency_env) and the façade.
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_traces_presenter_test
     SOURCES charts_traces_presenter_test.cpp
@@ -17,6 +19,14 @@ pp_add_test(charts_traces_presenter_test
             ${GUI}/charts/session_relations.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_bridge.cpp
+            ${GUI}/charts/session_consistency.cpp
+            ${GUI}/charts/consistency_env.cpp
+            ${GUI}/charts/variability_clubs.cpp
+            ${GUI}/charts/variability_env.cpp
+            ${GUI}/variability/variability_facade.cpp
+            ${SRC}/Metrics/variability/variability_grader.cpp
+            ${SRC}/Metrics/variability/variability_result.cpp
+            ${SRC}/Metrics/variability/variability_typicality.cpp
             ${SRC}/Kinematics/gap_bridge.cpp
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/review/chart_metrics.cpp
@@ -43,7 +53,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
-    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
+    INCLUDE ${GUI} ${GUI}/charts ${GUI}/review ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/Metrics ${SRC}/Analysis ${SRC}/Diagnostics
     DEFINES CHARTS_MATHS_DATA="${CMAKE_CURRENT_LIST_DIR}/data/charts"
     LINK    Qt6::Qml Qt6::Test
     AUTOMOC)

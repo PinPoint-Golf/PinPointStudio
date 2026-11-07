@@ -27,7 +27,8 @@ import PinPointStudio
 //   · This shot: this swing's dot in the hue, joined; outside the band a RING and its word under the number
 //     ("in 7.6"), never colour alone; the Against ghost as hollow points on a dashed line;
 //   · Session: the session's box per position (PpChBoxCell → PpBoxPlot, the ONE box plot), this shot ringed,
-//     the median and how wide the middle half is under it;
+//     the median and how wide the middle half is under it, and under the row its consistency per club (ROW.grades: a
+//     technical-layer Dispersion badge per graded position, against the pattern's band — Mark's rulings R2b, R7);
 //   · the numbers under each column: the figure, or "-" where nothing was read; a reading under a ⚠ keeps its
 //     figure and says the ⚠'s few words under it (the full reason is said once, in the trust fold);
 //   · the pole word at the row's right ("in ▲"); the trail knee's row labelled with its style word;
@@ -59,6 +60,7 @@ PpChPositionProfile {
                         { text: camera, font: "fSmall", ink: "ink3", keep: true }],
             lo: ty.fin(r.yLo) ? r.yLo : -1, hi: ty.fin(r.yHi) ? r.yHi : 1, unit: r.unit || "",
             hasAlt: r.hasAlt === true, poleTop: r.poleText || "", boxes: boxes,
+            grades: session ? (r.grades || []) : [],
             cells: (r.cells || []).map(function (c, i) {
                 const bc = session ? (boxes[i] || null) : null
                 const text = session ? (bc ? (bc.medianText || "-") : "-") : (c.text || "-")

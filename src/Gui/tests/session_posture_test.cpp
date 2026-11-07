@@ -462,6 +462,13 @@ private slots:
         QVERIFY(!sc.warned && sc.counted);
         QCOMPARE(s.rows[H].boxes[P4].n, 5);   // the box: each shot's own source
         QCOMPARE(dp1(s.rows[H].boxes[P4].med), -11);
+        {   // its consistency is graded on the butt line alone (decision 15): the joints' shot is left out
+            const std::vector<double> gv = postureGradedValues(five, PostureRow::Hips, P4);
+            for (int i = 0; i < 4; ++i) QVERIFY(std::isfinite(gv[size_t(i)]));
+            QVERIFY(std::isnan(gv[4]));
+            // every shot on the joints: the cell is drawn under the ⚠ and not graded
+            for (double x : postureGradedValues(std::vector<PostureShotInput>(5, nb), PostureRow::Hips, P4)) QVERIFY(std::isnan(x));
+        }
         QVERIFY(s.match.rows.contains(QStringLiteral("hips")));
         // every shot on the joints: the session's cell under the ⚠, said so
         const PostureSessionView j = postureSession(std::vector<PostureShotInput>(5, nb), *m_env, 0);
@@ -492,17 +499,27 @@ private slots:
         const PostureShotView chosen = postureShot(postureInputFromValues(mark), *m_env, 1, &five);
         QCOMPARE(int(chosen.pattern), 1);
         QCOMPARE(chosen.patternSource, QStringLiteral("chosen"));
-        // the session's boxes, departures and repeatability
+        // the session's boxes and departures, and the scale its consistency is graded against (decision 6, R7)
         QCOMPARE(five.rows[size_t(r(PostureRow::Hips))].boxes[P7].n, 5);
         QCOMPARE(dp1(five.rows[size_t(r(PostureRow::Hips))].boxes[P7].med), 76);
         QVERIFY(!five.departureCounts.empty());
         QCOMPARE(five.departureCounts.front().id, QStringLiteral("D1"));
         QCOMPARE(five.departureCounts.front().shots, 5);
-        QVERIFY(five.tightest.has && five.loosest.has);
-        QCOMPARE(int(five.tightest.row), r(PostureRow::Head));
-        QCOMPARE(five.tightest.pos, P4);
-        QCOMPARE(int(five.loosest.row), r(PostureRow::Hips));
-        QCOMPARE(five.loosest.pos, P2);
+        {
+            const PostureBand &b = five.rows[size_t(r(PostureRow::Hips))].view.cells[P7].band;
+            QVERIFY(b.has);
+            QCOMPARE(b.sigma(), 0.5 * (b.sigmaLo + b.sigmaHi));
+            QVERIFY(std::isnan(PostureBand{}.sigma()));   // no band: no scale
+            // the graded readings are the shots' own, in their order
+            const std::vector<PostureShotInput> shots = sessionOf(mark, 5, true);
+            const std::vector<double> gv = postureGradedValues(shots, PostureRow::Hips, P7);
+            QCOMPARE(int(gv.size()), 5);
+            for (int i = 0; i < 5; ++i) QCOMPARE(gv[size_t(i)], shots[size_t(i)].value[size_t(r(PostureRow::Hips))][P7]);
+            // a gate-warned reading is left out
+            std::vector<PostureShotInput> warned = shots;
+            warned[1].gateWarn[size_t(r(PostureRow::Hips))][P7] = true;
+            QVERIFY(std::isnan(postureGradedValues(warned, PostureRow::Hips, P7)[1]));
+        }
 
         // the trail knee: kept while it loses less than 8° by the top
         PostureGrid g = mark;

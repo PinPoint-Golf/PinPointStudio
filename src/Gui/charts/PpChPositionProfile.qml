@@ -34,13 +34,21 @@ import PinPointStudio
 // PpChWristProfile each map their presenter's; every word, number and scale is still the presenter's):
 //   ROW  = { key, dof, hueKey, name, dot (the label's swatch), aboveSub (the narrow label's line), sideY (design
 //            units), sideLines: [{ text, font, ink (role names), name (objectName), keep (shown when "") }],
-//            lo, hi, unit, numbersOnly, hasAlt, poleTop, poleBottom, trace: [{ x, v }], boxes: [BOXCELL], cells: [CELL] }
+//            lo, hi, unit, numbersOnly, hasAlt, poleTop, poleBottom, trace: [{ x, v }], boxes: [BOXCELL], cells: [CELL],
+//            grades: [GRADE] (Session only; optional) }
+//   GRADE = { club (an id: named through ClubFormat), named (a mixed session: name the club), tooFew, result (the one
+//             grade-0 variabilityResult when tooFew), cells: [{ tag, result (variabilityResult) }] } — the presenter's
+//             per-club consistency (Mark's rulings R2b, R7): under the row's numbers, a line per club of a Dispersion
+//             badge per graded position ("P4 ◯ Repeatable · σ 1.2 cm · 0.40 of scale · n 12"), in `gradeLayer`. A line,
+//             not a badge under each column: a badge, its word and its basis do not fit a P column, and a club's name
+//             goes with its badges. The box and the "N wide" under each column stay (technical layer: paired).
 //   CELL = { tag, value (the line; null breaks it), mark ("" | "dot" | "ring" | "out" | "fault"), markName, banded,
 //            bandLo, bandHi, faultHi, faultLo (edges | null), ghost, text, dim, outside, trust, word, wordShort (optional:
 //            used while the columns are narrow), warned, warnText, alt, altText, altAvailable, altWarnText }
 // objectNames, from `prefix`: <prefix>Row (+ key, dof); <prefix>Col (+ tag); <prefix>Seek; <prefix>Cell (+ tag, text,
 // warned, outside, rowKey); <prefix>Why:<subject> on a gated value; <prefix>Warn; <prefix>AltValue (+ tag, rowKey, text,
-// warned) and <prefix>AltWarn; <prefix>Fault; each mark its CELL.markName.
+// warned) and <prefix>AltWarn; <prefix>Fault; each mark its CELL.markName; <prefix>Grades (+ club, rowKey) per club line and
+// <prefix>Grade (+ tag, rowKey, club) per position's badge.
 Item {
     id: pf
     property string prefix: "chProfile"
@@ -68,6 +76,7 @@ Item {
     property bool metricWash: true               // the band in the row's metric colour (else the chart wash)
     property bool elide: true                    // a head's name and a cell's word elide (else run on)
     property bool poleWrap: true                 // the pole word wraps in its gutter
+    property string gradeLayer: "technical"      // the consistency badges' layer (ROW.grades): the Charts screens' own
 
     readonly property bool ok: !!roles
     readonly property bool session: mode === "session"
@@ -89,13 +98,15 @@ Item {
     function cx(i) { return plotX + (i + 0.5) * colW }
     readonly property real aboveH: sideLabel || !ok ? 0 : roles.u(22)
     function rowH(r) { return !ok ? 0 : aboveH + (r.numbersOnly ? roles.u(24) : plotH + numH) + rowGap + (r.hasAlt ? altH : 0) }
-    readonly property var rowYs: { let y = headH; const ys = []; for (const r of rowsN) { ys.push(y); y += rowH(r) } ys.push(y); return ys }
-    implicitHeight: rowYs[rowYs.length - 1]
+    // the rows stack in a column: a row is rowH(r) tall, and its consistency lines (ROW.grades) add their own height
+    implicitHeight: headH + rowsCol.height
     height: implicitHeight
 
-    // the playhead's position: one column wash through the whole profile
-    Rectangle { visible: pf.ok && pf.selected >= 0 && pf.selected < 8 && !pf.roles.isPrint
-                x: pf.cx(pf.selected) - pf.colW / 2; width: pf.colW; y: 0; height: pf.height
+    // the playhead's position: one column wash down the heads and every row's plot and numbers; a row's consistency
+    // lines (ROW.grades) run across the columns, so the wash stops above them (each row draws its own part)
+    readonly property bool washOn: ok && selected >= 0 && selected < 8 && !roles.isPrint
+    Rectangle { visible: pf.washOn
+                x: pf.cx(pf.selected) - pf.colW / 2; width: pf.colW; y: 0; height: pf.headH
                 color: pf.ok ? pf.roles.pickWash : "transparent" }
     // the column heads: the P tag (and "now" on the playhead's), its name when there is room; a press seeks
     Repeater {
@@ -129,6 +140,9 @@ Item {
     }
     Rectangle { visible: pf.ok; x: pf.plotX; y: pf.headH - (pf.ok ? pf.roles.u(4) : 4); width: pf.plotW; height: pf.ok ? pf.roles.hw : 1; color: pf.ok ? pf.roles.hair : "grey" }
 
+    Column {
+        id: rowsCol
+        y: pf.headH; width: pf.width
     Repeater {
         model: pf.ok ? pf.rowsN : []
         delegate: Item {
@@ -140,10 +154,16 @@ Item {
             readonly property string key: r.key || ""
             readonly property string dof: r.dof || ""
             readonly property var cells: r.cells || []
+            readonly property var grades: pf.session && !r.numbersOnly ? (r.grades || []) : []
             readonly property color hue: pf.roles.hue(r.hueKey || "")
             readonly property color washC: pf.metricWash ? pf.roles.hueA(r.hueKey || "", Math.max(0.10, pf.roles.envAlpha * 1.4)) : pf.roles.wash
             readonly property var ty: pf.roles
-            x: 0; y: pf.rowYs[index]; width: pf.width; height: pf.rowH(r)
+            width: pf.width; height: pf.rowH(r) + (gradeCol.visible ? gradeCol.height + pf.rowGap : 0)
+            // this row's part of the playhead's column wash: its plot and numbers, never its consistency lines
+            Rectangle { visible: pf.washOn
+                        x: pf.cx(pf.selected) - pf.colW / 2; width: pf.colW; y: 0
+                        height: gradeCol.visible ? pf.rowH(rw.r) - pf.rowGap : rw.height
+                        color: pf.ok ? pf.roles.pickWash : "transparent" }
             readonly property real topY: pf.aboveH
             readonly property real lo: r.lo
             readonly property real hi: r.hi
@@ -372,6 +392,74 @@ Item {
                                 onClicked: pf.trustClicked(cv.modelData.trust) }
                 }
             }
+            // Session: the row's consistency, a line per club under its numbers (ROW.grades; see the header). Ungraded
+            // positions (no band) have no badge; a club too few to grade says so once.
+            Column {
+                id: gradeCol
+                visible: rw.grades.length > 0
+                x: pf.sideLabel ? pf.labelW : 0
+                y: pf.rowH(rw.r) - pf.rowGap
+                width: pf.width - x
+                spacing: rw.ty.g(4)
+                Repeater {
+                    model: rw.grades
+                    delegate: Flow {
+                        id: gl
+                        required property var modelData
+                        objectName: pf.prefix + "Grades"
+                        readonly property string club: modelData.club || ""
+                        readonly property string rowKey: rw.key
+                        width: gradeCol.width
+                        spacing: rw.ty.g(14)
+                        // the club, named in a mixed session (R2b): its label, then " · " outside the words
+                        Text { visible: gl.modelData.named === true; height: rw.ty.u(22); verticalAlignment: Text.AlignVCenter
+                               text: ClubFormat.display(gl.club) + " · "; font: rw.ty.fSmallM; color: rw.ty.ink2 }
+                        // too few swings of the club to grade any position: one badge for the row
+                        Row {
+                            id: tf
+                            readonly property var res: gl.modelData.tooFew === true ? gl.modelData.result : null
+                            visible: !!res && res.graded
+                            height: rw.ty.u(22)
+                            PpVariabilityBadge {
+                                objectName: pf.prefix + "Grade"
+                                readonly property string tag: ""
+                                readonly property string rowKey: rw.key
+                                readonly property string club: gl.club
+                                anchors.verticalCenter: parent.verticalCenter
+                                dense: true; roles: rw.ty; contentLayer: pf.gradeLayer
+                                grade: tf.res ? tf.res.grade : 0
+                                measurementLimited: tf.res ? tf.res.measurementLimited : false
+                                basisText: tf.res ? tf.res.basisText : ""
+                            }
+                        }
+                        Repeater {
+                            model: gl.modelData.tooFew === true ? [] : (gl.modelData.cells || [])
+                            delegate: Row {
+                                id: gcell
+                                required property var modelData
+                                readonly property var res: modelData.result
+                                visible: !!res && res.graded
+                                height: rw.ty.u(22)
+                                spacing: rw.ty.g(6)
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: gcell.modelData.tag || ""
+                                       font: rw.ty.fSmallM; color: rw.ty.ink3 }
+                                PpVariabilityBadge {
+                                    objectName: pf.prefix + "Grade"
+                                    readonly property string tag: gcell.modelData.tag || ""
+                                    readonly property string rowKey: rw.key
+                                    readonly property string club: gl.club
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    dense: true; roles: rw.ty; contentLayer: pf.gradeLayer
+                                    grade: gcell.res ? gcell.res.grade : 0
+                                    measurementLimited: gcell.res ? gcell.res.measurementLimited : false
+                                    basisText: gcell.res ? gcell.res.basisText : ""
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+    }
     }
 }

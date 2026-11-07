@@ -36,6 +36,8 @@
 #include "../../Diagnostics/norms/norm.h"   // the grade policy: where a fired reading is past its fault line
 #include "../../Diagnostics/norms/norm_provider.h"   // the Readings rows' corridor: the norm the reading grades against
 #include "../diagnostics/session_spread.h"           // …turned into bands exactly as Session diagnostics draws them
+#include "../variability/variability_facade.h"       // R8 typicality: the session window and the badge's `values`
+#include "../../Metrics/variability/variability_outcome.h"   // isOutcomeMetric: ball flight has no typicality (R4)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -572,6 +574,9 @@ struct Ctx {
     const pinpoint::analysis::INormProvider *norms = nullptr;
     pinpoint::analysis::GradePolicy policy;
     const ConsistencyEnv *env = nullptr;    // the stand-out rule's, taken on the GUI thread
+    // R8: per shot, true when no "usual" counts it (a warm-up, or a guarded P-ladder); filled only when a typicality
+    // window could hold N_MIN others (outOfTypicalityWindow)
+    std::vector<uint8_t> typicalOut;
 
     // A shot's own ordinal from its 1-based position in S (identity in a session; not in a club's subset).
     int ord(int pos) const { return pos >= 1 && pos <= int(S.shots.size()) ? S.shots[size_t(pos - 1)]->ordinal : pos; }
@@ -755,6 +760,75 @@ QVariantMap rowMapOf(const Ctx &x, const SessionReading &r, const ReadingMeta &m
 }
 
 QVariantMap rowMap(const Ctx &x, int i) { return rowMapOf(x, x.r(i), x.m(i), i); }
+
+// ── Typicality: this shot against the usual (Mark's ruling R8; docs/design/system/variability.md) ─────────
+// Charts is the technical layer: each surface shows a Typicality badge with the grader's basis ("this swing 82 mph ·
+// usual 72 mph"). Never a grade, never praise or fault: whether the shot was good is the corridor's job, so the
+// reading's norm corridor rides along where it has one.
+
+namespace pv = pinpoint::variability;
+
+// The shots no "usual" counts: a shot whose P-ladder cannot be trusted (consistencyGuarded, the Consistency matrix's own
+// guard, on the session's P-alignment). Warm-ups count (R13: the golfer should be warmed up before PinPoint assesses
+// them). Filled once a job, only when a typicality window could hold N_MIN others; the picked shot is compared, never
+// counted, whatever it is.
+std::vector<uint8_t> outOfTypicalityWindow(Cache &c, const SessionSnapshot &S, int pick)
+{
+    if (pick < 0 || c.solo || S.count() <= pv::kNMin) return {};
+    std::vector<uint8_t> out(S.shots.size(), 0);
+    const SessionAlignment &al = c.align();
+    for (size_t i = 0; i < S.shots.size(); ++i) {
+        const ShotSeries &sh = *S.shots[i];
+        out[i] = uint8_t(consistencyGuarded(sh, al.warpFor(sh.ordinal)));
+    }
+    return out;
+}
+
+// `values` (one per shot, strike order: a reading's, or a row's) of this shot against R8's window — the session's OTHER
+// shots with this shot's club, guarded shots left out, at least N_MIN of them. An outcome (ball flight, smash factor)
+// has none: ball flight has no badge at all (R4). `corridor` is a row's
+// corridorOf() map: its edges (signalLo/Hi) set the badge's corridor when both are closed. The map is a row's
+// `variability` as PpChProfile reads it, { kind: "typicality", values, basisText, showCorridor }; an invalid QVariant
+// when there is no result (too few others, or no value on this shot), and the row is then drawn as it always was.
+QVariant typicalityOf(const Ctx &x, const std::vector<double> &values, const QString &key, const QString &unit,
+                      const QVariantMap &corridor)
+{
+    if (x.pick < 0 || x.typicalOut.empty() || size_t(x.pick) >= values.size() || !fin(values[size_t(x.pick)])) return {};
+    if (pv::isOutcomeMetric(key)) return {};
+    std::vector<pv::TypicalitySwing> swings;
+    swings.reserve(size_t(x.n));
+    for (int i = 0; i < x.n; ++i) {
+        const ShotSeries &s = *x.S.shots[size_t(i)];
+        const bool counted = i == x.pick || (size_t(i) < x.typicalOut.size() && !x.typicalOut[size_t(i)]);
+        swings.push_back({ QString::number(s.ordinal), s.club, counted && size_t(i) < values.size() ? values[size_t(i)] : kNaN });
+    }
+    std::optional<double> lo, hi;
+    if (corridor.value(QStringLiteral("known")).toBool()) {
+        if (!corridor.value(QStringLiteral("lowOpen")).toBool()) lo = corridor.value(QStringLiteral("signalLo")).toDouble();
+        if (!corridor.value(QStringLiteral("highOpen")).toBool()) hi = corridor.value(QStringLiteral("signalHi")).toDouble();
+    }
+    const pa::MetricDescriptor *d = key.isEmpty() ? nullptr : catalogue().descriptor(key);   // "" a time: Interval
+    const std::optional<pv::ScalarTypicalityWindow> w =
+        pv::scalarTypicalityWindow(swings, QString::number(x.S.shots[size_t(x.pick)]->ordinal),
+                                   d ? d->scaleType : pv::ScaleType::Interval, lo, hi);
+    if (!w) return {};
+    const pv::TypicalityPayload p = pv::typicalityPayload(*w, isRatio(unit) ? QString() : unit,
+                                                          isRatio(unit) ? 2 : words::decimalsFor(unit));
+    return QVariantMap{ { QStringLiteral("kind"), QStringLiteral("typicality") }, { QStringLiteral("values"), p.values },
+                        { QStringLiteral("basisText"), p.basisText }, { QStringLiteral("showCorridor"), w->corridor.has_value() } };
+}
+
+// A READING ROW with its typicality badge when R8 gives one, from the row's own `values` (what the row shows: a
+// launch-monitor row's club values, a stand-out's point on this shot's club's scale) and its corridor.
+QVariantMap withTypicality(const Ctx &x, QVariantMap row)
+{
+    std::vector<double> values;
+    for (const QVariant &v : row.value(QStringLiteral("values")).toList()) values.push_back(v.isNull() ? kNaN : v.toDouble());
+    const QVariant t = typicalityOf(x, values, row.value(QStringLiteral("key")).toString(), row.value(QStringLiteral("unit")).toString(),
+                                    row.value(QStringLiteral("corridor")).toMap());
+    if (t.isValid()) row.insert(QStringLiteral("variability"), t);
+    return row;
+}
 
 // ── "Apart from the session": the stand-out rule's rows (doc §5) ────────────────────────────
 
@@ -1245,6 +1319,17 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                                                                       .append(timedN >= 3 ? QStringLiteral(", median ") : QString())
                                                                       .figure(timedN >= 3 ? words::signedMs(sm.medianMs) : QString())
                                                                       .append(p.late ? QStringLiteral(", late") : QString()).toVariant() } });
+            // R8: this shot's peak time against the usual, from every timed node of the segment (a probable chest peak
+            // counts, with its ⚠ on the label); none when the node is not timed on this shot
+            std::vector<double> times(size_t(x.n), kNaN);
+            for (int k = 0; k < x.n && size_t(k) < x.c.seq.shots.size(); ++k) {
+                const SegmentPeak &o = x.c.seq.shots[size_t(k)].segments[size_t(s)];
+                if (o.timed()) times[size_t(k)] = o.timeMs();
+            }
+            const QVariant typ = p.timed() ? typicalityOf(x, times, QString(), QStringLiteral("ms"), QVariantMap{}) : QVariant();
+            QVariantMap item = items.takeLast().toMap();
+            item.insert(QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr));
+            items.append(item);
         }
     } else if (fam && x.pick >= 0) {
         for (int i : fam->readings) {
@@ -1264,7 +1349,7 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
                                           { QStringLiteral("foot"), med.isEmpty() ? QString() : QStringLiteral("median ") + med },
                                           { QStringLiteral("median"), med }, { QStringLiteral("place"), QString() },
                                           { QStringLiteral("warn"), false }, { QStringLiteral("warnWord"), QString() },
-                                          { QStringLiteral("trustSubject"), QString() },
+                                          { QStringLiteral("trustSubject"), QString() }, { QStringLiteral("typicality"), QVariant::fromValue(nullptr) },
                                           { QStringLiteral("sentence"), Sentence().append(g.value(QStringLiteral("words")).toString()).toVariant() } });
                 continue;
             }
@@ -1285,12 +1370,15 @@ QVariantMap keyFiguresMap(const Ctx &x, const Cache::Family *fam)
             if (solo) foot << (x.n <= 1 ? QStringLiteral("the session's only shot") : QStringLiteral("%1 shots: too few to place it").arg(words::cap1(words::word(x.n))));
             else foot << QStringLiteral("median ") + med;
             if (!place.isEmpty()) foot << place;
+            // R8: a technical Typicality badge under the figure, when the window holds 8 (the foot stays)
+            const QVariant typ = solo ? QVariant() : typicalityOf(x, r.values, r.key, r.unit, corridorOf(x, r));
             items.append(QVariantMap{ { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), x.m(i).shortLabel + QStringLiteral(" at ") + x.v.tag(r.phase) },
                                       { QStringLiteral("figure"), closedUnit(r.unit) ? figU(p.value, r.unit) : figBare(p.value, r.unit) },
                                       { QStringLiteral("unit"), closedUnit(r.unit) ? QString() : r.unit },
                                       { QStringLiteral("foot"), foot.join(QStringLiteral("  ·  ")) }, { QStringLiteral("median"), med },
                                       { QStringLiteral("place"), place }, { QStringLiteral("warn"), fired },
                                       { QStringLiteral("warnWord"), warnWord },
+                                      { QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr) },
                                       { QStringLiteral("sentence"), s.toVariant() } });
         }
     }
@@ -1337,7 +1425,7 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
     out->consistencyMs = x.c.ensureConsistency(*x.env);
     const std::vector<ApartRow> ap = apartRows(x);
     QVariantList apart;
-    for (const ApartRow &a : ap) apart.append(a.row);
+    for (const ApartRow &a : ap) apart.append(withTypicality(x, a.row));     // R8: the badge, when the window holds 8
     const int na = int(ap.size());
     const QString cannot = na ? QString() : cannotCompare(x, false);
     m.insert(QStringLiteral("apartCount"), na);
@@ -1363,7 +1451,7 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
     for (const QString &g : x.c.groupOrder) {
         QVariantList rows;
         for (size_t i = 0; i < x.c.readings.size(); ++i)
-            if (x.c.meta[i].group == g) rows.append(rowMap(x, int(i)));
+            if (x.c.meta[i].group == g) rows.append(withTypicality(x, rowMap(x, int(i))));   // R8, as Apart's
         if (!rows.isEmpty()) groups.append(QVariantMap{ { QStringLiteral("name"), g }, { QStringLiteral("rows"), rows } });
     }
     m.insert(QStringLiteral("groups"), groups);
@@ -2310,19 +2398,22 @@ std::vector<Output::ReplayEntry> replayEntries(Ctx &x, const Cache::Family *fam)
         const ReadingPlace p = placeOf(r, x.pick);
         Sentence now;
         if (p.measured) {
-            now.append(QStringLiteral("This shot ")).figure(figU(p.value, r.unit)).append(QStringLiteral("; typical ")).figure(figU(r.box.med, r.unit))
-               .append(QStringLiteral(", the session median"));
+            // R11: the median is "median", never "typical" (that word is the typicality badge's)
+            now.append(QStringLiteral("This shot ")).figure(figU(p.value, r.unit)).append(QStringLiteral("; median ")).figure(figU(r.box.med, r.unit));
             const QString pl = placeWords(p, r.box.n);
             if (!pl.isEmpty()) now.append(QStringLiteral("; ") + pl);
             now.append(QStringLiteral("."));
         }
         // no value on this shot: said plainly; why is said once, in the panel's tail (Mark, 17 Oct 2026)
         if (!p.measured) {
-            now.append(QStringLiteral("Not measured on this shot; typical "));
-            now.figure(figU(r.box.med, r.unit)).append(QStringLiteral(", the session median."));
+            now.append(QStringLiteral("Not measured on this shot; median "));
+            now.figure(figU(r.box.med, r.unit)).append(QStringLiteral("."));
         }
+        // R8: a technical Typicality badge beside "This shot …", when the window holds 8 (null otherwise)
+        const QVariant typ = p.measured ? typicalityOf(x, r.values, r.key, r.unit, corridorOf(x, r)) : QVariant();
         m.insert(QStringLiteral("now"), QVariantMap{ { QStringLiteral("valueText"), figU(p.measured ? p.value : kNaN, r.unit) },
                                                      { QStringLiteral("trustSubject"), QString() },
+                                                     { QStringLiteral("typicality"), typ.isValid() ? typ : QVariant::fromValue(nullptr) },
                                                      { QStringLiteral("medianText"), figU(r.box.med, r.unit) },
                                                      { QStringLiteral("place"), placeWords(p, r.box.n) }, { QStringLiteral("sentence"), now.toVariant() } });
         // partners: every other key's reading against this one
@@ -2394,6 +2485,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
     x.policy = policy;
     x.env = &env;
     for (int i = 0; i < x.n; ++i) if (!picked.isEmpty() && cleanDir(S.shots[size_t(i)]->swingDir) == picked) { x.pick = i; break; }
+    x.typicalOut = outOfTypicalityWindow(cache, S, x.pick);
 
     int pickIdx = -1;
     for (int i = 0; i < S.count(); ++i) if (!picked.isEmpty() && cleanDir(S.shots[size_t(i)]->swingDir) == picked) { pickIdx = i; break; }

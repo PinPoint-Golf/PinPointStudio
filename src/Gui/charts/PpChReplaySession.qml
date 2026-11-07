@@ -22,10 +22,11 @@ import PinPointStudio
 // PPCHREPLAYSESSION — Replay's Session follows the playhead (D6; design §3): the lead reading shot by shot at
 // the latest P-position the playhead has passed (ChartsRelationsPresenter.replaySession, which notifies only
 // when that P-position or its readout changes — never per frame for nothing). The P-positions it is read at
-// are links that seek there; "now" against "typical" in one sentence; the run with its box; the strongest
-// partner's scatter while two columns fit; and three "moves with it" lines that end on the chance line and the
-// co-occurrence caveat (the presenter's sentences).
-// objectName: chReplaySession.
+// are links that seek there; "now" against the session median in one sentence, and beside it, when R8 gives one (this
+// shot against the other shots with its club, at least eight), a technical Typicality Icon badge with the grader's
+// basis; the run with its box; the strongest partner's scatter while two columns fit; and three "moves with it" lines
+// that end on the chance line and the co-occurrence caveat (the presenter's sentences).
+// objectName: chReplaySession; the badge chReplayNowTypicality.
 Column {
     id: rs
     objectName: "chReplaySession"
@@ -64,7 +65,25 @@ Column {
             }
         }
     }
-    PpChText { roles: rs.roles; sentence: rs.ok && rs.info.now ? rs.info.now.sentence : null; font: rs.roles ? rs.roles.fBody : Qt.application.font; tone: rs.roles ? rs.roles.ink : "black" }
+    Flow {
+        width: rs.width; spacing: rs.roles ? rs.roles.g(10) : Theme.gap(10)
+        PpChText { id: nowText; roles: rs.roles; sentence: rs.ok && rs.info.now ? rs.info.now.sentence : null; measure: false
+                   width: Math.min(implicitWidth, rs.roles ? rs.roles.measureW(rs.width) : rs.width)
+                   font: rs.roles ? rs.roles.fBody : Qt.application.font; tone: rs.roles ? rs.roles.ink : "black" }
+        // R8: this shot against the usual; no result, no badge (never a shape without its word)
+        PpVariabilityBadge {
+            objectName: "chReplayNowTypicality"
+            readonly property var t: rs.ok && rs.info.now && rs.info.now.typicality ? rs.info.now.typicality : null
+            visible: !!t && !!t.values
+            variant: PpVariabilityMark.Typicality
+            form: PpVariabilityMark.Icon
+            contentLayer: "technical"
+            values: t ? t.values : null
+            basisText: t ? (t.basisText || "") : ""
+            showCorridor: !!t && t.showCorridor === true
+            roles: rs.roles
+        }
+    }
     Flow {
         width: rs.width; spacing: rs.roles ? rs.roles.g(24) : Theme.gap(24)
         PpChRunBox {

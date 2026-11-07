@@ -26,9 +26,22 @@ set_tests_properties(session_posture_test PROPERTIES
 # ledger row (data/posture/…_diagnostics.json, a trimmed copy of that session's diagnostics.json, shot 2). The picture
 # strip (posture_picture.cpp, stage 5) on data/posture/picture_doc.json — that swing re-analysed for stage 4a, trimmed —
 # with its closure: the stills' pure half, the markup stream rules, the DTL overlay translator and the head track.
+# The session's consistency grades (R2b, R7): the grader, one window per club (variability_clubs.cpp, which needs the
+# Consistency maths), and the `variabilityResult` value type the payload carries.
+set(POSTURE_VARIABILITY_SRC
+    ${GUI}/charts/variability_clubs.cpp
+    ${GUI}/charts/session_consistency.cpp
+    ${GUI}/charts/session_curves.cpp
+    ${GUI}/charts/session_warp.cpp
+    ${GUI}/charts/session_traces.cpp
+    ${GUI}/variability/variability_facade.cpp
+    ${SRC}/Metrics/variability/variability_grader.cpp
+    ${SRC}/Metrics/variability/variability_result.cpp
+    ${SRC}/Metrics/variability/variability_typicality.cpp)
 pp_add_test(charts_posture_presenter_test
     SOURCES charts_posture_presenter_test.cpp
             ${GUI}/charts/charts_posture_presenter.cpp
+            ${POSTURE_VARIABILITY_SRC}
             ${GUI}/charts/posture_picture.cpp
             ${GUI}/report/report_stills_pure.cpp
             ${GUI}/markup/markup_truth.cpp

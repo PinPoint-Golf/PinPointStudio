@@ -25,7 +25,9 @@ import PinPointStudio
 // its band is a warn mark (filled = fault, ring = watch) AND a word under its number ("fault · 19° open"), never
 // colour alone; the playhead's checkpoint is the picked column through every row; the Against ghost is dashed
 // with hollow points; in Session scope a box per checkpoint (PpChBoxCell, this shot ringed) and, under it, the
-// median and how wide the middle half is; the curve behind on demand. The numbers under every column ARE the
+// median and how wide the middle half is, and under the row its consistency per club (ROW.grades: a technical-layer
+// Dispersion badge per graded checkpoint, against the dominant style's band — Mark's rulings R2b, R7); the curve
+// behind on demand. The numbers under every column ARE the
 // old grid; the grid-only DOF (lead elbow) is a numbers-only row.
 // Every word, number and scale is ChartsWristPresenter's (profile.rows: ROW, positions: POS); QML maps to pixels.
 // The form is PpChPositionProfile's (the one P1–P8 profile, shared with Posture); this file maps the presenter's ROW and
@@ -49,7 +51,8 @@ PpChPositionProfile {
                         { text: r.sourceText || "", font: "fSmall", ink: "ink3" }],
             lo: r.yLo !== undefined && r.yLo !== null ? r.yLo : -10, hi: r.yHi !== undefined && r.yHi !== null ? r.yHi : 10,
             unit: "°", numbersOnly: no, poleTop: r.poleTopText || "", poleBottom: r.poleBottomText || "",
-            trace: r.trace || [], boxes: r.boxes || []
+            trace: r.trace || [], boxes: r.boxes || [],
+            grades: session ? (r.grades || []) : []
         }
         // the grid-only DOF: numbers only (a gated value says the gate's words)
         if (no) {

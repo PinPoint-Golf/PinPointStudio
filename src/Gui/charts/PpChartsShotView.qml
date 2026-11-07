@@ -19,7 +19,7 @@
 import QtQuick
 import PinPointStudio
 
-// THIS SHOT — "what did this swing's curves do, and how does it differ from my usual swing?" (design §2.1).
+// THIS SHOT — "what did this swing's curves do, and how does it differ from the session median?" (design §2.1).
 // One view, drawn in either register; the register chooses how much it says, never its encodings.
 //   Replay (glance): the answer head, the key figures with their place words, the sequence chain, and the
 //     traces with the readings AT THE PLAYHEAD; click or drag seeks.
@@ -30,7 +30,9 @@ import PinPointStudio
 //     crosshair with its in-place readout, the reference and its difference strip); then the Summary
 //     (window-scoped PEAK / Δ / PK RATE, partial, σ provenance, ⚠), the per-segment Sequence table (% of
 //     pro), "Apart from the session" with its questions, and every reading against the session (D5), a row
-//     opening its curve or run in place.
+//     opening its curve or run in place. Each Apart row and each key figure carries a technical Typicality badge
+//     when R8 gives one (this shot against the other shots with its club, at least eight: the presenter's
+//     `variability` / `typicality`), PpChProfile and PpChKeyFigures drawing it.
 //   The wrist section (PpChWristShotSection, "Wrist"), under the traces in either register, when this shot carries a
 //     wrist reading and a wrist metric is among the curves on show (body.wristShotShown): the standard curves first,
 //     the domain read added where it means something (Mark, 16 Oct).

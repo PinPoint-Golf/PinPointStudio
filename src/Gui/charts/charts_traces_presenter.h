@@ -148,13 +148,16 @@ class TimelineLabels;
 //    mode, active, refused, why: Sentence, label ("session median" | "shot 12, the most typical" |
 //    "7 shots shaped like this one" | "the reference ★"), ordinal, shotId, swingDir, n, group: [ordinals],
 //    refLabel ("shot 3, 18 Aug 2026" — "reference" only: which swing the ★ is),
-//    head: Sentence (the largest gap said: "Shot 8 left your usual swing furthest 40 ms before
+//    head: Sentence (the largest gap said: "Shot 8 left the session median furthest 40 ms before
 //    impact, in club angular speed"), difference: bool, diffLabel ("shot 8 − session median"),
 //    rows: [{ key, t, v: QList<double> (THIS shot's clock, NaN = blank: fewer than 3 contributed, or a
 //                                        reference shot's bridged run),
 //             bridges: BRIDGES (a reference SHOT's bridged runs; [] for the median / a fit, whose blanks stay blank),
 //             diff: QList<double> (this − reference on t), diffLo, diffHi (symmetric about 0, NaN when
-//             nothing overlaps), gap: { found, shotMs, diff, text, when } }] }
+//             nothing overlaps), gap: { found, shotMs, diff, text, when },
+//             typicality: { values, basisText } | null (R8, against "median" and "typical" only: this
+//                         shot's top → impact curve against the session's other shots with its club, at
+//                         least 8 — the TypicalityTrace mark's values, variability_facade.h) }] }
 //
 //  session: {
 //    available, why: Sentence (refused: n < 3, nothing aligned), n, aligned, kicker,
@@ -176,17 +179,24 @@ class TimelineLabels;
 //                     (this shot, full strength),
 //             coverage: [{ ordinal, shotId, swingDir, picked, runs: [{ t0, t1 }] }] (fit only, picked first),
 //             part: { found, canonMs, q1, q3, med, when },
-//             figures: [{ label, text }] }],
+//             figures: [{ label, text }],
+//             clubGrades: [{ club, readings, result: variabilityResult }] (R2b: the curves' consistency
+//                         top → impact, one Overlay grade per club; [] for the group fit) }],
 //    sequence: { present, stand: Sentence, lo, hi, ticks: TICKS (ms from impact, "+50"), pTicks: [{ tag, ms }],
 //                segments: [{ segment, word, never,
 //                             cells: [{ ordinal, shotId, swingDir, rank, text, late, picked }],
 //                             points: [{ ordinal, shotId, swingDir, ms, late, picked }],
-//                             median, q1, q3, placed, figText }] },
+//                             median, q1, q3, placed, figText }],
+//                orderGrades: [{ club, readings, k, segments: [ids], result: variabilityResult as a plain map }] (the
+//                             common order's consistency per club, ordinal, over the segments the common-order
+//                             sentence uses (R23): swings with every KEPT segment placed, k = m! for the m kept; the
+//                             basisText names them, "Same order in 12 of 15 swings · pelvis, lead arm, club"; fewer
+//                             than two kept: no entry) },
 //    questions: [{ id, text, answer: Sentence, lit: [ordinals], setFacet, setBand }] }
 //
 //  now: { valid, us, shotMs, canonMs, when ("+12 ms"),
 //         rows: [{ key, value, text, measured, addrText ("Δ +12°" from Address), typical,
-//                  typicalText (session median at the playhead), refText, gapText (Against) }] }
+//                  typicalText (the session median at the playhead, shown as "median"), refText, gapText (Against) }] }
 //
 // ── WHAT QML CALLS ───────────────────────────────────────────────────────────────────────────
 // seekUsFor(ordinal, canonMs) / seekUsForShotMs(shotMs): the µs to hand shotReplay.seekToUs.
@@ -194,6 +204,8 @@ class TimelineLabels;
 // tooltip's rows. All four are lookups into cached arrays: call them on a pointer event, never in a
 // binding that re-evaluates per frame.
 namespace pinpoint::charts {
+
+class IVariabilityScaleProvider;
 
 class ChartsTracesPresenter : public QObject
 {
@@ -300,6 +312,10 @@ public:
     // ── test and measurement seams ──
     // A snapshot given directly, used while no SessionSeriesModel is set (tests; the fixture).
     void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);
+    // The variability scales in place of the catalogue's (tests), set before the first snapshot. A trace is graded, and
+    // has a TypicalityTrace, only against a scale of its own (R16), and no descriptor states one yet, so a test that
+    // exercises the grading states one here.
+    void setVariabilityScalesForTest(std::shared_ptr<const IVariabilityScaleProvider> scales);
     Q_INVOKABLE void setSynchronous(bool on);
     Q_INVOKABLE bool waitForIdle(int msTimeout = 60000);
     // The last job's cost: { jobMs, thisShotMs, referenceMs, sessionMs, cacheHit, revision }.
