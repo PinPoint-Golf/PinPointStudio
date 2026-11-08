@@ -28,7 +28,8 @@ import PinPointStudio
 // Faults (past the fault line) · Outside (out of the corridor, faults included) · Inside (graded clean), each with its
 // count under the name filter; a reading no condition graded shows under All only (row.verdict, the presenter's).
 // Each row carries this shot's technical Typicality badge when R8 gives one (row.variability: this shot against the
-// other shots with its club, at least eight), on the row's second line (PpChProfile); the session box, pooled across
+// other shots with its club, at least eight), on the row's second line (PpChProfile) once the row is OPEN
+// (variabilityOnOpen; Mark, 8 Nov 2026: on every row it made the list noisy); the session box, pooled across
 // clubs, stays as drawn, and so do the median and place.
 // objectName: chReadingsView, chReadingsFilter, chReadingsVerdict:<all|fault|outside|inside>.
 PpChViewBase {
@@ -185,6 +186,7 @@ PpChViewBase {
                 width: pf.colW; roles: rv.roles; brush: rv.brush; interactive: rv.interactive
                 presenter: rv.body ? rv.body.relationsP : null
                 showCorridor: true
+                variabilityOnOpen: true
                 groups: modelData
                 shotLabel: rv.body && rv.body.rStatus ? (rv.body.rStatus.shotLabel || "") : ""
                 countLabel: !rv.body || !rv.body.rStatus ? "" : rv.roles && !rv.roles.atLeast(pf.colW, "compact") ? (rv.body.rStatus.countLabelShort || "") : (rv.body.rStatus.countLabel || "")

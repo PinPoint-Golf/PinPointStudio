@@ -451,6 +451,7 @@ PpChViewBase {
             width: parent.width; roles: sv.roles; brush: sv.brush; interactive: sv.interactive
             presenter: sv.body ? sv.body.relationsP : null
             rows: sv.rs.apart || []
+            variabilityOnOpen: true
             headLabel: "Apart from the session"; shotLabel: sv.shotWord; countLabel: sv.countWord
             openId: sv.body ? sv.body.openId : ""; openRow: sv.body ? sv.body.rOpen : null
             playMs: sv.relPlayMs; playText: sv.body && sv.body.rPlayhead ? (sv.body.rPlayhead.openValueText || "") : ""

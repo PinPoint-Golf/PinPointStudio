@@ -46,6 +46,9 @@ import PinPointStudio
 // tooltip). In the wide form the badge leads line 2; in the folded form it follows the folded columns (at, median,
 // place, the warn word), on the same line when both fit the row, else on a line of its own under them, so neither
 // is ever pushed past the row's edge. A row with no `variability` is drawn as it always was.
+// `variabilityOnOpen` (Mark, 8 Nov 2026: the badge on every row made the Readings list noisy) keeps the badge to
+// the OPEN row only: a closed row is drawn as if it had no `variability`, and the badge appears on line 2 when the
+// row opens, above its curve. Off by default, so a list whose subject is the variability keeps it on every row.
 // objectNames: chApart (the apart list) / chProfile (every reading); each row chApartRow (+ readingId),
 // the open one also chApartRowOpen; a row's badge chProfileVariability.
 Column {
@@ -66,6 +69,7 @@ Column {
     property bool showPlace: true
     property bool showCorridor: false            // #10: the Readings tab draws each graded reading's corridor (PpChBoxCell)
     property string variabilityLayer: "technical"   // a row's badge: "technical" | "golfer" (the header)
+    property bool variabilityOnOpen: false           // true: the badge shows on the open row only (the header)
     readonly property var keyKinds: ["box", "ring", "fired"]
     signal rowActivated(string readingId)
     signal shotActivated(int ordinal)
@@ -139,7 +143,8 @@ Column {
             // the row's variability (the header): a badge, or nothing for a consistency reading with no grade
             readonly property var vb: r && r.variability ? r.variability : null
             readonly property bool typ: !!vb && vb.kind === "typicality"
-            readonly property bool badged: !!vb && (typ ? !!vb.values : !!(vb.result && vb.result.graded))
+            readonly property bool badged: !!vb && (!pt.variabilityOnOpen || open)
+                                           && (typ ? !!vb.values : !!(vb.result && vb.result.graded))
             readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution)) || badged
             readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
             // line 2 holds the facts and the badge: on one line when both fit, else the second under the first

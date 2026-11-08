@@ -207,8 +207,8 @@ Session diagnostics
 - `src/Gui/charts/PpChProfile.qml` in `src/Gui/diagnostics/PpConsistencyView.qml` — Consistency tab: an opened cell's reading rows · Dispersion Cell · technical; the picked shot's "What stood out" club and swing rows (R8) · Typicality Icon · technical.
 
 Charts
-- `src/Gui/charts/PpChProfile.qml` in `PpChartsReadingsView.qml` — Readings rows · Typicality Icon · technical.
-- `src/Gui/charts/PpChProfile.qml` in `PpChartsShotView.qml` — This shot, Apart from the session rows · Typicality Icon · technical.
+- `src/Gui/charts/PpChProfile.qml` in `PpChartsReadingsView.qml` — Readings rows, the open row only (`variabilityOnOpen`) · Typicality Icon · technical.
+- `src/Gui/charts/PpChProfile.qml` in `PpChartsShotView.qml` — This shot, Apart from the session rows, the open row only (`variabilityOnOpen`) · Typicality Icon · technical.
 - `src/Gui/charts/PpChKeyFigures.qml` — This shot, key figures (KS peak times included) · Typicality Icon · technical where the column holds the basis, else the word with the basis on its own line.
 - `src/Gui/charts/PpChTraceFigure.qml` — This shot, Against · TypicalityTrace Cell · technical. Shown for the 24 traces that borrow a norm (R31); the rest stay ungraded (R16).
 - `src/Gui/charts/PpChSessionFigure.qml` — Session curves, one per club · Overlay Cell · technical. Shown for the 24 traces that borrow a norm (R31); the rest stay ungraded (R16).
