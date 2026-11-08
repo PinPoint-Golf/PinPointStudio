@@ -203,6 +203,7 @@ ConsistencyInput consistencyInput(const SessionSnapshot &s, const SessionAlignme
     const auto keep = [&](ConsistencyReading &&r) {
         if (!anyFinite(r.values)) return;
         r.normSigma = normSigmaOf(r, in.shots, env);
+        r.afterBall = r.column == kConsistencyAfterBallColumn && env.afterBall && env.afterBall(r.key);
         in.readings.push_back(std::move(r));
     };
 
@@ -213,7 +214,7 @@ ConsistencyInput consistencyInput(const SessionSnapshot &s, const SessionAlignme
         const KeyFacts &facts = it->second;
         const QString area = env.areaOf ? env.areaOf(key) : QString();
 
-        if (area == QLatin1String("impact")) {
+        if (consistencyReadsAtImpact(area)) {
             keep(positionReading(s, key, facts, area, kConsistencyImpactColumn, phase::Impact));
             continue;
         }

@@ -58,6 +58,20 @@
 
 namespace pinpoint::report {
 
+// The page's name column is what the eight columns leave, and "Lateral and balance" does not fit it: on paper an area
+// name takes "&", the way Home writes it (Mark, 8 Nov 2026). The sentences on the page keep "and".
+inline QVariantMap reportConsistencyTable(QVariantMap matrix)
+{
+    QVariantList rows = matrix.value(QStringLiteral("rows")).toList();
+    for (QVariant &row : rows) {
+        QVariantMap m = row.toMap();
+        m.insert(QStringLiteral("name"), m.value(QStringLiteral("name")).toString().replace(QStringLiteral(" and "), QStringLiteral(" & ")));
+        row = m;
+    }
+    matrix.insert(QStringLiteral("rows"), rows);
+    return matrix;
+}
+
 constexpr int kConsistencyReportSwingCap = 6;    // flagged swings on the page: a session's fences flag few
 constexpr int kConsistencyReportRowCap   = 8;    // rows under one swing, ball first
 
@@ -153,7 +167,7 @@ inline QVariant consistencyReportBlock(const QVariantMap &payload, const QHash<Q
         { QStringLiteral("ball"), consistencyReportSentence(payload.value(QStringLiteral("ball"))) },
         { QStringLiteral("empty"), payload.value(QStringLiteral("empty")) },
         { QStringLiteral("notes"), notes },
-        { QStringLiteral("table"), table ? payload.value(QStringLiteral("matrix")) : QVariant::fromValue(nullptr) },
+        { QStringLiteral("table"), table ? QVariant(reportConsistencyTable(payload.value(QStringLiteral("matrix")).toMap())) : QVariant::fromValue(nullptr) },
         { QStringLiteral("key"), table ? payload.value(QStringLiteral("key")).toString() : QString() },
         { QStringLiteral("keyMarks"), table ? payload.value(QStringLiteral("keyMarks")).toString() : QString() },
         { QStringLiteral("flagged"), flagged },

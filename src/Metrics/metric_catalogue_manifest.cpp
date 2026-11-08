@@ -615,7 +615,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the apparent hand-against-forearm angle in the face-on image "
                                "plane, from the WholeBody hand keypoints")) },
         .usedBy = { QStringLiteral("assessment:wrist") },
-        .consistencyArea = QStringLiteral("release"),
+        .consistencyArea = QStringLiteral("wrists"),
         // R31: graded against the norm of its own quantity (calibration report-s5 §1): change P1 to P5, 12°.
         .traceCorridorMeasure = QStringLiteral("m_trailWristFlexExt_p5"),
     });
@@ -839,7 +839,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the shoulder line's signed bearing from the two-camera skeleton fit, "
                                "lead-relative — the second camera's placement is assumed until it "
                                "is calibrated")) },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+        .consistencyArea = QStringLiteral("rotation"),
         // R31: graded against the norm of its own quantity (calibration report-s5 §1): thoraxRotation's, at P4, 12°.
         .traceCorridorMeasure = QStringLiteral("m_thoraxRotP4"),
     });
@@ -875,7 +875,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("both bearings from the two-camera skeleton fit, so the separation "
                                "carries both turns' uncertainty")), },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
     });
 
     cat.addDescriptor({
@@ -1058,7 +1058,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .shortLabel = QStringLiteral("Side bend"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Spine & tilt"),
-        .color = QStringLiteral("sky"),
+        .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "Lateral flexion of the trunk toward the trail side — the side-bend of the thorax "
             "relative to the pelvis — which naturally appears in the downswing as the trail "
@@ -1082,10 +1082,23 @@ void installMetricManifest(MetricCatalogue &cat)
         .domain = P1toP7,
         .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact },
         .routes = {
+            // Planned, nothing built (trunk_imu_sequence_grf_design.md): true side bend is thorax
+            // against pelvis, so it needs both sensors, thoraxSideBend and pelvisObliquity.
+            via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
+                QStringLiteral("the thorax's side bend (thoraxSideBend, rot.thorax.sideBend.*) "
+                               "against the pelvis's frontal tilt (pelvisObliquity), from two "
+                               "worn sensors"),
+                true),
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral trunk flexion, read in the frontal plane the face-on "
-                               "camera sees square-on")) },
-        .consistencyArea = QStringLiteral("posture"),
+                               "camera sees square-on")),
+            via("faceOn+dtl", RM::Triangulated, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the 3-D hip and shoulder lines from triangulated pose, so the "
+                               "shoulder line against the hip line no longer carries the turn"),
+                true) },
+        .usedBy = { QStringLiteral("characteristic:insufficient_side_bend_impact"),
+                    QStringLiteral("characteristic:excessive_side_bend_impact") },
         // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 6°.
         .traceCorridorMeasure = QStringLiteral("m_spineSideBendTop"),
     });
@@ -1598,7 +1611,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("differentiated from the clubhead's path in the face-on image, "
                                "scaled by the ball-diameter ruler")) },
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
         // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P7, per club: iron 3.75, wedge 3.4, driver 4.65 mph.
@@ -1640,7 +1653,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // the ball). A floor on it fired "quitting on it" on ordinary swings. The fault is the
         // CLUBHEAD peaking early, which is `clubheadPeakLead` below.
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
         // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
@@ -1888,7 +1901,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the image line from the down-the-line ball to the grip; the shaft "
                                "track supplies both")) },
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("swingPlane"),
+        .consistencyArea = QStringLiteral("planePath"),
     });
 
     // How much steeper the hands come down than they went up, at the same height: the hand plane's
@@ -1925,7 +1938,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the hand plane's downswing half against its backswing half, at the "
                                "same height in the down-the-line image")) },
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("swingPlane"),
+        .consistencyArea = QStringLiteral("planePath"),
     });
 
     // The shoulder plane: the plane through the ball's target line and the TRAIL shoulder at
@@ -2000,7 +2013,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // The four conditions that graded this moved to swingPlaneCurve on 8 Nov 2026. Placed by hand
         // now that no condition places it (session_consistency, Appendix B).
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("swingPlane"),
+        .consistencyArea = QStringLiteral("planePath"),
         // over_the_top and shallowing USED to hang here, as a planned P4→P5 delta of
         // this down-the-line series. They moved to transitionPlaneDelta below, which
         // is the same idea measured a way the face-on camera can actually deliver.
@@ -2044,7 +2057,7 @@ void installMetricManifest(MetricCatalogue &cat)
                                "in three dimensions, which one camera cannot give")) },
         // The four conditions that graded this moved to swingPlaneCurve on 8 Nov 2026.
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("swingPlane"),
+        .consistencyArea = QStringLiteral("planePath"),
     });
 
     // The transition delta, and the reason it is a separate key from swingPlane
@@ -2203,7 +2216,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // measure reads the launch monitor only until the tracker's impact geometry is validated
         // against the hand-marked P7 truth. The series stays for the chart.
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("impact"),
+        .consistencyArea = QStringLiteral("delivery"),
     });
 
     cat.addDescriptor({
@@ -2295,7 +2308,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("timed off the segmented phase ladder, whatever produced it — a "
                                "motion-sensor-only swing and a camera-only swing both qualify, and the "
                                "producer refuses a ladder it does not trust")) },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // Variability scale (spec §8.2): a duration: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
     });
@@ -2518,7 +2531,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder span's cosine unfolded across the square-up and "
                                "differentiated, with the uncertainty propagated through 1/sin θ")) },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
         // It has no corridor (R29), so it stays ungraded.
         .traceTimingGraded = true,
@@ -2565,7 +2578,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
                 QStringLiteral("the shoulder→wrist image angle de-projected through the "
                                "swing-plane ellipse and differentiated")) },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
         // It has no corridor (R29), so it stays ungraded.
         .traceTimingGraded = true,
@@ -2614,7 +2627,7 @@ void installMetricManifest(MetricCatalogue &cat)
             via("faceOnClub", RM::Projected, Estimated, { .faceOnCamera = true, .clubTrack = true },
                 QStringLiteral("the filtered shaft angle rate de-projected through the "
                                "swing-plane ellipse")) },
-        .consistencyArea = QStringLiteral("sequence"),
+        .consistencyArea = QStringLiteral("rotation"),
         // R31: a rate trace with an interior peak, so its peak time is graded too (report-s5 §2).
         // It has no corridor (R29), so it stays ungraded.
         .traceTimingGraded = true,
@@ -3333,7 +3346,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the elbow line's angle, in the face-on image")) },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+        .consistencyArea = QStringLiteral("arms"),
     });
 
 
@@ -3624,7 +3637,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // zero read 5° to 59° on swings of one shape. The P4 reading is `shoulderPlaneAngle3d` below,
         // planned on the triangulated pair. Address and impact stay honest here.
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+        .consistencyArea = QStringLiteral("rotation"),
     });
 
     // The shoulder line's inclination at the top as GEOMETRY — the reading `flat_shoulder_plane`
@@ -5102,7 +5115,7 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:low_point_too_far_ahead"),
                     QStringLiteral("characteristic:top"),
                     QStringLiteral("characteristic:sky") },
-        .consistencyArea = QStringLiteral("impact"),
+        .consistencyArea = QStringLiteral("delivery"),
     });
 }
 

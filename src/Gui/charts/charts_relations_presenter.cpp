@@ -976,7 +976,7 @@ ApartRow testedRowOf(const Ctx &x, const ConsistencyReading &tested, int column,
     ApartRow a;
     a.key = tested.key;
     a.reading = readingOfKey(x, tested.key, column);
-    const bool atImpact = tested.area == QLatin1String("impact");       // Impact reads P7 itself, not the span into it
+    const bool atImpact = consistencyReadsAtImpact(tested.area);        // Delivery reads P7 itself, not the span into it
     const QString tag = atImpact ? x.v.tag(phase::Impact) : consistencyColumnName(column);
     a.words = lowerLabel(tested.label) + QStringLiteral(" at ") + tag;
 

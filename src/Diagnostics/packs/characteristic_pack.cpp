@@ -18,6 +18,7 @@
 
 #include "characteristic_pack.h"
 
+#include "area_regroup_table.h"   // generated: the alias step for packs that predate the regroup
 #include "reference_pack.h"   // the book gate resolves a citation against the bibliography
 
 #include <QHash>
@@ -1783,6 +1784,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
     out.pack.version       = root.value(QStringLiteral("version")).toString();
     out.pack.schemaVersion = root.value(QStringLiteral("schemaVersion")).toInt(kPackSchemaVersion);
     out.pack.sourceLabel   = sourceLabel;
+    const bool currentGroups = packHasCurrentGroups(root);
 
     // Its own code, not `duplicateId`. A pack with no id is not a collision — it is content that
     // cannot be namespaced, layered, or named in any issue it goes on to raise, and an author
@@ -2118,16 +2120,22 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         // default, and there never was: the four were unguarded because nobody had written the
         // guard, not because anybody had argued they should be.
         //
-        // Every message names the FIELD, because `setup` is a legal token of two different enums
-        // here and `kind` is the third meaning of that JSON key in this file (Measure::kind,
-        // Reducer::kind).
-        if (o.contains(QStringLiteral("group"))
-            && !conditionGroupFromName(o.value(QStringLiteral("group")).toString(), c.group))
-            err(r, QStringLiteral("unknownGroup"), c.id,
-                QStringLiteral("Condition '%1' declares group '%2'; the groups are setup, posture, "
-                               "lateral, armsAndClub, swingPlane, release, sequence, impact, finish and "
-                               "ballFlight.")
-                    .arg(c.id, o.value(QStringLiteral("group")).toString()));
+        // Every message names the FIELD, because `setup` and `delivery` are legal tokens of two
+        // different enums here and `kind` is the third meaning of that JSON key in this file
+        // (Measure::kind, Reducer::kind).
+        //
+        // A token retired by the swing area regroup is brought forward before it is parsed, so an
+        // older pack loads; see currentConditionGroupToken().
+        if (o.contains(QStringLiteral("group"))) {
+            const QString stored = o.value(QStringLiteral("group")).toString();
+            if (!conditionGroupFromName(currentConditionGroupToken(c.id, stored, currentGroups), c.group)) {
+                QStringList names;
+                for (ConditionGroup g : allConditionGroups()) names << conditionGroupName(g);
+                err(r, QStringLiteral("unknownGroup"), c.id,
+                    QStringLiteral("Condition '%1' declares group '%2'; the groups are %3.")
+                        .arg(c.id, stored, names.join(QStringLiteral(", "))));
+            }
+        }
 
         if (o.contains(QStringLiteral("observability"))
             && !observabilityFromName(o.value(QStringLiteral("observability")).toString(),
@@ -2293,12 +2301,46 @@ PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel)
     return loadPack(doc.object(), sourceLabel);
 }
 
+// ── Retired group tokens ────────────────────────────────────────────────────
+
+bool packHasCurrentGroups(const QJsonObject &root)
+{
+    return root.value(QStringLiteral("groupsRevision")).toInt() >= kPackGroupsRevision;
+}
+
+QString currentConditionGroupToken(const QString &conditionId, const QString &stored,
+                                   bool fileHasCurrentGroups)
+{
+    if (!fileHasCurrentGroups) {
+        static const QHash<QString, const detail::AreaRegroupRow *> kById = [] {
+            QHash<QString, const detail::AreaRegroupRow *> out;
+            for (const detail::AreaRegroupRow &row : detail::kAreaRegroupTable)
+                out.insert(QLatin1String(row.id), &row);
+            return out;
+        }();
+        const auto it = kById.constFind(conditionId);
+        if (it != kById.constEnd() && stored == QLatin1String(it.value()->oldToken))
+            return QLatin1String(it.value()->newToken);
+    }
+
+    static const QHash<QString, QString> kRetired = {
+        { QStringLiteral("sequence"),    QStringLiteral("rotation") },
+        { QStringLiteral("release"),     QStringLiteral("wrists") },
+        { QStringLiteral("swingPlane"),  QStringLiteral("planePath") },
+        { QStringLiteral("impact"),      QStringLiteral("delivery") },
+        { QStringLiteral("armsAndClub"), QStringLiteral("arms") },
+        { QStringLiteral("finish"),      QStringLiteral("lateral") },
+    };
+    return kRetired.value(stored, stored);
+}
+
 QJsonObject savePack(const CharacteristicPack &pack)
 {
     QJsonObject root;
     root.insert(QStringLiteral("id"), pack.id);
     root.insert(QStringLiteral("version"), pack.version);
     root.insert(QStringLiteral("schemaVersion"), pack.schemaVersion);
+    root.insert(QStringLiteral("groupsRevision"), kPackGroupsRevision);
 
     QJsonArray measures;
     for (const Measure &m : pack.measures) {

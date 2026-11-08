@@ -1698,7 +1698,7 @@ int main(int argc, char **argv)
         const QString condId = firstShippedId(m.rows(QStringLiteral("characteristics")));
         const QVariantList groups =
             m.ringValues(QStringLiteral("characteristics"), condId, QStringLiteral("group"));
-        check(groups.size() == 5, "nine groups shortlist to the five the collar draws");
+        check(groups.size() == 5, "ten groups shortlist to the five the collar draws");
         bool groupCurrent = false;
         for (const QVariant &v : groups)
             if (v.toMap().value(QStringLiteral("current")).toBool()) groupCurrent = true;

@@ -48,6 +48,7 @@ pp_add_test(charts_traces_presenter_test
             ${SRC}/Diagnostics/packs/reference_pack.cpp
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Diagnostics/measures/measure_facets.cpp
             ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp

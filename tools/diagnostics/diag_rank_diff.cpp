@@ -192,6 +192,7 @@ QString mirrorSession(const QString &sessionDir, const QString &workRoot,
 struct RunOut {
     std::vector<ShotRecord>  shots;
     std::vector<RankedCause> roots;
+    std::vector<LinkEvidence> links;
     double                   ms = 0.0;
 };
 
@@ -211,6 +212,7 @@ RunOut runPack(const Pack &p, const QString &work, const QByteArray &intentDoc)
         m.activateSession(work);
         o.shots = m.shotRecords();
         o.roots = m.explanation().roots;
+        o.links = m.linkEvidence();
     }
     o.ms = double(t.nsecsElapsed()) / 1e6;
     return o;
@@ -321,6 +323,8 @@ int main(int argc, char **argv)
 
     Csv roots(od.filePath(QStringLiteral("roots_by_session.csv")),
               { "session", "rank", "root_a", "score_a", "root_b", "score_b" });
+    Csv linkRows(od.filePath(QStringLiteral("links_a.csv")),
+                 { "session", "from", "to", "grade", "coherent", "pairs", "a", "b", "c", "d" });
     Csv changes(od.filePath(QStringLiteral("firing_changes.csv")),
                 { "session", "swing", "condition", "state_a", "state_b", "pFire_a", "pFire_b",
                   "driving_measure_b", "driving_value_b" });
@@ -348,7 +352,11 @@ int main(int argc, char **argv)
         const QString work = mirrorSession(dir, workRoot, swingNames, intentDoc, &copyFailures);
 
         const RunOut ra = runPack(A, work, intentDoc);
-        const RunOut rb = runPack(B, work, intentDoc);
+        // The same pack twice is one run: a build-against-build comparison reads links_a.csv and the kept ledger.
+        const RunOut rb = packADir == packBDir ? ra : runPack(B, work, intentDoc);
+        for (const LinkEvidence &l : ra.links)
+            linkRows.row({ name, l.from, l.to, QString::number(int(l.grade)), QString::number(int(l.coherent)),
+                           QString::number(l.pairs), QString::number(l.a), QString::number(l.b), QString::number(l.c), QString::number(l.d) });
         swingsA += int(ra.shots.size());
         swingsB += int(rb.shots.size());
         msA += ra.ms;

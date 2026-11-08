@@ -86,6 +86,11 @@ std::array<PostureRowSpec, kPostureRows> buildSpecs()
              QStringLiteral("pelvis"), QStringLiteral("% stance"), 0, PostureCamera::FaceOn,
              QStringLiteral("up"), QStringLiteral("down"), QStringLiteral("up"),
              ids(QStringLiteral("m_pelvisLift"), { nullptr, nullptr, nullptr, "m_pelvisLiftTop", nullptr, nullptr, "m_pelvisLiftImpact", "" }) };
+    // decision 17: the change from address at P7 alone; "" names no measure everywhere else
+    s[6] = { PostureRow::SideBend, QStringLiteral("sideBend"), QStringLiteral("spineSideBend"), QStringLiteral("Side bend"),
+             QStringLiteral("side bend"), QStringLiteral("°"), 0, PostureCamera::FaceOn,
+             QStringLiteral("more bend"), QStringLiteral("less bend"), QStringLiteral("more bend"),
+             ids(QString(), { nullptr, "", "", "", "", "", "m_spineSideBendChangeImpact", "" }) };
     return s;
 }
 
@@ -97,7 +102,10 @@ int posOfPhase(pa::Phase ph)
     return -1;
 }
 
-bool matchEligible(PostureRow r, int pos) { return r != PostureRow::TrailKnee && pos >= kP2 && pos <= kP7; }
+// Drawn, never in the match, an exit or a departure: the trail knee is a style (§4.2), side bend is not a pattern
+// signature (decision 17).
+bool neverMatched(PostureRow r) { return r == PostureRow::TrailKnee || r == PostureRow::SideBend; }
+bool matchEligible(PostureRow r, int pos) { return !neverMatched(r) && pos >= kP2 && pos <= kP7; }
 
 using words::withUnit;                     // the one figure-and-unit rule (figure_format.h)
 // "+6.5 cm", "−10°"
@@ -266,7 +274,7 @@ PostureRowView rowView(PostureRow r, const PostureGrid &x, bool present, const P
         // decision 1: a ⚠ cell is never outside; the word is the side of the band, with no number
         c.outside = !c.warned && fin(c.z) && std::fabs(c.z) > 1.0;
         if (c.outside) c.ring = c.z > 0 ? s.plusWord : s.minusWord;
-        const bool exitEligible = r != PostureRow::TrailKnee && !c.warned && fin(c.value)
+        const bool exitEligible = !neverMatched(r) && !c.warned && fin(c.value)
                                   && ((p >= kP2 && p <= kP7) || (p == kP8 && c.band.has));
         c.exit = exitEligible && fin(c.z) && std::fabs(c.z) > kPostureExitZ;
         if (p > 0) c.fault = faults[R][size_t(p)];
@@ -314,6 +322,7 @@ QString exitHeadline(const PostureExit &e, const PostureBand &b)
     case PostureRow::LeadKnee: s = up ? QStringLiteral("Your lead knee flexed %1 more by %2") : QStringLiteral("Your lead knee straightened %1 by %2"); break;
     case PostureRow::TrailKnee:s = up ? QStringLiteral("Your trail knee flexed %1 more by %2") : QStringLiteral("Your trail knee straightened %1 by %2"); break;
     case PostureRow::PelvisHeight: s = up ? QStringLiteral("Your pelvis rose %1 by %2") : QStringLiteral("Your pelvis dropped %1 by %2"); break;
+    case PostureRow::SideBend: s = up ? QStringLiteral("You gained %1 of side bend by %2") : QStringLiteral("You lost %1 of side bend by %2"); break;   // never an exit (decision 17)
     }
     s = s.arg(amt, when);
     if (b.has)
@@ -457,11 +466,19 @@ PostureTrust trustOf(const std::array<PostureRowView, kPostureRows> &rows, const
     QStringList faceOn, dtl;
     std::vector<const PostureBand *> used;
     QStringList gateLines;
+    QString sideBendCorridor;
     for (const PostureRowView &r : rows) {
         if (!r.present) continue;
         (postureRowSpec(r.row).camera == PostureCamera::FaceOn ? faceOn : dtl) << r.label.toLower();
         // a row with no value says its reason once, in `absent`
         const bool anyValue = std::any_of(r.cells.begin(), r.cells.end(), [](const PostureCellView &c) { return fin(c.value); });
+        // decision 17: side bend's band and its ⚠ are each said in their own one sentence (below), not in the row-agnostic lines
+        if (r.row == PostureRow::SideBend) {
+            if (r.cells[kP7].band.has) sideBendCorridor = postureSideBendCorridorTrust();
+            if (r.cells[kP7].warned && fin(r.cells[kP7].value))
+                t.warnings << QStringLiteral("⚠ Side bend at impact: %1.").arg(postureSideBendWarnReason());
+            continue;
+        }
         for (const PostureCellView &c : r.cells) {
             if (c.band.has) used.push_back(&c.band);
             if (anyValue && !c.gateWords.isEmpty()) {
@@ -495,6 +512,7 @@ PostureTrust trustOf(const std::array<PostureRowView, kPostureRows> &rows, const
     if (!hipWarn && !hipLine.isEmpty()) t.lines << hipLine;   // the butt line: said, not warned
     t.lines << t.absent << t.warnings;
     if (!t.bandSources.isEmpty()) t.lines << t.bandSources;
+    if (!sideBendCorridor.isEmpty()) t.lines << sideBendCorridor;   // decision 17: said once
     if (!t.trunkDatum.isEmpty()) t.lines << t.trunkDatum;
     t.lines << address;   // the "At address" block's: the rig rule first, then its set-up key, sources, what is not read
     return t;
@@ -577,6 +595,15 @@ QString postureWarnReason(PostureRow r, int pos)
     case PostureRow::PelvisHeight: return QStringLiteral("the hip joints migrate at the top");
     default:                       return QString();   // hip depth: the shot's own, decision 15
     }
+}
+QString postureSideBendWarnReason()
+{
+    return QStringLiteral("the hips or shoulders had turned almost edge-on to the face-on camera, so this side bend is less sure");
+}
+QString postureSideBendCorridorTrust()
+{
+    return QStringLiteral("Side bend at impact: the good-player corridor is provisional, a 2-D reading from the face-on camera, "
+                          "derived from the swings in our own library.");
 }
 bool postureHipButtPos(int pos) { return pos >= kP3 && pos <= kP5; }
 QString postureHipJointsMeasure(int pos)
@@ -956,7 +983,8 @@ PostureShotInput postureInputFromShot(const ShotSeries &shot, const PostureEnv &
             double v = kNaN;
             QString gateKey = s.metricKey;
             if (p == 0) {
-                if ((mg && mg->at(pa::Phase::Address)) || (bg && bg->at(pa::Phase::Address))) v = 0.0;
+                // decision 17: side bend reads at impact alone; P1 stays "-" (a 0 here would claim a reading the row may not have)
+                if (s.row != PostureRow::SideBend && ((mg && mg->at(pa::Phase::Address)) || (bg && bg->at(pa::Phase::Address)))) v = 0.0;
             } else if (hips && postureHipButtPos(p)) {
                 // decision 15: the butt line; where it is refused, the joints, under the ⚠
                 v = readCell(s.measureIds[size_t(p)], buttKey, p);
@@ -971,7 +999,12 @@ PostureShotInput postureInputFromShot(const ShotSeries &shot, const PostureEnv &
                 v = readCell(s.measureIds[size_t(p)], s.metricKey, p);
             }
             in.value[size_t(r)][size_t(p)] = v;
-            const GateHit g = gateFor(shot, gateKey, atMs[size_t(p)]);
+            GateHit g = gateFor(shot, gateKey, atMs[size_t(p)]);
+            // decision 17: a mask over the instants this reading reads — impact, or its address anchor — keeps the value and draws the ⚠
+            if (s.row == PostureRow::SideBend && p == kP7 && fin(v)) {
+                const GateHit hit = g.words.isEmpty() ? gateFor(shot, gateKey, atMs[0]) : g;
+                if (!hit.words.isEmpty()) { g.warn = true; g.words = hit.words; }
+            }
             if (g.warn || !fin(v)) in.gateWords[size_t(r)][size_t(p)] = g.words;
             in.gateWarn[size_t(r)][size_t(p)] = g.warn;
             if (g.warn && in.gateWhy[size_t(r)].isEmpty()) in.gateWhy[size_t(r)] = g.why;
@@ -1077,7 +1110,7 @@ std::vector<PostureExit> postureExits(const PostureGrid &x, const std::array<boo
     for (int p = kP2; p <= kP8; ++p) {
         for (int r = 0; r < kPostureRows; ++r) {
             const PostureRow row = PostureRow(r);
-            if (row == PostureRow::TrailKnee || !present[size_t(r)] || cellWarned(warn, row, p)) continue;
+            if (neverMatched(row) || !present[size_t(r)] || cellWarned(warn, row, p)) continue;
             const double v = x[size_t(r)][size_t(p)];
             const double z = cellZ(x, bands, row, p);
             if (!fin(v) || !fin(z) || std::fabs(z) <= kPostureExitZ) continue;
@@ -1298,9 +1331,11 @@ QString headlineOf(const std::vector<PostureExit> &exits, const std::array<Postu
     const PostureExit *best = largestExit(exits);
     if (best)
         return QStringLiteral("Your %1 is %2.").arg(postureRowSpec(best->row).noun, postureWd6Words(best->pos));
-    for (const PostureRowView &r : rows)
+    for (const PostureRowView &r : rows) {
+        if (r.row == PostureRow::SideBend) continue;   // decision 17: the head line talks about the pattern
         for (const PostureCellView &c : r.cells)
             if (!c.note.isEmpty()) return QStringLiteral("Your %1 is %2.").arg(postureRowSpec(r.row).noun, c.note);
+    }
     return QStringLiteral("Your posture stays inside the %1 band from P2 to P7.").arg(posturePatternName(pattern));
 }
 

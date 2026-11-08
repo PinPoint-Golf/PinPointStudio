@@ -34,6 +34,7 @@ pp_add_test(report_model_test
             ${SRC}/Diagnostics/norms/context_tree.cpp
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Diagnostics/packs/drill_pack.cpp
             ${SRC}/Diagnostics/packs/gate_words_pack.cpp

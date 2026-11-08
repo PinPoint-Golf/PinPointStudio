@@ -488,6 +488,7 @@ public:
     const std::vector<pinpoint::analysis::ShotRecord>      &shotRecords() const { return m_shots; }
     const std::vector<pinpoint::analysis::ConditionLedger> &ledgerRows()  const { return m_ledgers; }
     const pinpoint::analysis::Explanation                  &explanation() const { return m_explanation; }
+    const std::vector<pinpoint::analysis::LinkEvidence>    &linkEvidence() const { return m_links; }
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────

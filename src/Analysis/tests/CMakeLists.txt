@@ -1075,6 +1075,7 @@ pp_add_test(characteristic_pack_test
 pp_add_test(core_pack_test
     SOURCES ${DIAG}/tests/core_pack_test.cpp ${DIAG_PACK} ${DIAG}/norms/norm.cpp ${DIAG}/norms/norm_pack.cpp ${DIAG}/norms/context_tree.cpp
             ${DIAG}/packs/file_pack_provider.cpp ${DIAG}/packs/gate_words_pack.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json"
                     -DPP_CORE_NORMS_PATH="${DIAGRES}/norms.json"
@@ -1155,6 +1156,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
             ${DIAG}/engine/diagnostics_health.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -1186,6 +1188,7 @@ pp_add_test(diagnostics_health_test
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -1304,6 +1307,7 @@ pp_add_test(live_measure_source_test
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
     INCLUDE ${NORM_INC}
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
@@ -1358,6 +1362,7 @@ pp_add_test(session_diagnostics_model_test
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             # The model dates each shot from clock.wallclock via SwingDocReader::readSwingSummary
             # rather than the file's mtime, so the summary reader comes with it. swing_paths.cpp is
@@ -1416,6 +1421,7 @@ pp_add_test(work_ons_controller_test
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/Export/swing_doc.cpp
             ${SRC}/Export/swing_paths.cpp
@@ -1447,6 +1453,7 @@ add_executable(regrade_ledger
     ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
     ${SRC}/Export/swing_doc.cpp
     ${SRC}/Export/swing_paths.cpp
@@ -1474,6 +1481,7 @@ set(MEASURE_DUMP_SRC
     ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
     ${SRC}/Export/swing_doc.cpp
     ${SRC}/Export/swing_paths.cpp
@@ -1507,6 +1515,7 @@ add_executable(diag_uncertainty_report
     ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
     ${SRC}/Export/swing_doc.cpp
     ${SRC}/Export/swing_paths.cpp
@@ -1537,6 +1546,7 @@ add_executable(diag_rank_diff
     ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
     ${SRC}/Export/swing_doc.cpp
     ${SRC}/Export/swing_paths.cpp
@@ -1606,6 +1616,7 @@ pp_add_test(seed_conversion_test
             ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(seed_conversion_test PROPERTIES
@@ -1627,6 +1638,7 @@ pp_add_test(lm_corridor_test
             ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
@@ -1638,6 +1650,7 @@ pp_add_test(manifest_migration_test
             ${DIAG_NORM} ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${SRC}/Metrics/metric_catalogue.cpp
             ${SRC}/Metrics/metric_resolver.cpp
@@ -1663,6 +1676,7 @@ pp_add_test(model_browser_test
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
@@ -1694,6 +1708,7 @@ pp_add_test(inspector_refresh_test
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp ${DIAG}/packs/memory_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp ${DIAG_NORM}
@@ -1718,6 +1733,7 @@ pp_add_test(corridor_plot_test
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
             ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
             ${DIAG}/norms/merged_norm_provider.cpp ${DIAG_NORM}

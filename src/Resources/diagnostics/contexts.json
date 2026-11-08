@@ -25,7 +25,11 @@
     "node otherwise holds a row only where its band differs. No shot's grading context ever",
     "becomes a posture node; the chart names the node. posture_trail_released is the trail knee's",
     "released style (posture_chart_design.md §4.2): its band at P2-P4 for a golfer whose trail leg",
-    "straightens going back, whichever pattern; it too is named by the chart, never by a grade."
+    "straightens going back, whichever pattern; it too is named by the chart, never by a grade.",
+    "Side bend (spineSideBend) is deliberately not a pattern signature: it is graded and drawn but",
+    "never counts toward which pattern a golfer matches, so no posture_level or posture_squat_push",
+    "row is written for it (posture_chart_design.md §8; ref.meister2011, ref.chu2010, ref.joyce2010,",
+    "ref.chen2024)."
   ],
 
   "contexts": [

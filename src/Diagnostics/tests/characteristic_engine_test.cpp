@@ -955,7 +955,7 @@ int main()
         Condition casting;
         casting.id            = QStringLiteral("casting");
         casting.label         = casting.id;
-        casting.group         = ConditionGroup::Release;
+        casting.group         = ConditionGroup::Wrists;
         casting.observability = Observability::Observable;
         casting.confirmedBy   = ConfirmedBy::Measured;
         casting.detectedBy    = { QStringLiteral("sig_castingHinge"), QStringLiteral("sig_casting") };
@@ -970,7 +970,7 @@ int main()
         Condition club;
         club.id            = QStringLiteral("club_before_arms");
         club.label         = club.id;
-        club.group         = ConditionGroup::Sequence;
+        club.group         = ConditionGroup::Rotation;
         club.observability = Observability::Observable;
         club.confirmedBy   = ConfirmedBy::Measured;
         club.detectedBy    = { QStringLiteral("sig_clubBeforeArm") };

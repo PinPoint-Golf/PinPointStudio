@@ -186,7 +186,7 @@ double minSpanOf(PostureRow r) { return specOf(r).unit == QStringLiteral("cm") ?
 
 // ── shots ───────────────────────────────────────────────────────────────────────────────────
 
-// The keys postureInputFromShot reads: the six rows' series, the butt line, and every rung of the absolutes' ladders.
+// The keys postureInputFromShot reads: the rows' series, the butt line, and every rung of the absolutes' ladders.
 QSet<QString> postureKeys(const PostureEnv &env)
 {
     QSet<QString> keys;
@@ -980,6 +980,7 @@ QVariantList standfirstsOf(const PostureShotView &v, const std::array<qint64, kP
             bool first = true;
             for (const PostureRowView &r : v.rows) {
                 if (!r.present) continue;
+                if (r.row == PostureRow::SideBend && p != 6) continue;   // read at impact alone: no "side bend -" at every other position
                 const PostureCellView &c = r.cells[size_t(p)];
                 if (!first) st.append(QStringLiteral(", "));
                 first = false;

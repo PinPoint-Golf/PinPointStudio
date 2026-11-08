@@ -75,7 +75,7 @@
       "authors": "Chu, Sell, Lephart",
       "journal": "Journal of Sports Sciences",
       "year": 2010,
-      "establishes": "Models accounted for 44–74% of ball-velocity variance. X-factor, delayed release of the arms and wrists, trunk tilting and weight shifting were significantly related to ball velocity. Read alongside Madrid et al. 2020, which disagrees on wrist release."
+      "establishes": "Models accounted for 44–74% of ball-velocity variance. X-factor, delayed release of the arms and wrists, trunk tilting and weight shifting were significantly related to ball velocity. Read alongside Madrid et al. 2020, which disagrees on wrist release. 308 golfers, regression models at four selected events in the swing: trunk lateral tilting is named with forward tilting among the variables significantly related to driving ball velocity. Read from the abstract only, so neither the size nor the direction of the lateral-tilt relation is recorded here."
     },
     {
       "id": "ref.tinmark2010",
@@ -93,7 +93,7 @@
       "authors": "Meister, Ladd, Butler, Zhao, Rogers, Ray, Rose",
       "journal": "Journal of Applied Biomechanics",
       "year": 2011,
-      "establishes": "10 professional and 5 amateur male golfers. Benchmark curves for pelvic rotation, upper-torso rotation and X-factor across the whole swing. In professionals, peak free moment per kilogram, peak X-factor and peak S-factor were highly consistent — coefficients of variation 6.8%, 7.4% and 8.4%. The downswing was initiated by reversal of pelvic rotation followed by reversal of upper-torso rotation, and peak X-factor preceded peak free moment in every swing of every golfer, occurring during the initial downswing. For amateurs, the number of factors falling outside one to two standard deviations of the professional means increased with handicap."
+      "establishes": "10 professional and 5 amateur male golfers. Benchmark curves for pelvic rotation, upper-torso rotation and X-factor across the whole swing. In professionals, peak free moment per kilogram, peak X-factor and peak S-factor were highly consistent — coefficients of variation 6.8%, 7.4% and 8.4%. The downswing was initiated by reversal of pelvic rotation followed by reversal of upper-torso rotation, and peak X-factor preceded peak free moment in every swing of every golfer, occurring during the initial downswing. For amateurs, the number of factors falling outside one to two standard deviations of the professional means increased with handicap. Pelvic obliquity (O-factor, the angle of the hips to the horizontal) and shoulder obliquity (S-factor) were examined in swings of easy, medium and hard effort with each golfer's own 5-iron, on the hypothesis that both would be highly consistent among professionals and strongly correlated to clubhead speed at impact. The abstract names peak S-factor among the highly consistent factors and does not name O-factor; it names neither among the factors highly correlated to clubhead speed at impact. Read from the abstract and the paper's opening pages only, so no obliquity value is recorded here."
     },
     {
       "id": "ref.cheetham2008",
@@ -519,6 +519,34 @@
       "year": 2018,
       "generalReading": true,
       "establishes": "52 male golfers (27 high-skilled, 25 intermediate), their own drivers, 40 shots each. The clubface centre's path from mid-downswing to impact fits a plane closely (RMSE 1.1 mm) at a median 49.7° from the ground (high-skilled 49.5°, intermediate 51.2°). Measured against that plane, the shaft sits 2.2° below it at mid-backswing, on it in the late backswing, 5.5° above it at the top and 1.8° above (s 5.8) early in the downswing: the published shape of a swing plane that steepens to the top and settles back by impact, which is the shape the swing plane curve draws. Strike precision was associated with a shaft close to parallel to, or under, that plane in the downswing; the authors decline to turn that into a model swing plane, and the association is with the plane fitted per shot, not one fixed to the target line. Cited in the free text of the plane-angle norm rows, hence the flag."
+    },
+    {
+      "id": "ref.joyce2010",
+      "doi": "10.1080/14763141.2010.516446",
+      "pmid": "21162365",
+      "title": "Methodological considerations for the 3D measurement of the X-factor and lower trunk movement in golf",
+      "authors": "Joyce, Burnett, Ball",
+      "journal": "Sports Biomechanics",
+      "volume": "9",
+      "issue": "3",
+      "pages": "206-221",
+      "year": 2010,
+      "generalReading": true,
+      "establishes": "A three-part validation study of how to measure the X-factor and lower trunk movement in 3-D during the golf swing: models and algorithms validated, then 3-D data compared with visual estimates of static golf positions and with high-speed video of dynamic swings, with particular attention to sequence dependency. Concludes that a lateral bending, flexion-extension, axial rotation (ZYX) order is the most suitable Cardanic sequence for the X-factor and lower trunk movement. It is 3-D context for the side-bend reading and not a corridor: the library's face-on side bend is a 2-D projection. Read from the abstract only, so no side-bend value from the paper is recorded here. Recorded as general reading because no condition or edge rests on a measurement-method paper, and the free text of a norm row does not join this registry."
+    },
+    {
+      "id": "ref.chen2024",
+      "doi": "10.3390/s24041252",
+      "pmid": "38400409",
+      "title": "Does Overhead Squat Performance Affect the Swing Kinematics and Lumbar Spine Loads during the Golf Downswing?",
+      "authors": "Chen, Pandy, Huang, Tang",
+      "journal": "Sensors",
+      "volume": "24",
+      "issue": "4",
+      "pages": "1252",
+      "year": 2024,
+      "generalReading": true,
+      "establishes": "21 highly skilled golfers (9 men, 12 women, handicap 2.4 ± 1.5), maximal drives, split by overhead-squat score into a lowest-scoring (n = 11) and a highest-scoring (n = 10) group, lumbar kinematics and loads from a musculoskeletal model. In the frontal plane the groups showed no significant difference: lumbar right-side bending at impact 21.07° (SD 0.48) lowest against 20.93° (SD 0.70) highest, p = 0.591; bending displacement from top to impact 34.89° (SD 5.95) against 31.21° (SD 7.28), p = 0.218; peak right-side bending velocity p = 0.088. The differences were sagittal and in load: the highest-scoring group had greater lumbar extension displacement, a lower peak extension velocity and lower L4-L5 and L5-S1 shear. The split is a squat-ability screen, not a swing pattern, so this is adjacent evidence only and says nothing directly about swing styles. Recorded as general reading because it informs the decision to keep side bend out of the posture pattern match, and a pattern decision has no structured place to cite a source."
     }
   ]
 }

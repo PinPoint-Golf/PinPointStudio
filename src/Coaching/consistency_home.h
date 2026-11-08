@@ -47,29 +47,31 @@ inline const QString &consistencyColumnName(int column)
     return column >= 0 && column < names.size() ? names.at(column) : none;
 }
 
-// The areas down the side, top to bottom (the ConditionGroup tokens; ball flight has no spans).
+// The areas down the side, top to bottom: areaGroupOrder() without ball flight (no spans to read) and `golfer` (latent
+// causes, never an area).
 inline const QStringList &consistencyAreas()
 {
-    static const QStringList v{ QStringLiteral("setup"),    QStringLiteral("posture"), QStringLiteral("armsAndClub"),
-                                QStringLiteral("swingPlane"), QStringLiteral("sequence"), QStringLiteral("lateral"), QStringLiteral("release"),
-                                QStringLiteral("impact"),   QStringLiteral("finish") };
+    static const QStringList v{ QStringLiteral("setup"),     QStringLiteral("posture"), QStringLiteral("lateral"),
+                                QStringLiteral("rotation"),  QStringLiteral("arms"),    QStringLiteral("wrists"),
+                                QStringLiteral("planePath"), QStringLiteral("delivery") };
     return v;
 }
 
-// The columns an area is read at, ascending (doc §4.2's table). None for an unplaced or unknown area.
+// The columns an area is read at, ascending: Setup at P1, Delivery at P6-P7, everything else across the swing's
+// spans (doc §4.2's table). None for an unplaced or unknown area, `golfer` included.
 inline std::vector<int> consistencyColumnsOf(const QString &area)
 {
     if (area == QLatin1String("setup"))    return { 0 };
     if (area == QLatin1String("posture"))  return { 0, 1, 2, 3, 4, 5, 6, 7 };
-    if (area == QLatin1String("armsAndClub") || area == QLatin1String("swingPlane")
-        || area == QLatin1String("lateral"))
+    if (area == QLatin1String("lateral") || area == QLatin1String("rotation") || area == QLatin1String("arms")
+        || area == QLatin1String("wrists") || area == QLatin1String("planePath"))
         return { 1, 2, 3, 4, 5, 6, 7 };
-    if (area == QLatin1String("sequence")) return { 2, 3, 4, 5, 6 };
-    if (area == QLatin1String("release"))  return { 5, 6, 7 };
-    if (area == QLatin1String("impact"))   return { 6 };
-    if (area == QLatin1String("finish"))   return { 7 };
+    if (area == QLatin1String("delivery")) return { 6 };
     return {};
 }
+
+// Delivery reads P7 itself, not the span into it: the one area whose readings are positions at impact.
+inline bool consistencyReadsAtImpact(const QString &area) { return area == QLatin1String("delivery"); }
 
 inline bool consistencyApplies(const QString &area, int column)
 {

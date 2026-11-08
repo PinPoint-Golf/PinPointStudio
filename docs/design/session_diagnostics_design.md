@@ -118,7 +118,7 @@ Chains are confirmed link-by-link. Evidence grades, ascending:
 | Grade | Evidence | Notes |
 |---|---|---|
 | **Present together** | Both endpoints reach pattern tier | Necessary, not sufficient — common causes exist |
-| **Coherent** | Directions match edge semantics; nodes fire in the swing's own P1–P8 temporal order within shots | Exploits the near-total ordering of condition groups: the chain lights up *in sequence within a single swing* |
+| **Coherent** | Both endpoints were observed and their directions match edge semantics | Makes no claim about order within a swing: the detector reports one state per condition per shot. The graph's authored direction carries cause and effect; condition groups only classify and play no part in the grade |
 | **Conditionally dependent** | 2×2 table of per-shot firing: P(down \| up fired) vs P(down \| up clean); Fisher's exact at session n, Kendall-τ on paired z's for graded support (min 8 pairs) | The contingency table is already the coach sentence: "path was out-to-in on 7 of the 8 swings where the hips stalled — neutral on all 3 where they cleared" |
 | **Moved together** | Upstream improvement over recent shots followed by downstream improvement in the edge's predicted direction | The session's natural quasi-experiment (n-of-1 design); the strongest evidence available without a controlled protocol, and the most motivating thing a golfer can be shown |
 

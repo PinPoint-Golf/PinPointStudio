@@ -63,7 +63,7 @@ int r(PostureRow row) { return int(row); }
 int dp2(double d) { return int(std::lround(d * 100.0)); }
 int dp1(double d) { return int(std::lround(d * 10.0)); }
 
-// §2.1 (design table), P1..P8. Head, hips, bend, lead knee, trail knee; pelvis height separately.
+// §2.1 (design table), P1..P8. Head, hips, bend, lead knee, trail knee; pelvis height and side bend (P7 only) separately.
 PostureGrid golfer(const QString &who, bool withPelvis = false)
 {
     PostureGrid g = postureEmptyGrid();
@@ -75,6 +75,7 @@ PostureGrid golfer(const QString &who, bool withPelvis = false)
         put(PostureRow::LeadKnee,  { 0, 3.9, 14.2, 14.2, 13.0, 4.4, -3.0, -15.0 });
         put(PostureRow::TrailKnee, { 0, -9.7, -17.9, -18.3, -6.3, 7.5, 14.8, 17.7 });
         if (withPelvis) put(PostureRow::PelvisHeight, { 0, -9.3, -16.9, -20.4, -13.8, -7.7, -3.9, N });
+        if (withPelvis) put(PostureRow::SideBend, { N, N, N, N, N, N, 3.3, N });
     } else if (who == QLatin1String("Nick")) {
         put(PostureRow::Head,      { 0, 0.2, 0.5, -0.1, -0.4, -0.1, 0.1, 3.8 });
         put(PostureRow::Hips,      { 0, 2.6, 2.9, 4.1, 4.7, 5.6, 6.5, N });
@@ -82,6 +83,7 @@ PostureGrid golfer(const QString &who, bool withPelvis = false)
         put(PostureRow::LeadKnee,  { 0, 1.6, 9.3, 16.6, 3.0, -0.8, -4.8, -11.4 });
         put(PostureRow::TrailKnee, { 0, -17.1, -21.7, -21.0, -12.7, -8.2, -7.5, 2.4 });
         if (withPelvis) put(PostureRow::PelvisHeight, { 0, -4.9, -6.0, -5.3, -2.5, -1.6, 5.2, N });
+        if (withPelvis) put(PostureRow::SideBend, { N, N, N, N, N, N, 4.1, N });
     } else {
         put(PostureRow::Head,      { 0, -2.6, -5.2, -9.5, -8.6, -7.3, -6.0, 2.1 });
         put(PostureRow::Hips,      { 0, -0.3, -0.4, -1.8, 0.9, 3.3, 0.6, N });
@@ -89,6 +91,7 @@ PostureGrid golfer(const QString &who, bool withPelvis = false)
         put(PostureRow::LeadKnee,  { 0, 6.1, 19.4, 36.0, 23.4, 2.5, -9.3, -7.9 });
         put(PostureRow::TrailKnee, { 0, -0.9, -1.1, 1.0, 9.8, 11.4, 10.5, 0.8 });
         if (withPelvis) put(PostureRow::PelvisHeight, { 0, -8.8, -14.8, -18.6, -16.6, -9.1, -4.4, N });
+        if (withPelvis) put(PostureRow::SideBend, { N, N, N, N, N, N, 2.6, N });
     }
     return g;
 }
@@ -105,7 +108,7 @@ QStringList firedOf(const QString &who)
 // Every shot fired `fired`.
 std::vector<PostureShotInput> sessionOf(const PostureGrid &g, int n = 5, bool spread = false, const QStringList &fired = {})
 {
-    static const double d[kPostureRows] = { 0.1, 0.3, 0.2, 0.5, 0.5, 1.0 };
+    static const double d[kPostureRows] = { 0.1, 0.3, 0.2, 0.5, 0.5, 1.0, 0.5 };
     std::vector<PostureShotInput> out;
     for (int i = 0; i < n; ++i) {
         PostureGrid x = g;
@@ -343,8 +346,11 @@ private slots:
             { 0, -4.615697959, -4.980289605, -8.924045303, -8.293608046, -10.4091602, -14.52898354, N },
             { 0, 1.6384925, 7.64989923, 13.19568302, 6.02569646, -3.700748788, -7.891477723, -8.892344467 },
             { 0, -22.423326, -23.04924119, -23.78430577, -18.08387901, -9.607251556, -8.075800729, 2.368062154 },
-            { 0, -4.526813088, -7.483146011, -5.481384069, -1.720850907, -1.026098295, 5.409050565, N } } };
+            { 0, -4.526813088, -7.483146011, -5.481384069, -1.720850907, -1.026098295, 5.409050565, N },
+            { N, N, N, N, N, N, N, N } } };   // side bend: this cut-down fixture carries no spineSideBend series
+        QVERIFY(!in.present[size_t(r(PostureRow::SideBend))]);
         for (int row = 0; row < kPostureRows; ++row) {
+            if (row == r(PostureRow::SideBend)) continue;   // absent (checked above); the six that are read must equal the dump
             QVERIFY(in.present[size_t(row)]);
             for (int p = 0; p < kPosturePositions; ++p) {
                 const double got = in.value[size_t(row)][size_t(p)], want = dump[size_t(row)][size_t(p)];
@@ -707,6 +713,72 @@ private slots:
         five[0] = postureInputFromValues(golfer(QStringLiteral("Jess"), true), 1, firedOf(QStringLiteral("Jess")));
         const PostureSessionView some = postureSession(five, *m_env);
         QCOMPARE(some.trust.absent, QStringList{ QStringLiteral("Hip depth: not measured on 4 of 5 shots — no ruler: no ball to measure with in either view.") });
+    }
+
+    // Decision 17 (Mark, 8 Nov 2026): side bend is drawn and graded, never matched, never an exit, never the head line.
+    void sideBendIsDrawnNeverMatched()
+    {
+        const size_t SB = size_t(r(PostureRow::SideBend));
+        PostureGrid with = golfer(QStringLiteral("Mark"), true), without = with;
+        without[SB].fill(N);
+        with[SB][P7] = 40.0;   // far outside any corridor
+        PostureBand b;
+        b.has = true; b.mu = 5.0; b.sigmaLo = b.sigmaHi = 2.0; b.lo = 3.0; b.hi = 7.0; b.contextId = QStringLiteral("any");
+        PostureEnv env = *m_env;
+        env.level[SB][P7] = b;
+        env.squatPush[SB][P7] = b;
+
+        const PostureShotInput in = postureInputFromValues(with), out = postureInputFromValues(without);
+        QVERIFY(in.present[SB]);
+        QVERIFY(!out.present[SB]);
+
+        // the match reads nothing of it
+        const PostureMatch mIn = postureMatch(in.value, in.present, PostureFlags{}, env);
+        const PostureMatch mOut = postureMatch(out.value, out.present, PostureFlags{}, env);
+        QCOMPARE(mIn.dLevel, mOut.dLevel);
+        QCOMPARE(mIn.dSquatPush, mOut.dSquatPush);
+        QCOMPARE(mIn.cells, mOut.cells);
+        QCOMPARE(mIn.rows, mOut.rows);
+        QVERIFY(!mIn.rows.contains(QStringLiteral("sideBend")));
+
+        // never an exit, and the rest come out exactly as without it
+        const PostureBandGrid bands = env.bands(PosturePattern::Level);
+        const std::vector<PostureExit> exIn = postureExits(in.value, in.present, PostureFlags{}, bands, env);
+        const std::vector<PostureExit> exOut = postureExits(out.value, out.present, PostureFlags{}, bands, env);
+        QCOMPARE(int(exIn.size()), int(exOut.size()));
+        QVERIFY(std::none_of(exIn.begin(), exIn.end(), [](const PostureExit &e) { return e.row == PostureRow::SideBend; }));
+
+        // drawn: the value, the ring and its word on the side of the band; "-" at every other position
+        const PostureShotView v = postureShot(in, env, 0);
+        QCOMPARE(v.rows[SB].label, QStringLiteral("Side bend"));
+        QCOMPARE(v.rows[SB].metricKey, QStringLiteral("spineSideBend"));
+        const PostureCellView &c = v.rows[SB].cells[P7];
+        QCOMPARE(c.text, QStringLiteral("+40"));
+        QVERIFY(c.outside);
+        QCOMPARE(c.ring, QStringLiteral("more bend"));
+        QVERIFY(!c.counted);
+        QVERIFY(!c.exit);
+        for (int p = 0; p < kPosturePositions; ++p)
+            if (p != P7) QCOMPARE(v.rows[SB].cells[size_t(p)].text, QStringLiteral("-"));
+
+        // the head line and the band sources are untouched; the corridor is said once, on its own
+        const PostureShotView vOut = postureShot(out, env, 0);
+        QCOMPARE(v.headline, vOut.headline);
+        QCOMPARE(v.trust.bandSources, vOut.trust.bandSources);
+        QCOMPARE(v.trust.lines.count(postureSideBendCorridorTrust()), 1);
+        QCOMPARE(vOut.trust.lines.count(postureSideBendCorridorTrust()), 0);
+
+        // a gate at the instant it reads: the value and the ⚠ stay, the reason said once in the fold
+        PostureShotInput gated = in;
+        gated.gateWarn[SB][P7] = true;
+        gated.gateWords[SB][P7] = QStringLiteral("hips or shoulders edge-on");
+        const PostureShotView gv = postureShot(gated, env, 0);
+        QVERIFY(gv.rows[SB].cells[P7].warned);
+        QCOMPARE(gv.rows[SB].cells[P7].text, QStringLiteral("+40"));
+        QVERIFY(!gv.rows[SB].cells[P7].outside);
+        const QString said = gv.trust.warnings.join(QLatin1Char('\n'));
+        QVERIFY(said.contains(postureSideBendWarnReason()));
+        QVERIFY(!said.contains(QStringLiteral("Side bend: hips")));
     }
 };
 

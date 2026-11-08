@@ -6098,7 +6098,7 @@ QVariantList ModelBrowser::ringValues(const QString &type, const QString &id,
         current = conditionGroupName(c->group);
 
         // The most used in THIS library, because the useful shortcut is the group the author keeps
-        // reaching for, not the first few in the enum. Nine groups and five cells, so this one still
+        // reaching for, not the first few in the enum. Ten groups and five cells, so this one still
         // shortlists — unlike the strength ladder above, which now fits whole.
         QHash<QString, int> uses;
         for (const Condition &o : p.conditions) uses[conditionGroupName(o.group)]++;

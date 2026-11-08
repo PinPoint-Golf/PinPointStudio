@@ -60,24 +60,24 @@
 
 namespace pinpoint::analysis {
 
-// The ConditionGroup tokens (characteristic.cpp kGroups), as the record and the pack spell them.
+// The area token ball flight is filed under (characteristic.cpp kGroups), as the record and the pack spell it.
 inline const QString &kAreaBallFlight()
 {
     static const QString s = QStringLiteral("ballFlight");
     return s;
 }
 
-// ADDRESS TO FINISH — the order a coach walks a swing, and the last tie-break between areas. Not the
-// ConditionGroup enum's order (which files arms & club before sequence for the editor): the body's
-// sequence comes before what the arms and club do with it. Ball flight last: an outcome is where an
-// explanation ends.
+// WHAT MOVES, AS THE SWING GOES — the order a coach walks a swing, body to arms to hands to club to ball,
+// and the last tie-break between areas (the ConditionGroup enum's order). Ball flight last: an outcome is
+// where an explanation ends. The last ConditionGroup, `golfer` (capacity, intent, equipment: the latent
+// causes the model browser files), is deliberately not here: what is not on this list is never an area,
+// on Home or in Consistency (consistencyAreas), and metricAreasForPack leaves it out too.
 inline const QStringList &areaGroupOrder()
 {
-    static const QStringList v{ QStringLiteral("setup"),       QStringLiteral("posture"),
-                                QStringLiteral("lateral"),     QStringLiteral("sequence"),
-                                QStringLiteral("armsAndClub"), QStringLiteral("swingPlane"),
-                                QStringLiteral("release"),     QStringLiteral("impact"),
-                                QStringLiteral("finish"),
+    static const QStringList v{ QStringLiteral("setup"),     QStringLiteral("posture"),
+                                QStringLiteral("lateral"),   QStringLiteral("rotation"),
+                                QStringLiteral("arms"),      QStringLiteral("wrists"),
+                                QStringLiteral("planePath"), QStringLiteral("delivery"),
                                 kAreaBallFlight() };
     return v;
 }
@@ -262,7 +262,7 @@ inline QHash<QString, AreaCounts> areaCountsOf(const std::vector<WorkOnSummary> 
 // pack authors; an id it does not hold is not in any area. Returned in display order: measurable areas
 // first — most habits, then most occasional, then the worst share, then address to finish — then the
 // unmeasurable ones in address-to-finish order. The eight body areas are always returned; ball flight
-// only when measurable.
+// only when measurable; `golfer` never.
 inline std::vector<AreaSummary> summariseAreas(const std::vector<SessionWorkOns> &sessions,
                                                const QHash<QString, AreaConditionInfo> &info,
                                                const AreaOptions &opt = AreaOptions(),

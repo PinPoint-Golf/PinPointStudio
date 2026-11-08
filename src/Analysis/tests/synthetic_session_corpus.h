@@ -346,50 +346,45 @@ inline PlantedCondition exact(const char *id, std::vector<int> states)
     return c;
 }
 
-inline NodeSpec liveNode(const char *id, int phaseOrder)
+inline NodeSpec liveNode(const char *id)
 {
     NodeSpec n;
     n.id = QString::fromLatin1(id);
     n.measurable = true;
-    n.phaseOrder = phaseOrder;
     return n;
 }
 
 // A node the pack asserts but no capture can measure — a ghost with standing.
-inline NodeSpec assertedGhost(const char *id, int phaseOrder)
+inline NodeSpec assertedGhost(const char *id)
 {
     NodeSpec n;
     n.id = QString::fromLatin1(id);
     n.asserted = true;
-    n.phaseOrder = phaseOrder;
     return n;
 }
 
 // A node whose measure is planned and not yet built — a ghost with none.
-inline NodeSpec plannedGhost(const char *id, int phaseOrder)
+inline NodeSpec plannedGhost(const char *id)
 {
     NodeSpec n;
     n.id = QString::fromLatin1(id);
-    n.phaseOrder = phaseOrder;
     return n;
 }
 
-inline NodeSpec screenedRoot(const char *id, bool entered, int phaseOrder = 0)
+inline NodeSpec screenedRoot(const char *id, bool entered)
 {
     NodeSpec n;
     n.id = QString::fromLatin1(id);
     n.screened = true;
     n.screenEntered = entered;
-    n.phaseOrder = phaseOrder;
     return n;
 }
 
-inline NodeSpec outcomeNode(const char *id, const char *outcome, int phaseOrder = 9)
+inline NodeSpec outcomeNode(const char *id, const char *outcome)
 {
     NodeSpec n;
     n.id = QString::fromLatin1(id);
     n.outcomeId = QString::fromLatin1(outcome);
-    n.phaseOrder = phaseOrder;
     return n;
 }
 

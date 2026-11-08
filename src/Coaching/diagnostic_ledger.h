@@ -1299,7 +1299,6 @@ struct NodeSpec {
     bool    screenEntered = false;  // the physical screen has been done
     bool    asserted      = false;  // the pack asserts it without a measure
     QString outcomeId;              // non-empty ⇒ an outcome node (the declared miss)
-    int     phaseOrder    = 0;      // P1…P8 ordinal, for temporal coherence
 };
 
 // An authored edge. `type` carries the edge's directional semantics (+1 same sense, −1
@@ -1343,7 +1342,7 @@ struct LinkEvidence {
     double fisherP = 1.0;
     double tau     = 0.0;           // paired z's, graded support only
 
-    bool   coherent = false;        // direction + temporal order agree with the edge
+    bool   coherent = false;        // both ends observed, and their directions agree with the edge
     int    baselineN = 0, interventionN = 0;
     bool   movedTogether = false;
 
@@ -1373,14 +1372,11 @@ inline bool nodePresent(const NodeSpec &node, const ConditionLedger *ledger)
 // The grade is the STRONGEST CLAIM THE EVIDENCE SUPPORTS and never more, so the function
 // reads as a ladder with two hard caps on it.
 //
-// TEMPORAL COHERENCE IS APPROXIMATED BY PHASE ORDER. The design wants "nodes fire in the
-// swing's own P1–P8 temporal order within shots". The detector reports one state per
-// condition per SHOT, not a moment within the shot, so there is no within-shot timestamp
-// to compare. What there is, is the near-total ordering of condition groups by phase —
-// takeaway before top before transition before impact — carried on NodeSpec::phaseOrder.
-// An edge whose upstream sits at or before its downstream in that ordering is temporally
-// coherent; one running backwards through the swing is not. This is an approximation and
-// it is stated as one: it will become exact the day the detector timestamps its findings.
+// COHERENCE IS DIRECTION, NOT TIME. The detector reports one state per condition per SHOT, not
+// a moment within the shot, so there is no within-shot timestamp to compare and this function
+// makes no claim about order within a swing. The graph's authored direction carries cause and
+// effect. A condition's group or area only classifies it and plays no part in the grade: a
+// `NodeSpec` carries neither.
 //
 // The two caps:
 //   · An unentered SCREENED ROOT at either end pins the link at Unanchored. A screened
@@ -1421,8 +1417,8 @@ inline LinkEvidence gradeLink(const EdgeSpec &edge,
     ev.grade = LinkGrade::PresentTogether;
 
     // Directional coherence. An UNSIGNED edge (type 0) makes no directional claim, so
-    // coherence rests on temporal order alone; a signed edge needs both endpoints to be
-    // claiming a direction at all (agreement past the gate) and their modal senses to
+    // coherence rests on both ends having been observed; a signed edge needs both endpoints
+    // to be claiming a direction at all (agreement past the gate) and their modal senses to
     // match the edge's sign.
     bool dirOk = true;
     if (edge.type != 0 && fromLedger && toLedger
@@ -1431,16 +1427,15 @@ inline LinkEvidence gradeLink(const EdgeSpec &edge,
              && (fromLedger->modalDirection * toLedger->modalDirection)
                 == (edge.type > 0 ? 1 : -1);
     }
-    const bool temporalOk = from.phaseOrder <= to.phaseOrder;
 
-    // Coherence is a claim about OBSERVED firings — directions that matched, in the
-    // swing's own order. Two nodes neither of which the capture measured cannot have been
-    // observed doing anything, so a link between them stops at Present together however
-    // impeccable the authored semantics are. This is the mock's "neither measured".
+    // Coherence is a claim about OBSERVED firings — directions that matched. Two nodes
+    // neither of which the capture measured cannot have been observed doing anything, so a
+    // link between them stops at Present together however impeccable the authored semantics
+    // are. This is the mock's "neither measured".
     const bool observedBoth = fromLedger && toLedger
                            && fromLedger->assessable >= 1 && toLedger->assessable >= 1;
 
-    ev.coherent = observedBoth && dirOk && temporalOk;
+    ev.coherent = observedBoth && dirOk;
     if (!ev.coherent) return ev;                               // PresentTogether
     ev.grade = LinkGrade::Coherent;
 

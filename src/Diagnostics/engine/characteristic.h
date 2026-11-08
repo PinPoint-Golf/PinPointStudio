@@ -62,12 +62,17 @@ struct LocalisedText {
 
 // ── Condition ───────────────────────────────────────────────────────────────
 //
-// The order here is the order the library and the editor list them in, and it is the order of the
-// swing: what you set up, what the body does, what the arms and club do, then the strike and what
-// the ball did about it. BallFlight sits last because an outcome is where an explanation ENDS —
-// the chain runs fault -> strike -> flight, and the golfer reads it from the bottom up.
+// A group says WHAT MOVES. The phase is not part of it: it stays in the Consistency columns. Setup is
+// the one exception, because it is static and has its own chart. The order is the order the library
+// and the editor list them in, and it follows the causal flow: body, arms, hands, club, ball.
+// BallFlight sits after the swing because an outcome is where an explanation ENDS. Golfer sits last
+// and is not an area of the swing at all: it files the latent causes (capacity, intent, equipment)
+// so the browser and the editor have somewhere to put them, and is never one of the swing areas.
+//
+// Link grading must not read this order. Areas only classify; an edge's authored direction is what
+// carries cause and effect.
 enum class ConditionGroup {
-    Setup, Posture, Lateral, ArmsAndClub, SwingPlane, Release, Sequence, Impact, Finish, BallFlight
+    Setup, Posture, Lateral, Rotation, Arms, Wrists, PlanePath, Delivery, BallFlight, Golfer
 };
 
 enum class Observability {
@@ -142,9 +147,9 @@ enum class ProvenanceTier {
 // draft -> candidate without a schema change.
 enum class ConditionState { Draft, Candidate, Active, NeedsRevalidation, Superseded, Retired };
 
-// WHAT KIND OF THING this is. Orthogonal to ConditionGroup, which says WHERE in the body and WHEN in
-// the swing. Both facets are needed and only one existed, which is how `setup` became the group that
-// holds fourteen physical screens, nine beliefs and a set of clubs.
+// WHAT KIND OF THING this is. Orthogonal to ConditionGroup, which says what moves. Both facets are
+// needed and only one existed, which is how `setup` became the group that held fourteen physical
+// screens, nine beliefs and a set of clubs, until the regroup filed those under `golfer`.
 //
 // The distinction the library could not previously make is between a movement error a lesson is
 // about, an impact geometry that is merely the scoreboard, and a physical capacity that constrains

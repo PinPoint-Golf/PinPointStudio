@@ -650,10 +650,10 @@ static void checkConsistencyMarks(const QString &root)
     const qint64 day = 86'400'000LL, t0 = 1'780'000'000'000LL;
 
     // The lead knee (lateral) fires on every swing: its area's biggest fault. Its measure carries a
-    // two-sided norm (σ 8 each side). The reverse spine (posture) is assessed on five swings only. The
-    // sequence order (sequence) is a yes/no condition.
+    // two-sided norm (σ 8 each side). The head rise (posture) is assessed on five swings only. The
+    // sequence order (rotation) is a yes/no condition.
     const char *knee = "lead_knee_drifts_in_at_top", *kneeM = "m_leadKneeDriftTop";
-    const char *spine = "reverse_spine_p4", *spineM = "m_axisTiltAtTop";
+    const char *spine = "head_rise_backswing", *spineM = "m_headLiftBack";
     const char *order = "sequence_order", *orderM = "m_pelvisPeakTime";
     // A tight reading: each club about its own level (7-iron +6, driver −6), a few tenths apart. Pooled
     // raw, the two levels alone would be ρ ≈ 0.75 of the corridor; centred per club, ρ ≈ 0.03.
@@ -698,7 +698,7 @@ static void checkConsistencyMarks(const QString &root)
     c.setAthleteDir(golfer);
     check(c.waitForIdle(), "the catch-up settles");
 
-    const QVariantMap lateral = area(c, "lateral"), posture = area(c, "posture"), sequence = area(c, "sequence");
+    const QVariantMap lateral = area(c, "lateral"), posture = area(c, "posture"), rotation = area(c, "rotation");
     const pv::VariabilityResultView col = markOf(lateral.value(QStringLiteral("consistency")));
     const pv::VariabilityResultView row = markOf(areaItem(lateral, knee).value(QStringLiteral("consistency")));
     std::printf("      lateral: top %s, graded %d, grade %d, n %d, rho %.3f\n",
@@ -722,9 +722,9 @@ static void checkConsistencyMarks(const QString &root)
           && few.graded() && few.grade() == 0 && few.n() < pv::kNMin && few.ungradedReason() == QLatin1String("tooFewSwings"),
           "five assessed readings, the rest unassessed: grade 0, \"Not enough swings\"");
 
-    const pv::VariabilityResultView yesNo = markOf(sequence.value(QStringLiteral("consistency")));
-    check(sequence.value(QStringLiteral("topFaultId")).toString() == QLatin1String(order) && !yesNo.graded()
-          && !markOf(areaItem(sequence, order).value(QStringLiteral("consistency"))).graded(),
+    const pv::VariabilityResultView yesNo = markOf(rotation.value(QStringLiteral("consistency")));
+    check(rotation.value(QStringLiteral("topFaultId")).toString() == QLatin1String(order) && !yesNo.graded()
+          && !markOf(areaItem(rotation, order).value(QStringLiteral("consistency"))).graded(),
           "a yes/no condition (an order test) is ungraded: \"-\", no badge");
 
     bool everyItem = true;
@@ -874,30 +874,31 @@ int main(int argc, char **argv)
         c.refresh();
         check(areasSignals > before, "…and every publish does, a refresh with nothing new included");
     }
-    check(areaGroups(c) == QStringList{ "setup", "posture", "ballFlight", "lateral",
-                                        "sequence", "armsAndClub", "swingPlane", "release", "impact", "finish" },
-          "area order: one habit each, tied on share, address to finish; then the occasional; then the unmeasured "
-          "in address-to-finish order");
+    check(areaGroups(c) == QStringList{ "lateral", "setup", "ballFlight",
+                                        "posture", "rotation", "arms", "wrists", "planePath", "delivery" },
+          "area order: one habit each, the occasional breaks the tie; then the unmeasured in address-to-finish order");
+    check(!areaGroups(c).contains(QStringLiteral("golfer")),
+          "golfer never yields an area on Home, on the shipped pack");
     {
         const QVariantMap posture = area(c, "posture"), lateral = area(c, "lateral"), setup = area(c, "setup");
-        check(lateral.value(QStringLiteral("label")).toString() == QStringLiteral("Lateral motion")
+        check(lateral.value(QStringLiteral("label")).toString() == QStringLiteral("Lateral & balance")
               && posture.value(QStringLiteral("label")).toString() == QStringLiteral("Posture"),
-              "area labels are conditionGroupLabel's: 'Lateral motion', 'Posture'");
-        check(posture.value(QStringLiteral("habits")).toInt() == 1 && posture.value(QStringLiteral("measured")).toInt() == 1
-              && posture.value(QStringLiteral("topFaultId")).toString() == QStringLiteral("reverse_spine_p4")
-              && posture.value(QStringLiteral("topFault")).toString() == QStringLiteral("Reverse spine angle at P4"),
-              "posture: one habit, its top fault named by the pack label");
-        check(lateral.value(QStringLiteral("habits")).toInt() == 0 && lateral.value(QStringLiteral("occasional")).toInt() == 1,
-              "lateral: sway on half the swings, the older half faded, is occasional");
-        check(posture.value(QStringLiteral("hasTrend")).toBool() && posture.value(QStringLiteral("habitTrend")).toInt() == 0
-              && setup.value(QStringLiteral("habitTrend")).toInt() == 1 && lateral.value(QStringLiteral("habitTrend")).toInt() == -1,
-              "trend against the counts without s2: posture steady, the ball position a new habit, sway cleared as one");
-        check(!area(c, "sequence").value(QStringLiteral("measurable")).toBool()
-              && area(c, "sequence").value(QStringLiteral("items")).toList().isEmpty()
-              && !area(c, "sequence").value(QStringLiteral("hasTrend")).toBool(),
+              "area labels are conditionGroupLabel's: 'Lateral & balance', 'Posture'");
+        check(lateral.value(QStringLiteral("habits")).toInt() == 1 && lateral.value(QStringLiteral("measured")).toInt() == 2
+              && lateral.value(QStringLiteral("topFaultId")).toString() == QStringLiteral("reverse_spine_p4")
+              && lateral.value(QStringLiteral("topFault")).toString() == QStringLiteral("Reverse spine angle at P4"),
+              "lateral: one habit, its top fault named by the pack label");
+        check(lateral.value(QStringLiteral("occasional")).toInt() == 1,
+              "…and sway on half the swings, the older half faded, is occasional");
+        check(lateral.value(QStringLiteral("hasTrend")).toBool() && lateral.value(QStringLiteral("habitTrend")).toInt() == -1
+              && setup.value(QStringLiteral("habitTrend")).toInt() == 1,
+              "trend against the counts without s2: the ball position a new habit, sway cleared as one, the spine held");
+        check(!posture.value(QStringLiteral("measurable")).toBool()
+              && posture.value(QStringLiteral("items")).toList().isEmpty()
+              && !posture.value(QStringLiteral("hasTrend")).toBool(),
               "an area nothing assessed is unmeasurable, with no items and no trend");
 
-        const QVariantMap spineItem = areaItem(posture, "reverse_spine_p4"), swayItem = areaItem(lateral, "sway"),
+        const QVariantMap spineItem = areaItem(lateral, "reverse_spine_p4"), swayItem = areaItem(lateral, "sway"),
                           ballItem = areaItem(setup, "ball_back");
         check(spineItem.value(QStringLiteral("band")).toString() == QStringLiteral("habit")
               && spineItem.value(QStringLiteral("fired")).toInt() == 20 && spineItem.value(QStringLiteral("assessable")).toInt() == 20
@@ -1160,8 +1161,8 @@ int main(int argc, char **argv)
         WorkOnsController w;
         w.setSynchronous(true);
         w.setAthleteDir(wrist);
-        const QVariantMap arms = area(w, "armsAndClub");
-        const QVariantMap cup = areaItem(arms, "cupped_at_top"), bow = areaItem(arms, "bowed_at_top");
+        const QVariantMap wrists = area(w, "wrists");
+        const QVariantMap cup = areaItem(wrists, "cupped_at_top"), bow = areaItem(wrists, "bowed_at_top");
         check(cup.value(QStringLiteral("tail")).toString() == QStringLiteral("low")
               && bow.value(QStringLiteral("tail")).toString() == QStringLiteral("high"),
               "cupped at the top watches the low tail of the P4 wrist angle, bowed at the top the high");

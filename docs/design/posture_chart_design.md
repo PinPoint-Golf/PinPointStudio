@@ -29,13 +29,14 @@ good players' pattern is yours?"*
    travel between camera set-ups; absolute angles do not. An absolute address reading is still
    drawn against its published band, with a ⚠ saying it depends on the camera, and beside the
    golfer's own sessions from the same set-up (§7.4; Mark, 22 Oct).
-3. **Six rows, each one honest about where it can be trusted:**
+3. **Seven rows, each one honest about where it can be trusted:**
    - head height
    - hip depth (the hips toward or away from the ball)
    - trunk bend
    - lead knee
    - trail knee
    - pelvis height
+   - side bend, the change from address at impact only (Mark, 8 Nov 2026; §8), drawn and graded but never matched
 
    Head height is the test of "standing up". Trunk bend, hip depth and pelvis height carry a ⚠ at
    P3–P5, where the turning body moves the joint points they are read from (§2.3).
@@ -99,8 +100,9 @@ The per-position numbers below were read from the phase grids of the re-analysed
 | Lead knee | DTL | `leadKneeFlexion` | ° | P1–P8 | seen behind the trail leg |
 | Trail knee | DTL | `trailKneeFlexion` | ° | P1–P8 | none known |
 | Pelvis height | face-on | `pelvisLift` | % stance | P1–P7 | hip joints migrate at the top: ⚠ P3–P5 until the belt-line producer |
+| Side bend | face-on | `spineSideBend`, read as `m_spineSideBendChangeImpact` (the change from address, P1 to P7) | ° | P7 only; "-" elsewhere | graded against a provisional 2-D corridor, never matched (§8); ⚠ when `body.sideBendLines` masks the frames at impact or address |
 | *(not a row)* face-on trunk rise | face-on | `trunkRise` | % | — | held: failed V1, and moves with the shoulder turn |
-| *(not a row)* side tilt, sway | face-on | `secondaryAxisTilt`, `headSway`, `pelvisSway` | | | owned by their own conditions; side tilt growing is the swing working (§8) |
+| *(not a row)* side tilt, sway | face-on | `secondaryAxisTilt`, `headSway`, `pelvisSway` | | | owned by their own conditions; side tilt growing is the swing working (§8); side bend is a row since 8 Nov 2026 |
 | *(address only)* arm hang, head pitch, balance | DTL | | | P1 | absolute and rig-sensitive (§7.4) |
 
 ### 1.2 What tonight taught, which this design must respect
@@ -495,7 +497,8 @@ The **combinations** are what separate faults from styles, as Tier 2 does in the
    - P8, which is bridged on the DTL rows;
    - readings under a ⚠ (trunk bend and pelvis height at P3–P5; hip depth at P3–P5 only on a shot
      that fell back to the joints: read from the butt line it is matched, since 22 Oct);
-   - the trail knee, which is a style, not a pattern feature.
+   - the trail knee, which is a style, not a pattern feature;
+   - side bend, which is graded and drawn but is not a pattern signature (§8).
 
    A face-on-only session matches on head height and pelvis height alone, and says so. A DTL-only
    session matches on hip depth, trunk bend and knees.
@@ -997,11 +1000,28 @@ absolutes. The upgrade, if per-club pattern rows are ever needed, is a fourth op
 - **It grades nothing new.** The departures are the existing conditions. The pattern is description.
   The one new judgement on screen, the pattern and where you leave it, is worded as a comparison,
   never as a fault.
-- **Side tilt, side bend and sway are not posture rows here.** Side tilt grows into impact in every
+- **Side tilt and sway are not posture rows here.** Side tilt grows into impact in every
   good swing (TPI: "roughly 35 deg of side bend at the top of the swing and 35 at impact" as the PGA Tour average in
   its database, system and sample not named,
   [mytpi.com](https://www.mytpi.com/articles/biomechanics/helping-rising-star-david-puig-limit-side-bend-to-alleviate-stress-on-lower-back)). They have their own
   conditions, and including them would read a working swing as a loss (`posture_metrics_design.md` §2).
+- **Side bend is a row, on Mark's ruling of 8 Nov 2026.** It was left off for the same reason as side tilt: side
+  bend grows into impact in every good swing, so a row against address would read a working swing as a loss. The
+  corridor answers that. The row is the change from address at P7 (`m_spineSideBendChangeImpact`), drawn against its
+  expected-gain corridor, never against zero: a swing that gains the expected amount sits in the wash, and too little
+  or too much falls outside it, on the side `insufficient_side_bend_impact` / `excessive_side_bend_impact` name. It
+  follows the section's row conventions (the session box, this shot's dot or ring and word); every position other
+  than P7 reads "-". The trust fold says once that the corridor is provisional, 2-D and derived from the library;
+  the ⚠ is for a reading its gate (`body.sideBendLines`) marks at impact or at address. It is on This shot, Session
+  and the report's Posture page, and not in the "At address" block.
+- **Side bend stays out of the posture pattern match** (Level against Squat and push; Mark, 8 Nov 2026). It is
+  graded and drawn but never counts toward which pattern a golfer matches, is never an exit or a departure, and no
+  `posture_level` / `posture_squat_push` norm row is written for it, so its wash is the `any` row for every club.
+  No source compares swing styles on side bend, and the one adjacent comparison found no difference at impact:
+  - `ref.meister2011` (abstract and opening pages only; figures not checked): easy, medium and hard 5-iron swings in professionals, studying pelvic obliquity and shoulder obliquity for consistency and speed. The abstract lists peak shoulder obliquity as consistent, and does not list pelvic obliquity.
+  - `ref.chu2010` (abstract only): 308 golfers, four swing events; lateral tilting is named as significant. Its size and direction are not confirmed.
+  - `ref.joyce2010` (abstract only): the rotation sequence and the trunk-segment definitions change the reading, and the paper recommends the ZYX sequence.
+  - `ref.chen2024` (full text): 21 golfers split by overhead-squat score. Lumbar lateral bending at impact was 21.07 (SD 0.48) against 20.93 (SD 0.70), p = 0.591, and top-to-impact displacement p = 0.218. It is a squat-ability screen and a musculoskeletal-model lumbar bend, so it is adjacent evidence only.
 - **No back curves (C- and S-posture) and no pelvic tilt.** There is no producer for either. The
   published 18° posterior tilt through impact (§3.3) is said in the trust fold's note on trunk bend,
   not drawn.

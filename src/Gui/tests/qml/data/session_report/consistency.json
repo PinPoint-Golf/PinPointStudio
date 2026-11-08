@@ -4982,7 +4982,7 @@
  },
  "consistency": {
   "kicker": "Consistency  ·  60 swings  ·  mixed clubs",
-  "head": "Your backswing is %1, your downswing %2; your impact position moves most.",
+  "head": "Your backswing is %1, your downswing %2; your delivery at impact moves most.",
   "ball": "Your ball with the 7 iron: carry 121 yd, middle half 114 to 126 yd. It finishes 4 yd right, middle half 2 yd left to 9 yd right.",
   "empty": "",
   "notes": [
@@ -5245,260 +5245,8 @@
      ]
     },
     {
-     "id": "armsAndClub",
-     "name": "Arms and club",
-     "cells": [
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "3",
-       "strong": true,
-       "heavy": false,
-       "heat": 1,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 3,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "2",
-       "strong": true,
-       "heavy": true,
-       "heat": 2,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 2,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "3",
-       "strong": true,
-       "heavy": false,
-       "heat": 1,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 3,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "2",
-       "strong": true,
-       "heavy": true,
-       "heat": 2,
-       "soft": true,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 2,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      }
-     ]
-    },
-    {
-     "id": "sequence",
-     "name": "Sequence",
-     "cells": [
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "3",
-       "strong": true,
-       "heavy": false,
-       "heat": 1,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 3,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": "4",
-       "strong": false,
-       "heavy": false,
-       "heat": 0,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 4,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      }
-     ]
-    },
-    {
      "id": "lateral",
-     "name": "Lateral motion",
+     "name": "Lateral & balance",
      "cells": [
       {
        "text": "",
@@ -5621,7 +5369,7 @@
        "strong": true,
        "heavy": false,
        "heat": 1,
-       "soft": true,
+       "soft": false,
        "on": false,
        "mark": "",
        "tap": false,
@@ -5638,8 +5386,140 @@
      ]
     },
     {
-     "id": "release",
-     "name": "Release",
+     "id": "rotation",
+     "name": "Turn & sequence",
+     "cells": [
+      {
+       "text": "",
+       "short": ""
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "",
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "3",
+       "strong": true,
+       "heavy": false,
+       "heat": 1,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "",
+       "short": "3",
+       "strong": true,
+       "heavy": false,
+       "heat": 1,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      }
+     ]
+    },
+    {
+     "id": "arms",
+     "name": "Arms",
      "cells": [
       {
        "text": "",
@@ -5647,19 +5527,197 @@
       },
       {
        "text": "",
-       "short": ""
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
       },
+      {
+       "text": "",
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "3",
+       "strong": true,
+       "heavy": false,
+       "heat": 1,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "4",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 4,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "2",
+       "strong": true,
+       "heavy": true,
+       "heat": 2,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "3",
+       "strong": true,
+       "heavy": false,
+       "heat": 1,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 3,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      },
+      {
+       "text": "",
+       "short": "2",
+       "strong": true,
+       "heavy": true,
+       "heat": 2,
+       "soft": true,
+       "on": false,
+       "mark": "",
+       "tap": false,
+       "result": {
+        "graded": true,
+        "grade": 2,
+        "measurementLimited": false,
+        "basis": "scalar",
+        "domain": "consistency",
+        "basisText": "",
+        "ungradedReason": ""
+       }
+      }
+     ]
+    },
+    {
+     "id": "wrists",
+     "name": "Wrists & release",
+     "cells": [
       {
        "text": "",
        "short": ""
       },
       {
-       "text": "",
-       "short": ""
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
       },
       {
-       "text": "",
-       "short": ""
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
       },
       {
        "text": "",
@@ -5724,8 +5782,95 @@
      ]
     },
     {
-     "id": "impact",
-     "name": "Impact",
+     "id": "planePath",
+     "name": "Plane & path",
+     "cells": [
+      {
+       "text": "",
+       "short": ""
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      },
+      {
+       "text": "-",
+       "short": "-",
+       "strong": false,
+       "heavy": false,
+       "heat": 0,
+       "soft": false,
+       "on": false,
+       "mark": "",
+       "tap": false
+      }
+     ]
+    },
+    {
+     "id": "delivery",
+     "name": "Delivery",
      "cells": [
       {
        "text": "",
@@ -5774,60 +5919,6 @@
       {
        "text": "",
        "short": ""
-      }
-     ]
-    },
-    {
-     "id": "finish",
-     "name": "Finish",
-     "cells": [
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": ""
-      },
-      {
-       "text": "",
-       "short": "3",
-       "strong": true,
-       "heavy": false,
-       "heat": 1,
-       "soft": false,
-       "on": false,
-       "mark": "",
-       "tap": false,
-       "result": {
-        "graded": true,
-        "grade": 3,
-        "measurementLimited": false,
-        "basis": "scalar",
-        "domain": "consistency",
-        "basisText": "",
-        "ungradedReason": ""
-       }
       }
      ]
     }
@@ -6224,6 +6315,6 @@
     "measurementLimited": false
    }
   ],
-  "headFallback": "Your impact position moves most."
+  "headFallback": "Your delivery at impact moves most."
  }
 }

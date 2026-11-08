@@ -34,10 +34,13 @@
 //   lower of the middle two), as the old rule took the median of the five spreads; with no point carrying a ρ it takes
 //   the first graded point (grade 0), else the first point (not graded).
 //   A CELL (an area at a column that applies to it) takes cellGrade() over its readings (R1).
+//   AFTER THE BALL (P7-P8, Mark, 8 Nov). A reading is graded there when a condition reads its measure at the finish
+//   (ConsistencyReading::afterBall, from afterBallKeysForPack). A P7-P8 cell holding such a reading is graded on those
+//   alone; a cell holding none keeps the grade of its own readings, shown lighter (`soft`) and left out of the head.
 //
 // The head (consistencyHead) works on the cells, as the old headline did: the backswing is P1-P2 to P3-P4, the
-// downswing P4-P5 to P6-P7, P7-P8 is left out except for Finish, and under two areas with a grade there is no
-// headline. Each half, and each area, takes cellGrade() over its cells' grades.
+// downswing P4-P5 to P6-P7, P7-P8 is left out except for a cell holding an after-ball reading, and under two areas with
+// a grade there is no headline. Each half, and each area, takes cellGrade() over its cells' grades.
 //
 // Pure: value types in and out, safe on any thread. The scales come in through ConsistencyGradeScales, so a test can
 // hand it a stub and the production caller wraps an IVariabilityScaleProvider (variability_env.h).
@@ -72,6 +75,7 @@ struct ConsistencyCellGrade {
     int                   column = -1;
     variability::CellGrade grade;
     std::vector<int>      readings;     // indices into ConsistencyInput::readings at this cell, in (key, column) order
+    bool                  afterBall = false;   // P7-P8: the cell holds a reading graded after the ball, so `grade` is theirs
 };
 
 struct ConsistencyGrades {

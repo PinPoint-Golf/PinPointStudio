@@ -22,13 +22,14 @@
 // section of Charts draws and says, computed here in plain C++, so the presenter (stage 2b) only
 // serialises it and the QML only places it. No QObject, no files, no threads of its own.
 //
-// ── The six rows (§1.1) ─────────────────────────────────────────────────────────────────────────
+// ── The seven rows (§1.1) ─────────────────────────────────────────────────────────────────────────
 //   head height   headLift          face-on  cm        + = up
 //   hip depth     pelvisThrust      DTL      cm        + = in (toward the ball); P3–P5 hipDepthButt (decision 15)
 //   trunk bend    spineForwardBend  DTL      °         − = upright (bend lost)
 //   lead knee     leadKneeFlexion   DTL      °         + = more bend
 //   trail knee    trailKneeFlexion  DTL      °         + = more bend   (a STYLE: never matched)
 //   pelvis height pelvisLift        face-on  % stance  + = up
+//   side bend     spineSideBend     face-on  °         + = more toward the trail side   (P7 only; never matched, decision 17)
 // at P1..P8 (Phase ids 0, 12, 8, 2, 13, 9, 5, 14). A value is the CHANGE FROM ADDRESS.
 //
 // ── One number, one judge ───────────────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@
 //   3. The close-call GAP is the difference of the two distances AS SHOWN (2 dp), so the page never
 //      says "1.41 against 1.23, gap 0.17". The 0.15 rule reads that same figure. "Between" applies
 //      only while the nearer pattern is within d 2; past it the words are "no pattern fits closely".
-//   4. EXITS exclude the trail knee, like the match: it is a style (§4.2).
+//   4. EXITS exclude the trail knee, like the match: it is a style (§4.2). Side bend likewise (decision 17).
 //   5. A FAULT LINE belongs to a cell when the condition's signal is an outsideCorridor test on a
 //      measure of the same series ANCHORED AT ADDRESS: a delta ending at that position, or an anchored
 //      extremum whose window holds it (early extension's peak over P5–P7 draws on P5, P6 and P7). The
@@ -127,6 +128,16 @@
 //      from the person mask (spineBackLine, m_spineBackLine_p3/_p4/_p5), "back line −3" with its own ⚠ ("can catch
 //      the arms at the top"). It is not matched, not ringed, has no band of its own (it reads against the row's), and
 //      the session draws the shots' median of it. The joint reading stays the matched one (§2.3).
+//  17. SIDE BEND IS ON THE CHART, NOT IN THE MATCH (Mark, 8 Nov 2026; posture_chart_design.md §8). One cell: the change
+//      from address at P7 (m_spineSideBendChangeImpact); every other position has no measure and reads "-" — P1 too,
+//      where the other rows read a 0, so that a shot with no reading at impact says so (decision 13) and no line is
+//      drawn from an address nobody read. It is drawn against its good-player corridor (the wash: no posture_level /
+//      posture_squat_push row exists, so the norm resolves up the tree to `any`, one wash for every club), with the box,
+//      the dot or ring and word, and fault lines at the shot's own grading context — but never counted in the pattern
+//      match, never an exit or a departure, and it never leads the head line; matchEligible() and neverMatched() are
+//      the one place that says so. Its ⚠ is its gate: a reading the body.sideBendLines stretch covers at impact or at
+//      its address anchor keeps its figure and draws the ⚠; the same stretch elsewhere in the swing (the hips going
+//      edge-on at the top) leaves the reading alone. The corridor's standing is one sentence in the trust fold.
 
 #include "session_series_types.h"
 #include "../typeset/box_stats.h"
@@ -151,7 +162,7 @@ class INormProvider;
 
 namespace pinpoint::charts {
 
-inline constexpr int    kPostureRows         = 6;
+inline constexpr int    kPostureRows         = 7;
 inline constexpr int    kPosturePositions    = 8;      // P1..P8, index 0..7
 inline constexpr int    kPostureSessionShots = 5;      // §4.4.6: the session chooses the pattern from 5 shots
 inline constexpr double kPostureCloseCall    = 0.15;   // §4.4.3
@@ -159,13 +170,13 @@ inline constexpr double kPostureExitZ        = 2.0;    // §4.4.4
 inline constexpr double kPostureTrailKeptDeg = 8.0;    // §4.4.5: kept if it loses less than this by P4
 inline constexpr double kPostureHeadLevelCm  = 1.0;    // decision 2 above
 
-enum class PostureRow : int { Head = 0, Hips, Bend, LeadKnee, TrailKnee, PelvisHeight };
+enum class PostureRow : int { Head = 0, Hips, Bend, LeadKnee, TrailKnee, PelvisHeight, SideBend };
 enum class PosturePattern : int { Level = 0, SquatPush = 1 };   // a pattern MODE adds −1 = Auto
 enum class PostureCamera : int { FaceOn = 0, Dtl = 1 };
 
 struct PostureRowSpec {
     PostureRow    row;
-    QString       key;          // "head" | "hips" | "bend" | "leadKnee" | "trailKnee" | "pelvisHeight"
+    QString       key;          // "head" | "hips" | "bend" | "leadKnee" | "trailKnee" | "pelvisHeight" | "sideBend"
     QString       metricKey;    // the series
     QString       label;        // "Head height"
     QString       noun;         // "head" — for sentences
@@ -190,6 +201,9 @@ QString postureTrailReleasedContext();           // "posture_trail_released" (de
 // The ⚠ every capture carries today (§2.3): the reason, or "" when the cell is not warned. Hip depth carries
 // none by construction since stage 4c: its P3–P5 ⚠ is the shot's, where it fell back to the joints (decision 15).
 QString postureWarnReason(PostureRow r, int pos);
+// Decision 17: what a ⚠ on the side-bend reading means (said once, in the trust fold), and the corridor's standing.
+QString postureSideBendWarnReason();
+QString postureSideBendCorridorTrust();
 // Decision 15: the hip-depth cells read on the butt line (P3–P5), the joints' measure there, and the ⚠ words a
 // joint reading at those cells carries.
 bool    postureHipButtPos(int pos);
@@ -365,7 +379,7 @@ struct PostureMatch {
     QStringList rows;                  // the row keys compared
 };
 
-// d over P2–P7: no P8, no ⚠ cell (by construction, or in `warn`), no trail knee, no absent cell or band.
+// d over P2–P7: no P8, no ⚠ cell (by construction, or in `warn`), no trail knee, no side bend, no absent cell or band.
 PostureMatch postureMatch(const PostureGrid &x, const std::array<bool, kPostureRows> &present,
                           const PostureFlags &warn, const PostureEnv &env);
 

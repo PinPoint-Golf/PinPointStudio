@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <functional>
 #include <cstdio>
+#include <optional>
 
 using namespace pinpoint::analysis;
 
@@ -720,7 +721,7 @@ int main()
         // have moved it. If this ever fails alongside the two above, the labels have been rewired
         // away from labelOf rather than the encoding having changed.
         check(shapeLabel(Shape::Floor) == QLatin1String("Higher is better")
-                  && conditionGroupLabel(ConditionGroup::ArmsAndClub) == QLatin1String("Arms & club"),
+                  && conditionGroupLabel(ConditionGroup::Wrists) == QLatin1String("Wrists & release"),
               "the shipped labels read exactly as authored");
     }
 
@@ -920,9 +921,9 @@ int main()
               "the vocabulary holds `wrist`, and the empty string is not a domain");
     }
 
-    // ── The new condition groups ────────────────────────────────────────────────
-    // Impact, Finish and BallFlight were added with the outcome layer. A group whose token does not
-    // round-trip silently lands every condition in it back in Setup, which is the default.
+    // ── The condition groups ────────────────────────────────────────────────────
+    // A group whose token does not round-trip silently lands every condition in it back in Setup,
+    // which is the default.
     {
         CharacteristicPack p = goodPack();
         p.conditions.front().group = ConditionGroup::BallFlight;
@@ -931,11 +932,85 @@ int main()
         check(c && c->group == ConditionGroup::BallFlight, "ballFlight round-trips as itself");
 
         ConditionGroup g{};
-        check(conditionGroupFromName(QStringLiteral("impact"), g) && g == ConditionGroup::Impact,
-              "impact parses");
-        check(conditionGroupFromName(QStringLiteral("finish"), g) && g == ConditionGroup::Finish,
-              "finish parses");
+        check(conditionGroupFromName(QStringLiteral("delivery"), g) && g == ConditionGroup::Delivery,
+              "delivery parses");
+        check(conditionGroupFromName(QStringLiteral("golfer"), g) && g == ConditionGroup::Golfer,
+              "golfer parses");
+        check(!conditionGroupFromName(QStringLiteral("impact"), g)
+                  && !conditionGroupFromName(QStringLiteral("armsAndClub"), g),
+              "a retired token is no longer a group: only the loader's alias still reads one");
         check(allConditionGroups().size() == 10, "all ten groups are enumerated in one place");
+    }
+
+    // ── Packs written before the swing areas were regrouped ─────────────────────
+    // The user layer stores full rows and community packs carry whatever they were written with, so
+    // old tokens have to keep loading. The first half is a file an older build wrote; the second is
+    // why the marker exists at all.
+    {
+        const auto groupOf = [](const PackLoadResult &res, const char *id) {
+            const Condition *c = res.pack.condition(QString::fromLatin1(id));
+            return c ? std::optional<ConditionGroup>(c->group) : std::nullopt;
+        };
+        const QByteArray olderFile = R"({ "id": "older", "version": "1", "conditions": [
+            { "id": "reverse_spine_p4",    "label": "a", "group": "posture" },
+            { "id": "flat_shoulder_plane", "label": "b", "group": "posture" },
+            { "id": "loss_of_posture",     "label": "c", "group": "posture" },
+            { "id": "abbreviated_finish",  "label": "d", "group": "finish" },
+            { "id": "inside_takeaway",     "label": "e", "group": "setup" },
+            { "id": "casting",             "label": "f", "group": "release" },
+            { "id": "flying_elbow",        "label": "g", "group": "impact" },
+            { "id": "my_own_fault",        "label": "h", "group": "armsAndClub" },
+            { "id": "my_own_finish",       "label": "i", "group": "finish" },
+            { "id": "my_own_setup",        "label": "j", "group": "setup" }
+        ] })";
+
+        const PackLoadResult older = loadPack(olderFile, QStringLiteral("older"));
+        check(!hasError(older.report, "unknownGroup"), "a pack of old group tokens loads");
+        check(groupOf(older, "reverse_spine_p4") == ConditionGroup::Lateral
+                  && groupOf(older, "flat_shoulder_plane") == ConditionGroup::Rotation,
+              "a split group sends each listed condition to its own mapped area");
+        check(groupOf(older, "loss_of_posture") == ConditionGroup::Posture,
+              "…and leaves a condition that did not move where it was");
+        check(groupOf(older, "abbreviated_finish") == ConditionGroup::Rotation,
+              "the id wins over the retired token's default, which would have said lateral");
+        check(groupOf(older, "inside_takeaway") == ConditionGroup::PlanePath,
+              "a group that kept its token still moves the conditions the table moves");
+        check(groupOf(older, "casting") == ConditionGroup::Wrists, "a renamed group follows its rename");
+        check(groupOf(older, "flying_elbow") == ConditionGroup::Delivery,
+              "a stored token other than the table's old one falls through to the retired-token default");
+        check(groupOf(older, "my_own_fault") == ConditionGroup::Arms,
+              "an unknown id under armsAndClub goes to arms");
+        check(groupOf(older, "my_own_finish") == ConditionGroup::Lateral, "an unknown id under finish goes to lateral");
+        check(groupOf(older, "my_own_setup") == ConditionGroup::Setup, "an unknown id under setup stays in setup");
+
+        // A golfer who refiled a moved condition under what is now its old token meant it. The
+        // marker is what lets the alias tell them from a file that has never been brought forward.
+        const QByteArray markedFile = R"({ "id": "marked", "version": "1", "groupsRevision": 2, "conditions": [
+            { "id": "reverse_spine_p4", "label": "a", "group": "posture" },
+            { "id": "my_own_fault",     "label": "b", "group": "impact" }
+        ] })";
+        const PackLoadResult marked = loadPack(markedFile, QStringLiteral("marked"));
+        check(!hasError(marked.report, "unknownGroup"), "a marked pack loads");
+        check(groupOf(marked, "reverse_spine_p4") == ConditionGroup::Posture,
+              "a marked file's moved condition under its old token is left alone");
+        check(groupOf(marked, "my_own_fault") == ConditionGroup::Delivery,
+              "retired tokens are still mapped in a marked file");
+
+        // A save writes today's vocabulary, whatever the file said, and carries the marker.
+        const QJsonObject saved = savePack(older.pack);
+        check(saved.value(QStringLiteral("groupsRevision")).toInt() == kPackGroupsRevision,
+              "a save writes the marker");
+        QStringList current;
+        for (ConditionGroup g : allConditionGroups()) current << conditionGroupName(g);
+        bool onlyCurrent = true;
+        for (const QJsonValue &v : saved.value(QStringLiteral("conditions")).toArray())
+            if (!current.contains(v.toObject().value(QStringLiteral("group")).toString())) onlyCurrent = false;
+        check(onlyCurrent, "a save writes only new tokens");
+
+        const PackLoadResult reread = loadPack(saved, QStringLiteral("older, saved"));
+        check(groupOf(reread, "reverse_spine_p4") == ConditionGroup::Lateral
+                  && groupOf(reread, "my_own_fault") == ConditionGroup::Arms,
+              "…and reads back exactly as it was saved");
     }
 
     // ── ConditionKind and Prominence: round-trip, and the two unknown-token errors ──
@@ -1189,7 +1264,7 @@ int main()
         check(!hasWarning(validatePack(p), "outcomeNotBallFlight"),
               "an Outcome in the ball-flight group does not warn");
 
-        p.conditions.front().group = ConditionGroup::Impact;
+        p.conditions.front().group = ConditionGroup::Delivery;
         check(hasWarning(validatePack(p), "outcomeNotBallFlight"), "an Outcome filed elsewhere warns");
     }
     {

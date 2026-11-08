@@ -49,8 +49,13 @@ import PinPointStudio
 // `variabilityOnOpen` (Mark, 8 Nov 2026: the badge on every row made the Readings list noisy) keeps the badge to
 // the OPEN row only: a closed row is drawn as if it had no `variability`, and the badge appears on line 2 when the
 // row opens, above its curve. Off by default, so a list whose subject is the variability keeps it on every row.
+// A ROW MAY BE SOFT: the row's optional `soft` (bool) and `softWord` (string). The reading is shown but does not count
+// towards what the list is summing up (an opened Consistency P7-P8 cell: the readings not taken after the ball). Its
+// name and value drop from ink to ink2 and `softWord` ("not counted") goes on line 2, so the tone is never the only
+// channel. No wash: a tinted row reads as highlighted, the opposite of what soft means. A warn value, a gate's words and the metric's swatch and box keep their looks.
+// A row with no `soft` is drawn as it always was.
 // objectNames: chApart (the apart list) / chProfile (every reading); each row chApartRow (+ readingId),
-// the open one also chApartRowOpen; a row's badge chProfileVariability.
+// the open one also chApartRowOpen; a row's badge chProfileVariability; a soft row's word chProfileSoftWord.
 Column {
     id: pt
     property QtObject roles: null
@@ -145,7 +150,10 @@ Column {
             readonly property bool typ: !!vb && vb.kind === "typicality"
             readonly property bool badged: !!vb && (!pt.variabilityOnOpen || open)
                                            && (typ ? !!vb.values : !!(vb.result && vb.result.graded))
-            readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution)) || badged
+            // shown, but not counted (the header)
+            readonly property bool soft: !!r && r.soft === true
+            readonly property string softWord: soft ? (r.softWord || "") : ""
+            readonly property bool two: !pt.wideCols || (r && (r.fired || r.caution)) || badged || softWord !== ""
             readonly property real line1: Math.max(pt.roles.u(24), name.implicitHeight + pt.roles.u(8))
             // line 2 holds the facts and the badge: on one line when both fit, else the second under the first
             readonly property real factsH: facts.implicitWidth > 0 ? facts.implicitHeight : 0
@@ -166,7 +174,7 @@ Column {
                     id: name; width: pt.nameW; wrapMode: Text.WordWrap
                     leftPadding: pt.roles.u(pt.roles.ch.swatch) + pt.roles.g(5)
                     text: row.r ? row.r.label : ""
-                    font: row.open ? pt.roles.fBodyM : pt.roles.fBody; color: pt.roles.ink
+                    font: row.open ? pt.roles.fBodyM : pt.roles.fBody; color: row.soft ? pt.roles.ink2 : pt.roles.ink
                     Rectangle { y: Math.round(name.baselineOffset - height - name.font.pixelSize * 0.18); width: pt.roles.u(pt.roles.ch.swatch); height: width
                                 radius: pt.roles.square ? 0 : width / 2; color: row.r ? pt.roles.hue(row.r.key) : "transparent" }
                 }
@@ -179,7 +187,7 @@ Column {
                        horizontalAlignment: gated ? Text.AlignLeft : Text.AlignRight; anchors.baseline: name.baseline
                        elide: gated ? Text.ElideRight : Text.ElideNone
                        text: row.r ? (row.r.valueText + (gated ? " ›" : "")) : "-"; font: gated ? pt.roles.fSmall : pt.roles.fFig
-                       color: gated ? pt.roles.link : row.r && row.r.fired ? pt.roles.warn : row.r && row.r.measured ? pt.roles.ink : pt.roles.ink3 }
+                       color: gated ? pt.roles.link : row.r && row.r.fired ? pt.roles.warn : row.r && row.r.measured ? (row.soft ? pt.roles.ink2 : pt.roles.ink) : pt.roles.ink3 }
                 Text { visible: !valT.gated; width: pt.unitW; text: row.r ? (row.r.unitText || "") : ""; font: pt.roles.fSmall; color: pt.roles.ink3; anchors.baseline: name.baseline }
                 Text { visible: pt.wideCols; width: pt.medW; horizontalAlignment: Text.AlignRight; anchors.baseline: name.baseline
                        text: row.r ? row.r.medianText : "-"; font: pt.roles.fFig; color: pt.roles.ink2 }
@@ -227,6 +235,7 @@ Column {
                     // an estimate a gate refused: shown, with its health warning (why: the trust fold)
                     Text { objectName: "chProfileCaution"; visible: !!(row.r && row.r.caution); text: row.r ? (row.r.cautionText || "") : ""
                            font: pt.roles.fSmall; color: pt.roles.ink2 }
+                    Text { objectName: "chProfileSoftWord"; visible: row.softWord !== ""; text: row.softWord; font: pt.roles.fSmall; color: pt.roles.ink2 }
                 }
                 PpVariabilityBadge {
                     id: vbadge

@@ -18,13 +18,16 @@
 
 #include "pack_provider.h"
 
+#include "../../Core/pp_debug.h"
 #include "../engine/pack_io.h"
 #include "../engine/provider_leaf_p.h"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 
 namespace pinpoint::analysis {
 
@@ -34,6 +37,68 @@ namespace {
 // use, because three separate decisions key on it: where saveUserPack() writes, which file
 // characteristicPackFilesIn() layers first, and which file is LocalUser rather than Community.
 const QLatin1String kUserPackName("user.json");
+
+// The copy of the user's pack taken before its one migration. It must NOT end in `.json`: the
+// provider globs `*.json` in this directory and would load the copy as a second pack.
+QString regroupBackupPath(const QString &path)
+{
+    const QString base = path + QStringLiteral(".pre-areas-regroup.bak");
+    QString candidate = base;
+    for (int n = 2; QFile::exists(candidate); ++n)
+        candidate = base + QLatin1Char('.') + QString::number(n);
+    return candidate;
+}
+
+// The swing area regroup, applied once to the user's own pack (characteristic_pack.h). The user layer
+// stores full rows for the conditions they edited, so an old token there would otherwise be read
+// through the alias on every load and rewritten only when they next happened to save. The rewrite
+// edits the JSON directly rather than round-tripping through loadPack/savePack, so a field this build
+// does not know about survives it.
+//
+// The loader's alias already gives the right answer without this. So any failure here costs nothing
+// but a warning: a backup that cannot be written means the file is not touched at all.
+void migrateUserPackGroups(const QString &path)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return;     // absent is normal; the loader reports the rest
+    const QByteArray bytes = f.readAll();
+    f.close();
+
+    const QJsonDocument doc = QJsonDocument::fromJson(bytes);
+    if (!doc.isObject()) return;                  // the loader reports a malformed file
+    QJsonObject root = doc.object();
+    if (packHasCurrentGroups(root)) return;
+
+    const QString backup = regroupBackupPath(path);
+    QString       whyNot;
+    if (!atomicWrite(backup, bytes, &whyNot)) {
+        ppWarn() << "[Diagnostics] user pack left on its old area names: no backup possible:"
+                 << qPrintable(whyNot);
+        return;
+    }
+
+    if (root.contains(QStringLiteral("conditions"))) {
+        QJsonArray conditions = root.value(QStringLiteral("conditions")).toArray();
+        for (qsizetype i = 0; i < conditions.size(); ++i) {
+            QJsonObject row = conditions.at(i).toObject();
+            if (!row.contains(QStringLiteral("group"))) continue;
+            row.insert(QStringLiteral("group"),
+                       currentConditionGroupToken(row.value(QStringLiteral("id")).toString(),
+                                                  row.value(QStringLiteral("group")).toString(),
+                                                  /*fileHasCurrentGroups*/ false));
+            conditions.replace(i, row);
+        }
+        root.insert(QStringLiteral("conditions"), conditions);
+    }
+    root.insert(QStringLiteral("groupsRevision"), kPackGroupsRevision);
+
+    if (!atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Indented), &whyNot)) {
+        ppWarn() << "[Diagnostics] user pack left on its old area names: could not rewrite it:"
+                 << qPrintable(whyNot);
+        return;
+    }
+    ppInfo() << "[Diagnostics] user pack moved to the new swing areas; backup at" << qPrintable(backup);
+}
 
 // ONE user pack file from disk. A pack that fails to parse is REPORTED and skipped, never fatal: a
 // single malformed community pack must not take the whole library down with it, and — now that a
@@ -51,7 +116,13 @@ public:
     FilePackProvider(const QString &packFile, PackOrigin origin)
     {
         m_origin = origin;
-        loadLayer(packFile.isEmpty() ? userPackPath() : packFile);
+        const QString path = packFile.isEmpty() ? userPackPath() : packFile;
+        // By file name and origin, the same two facts that make a file the user's own layer in
+        // makeFilePackProviders(). A community pack is left alone: the alias reads it correctly and
+        // the file is not ours to rewrite.
+        if (origin == PackOrigin::LocalUser && QFileInfo(path).fileName() == kUserPackName)
+            migrateUserPackGroups(path);
+        loadLayer(path);
     }
 
     // A provider that read NOTHING is not a layer. No user pack is the normal case, and reporting

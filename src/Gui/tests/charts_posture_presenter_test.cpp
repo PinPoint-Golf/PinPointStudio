@@ -658,7 +658,7 @@ private slots:
                 }
             }
             QVERIFY(rowOf(view, QStringLiteral("bend")).value(QStringLiteral("hasAlt")).toBool());
-            for (const char *k : { "head", "hips", "leadKnee", "trailKnee", "pelvisHeight" }) {
+            for (const char *k : { "head", "hips", "leadKnee", "trailKnee", "pelvisHeight", "sideBend" }) {
                 QVERIFY(!rowOf(view, QLatin1String(k)).value(QStringLiteral("hasAlt")).toBool());
                 for (const QVariant &cv : rowOf(view, QLatin1String(k)).value(QStringLiteral("cells")).toList())
                     QVERIFY(!cv.toMap().value(QStringLiteral("alt")).toBool());
@@ -844,7 +844,7 @@ private slots:
         // the same reading as the snapshot's copy of this swing (shot 3, ×1.0)
         ChartsPosturePresenter q;
         setUp(q, m_five, 3);
-        for (const char *k : { "head", "hips", "bend", "leadKnee", "trailKnee", "pelvisHeight" })
+        for (const char *k : { "head", "hips", "bend", "leadKnee", "trailKnee", "pelvisHeight", "sideBend" })
             for (int pos = 0; pos < kPosturePositions; ++pos)
                 QCOMPARE(cellOf(t, QLatin1String(k), pos).value(QStringLiteral("text")).toString(),
                          cellOf(q.thisShot(), QLatin1String(k), pos).value(QStringLiteral("text")).toString());

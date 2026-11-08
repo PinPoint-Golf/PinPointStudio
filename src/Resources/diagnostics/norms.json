@@ -1666,6 +1666,33 @@
       "source": "heuristic"
     },
     {
+      "measure": "m_spineSideBendChangeImpact",
+      "context": "any",
+      "mu": 3.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PROVISIONAL, SEATED 2026-11-08 AS A 2-D QUANTITY. The face-on change in side bend from address to impact, the shoulder line against the hip line, not an absolute and not a 3-D angle. Derived from 248 shots across 5 golfers in the library copy on 8 Nov 2026 (median gain about +3° on iron swings; one golfer supplied 169 of the 248). 3-D figures from the literature are not used as corridors, because 2-D and 3-D lateral bend at impact differ (Smith, Roberts, Wallace, Kong, Forrester 2016, J Appl Biomech, 10.1123/jab.2015-0032, abstract only). Driver has no row of its own yet: the only driver data was 11 shots from one golfer, which gained −1.5°, so driver falls back to this row."
+    },
+    {
+      "measure": "m_spineSideBendChangeImpact",
+      "context": "iron",
+      "mu": 3.0,
+      "sigmaLo": 3.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PROVISIONAL, SEATED 2026-11-08 AS A 2-D QUANTITY. The face-on change in side bend from address to impact, the shoulder line against the hip line, not an absolute and not a 3-D angle. Derived from 248 shots across 5 golfers in the library copy on 8 Nov 2026 (median gain about +3° on iron swings; one golfer supplied 169 of the 248). 3-D figures from the literature are not used as corridors, because 2-D and 3-D lateral bend at impact differ (Smith, Roberts, Wallace, Kong, Forrester 2016, J Appl Biomech, 10.1123/jab.2015-0032, abstract only)."
+    },
+    {
+      "measure": "m_spineSideBendChangeImpact",
+      "context": "wedge",
+      "mu": 3.0,
+      "sigmaLo": 2.0,
+      "unit": "°",
+      "source": "heuristic",
+      "citation": "PROVISIONAL, SEATED 2026-11-08 AS A 2-D QUANTITY. The face-on change in side bend from address to impact, the shoulder line against the hip line, not an absolute and not a 3-D angle. Derived from 248 shots across 5 golfers in the library copy on 8 Nov 2026 (median gain about +3° on iron swings; one golfer supplied 169 of the 248). 3-D figures from the literature are not used as corridors, because 2-D and 3-D lateral bend at impact differ (Smith, Roberts, Wallace, Kong, Forrester 2016, J Appl Biomech, 10.1123/jab.2015-0032, abstract only)."
+    },
+    {
       "measure": "m_leadUpperArmToChest",
       "context": "any",
       "mu": 46.0,

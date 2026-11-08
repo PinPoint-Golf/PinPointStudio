@@ -77,7 +77,7 @@ inline constexpr double kConsistencyAfterImpactMs = 100.0;      // Mark, 6 Nov: 
                                                                // The P8 mark is unreliable (#24), and a length per session made
                                                                // cells depend on the length and sessions not comparable
 inline constexpr int    kConsistencyMinKeptAnchors = 4;        // contract: a shot with fewer of P1..P7 kept as anchors is guarded
-inline constexpr int    kConsistencyImpactColumn = 6;          // doc §4.1: Impact reads P7 itself, in P6-P7
+inline constexpr int    kConsistencyImpactColumn = 6;          // doc §4.1: Delivery reads P7 itself, in P6-P7
 inline constexpr int    kConsistencyBackswingTimingColumn = 3; // doc §4.1: backswing timing is stamped at impact but sits in P3-P4
 inline constexpr int    kConsistencyBackswingFirst = 1;        // the headline's backswing: P1-P2 ...
 inline constexpr int    kConsistencyBackswingLast  = 3;        // ... to P3-P4
@@ -93,6 +93,7 @@ inline constexpr int kConsistencyPhases[kConsistencyColumns] = { phase::Address,
 struct ConsistencyEnv {
     std::function<QString(const QString &key)> areaOf;                                    // area token, "" = unplaced
     std::function<double(const QString &key, int phase, const QString &club)> normSigma;  // NaN = no norm
+    std::function<bool(const QString &key)> afterBall;   // graded after the ball has gone (afterBallKeysForPack); empty = none
 };
 
 // ── Layer 1 ─────────────────────────────────────────────────────────────────────────────────────
@@ -112,6 +113,7 @@ struct ConsistencyReading {
     QString key, label, unit;
     QString area;               // "" = unplaced: kept here, never in a cell or a stand-out
     int     column = -1;
+    bool    afterBall = false;  // P7-P8 only: a condition reads this at the finish, so it counts there (consistency_grades.h)
     ConsistencyReadingKind kind = ConsistencyReadingKind::Position;
     double  ownSigma = kNaN;    // the reading's measurement σ
     double  normSigma = kNaN;   // the median over its shots of the norm's σ for each shot's club

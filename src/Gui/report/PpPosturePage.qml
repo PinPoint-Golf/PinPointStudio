@@ -44,7 +44,7 @@ import PinPointStudio
 //   · the trust note, said once, open (paper has no fold).
 //
 // The profile is PpReportProfile (shared with the Wrist page): a PRINT-ONLY SIBLING of PpChPostureProfile, reading the same rows. The screen profile's geometry is a screen's
-// (rows of 160 px with labels above at this width: the six rows would need two pages on their own); the numbers, the
+// (rows of 160 px with labels above at this width: the seven rows would need two pages on their own); the numbers, the
 // words, the bands, the boxes and the scale (each row's yLo…yHi) are the presenter's and are not re-made here.
 // FLOWED (§9.1 rules 1, 2): the section starts a fresh page; the profile is a printGroup whose head is the column
 // heads (repeated on a page that opens inside it) and each reading one atom; every other block is one atom, and a
@@ -61,13 +61,13 @@ Column {
     readonly property var m: po || ({})
     readonly property bool on: !!po
     readonly property var prof: m.profile || ({})
-    readonly property var rows: (prof.rows || []).slice(0, 6)                       // the map's cap
+    readonly property var rows: (prof.rows || []).slice(0, 7)                       // the map's cap
     readonly property var positions: (prof.positions || []).slice(0, 8)
     readonly property var moved: (m.moved || []).slice(0, 2)
     readonly property var strip: m.strip || null
     readonly property var marks: strip ? (strip.marks || []).slice(0, 120) : []
     readonly property var deps: (m.departures || []).slice(0, 6)
-    readonly property var trust: (m.trust || []).slice(0, 16)
+    readonly property var trust: (m.trust || []).slice(0, 18)
     visible: on
     width: 600
 

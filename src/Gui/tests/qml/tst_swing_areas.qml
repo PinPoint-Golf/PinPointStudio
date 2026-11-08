@@ -56,7 +56,7 @@ Item {
                     probe.item("lp", "Loss of posture", "",       "watch", { typical: 7, corridorShape: "ceiling",
                                                                              corridorHi: 5, unit: "°" })]
         }),
-        probe.area("sequence", "Sequence", 1, {
+        probe.area("rotation", "Turn & sequence", 1, {
             habitTrend: -1, topFault: "Arms first", workOnsActive: 1,
             items: [probe.item("af", "Arms first", "easing", "watch")]
         }),
@@ -122,7 +122,7 @@ Item {
         function test_the_rows_render_in_the_controllers_order() {
             const r = rows()
             compare(r.length, 4)
-            compare(r.map(x => x.areaLabel).join(","), "Posture,Sequence,Setup,Ball flight")
+            compare(r.map(x => x.areaLabel).join(","), "Posture,Turn & sequence,Setup,Ball flight")
             compare(r[0].habitsText, "4 habits")
             compare(r[1].habitsText, "1 habit")
             compare(r[0].trendText, "+1")
@@ -137,7 +137,7 @@ Item {
 
         function test_the_first_measurable_area_opens_on_first_show() {
             verify(row("posture").expanded)
-            verify(!row("sequence").expanded)
+            verify(!row("rotation").expanded)
             verify(!row("setup").expanded)
             const e = store.homeViewByAthlete["a"]
             verify(e !== undefined)
@@ -150,7 +150,7 @@ Item {
             store.homeViewByAthlete = ({})
             areas.athleteUuid = "b"
             fake.areaItems = [probe.fixture[3], probe.fixture[1]]
-            verify(row("sequence").expanded)
+            verify(row("rotation").expanded)
             verify(!row("ballFlight").expanded)
         }
 
@@ -170,7 +170,7 @@ Item {
 
             // Back to a, then b again: each as left. b's all-closed table stays closed.
             areas.athleteUuid = "a"
-            verify(row("posture").expanded && row("setup").expanded && !row("sequence").expanded)
+            verify(row("posture").expanded && row("setup").expanded && !row("rotation").expanded)
             areas.athleteUuid = "b"
             verify(rows().every(r => !r.expanded))
         }
@@ -204,8 +204,8 @@ Item {
             buttons[0].clicked()
             compare(probe.practised, ["ee", "Early extension"])
 
-            row("sequence").activate()
-            const easing = shown(row("sequence"), "areaPractise")
+            row("rotation").activate()
+            const easing = shown(row("rotation"), "areaPractise")
             compare(easing.length, 1)
             easing[0].clicked()
             compare(probe.practised, ["af", "Arms first"])
@@ -259,13 +259,13 @@ Item {
         }
 
         function test_the_keyboard_opens_a_row() {
-            const seq = row("sequence")
+            const seq = row("rotation")
             verify(!seq.expanded)
             seq.forceActiveFocus()
             tryVerify(function () { return seq.activeFocus })
             keyClick(Qt.Key_Space)
             verify(seq.expanded)
-            compare(Array.from(store.homeViewByAthlete["a"].expanded).join(","), "posture,sequence")
+            compare(Array.from(store.homeViewByAthlete["a"].expanded).join(","), "posture,rotation")
             keyClick(Qt.Key_Return)
             verify(!seq.expanded)
         }

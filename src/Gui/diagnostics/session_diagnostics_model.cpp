@@ -1826,12 +1826,6 @@ void SessionDiagnosticsModel::marshalGraph(const QSet<QString> &keep,
         n.screenEntered = m_screens.contains(c.id);
         n.asserted      = c.confirmedBy == ConfirmedBy::Asserted;
         if (!m_declaredMiss.isEmpty() && c.id == m_declaredMiss) n.outcomeId = m_declaredMiss;
-        // TEMPORAL ORDER IS APPROXIMATED BY CONDITION GROUP, which is gradeLink()'s own
-        // stated approximation: the group order IS the swing (setup, posture, lateral, arms
-        // and club, release, sequence, impact, finish, ball flight), and it is the finest
-        // ordering available until the detector timestamps a finding within a shot.
-        const auto &groups = allConditionGroups();
-        n.phaseOrder = int(std::find(groups.begin(), groups.end(), c.group) - groups.begin());
         nodes.push_back(std::move(n));
     }
 
@@ -1843,7 +1837,9 @@ void SessionDiagnosticsModel::marshalGraph(const QSet<QString> &keep,
         s.to   = e.to;
         // The pack's Edge carries no directional SENSE — it says A causes B, not "A high
         // implies B high". Type 0 is the honest marshalling: gradeLink() then rests
-        // coherence on temporal order alone rather than on a sign nobody authored.
+        // coherence on both ends having been observed rather than on a sign nobody authored.
+        // The edge's authored direction is what carries cause and effect; a condition's group
+        // only classifies it and plays no part in grading a link.
         s.type     = 0;
         s.strength = int(e.strength);
         // Computed by the pack at load (stampSharedEvidence): both ends read one measure, so the

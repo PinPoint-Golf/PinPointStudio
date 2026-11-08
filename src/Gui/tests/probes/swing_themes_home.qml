@@ -113,8 +113,17 @@ Item {
 
     // ── The home screen ──────────────────────────────────────────────────────────────────
     property var summary: null
+    // Home's areas, one line each: the per-area counts a regroup moves, for a before/after diff of the probe's output.
+    function logAreas() {
+        const areas = workOns.areaItems || []
+        log("areas (" + areas.length + "): area measurable measured habits occasional clean unclear")
+        for (const a of areas)
+            log("  area " + a.group + " \"" + a.label + "\" " + a.measurable + " " + a.measured + " " + a.habits + " "
+                + a.occasional + " " + a.clean + " " + a.unclear)
+    }
     function inspectHome() {
         log("athleteDir " + workOns.athleteDir + " · settled after " + (Date.now() - startedMs) + " ms")
+        logAreas()
         check(!workOns.updating && workOns.sessionCount === workOns.sessionsFound && workOns.sessionsFound > 0,
               "the work-ons catch-up finished (" + workOns.sessionCount + " of " + workOns.sessionsFound + " sessions)")
         check(workOns.summaryReady && !workOns.summaryUpdating, "the swing summary is ready")

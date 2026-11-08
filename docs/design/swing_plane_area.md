@@ -1,4 +1,4 @@
-# The Swing plane area
+# The Swing plane chart and the Plane & path area
 
 Decided with Mark, 8 Nov 2026. The Charts panel listed ten plane readings under names that overlapped, built on about
 four measurements. This note says what each one is, where it now lives, and what the conditions grade.
@@ -70,11 +70,20 @@ separate work.
 
 ## Where it lives on Your swing
 
-Swing plane is its own area on Home's Your swing tab and in the Consistency table, the row after Arms & club (condition
-group `swingPlane`). A condition belongs to it when it reads a metric on the Swing plane chart: the eight above, plus
-`over_the_top` (hand path loop) and `shallowing` (transition plane delta). Arms & club keeps `across_the_line` and
-`laid_off`, which read shaft direction at the top. The Consistency table reads the area over the same columns as Arms &
-club, P1-P2 to P7-P8.
+The area is Plane & path on Home's Your swing tab and Plane and path in the Consistency table, the row after Wrists and
+release (condition group `planePath`, `swing_areas_regroup.md`). Swing plane is still the chart's name.
+
+A condition belongs to the area when it is about the club's route: the takeaway, the shaft at the top, the plane and the
+path. That gives 18:
+
+| Part of the route | Conditions |
+|---|---|
+| Takeaway | `inside_takeaway`, `outside_takeaway` |
+| Shaft at the top | `across_the_line`, `laid_off`, `overswing`, `club_short_of_parallel` |
+| Plane | the eight above, plus `over_the_top` (hand path loop) and `shallowing` (transition plane delta) |
+| Path | `in_to_out_path`, `out_to_in_path` |
+
+The Consistency table reads the area over every span, P1-P2 to P7-P8.
 
 ## What to keep in mind
 

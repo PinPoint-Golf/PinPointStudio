@@ -20,6 +20,7 @@ pp_add_test(charts_series_model_test
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
             ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${SRC}/Diagnostics/packs/merged_pack_provider.cpp
             ${SRC}/Diagnostics/packs/characteristic_pack.cpp
             ${SRC}/Diagnostics/packs/reference_pack.cpp

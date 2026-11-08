@@ -107,7 +107,9 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
 // it is a most-common count with first-met ties (as Python's Counter.most_common(1) answers, which the
 // retired consistency tally cross-checked it with).
 //
-// Ball flight is left out: it has no spans to read. A key no body condition detects on is absent.
+// Ball flight is left out: it has no spans to read. `golfer` is left out because it is not on
+// areaGroupOrder(): those conditions are latent, and they are never an area. A key no body condition
+// detects on is absent.
 inline QHash<QString, QString> metricAreasForPack(const CharacteristicPack &pack)
 {
     using GroupUses = std::vector<std::pair<QString, int>>;     // first met first
@@ -137,6 +139,26 @@ inline QHash<QString, QString> metricAreasForPack(const CharacteristicPack &pack
                                            });
         out.insert(it.key(), most->first);
     }
+    return out;
+}
+
+// THE READINGS GRADED AFTER THE BALL HAS GONE (Consistency's P7-P8 column, Mark, 8 Nov). A reading is graded
+// there when some condition reads its measure at the `finish` anchor: the pack says that reading means
+// something once the ball has gone. Every other reading of the column is shown but does not count. This is
+// the one derivation; the grades and the table's lighter cells both take it from ConsistencyReading::afterBall.
+//
+// A measure's OWN key, as metricAreasForPack reads it, and only an `at` reducer at Phase::Finish: an
+// extremum whose window ends there says where the search stopped, not that the measure is read at the finish.
+inline QSet<QString> afterBallKeysForPack(const CharacteristicPack &pack)
+{
+    QSet<QString> out;
+    for (const Condition &c : pack.conditions)
+        for (const ConditionReading &r : conditionReadings(pack, c.id)) {
+            const Measure *m = pack.measure(r.measureId);
+            if (m && !m->metricKey.isEmpty() && m->reducer.kind == ReducerKind::At
+                && m->reducer.anchor == Phase::Finish)
+                out.insert(m->metricKey);
+        }
     return out;
 }
 

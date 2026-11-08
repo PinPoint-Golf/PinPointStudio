@@ -20,7 +20,7 @@ import QtQuick
 import PinPointStudio
 
 // PPCHPOSTUREPROFILE — THE POSTURE PROFILE (docs/design/posture_chart_design.md §5.2, §5.5): one row per posture
-// reading (head height, hip depth, trunk bend, lead knee, trail knee, pelvis height), P1…P8 as a discrete x axis,
+// reading (head height, hip depth, trunk bend, lead knee, trail knee, pelvis height, side bend), P1…P8 as a discrete x axis,
 // the change from address on y. It is the wrist profile's form (PpChPositionProfile, as PpChWristProfile), per cell:
 //   · the chosen pattern's band as a wash in the row's metric colour (Theme.metricColor(hueKey): identity);
 //   · the fault line (where the matching condition fires) as a hairline;

@@ -181,6 +181,7 @@ private slots:
     void spanWithNoCanonicalP();
     void columnSevenIgnoresCanonicalP8();
     void columnSevenIgnoresP8();
+    void afterBallIsColumnSevensAndComesFromTheEnv();
     void guardOnKeptAnchors();
     void guardOnRunsBackwards();
     void launchMonitorOnlyShotIsNotGuarded();
@@ -262,8 +263,8 @@ void SessionConsistencyTest::resultReadings()
     ConsistencyInput in = inputOf({ "7i", "7i", "7i", "7i", "7i", "7i", "7i", "7i" });
     ConsistencyReading judged = position("a", "setup", 0, oneOut(0.0));
     judged.normSigma = 1.0;
-    ConsistencyReading noNorm = position("b", "impact", 6, oneOut(0.0));
-    ConsistencyReading elsewhere = position("c", "sequence", 1, oneOut(0.0));   // sequence is not read at P1-P2
+    ConsistencyReading noNorm = position("b", "delivery", 6, oneOut(0.0));
+    ConsistencyReading elsewhere = position("c", "delivery", 1, oneOut(0.0));   // delivery is read at P7, not P1-P2
     ConsistencyReading unplaced = position("d", "", 3, oneOut(0.0));
     in.readings = { judged, noNorm, elsewhere, unplaced };
     const ConsistencyResult res = consistencyResult(in);
@@ -335,7 +336,7 @@ void SessionConsistencyTest::onePerKeyAndSortOrder()
         position("c", "posture", 1, oneOut(5.0)),
         position("c", "posture", 2, oneOut(-5.0)),      // equal |z|: the lowest column stays
         position("d", "posture", 4, oneOut(20.0)),
-        position("e", "sequence", 1, oneOut(99.0)),     // sequence is not read here: never a stand-out
+        position("e", "delivery", 1, oneOut(99.0)),     // delivery is read only at P6-P7: never a stand-out here
         position("f", "", 1, oneOut(99.0)),             // unplaced: never a stand-out
     };
     const ConsistencyResult res = consistencyResult(in);
@@ -355,8 +356,8 @@ void SessionConsistencyTest::guardTakesSpansAndTiming()
         span("line", "posture", 2, oneOut(50.0)),
         position("line", "posture", 0, oneOut(5.0)),    // the guard comes before one-per-key: this one is left
         span("spanOnly", "lateral", 2, oneOut(5.0)),
-        position("tempoBackswing", "sequence", 3, oneOut(5.0)),
-        position("tempoRatio", "sequence", 3, oneOut(5.0)),
+        position("tempoBackswing", "rotation", 3, oneOut(5.0)),
+        position("tempoRatio", "rotation", 3, oneOut(5.0)),
     };
     ConsistencyResult open = consistencyResult(in);
     QVERIFY(standOutOn(open, 1, "spanOnly"));
@@ -579,7 +580,7 @@ void SessionConsistencyTest::readingsByKind()
         s.shots.push_back(sh);
     }
     const SessionAlignment al = alignSession(s);
-    const ConsistencyInput in = consistencyInput(s, al, stubEnv({ { "imp", "impact" }, { "tempoBackswing", "sequence" },
+    const ConsistencyInput in = consistencyInput(s, al, stubEnv({ { "imp", "delivery" }, { "tempoBackswing", "rotation" },
                                                                   { "inst", "posture" }, { "curve", "posture" },
                                                                   { "mixed", "lateral" } }));
     QStringList got;
@@ -697,7 +698,7 @@ void SessionConsistencyTest::columnSevenIgnoresCanonicalP8()
     const SessionAlignment al = alignSession(s);
     QVERIFY(!al.canonicalOf(phase::P8));
 
-    const ConsistencyInput in = consistencyInput(s, al, stubEnv({ { "curve", "finish" } }));
+    const ConsistencyInput in = consistencyInput(s, al, stubEnv({ { "curve", "lateral" } }));
     QCOMPARE(in.afterImpactMs, 100.0);
     const ConsistencyReading *c7 = readingOf(in, "curve", 7);
     QVERIFY(c7);
@@ -711,7 +712,7 @@ void SessionConsistencyTest::columnSevenIgnoresCanonicalP8()
     auto stretched = std::make_shared<ShotSeries>(*s.shots[0]);
     stretched->phases[3].tUs -= 80000;      // a P4 further out: a different warp, within gate 3
     s.shots[0] = stretched;
-    const ConsistencyInput again = consistencyInput(s, alignSession(s), stubEnv({ { "curve", "finish" } }));
+    const ConsistencyInput again = consistencyInput(s, alignSession(s), stubEnv({ { "curve", "lateral" } }));
     for (int j = 0; j < 5; ++j) QVERIFY(near(readingOf(again, "curve", 7)->at(0, j), expected[j], 1e-6));
 
     // a shot with a curve short of the end has NaN there, valid samples only
@@ -721,9 +722,33 @@ void SessionConsistencyTest::columnSevenIgnoresCanonicalP8()
         if (cut->metrics["curve"].tUs[k] > cut->impactUs + 40000 && cut->metrics["curve"].tUs[k] < cut->impactUs + 60000)
             cut->metrics["curve"].valid[k] = 0;
     s.shots[1] = cut;
-    const ConsistencyInput bridged = consistencyInput(s, alignSession(s), stubEnv({ { "curve", "finish" } }));
+    const ConsistencyInput bridged = consistencyInput(s, alignSession(s), stubEnv({ { "curve", "lateral" } }));
     QVERIFY(std::isnan(readingOf(bridged, "curve", 7)->at(1, 2)));
     QVERIFY(std::isfinite(readingOf(bridged, "curve", 7)->at(1, 0)));
+}
+
+void SessionConsistencyTest::afterBallIsColumnSevensAndComesFromTheEnv()
+{
+    SessionSnapshot s;
+    for (int i = 1; i <= 8; ++i) {
+        auto sh = ladderShot(i, 100.0);
+        for (const char *key : { "finished", "other" }) {
+            MetricSeries m = curveSeries(key, sh->impactUs, -900, 600);
+            sh->metrics.insert(m.key, m);
+        }
+        s.shots.push_back(sh);
+    }
+    ConsistencyEnv env = stubEnv({ { "finished", "rotation" }, { "other", "rotation" } });
+    env.afterBall = [](const QString &key) { return key == QLatin1String("finished"); };
+    const ConsistencyInput in = consistencyInput(s, alignSession(s), env);
+
+    for (const ConsistencyReading &r : in.readings)
+        QCOMPARE(r.afterBall, r.key == QLatin1String("finished") && r.column == kConsistencyAfterBallColumn);
+    QVERIFY(readingOf(in, "finished", kConsistencyAfterBallColumn)->afterBall);
+
+    // with no answer, nothing is after-ball: an env that doesn't say grades nothing there
+    const ConsistencyInput plain = consistencyInput(s, alignSession(s), stubEnv({ { "finished", "rotation" } }));
+    for (const ConsistencyReading &r : plain.readings) QVERIFY(!r.afterBall);
 }
 
 void SessionConsistencyTest::columnSevenIgnoresP8()
@@ -738,7 +763,7 @@ void SessionConsistencyTest::columnSevenIgnoresP8()
             sh->metrics.insert(m.key, m);
             s.shots.push_back(sh);
         }
-        return consistencyInput(s, alignSession(s), stubEnv({ { "curve", "finish" } }));
+        return consistencyInput(s, alignSession(s), stubEnv({ { "curve", "lateral" } }));
     };
     // No P8 on any shot: the column is still read, 100 ms after impact.
     const ConsistencyInput none = inputWith({ -1, -1, -1, -1, -1, -1, -1 }, 0.30);
@@ -866,7 +891,7 @@ void SessionConsistencyTest::guardOnFixture()
 {
     const charts_test::Fixture fx = charts_test::loadFixture(kData + QStringLiteral("/session_0704.json"));
     QVERIFY(fx.ok);
-    const ConsistencyEnv env = stubEnv({ { "handSpeed", "sequence" } });
+    const ConsistencyEnv env = stubEnv({ { "handSpeed", "rotation" } });
     SessionSnapshot s = fx.session;
 
     const ConsistencyInput before = consistencyInput(s, alignSession(s), env);

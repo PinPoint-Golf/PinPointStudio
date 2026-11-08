@@ -25,11 +25,14 @@
 // neither they nor their tests touch a pack.
 //
 // WHERE A READING IS PLACED (Appendix B). A reading's area comes from the conditions that detect on it,
-// the group that uses it most (metricAreasForPack, swing_areas_pack.h). 29 readings have no such
-// condition and are placed by hand: MetricDescriptor::consistencyArea, which wins when set. Four are
-// deliberately unplaced and not read: compoundMiss (ball flight, which has no spans), shoulderPlane,
+// the group that uses it most (metricAreasForPack, swing_areas_pack.h). Readings no condition detects on
+// are placed by hand: MetricDescriptor::consistencyArea, which wins when set. Four are deliberately
+// unplaced and not read: compoundMiss (ball flight, which has no spans), shoulderPlane,
 // swingPlaneIotaBack and swingPlaneIotaDown. areaOf answers "" for those, and for any other key that
 // neither route places.
+//
+// AFTER THE BALL. afterBall answers whether a key is read at the finish (afterBallKeysForPack): it is the
+// source consistency_grades takes the P7-P8 grades from and the table's lighter cells follow.
 //
 // THE NORM SIGMA OF A READING (CONTRACT "Norm sigma of a reading"). The first measure reading the key at
 // the phase that has a norm in the club's context, 0.5*(sigmaLo+sigmaHi). Failing that the median over

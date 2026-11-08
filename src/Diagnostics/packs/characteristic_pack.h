@@ -262,6 +262,35 @@ PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel = QSt
 
 QJsonObject savePack(const CharacteristicPack &pack);
 
+// ── Retired group tokens ────────────────────────────────────────────────────
+//
+// The swing areas were regrouped: a condition's group now says what moves, and the old tokens that
+// named a phase (`impact`, `finish`) or a catch-all (`armsAndClub`) are gone from the vocabulary.
+// Packs written before that keep loading, through the two steps below.
+//
+// savePack() writes this key at the top level of every pack, holding this revision. It is the
+// difference between a row an old build wrote and a row a golfer has deliberately refiled: without
+// it, the id alias would bounce a moved condition back to its table area on every load. core.json
+// carries no marker and needs none, because its tokens are already current.
+inline constexpr int kPackGroupsRevision = 2;
+
+// True when this file was written after the regroup.
+bool packHasCurrentGroups(const QJsonObject &root);
+
+// The token a stored `group` means today, for a condition in this file.
+//
+//   1. If the file predates the regroup, the condition id is in the regroup table and the stored
+//      token is the one the table says it moved FROM, the answer is the table's new token. This is
+//      what splits a group: `posture` stays `posture` for most rows and becomes `lateral` for
+//      `reverse_spine_p4`.
+//   2. Otherwise a retired token maps to its default successor (`impact` to `delivery`, and so on),
+//      in every file, so a community pack's own condition under `armsAndClub` still loads.
+//
+// Anything else comes back unchanged, so a genuinely unknown token is still the loader's
+// `unknownGroup` error.
+QString currentConditionGroupToken(const QString &conditionId, const QString &stored,
+                                   bool fileHasCurrentGroups);
+
 // ── The name a measure renders under ────────────────────────────────────────
 //
 // ONE rule, here, because a measure with no authored label is not an edge case: nine shipped

@@ -52,22 +52,18 @@ namespace pv = pinpoint::variability;
 using words::fin;
 using words::Sentence;
 
-const QString kFinish = QStringLiteral("finish");
-const QString kImpact = QStringLiteral("impact");
-
 // ── the areas' words ────────────────────────────────────────────────────────────────────────
 
 struct AreaWords { const char *id, *name, *phrase; bool plural; };
 const AreaWords kAreaWords[] = {
-    { "setup",       "Setup",          "setup",           false },
-    { "posture",     "Posture",        "posture",         false },
-    { "armsAndClub", "Arms and club",  "arms and club",   true  },
-    { "swingPlane",  "Swing plane",    "swing plane",     false },
-    { "sequence",    "Sequence",       "sequence",        false },
-    { "lateral",     "Lateral motion", "lateral motion",  false },
-    { "release",     "Release",        "release",         false },
-    { "impact",      "Impact",         "impact position", false },
-    { "finish",      "Finish",         "finish",          false },
+    { "setup",     "Setup",               "setup",                      false },
+    { "posture",   "Posture",             "posture",                    false },
+    { "lateral",   "Lateral and balance", "lateral motion and balance", true  },
+    { "rotation",  "Turn and sequence",   "turn and sequence",          true  },
+    { "arms",      "Arms",                "arms",                       true  },
+    { "wrists",    "Wrists and release",  "wrists",                     true  },
+    { "planePath", "Plane and path",      "plane and path",             true  },
+    { "delivery",  "Delivery",            "delivery at impact",         false },
 };
 
 const AreaWords &areaWords(const QString &id)
@@ -76,7 +72,7 @@ const AreaWords &areaWords(const QString &id)
     return kAreaWords[0];
 }
 
-// "your impact position moves most", "your arms and club move most".
+// "your delivery at impact moves most", "your arms move most".
 QString movesMost(const QString &area)
 {
     const AreaWords &a = areaWords(area);
@@ -316,7 +312,7 @@ Sentence emptySentence(const SessionSnapshot &session, const ConsistencyInput &i
 // and "" for a graded one (QML's word goes there); a column that does not apply to the area is blank. The short form is
 // the grade's figure ("4"), "⚠" for a measurement-limited cell ("Checking"), "-" ungraded; keyMarks says which is which.
 // The heat says how much, as before: grades 1-2 the most, grade 3 some, nothing else.
-QVariantMap cellMap(const ConsistencyCellGrade *g, const QString &area, int column, bool on, bool marked, bool screen)
+QVariantMap cellMap(const ConsistencyCellGrade *g, int column, bool on, bool marked, bool screen)
 {
     if (!g) return { { QStringLiteral("text"), QString() }, { QStringLiteral("short"), QString() } };   // does not apply
     const pv::CellGrade &c = g->grade;
@@ -327,7 +323,7 @@ QVariantMap cellMap(const ConsistencyCellGrade *g, const QString &area, int colu
              { QStringLiteral("short"), !c.graded ? QStringLiteral("-") : limited ? QStringLiteral("⚠") : QString::number(c.grade) },
              { QStringLiteral("strong"), moved }, { QStringLiteral("heavy"), most },
              { QStringLiteral("heat"), most ? 2 : moved ? 1 : 0 },
-             { QStringLiteral("soft"), column == kConsistencyAfterBallColumn && area != kFinish },
+             { QStringLiteral("soft"), column == kConsistencyAfterBallColumn && !g->afterBall },
              { QStringLiteral("on"), on }, { QStringLiteral("mark"), marked ? QStringLiteral("◆") : QString() },
              { QStringLiteral("tap"), screen && !g->readings.empty() },
              { QStringLiteral("result"), resultMap(pv::VariabilityResultView::fromCellGrade(c)) } };
@@ -349,7 +345,7 @@ QVariantMap matrixMap(const ConsistencyInput &in, const ConsistencyResult &res, 
     for (const QString &area : consistencyAreas()) {
         QVariantList cells;
         for (int c = 0; c < kConsistencyColumns; ++c)
-            cells.append(cellMap(grades.cellAt(area, c), area, c, openCell == area + QLatin1Char(':') + QString::number(c),
+            cells.append(cellMap(grades.cellAt(area, c), c, openCell == area + QLatin1Char(':') + QString::number(c),
                                  marked.count({ area, c }) > 0, screen));
         rows.append(QVariantMap{ { QStringLiteral("id"), area }, { QStringLiteral("name"), QString::fromUtf8(areaWords(area).name) },
                                  { QStringLiteral("cells"), cells } });
@@ -405,7 +401,7 @@ QVariantMap cellDetail(const ConsistencyReadingRows &rows, const ConsistencyGrad
     });
 
     const bool guarded = pick >= 0 && in.shots[size_t(pick)].guarded;
-    int gradedN = 0, tooFew = 0, ungraded = 0, limited = 0;
+    int gradedN = 0, tooFew = 0, ungraded = 0, limited = 0, notCounted = 0;
     QVariantList out;
     for (int r : list) {
         const ConsistencyReading &reading = in.readings[size_t(r)];
@@ -429,6 +425,14 @@ QVariantMap cellDetail(const ConsistencyReadingRows &rows, const ConsistencyGrad
         row.insert(QStringLiteral("variability"), QVariantMap{ { QStringLiteral("kind"), QStringLiteral("consistency") },
                                                                { QStringLiteral("result"), readingResult(reading, v) } });
         row.insert(QStringLiteral("graded"), v.graded);
+        // A mixed P7-P8 cell: this reading is shown but the cell's grade is the after-ball readings' (consistency_grades.h).
+        // The row says so in two words; the sub-line below says it once in full.
+        const bool soft = g->afterBall && !reading.afterBall;
+        row.insert(QStringLiteral("soft"), soft);
+        if (soft) {
+            row.insert(QStringLiteral("softWord"), QStringLiteral("not counted"));
+            ++notCounted;
+        }
         out.append(row);
     }
     const int total = int(list.size());
@@ -439,10 +443,11 @@ QVariantMap cellDetail(const ConsistencyReadingRows &rows, const ConsistencyGrad
     } else if (tooFew > 0) sub.append(QStringLiteral("too few swings to grade a reading here"));
     else sub.append(QStringLiteral("nothing here could be judged"));
     if (limited > 0) sub.append(QStringLiteral("; ")).figure(QString::number(limited)).append(QStringLiteral(" measurement-limited"));
+    if (notCounted > 0) sub.append(QStringLiteral("; ")).figure(QString::number(notCounted)).append(QStringLiteral(" shown but not counted after the ball"));
     if (screen && !out.isEmpty()) sub.append(QStringLiteral("; a row opens its curve"));
 
     const QString name = QString::fromUtf8(areaWords(area).name);
-    const QString tag = area == kImpact ? QStringLiteral("P7") : consistencyColumnName(column);
+    const QString tag = consistencyReadsAtImpact(area) ? QStringLiteral("P7") : consistencyColumnName(column);
     const int n = int(in.shots.size());
     return { { QStringLiteral("area"), name }, { QStringLiteral("areaId"), area }, { QStringLiteral("column"), column }, { QStringLiteral("tag"), tag },
              { QStringLiteral("result"), resultMap(pv::VariabilityResultView::fromCellGrade(g->grade)) },

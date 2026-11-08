@@ -520,11 +520,11 @@ int main(int argc, char **argv)
             positions.append(QVariantMap{ { QStringLiteral("tag"), QStringLiteral("P%1").arg(p + 1) }, { QStringLiteral("name"), QStringLiteral("P%1").arg(p + 1) },
                                           { QStringLiteral("available"), true }, { QStringLiteral("seekUs"), 1000 * p } });
         }
-        for (const char *k : { "head", "hips", "bend", "leadKnee", "trailKnee", "pelvisHeight", "extra" })
+        for (const char *k : { "head", "hips", "bend", "leadKnee", "trailKnee", "pelvisHeight", "sideBend", "extra" })
             rows.append(QVariantMap{ { QStringLiteral("key"), QString::fromLatin1(k) }, { QStringLiteral("label"), QString::fromLatin1(k) },
                                      { QStringLiteral("present"), true }, { QStringLiteral("cells"), cells } });
         QStringList trust;
-        for (int i = 0; i < 18; ++i) trust << QStringLiteral("Trust line %1.").arg(i + 1);
+        for (int i = 0; i < 20; ++i) trust << QStringLiteral("Trust line %1.").arg(i + 1);
         trust << QString();
         const QVariantMap payload{
             { QStringLiteral("available"), true }, { QStringLiteral("kicker"), QStringLiteral("10 shots  ·  7 iron  ·  Posture") },
@@ -560,7 +560,7 @@ int main(int argc, char **argv)
         eq(b.value(QStringLiteral("head")).toString(), payload.value(QStringLiteral("headText")).toString(), "the head is the presenter's, verbatim");
         eq(b.value(QStringLiteral("kicker")).toString(), QStringLiteral("10 shots  ·  7 iron  ·  Posture"), "the kicker is the presenter's");
         const QVariantMap pf = b.value(QStringLiteral("profile")).toMap();
-        check(pf.value(QStringLiteral("rows")).toList().size() == 6, "rows capped at six");
+        check(pf.value(QStringLiteral("rows")).toList().size() == 7, "rows capped at seven");
         check(pf.value(QStringLiteral("positions")).toList().size() == 8, "eight positions");
         check(!pf.value(QStringLiteral("positions")).toList().at(0).toMap().contains(QStringLiteral("seekUs")), "no seek target on paper");
         eq(pf.value(QStringLiteral("rows")).toList().at(1).toMap().value(QStringLiteral("cells")).toList().at(3).toMap().value(QStringLiteral("text")).toString(),
@@ -578,7 +578,7 @@ int main(int argc, char **argv)
         eq(b.value(QStringLiteral("departuresMore")).toString(), QStringLiteral("2 more"), "the departures' ending");
         check(!b.value(QStringLiteral("departuresSub")).toString().isEmpty(), "the departures' sub is the map's");
         check(!b.contains(QStringLiteral("repeat")), "the retired repeatability words are gone (R11, R15)");
-        check(b.value(QStringLiteral("trust")).toStringList().size() == 16, "trust lines capped at sixteen");
+        check(b.value(QStringLiteral("trust")).toStringList().size() == 18, "trust lines capped at eighteen");
         eq(b.value(QStringLiteral("trustMore")).toString(), QStringLiteral("2 more"), "the trust ending counts only lines with words");
 
         {

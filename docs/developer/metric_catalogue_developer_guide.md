@@ -55,6 +55,12 @@ Design invariants (do not break):
   (one curve is a legend chip, not a preset). `"Plumb Bob"` is the first — `plumbBobDistance` read
   with `hipLineTilt` and `pelvisSway`, none of which leaves `Pelvis & lateral`. Reach for a preset
   only when the read genuinely crosses groups; a preset that duplicates a group is clutter.
+- **`.group` is the chart's filing; an area is the condition's.** `.group` (Club delivery, Body rotation, ...) sets the
+  presets and the directory. It is not a `ConditionGroup`. A reading's area on Consistency (Setup, Posture, Lateral and
+  balance, Turn and sequence, Arms, Wrists and release, Plane and path, Delivery) comes from the conditions that detect on it
+  (`metricAreasForPack`). `.consistencyArea` places by hand only a reading no condition detects on, using the
+  `ConditionGroup` tokens (`setup`, `posture`, `lateral`, `rotation`, `arms`, `wrists`, `planePath`, `delivery`):
+  `docs/design/swing_areas_regroup.md`, and `consistency_design.md` Appendix B.
 - **A metric declares a ROUTE LADDER, and it is the only statement of what the metric needs.**
   `MetricDescriptor::routes` is `std::vector<MetricRoute>`, **ordered best first**, and its **last
   rung is the cheapest** — both ends are read, so both orderings are load-bearing. Each rung carries

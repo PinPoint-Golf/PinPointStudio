@@ -47,23 +47,23 @@ namespace {
 const QHash<QString, QString> &handPlacements()
 {
     static const QHash<QString, QString> v{
-        { "clubAngularSpeed", "sequence" },      { "clubheadSpeed", "sequence" },
-        { "handSpeed", "sequence" },             { "leadArmAngularSpeed", "sequence" },
-        { "thoraxAngularSpeed", "sequence" },    { "xFactor", "sequence" },
-        { "tempoBackswing", "sequence" },
-        { "thoraxRotationSigned", "armsAndClub" }, { "elbowAlignment", "armsAndClub" },
-        { "handPlaneCurve", "swingPlane" },
-        { "shoulderPlaneAngle", "armsAndClub" }, { "handPlaneSteepening", "swingPlane" },
-        { "swingPlane", "swingPlane" },          { "swingPlaneAngle", "swingPlane" },
-        { "headTilt", "posture" },               { "spineSideBend", "posture" },
+        { "clubAngularSpeed", "rotation" },      { "clubheadSpeed", "rotation" },
+        { "handSpeed", "rotation" },             { "leadArmAngularSpeed", "rotation" },
+        { "thoraxAngularSpeed", "rotation" },    { "xFactor", "rotation" },
+        { "tempoBackswing", "rotation" },
+        { "thoraxRotationSigned", "rotation" },  { "elbowAlignment", "arms" },
+        { "handPlaneCurve", "planePath" },
+        { "shoulderPlaneAngle", "rotation" },    { "handPlaneSteepening", "planePath" },
+        { "swingPlane", "planePath" },           { "swingPlaneAngle", "planePath" },
+        { "headTilt", "posture" },
         { "trunkRise", "posture" },              { "hipDepthButt", "posture" },
         { "headPitch", "posture" },              { "spineBackLine", "posture" },
         { "ballBodyDistance", "setup" },         { "stanceWidthMm", "setup" },
         { "toeLineAngle", "setup" },             { "leadFootFlare", "setup" },
         { "trailFootFlare", "setup" },
-        { "attackAngle", "impact" },             { "lowPointFromAttack", "impact" },
+        { "attackAngle", "delivery" },           { "lowPointFromAttack", "delivery" },
         { "plumbBobDistance", "lateral" },
-        { "trailWristFlexExt", "release" },
+        { "trailWristFlexExt", "wrists" },
     };
     return v;
 }
@@ -78,8 +78,17 @@ const QSet<QString> &unplacedKeys()
 // The table's areas, in the contract's order.
 const QStringList &tableAreas()
 {
-    static const QStringList v{ "setup", "posture", "armsAndClub", "swingPlane", "sequence", "lateral", "release", "impact", "finish" };
+    static const QStringList v{ "setup", "posture", "lateral", "rotation", "arms", "wrists", "planePath", "delivery" };
     return v;
+}
+
+// The tally's area token (a record of 6 Nov, frozen) in today's words. Finish is the one retired without a home of its
+// own: what it held is named in movedSince below.
+QString tallyAreaToday(const QString &area)
+{
+    static const QHash<QString, QString> renames{ { "sequence", "rotation" }, { "release", "wrists" }, { "swingPlane", "planePath" },
+                                                  { "impact", "delivery" },   { "armsAndClub", "arms" } };
+    return renames.value(area, area);
 }
 
 // metric -> area, from the tally's own output. Reads the first four columns: a later one is a unit, free text.
@@ -145,7 +154,7 @@ private slots:
         pa::MetricCatalogue catalogue;
         pa::installMetricManifest(catalogue);
 
-        QCOMPARE(int(handPlacements().size()), 29);
+        QCOMPARE(int(handPlacements().size()), 28);
         for (auto it = handPlacements().constBegin(); it != handPlacements().constEnd(); ++it) {
             const pa::MetricDescriptor *d = catalogue.descriptor(it.key());
             QVERIFY2(d, qPrintable(it.key()));
@@ -160,7 +169,7 @@ private slots:
             QVERIFY2(tableAreas().contains(d->consistencyArea), qPrintable(d->key));
             QVERIFY2(pa::areaGroupOrder().contains(d->consistencyArea), qPrintable(d->key));
         }
-        QCOMPARE(carried, 29);
+        QCOMPARE(carried, 28);
     }
 
     // Appendix B says no condition detects on these. The hand placement wins here and the walk wins in the
@@ -182,10 +191,16 @@ private slots:
         QStringList wrong;
         for (auto it = tally.constBegin(); it != tally.constEnd(); ++it) {
             const QString ours = m_env.areaOf(it.key());
-            // The tally is a record of 6 Nov: Swing plane became its own area on 8 Nov (swing_plane_area.md).
-            static const QSet<QString> movedSince{ "swingPlaneCurve", "handPlaneCurve", "handPlaneSteepening", "swingPlane",
-                                                   "swingPlaneAngle", "handPathLoop", "transitionPlaneDelta" };
-            const QString want = movedSince.contains(it.key()) ? QStringLiteral("swingPlane") : it.value();
+            // The tally is a record of 6 Nov. Its tokens are the old ones; since then Swing plane became its own area
+            // (8 Nov, swing_plane_area.md) and the areas were regrouped by what moves (swing_areas_regroup.md).
+            static const QHash<QString, QString> movedSince{
+                { "swingPlaneCurve", "planePath" },       { "handPlaneCurve", "planePath" },      { "handPlaneSteepening", "planePath" },
+                { "swingPlane", "planePath" },            { "swingPlaneAngle", "planePath" },     { "handPathLoop", "planePath" },
+                { "transitionPlaneDelta", "planePath" },  { "shaftAngleVsHorizontal", "planePath" },
+                { "comOverLeadFoot", "lateral" },         { "secondaryAxisTilt", "lateral" },
+                { "shoulderPlaneAngle", "rotation" },     { "thoraxRotation", "rotation" },       { "thoraxRotationSigned", "rotation" },
+            };
+            const QString want = movedSince.value(it.key(), tallyAreaToday(it.value()));
             if (ours != want)
                 wrong << QStringLiteral("%1: tally \"%2\", env \"%3\"").arg(it.key(), want, ours);
             if (ours.isEmpty() && !unplacedKeys().contains(it.key()))
@@ -208,8 +223,10 @@ private slots:
     {
         QCOMPARE(m_env.areaOf(QStringLiteral("spineForwardBend")), QStringLiteral("setup"));
         QCOMPARE(m_env.areaOf(QStringLiteral("leadKneeFlexion")), QStringLiteral("lateral"));
-        QCOMPARE(m_env.areaOf(QStringLiteral("shaftDirection")), QStringLiteral("setup"));
-        QCOMPARE(m_env.areaOf(QStringLiteral("pelvisRotation")), QStringLiteral("sequence"));
+        // Ties until the regroup: shaftDirection (setup against arms & club) and pelvisRotation are one area's alone now.
+        QCOMPARE(m_env.areaOf(QStringLiteral("shaftDirection")), QStringLiteral("planePath"));
+        QCOMPARE(m_env.areaOf(QStringLiteral("pelvisRotation")), QStringLiteral("rotation"));
+
     }
 
     void theWalkCountsOwnKeysAndKeepsFirstMetOrder()
@@ -226,24 +243,94 @@ private slots:
         pack.signalDefs.push_back(signalOf("sNoKey", { "mNoKey" }));
 
         using G = pa::ConditionGroup;
-        // mostUsed: posture first, then impact twice. Ball flight's readings must not count toward it.
+        // mostUsed: posture first, then delivery twice. Ball flight's readings must not count toward it.
         pack.conditions.push_back(conditionOf("c1", G::Posture, { "sMost" }));
-        pack.conditions.push_back(conditionOf("c2", G::Impact, { "sMost" }));
-        pack.conditions.push_back(conditionOf("c3", G::Impact, { "sMost", "sBoth" }));  // reads mMost once
+        pack.conditions.push_back(conditionOf("c2", G::Delivery, { "sMost" }));
+        pack.conditions.push_back(conditionOf("c3", G::Delivery, { "sMost", "sBoth" }));  // reads mMost once
         pack.conditions.push_back(conditionOf("c4", G::BallFlight, { "sFlight" }));
         pack.conditions.push_back(conditionOf("c5", G::BallFlight, { "sFlight" }));
         pack.conditions.push_back(conditionOf("c6", G::BallFlight, { "sFlight" }));
-        // tied: impact (c3) and finish once each, and setup, first in every other order there is, once.
-        pack.conditions.push_back(conditionOf("c7", G::Finish, { "sTie" }));
+        // tied: delivery (c3) and lateral once each, and setup, first in every other order there is, once.
+        pack.conditions.push_back(conditionOf("c7", G::Lateral, { "sTie" }));
         pack.conditions.push_back(conditionOf("c8", G::Setup, { "sTie" }));
         pack.conditions.push_back(conditionOf("c9", G::Setup, { "sNoKey" }));
 
         const QHash<QString, QString> areas = pa::metricAreasForPack(pack);
-        QCOMPARE(areas.value("mostUsed"), QStringLiteral("impact"));
-        QCOMPARE(areas.value("tied"), QStringLiteral("impact"));
+        QCOMPARE(areas.value("mostUsed"), QStringLiteral("delivery"));
+        QCOMPARE(areas.value("tied"), QStringLiteral("delivery"));
         QVERIFY(!areas.contains("hm.tied"));
         QVERIFY(!areas.contains("flightOnly"));
         QCOMPARE(int(areas.size()), 2);
+    }
+
+    // A latent cause is not an area, whichever route is asked, and this is the shipped pack, not a claim.
+    void aGolferConditionIsNeverAnArea()
+    {
+        const std::unique_ptr<pa::ICharacteristicPackProvider> provider = pa::makeCharacteristicPackProvider();
+        QVERIFY(provider);
+        const pa::CharacteristicPack &shipped = provider->pack();
+        int golfer = 0;
+        for (const pa::Condition &c : shipped.conditions) golfer += c.group == pa::ConditionGroup::Golfer ? 1 : 0;
+        QVERIFY2(golfer > 0, "the pack files latent causes under golfer");
+        QVERIFY(!pa::metricAreasForPack(shipped).values().contains(QStringLiteral("golfer")));
+        QVERIFY(!pa::areaGroupOrder().contains(QStringLiteral("golfer")));
+        QVERIFY(!pinpoint::charts::consistencyAreas().contains(QStringLiteral("golfer")));
+        QVERIFY(pinpoint::charts::consistencyColumnsOf(QStringLiteral("golfer")).empty());
+
+        // Even a golfer condition that detects on something yields it no area.
+        pa::CharacteristicPack pack;
+        pack.measures.push_back(measureOf("m", "aKey"));
+        pack.signalDefs.push_back(signalOf("s", { "m" }));
+        pack.conditions.push_back(conditionOf("c", pa::ConditionGroup::Golfer, { "s" }));
+        QVERIFY(pa::metricAreasForPack(pack).isEmpty());
+    }
+
+    // Delivery is the one area read at P7 itself (consistencyReadsAtImpact), so the readings filed there are exactly
+    // the ones the old Impact branch sampled. Walks both placement routes, as the env does.
+    void deliveryHoldsTheSevenReadingsReadAtP7()
+    {
+        const std::unique_ptr<pa::ICharacteristicPackProvider> provider = pa::makeCharacteristicPackProvider();
+        QVERIFY(provider);
+        pa::MetricCatalogue catalogue;
+        pa::installMetricManifest(catalogue);
+        QSet<QString> keys;
+        for (const QString &k : pa::metricAreasForPack(provider->pack()).keys()) keys << k;
+        for (const pa::MetricDescriptor *d : catalogue.all()) keys << d->key;
+        QSet<QString> delivery;
+        for (const QString &k : keys)
+            if (pinpoint::charts::consistencyReadsAtImpact(m_env.areaOf(k))) delivery << k;
+        QCOMPARE(delivery, QSet<QString>({ "attackAngle", "impactShaftLean", "lm.attackAngle", "lm.faceToPath", "lowPointAhead",
+                                           "lowPointFromAttack", "shaftLie" }));
+    }
+
+    // Mark, 8 Nov: a reading is graded after the ball when a condition reads its measure at the finish.
+    void afterBallKeysComeFromConditionsAtTheFinish()
+    {
+        const std::unique_ptr<pa::ICharacteristicPackProvider> provider = pa::makeCharacteristicPackProvider();
+        QVERIFY(provider);
+        QCOMPARE(pa::afterBallKeysForPack(provider->pack()), QSet<QString>({ "comOverLeadFoot", "thoraxRotation" }));
+        QVERIFY(m_env.afterBall(QStringLiteral("comOverLeadFoot")));
+        QVERIFY(m_env.afterBall(QStringLiteral("thoraxRotation")));
+        QVERIFY(!m_env.afterBall(QStringLiteral("pelvisSway")));
+        QVERIFY(!m_env.afterBall(QStringLiteral("noSuchKey")));
+
+        // Only an `at` the finish, and only with a condition reading it.
+        pa::CharacteristicPack pack;
+        pa::Measure atFinish = measureOf("mFinish", "finished");
+        atFinish.reducer.anchor = pa::Phase::Finish;
+        pa::Measure peak = measureOf("mPeak", "peakedInWindow");
+        peak.reducer.kind = pa::ReducerKind::Extremum;
+        peak.reducer.window = { pa::Phase::Impact, pa::Phase::Finish };
+        pa::Measure notRead = measureOf("mUnread", "unread");
+        notRead.reducer.anchor = pa::Phase::Finish;
+        pack.measures.push_back(atFinish);
+        pack.measures.push_back(peak);
+        pack.measures.push_back(notRead);
+        pack.signalDefs.push_back(signalOf("sFinish", { "mFinish" }));
+        pack.signalDefs.push_back(signalOf("sPeak", { "mPeak" }));
+        pack.conditions.push_back(conditionOf("c1", pa::ConditionGroup::Lateral, { "sFinish" }));
+        pack.conditions.push_back(conditionOf("c2", pa::ConditionGroup::Rotation, { "sPeak" }));
+        QCOMPARE(pa::afterBallKeysForPack(pack), QSet<QString>({ "finished" }));
     }
 
     void aKeyWithNoNormHasNoSigma()

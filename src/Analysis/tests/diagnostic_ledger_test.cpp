@@ -490,8 +490,8 @@ int main()
 
     // ── Link grades ─────────────────────────────────────────────────────────────
     {
-        const NodeSpec early = cp::liveNode("up", 2);
-        const NodeSpec late  = cp::liveNode("down", 6);
+        const NodeSpec early = cp::liveNode("up");
+        const NodeSpec late  = cp::liveNode("down");
         const EdgeSpec e     = cp::edge("up", "down");
 
         // Conditionally dependent: 12 pairs, a=6 b=1 c=1 d=4 ⇒ 36/792 = 0.04545 ≤ 0.05.
@@ -576,18 +576,25 @@ int main()
                   "the same session without the flag still grades Conditionally dependent");
         }
 
-        // Present together: both present, but the edge runs backwards through the swing.
+        // Link grading does not depend on area or group. A NodeSpec carries neither, so where the
+        // pack files a condition cannot move a link: the same firings grade the same, and the
+        // edge's authored direction is all that says which end is the cause.
         {
             const auto ls = conditionLedgers(sessionOf({
                 plan("up",   { 1,1,1,1,1,1,1, 0,0,0,0,0 }),
                 plan("down", { 1,1,1,1,1,1,0, 0,0,0,0,1 }) }), O);
-            const NodeSpec backwards = cp::liveNode("up", 8);
-            const LinkEvidence ev = gradeLink(e, backwards, late,
-                                              ledgerFor(ls, QStringLiteral("up")),
-                                              ledgerFor(ls, QStringLiteral("down")),
-                                              FocusSplit(), O);
-            check(ev.grade == LinkGrade::PresentTogether && !ev.coherent,
-                  "an edge running backwards through the swing is not coherent");
+            const LinkEvidence forward = gradeLink(cp::edge("up", "down"), early, late,
+                                                   ledgerFor(ls, QStringLiteral("up")),
+                                                   ledgerFor(ls, QStringLiteral("down")),
+                                                   FocusSplit(), O);
+            const LinkEvidence reversed = gradeLink(cp::edge("down", "up"), late, early,
+                                                    ledgerFor(ls, QStringLiteral("down")),
+                                                    ledgerFor(ls, QStringLiteral("up")),
+                                                    FocusSplit(), O);
+            check(forward.coherent && forward.grade == LinkGrade::ConditionallyDependent,
+                  "link grading does not depend on area or group: observed firings stand on their own");
+            check(reversed.coherent && reversed.grade == forward.grade,
+                  "…and authoring the edge the other way round grades the same, because the swing's order is not an input");
         }
 
         // Present together, the mock's own case: an asserted ghost feeding a live
@@ -595,7 +602,7 @@ int main()
         // Present together is available.
         {
             const auto ls = conditionLedgers(sessionOf({ plan("down", { 1,1,1,1,1,1,1,0,0,0,0,0 }) }), O);
-            const NodeSpec ghost = cp::assertedGhost("up", 4);
+            const NodeSpec ghost = cp::assertedGhost("up");
             const LinkEvidence ev = gradeLink(e, ghost, late, nullptr,
                                               ledgerFor(ls, QStringLiteral("down")),
                                               FocusSplit(), O);
@@ -605,7 +612,7 @@ int main()
         // Unanchored: a planned-but-unbuilt ghost asserts nothing.
         {
             const auto ls = conditionLedgers(sessionOf({ plan("down", { 1,1,1,1,1,1,1,0,0,0,0,0 }) }), O);
-            const NodeSpec planned = cp::plannedGhost("up", 4);
+            const NodeSpec planned = cp::plannedGhost("up");
             check(gradeLink(e, planned, late, nullptr, ledgerFor(ls, QStringLiteral("down")),
                             FocusSplit(), O).grade == LinkGrade::Unanchored,
                   "a merely-planned ghost anchors nothing");
@@ -688,16 +695,16 @@ int main()
             spec.conditions.push_back(std::move(c));
         }
         spec.nodes = {
-            cp::liveNode("transition_rush", 2), cp::liveNode("casting", 6),
-            cp::liveNode("shaft_lean", 7),      cp::liveNode("scooping", 7),
-            cp::liveNode("out_to_in", 6),       cp::liveNode("face_roll", 1),
-            cp::liveNode("deceleration", 6),    cp::liveNode("head_sway", 3),
-            cp::liveNode("bent_lead_arm", 4),
-            cp::screenedRoot("pelvic_disassoc", false, 0),
-            cp::plannedGhost("pelvis_slow", 3),
-            cp::assertedGhost("over_the_top", 5),
-            cp::assertedGhost("hips_stall", 6),
-            cp::outcomeNode("slice", "miss.slice", 9)
+            cp::liveNode("transition_rush"), cp::liveNode("casting"),
+            cp::liveNode("shaft_lean"),      cp::liveNode("scooping"),
+            cp::liveNode("out_to_in"),       cp::liveNode("face_roll"),
+            cp::liveNode("deceleration"),    cp::liveNode("head_sway"),
+            cp::liveNode("bent_lead_arm"),
+            cp::screenedRoot("pelvic_disassoc", false),
+            cp::plannedGhost("pelvis_slow"),
+            cp::assertedGhost("over_the_top"),
+            cp::assertedGhost("hips_stall"),
+            cp::outcomeNode("slice", "miss.slice")
         };
         spec.edges = {
             cp::edge("transition_rush", "casting", 1, 3),
@@ -1512,8 +1519,8 @@ int main()
         const auto pairs = conditionLedgers(sessionOf({
             plan("u", { 1,1,1,1,1,1,1,1,-1,-1 }),
             plan("v", { 1,1,1,1,1,1,1,1, 1, 1 }) }), O);
-        const LinkEvidence ev = gradeLink(cp::edge("u", "v"), cp::liveNode("u", 1),
-                                          cp::liveNode("v", 2),
+        const LinkEvidence ev = gradeLink(cp::edge("u", "v"), cp::liveNode("u"),
+                                          cp::liveNode("v"),
                                           ledgerFor(pairs, QStringLiteral("u")),
                                           ledgerFor(pairs, QStringLiteral("v")),
                                           FocusSplit(), O);
@@ -1530,7 +1537,7 @@ int main()
             cp::exact("b", { 1,1,1,1,1,1,0,0,0,0,0,1 }),
             cp::exact("lonely", { 1,1,1,1,1,1,1,1,0,0,0,0 })
         };
-        spec.nodes = { cp::liveNode("a", 1), cp::liveNode("b", 2), cp::liveNode("lonely", 3) };
+        spec.nodes = { cp::liveNode("a"), cp::liveNode("b"), cp::liveNode("lonely") };
         spec.edges = { cp::edge("a", "b") };            // NOTHING authored to `lonely`
 
         const cp::Corpus c = cp::generate(spec);
@@ -1587,28 +1594,26 @@ int main()
 
         bool everPromoted = false;
         for (int type : { -1, 0, 1 }) {
-            for (int phase : { 0, 5, 9 }) {
-                const NodeSpec root = cp::screenedRoot("root", false, phase);
-                const LinkEvidence ev = gradeLink(cp::edge("root", "child", type),
-                                                  root, cp::liveNode("child", 6),
-                                                  nullptr, child, focus, permissive);
-                if (ev.grade != LinkGrade::Unanchored) everPromoted = true;
-                if (!ev.screenOutstanding) everPromoted = true;
-            }
+            const NodeSpec root = cp::screenedRoot("root", false);
+            const LinkEvidence ev = gradeLink(cp::edge("root", "child", type),
+                                              root, cp::liveNode("child"),
+                                              nullptr, child, focus, permissive);
+            if (ev.grade != LinkGrade::Unanchored) everPromoted = true;
+            if (!ev.screenOutstanding) everPromoted = true;
         }
         check(!everPromoted, "an unentered screened root never exceeds Unanchored");
 
         // The screen is what promotes it, and doing it once is enough.
         const LinkEvidence entered = gradeLink(cp::edge("root", "child"),
-                                               cp::screenedRoot("root", true, 0),
-                                               cp::liveNode("child", 6), nullptr, child, focus, O);
+                                               cp::screenedRoot("root", true),
+                                               cp::liveNode("child"), nullptr, child, focus, O);
         check(entered.grade == LinkGrade::PresentTogether && !entered.screenOutstanding,
               "entering the screen anchors it");
         check(!nodePresent(cp::screenedRoot("root", false), nullptr),
               "…and an unentered root is not 'present' at all");
 
         // The chain still draws it, as a root with its CTA — never omitted, never a finding.
-        const std::vector<NodeSpec> nodes{ cp::screenedRoot("root", false, 0), cp::liveNode("child", 6) };
+        const std::vector<NodeSpec> nodes{ cp::screenedRoot("root", false), cp::liveNode("child") };
         const std::vector<EdgeSpec> edges{ cp::edge("root", "child") };
         const auto links = gradeLinks(nodes, edges, ls, FocusSplit(), O);
         const ChainRails rails = extractChains(nodes, edges, ls, links, O);

@@ -353,13 +353,13 @@
    "sign": 1,
    "twoSided": true,
    "when": 3,
-   "metricKey": "swingPlane"
+   "metricKey": "swingPlaneCurve"
   },
   "m_shaftPlaneDelivery": {
    "sign": 1,
    "twoSided": true,
    "when": 6,
-   "metricKey": "swingPlane"
+   "metricKey": "swingPlaneCurve"
   },
   "m_smashFactor": {
    "sign": -1,
@@ -8305,7 +8305,7 @@
     true
    ],
    "families": [
-    "swingPlane"
+    "swingPlaneCurve"
    ]
   },
   {
@@ -8320,7 +8320,7 @@
     true
    ],
    "families": [
-    "swingPlane"
+    "swingPlaneCurve"
    ]
   },
   {
@@ -8577,6 +8577,10 @@
    "drill": "drill.impactHold",
    "when": 7
   },
+  "excessive_side_bend_impact": {
+   "drill": "drill.impactHold",
+   "when": 7
+  },
   "face_held_open_impact": {
    "drill": "drill.splitHandsRelease",
    "when": 7
@@ -8707,6 +8711,10 @@
   },
   "insufficient_shaft_lean": {
    "drill": "drill.wristHold",
+   "when": 7
+  },
+  "insufficient_side_bend_impact": {
+   "drill": "drill.impactHold",
    "when": 7
   },
   "laid_off": {

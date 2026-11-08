@@ -153,7 +153,8 @@ struct Signal {
 struct Condition {
     QString                     id, label, axis;
     QStringList                 aliases;       // coach phrasing that resolves here — the glossary
-    ConditionGroup              group;         // Setup … Sequence | Impact | Finish | BallFlight
+    ConditionGroup              group;         // Setup | Posture | Lateral | Rotation | Arms | Wrists |
+                                               //   PlanePath | Delivery | BallFlight | Golfer — WHAT MOVES
     ConditionKind               kind;          // Fault | Setup | Delivery | Outcome | Capacity |
                                                //   Intent | Equipment — WHAT SORT OF THING
     Prominence                  prominence;    // Rare … Ubiquitous — how common, in this population
@@ -175,6 +176,13 @@ Four distinctions the UI must never blur:
 - **`Observability`** — can it be *seen* in the swing? A `Latent` condition has no signals by definition; it is resolved by the explanation pass from what it explains, never detected. Also intrinsic — it is a property of the movement, not of our cameras.
 - **`ConfirmedBy`** — how it is established **today**. `Measured` (a signal fired, the app knows), `Screened` (a physical test would settle it), `Asserted` (knowable only by asking). **This is the one that is allowed to move**, and it moves when a producer or a launch-monitor connector lands — exactly as `MeasureStatus` does.
 - **`ProvenanceTier`** — is it cited, or proposed? A `Proposed` condition must be badged as such.
+
+**`group` is the area: what moves, and nothing else.** The phase is a column in the Consistency table, and Setup is the one
+exception, because it is static and has its own chart. A group only classifies. It is not a swing order, and neither
+detection, grading nor link grading reads it: a link's direction is the graph's authored direction. Home, Consistency and the
+report take areas from `areaGroupOrder()`, which leaves out `Golfer`: the latent causes are filed there for the model
+browser and editor and are never an area. The rule, the membership and the old-token alias
+(`currentConditionGroupToken`, `characteristic_pack.cpp`) are in `docs/design/swing_areas_regroup.md`.
 
 **That division of labour is the whole of why `kind` exists, and it was learned the hard way.** For a
 year the pack had only the last three, and with no field for *what sort of thing this is* the first
@@ -641,10 +649,11 @@ judgement; no prevalence study exists (see §3). The seven at `ubiquitous` are `
 `trying_to_lift_the_ball`. `coming_out_of_it` (was `loss_of_posture`) left that rung when it became a
 conjunction: a conjunction cannot be commoner than its rarer part.
 
-**The two axes are not redundant, and 26 conditions prove it**: `group: setup` splits four ways — 20
-genuine Setup, 14 Capacity, 9 Intent, 1 Equipment and 2 misfiled motion faults (the two takeaways) —
-and `armsAndClub` splits Fault/Delivery. Those 26 include every physical screen and every intent node
-in the library.
+**The two axes answer different questions.** `group` says what moves; `kind` says what sort of thing it
+is. They agree on three groups (`setup` is all Setup, `ballFlight` all Outcome,
+and every `delivery` row is Delivery) but not on the rest: `planePath` splits 11 Fault / 7 Delivery, so the Delivery
+kind spans two groups, and `golfer` holds three kinds (17 Capacity, 10 Intent, 1 Equipment), which include
+every physical screen and every intent node in the library.
 
 Provenance, after the pass of 2026-07-27 — **no `proposed` remains anywhere, and every condition
 records the date its search was made**:
@@ -659,8 +668,8 @@ records the date its search was made**:
 `core_pack_test` no longer asserts `proposed > 0`; that was a mid-search proxy. It asserts
 `practice > cited` plus an all-searched check instead. **Do not restore the old assertion** — adding
 a proposed row back to satisfy it is the laundering it was written to prevent.
-Groups: setup 46, armsAndClub 25, ballFlight 20, posture 13, impact 13, lateral 11, sequence 8,
-release 7, finish 3.
+Groups (recounted 8 Nov 2026, with the two side-bend conditions: 188 conditions, later than the figures above): setup 25,
+posture 16, lateral 20, rotation 29, arms 8, wrists 14, planePath 18, delivery 10, ballFlight 20, golfer 28.
 
 **Norms** (`norms.json`) — 156 rows: 99 at `any`, 8 + 8 at the two archetypes, and 13 / 2 / 13 / 13 at driver / fairway wood / iron / wedge. **Every row is `source: heuristic` with `n = 0`**; 56 carry explicit monitor bounds (the migrated wrist grid + tempo), 50 carry a citation. Those citations are **notes, not identifiers** — `citation` is documented as "DOI/PMID, or the note explaining a provisional figure", and many of them name the paper the figure should be re-seated FROM. Nothing moved to `source: literature` in the 2026-07-27 pass, deliberately: that tier asserts the mu and sigma came off a results table, and nobody read one. See `docs/implementation/provenance_log.md` §6.
 

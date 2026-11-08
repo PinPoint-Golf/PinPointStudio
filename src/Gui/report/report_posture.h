@@ -44,7 +44,7 @@
 //
 //  posture: {
 //    kicker ("10 swings  ·  7 iron  ·  Posture"), head (the session's head line), patternLine ("" none),
-//    profile: { positions: [{ tag, name, available }] (8), rows: [ROW, the presenter's, unchanged] (≤ 6), sub, caption },
+//    profile: { positions: [{ tag, name, available }] (8), rows: [ROW, the presenter's, unchanged] (≤ kPostureRowCap), sub, caption },
 //    moved: [{ tag, when ("At the top"), line }] (≤ 2: the top, then impact; only those with a line),
 //    strip: { marks: [{ swing, ok, differs, between, word }] (every shot read, ≤ kPostureStripCap), line, legend,
 //             more ("" | "N more swings not shown") } | null (no mark),
@@ -71,11 +71,12 @@
 namespace pinpoint::report {
 
 constexpr int kPostureDepartureCap = 6;     // the core names at most seven departures (D1–D7)
-constexpr int kPostureTrustCap = 16;        // cameras, rows not measured, the ⚠ reasons, sources, datum, and the address
-                                            // block's (rig rule, set-up key per camera, its bands' source, what is not read)
+constexpr int kPostureTrustCap = 18;        // cameras, rows not measured, the ⚠ reasons, sources, the side-bend corridor,
+                                            // datum, and the address block's (rig rule, set-up key per camera, its bands'
+                                            // source, what is not read)
 constexpr int kPostureAddressCap = 8;       // the pack's rig-sensitive address readings (six today)
 constexpr int kPostureStripCap = 120;       // marks; the page sets them 30 to a line (four lines)
-constexpr int kPostureRowCap = 6;           // head, hips, bend, lead knee, trail knee, pelvis height
+constexpr int kPostureRowCap = 7;           // head, hips, bend, lead knee, trail knee, pelvis height, side bend
 
 inline QString postureMoreWords(int more, const char *noun = nullptr)
 {

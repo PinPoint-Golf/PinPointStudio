@@ -276,8 +276,8 @@ first guesses.
 - **Spread:** the middle half ÷ 1.349 of the residuals at a point, needing 5 finite ones. A span's spread is the median over
   its points, needing a spread at 3 of the 5. With fewer, the reading is dropped from the table and from stand-outs. Since
   7 Nov this decides only which readings reach the table and can stand out; the grade is the grader's (below).
-- **Positions, not spans, where the position is the point:** Setup reads P1, the phase sample there. Impact reads P7 itself:
-  a shaft lean halfway down is not what the Impact area judges. An instant-only reading sits in the span ending at its
+- **Positions, not spans, where the position is the point:** Setup reads P1, the phase sample there. Delivery reads P7 itself:
+  a shaft lean halfway down is not what the Delivery area judges. An instant-only reading sits in the span ending at its
   P-position. Backswing timing (`tempoBackswing`, `tempoRatio`) is stamped at impact but sits in P3–P4. A position needs 5
   finite values.
 - **The norm's σ:** for each shot with a value, the first measure of the key at the column's P (a span's end P) with a norm
@@ -306,20 +306,24 @@ cell at all:
 |---|---|
 | Setup | P1 |
 | Posture | P1, every span |
-| Arms and club, Lateral motion | every span |
-| Sequence | P2–P3 to P6–P7 |
-| Release | P5–P6 to P7–P8 |
-| Impact | P6–P7, reading P7 |
-| Finish | P7–P8 |
+| Lateral and balance, Turn and sequence, Arms, Wrists and release, Plane and path | every span |
+| Delivery | P6–P7, reading P7 |
 
-**P7–P8 is after the ball has gone.** It draws lighter, and it is left out of the headline and Home, except for Finish.
+An area is what moves, and the phase is the column. Ball flight has no spans, and `golfer` is never an area
+(`swing_areas_regroup.md`).
+
+**P7–P8 is after the ball has gone.** It draws lighter, and it is left out of the headline, except for the readings graded
+after the ball. A reading is graded there when a condition reads its measure at the `finish` anchor
+(`afterBallKeysForPack`, `swing_areas_pack.h`). The set is `comOverLeadFoot` and `thoraxRotation`. A P7–P8 cell holding one is
+graded on those readings alone, and only then does it reach the headline. The other readings in that cell stay on show,
+lighter. A cell holding none keeps the grade of its own readings, lighter, and stays out of the headline.
 
 **The headline** (`consistencyHead`, 7 Nov): each half, the backswing (P1–P2 to P3–P4) and the downswing (P4–P5 to P6–P7),
 takes the loosest-third grade over its cells, and the area named is the one whose cells read loosest. It needs a grade in at
 least 2 areas (`kConsistencyHeadlineMinAreas`). Both halves graded: "Your backswing is %1, your downswing %2; your %3 moves
 most."; a half with no grade, or a surface that will not say a measurement-limited half's word: "Your %3 moves most."; no
 headline but a grade 0 somewhere: the Consistency vocabulary's grade-0 line; nothing graded: "Nothing here has a range to
-judge it against." P7–P8 stays out, except for Finish.
+judge it against." P7–P8 is in neither half. A P7–P8 cell graded after the ball counts only toward the area named.
 
 **Home's word** (6 Nov, retired): the weighted roll-up of stored cell words is gone (R5, R15). Home grades the Biggest fault's
 measure itself (§3, Home).
@@ -489,7 +493,7 @@ All of it is in the working tree, uncommitted. Commits come after Mark has judge
    `swing_areas_pack.h` places the rest. Five rules in `gate_catalogue_rules.h` and `gate_words.json`.
 2. **The check.** `consistency_extract.py` (extract v2) and `consistency_trim_fixture.py` (cuts the committed
    `session_1005.json`) stay. `consistency_dump.cpp`, `consistency_tally.py`, `consistency_make_goldens.sh` and
-   `goldens_home_consistency.json` were retired on 7 Nov; `goldens_1005_consistency.json` is frozen, and only its readings,
+   `goldens_home_consistency.json` were retired on 7 Nov; `goldens_1005_consistency.json` is frozen (replaced once, with Mark's approval, for the swing areas regroup on 8 Nov: `swing_areas_regroup.md`), and only its readings,
    stand-outs, flags and shuffle figures are still read.
 3. **The shared rule.** Charts' Apart moved to the stand-out rule (§5): `charts_relations_presenter.{h,cpp}`,
    `PpChartsShotView.qml`, with `ConsistencyReadingRows` as the row builder both surfaces share.
@@ -571,21 +575,26 @@ readings on 5 Oct). These 28 have no such condition. Mark accepted them as writt
 
 | Area | Readings |
 |---|---|
-| Sequence | `clubAngularSpeed`, `clubheadSpeed`, `handSpeed`, `leadArmAngularSpeed`, `thoraxAngularSpeed`, `xFactor`, `tempoBackswing` |
-| Arms and club | `thoraxRotationSigned`, `elbowAlignment`, `shoulderPlaneAngle` |
-| Swing plane (from 8 Nov 2026, `swing_plane_area.md`; `swingPlaneCurve` is now placed by its conditions) | `handPlaneCurve`, `handPlaneSteepening`, `swingPlane`, `swingPlaneAngle` |
-| Posture | `headTilt`, `spineSideBend`, `trunkRise`, `hipDepthButt`, `headPitch`, `spineBackLine` |
 | Setup | `ballBodyDistance`, `stanceWidthMm`, `toeLineAngle`, `leadFootFlare`, `trailFootFlare` |
-| Impact | `attackAngle`, `lowPointFromAttack` |
-| Lateral motion | `plumbBobDistance` |
-| Release | `trailWristFlexExt` |
+| Posture | `headTilt`, `trunkRise`, `hipDepthButt`, `headPitch`, `spineBackLine` |
+| Lateral and balance | `plumbBobDistance` |
+| Turn and sequence | `clubAngularSpeed`, `clubheadSpeed`, `handSpeed`, `leadArmAngularSpeed`, `thoraxAngularSpeed`, `xFactor`, `tempoBackswing`, `thoraxRotationSigned`, `shoulderPlaneAngle` |
+| Arms | `elbowAlignment` |
+| Wrists and release | `trailWristFlexExt` |
+| Plane and path (`swingPlaneCurve` is placed by its conditions) | `handPlaneCurve`, `handPlaneSteepening`, `swingPlane`, `swingPlaneAngle` |
+| Delivery | `attackAngle`, `lowPointFromAttack` |
+
+`spineSideBend` is not on this list: two conditions detect on it, both in Posture, so it derives Posture. It stays in Posture
+because it is the thorax relative to the pelvis, the shape of the trunk, not the whole-trunk lean `secondaryAxisTilt` reports.
 
 Four more are unplaced and not read: `compoundMiss` (ball flight, which has no spans), `shoulderPlane`, `swingPlaneIotaBack`
 and `swingPlaneIotaDown`.
 
-The group rule itself gives some odd homes: `thoraxRotation` lands in Arms and club. Four readings tie and go to the group
-met first in the pack: `spineForwardBend` and `shaftDirection` to Setup, `leadKneeFlexion` to Lateral motion, `pelvisRotation`
-to Sequence. Worth reading with this table.
+The odd homes the group rule used to give are mostly gone. `thoraxRotation` derives Turn and sequence: all three conditions
+that read it are there. `shaftDirection` no longer ties and derives Plane and path; `pelvisRotation` no longer ties and
+derives Turn and sequence. Two readings still tie and go to the group met first in the pack: `spineForwardBend` to Setup
+(two conditions in Setup, two in Posture) and `leadKneeFlexion` to Lateral and balance (one in each of Lateral and balance
+and Posture). The full list of derived areas that changed is in `swing_areas_regroup.md`, Results.
 
 ## Appendix C: the mock
 

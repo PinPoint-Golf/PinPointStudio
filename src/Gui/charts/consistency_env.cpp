@@ -29,6 +29,7 @@
 #include <QHash>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QSet>
 #include <QString>
 #include <QThread>
 
@@ -53,7 +54,10 @@ public:
         : m_provider(pa::makeCharacteristicPackProvider())
         , m_norms(pa::sharedNormProvider())
     {
-        if (m_provider) m_areas = pa::metricAreasForPack(m_provider->pack());
+        if (m_provider) {
+            m_areas = pa::metricAreasForPack(m_provider->pack());
+            m_afterBall = pa::afterBallKeysForPack(m_provider->pack());
+        }
         // The manifest alone, not makeMetricCatalogue(): only the descriptors are needed here, and that
         // call also writes a process-wide labeller, which a worker has no business doing.
         pa::MetricCatalogue catalogue;
@@ -63,6 +67,7 @@ public:
     }
 
     QString areaOf(const QString &key) const { return m_areas.value(key); }
+    bool afterBall(const QString &key) const { return m_afterBall.contains(key); }
 
     double normSigma(const QString &key, int phase, const QString &club) const
     {
@@ -110,6 +115,7 @@ private:
     std::unique_ptr<pa::ICharacteristicPackProvider> m_provider;
     std::shared_ptr<const pa::INormProvider>         m_norms;
     QHash<QString, QString>                          m_areas;       // key -> area token
+    QSet<QString>                                    m_afterBall;   // keys graded after the ball has gone
 
     mutable QMutex                  m_memoLock;
     mutable QHash<QString, double>  m_memo;                         // "key|phase|context" -> sigma
@@ -134,6 +140,7 @@ ConsistencyEnv consistencyEnvFromPacks()
     const ConsistencyPacks *packs = &consistencyPacks();
     ConsistencyEnv env;
     env.areaOf = [packs](const QString &key) { return packs->areaOf(key); };
+    env.afterBall = [packs](const QString &key) { return packs->afterBall(key); };
     env.normSigma = [packs](const QString &key, int phase, const QString &club) {
         return packs->normSigma(key, phase, club);
     };

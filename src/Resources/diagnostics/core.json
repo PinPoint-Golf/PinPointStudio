@@ -2166,6 +2166,46 @@
       "highMeans": "more side bend toward the trail side at the top"
     },
     {
+      "id": "m_spineSideBendChangeImpact",
+      "kind": "provided",
+      "metricKey": "spineSideBend",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p7"
+        ]
+      },
+      "status": "live",
+      "label": "Spine side bend, change P1 to P7",
+      "unit": "°",
+      "highMeans": "more side bend toward the trail side at impact than at address, the trail shoulder working down and under; the LOW side is the upper body staying level, gaining little or none",
+      "golferHigh": "you bend more to your trail side at impact than at address",
+      "golferLow": "you bend less to your trail side at impact than at address",
+      "golferSign": 1,
+      "golferName": "how much side bend you gain from address to impact",
+      "viewNeeded": "faceOn"
+    },
+    {
+      "id": "m_spineSideBendImpact",
+      "kind": "provided",
+      "metricKey": "spineSideBend",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Spine side bend, at impact",
+      "unit": "°",
+      "golferHigh": "you bend more to your trail side at impact",
+      "golferLow": "you bend less to your trail side at impact",
+      "highMeans": "more side bend toward the trail side at impact",
+      "golferSign": 1,
+      "golferName": "side bend toward your trail side at impact",
+      "viewNeeded": "faceOn"
+    },
+    {
       "id": "m_leadUpperArmToChest",
       "kind": "provided",
       "metricKey": "leadUpperArmToChest",
@@ -4959,6 +4999,22 @@
       "direction": "high"
     },
     {
+      "id": "sig_sideBendGainLow",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_spineSideBendChangeImpact"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_sideBendGainHigh",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_spineSideBendChangeImpact"
+      ],
+      "direction": "high"
+    },
+    {
       "id": "sig_offBalanceFinish",
       "test": "outsideCorridor",
       "measures": [
@@ -6243,7 +6299,7 @@
         "forward spine angle at the top",
         "reverse spine angle at the top"
       ],
-      "group": "posture",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -6325,7 +6381,7 @@
       "aliases": [
         "flat shoulder turn"
       ],
-      "group": "posture",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -6363,7 +6419,7 @@
       "aliases": [
         "hip riding up"
       ],
-      "group": "posture",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -6685,7 +6741,7 @@
         "trail elbow flying",
         "disconnected trail arm"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -6729,7 +6785,7 @@
         "lead-elbow breakdown",
         "wing"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
@@ -6769,7 +6825,7 @@
         "coming over it",
         "OTT"
       ],
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "ubiquitous",
       "observability": "observable",
@@ -6809,7 +6865,7 @@
         "narrow downswing",
         "collapsing arms"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -6850,7 +6906,7 @@
         "throwaway",
         "losing lag"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "ubiquitous",
@@ -6897,7 +6953,7 @@
         "adding loft",
         "hands behind the ball"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
@@ -6938,7 +6994,7 @@
         "no wrist hinge",
         "dead hands"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "occasional",
@@ -6973,7 +7029,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7010,7 +7066,7 @@
         "arms first",
         "arms take over"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7046,7 +7102,7 @@
       "aliases": [
         "club first"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7083,7 +7139,7 @@
         "upper body first",
         "starting from the top"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7120,7 +7176,7 @@
         "one-block turn",
         "blocky turn"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -7157,7 +7213,7 @@
         "arms along for the ride",
         "no arm speed"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -7192,7 +7248,7 @@
       "aliases": [
         "no release"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -7229,7 +7285,7 @@
         "hips never slow",
         "spinning hips"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -7266,7 +7322,7 @@
         "timing varies",
         "different every swing"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7306,7 +7362,7 @@
         "all-arms swing",
         "low coil"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7344,7 +7400,7 @@
         "quick from the top",
         "snatching it"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -7369,7 +7425,7 @@
       "id": "limited_trail_hip_ir",
       "label": "Limited trail-hip internal rotation",
       "golfer": "Trail-hip mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7390,7 +7446,7 @@
       "id": "limited_lead_hip_ir",
       "label": "Limited lead-hip internal rotation",
       "golfer": "Lead-hip mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7410,7 +7466,7 @@
       "id": "poor_pelvic_disassociation",
       "label": "Poor pelvic disassociation",
       "golfer": "Turning your hips without your chest",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7432,7 +7488,7 @@
       "id": "limited_thoracic_rotation",
       "label": "Limited thoracic rotation",
       "golfer": "Upper-back mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7451,7 +7507,7 @@
       "id": "limited_thoracic_extension",
       "label": "Limited thoracic extension",
       "golfer": "Upper-back straightening",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7469,7 +7525,7 @@
       "id": "thoracic_kyphosis",
       "label": "Fixed thoracic kyphosis",
       "golfer": "Upper-back posture",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "occasional",
       "observability": "latent",
@@ -7487,7 +7543,7 @@
       "id": "limited_shoulder_flexion",
       "label": "Limited shoulder flexion",
       "golfer": "Overhead shoulder reach",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "occasional",
       "observability": "latent",
@@ -7505,7 +7561,7 @@
       "id": "limited_shoulder_external_rotation",
       "label": "Limited trail-shoulder external rotation",
       "golfer": "Trail-shoulder mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "occasional",
       "observability": "latent",
@@ -7523,7 +7579,7 @@
       "id": "limited_lead_ankle_dorsiflexion",
       "label": "Limited lead-ankle dorsiflexion",
       "golfer": "Lead-ankle mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7541,7 +7597,7 @@
       "id": "limited_hip_extension",
       "label": "Limited hip extension",
       "golfer": "Hip-flexor length",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7560,7 +7616,7 @@
       "id": "limited_wrist_mobility",
       "label": "Limited wrist mobility",
       "golfer": "Wrist mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "uncommon",
       "observability": "latent",
@@ -7578,7 +7634,7 @@
       "id": "poor_core_stability",
       "label": "Poor core stability",
       "golfer": "Core stability",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7596,7 +7652,7 @@
       "id": "poor_single_leg_balance",
       "label": "Poor single-leg balance",
       "golfer": "Balance on one leg",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -7613,7 +7669,7 @@
     {
       "id": "club_too_short",
       "label": "Club too short for the golfer",
-      "group": "setup",
+      "group": "golfer",
       "kind": "equipment",
       "prominence": "uncommon",
       "observability": "latent",
@@ -7629,7 +7685,7 @@
     {
       "id": "trying_to_lift_the_ball",
       "label": "Trying to lift the ball",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "ubiquitous",
       "observability": "latent",
@@ -7645,7 +7701,7 @@
     {
       "id": "aim_bias_open",
       "label": "Aims left of the target",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -7661,7 +7717,7 @@
     {
       "id": "aim_bias_closed",
       "label": "Aims right of the target",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -7677,7 +7733,7 @@
     {
       "id": "tempo_habit",
       "label": "Settled tempo habit",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -7693,7 +7749,7 @@
     {
       "id": "stance_habit",
       "label": "Settled setup preference",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -7946,7 +8002,7 @@
         "shut grip"
       ],
       "axis": "grip_rotation",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -7967,7 +8023,7 @@
         "open grip"
       ],
       "axis": "grip_rotation",
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "common",
       "observability": "latent",
@@ -7987,7 +8043,7 @@
         "hands too high",
         "reaching for the ball"
       ],
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "common",
       "observability": "latent",
@@ -8006,7 +8062,7 @@
       "aliases": [
         "sitting back at address"
       ],
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -8040,7 +8096,7 @@
         "rolled it inside"
       ],
       "axis": "takeaway_direction",
-      "group": "setup",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -8079,7 +8135,7 @@
         "lifted it away"
       ],
       "axis": "takeaway_direction",
-      "group": "setup",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8120,7 +8176,7 @@
         "fanning the face",
         "rolling the face"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "occasional",
@@ -8163,7 +8219,7 @@
         "wrist cup at the top",
         "extended lead wrist at the top"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
@@ -8207,7 +8263,7 @@
         "flexed lead wrist at the top",
         "hooded wrist at the top"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "uncommon",
@@ -8249,7 +8305,7 @@
         "open clubface at the top",
         "face open at the top of the backswing"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
@@ -8292,7 +8348,7 @@
         "closed clubface at the top",
         "face hooded at the top"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "uncommon",
@@ -8334,7 +8390,7 @@
         "too upright going back"
       ],
       "axis": "backswing_plane",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8373,7 +8429,7 @@
         "round it"
       ],
       "axis": "backswing_plane",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8412,7 +8468,7 @@
         "swinging it up"
       ],
       "axis": "backswing_plane_angle",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8453,7 +8509,7 @@
         "swinging it around"
       ],
       "axis": "backswing_plane_angle",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8493,7 +8549,7 @@
         "chopping down"
       ],
       "axis": "downswing_plane_angle",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -8533,7 +8589,7 @@
         "too far from the inside"
       ],
       "axis": "downswing_plane_angle",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -8573,7 +8629,7 @@
         "pointing right"
       ],
       "axis": "top_direction",
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8612,7 +8668,7 @@
         "pointing left at the top"
       ],
       "axis": "top_direction",
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8651,7 +8707,7 @@
         "too long",
         "past parallel"
       ],
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -8691,7 +8747,7 @@
         "collapsed lead arm",
         "chicken-winged going back"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -8963,7 +9019,7 @@
         "no turn",
         "short of the top"
       ],
-      "group": "armsAndClub",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9003,7 +9059,7 @@
         "loss of connection",
         "run-off"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9044,7 +9100,7 @@
         "out of position coming down"
       ],
       "axis": "delivery_plane",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -9085,7 +9141,7 @@
         "dropping it too far inside"
       ],
       "axis": "delivery_plane",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -9124,7 +9180,7 @@
         "spinning out",
         "no shift"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -9160,7 +9216,7 @@
         "stalling",
         "stopping the turn"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9196,7 +9252,7 @@
         "quitting on it",
         "slowing down"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -9235,7 +9291,7 @@
       "aliases": [
         "no forward lean"
       ],
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -9273,7 +9329,7 @@
         "bottoming out early",
         "hitting behind it"
       ],
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -9309,7 +9365,7 @@
         "too much down on it"
       ],
       "axis": "attack_angle",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -9346,7 +9402,7 @@
         "too shallow"
       ],
       "axis": "attack_angle",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -9383,7 +9439,7 @@
         "face open"
       ],
       "axis": "face_to_path",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "ubiquitous",
       "observability": "observable",
@@ -9421,7 +9477,7 @@
         "shut face"
       ],
       "axis": "face_to_path",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -9460,7 +9516,7 @@
         "hips not clearing",
         "blocked"
       ],
-      "group": "impact",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9503,7 +9559,7 @@
         "not enough tilt at impact"
       ],
       "axis": "axis_tilt_impact",
-      "group": "impact",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9541,7 +9597,7 @@
         "too much tilt"
       ],
       "axis": "axis_tilt_impact",
-      "group": "impact",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -9559,6 +9615,86 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "impact position low point axis tilt golf swing"
+      }
+    },
+    {
+      "id": "insufficient_side_bend_impact",
+      "label": "Not enough side bend at impact",
+      "golfer": "your upper body stays level and on top of the ball through impact",
+      "golferWell": "your trail shoulder works down and under into impact",
+      "golferWhy": "Staying level and on top of the ball brings the club down steeply and across the ball, which costs you strike and start line.",
+      "goal": "Let your trail shoulder work down and under through impact",
+      "cue": "Coming down, feel your trail shoulder work down and under while your lead shoulder moves up and away.",
+      "check": "Film face on and compare address with impact. By impact your trail shoulder should have dropped a little further below your lead shoulder, compared with your hips, than it was at address.",
+      "picture": {
+        "kind": "pair",
+        "camera": "faceOn",
+        "phase": "P7",
+        "line": "shoulders"
+      },
+      "aliases": [
+        "staying on top of it",
+        "shoulders turning level"
+      ],
+      "axis": "side_bend_impact",
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_sideBendGainLow"
+      ],
+      "state": "draft",
+      "consequence": "The upper body stays level through impact: the shoulder line gains little or no side bend on the hip line from address, where the trail shoulder should have worked down and under. The club then tends to arrive steeply and from the outside. Read as the change from address on the face-on image. Side bend is the shape of the trunk, the shoulders against the hips, and it is a different reading from axis tilt, which is the whole upper body's lean.",
+      "drills": [
+        "drill.impactHold",
+        "drill.turnToTarget"
+      ],
+      "provenance": {
+        "tier": "indirect",
+        "citation": "10.1080/02640414.2010.507249",
+        "searchedOn": "2026-11-08"
+      }
+    },
+    {
+      "id": "excessive_side_bend_impact",
+      "label": "Too much side bend at impact",
+      "golfer": "your trail shoulder drops too far under through impact",
+      "golferWell": "your trail shoulder works down only as far as the shot needs",
+      "golferWhy": "Dropping your trail shoulder too far moves the bottom of your swing behind the ball, so you catch the ground first or hit it thin.",
+      "goal": "Let your trail shoulder work under only as far as needed",
+      "cue": "Through the ball, feel your chest keep turning toward the target rather than your trail shoulder dropping.",
+      "check": "Film face on and compare address with impact. Your trail shoulder should have dropped a little further below your lead shoulder than it was at address, without your trail side folding toward your trail hip.",
+      "picture": {
+        "kind": "pair",
+        "camera": "faceOn",
+        "phase": "P7",
+        "line": "shoulders"
+      },
+      "aliases": [
+        "dropping the trail shoulder",
+        "collapsing on the trail side"
+      ],
+      "axis": "side_bend_impact",
+      "group": "posture",
+      "kind": "fault",
+      "prominence": "uncommon",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_sideBendGainHigh"
+      ],
+      "state": "draft",
+      "consequence": "The shoulder line gains too much side bend on the hip line from address, the trail shoulder dropping too far under through impact. That moves the low point behind the ball and tends to shallow the club's approach. Read as the change from address on the face-on image. Side bend is the shape of the trunk, the shoulders against the hips, and it is a different reading from axis tilt, which is the whole upper body's lean.",
+      "drills": [
+        "drill.impactHold",
+        "drill.lowPointDivot"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend impact excessive golf"
       }
     },
     {
@@ -9580,7 +9716,7 @@
         "falling over",
         "stepping through"
       ],
-      "group": "finish",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9606,7 +9742,7 @@
       "aliases": [
         "stuck on the back foot"
       ],
-      "group": "finish",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -9641,7 +9777,7 @@
       "aliases": [
         "no follow-through"
       ],
-      "group": "finish",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -10216,7 +10352,7 @@
       "id": "limited_hamstring_length",
       "label": "Limited hamstring length",
       "golfer": "Hamstring length",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -10237,7 +10373,7 @@
         "hitting down on it",
         "chopping down"
       ],
-      "group": "setup",
+      "group": "golfer",
       "kind": "intent",
       "prominence": "occasional",
       "observability": "latent",
@@ -10426,7 +10562,7 @@
         "shoulders turning too upright",
         "tilting rather than turning"
       ],
-      "group": "posture",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10465,7 +10601,7 @@
         "leaning away from the target",
         "hanging the upper body back"
       ],
-      "group": "posture",
+      "group": "lateral",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10617,7 +10753,7 @@
         "swinging out to the right",
         "too much from the inside"
       ],
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -10656,7 +10792,7 @@
         "elbow behind the body",
         "trail arm too deep"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10695,7 +10831,7 @@
         "over-turning",
         "turning further than it can be held"
       ],
-      "group": "armsAndClub",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10735,7 +10871,7 @@
         "club well short at the top",
         "backswing stops early"
       ],
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -10774,7 +10910,7 @@
         "hooded takeaway",
         "face turned down going back"
       ],
-      "group": "armsAndClub",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "uncommon",
@@ -10815,7 +10951,7 @@
         "arms stuck to the body",
         "no width in the arms"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10855,7 +10991,7 @@
         "lead arm rigid",
         "elbow locked out going back"
       ],
-      "group": "armsAndClub",
+      "group": "arms",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -10895,7 +11031,7 @@
         "handle drag",
         "too much lag"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "rare",
@@ -10937,7 +11073,7 @@
         "too much hinge at the top",
         "over-cocked"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "rare",
@@ -10978,7 +11114,7 @@
         "bowed at impact",
         "too much forward bow"
       ],
-      "group": "impact",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "uncommon",
@@ -11018,7 +11154,7 @@
         "hands way ahead",
         "delofting it too much"
       ],
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "uncommon",
       "observability": "observable",
@@ -11056,7 +11192,7 @@
         "bottoming out too late",
         "digging past it"
       ],
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "uncommon",
       "observability": "observable",
@@ -11095,7 +11231,7 @@
         "hips way past it",
         "over-cleared"
       ],
-      "group": "impact",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "uncommon",
       "observability": "observable",
@@ -11134,7 +11270,7 @@
         "late with the hips",
         "hips never get going"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -11171,7 +11307,7 @@
         "over-stretching in transition",
         "too much separation"
       ],
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "rare",
       "observability": "observable",
@@ -11249,7 +11385,7 @@
         "path too far left",
         "cutting across it"
       ],
-      "group": "armsAndClub",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "ubiquitous",
       "observability": "observable",
@@ -11289,7 +11425,7 @@
         "hips never got round",
         "stopped turning going back"
       ],
-      "group": "armsAndClub",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -11333,7 +11469,7 @@
         "over-releasing",
         "turning it over"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
@@ -11377,7 +11513,7 @@
         "face open at impact",
         "blocking it"
       ],
-      "group": "release",
+      "group": "wrists",
       "domain": "wrist",
       "kind": "fault",
       "prominence": "occasional",
@@ -11420,7 +11556,7 @@
         "shallowing out"
       ],
       "axis": "transition_plane",
-      "group": "swingPlane",
+      "group": "planePath",
       "kind": "delivery",
       "prominence": "uncommon",
       "observability": "observable",
@@ -11484,7 +11620,7 @@
       "aliases": [
         "glutes not firing"
       ],
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -11691,7 +11827,7 @@
       "id": "limited_trail_ankle_dorsiflexion",
       "label": "Limited trail-ankle dorsiflexion",
       "golfer": "Trail-ankle mobility",
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -11713,7 +11849,7 @@
         "glute med weakness",
         "knee falling in"
       ],
-      "group": "setup",
+      "group": "golfer",
       "kind": "capacity",
       "prominence": "common",
       "observability": "latent",
@@ -11787,7 +11923,7 @@
         "dynamic lie upright"
       ],
       "axis": "shaft_lie",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -11829,7 +11965,7 @@
         "dynamic lie flat"
       ],
       "axis": "shaft_lie",
-      "group": "impact",
+      "group": "delivery",
       "kind": "delivery",
       "prominence": "uncommon",
       "observability": "observable",
@@ -11862,7 +11998,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -11896,7 +12032,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -11929,7 +12065,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -11962,7 +12098,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -11993,7 +12129,7 @@
       "picture": {
         "kind": "none"
       },
-      "group": "sequence",
+      "group": "rotation",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -15064,17 +15200,6 @@
         "tier": "practice",
         "searchedOn": "2026-07-28",
         "searchTerms": "lead hip internal rotation pelvis clearing impact golf"
-      }
-    },
-    {
-      "from": "hips_too_open_at_impact",
-      "to": "over_the_top",
-      "type": "causes",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-07-28",
-        "searchTerms": "hips ahead of arms upper body takeover golf"
       }
     },
     {
@@ -18944,6 +19069,149 @@
         "tier": "practice",
         "searchedOn": "2026-10-29",
         "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+      }
+    },
+    {
+      "from": "insufficient_side_bend_impact",
+      "to": "out_to_in_path",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend impact club path out-to-in golf"
+      }
+    },
+    {
+      "from": "insufficient_side_bend_impact",
+      "to": "attack_too_steep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend side bend attack angle golf"
+      }
+    },
+    {
+      "from": "insufficient_side_bend_impact",
+      "to": "steep_downswing_shaft",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral tilt downswing shaft plane golf"
+      }
+    },
+    {
+      "from": "insufficient_side_bend_impact",
+      "to": "lie_steep_at_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend impact shaft lie golf"
+      }
+    },
+    {
+      "from": "poor_pelvic_disassociation",
+      "to": "insufficient_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "pelvis thorax separation trunk lateral bend impact golf"
+      }
+    },
+    {
+      "from": "limited_shoulder_flexion",
+      "to": "insufficient_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "latissimus shoulder mobility trunk lateral bend impact golf"
+      }
+    },
+    {
+      "from": "poor_setup_posture",
+      "to": "insufficient_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "address posture trunk lateral bend impact golf"
+      }
+    },
+    {
+      "from": "upper_body_starts_down",
+      "to": "insufficient_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "downswing sequence upper torso trunk lateral bend golf"
+      }
+    },
+    {
+      "from": "hips_closed_at_impact",
+      "to": "insufficient_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "pelvis rotation impact trunk lateral bend golf"
+      }
+    },
+    {
+      "from": "excessive_side_bend_impact",
+      "to": "low_point_behind_ball",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend impact low point golf"
+      }
+    },
+    {
+      "from": "excessive_side_bend_impact",
+      "to": "attack_too_shallow",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend attack angle launch angle golf"
+      }
+    },
+    {
+      "from": "excessive_side_bend_impact",
+      "to": "in_to_out_path",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "trunk lateral bend impact club path in-to-out golf"
+      }
+    },
+    {
+      "from": "trying_to_lift_the_ball",
+      "to": "excessive_side_bend_impact",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight intent trunk lateral bend golf"
       }
     }
   ]

@@ -31,8 +31,6 @@ namespace {
 
 namespace pv = pinpoint::variability;
 
-const QString kFinish = QStringLiteral("finish");
-
 bool positive(double x) { return std::isfinite(x) && x > 0.0; }
 
 // A cell's grade as a result, so the halves and the areas go through cellGrade() as a cell's readings do.
@@ -121,8 +119,13 @@ ConsistencyGrades consistencyGrades(const ConsistencyInput &in, const Consistenc
             cell.area = area;
             cell.column = column;
             cell.readings = at[{ area, column }];
+            // After the ball: a cell holding a reading a condition reads at the finish is graded on those alone,
+            // and the rest of the cell stays shown. A cell holding none keeps its grade of what it has, lighter.
+            cell.afterBall = std::any_of(cell.readings.begin(), cell.readings.end(),
+                                         [&](int r) { return in.readings[size_t(r)].afterBall; });
             std::vector<pv::VariabilityResult> results;
-            for (int r : cell.readings) results.push_back(out.readings[size_t(r)]);
+            for (int r : cell.readings)
+                if (!cell.afterBall || in.readings[size_t(r)].afterBall) results.push_back(out.readings[size_t(r)]);
             // gate rule: PP_GATE("rule.charts.consistencyCell") — readings but none graded: "-"
             cell.grade = pv::cellGrade(results);
             out.cells.push_back(std::move(cell));
@@ -139,7 +142,7 @@ ConsistencyHead consistencyHead(const ConsistencyGrades &grades)
     for (const ConsistencyCellGrade &c : grades.cells) {
         anyGraded = anyGraded || c.grade.graded;
         if (!c.grade.graded || c.grade.grade < 1) continue;
-        if (c.column == kConsistencyAfterBallColumn && c.area != kFinish) continue;     // after the ball has gone
+        if (c.column == kConsistencyAfterBallColumn && !c.afterBall) continue;          // after the ball has gone
         const pv::VariabilityResult r = asResult(c.grade);
         areas[c.area].push_back(r);
         if (c.column >= kConsistencyBackswingFirst && c.column <= kConsistencyBackswingLast) back.push_back(r);

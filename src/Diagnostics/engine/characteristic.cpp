@@ -32,7 +32,9 @@ namespace {
 // The Row/nameOf/labelOf/fromName machinery is shared with norm.cpp — see enum_table_p.h,
 // which also carries the reason a label is decoded as UTF-8 and a token as Latin-1. What stays here
 // is what is genuinely this file's: one table per enum, so a spelling exists in exactly one place.
-// Every `name` is a stable JSON token and must never change once a pack has shipped with it.
+// Every `name` is a stable JSON token. A token that has shipped in a pack is retired only through
+// the loader's alias step (currentConditionGroupToken() in characteristic_pack.h), never by renaming
+// it here alone: a pack that still carries the old spelling has to keep loading.
 using detail::fromName;
 using detail::labelOf;
 using detail::nameOf;
@@ -80,22 +82,22 @@ const Row<Direction> kDirections[] = {
 };
 
 const Row<ConditionGroup> kGroups[] = {
-    { ConditionGroup::Setup,       "setup",       "Setup" },
-    { ConditionGroup::Posture,     "posture",     "Posture" },
-    { ConditionGroup::Lateral,     "lateral",     "Lateral motion" },
-    { ConditionGroup::ArmsAndClub, "armsAndClub", "Arms & club" },
-    { ConditionGroup::SwingPlane,  "swingPlane",  "Swing plane" },
-    { ConditionGroup::Release,     "release",     "Release" },
-    { ConditionGroup::Sequence,    "sequence",    "Sequence" },
-    { ConditionGroup::Impact,      "impact",      "Impact" },
-    { ConditionGroup::Finish,      "finish",      "Finish" },
-    { ConditionGroup::BallFlight,  "ballFlight",  "Ball flight" },
+    { ConditionGroup::Setup,      "setup",      "Setup" },
+    { ConditionGroup::Posture,    "posture",    "Posture" },
+    { ConditionGroup::Lateral,    "lateral",    "Lateral & balance" },
+    { ConditionGroup::Rotation,   "rotation",   "Turn & sequence" },
+    { ConditionGroup::Arms,       "arms",       "Arms" },
+    { ConditionGroup::Wrists,     "wrists",     "Wrists & release" },
+    { ConditionGroup::PlanePath,  "planePath",  "Plane & path" },
+    { ConditionGroup::Delivery,   "delivery",   "Delivery" },
+    { ConditionGroup::BallFlight, "ballFlight", "Ball flight" },
+    { ConditionGroup::Golfer,     "golfer",     "Golfer" },
 };
 
-// The token `setup` is ALSO a ConditionGroup token, and a shipped row carries both — `"group":
-// "setup", "kind": "setup"` is correct and means two different things. The tables are separate and
-// the parsers never cross, but an error message that says only "unknown setup" would send an author
-// to the wrong field, so both loaders name the field they are talking about.
+// The tokens `setup` and `delivery` are ALSO ConditionGroup tokens, and a shipped row can carry both
+// — `"group": "setup", "kind": "setup"` is correct and means two different things. The tables are
+// separate and the parsers never cross, but an error message that says only "unknown setup" would
+// send an author to the wrong field, so both loaders name the field they are talking about.
 const Row<ConditionKind> kKinds[] = {
     { ConditionKind::Fault,     "fault",     "Fault" },
     { ConditionKind::Setup,     "setup",     "Setup" },

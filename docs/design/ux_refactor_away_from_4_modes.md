@@ -444,22 +444,28 @@ Points any rule must pin (from the research):
 
 ### 5.3 Areas and labels
 
+An area is what moves. The phase stays in the Consistency table's columns. Setup is the one exception, because it is
+static and has its own chart. The rule and the membership are in `docs/design/swing_areas_regroup.md`.
+
 | group | Label | Shown |
 |---|---|---|
 | setup | Setup | always |
 | posture | Posture | always |
-| lateral | Lateral motion | always |
-| sequence | Sequence | always |
-| armsAndClub | Arms & club | always |
-| swingPlane | Swing plane | always (added 8 Nov 2026, `docs/design/swing_plane_area.md`) |
-| release | Release | always |
-| impact | Impact | always |
-| finish | Finish | always (often "not measured") |
+| lateral | Lateral & balance | always |
+| rotation | Turn & sequence | always |
+| arms | Arms | always |
+| wrists | Wrists & release | always |
+| planePath | Plane & path | always |
+| delivery | Delivery | always |
 | ballFlight | Ball flight | **only with launch-monitor evidence**: a ballFlight condition whose measures are all `lm.*` has `swingsAssessable > 0`. "Any ballFlight condition assessable" is not an LM test, because `top` and `sky` are also judged from the camera. These are Outcome-class conditions, never work-ons. |
+| golfer | Golfer | **never.** The latent causes (capacity, intent, equipment), filed here for the model browser and editor. `areaGroupOrder()` leaves it out, so it yields no area on Home, in Consistency or in the report. |
 
-Labels come from the existing C++ table `conditionGroupLabel()` (`characteristic.cpp` l.82–92),
-which the model browser also uses. Change its "Lateral" to "Lateral motion". **Do not add a pack
-`groups` table in this refactor.** Any pack edit changes the content stamp
+The table's order is `areaGroupOrder()` (`src/Coaching/swing_areas.h`): body, arms, hands, club, ball. It is Consistency's
+row order, without Ball flight, and the last tie-break between Home's rows (§5.2).
+
+Labels come from the C++ table `conditionGroupLabel()` (`kGroups`, `characteristic.cpp`), which the model browser also
+uses. The Consistency presenter has its own words, with "and" for "&" (`kAreaWords`, `charts_consistency_presenter.cpp`).
+**Do not add a pack `groups` table in this refactor.** Any pack edit changes the content stamp
 (`session_diagnostics_model.cpp` l.812–823). That re-detects every swing in every library on the
 next look and recomputes every work-ons fingerprint and the themes. Revisit it only bundled with
 a pack change that forces a regrade anyway.

@@ -138,20 +138,20 @@ static QStringList itemIds(const AreaSummary *a)
 int main()
 {
     std::printf("swing_areas_test\n");
-    const QStringList body{ "setup", "posture", "lateral", "sequence", "armsAndClub", "swingPlane", "release", "impact", "finish" };
+    const QStringList body{ "setup", "posture", "lateral", "rotation", "arms", "wrists", "planePath", "delivery" };
 
     // ── An empty library ────────────────────────────────────────────────────────
     {
         const QHash<QString, AreaConditionInfo> info{ { "ee", ci("posture", "Early extension") },
                                                       { "slice", ci("ballFlight", "Slice", true, true) } };
         const std::vector<AreaSummary> a = summariseAreas({}, info);
-        bool none = a.size() == 9;
+        bool none = a.size() == 8;
         for (const AreaSummary &s : a)
             none = none && !s.measurable && s.measured == 0 && s.items.empty() && !s.hasTrend && s.habitTrend == 0
                 && s.topFaultId.isEmpty() && s.workOnsActive == 0;
-        check(none, "no sessions: the nine body areas, none measurable, nothing in them");
+        check(none, "no sessions: the eight body areas, none measurable, nothing in them");
         check(groupsOf(a) == body, "…in address-to-finish order, and no ball flight");
-        check(summariseAreas({}, {}).size() == 9, "no pack either: still the nine rows");
+        check(summariseAreas({}, {}).size() == 8, "no pack either: still the eight rows");
     }
 
     // ── One session: counts, no trend ───────────────────────────────────────────
@@ -163,7 +163,7 @@ int main()
         check(p && p->measurable && p->measured == 1 && p->habits == 1 && !p->hasTrend && p->habitTrend == 0,
               "one session: a habit is counted, and there is no trend to state");
         check(l && l->measurable && l->clean == 1 && l->habits == 0, "0 of 40 is clean");
-        check(a.size() == 9 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("lateral"),
+        check(a.size() == 8 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("lateral"),
               "the measured areas lead");
     }
 
@@ -171,29 +171,29 @@ int main()
     {
         const QHash<QString, AreaConditionInfo> info{
             { "ee",     ci("posture", "Early extension") },
-            { "scoop",  ci("release", "Scooping") },                     // authored, never assessed
+            { "scoop",  ci("wrists", "Scooping") },                      // authored, never assessed
             { "hipcap", ci("setup", "Hip rotation capacity", false) },   // Capacity: Excluded
             { "intent", ci("posture", "Trying to stay down", false) },   // Intent in a measured area
         };
         const std::vector<AreaSummary> a = summariseAreas(
             { session("s1", 0, { { "ee", 0, 40 }, { "hipcap", 10, 10 }, { "intent", 10, 10 } }) }, info);
-        const AreaSummary *r = areaOf(a, "release"), *s = areaOf(a, "setup"), *p = areaOf(a, "posture");
+        const AreaSummary *r = areaOf(a, "wrists"), *s = areaOf(a, "setup"), *p = areaOf(a, "posture");
         check(r && !r->measurable && r->measured == 0 && r->items.empty() && r->topFaultId.isEmpty(),
               "a group whose conditions were never assessed is not measurable");
         check(s && !s->measurable && s->habits == 0 && s->items.empty(),
               "a group assessed only on Excluded conditions is not measurable either");
         check(p && p->measured == 1 && p->habits == 0 && p->clean == 1 && !itemOf(p, "intent") && p->topFaultId.isEmpty(),
               "an Excluded condition firing on every swing adds no habit and no item to its area");
-        check(a.size() == 9 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("setup")
-                  && a.back().group == QStringLiteral("finish"),
+        check(a.size() == 8 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("setup")
+                  && a.back().group == QStringLiteral("delivery"),
               "unmeasurable areas follow, in address-to-finish order");
 
         // The class rule on its own: Movement and Delivery count; held back never; an Outcome only in ball flight.
         check(areaConditionCounts("posture", WorkOnClass::Movement, false, false)
-                  && areaConditionCounts("impact", WorkOnClass::Delivery, false, false),
+                  && areaConditionCounts("delivery", WorkOnClass::Delivery, false, false),
               "Movement and Delivery count");
         check(!areaConditionCounts("setup", WorkOnClass::Excluded, false, false)
-                  && !areaConditionCounts("impact", WorkOnClass::Excluded, true, false),
+                  && !areaConditionCounts("delivery", WorkOnClass::Excluded, true, false),
               "Excluded does not, an Outcome outside ball flight included");
         check(areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false),
               "ball flight's Outcome conditions count");
@@ -210,12 +210,12 @@ int main()
             { "slice", ci("ballFlight", "Slice", true, true) },     // launch-monitor keys only
         };
         const std::vector<AreaSummary> camera = summariseAreas({ session("s1", 0, { { "ee", 9, 10 }, { "top", 6, 10 } }) }, info);
-        check(!areaOf(camera, "ballFlight") && camera.size() == 9,
+        check(!areaOf(camera, "ballFlight") && camera.size() == 8,
               "ball flight is omitted when only a camera-judged outcome was assessed");
         const std::vector<AreaSummary> lm = summariseAreas(
             { session("s1", 0, { { "ee", 9, 10 }, { "top", 6, 10 }, { "slice", 0, 40 } }) }, info);
         const AreaSummary *bf = areaOf(lm, "ballFlight");
-        check(bf && bf->measurable && lm.size() == 10 && bf->measured == 2 && bf->habits == 1 && bf->clean == 1
+        check(bf && bf->measurable && lm.size() == 9 && bf->measured == 2 && bf->habits == 1 && bf->clean == 1
                   && bf->topFaultId == QStringLiteral("top"),
               "with launch-monitor evidence it is present, and counts its Outcome conditions, the camera's included");
     }
@@ -284,28 +284,28 @@ int main()
     // ── Stable ordering: areas, then items ──────────────────────────────────────
     {
         const QHash<QString, AreaConditionInfo> info{
-            { "h1", ci("sequence", "H1") }, { "h2", ci("sequence", "H2") }, { "o1", ci("sequence", "O1") },
+            { "h1", ci("rotation", "H1") }, { "h2", ci("rotation", "H2") }, { "o1", ci("rotation", "O1") },
             { "p1", ci("posture", "P1") },  { "p2", ci("posture", "P2") },
             { "l1", ci("lateral", "L1") },
-            { "a1", ci("armsAndClub", "A1") },
-            { "i1", ci("impact", "I1") },
-            { "f1", ci("finish", "F1") },
-            { "r1", ci("release", "R1") },
+            { "a1", ci("arms", "A1") },
+            { "i1", ci("delivery", "I1") },
+            { "f1", ci("wrists", "F1") },
+            { "r1", ci("planePath", "R1") },
         };
-        // sequence 2 habits + 1 occasional; posture 2 habits; arms & club 1 habit at 0.9; lateral and finish
-        // 1 habit at 0.6 each (tied: address to finish decides); impact clean only; setup and release unmeasured.
+        // rotation 2 habits + 1 occasional; posture 2 habits; arms 1 habit at 0.9; lateral and wrists
+        // 1 habit at 0.6 each (tied: address to finish decides); delivery clean only; setup and planePath unmeasured.
         const std::vector<SessionWorkOns> ss{
             session("s1", 0, { { "h1", 10, 10 }, { "h2", 8, 10 }, { "o1", 3, 10 }, { "p1", 10, 10 }, { "p2", 9, 10 },
                                { "l1", 6, 10 }, { "a1", 9, 10 }, { "i1", 0, 40 }, { "f1", 6, 10 } }),
         };
-        const QStringList expect{ "sequence", "posture", "armsAndClub", "lateral", "finish", "impact", "setup", "swingPlane", "release" };
+        const QStringList expect{ "rotation", "posture", "arms", "lateral", "wrists", "delivery", "setup", "planePath" };
         const std::vector<AreaSummary> a = summariseAreas(ss, info);
         check(groupsOf(a) == expect,
               "areas: habits, then occasional, then the worst share, then address to finish; unmeasured last");
         std::vector<SessionWorkOns> rev{ session("x", 0, {}), ss[0] };
         std::reverse(rev.begin(), rev.end());
         check(groupsOf(summariseAreas(rev, info)) == expect, "the input order of the sessions does not matter");
-        check(itemIds(areaOf(a, "sequence")) == (QStringList{ "h1", "h2", "o1" }), "items: by band, then share");
+        check(itemIds(areaOf(a, "rotation")) == (QStringList{ "h1", "h2", "o1" }), "items: by band, then share");
 
         // Item ties: sessionsListed, then id; habits before occasional before the rest; the cap.
         const QHash<QString, AreaConditionInfo> pi{
@@ -333,11 +333,11 @@ int main()
 
     // ── The top fault: none when nothing is a habit or occasional ───────────────
     {
-        const QHash<QString, AreaConditionInfo> info{ { "i1", ci("impact", "I1") }, { "i2", ci("impact", "I2") },
-                                                      { "f1", ci("finish", "F1") } };
+        const QHash<QString, AreaConditionInfo> info{ { "i1", ci("delivery", "I1") }, { "i2", ci("delivery", "I2") },
+                                                      { "f1", ci("wrists", "F1") } };
         const std::vector<AreaSummary> a = summariseAreas(
             { session("s1", 0, { { "i1", 0, 40 }, { "i2", 1, 7 }, { "f1", 3, 10 } }) }, info);
-        const AreaSummary *i = areaOf(a, "impact"), *f = areaOf(a, "finish");
+        const AreaSummary *i = areaOf(a, "delivery"), *f = areaOf(a, "wrists");
         check(i && i->measurable && i->topFaultId.isEmpty() && i->items.size() == 2,
               "clean and unclear only: no top fault, though both are listed as items");
         check(f && f->topFaultId == QStringLiteral("f1"), "an occasional condition is a top fault");
@@ -403,11 +403,11 @@ int main()
 
     // ── A yes/no condition grades Action on its typical swing, and nothing when clean ──────────────
     {
-        QHash<QString, AreaConditionInfo> info{ { "late", ci("sequence", "Hips peak after impact") },
-                                                { "order", ci("sequence", "Out-of-order sequence") },
-                                                { "mostly", ci("sequence", "Chest peaks after impact") },
-                                                { "half", ci("sequence", "Arms outrun the chest") },
-                                                { "band", ci("sequence", "Rushed transition") } };
+        QHash<QString, AreaConditionInfo> info{ { "late", ci("rotation", "Hips peak after impact") },
+                                                { "order", ci("rotation", "Out-of-order sequence") },
+                                                { "mostly", ci("rotation", "Chest peaks after impact") },
+                                                { "half", ci("rotation", "Arms outrun the chest") },
+                                                { "band", ci("rotation", "Rushed transition") } };
         for (const char *id : { "late", "order", "mostly", "half" }) info[id].binary = true;
         std::vector<SessionWorkOns> ss{
             // the older session fired on every swing; the newest is what the grade reads
@@ -419,7 +419,7 @@ int main()
         setTypical(ss[1], "band", 1.8, 2.2, 3.0);
         const AreaSummary *sq = nullptr;
         const std::vector<AreaSummary> ab = summariseAreas(ss, info);
-        sq = areaOf(ab, "sequence");
+        sq = areaOf(ab, "rotation");
         const AreaItem *late = itemOf(sq, "late"), *order = itemOf(sq, "order"), *mostly = itemOf(sq, "mostly"),
                        *half = itemOf(sq, "half"), *band = itemOf(sq, "band");
         check(late && late->binary && late->latestFired == 9 && late->latestAssessable == 10 && areaBinaryFires(*late),
@@ -429,6 +429,21 @@ int main()
         check(half && !areaBinaryFires(*half), "exactly half is not the typical swing firing");
         check(band && !band->binary && !areaBinaryFires(*band) && band->hasTypical,
               "a condition with a band keeps its corridor grade and is never graded yes/no");
+    }
+
+    // ── Golfer: the latent causes never make an area ───────────────────────────
+    {
+        // The rule, not the pack: a condition filed under `golfer` that somehow counted and was assessed on every
+        // swing still has no row, because only areaGroupOrder() makes rows and golfer is not on it.
+        const QHash<QString, AreaConditionInfo> info{ { "ee", ci("posture", "Early extension") },
+                                                      { "hipcap", ci("golfer", "Hip rotation capacity") } };
+        const std::vector<AreaSummary> a = summariseAreas(
+            { session("s1", 0, { { "ee", 9, 10 }, { "hipcap", 10, 10 } }), session("s2", 1, { { "ee", 9, 10 }, { "hipcap", 10, 10 } }) },
+            info);
+        check(!areaGroupOrder().contains(QStringLiteral("golfer")) && !areaOf(a, "golfer") && a.size() == 8,
+              "golfer is not an area: not in the order, not returned, even with a counted, assessed condition");
+        check(areaOf(a, "posture") && areaOf(a, "posture")->measured == 1 && !itemOf(areaOf(a, "posture"), "hipcap"),
+              "…and its condition is counted and listed under no other area");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
