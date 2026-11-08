@@ -1225,7 +1225,9 @@ void WorkOnsController::publishSummary()
             });
         for (const NeedsWorkItem &n : view.next)
             m_nextItems.append(fault(n));
-        for (const TogetherItem &t : view.together)
+        for (const TogetherItem &t : view.together) {
+            QVariantList togetherFaults;
+            for (const NeedsWorkItem &n : t.faults) togetherFaults.append(fault(n));
             m_togetherItems.append(QVariantMap{
                 { QStringLiteral("tier"),       t.tier },
                 { QStringLiteral("first"),      t.first },
@@ -1233,7 +1235,10 @@ void WorkOnsController::publishSummary()
                 { QStringLiteral("startStop"),  t.startStop },
                 { QStringLiteral("startWords"), t.startWords },
                 { QStringLiteral("trend"),      t.trend },
+                { QStringLiteral("also"),       t.also },
+                { QStringLiteral("faults"),     togetherFaults },
             });
+        }
         m_togetherNote = view.note;
     }
     emit summaryChanged();

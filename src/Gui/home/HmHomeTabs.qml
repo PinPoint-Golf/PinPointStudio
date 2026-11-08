@@ -131,6 +131,7 @@ Column {
                 id: matchups
                 width: matchupsPage.width
                 controller: root.controller
+                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
         }
     }

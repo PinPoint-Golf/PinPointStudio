@@ -24,10 +24,14 @@
 //   strength mark · the two halves joined by a connector · a six-stop swing timeline of where the
 //   pair first shows, with its words beside it where there is room, else beneath
 //
+// A row opens in place, one at a time, to the rest of what moves with the pair and the faults on the
+// same movement; each fault opens as it does elsewhere (HmFaultRow). A shared movement, never a cause.
+//
 // Every string is WorkOnsController's (swingSummaryView):
 //   togetherItems  [{ tier "firm"|"probably"|"possibly", first ("When …", or the one part),
 //                     second ("" for one part), startStop 0..5 (−1 unplaced: no timeline),
-//                     startWords, trend -1|0|1 }]
+//                     startWords, trend -1|0|1, also [string], faults [{ text, frequency, trend,
+//                     conditionId, … }] }]
 //   togetherNote   "" or why nothing can be said yet
 
 import QtQuick
@@ -40,8 +44,16 @@ Column {
     // The controller. Passed in rather than reached for, so a harness can drive the component.
     property var controller: (typeof workOns !== "undefined") ? workOns : null
 
+    // An open fault's "Review the … session →".
+    signal reviewSessionRequested(string sessionDir)
+
     readonly property var    together:  controller ? controller.togetherItems  : []
     readonly property string note:      controller ? controller.togetherNote   : ""
+
+    // The open pair and the fault open inside it. Held here and not on the row: each publish of the
+    // summary rebuilds the rows.
+    property string openPair:  ""
+    property string openFault: ""
 
     // ── Palette ──────────────────────────────────────────────────────────────
     readonly property color toneTogether: Theme.gradientCool     // a relation, neither praise nor fault
@@ -60,7 +72,8 @@ Column {
 
         columns: [{ width: Theme.sp(68) },
                   { fill: true },
-                  { width: togetherCard.whereW }]
+                  { width: togetherCard.whereW },
+                  { width: Theme.sp(10) }]              // a row's chevron
 
         // The card's header row, one line as on the Coaching tab's cards: the title in its tone, in
         // the words column, and the caption of the column it heads.
@@ -88,7 +101,7 @@ Column {
 
         Repeater {
             model: root.together
-            PpTableRow {
+            PpExpandRow {
                 id: pair
                 objectName: "togetherItem"
                 required property var modelData
@@ -104,10 +117,111 @@ Column {
                 readonly property int linkIndent: Theme.sp(18)
                 readonly property int chipRoom:   chip.visible ? chip.width + Theme.gap(16) : 0
 
+                readonly property string key:    firstText + "|" + secondText
+                readonly property var    also:   pair.modelData.also   || []
+                readonly property var    faults: pair.modelData.faults || []
+
                 secondLine: true
-                hoverEnabled: false
-                height: Math.max(Theme.sp(Theme.rowH2),
-                                 Math.max(strength.height, words.height, where.height) + Theme.gap(18))
+                rowHeight: Math.max(Theme.sp(Theme.rowH2),
+                                    Math.max(strength.height, words.height, where.height) + Theme.gap(18))
+                accessibleName: secondText !== "" ? firstText + ", " + secondText : firstText
+                pressObjectName: "togetherPress"
+                chevronSide: "right"
+                expanded:    root.openPair === pair.key
+                autoToggle:  false
+                onToggled: {
+                    root.openFault = ""
+                    root.openPair = pair.expanded ? "" : pair.key
+                }
+                detailIndent:     pair.columnX(1) + pair.padH + pair.linkIndent
+                detailRightInset: pair.padH + Theme.sp(10) + togetherCard.columnGap
+                detail: pair.also.length > 0 || pair.faults.length > 0 ? pair._detail : null
+
+                // Held as a property, not a child: a child would land in the header's cells.
+                readonly property Component _detail: Component {
+                    Column {
+                        id: opened
+                        topPadding:    Theme.gap(2)
+                        bottomPadding: Theme.gap(16)
+                        spacing: Theme.gap(14)
+
+                        Column {
+                            visible: pair.also.length > 0
+                            width:   opened.width
+                            spacing: Theme.gap(6)
+                            PpCaption { text: qsTr("Also moves with it") }
+                            Repeater {
+                                model: pair.also
+                                HmHeadline {
+                                    required property string modelData
+                                    objectName: "togetherAlso"
+                                    width: opened.width
+                                    text:  modelData
+                                }
+                            }
+                        }
+
+                        Column {
+                            visible: pair.faults.length > 0
+                            width:   opened.width
+                            spacing: Theme.gap(6)
+                            PpCaption { text: qsTr("Faults on the same movement") }
+                            Column {
+                                width: opened.width
+                                Repeater {
+                                    model: pair.faults
+                                    HmFaultRow {
+                                        id: faultRow
+                                        objectName: "togetherFault"
+                                        required property var modelData
+                                        readonly property int gap:    togetherCard.columnGap
+                                        readonly property int chevW:  Theme.sp(10)
+                                        readonly property int freqW:  Math.min(Theme.sp(240), Math.floor(faultRow.width * 0.4))
+                                        readonly property int wordsW: Math.max(0, faultRow.width - faultRow.freqW
+                                                                                  - faultRow.chevW - 2 * faultRow.gap)
+                                        controller:  root.controller
+                                        conditionId: faultRow.modelData.conditionId || ""
+                                        openId:      root.openFault
+                                        onOpenRequested: (next) => root.openFault = next
+                                        onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+                                        width: parent ? parent.width : 0
+                                        rowHeight: Math.max(Theme.sp(Theme.itemRowH), faultWords.height + Theme.gap(10))
+                                        padH: 0
+                                        topRule: true
+                                        layout: [{ x: 0, width: faultRow.wordsW, align: "left" },
+                                                 { x: faultRow.wordsW + faultRow.gap, width: faultRow.freqW, align: "left" },
+                                                 { x: faultRow.wordsW + faultRow.freqW + 2 * faultRow.gap,
+                                                   width: faultRow.chevW, align: "left" }]
+                                        accessibleName: faultRow.modelData.text
+                                        detailIndent:     0
+                                        detailRightInset: faultRow.chevW + faultRow.gap
+
+                                        HmHeadline {
+                                            id: faultWords
+                                            width: faultRow.columnWidth(0)
+                                            text:  faultRow.modelData.text
+                                        }
+                                        Row {
+                                            width: faultRow.columnWidth(1)
+                                            spacing: Theme.gap(8)
+                                            PpCaption {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                width: Math.min(implicitWidth, parent.width
+                                                                - (faultChip.visible ? faultChip.width + parent.spacing : 0))
+                                                text:  faultRow.modelData.frequency
+                                            }
+                                            PpChip {
+                                                id: faultChip
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                trend: faultRow.modelData.trend
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 PpStrengthMark {
                     id: strength

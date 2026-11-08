@@ -195,6 +195,11 @@ inline ThemePhrases themePhrases(const CharacteristicPack &pack, const DrillSet 
     ph.condition = [golfer](const QString &id) { return golfer.value(id); };
     ph.measure   = [high, low](const QString &id, bool isHigh) { return isHigh ? high.value(id) : low.value(id); };
     ph.family    = [family](const QString &id) { return family.value(id); };
+    QHash<QString, QStringList> conditionFamilies;
+    const QHash<QString, ThemeConditionInfo> conditionInfo = themeConditionInfo(pack, drills);
+    for (auto it = conditionInfo.cbegin(); it != conditionInfo.cend(); ++it)
+        conditionFamilies.insert(it.key(), it.value().families);
+    ph.conditionFamilies = [conditionFamilies](const QString &id) { return conditionFamilies.value(id); };
     ph.well      = [well](const QString &id) { return well.value(id); };
     ph.why       = [why](const QString &id) { return why.value(id); };
     ph.drill     = [drill](const QString &id) { return drill.value(id); };

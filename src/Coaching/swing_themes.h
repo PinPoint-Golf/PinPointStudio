@@ -1950,6 +1950,7 @@ struct ThemePhrases {
     std::function<QString(const QString &conditionId)>            condition;
     std::function<QString(const QString &measureId, bool high)>   measure;
     std::function<QString(const QString &measureId)>              family;
+    std::function<QStringList(const QString &conditionId)>        conditionFamilies;    // ThemeConditionInfo::families
     std::function<QString(const QString &conditionId)>            well;
     std::function<QString(const QString &conditionId)>            why;
     std::function<ThemeDrill(const QString &drillId)>             drill;
@@ -2151,6 +2152,12 @@ struct TogetherItem {
     int     startStop = -1;     // 0 address, 1 back, 2 top, 3 down, 4 impact, 5 finish; −1 unplaced
     QString startWords;         // "starts at the top", or "" when unplaced
     int     trend = 0;          // +1 may be growing, −1 may be easing, 0 no clear change
+    // What the row opens to. `also`: the theme's other members in the golfer's words, in swing order
+    // (the same quantity at another moment is worth saying here: it is what "starts at the top"
+    // rests on when both named halves are at impact). `faults`: the faults being seen most whose
+    // quantities the theme moves, in that list's order. A shared quantity, never a cause.
+    QStringList also;
+    std::vector<NeedsWorkItem> faults;
 };
 
 struct SwingSummaryView {
@@ -2325,6 +2332,38 @@ inline SwingSummaryView swingSummaryView(const SwingThemes &st, const ThemePhras
             item.startStop  = themeStartStop(t->startsAt);
             item.startWords = themeStartStopWords(item.startStop);
             item.trend      = t->trend;
+
+            std::vector<const ThemeMember *> inSwingOrder;
+            for (const ThemeMember &m : t->members) inSwingOrder.push_back(&m);
+            const auto swingPos = [](const ThemeMember *m) { return m->when > 0 ? m->when : kThemeFocusUnplaced; };
+            std::stable_sort(inSwingOrder.begin(), inSwingOrder.end(), [&](const ThemeMember *a, const ThemeMember *b) {
+                return swingPos(a) < swingPos(b);
+            });
+            QStringList said = parts;
+            for (const ThemeMember *m : inSwingOrder) {
+                const QString p = ph.measure ? ph.measure(m->measureId, m->rawHigh) : QString();
+                if (p.isEmpty() || said.contains(p)) continue;
+                said.append(p);
+                item.also.append(themeCapitalised(p));
+            }
+
+            if (ph.conditionFamilies) {
+                QSet<QString> quantities;
+                for (const ThemeMember &m : t->members) {
+                    const QString fam = ph.family ? ph.family(m.measureId) : QString();
+                    quantities.insert(fam.isEmpty() ? m.measureId : fam);
+                }
+                QStringList toldFault;
+                for (const SeenMostRow &r : st.seenMost) {
+                    const QString phrase = ph.condition ? ph.condition(r.conditionId) : QString();
+                    if (phrase.isEmpty() || toldFault.contains(phrase)) continue;
+                    bool touches = false;
+                    for (const QString &f : ph.conditionFamilies(r.conditionId)) touches = touches || quantities.contains(f);
+                    if (!touches) continue;
+                    toldFault.append(phrase);
+                    item.faults.push_back(themes::needsWorkItem(r, phrase, opt));
+                }
+            }
             v.together.push_back(std::move(item));
         }
     }

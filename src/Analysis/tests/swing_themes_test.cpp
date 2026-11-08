@@ -918,6 +918,38 @@ int main()
               "together: a theme with one part is that part capitalised, with no second half");
         check(tv.note.isEmpty(), "note: empty when something goes together");
 
+        // What a row opens to.
+        {
+            const auto at = [](const char *id, double loading, bool high, int when) {
+                return ThemeMember{ QString::fromLatin1(id), loading, high, when };
+            };
+            const auto seen = [](const char *id) { SeenMostRow r; r.conditionId = QString::fromLatin1(id); r.share = 0.9; return r; };
+            SwingThemes opened;
+            opened.enough = true;
+            opened.seenMost = { seen("kneeFault"), seen("hipFault"), seen("dup1"), seen("dup2"), seen("armFault") };
+            opened.themes = { theme(ThemeTier::Firm, 0.5, 1, 0, { at("wrist", 0.9, true, 7), at("elbow", 0.8, false, 7),
+                                                                  at("arm", 0.7, true, 0), at("head", 0.6, true, 4),
+                                                                  at("hipB", 0.5, true, 2), at("hipA", 0.4, false, 1),
+                                                                  at("none", 0.3, true, 3), at("wrist", 0.2, true, 8) }) };
+            ThemePhrases fam = ph;
+            fam.conditionFamilies = [](const QString &id) {
+                if (id == QStringLiteral("hipFault") || id.startsWith(QStringLiteral("dup"))) return QStringList{ QStringLiteral("pelvisSway") };
+                if (id == QStringLiteral("armFault")) return QStringList{ QStringLiteral("arm") };
+                return QStringList{ QStringLiteral("somethingElse") };
+            };
+            const SwingSummaryView ov = swingSummaryView(opened, fam);
+            check(ov.together.size() == 1 && ov.together[0].also
+                      == QStringList{ QStringLiteral("Your hipA drops"), QStringLiteral("Your hipB rises"),
+                                      QStringLiteral("Your head rises"), QStringLiteral("Your arm rises") },
+                  "together, opened: the members not named, in swing order, unplaced last; a family already said is kept, no phrase or a repeat is not");
+            std::vector<QString> ids;
+            if (ov.together.size() == 1) for (const NeedsWorkItem &n : ov.together[0].faults) ids.push_back(n.conditionId);
+            check(ids == std::vector<QString>{ QStringLiteral("hipFault"), QStringLiteral("dup1"), QStringLiteral("armFault") },
+                  "together, opened: the faults on a quantity the theme moves, in the list's order, a repeated phrase once");
+            check(swingSummaryView(opened, ph).together.size() == 1 && swingSummaryView(opened, ph).together[0].faults.empty(),
+                  "together, opened: no condition families, no faults");
+        }
+
         const std::vector<int> stops{ themeStartStop(0), themeStartStop(1), themeStartStop(2), themeStartStop(3), themeStartStop(4),
                                       themeStartStop(5), themeStartStop(6), themeStartStop(7), themeStartStop(8), themeStartStop(9),
                                       themeStartStop(10) };

@@ -429,7 +429,8 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
         const QString first = m.value(QStringLiteral("first")).toString(), second = m.value(QStringLiteral("second")).toString();
         const int stop = m.value(QStringLiteral("startStop")).toInt(), trend = m.value(QStringLiteral("trend")).toInt();
         together = together && keysAre(m, { QStringLiteral("tier"), QStringLiteral("first"), QStringLiteral("second"),
-                                            QStringLiteral("startStop"), QStringLiteral("startWords"), QStringLiteral("trend") })
+                                            QStringLiteral("startStop"), QStringLiteral("startWords"), QStringLiteral("trend"),
+                                            QStringLiteral("also"), QStringLiteral("faults") })
             && (tier == QStringLiteral("firm") || tier == QStringLiteral("probably") || tier == QStringLiteral("possibly"))
             && !first.isEmpty() && (second.isEmpty() || first.startsWith(QStringLiteral("When ")))
             && m.value(QStringLiteral("startStop")).typeId() == QMetaType::Int && stop >= -1 && stop <= 5
@@ -452,7 +453,7 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     std::snprintf(label, sizeof label, "%s: 'next on your list' is at most four fault items a stored row backs, "
                                        "none the focus already tells", when);
     check(next, label);
-    std::snprintf(label, sizeof label, "%s: every 'goes together' item is {tier, first, second, startStop, startWords, trend}", when);
+    std::snprintf(label, sizeof label, "%s: every 'goes together' item is {tier, first, second, startStop, startWords, trend, also, faults}", when);
     check(together, label);
     std::snprintf(label, sizeof label, "%s: the note is said exactly when nothing goes together", when);
     check(c.togetherItems().isEmpty() != c.togetherNote().isEmpty(), label);
