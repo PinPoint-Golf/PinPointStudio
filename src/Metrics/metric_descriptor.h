@@ -285,7 +285,7 @@ struct PhaseDomain {
 // parallel only at the top; balance at the finish; forward bend as the loss from address to
 // impact. For those, a window PEAK is a number about something else, printed under their name.
 //
-// So each metric says what its card shows, in at most four tiles laid out in this order:
+// So each metric says what its card shows, in at most five tiles laid out in this order:
 //   readAt  — values of the drawn curve AT these phase instants (label defaults to "@ TOP" etc.)
 //   PEAK    — the window's windowed-mean extremum, or over the FIXED span peakFrom→peakTo
 //   Δ       — the window's end minus start, or the FIXED deltaFrom→deltaTo change
@@ -293,7 +293,7 @@ struct PhaseDomain {
 // Each withheld tile is simply not on the card. THE DEFAULT IS THE OLD CARD EXACTLY: @ IMPACT,
 // PEAK, Δ SEGMENT, PK RATE, all window-scoped but the reading.
 //
-// Every phase named here must lie inside the metric's `domain`, and a card has at most four
+// Every phase named here must lie inside the metric's `domain`, and a card has at most five
 // tiles — metric_catalogue_test holds both.
 struct MetricCardReading {
     Phase   phase = Phase::Impact;

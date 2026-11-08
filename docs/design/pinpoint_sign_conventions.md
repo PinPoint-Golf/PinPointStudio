@@ -350,6 +350,11 @@ left-handed golfer or a mirrored camera reads the same number.
 | `armHang` | the hands FURTHER TOWARD THE BALL than the shoulders — reaching; negative is tucked in under the body | down the line; shoulder midpoint → wrist midpoint against the vertical, at address only |
 | `headPitch` | the CHIN DOWN toward the chest; negative is the chin up | down the line; the ear → nose line against the square to the trunk line (hip midpoint → shoulder midpoint), so 0 is the head held square to the trunk and forward bend does not move it; at address only |
 
+## Changes of plane
+
+Every plane change reads **+ = steeper**: Δ PLANE on the Fitted plane card (the downswing's plane less the backswing's,
+since 8 Nov 2026; it carried the path's sign before), hand plane steepening, Δ LIE and the transition plane delta.
+
 ## Not covered by either rule
 
 A metric on neither axis **must state its own convention**: `pelvisThrust` is toward the ball, which

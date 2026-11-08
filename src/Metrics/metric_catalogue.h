@@ -34,6 +34,24 @@
 
 namespace pinpoint::analysis {
 
+// A series a stage saves for research but no chart offers: the face-on ellipse's two inclinations,
+// tilts against the camera's image rather than the ground, which share no scale with any plane on
+// the Swing plane chart (docs/design/swing_plane_area.md). They carry no descriptor, so without this
+// they would land in the charts' "Other" group.
+inline bool isResearchOnlySeries(const QString &key)
+{
+    return key == QLatin1String("swingPlaneIotaBack") || key == QLatin1String("swingPlaneIotaDown");
+}
+
+// A key renamed after swings were saved: a saved series keeps the label its analysis wrote, so the
+// charts name these from the catalogue instead (docs/design/swing_plane_area.md).
+inline bool isLabelFromCatalogue(const QString &key)
+{
+    return key == QLatin1String("swingPlaneCurve") || key == QLatin1String("swingPlane")
+        || key == QLatin1String("swingPlaneAngle") || key == QLatin1String("transitionPlaneDelta")
+        || key == QLatin1String("shoulderPlaneAngle");
+}
+
 // Directory query (design §4). Any std::nullopt / empty field means "don't filter on it".
 struct MetricQuery {
     std::optional<MetricType> type;

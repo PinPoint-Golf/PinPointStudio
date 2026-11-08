@@ -75,8 +75,9 @@ inline const QStringList &areaGroupOrder()
 {
     static const QStringList v{ QStringLiteral("setup"),       QStringLiteral("posture"),
                                 QStringLiteral("lateral"),     QStringLiteral("sequence"),
-                                QStringLiteral("armsAndClub"), QStringLiteral("release"),
-                                QStringLiteral("impact"),      QStringLiteral("finish"),
+                                QStringLiteral("armsAndClub"), QStringLiteral("swingPlane"),
+                                QStringLiteral("release"),     QStringLiteral("impact"),
+                                QStringLiteral("finish"),
                                 kAreaBallFlight() };
     return v;
 }

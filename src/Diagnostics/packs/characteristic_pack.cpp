@@ -2125,7 +2125,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
             && !conditionGroupFromName(o.value(QStringLiteral("group")).toString(), c.group))
             err(r, QStringLiteral("unknownGroup"), c.id,
                 QStringLiteral("Condition '%1' declares group '%2'; the groups are setup, posture, "
-                               "lateral, armsAndClub, release, sequence, impact, finish and "
+                               "lateral, armsAndClub, swingPlane, release, sequence, impact, finish and "
                                "ballFlight.")
                     .arg(c.id, o.value(QStringLiteral("group")).toString()));
 

@@ -67,7 +67,7 @@ struct LocalisedText {
 // the ball did about it. BallFlight sits last because an outcome is where an explanation ENDS —
 // the chain runs fault -> strike -> flight, and the golfer reads it from the bottom up.
 enum class ConditionGroup {
-    Setup, Posture, Lateral, ArmsAndClub, Release, Sequence, Impact, Finish, BallFlight
+    Setup, Posture, Lateral, ArmsAndClub, SwingPlane, Release, Sequence, Impact, Finish, BallFlight
 };
 
 enum class Observability {

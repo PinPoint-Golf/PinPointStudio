@@ -237,6 +237,12 @@ public:
     // marshals two whole series in and two whole arrays back. It is called ONCE PER DATA CHANGE, in
     // PpMetricChart._plottable, where the result is decorated onto the series entry as `mean` /
     // `meanSigma` and every plot, sparkline, crosshair and tooltip reads it from there.
+    // A fitted curve read AT an instant (fitted_curve.h): isFittedCurve says which keys, and
+    // fittedCurveAt returns { ok, value }, the one reading every surface gives at a P position.
+    Q_INVOKABLE bool isFittedCurve(const QString &key) const;
+    Q_INVOKABLE QVariantMap fittedCurveAt(const QVariantList &tUs, const QVariantList &value,
+                                          const QVariantList &valid, qint64 us) const;
+
     Q_INVOKABLE QVariantMap windowedMean(const QVariantList &tUs, const QVariantList &value,
                                          const QVariantList &valid) const;
 
@@ -304,6 +310,12 @@ public:
     // so the chart, the Metric Library and the summary cards all say the same word for the
     // same metric, and a metric added to the manifest is short-named everywhere at once.
     Q_INVOKABLE QString shortLabel(const QString &key) const;
+    // The catalogue's full label, "" for a key it does not know.
+    QString catalogueLabel(const QString &key) const
+    {
+        const pinpoint::analysis::MetricDescriptor *d = m_catalogue.descriptor(key);
+        return d ? d->label : QString();
+    }
 
     // The palette NAME a metric is drawn in (MetricDescriptor::color), or "" for a key the
     // catalogue does not know. A name, not a colour: Theme.metricColor(key) turns it into the

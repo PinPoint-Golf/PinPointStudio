@@ -152,9 +152,7 @@ QVariantMap paddedRange(const BoxStats &b, double frac)
 
 double valueAtPhaseOf(const ShotSeries &s, const QString &key, int ph)
 {
-    if (const MetricSeries *m = s.metric(key))
-        for (const PhaseSample &p : m->phaseSamples) if (p.phase == ph && fin(p.value)) return p.value;
-    return kNaN;
+    return readingValueAt(s, key, ph);
 }
 qint64 phaseUsOf(const ShotSeries &s, int ph)
 {
@@ -487,7 +485,8 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
 
     // Keys in manifest order, then the uncatalogued (sorted).
     QSet<QString> present;
-    for (const auto &sh : S.shots) for (const QString &k : sh->metricOrder) present.insert(k);
+    for (const auto &sh : S.shots) for (const QString &k : sh->metricOrder)
+        if (!pa::isResearchOnlySeries(k)) present.insert(k);
     QStringList order;
     for (const pa::MetricDescriptor *d : catalogue().all()) if (present.remove(d->key)) order << d->key;
     QStringList rest(present.cbegin(), present.cend());
@@ -511,7 +510,11 @@ void ensureSession(Cache &c, const std::shared_ptr<const SessionSnapshot> &base,
             c.solo = true;
         }
     }
-    for (SessionReading &r : c.readings) r.unit = shortUnit(r.unit);
+    for (SessionReading &r : c.readings) {
+        r.unit = shortUnit(r.unit);
+        if (pa::isLabelFromCatalogue(r.key))
+            if (const pa::MetricDescriptor *d = catalogue().descriptor(r.key)) r.label = d->label;
+    }
     // the estimates a gate refused: per shot, by the shot the reading's values came from (solo: the one shot)
     if (!refusedEstimates.isEmpty())
         for (SessionReading &r : c.readings) {

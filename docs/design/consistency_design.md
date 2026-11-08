@@ -572,7 +572,8 @@ readings on 5 Oct). These 28 have no such condition. Mark accepted them as writt
 | Area | Readings |
 |---|---|
 | Sequence | `clubAngularSpeed`, `clubheadSpeed`, `handSpeed`, `leadArmAngularSpeed`, `thoraxAngularSpeed`, `xFactor`, `tempoBackswing` |
-| Arms and club | `thoraxRotationSigned`, `elbowAlignment`, `handPlaneCurve`, `swingPlaneCurve`, `shoulderPlaneAngle`, `handPlaneSteepening` |
+| Arms and club | `thoraxRotationSigned`, `elbowAlignment`, `shoulderPlaneAngle` |
+| Swing plane (from 8 Nov 2026, `swing_plane_area.md`; `swingPlaneCurve` is now placed by its conditions) | `handPlaneCurve`, `handPlaneSteepening`, `swingPlane`, `swingPlaneAngle` |
 | Posture | `headTilt`, `spineSideBend`, `trunkRise`, `hipDepthButt`, `headPitch`, `spineBackLine` |
 | Setup | `ballBodyDistance`, `stanceWidthMm`, `toeLineAngle`, `leadFootFlare`, `trailFootFlare` |
 | Impact | `attackAngle`, `lowPointFromAttack` |

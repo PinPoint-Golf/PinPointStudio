@@ -1139,13 +1139,13 @@ int main()
                     std::printf("      %s card reads phase %d outside its domain\n",
                                 qPrintable(d->key), int(p));
                 }
-            if (c.tileCount() > 4 || c.tileCount() < 1) {
+            if (c.tileCount() > 5 || c.tileCount() < 1) {
                 ++overfull;
                 std::printf("      %s card has %d tiles\n", qPrintable(d->key), c.tileCount());
             }
         }
         checkEqI(cardOffenders, 0, "every card phase lies inside its metric's domain");
-        checkEqI(overfull, 0, "every card has one to four tiles");
+        checkEqI(overfull, 0, "every card has one to five tiles");
 
         // INSTANT-ONLY METRICS (MetricCardSpec::drawsCurve false): no curve on the chart, a card
         // only. A ledger, so a card edit that silently turns a curve off (or on) has to be a

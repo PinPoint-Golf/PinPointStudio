@@ -29,7 +29,8 @@
 //   QT_QPA_PLATFORM=offscreen:configfile=<1680×1050 screen json> PinPointStudio --probe-qml <abs path to this file> \
 //       --probe-session <session dir> --probe-ordinal 7 [--probe-png <abs path stem>.png]
 //   --probe-mode analyse | glance — Analyse (default); the glance at the mat (Replay, autoReturnToCapture)
-//   --probe-tab shot | session (default shot)
+//   --probe-tab shot | session | readings (default shot)
+//   --probe-preset <name> — the chart to open (default Club delivery)
 //   --probe-theme <Theme.themeIndex> — render in that theme (the settings are a copy: point XDG_CONFIG_HOME at one)
 //   --probe-draw split | overlay — small multiples or one plot (else the reader's saved choice)
 //   --probe-trust open — open the section's "How far can I trust this?" before the grab
@@ -153,7 +154,7 @@ Item {
                 if (!probe.body) { probe.log("FAIL no Charts body"); Qt.exit(1); return }
                 const b = probe.body
                 probe.log("mode " + SessionMode.mode + " register " + b.register + " · theme " + Theme.themeIndex + (Theme.dark ? " (dark)" : " (light)"))
-                b.choose("preset", "Club delivery")
+                b.choose("preset", probe.arg("--probe-preset", "Club delivery"))
                 b.tab = probe.tab
                 const c = {}
                 const fold = probe.arg("--probe-fold", "")
@@ -241,7 +242,9 @@ Item {
                     probe.check(!!row || lay.length === 0, "the swing plane curve's row is drawn")
                     const labels = row ? probe.all(row, "chPlaneLabel") : []
                     probe.log("plane labels on the plot: " + labels.map(l => l.text).join(" · "))
-                    probe.check(lay.length === 0 || labels.length >= 1, "the plot labels its lines")
+                    // Club delivery does not draw the plane: the layers belong to the Swing plane chart.
+                    probe.check(lay.length === 0 || labels.length >= 1 || probe.arg("--probe-preset", "Club delivery") === "Club delivery",
+                                "the plot labels its lines")
                 } else {
                     probe.log("kicker: " + (se.kicker || ""))
                     probe.log("head: " + (se.headText || ""))
@@ -268,6 +271,11 @@ Item {
                     const labels = row ? probe.all(row, "chPlaneLabel") : []
                     probe.log("plane labels on the session plot: " + labels.map(l => l.text).join(" · "))
                 }
+                if (probe.tab === "readings") {
+                    probe.view = probe.one(root, "chReadingsView")
+                    probe.log("READINGS " + (probe.view ? probe.words(probe.view).join(" ¦ ") : "no chReadingsView"))
+                }
+                probe.log("CARDS " + probe.all(root, /^chCard/).map(c => c.objectName + ": " + probe.words(c).join(" ¦ ")).join(" || "))
                 // the view at the top of its scroll
                 const f = probe.view ? probe.flickOf(probe.view) : null
                 if (f) f.contentY = 0

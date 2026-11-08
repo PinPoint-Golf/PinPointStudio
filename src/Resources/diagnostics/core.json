@@ -2274,13 +2274,17 @@
     {
       "id": "m_shaftPlaneBackswing",
       "kind": "provided",
-      "metricKey": "swingPlane",
+      "metricKey": "swingPlaneCurve",
       "reducer": {
-        "kind": "at",
-        "anchor": "p3"
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p3"
+        ]
       },
       "status": "live",
-      "label": "Swing plane, backswing (address to the top)",
+      "label": "Swing plane at P3, against address",
       "unit": "°",
       "highMeans": "the shaft climbing further above the plane it started on — steeper",
       "golferHigh": "the club goes back steeper",
@@ -2292,13 +2296,17 @@
     {
       "id": "m_shaftPlaneDelivery",
       "kind": "provided",
-      "metricKey": "swingPlane",
+      "metricKey": "swingPlaneCurve",
       "reducer": {
-        "kind": "at",
-        "anchor": "p6"
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p6"
+        ]
       },
       "status": "live",
-      "label": "Swing plane, at delivery",
+      "label": "Swing plane at P6, against address",
       "unit": "°",
       "highMeans": "a steeper delivery plane, the shaft higher above the address plane",
       "golferHigh": "the club comes down steeper",
@@ -2310,13 +2318,13 @@
     {
       "id": "m_backswingPlaneAngle",
       "kind": "provided",
-      "metricKey": "swingPlaneAngle",
+      "metricKey": "swingPlaneCurve",
       "reducer": {
         "kind": "at",
         "anchor": "p3"
       },
       "status": "live",
-      "label": "Swing plane angle, backswing (address to the top)",
+      "label": "Swing plane at P3",
       "unit": "°",
       "highMeans": "a more upright backswing plane — the shaft's plane stands closer to vertical",
       "golferHigh": "the club swings back on a more upright plane",
@@ -2328,13 +2336,13 @@
     {
       "id": "m_downswingPlaneAngle",
       "kind": "provided",
-      "metricKey": "swingPlaneAngle",
+      "metricKey": "swingPlaneCurve",
       "reducer": {
         "kind": "at",
         "anchor": "p6"
       },
       "status": "live",
-      "label": "Swing plane angle, downswing (top to impact)",
+      "label": "Swing plane at P6",
       "unit": "°",
       "highMeans": "a more upright downswing plane — the shaft's plane stands closer to vertical",
       "golferHigh": "the club comes down on a more upright plane",
@@ -6761,7 +6769,7 @@
         "coming over it",
         "OTT"
       ],
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "fault",
       "prominence": "ubiquitous",
       "observability": "observable",
@@ -8326,7 +8334,7 @@
         "too upright going back"
       ],
       "axis": "backswing_plane",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8365,7 +8373,7 @@
         "round it"
       ],
       "axis": "backswing_plane",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8404,7 +8412,7 @@
         "swinging it up"
       ],
       "axis": "backswing_plane_angle",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8445,7 +8453,7 @@
         "swinging it around"
       ],
       "axis": "backswing_plane_angle",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "fault",
       "prominence": "occasional",
       "observability": "observable",
@@ -8485,7 +8493,7 @@
         "chopping down"
       ],
       "axis": "downswing_plane_angle",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -8525,7 +8533,7 @@
         "too far from the inside"
       ],
       "axis": "downswing_plane_angle",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -9036,7 +9044,7 @@
         "out of position coming down"
       ],
       "axis": "delivery_plane",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "delivery",
       "prominence": "common",
       "observability": "observable",
@@ -9077,7 +9085,7 @@
         "dropping it too far inside"
       ],
       "axis": "delivery_plane",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "delivery",
       "prominence": "occasional",
       "observability": "observable",
@@ -11412,7 +11420,7 @@
         "shallowing out"
       ],
       "axis": "transition_plane",
-      "group": "armsAndClub",
+      "group": "swingPlane",
       "kind": "delivery",
       "prominence": "uncommon",
       "observability": "observable",

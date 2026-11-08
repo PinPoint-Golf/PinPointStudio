@@ -451,6 +451,7 @@ Points any rule must pin (from the research):
 | lateral | Lateral motion | always |
 | sequence | Sequence | always |
 | armsAndClub | Arms & club | always |
+| swingPlane | Swing plane | always (added 8 Nov 2026, `docs/design/swing_plane_area.md`) |
 | release | Release | always |
 | impact | Impact | always |
 | finish | Finish | always (often "not measured") |

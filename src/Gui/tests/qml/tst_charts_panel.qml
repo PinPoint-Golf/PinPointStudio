@@ -998,7 +998,9 @@ Item {
             press(oneShown("chDeliveryTrustToggle", tr))
             compare(shownAll("chDeliveryTrustLine", tr).map(function (t) { return t.text }).join("\n"), (sh.trust.lines || []).join("\n"), "opened: the lines, verbatim")
             // the plot: the address line, the shoulder plane, the slot and the hands' stretches on the swing plane curve's row,
-            // inked by role, and named on the plot
+            // inked by role, and named on the plot. The plane has its own chart since 8 Nov, and the section shows there too.
+            hn.body.choose("preset", "Swing plane"); settle()
+            verify(oneShown("chDeliverySection").height > 0, "the section shows on the Swing plane chart too")
             const row = oneShown("chTrace:swingPlaneCurve")
             const roles = ["address", "shoulders", "slot", "hands"]
             for (const r of roles) {
@@ -1019,7 +1021,7 @@ Item {
         }
         function test_37_a_delivery_position_seeks_and_the_session_section_reads() {
             fresh({ delivery: true }, 8)
-            useDeliveryPreset()
+            hn.body.choose("preset", "Swing plane"); settle()   // the section also shows here, and the session figure draws the plane
             const sec = oneShown("chDeliverySection")
             const p4 = shownAll("chDeliveryPos", sec).filter(function (p) { return p.tag === "P4" })
             compare(p4.length, 1)

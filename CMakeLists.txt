@@ -2834,6 +2834,7 @@ target_sources(PinPointStudio PRIVATE
     src/Metrics/metric_channel.h
     src/Metrics/series_reduce.h
     src/Metrics/series_reduce_metric.h
+    src/Metrics/fitted_curve.h
     src/Body/upper_body_metrics.h
     src/Body/upper_body_metrics.cpp
     src/Body/body_rotation.h

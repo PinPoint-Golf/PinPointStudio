@@ -343,6 +343,10 @@ ColumnLayout {
                                ? { ok: true, val: card.st.end, us: root.endUs, raw: "" }
                                : { ok: false, val: 0, us: -1, raw: "" }
                     }
+                    if (cm.isFittedCurve(card.modelData.key)) {
+                        var fit = cm.fittedCurveAt(card.modelData.t_us, card.modelData.value, card.modelData.valid || [], us)
+                        return { ok: fit.ok, val: fit.value, us: us, raw: "" }
+                    }
                     var ok = ChartSamples.measuredAt(card.modelData, us)
                     var v  = root._reading(card.modelData,
                                            labels.valueAtNearest(card.modelData.t_us, ChartSamples.meanOf(card.modelData), us))

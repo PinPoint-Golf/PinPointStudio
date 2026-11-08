@@ -51,7 +51,7 @@ inline const QString &consistencyColumnName(int column)
 inline const QStringList &consistencyAreas()
 {
     static const QStringList v{ QStringLiteral("setup"),    QStringLiteral("posture"), QStringLiteral("armsAndClub"),
-                                QStringLiteral("sequence"), QStringLiteral("lateral"), QStringLiteral("release"),
+                                QStringLiteral("swingPlane"), QStringLiteral("sequence"), QStringLiteral("lateral"), QStringLiteral("release"),
                                 QStringLiteral("impact"),   QStringLiteral("finish") };
     return v;
 }
@@ -61,7 +61,8 @@ inline std::vector<int> consistencyColumnsOf(const QString &area)
 {
     if (area == QLatin1String("setup"))    return { 0 };
     if (area == QLatin1String("posture"))  return { 0, 1, 2, 3, 4, 5, 6, 7 };
-    if (area == QLatin1String("armsAndClub") || area == QLatin1String("lateral"))
+    if (area == QLatin1String("armsAndClub") || area == QLatin1String("swingPlane")
+        || area == QLatin1String("lateral"))
         return { 1, 2, 3, 4, 5, 6, 7 };
     if (area == QLatin1String("sequence")) return { 2, 3, 4, 5, 6 };
     if (area == QLatin1String("release"))  return { 5, 6, 7 };

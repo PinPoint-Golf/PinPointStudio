@@ -920,7 +920,7 @@ int main(int argc, char **argv)
         check(std::abs(band.value(QStringLiteral("lo")).toDouble() - (55.0 - 0.57)) < 1e-9 && std::abs(band.value(QStringLiteral("hi")).toDouble() - (64.5 + 0.57)) < 1e-9,
               "the boxes' one scale: every whisker, padded 6 %");
         eq(band.value(QStringLiteral("sub")).toString(),
-           QStringLiteral("8 swings with the swing plane curve. Under each box, the median and ± half the middle half."),
+           QStringLiteral("8 swings with the swing plane. Under each box, the median and ± half the middle half."),
            "the band's sub");
         eq(band.value(QStringLiteral("varies")).toString(), QStringLiteral("Steadiest at P1 (middle half ±0.8°), loosest at P6 (±0.8°)."), "where it varies, verbatim");
 
@@ -995,7 +995,7 @@ int main(int argc, char **argv)
         check(!wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("shown")).toBool()
               && wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("positions")).toList().isEmpty(), "under five swings with the curve: no boxes");
         eq(wb.value(QStringLiteral("band")).toMap().value(QStringLiteral("sub")).toString(),
-           QStringLiteral("The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3."), "and the sentence says why");
+           QStringLiteral("The plane at each position is drawn from 5 swings with the swing plane; this session has 3."), "and the sentence says why");
         check(!wb.value(QStringLiteral("shape")).toMap().value(QStringLiteral("shown")).toBool(), "no monitor shape: no grid");
         eq(wb.value(QStringLiteral("shape")).toMap().value(QStringLiteral("sub")).toString(),
            QStringLiteral("The launch monitor gave no start line or curve on this session's swings."), "and its sentence says why");

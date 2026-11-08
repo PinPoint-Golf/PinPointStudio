@@ -25,7 +25,7 @@
 // neither they nor their tests touch a pack.
 //
 // WHERE A READING IS PLACED (Appendix B). A reading's area comes from the conditions that detect on it,
-// the group that uses it most (metricAreasForPack, swing_areas_pack.h). 28 readings have no such
+// the group that uses it most (metricAreasForPack, swing_areas_pack.h). 29 readings have no such
 // condition and are placed by hand: MetricDescriptor::consistencyArea, which wins when set. Four are
 // deliberately unplaced and not read: compoundMiss (ball flight, which has no spans), shoulderPlane,
 // swingPlaneIotaBack and swingPlaneIotaDown. areaOf answers "" for those, and for any other key that

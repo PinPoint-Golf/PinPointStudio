@@ -97,6 +97,11 @@ struct SessionReading {
 // first seen first); a reading measured on fewer than 3 shots is not a reading.
 // Fired comes from the condition link (ConditionInfo::metricKey / phase): a condition with phase −1
 // links to the key's reading only when the key is read at a single P-position.
+// A shot's value of one reading at one P-position: its phase sample, or, for the two plane curves
+// (which their producer saves with no phase samples), the curve's ±15 ms median about the position,
+// the diagnostics engine's own sampler window, valid samples only.
+double readingValueAt(const ShotSeries &shot, const QString &key, int phase);
+
 std::vector<SessionReading> sessionReadings(const SessionSnapshot &session, const ReadAtPhases &readAt,
                                             const QStringList &keyOrder = {});
 

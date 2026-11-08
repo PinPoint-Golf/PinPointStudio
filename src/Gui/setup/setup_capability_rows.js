@@ -54,7 +54,7 @@ var families = [
     { key: "sequence", label: qsTr("Sequence and tempo"),
       groups: ["Tempo & sequence"], derivedCounts: true },
     { key: "club",     label: qsTr("Club"),
-      groups: ["Club delivery"] },
+      groups: ["Club delivery", "Swing plane"] },
     { key: "ball",     label: qsTr("Ball and strike"),
       groups: ["Ball flight", "Strike"] }
 ]

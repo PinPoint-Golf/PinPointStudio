@@ -531,6 +531,39 @@ inline Reduced reduceAt(const SeriesView &s, int64_t us, const ReduceConfig &cfg
     return r;
 }
 
+// ── At an instant, on a fitted curve ────────────────────────────────────────
+// The value of a curve that is already a fit AT the instant, linear between the two samples either
+// side of it (fitted_curve.h says which curves and why). No window. Both samples must be valid: an
+// instant inside a bridged stretch has no reading, and it does not borrow one from a sample nearby.
+// Templated on the time type so the Gui's qint64 arrays can use it where qint64 is not int64_t.
+template <class TimeT>
+inline Reduced reduceInstantOver(const TimeT *t, const double *v, const uint8_t *valid, std::size_t n, int64_t us)
+{
+    Reduced r;
+    r.atUs = us;
+    if (n == 0 || us < static_cast<int64_t>(t[0]) || us > static_cast<int64_t>(t[n - 1]))
+        return r;
+    const auto good = [&](std::size_t i) { return (!valid || valid[i] != 0) && std::isfinite(v[i]); };
+    const std::size_t hi = static_cast<std::size_t>(
+        std::lower_bound(t, t + n, static_cast<TimeT>(us)) - t);
+    if (static_cast<int64_t>(t[hi]) == us) {
+        if (good(hi)) { r.value = v[hi]; r.ok = true; }
+        return r;
+    }
+    const std::size_t lo = hi - 1;              // us > t[0], so hi > 0
+    if (!good(lo) || !good(hi))
+        return r;
+    const double f = double(us - static_cast<int64_t>(t[lo])) / double(static_cast<int64_t>(t[hi]) - static_cast<int64_t>(t[lo]));
+    r.value = v[lo] + f * (v[hi] - v[lo]);
+    r.ok    = true;
+    return r;
+}
+
+inline Reduced reduceInstant(const SeriesView &s, int64_t us)
+{
+    return reduceInstantOver(s.t, s.v, s.valid, s.n, us);
+}
+
 // ── Delta ───────────────────────────────────────────────────────────────────
 // At(to) − At(from), and ok ONLY when both ends are. A delta with one end missing is not a smaller
 // delta, it is no delta. atUs = toUs (the instant the change is reported AS OF), which is also

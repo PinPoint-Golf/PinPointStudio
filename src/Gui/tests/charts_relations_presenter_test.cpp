@@ -64,7 +64,7 @@ std::shared_ptr<SessionSnapshot> withDirs(const SessionSnapshot &in)
 
 QString text(const QVariant &sentence) { return sentence.toMap().value(QStringLiteral("text")).toString(); }
 
-// A copy of a session with `key` a curve and nothing else, as swingPlaneCurve is: no phase samples, so no reading.
+// A copy of a session with `key` a curve and nothing else: no phase samples, so no reading.
 // Each shot's curve is flat at its ordinal/10, `outlier`'s far above the rest.
 std::shared_ptr<SessionSnapshot> withCurveOnly(const SessionSnapshot &in, const QString &key, int outlier)
 {
@@ -380,7 +380,7 @@ private slots:
     // A stand-out on a key with a curve and no phase samples: no reading in the session, and it opens its curve.
     void aCurveOnlyRowOpensItsCurve()
     {
-        const QString key = QStringLiteral("swingPlaneCurve");
+        const QString key = QStringLiteral("thoraxRotationSigned");
         auto p = make(withCurveOnly(*m_snap, key, 8), 8);
         QVariantMap row;
         for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList())
@@ -391,7 +391,7 @@ private slots:
         QVERIFY(rowOf(p->thisShot(), id).isEmpty());               // there is no such reading
         QCOMPARE(row.value(QStringLiteral("opens")).toString(), QStringLiteral("trace"));
         QVERIFY(row.value(QStringLiteral("hasCurve")).toBool());
-        QCOMPARE(row.value(QStringLiteral("group")).toString(), QStringLiteral("Club delivery"));
+        QCOMPARE(row.value(QStringLiteral("group")).toString(), QStringLiteral("Body rotation"));
 
         p->setOpenId(id);
         const QVariantMap open = p->openRow();
@@ -401,6 +401,18 @@ private slots:
         QCOMPARE(trace.value(QStringLiteral("key")).toString(), key);
         QVERIFY(!trace.value(QStringLiteral("curve")).toMap().value(QStringLiteral("t")).toList().isEmpty());
         QVERIFY(trace.value(QStringLiteral("instants")).toList().isEmpty());
+    }
+
+    // A fitted curve has no phase samples either, but it IS read at its positions (fitted_curve.h).
+    void aFittedCurveIsReadAtItsPositions()
+    {
+        const QString key = QStringLiteral("swingPlaneCurve");
+        auto p = make(withCurveOnly(*m_snap, key, 8), 8);
+        QVariantMap row;
+        for (const QVariant &v : p->thisShot().value(QStringLiteral("apart")).toList())
+            if (v.toMap().value(QStringLiteral("key")).toString() == key) row = v.toMap();
+        QVERIFY2(!row.isEmpty(), "the curve stands out");
+        QVERIFY(!rowOf(p->thisShot(), row.value(QStringLiteral("readingId")).toString()).isEmpty());
     }
 
     void apartTooFewToCompare()
@@ -470,7 +482,7 @@ private slots:
         int all = 0;
         for (const QVariant &g : ts.value(QStringLiteral("groups")).toList()) all += g.toMap().value(QStringLiteral("rows")).toList().size();
         QCOMPARE(all, ts.value(QStringLiteral("total")).toInt());
-        QCOMPARE(all, 68);
+        QCOMPARE(all, 66);   // the two face-on inclinations are not offered (isResearchOnlySeries)
         QCOMPARE(p->status().value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 8 of 15  ·  7 iron"));
     }
 
@@ -691,7 +703,10 @@ private slots:
             g->setPickedSwingDir(dirOf(8));
             g->setSnapshot(m_snap);
             const QVariantList ledger = g->relations().value(QStringLiteral("ledger")).toList();
-            const QJsonArray want = m_g.value(QStringLiteral("corr")).toObject().value(QStringLiteral("rows")).toArray();
+            // The mock's rows, less the two face-on inclinations no chart offers now (isResearchOnlySeries).
+            QJsonArray want;
+            for (const QJsonValue &v : m_g.value(QStringLiteral("corr")).toObject().value(QStringLiteral("rows")).toArray())
+                if (!v.toObject().value(QStringLiteral("id")).toString().startsWith(QLatin1String("swingPlaneIota"))) want.append(v);
             QCOMPARE(ledger.size(), want.size());
             for (int i = 0; i < ledger.size(); ++i) {
                 QCOMPARE(ledger[i].toMap().value(QStringLiteral("readingId")).toString(), want.at(i).toObject().value(QStringLiteral("id")).toString());
@@ -705,12 +720,12 @@ private slots:
         QCOMPARE(rel.value(QStringLiteral("upId")).toString(), QStringLiteral("clubheadSpeed@5"));
         const QVariantList ledger = rel.value(QStringLiteral("ledger")).toList();
         const QVariantMap ch = rel.value(QStringLiteral("chance")).toMap();
-        QCOMPARE(ch.value(QStringLiteral("tests")).toInt(), 67);
+        QCOMPARE(ch.value(QStringLiteral("tests")).toInt(), 65);
         QCOMPARE(ch.value(QStringLiteral("clearCount")).toInt(), 4);
         QCOMPARE(ch.value(QStringLiteral("chanceCount")).toInt(), 3);
         QCOMPARE(text(ch.value(QStringLiteral("line"))), QStringLiteral("|r| under .51 is chance at n = 15"));
         QCOMPARE(text(ch.value(QStringLiteral("sentence"))),
-                 QStringLiteral("4 of 67 readings clear chance; chance alone would clear about 3. ") + words::coOccurrenceNote());
+                 QStringLiteral("4 of 65 readings clear chance; chance alone would clear about 3. ") + words::coOccurrenceNote());
         QVERIFY(text(rel.value(QStringLiteral("standfirst"))).endsWith(words::coOccurrenceNote()));
         QVERIFY(text(rel.value(QStringLiteral("ledgerNote"))).endsWith(words::coOccurrenceNote()));
         // the scatter: the strongest partner that is not the same quantity, across
@@ -1346,7 +1361,7 @@ private slots:
         QCOMPARE(p->status().value(QStringLiteral("shotCount")).toInt(), 15);
         QCOMPARE(p->status().value(QStringLiteral("pickedOrdinal")).toInt(), 15);
         QVERIFY(p->thisShot().value(QStringLiteral("available")).toBool());
-        QCOMPARE(p->thisShot().value(QStringLiteral("total")).toInt(), 68);
+        QCOMPARE(p->thisShot().value(QStringLiteral("total")).toInt(), 66);
         // once the session has it, the detail is no longer used
         p->setSnapshot(m_snap);
         QVERIFY(p->status().value(QStringLiteral("pickedInSession")).toBool());

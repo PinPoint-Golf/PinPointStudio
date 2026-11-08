@@ -62,6 +62,7 @@ const AreaWords kAreaWords[] = {
     { "setup",       "Setup",          "setup",           false },
     { "posture",     "Posture",        "posture",         false },
     { "armsAndClub", "Arms and club",  "arms and club",   true  },
+    { "swingPlane",  "Swing plane",    "swing plane",     false },
     { "sequence",    "Sequence",       "sequence",        false },
     { "lateral",     "Lateral motion", "lateral motion",  false },
     { "release",     "Release",        "release",         false },

@@ -19,6 +19,7 @@
 #include "measure_sample.h"
 
 #include "../../Metrics/series_reduce.h"
+#include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
 #include "../../Core/club_vocabulary.h"
 #include "../../Export/swing_store.h" // no FFmpeg: the store is its own library
@@ -253,8 +254,10 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
         // below stay on the continuous curve, which is what they describe.
         const bool lineAngle = mo.value(QStringLiteral("lineAngle")).toBool();
         const auto reading = [lineAngle](double x) { return lineAngle ? wrapLeanDeg(x) : x; };
+        // A curve that is ALREADY A FIT is read at the phase's instant (fitted_curve.h), through no window.
+        const bool fitted = isFittedCurve(key);
         for (const PhaseAt &e : candidates) {
-            const Reduced r = reduceAt(view, e.tUs, rc);
+            const Reduced r = fitted ? reduceInstant(view, e.tUs) : reduceAt(view, e.tUs, rc);
             if (r.ok) {
                 PhaseGridValue v{ e.phase, e.tUs, reading(r.value) };
                 stampSigma(v);

@@ -84,6 +84,7 @@ const Row<ConditionGroup> kGroups[] = {
     { ConditionGroup::Posture,     "posture",     "Posture" },
     { ConditionGroup::Lateral,     "lateral",     "Lateral motion" },
     { ConditionGroup::ArmsAndClub, "armsAndClub", "Arms & club" },
+    { ConditionGroup::SwingPlane,  "swingPlane",  "Swing plane" },
     { ConditionGroup::Release,     "release",     "Release" },
     { ConditionGroup::Sequence,    "sequence",    "Sequence" },
     { ConditionGroup::Impact,      "impact",      "Impact" },

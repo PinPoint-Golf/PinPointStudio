@@ -935,7 +935,7 @@ int main()
               "impact parses");
         check(conditionGroupFromName(QStringLiteral("finish"), g) && g == ConditionGroup::Finish,
               "finish parses");
-        check(allConditionGroups().size() == 9, "all nine groups are enumerated in one place");
+        check(allConditionGroups().size() == 10, "all ten groups are enumerated in one place");
     }
 
     // ── ConditionKind and Prominence: round-trip, and the two unknown-token errors ──

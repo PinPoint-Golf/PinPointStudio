@@ -491,9 +491,9 @@ Item {
             compare(reg.pageInfo()[pages[0]].cont, "", "it opens on a fresh page")
             // under five swings with the curve: the sentence, no boxes
             loadMap(deliveryMap(x => { x.band.shown = false; x.band.positions = []; x.band.varies = ""
-                                       x.band.sub = "The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3." }))
+                                       x.band.sub = "The plane at each position is drawn from 5 swings with the swing plane; this session has 3." }))
             verify(!shown("reportDeliveryBand"), "no boxes")
-            compare(visibleAll("reportDeliveryBandWhy").map(t => t.text).join(), "The plane at each position is drawn from 5 swings with the swing plane curve; this session has 3.")
+            compare(visibleAll("reportDeliveryBandWhy").map(t => t.text).join(), "The plane at each position is drawn from 5 swings with the swing plane; this session has 3.")
             // no swing with both readings: the sentence, no scatter
             loadMap(deliveryMap(x => { x.flight.scatter = null; x.flight.legend = ""
                                        x.flight.text = "No swing in this session has both the launch monitor's path and the plane, so the plane is not set against the ball flight." }))

@@ -73,7 +73,7 @@ std::shared_ptr<SessionSnapshot> launchMonitorOnly(const SessionSnapshot &in)
     return s;
 }
 
-// A copy of a session with `key` a curve and nothing else, as swingPlaneCurve is: no phase samples, so no reading.
+// A copy of a session with `key` a curve and nothing else: no phase samples, so no reading.
 // `outlier`'s curve is far above the rest; `without` has none. Swing folders, for a relations presenter to pick by.
 std::shared_ptr<SessionSnapshot> withCurveOnly(const SessionSnapshot &in, const QString &key, int outlier, int absent)
 {
@@ -665,7 +665,7 @@ private slots:
     // The rows Charts builds carry the same promise here: a curve-only reading opens its curve, or offers nothing.
     void aCurveOnlyReadingOpensItsCurveOrNothing()
     {
-        const QString key = QStringLiteral("swingPlaneCurve");
+        const QString key = QStringLiteral("thoraxRotationSigned");
         const auto s = withCurveOnly(*m_oct, key, 8, 12);
         const QVariantMap row = rowOf(groupOf(make(s, 8)->shot(), QStringLiteral("Your swing")), key);
         QVERIFY2(!row.isEmpty(), "the curve stands out");

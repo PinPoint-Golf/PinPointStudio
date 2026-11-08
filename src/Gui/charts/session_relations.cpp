@@ -18,6 +18,8 @@
 
 #include "session_relations.h"
 
+#include "../../Metrics/fitted_curve.h"
+
 #include <QHash>
 #include <QSet>
 
@@ -62,6 +64,20 @@ double valueAtPhase(const MetricSeries *m, int phase)
         if (p.phase == phase && isFinite(p.value)) return p.value;
     return kNaN;
 }
+
+} // namespace
+
+double readingValueAt(const ShotSeries &shot, const QString &key, int phase)
+{
+    const MetricSeries *m = shot.metric(key);
+    if (!m) return kNaN;
+    if (!pinpoint::analysis::isFittedCurve(key))
+        return valueAtPhase(m, phase);
+    for (const PhaseMark &p : shot.phases) if (p.phase == phase) return m->fittedAt(p.tUs);
+    return kNaN;
+}
+
+namespace {
 
 // The ladder position of a phase, for "the latest sampled P-position" (non-ladder phases after it).
 int ladderRank(int ph)
@@ -175,7 +191,7 @@ std::vector<SessionReading> sessionReadings(const SessionSnapshot &s, const Read
         for (const auto &sh : s.shots) if ((first = sh->metric(key))) break;
         if (!first) continue;
         const auto avail = [&](int p) {
-            for (const auto &sh : s.shots) if (isFinite(valueAtPhase(sh->metric(key), p))) return true;
+            for (const auto &sh : s.shots) if (isFinite(readingValueAt(*sh, key, p))) return true;
             return false;
         };
         std::vector<int> phs;
@@ -197,7 +213,7 @@ std::vector<SessionReading> sessionReadings(const SessionSnapshot &s, const Read
             r.label = first->label; r.unit = first->unit;
             r.multi = phs.size() > 1;
             r.values.resize(N, kNaN);
-            for (size_t i = 0; i < N; ++i) r.values[i] = valueAtPhase(s.shots[i]->metric(key), ph);
+            for (size_t i = 0; i < N; ++i) r.values[i] = readingValueAt(*s.shots[i], key, ph);
             r.box = boxStats(r.values);
             // gate rule: PP_GATE("rule.charts.boxMin")
             if (r.box.n < 3) continue;

@@ -36,6 +36,8 @@
 // A shot is IMMUTABLE once published: the model swaps in a new shared_ptr when a shot is
 // re-analysed, so a reader holding a SessionSnapshot never sees a shot change under it.
 
+#include "../../Metrics/series_reduce.h"   // reduceInstantOver
+
 #include <QHash>
 #include <QString>
 #include <QStringList>
@@ -82,6 +84,15 @@ struct MetricSeries {
     bool   lineAngle = false;     // an angle of a line: a single reading is folded (line_angle.h)
 
     bool hasCurve() const { return tUs.size() >= 2; }
+    // A fitted curve's value AT an instant (fitted_curve.h, series_reduce.h reduceInstantOver); NaN when
+    // the instant is off the curve or inside a bridged stretch.
+    double fittedAt(qint64 us) const
+    {
+        const size_t n = std::min(tUs.size(), value.size());
+        const pinpoint::analysis::Reduced r = pinpoint::analysis::reduceInstantOver(
+            tUs.data(), value.data(), valid.size() >= n ? valid.data() : nullptr, n, int64_t(us));
+        return r.ok ? r.value : kNaN;
+    }
     bool isValid(size_t i) const { return valid.empty() || (i < valid.size() && valid[i] != 0); }
 };
 

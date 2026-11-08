@@ -252,6 +252,30 @@ int main()
     double  refMax = 0.0, refRate = 0.0;
     int64_t refMaxAt = 0;
 
+    // ── 0) a fitted curve read AT an instant (fitted_curve.h) ────────────────
+    {
+        std::printf("=== 0) reduceInstant: no window, no borrowing ===\n");
+        Series c;
+        c.t = { 0, 5000, 10000, 15000 };
+        c.v = { 10.0, 20.0, 40.0, 41.0 };
+        const SeriesView s = view(c);
+        const Reduced mid = reduceInstant(s, 2500);
+        CHECK("instant: linear between the samples either side", mid.ok && near(mid.value, 15.0, 1e-12) && mid.atUs == 2500);
+        const Reduced on = reduceInstant(s, 5000);
+        CHECK("instant: on a sample it IS the sample", on.ok && near(on.value, 20.0, 1e-12));
+        CHECK("instant: the first and last samples are on the curve",
+              reduceInstant(s, 0).ok && reduceInstant(s, 15000).ok);
+        CHECK("instant: off either end of the curve there is no reading",
+              !reduceInstant(s, -1).ok && !reduceInstant(s, 15001).ok);
+        c.valid = { 1, 0, 1, 1 };
+        const SeriesView b = view(c);
+        CHECK("instant: beside a bridged sample there is no reading, and none is borrowed",
+              !reduceInstant(b, 2500).ok && !reduceInstant(b, 5000).ok && !reduceInstant(b, 7500).ok);
+        const Reduced after = reduceInstant(b, 12500);
+        CHECK("instant: between two valid samples past the bridge it reads", after.ok && near(after.value, 40.5, 1e-12));
+        CHECK("instant: an empty curve has no reading", !reduceInstant(SeriesView{}, 0).ok);
+    }
+
     // ── 1) a clean ramp, 8 ms spacing — every reducer's exact answer ─────────
     {
         std::printf("=== 1) clean ramp: 100 samples, 8 ms, 1.0 per 100 ms ===\n");

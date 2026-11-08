@@ -1758,7 +1758,7 @@ void installMetricManifest(MetricCatalogue &cat)
 
     // The shaft's angle to the ground as the down-the-line camera sees it (dtl_shaft_lie.h), read
     // at address and at impact. Mark, 2026-10-01: a lie-like reading the DTL view gives for free,
-    // and its Δ is "+ve is steepening" — so the Δ runs FORWARD, address → impact, unlike swingPlane's.
+    // and its Δ is "+ve is steepening", as every plane Δ now is.
     // It shares shaft lean's card (card.mergeInto): one summary tile for the two shaft readings at
     // impact. Filed under Club delivery with shaft lean so the two are on the same preset chart.
     cat.addDescriptor({
@@ -1802,119 +1802,54 @@ void installMetricManifest(MetricCatalogue &cat)
 
     // ------------------ Club delivery, at the ball (part LIVE — club_delivery.cpp; the rest is down-the-line work)
 
+    // The swing plane as one smooth curve: the plane through the target line and the shaft, at every
+    // instant from address to just past impact (shaft_plane_curve.h). The headline of the Swing plane
+    // area, and what the plane conditions grade, at P3 and P6, since 8 Nov 2026
+    // (docs/design/swing_plane_area.md): it reads on 96 % of down-the-line swings, the two-camera fit
+    // on 45 %. At P2, the top and most P6s it is the hand plane, because the shaft defines no plane there.
     cat.addDescriptor({
-        .key = QStringLiteral("swingPlane"),
+        .key = QStringLiteral("swingPlaneCurve"),
         .type = MetricType::TimeSeries,
         .label = QStringLiteral("Swing plane"),
         .shortLabel = QStringLiteral("Plane"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
-        .color = QStringLiteral("teal"),   // moss until the Club & speed merge (16 Oct): it clashed there
-        .description = QStringLiteral(
-            "The plane the shaft swings on through the downswing, measured against the plane the "
-            "shaft sat on at address: a best-fit plane through the shaft's three-dimensional "
-            "direction, found by intersecting what the face-on and down-the-line cameras each see. "
-            "It captures whether the club is delivered on the inclined circle it was set up on."),
-        .howToRead = QStringLiteral(
-            "One number per swing, held over the downswing: degrees above (+) or below (−) the "
-            "address shaft plane. Compare like with like — it is club-dependent — and look for "
-            "consistency across swings. Needs both cameras and a club track in each. The plane's "
-            "tilt is robust to where the down-the-line camera stands; its DIRECTION is not, and is "
-            "not reported here."),
-        .signPositive = QStringLiteral("delivered above the address shaft plane — steeper"),
-        .signNegative = QStringLiteral("delivered below it — flatter"),
-        .phases = { P::ArmParallelDown },
-        // Δ PLANE carries the SWING PATH's sign (Mark, 29 Sept): a plane that SHALLOWS into impact is
-        // +, one that STEEPENS is −. The two readings are + = steeper against the address plane, so the
-        // Δ runs backwards along them — backswing minus downswing — and deltaFrom/To are P6 → P3.
-        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACKSWING") }, { P::Delivery, QStringLiteral("DOWNSWING") } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Delivery, .deltaTo = P::MidBackswing, .deltaLabel = QStringLiteral("Δ PLANE"), .rate = false },
-        .routes = {
-            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
-                               "in three dimensions, which one camera cannot give")) },
-        .usedBy = { QStringLiteral("characteristic:flat_backswing_plane"),
-                    QStringLiteral("characteristic:steep_backswing_plane"),
-                    QStringLiteral("characteristic:steep_downswing_shaft"),
-                    QStringLiteral("characteristic:under_plane_stuck") },
-        // over_the_top and shallowing USED to hang here, as a planned P4→P5 delta of
-        // this down-the-line series. They moved to transitionPlaneDelta below, which
-        // is the same idea measured a way the face-on camera can actually deliver.
-    });
-
-    // The same two fitted planes as ABSOLUTE angles to the ground. swingPlane subtracts the address
-    // plane, so a golfer who sets up flat and swings on that flat plane reads "on plane" there; here
-    // the plane itself is graded against a per-club norm (Mark, 29 Oct 2026, from Jess's swings).
-    cat.addDescriptor({
-        .key = QStringLiteral("swingPlaneAngle"),
-        .type = MetricType::TimeSeries,
-        .label = QStringLiteral("Swing plane angle"),
-        .shortLabel = QStringLiteral("Plane ∠"),
-        .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
-        .color = QStringLiteral("lavender"),
-        .description = QStringLiteral(
-            "The angle to the ground of the plane the shaft swings on: a best-fit plane through the "
-            "shaft's three-dimensional direction from address to the top (the backswing plane), and "
-            "another from the top to impact (the downswing plane), found by intersecting what the "
-            "face-on and down-the-line cameras each see. 90° would be a vertical plane; a driver "
-            "swings on a flatter plane than a wedge."),
-        .howToRead = QStringLiteral(
-            "Two numbers per swing, each held over its half: the backswing plane, then the "
-            "downswing plane, in degrees above the ground. Higher is more upright. It is "
-            "club-dependent, so compare like with like. Unlike Swing plane it is not measured "
-            "against the address plane, so it shows a golfer who is flat or upright all the way "
-            "through. Needs both cameras and a club track in each. The angle is robust to where "
-            "the down-the-line camera stands; the plane's direction is not, and is not reported."),
-        .signPositive = QStringLiteral("a more upright plane"),
-        .signNegative = QStringLiteral("a flatter plane"),
-        .phases = { P::ArmParallelDown },
-        // No Δ tile: back minus down is the same number as Swing plane's Δ PLANE (the address
-        // plane cancels), and one card already says it.
-        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACKSWING") }, { P::Delivery, QStringLiteral("DOWNSWING") } }, .peak = false, .delta = false, .rate = false },
-        .routes = {
-            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
-                               "in three dimensions, which one camera cannot give")) },
-        .usedBy = { QStringLiteral("characteristic:backswing_plane_too_upright"),
-                    QStringLiteral("characteristic:backswing_plane_too_flat"),
-                    QStringLiteral("characteristic:downswing_plane_too_steep"),
-                    QStringLiteral("characteristic:downswing_plane_too_flat") },
-    });
-
-    // The swing plane as one smooth curve: the plane through the target line and the shaft, at every
-    // instant from address to just past impact (shaft_plane_curve.h). A chart reading only — nothing
-    // in the diagnostics pack reads it; the two fitted halves (swingPlaneAngle) are what is graded.
-    cat.addDescriptor({
-        .key = QStringLiteral("swingPlaneCurve"),
-        .type = MetricType::TimeSeries,
-        .label = QStringLiteral("Swing plane curve"),
-        .shortLabel = QStringLiteral("Plane ~"),
-        .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("orchid"),
         .description = QStringLiteral(
             "The angle to the ground of the plane through the target line and the shaft, at every "
             "moment from address to just after impact, as one smooth curve. At address it is the "
             "plane the club was set on; a curve that climbs going back is a club going back more "
             "upright, one that falls coming down is a club shallowing. Read from the down-the-line "
-            "view, with the face-on view saying which frames to trust."),
+            "view, with the hands standing in where the shaft cannot define the plane."),
         .howToRead = QStringLiteral(
-            "Degrees above the ground; higher is more upright. Where the shaft is horizontal or "
-            "points along the target line (around P2, the top and P6) the plane cannot be seen, and "
-            "the curve is bridged smoothly from either side and drawn dashed. Compare like with "
-            "like: it is club-dependent."),
+            "Degrees above the ground; higher is more upright. Where the shaft is level or points "
+            "along the target line (around P2, the top and P6) it defines no plane, so the plane "
+            "through the ball line and the hands carries the curve: those stretches are shaded, and "
+            "there this is the Hand plane. A stretch with neither is bridged and drawn dashed. One "
+            "camera, not calibrated, so compare swings on the same camera; and compare like with "
+            "like, because it is club-dependent. The swing plane conditions are graded on this "
+            "curve at P3 and P6."),
         .signPositive = QStringLiteral("a more upright plane"),
         .signNegative = QStringLiteral("a flatter plane"),
         .phases = { P::ArmParallelDown },
         .card = { .readAt = { { P::Address, QStringLiteral("ADDRESS") }, { P::MidBackswing, QStringLiteral("P3") },
-                              { P::ArmParallelDown, QStringLiteral("P5") }, { P::Impact, QStringLiteral("IMPACT") } },
-                  .peak = false, .delta = false, .rate = false, .curve = true },
+                              { P::Top, QStringLiteral("TOP") }, { P::Delivery, QStringLiteral("P6") },
+                              { P::Impact, QStringLiteral("IMPACT") } },
+                  .peak = false, .delta = false, .rate = false, .windowedMean = false, .curve = true },
         .routes = {
-            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("the plane through the target line and the shaft is read from the "
-                               "down-the-line view; the face-on track says which frames see it")) },
-        .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the plane through the target line and the shaft, from the shaft's "
+                               "angle in the down-the-line image; the face-on track only says which "
+                               "frames to trust")) },
+        .usedBy = { QStringLiteral("chart:review"),
+                    QStringLiteral("characteristic:flat_backswing_plane"),
+                    QStringLiteral("characteristic:steep_backswing_plane"),
+                    QStringLiteral("characteristic:backswing_plane_too_upright"),
+                    QStringLiteral("characteristic:backswing_plane_too_flat"),
+                    QStringLiteral("characteristic:steep_downswing_shaft"),
+                    QStringLiteral("characteristic:under_plane_stuck"),
+                    QStringLiteral("characteristic:downswing_plane_too_steep"),
+                    QStringLiteral("characteristic:downswing_plane_too_flat") },
     });
 
     // The hand plane: the plane through the ball's target line and the hands, as one smooth curve
@@ -1927,32 +1862,33 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Hand plane"),
         .shortLabel = QStringLiteral("Hands ~"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "The angle to the ground of the plane through the ball's target line and the hands, at "
-            "every moment from address to just after impact. At address the shaft runs from the "
-            "ball to the hands, so it starts on the swing plane curve; at the top, where the shaft "
-            "points along the target line, it is the swing plane. Hands that move out toward the "
+            "every moment from address to just after impact. It starts a few degrees under the "
+            "swing plane (about 4.5° across the library); at the top, where the shaft points along "
+            "the target line, it is the swing plane. Hands that move out toward the "
             "ball from the top steepen it — the over-the-top move — even when the club drops back "
             "under them before delivery."),
         .howToRead = QStringLiteral(
-            "Degrees above the ground; higher is more upright. Read it beside the swing plane "
-            "curve: a hand plane above the shaft's in the downswing is the club lying back under "
-            "hands that came over the top. Seen from down the line, from the ball the tracker found "
-            "there; a camera well off the target line tilts the whole curve."),
+            "Degrees above the ground; higher is more upright. Read it beside the swing plane: "
+            "around P2, the top and P6 the two are the same line, because the hands carry the swing "
+            "plane there; where they part, at address, P3 and impact, the gap is the shaft against "
+            "the hands. Seen from down the line, from the ball the tracker found there; a camera "
+            "well off the target line tilts the whole curve."),
         .signPositive = QStringLiteral("hands on a more upright plane"),
         .signNegative = QStringLiteral("hands on a flatter plane"),
         .phases = { P::ArmParallelDown },
         .card = { .readAt = { { P::Address, QStringLiteral("ADDRESS") }, { P::Top, QStringLiteral("TOP") },
                               { P::ArmParallelDown, QStringLiteral("P5") }, { P::Impact, QStringLiteral("IMPACT") } },
-                  .peak = false, .delta = false, .rate = false, .curve = true },
+                  .peak = false, .delta = false, .rate = false, .windowedMean = false, .curve = true },
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("the image line from the down-the-line ball to the grip; the shaft "
                                "track supplies both")) },
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+        .consistencyArea = QStringLiteral("swingPlane"),
     });
 
     // How much steeper the hands come down than they went up, at the same height: the hand plane's
@@ -1964,7 +1900,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Hand plane steepening"),
         .shortLabel = QStringLiteral("Hands steepen"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "How much steeper the plane through the ball line and the hands is coming down than "
@@ -1976,19 +1912,20 @@ void installMetricManifest(MetricCatalogue &cat)
             "top; negative means flatter, the shallowing move. It is the median between 40 % and "
             "70 % of the hands' rise, where neither the loop at the top nor the convergence at the "
             "ball decides it. CAUTION: a down-the-line camera off the target line adds a few "
-            "degrees to every swing — on 29 Oct three golfers read +3 to +6 — so compare swings "
-            "and golfers on the same camera rather than reading a small positive number as over "
-            "the top."),
+            "degrees to every swing — on 29 Oct three golfers read +3 to +6, and all 175 swings of "
+            "the library read positive, so zero is not neutral — so compare swings and golfers on "
+            "the same camera rather than reading a small positive number as over the top."),
         .signPositive = QStringLiteral("the hands came down on a steeper plane — over the top"),
         .signNegative = QStringLiteral("the hands came down on a flatter plane"),
         .phases = { P::Top },
-        .card = { .readAt = { { P::Top, {} } } },
+        // On the hand path loop's card: the same move in the same band, r 0.82 across the library.
+        .card = { .readAt = { { P::Top, QStringLiteral("HANDS STEEPEN") } }, .peak = false, .delta = false, .rate = false, .mergeInto = QStringLiteral("handPathLoop") },
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("the hand plane's downswing half against its backswing half, at the "
                                "same height in the down-the-line image")) },
         .usedBy = { QStringLiteral("chart:review") },
-        .consistencyArea = QStringLiteral("armsAndClub"),
+        .consistencyArea = QStringLiteral("swingPlane"),
     });
 
     // The shoulder plane: the plane through the ball's target line and the TRAIL shoulder at
@@ -2002,7 +1939,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Shoulder plane at address"),
         .shortLabel = QStringLiteral("Shoulders at address"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
             "The plane from the ball through your trail shoulder at address: the steep edge of the "
@@ -2019,12 +1956,95 @@ void installMetricManifest(MetricCatalogue &cat)
         .signPositive = QStringLiteral("a more upright shoulder plane"),
         .signNegative = QStringLiteral("a flatter shoulder plane"),
         .phases = { P::Address },
-        .card = { .readAt = { { P::Address, {} } }, .peak = false, .delta = false, .rate = false },
+        // A line on the swing plane's plot, and a tile on its card.
+        .card = { .readAt = { { P::Address, QStringLiteral("SHOULDER PLANE") } }, .peak = false, .delta = false, .rate = false, .mergeInto = QStringLiteral("swingPlaneCurve") },
         .routes = {
             via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
                 QStringLiteral("the image line from the down-the-line ball to the trail shoulder at "
                                "address; the shaft track supplies the ball, the pose the shoulder")) },
         .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("swingPlane"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Fitted plane vs address"),
+        .shortLabel = QStringLiteral("Vs address"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Swing plane"),
+        .color = QStringLiteral("teal"),   // moss until the Club & speed merge (16 Oct): it clashed there
+        .description = QStringLiteral(
+            "The planes the shaft swings on going back and coming down, each measured against the "
+            "plane the shaft sat on at address: best-fit planes through the shaft's "
+            "three-dimensional direction, found by intersecting what the face-on and down-the-line "
+            "cameras each see. They say whether the club travels on the inclined circle it was set "
+            "up on."),
+        .howToRead = QStringLiteral(
+            "Two numbers per swing, one for each half: degrees above (+) or below (−) the address "
+            "shaft plane, on the Fitted plane card. Δ PLANE is the downswing's less the backswing's. "
+            "Compare like with like — it is club-dependent — and look for consistency across "
+            "swings. Needs both cameras and a club track in each. The plane's tilt is robust to "
+            "where the down-the-line camera stands; its DIRECTION is not, and is not reported "
+            "here."),
+        .signPositive = QStringLiteral("above the address shaft plane — steeper; Δ = came down steeper than it went back"),
+        .signNegative = QStringLiteral("below it — flatter; Δ = came down flatter than it went back"),
+        .phases = { P::ArmParallelDown },
+        // Δ PLANE: + = STEEPER, the downswing's plane less the backswing's, the sign of every other
+        // plane Δ (Mark, 8 Nov 2026; until then it carried the swing path's sign, 29 Sept). Its tiles
+        // ride on the Fitted plane card: the same two fits, less the address plane.
+        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACK VS ADDRESS") }, { P::Delivery, QStringLiteral("DOWN VS ADDRESS") } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::MidBackswing, .deltaTo = P::Delivery, .deltaLabel = QStringLiteral("Δ PLANE"), .rate = false, .mergeInto = QStringLiteral("swingPlaneAngle") },
+        .routes = {
+            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
+                               "in three dimensions, which one camera cannot give")) },
+        // The four conditions that graded this moved to swingPlaneCurve on 8 Nov 2026. Placed by hand
+        // now that no condition places it (session_consistency, Appendix B).
+        .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("swingPlane"),
+        // over_the_top and shallowing USED to hang here, as a planned P4→P5 delta of
+        // this down-the-line series. They moved to transitionPlaneDelta below, which
+        // is the same idea measured a way the face-on camera can actually deliver.
+    });
+
+    // The same two fitted planes as ABSOLUTE angles to the ground. swingPlane subtracts the address
+    // plane, so a golfer who sets up flat and swings on that flat plane reads "on plane" there; here
+    // it reads as itself. The per-club norm that graded it (Mark, 29 Oct 2026) now grades the curve.
+    cat.addDescriptor({
+        .key = QStringLiteral("swingPlaneAngle"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Fitted plane"),
+        .shortLabel = QStringLiteral("Fitted"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Swing plane"),
+        .color = QStringLiteral("lavender"),
+        .description = QStringLiteral(
+            "The angle to the ground of the plane the shaft swings on: a best-fit plane through the "
+            "shaft's three-dimensional direction from address to the top (the backswing plane), and "
+            "another from the top to impact (the downswing plane), found by intersecting what the "
+            "face-on and down-the-line cameras each see. 90° would be a vertical plane; a driver "
+            "swings on a flatter plane than a wedge."),
+        .howToRead = QStringLiteral(
+            "Two numbers per swing, each held over its half: the backswing plane, then the "
+            "downswing plane, in degrees above the ground. Higher is more upright. It is "
+            "club-dependent, so compare like with like. The card also gives each half against "
+            "the address plane and the change from one to the other; on its own it shows a golfer "
+            "who is flat or upright all the way through. Needs both cameras and a club track in "
+            "each, and refuses a swing whose shaft did not hold to one plane. The angle is robust "
+            "to where the down-the-line camera stands; the plane's direction is not, and is not "
+            "reported."),
+        .signPositive = QStringLiteral("a more upright plane"),
+        .signNegative = QStringLiteral("a flatter plane"),
+        .phases = { P::ArmParallelDown },
+        // No Δ tile of its own: down minus back is the Δ PLANE swingPlane brings to this card (the
+        // address plane cancels).
+        .card = { .readAt = { { P::MidBackswing, QStringLiteral("BACKSWING") }, { P::Delivery, QStringLiteral("DOWNSWING") } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("a best-fit plane through the shaft's direction needs that direction "
+                               "in three dimensions, which one camera cannot give")) },
+        // The four conditions that graded this moved to swingPlaneCurve on 8 Nov 2026.
+        .usedBy = { QStringLiteral("chart:review") },
+        .consistencyArea = QStringLiteral("swingPlane"),
     });
 
     // The transition delta, and the reason it is a separate key from swingPlane
@@ -2036,10 +2056,10 @@ void installMetricManifest(MetricCatalogue &cat)
     cat.addDescriptor({
         .key = QStringLiteral("transitionPlaneDelta"),
         .type = MetricType::PointInTime,
-        .label = QStringLiteral("Transition plane delta"),
-        .shortLabel = QStringLiteral("Plane Δ"),
+        .label = QStringLiteral("Transition plane delta (experimental)"),
+        .shortLabel = QStringLiteral("Plane Δ ⚠"),
         .unit = QStringLiteral("°"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("coral"),
         .description = QStringLiteral(
             "How much the swing plane changes between the backswing and the downswing, in degrees. "
@@ -2048,7 +2068,10 @@ void installMetricManifest(MetricCatalogue &cat)
             "over takeaway-to-top and another over top-to-impact, then subtracting, measures the "
             "re-route out of the top without needing depth or a second camera."),
         .howToRead = QStringLiteral(
-            "EXPERIMENTAL. Its corridor is a placeholder, set deliberately wider than anything yet "
+            "⚠ EXPERIMENTAL, AND SO FAR IT AGREES WITH NOTHING: across the library it does not "
+            "track the fitted plane's change, the hands' steepening, the hand path loop or the "
+            "launch monitor's club path. Do not act on it. Its corridor is a placeholder, set "
+            "deliberately wider than anything yet "
             "observed so that the measure records and accumulates without grading anyone, because "
             "the characterisation behind it comes from a single golfer. "
             "Positive means the club STEEPENED between backswing and downswing, the over-the-top "
@@ -2081,7 +2104,7 @@ void installMetricManifest(MetricCatalogue &cat)
         .label = QStringLiteral("Hand path loop"),
         .shortLabel = QStringLiteral("Hand loop"),
         .unit = QStringLiteral("% hand rise"),
-        .group = QStringLiteral("Club delivery"),
+        .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("crimson"),
         .description = QStringLiteral(
             "Where the hands come down against where they went up. Seen from down the line, the "
@@ -3567,8 +3590,8 @@ void installMetricManifest(MetricCatalogue &cat)
     cat.addDescriptor({
         .key = QStringLiteral("shoulderPlaneAngle"),
         .type = MetricType::TimeSeries,
-        .label = QStringLiteral("Shoulder plane angle"),
-        .shortLabel = QStringLiteral("Shoulder plane"),
+        .label = QStringLiteral("Shoulder tilt"),
+        .shortLabel = QStringLiteral("Shoulder tilt"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .color = QStringLiteral("violet"),

@@ -75,7 +75,7 @@ PpChSection {
             width: ss.width; spacing: ss.ok ? ss.roles.g(8) : Theme.gap(8)
             readonly property real colW: ss.ok ? Math.max(ss.roles.u(52), Math.min(ss.roles.u(80), (width - ss.roles.u(40)) / Math.max(1, ss.positions.length))) : 60
             PpSectionHead { width: parent.width; roles: ss.roles; title: "The plane at each position"
-                            sub: ss.band.n ? ss.band.n + " shots with the swing plane curve" : "" }
+                            sub: ss.band.n ? ss.band.n + " shots with the swing plane" : "" }
             Row {
                 Repeater {
                     model: ss.available ? ss.positions : []

@@ -138,20 +138,20 @@ static QStringList itemIds(const AreaSummary *a)
 int main()
 {
     std::printf("swing_areas_test\n");
-    const QStringList body{ "setup", "posture", "lateral", "sequence", "armsAndClub", "release", "impact", "finish" };
+    const QStringList body{ "setup", "posture", "lateral", "sequence", "armsAndClub", "swingPlane", "release", "impact", "finish" };
 
     // ── An empty library ────────────────────────────────────────────────────────
     {
         const QHash<QString, AreaConditionInfo> info{ { "ee", ci("posture", "Early extension") },
                                                       { "slice", ci("ballFlight", "Slice", true, true) } };
         const std::vector<AreaSummary> a = summariseAreas({}, info);
-        bool none = a.size() == 8;
+        bool none = a.size() == 9;
         for (const AreaSummary &s : a)
             none = none && !s.measurable && s.measured == 0 && s.items.empty() && !s.hasTrend && s.habitTrend == 0
                 && s.topFaultId.isEmpty() && s.workOnsActive == 0;
-        check(none, "no sessions: the eight body areas, none measurable, nothing in them");
+        check(none, "no sessions: the nine body areas, none measurable, nothing in them");
         check(groupsOf(a) == body, "…in address-to-finish order, and no ball flight");
-        check(summariseAreas({}, {}).size() == 8, "no pack either: still the eight rows");
+        check(summariseAreas({}, {}).size() == 9, "no pack either: still the nine rows");
     }
 
     // ── One session: counts, no trend ───────────────────────────────────────────
@@ -163,7 +163,7 @@ int main()
         check(p && p->measurable && p->measured == 1 && p->habits == 1 && !p->hasTrend && p->habitTrend == 0,
               "one session: a habit is counted, and there is no trend to state");
         check(l && l->measurable && l->clean == 1 && l->habits == 0, "0 of 40 is clean");
-        check(a.size() == 8 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("lateral"),
+        check(a.size() == 9 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("lateral"),
               "the measured areas lead");
     }
 
@@ -184,7 +184,7 @@ int main()
               "a group assessed only on Excluded conditions is not measurable either");
         check(p && p->measured == 1 && p->habits == 0 && p->clean == 1 && !itemOf(p, "intent") && p->topFaultId.isEmpty(),
               "an Excluded condition firing on every swing adds no habit and no item to its area");
-        check(a.size() == 8 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("setup")
+        check(a.size() == 9 && a[0].group == QStringLiteral("posture") && a[1].group == QStringLiteral("setup")
                   && a.back().group == QStringLiteral("finish"),
               "unmeasurable areas follow, in address-to-finish order");
 
@@ -210,12 +210,12 @@ int main()
             { "slice", ci("ballFlight", "Slice", true, true) },     // launch-monitor keys only
         };
         const std::vector<AreaSummary> camera = summariseAreas({ session("s1", 0, { { "ee", 9, 10 }, { "top", 6, 10 } }) }, info);
-        check(!areaOf(camera, "ballFlight") && camera.size() == 8,
+        check(!areaOf(camera, "ballFlight") && camera.size() == 9,
               "ball flight is omitted when only a camera-judged outcome was assessed");
         const std::vector<AreaSummary> lm = summariseAreas(
             { session("s1", 0, { { "ee", 9, 10 }, { "top", 6, 10 }, { "slice", 0, 40 } }) }, info);
         const AreaSummary *bf = areaOf(lm, "ballFlight");
-        check(bf && bf->measurable && lm.size() == 9 && bf->measured == 2 && bf->habits == 1 && bf->clean == 1
+        check(bf && bf->measurable && lm.size() == 10 && bf->measured == 2 && bf->habits == 1 && bf->clean == 1
                   && bf->topFaultId == QStringLiteral("top"),
               "with launch-monitor evidence it is present, and counts its Outcome conditions, the camera's included");
     }
@@ -298,7 +298,7 @@ int main()
             session("s1", 0, { { "h1", 10, 10 }, { "h2", 8, 10 }, { "o1", 3, 10 }, { "p1", 10, 10 }, { "p2", 9, 10 },
                                { "l1", 6, 10 }, { "a1", 9, 10 }, { "i1", 0, 40 }, { "f1", 6, 10 } }),
         };
-        const QStringList expect{ "sequence", "posture", "armsAndClub", "lateral", "finish", "impact", "setup", "release" };
+        const QStringList expect{ "sequence", "posture", "armsAndClub", "lateral", "finish", "impact", "setup", "swingPlane", "release" };
         const std::vector<AreaSummary> a = summariseAreas(ss, info);
         check(groupsOf(a) == expect,
               "areas: habits, then occasional, then the worst share, then address to finish; unmeasured last");

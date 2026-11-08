@@ -129,8 +129,8 @@ inline QVariant deliveryReportBlock(const QVariantMap &payload, const QHash<QStr
         if (!std::isfinite(lo)) { lo = 0; hi = 1; }
         const double pad = std::max(0.5, (hi - lo) * 0.06);
         const QString sub = shown
-            ? deliveryReportSwings(n) + QStringLiteral(" with the swing plane curve. Under each box, the median and ± half the middle half.")
-            : QStringLiteral("The plane at each position is drawn from %1 swings with the swing plane curve; this session has %2.")
+            ? deliveryReportSwings(n) + QStringLiteral(" with the swing plane. Under each box, the median and ± half the middle half.")
+            : QStringLiteral("The plane at each position is drawn from %1 swings with the swing plane; this session has %2.")
                   .arg(pinpoint::charts::kDeliverySessionBandShots).arg(n);
         out.insert(QStringLiteral("band"), QVariantMap{
             { QStringLiteral("shown"), shown }, { QStringLiteral("n"), n }, { QStringLiteral("sub"), sub },

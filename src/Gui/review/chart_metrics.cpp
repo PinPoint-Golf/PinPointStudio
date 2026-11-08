@@ -18,6 +18,7 @@
 
 #include "chart_metrics.h"
 
+#include "../../Metrics/fitted_curve.h"
 #include "../../Metrics/series_reduce.h"    // C8 — reduceAt / reduceExtremum / reduceRate
 #include "timeline_labels.h"                    // the one phase-tag vocabulary (hasPositionTag)
 #include "../../Analysis/swing_analysis.h"      // SigmaKind (sigmaInfo)
@@ -496,6 +497,16 @@ QVariantMap ChartMetrics::summaryMasked(const QVariantList &tUs, const QVariantL
     return r;
 }
 
+bool ChartMetrics::isFittedCurve(const QString &key) const { return pa::isFittedCurve(key); }
+
+QVariantMap ChartMetrics::fittedCurveAt(const QVariantList &tUs, const QVariantList &value,
+                                        const QVariantList &valid, qint64 us) const
+{
+    const Lifted s = lift(tUs, value, valid);
+    const pa::Reduced r = pa::reduceInstant(chartView(s), us);
+    return { { QStringLiteral("ok"), r.ok }, { QStringLiteral("value"), r.ok ? r.value : 0.0 } };
+}
+
 QVariantMap ChartMetrics::windowedMean(const QVariantList &tUs, const QVariantList &value,
                                        const QVariantList &valid) const
 {
@@ -849,6 +860,8 @@ QVariantList ChartMetrics::seriesGroups(const QVariantList &seriesList) const
     QSet<QString> plotted;
     for (const QVariant &v : seriesList) {
         const QVariantMap m = v.toMap();
+        if (pinpoint::analysis::isResearchOnlySeries(m.value(QStringLiteral("key")).toString()))
+            continue;
         if (m.value(QStringLiteral("t_us")).toList().size() > 1
             || !m.value(QStringLiteral("phaseSamples")).toList().isEmpty())
             plotted.insert(m.value(QStringLiteral("key")).toString());

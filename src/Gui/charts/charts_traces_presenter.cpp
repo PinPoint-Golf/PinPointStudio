@@ -34,6 +34,7 @@
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_tuned_constants.h"   // the ±15 ms an instant's reading may reach
 #include "../../Export/swing_store.h"   // the ★ reference swing (loadAnalysis), read on the worker
+#include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' reading tiles
 
 #include "../review/chart_metrics.h"
@@ -661,6 +662,7 @@ struct Ctx {
     QString baseLabelOf(const QString &k) const
     {
         const QString sh = w->cm->shortLabel(k);
+        if (pinpoint::analysis::isLabelFromCatalogue(k)) return w->cm->catalogueLabel(k);
         if (shot) if (const MetricSeries *m = shot->metric(k)) if (!m->label.isEmpty()) return m->label;
         if (snap) for (const auto &s : snap->shots) if (const MetricSeries *m = s->metric(k)) if (!m->label.isEmpty()) return m->label;
         return sh.isEmpty() ? k : sh;
@@ -735,6 +737,18 @@ SeriesCalc calcSeries(Ctx &c, const MetricSeries &m)
     r.dEnd = std::max(r.dStart, std::min(we, r.toUs));
     r.collapsed = r.dEnd <= r.dStart && we > ws;
     r.st = c.w->cm->summaryMasked(r.tl, r.vl, r.mask, r.dStart, r.dEnd);
+    // A fitted curve is drawn as itself, so its peak is the curve's own, on the line (fitted_curve.h).
+    if (pinpoint::analysis::isFittedCurve(m.key)) {
+        long best = -1;
+        for (size_t i = 0; i < n; ++i)
+            if (r.measured[i] && m.tUs[i] >= r.dStart && m.tUs[i] <= r.dEnd
+                && (best < 0 || std::abs(m.value[i]) > std::abs(m.value[size_t(best)])))
+                best = long(i);
+        if (best >= 0) {
+            r.st.insert(QStringLiteral("peak"), m.value[size_t(best)]);
+            r.st.insert(QStringLiteral("tPeakUs"), m.tUs[size_t(best)]);
+        }
+    }
     r.valueOk = r.st.value(QStringLiteral("edgeOk"), true).toBool() && !r.collapsed;
     r.rateOk = r.st.value(QStringLiteral("rateOk")).toBool() && !r.collapsed;
     r.winPeakOk = r.valueOk && r.st.value(QStringLiteral("extremumOk"), true).toBool();
@@ -758,6 +772,12 @@ Reading readingOf(const Ctx &c, const SeriesCalc &s, int ph)
             r.ok = true; r.val = s.st.value(QStringLiteral("end")).toDouble(); r.us = c.win.endUs;
             if (s.m->lineAngle) r.val = pinpoint::analysis::wrapLeanDeg(r.val);   // a reading (line_angle.h)
         }
+        return r;
+    }
+    // A curve that is already a fit is read at the position's instant, as everywhere else (fitted_curve.h).
+    if (pinpoint::analysis::isFittedCurve(s.m->key)) {
+        const double v = s.m->fittedAt(us);
+        r.ok = std::isfinite(v); r.val = v; r.us = us;
         return r;
     }
     // A MASKED SAMPLE IS NEVER THE READING WHEN THE PRODUCER PUT ONE BESIDE IT (issue #1). Clubhead

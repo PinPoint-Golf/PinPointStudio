@@ -52,8 +52,9 @@ const QHash<QString, QString> &handPlacements()
         { "thoraxAngularSpeed", "sequence" },    { "xFactor", "sequence" },
         { "tempoBackswing", "sequence" },
         { "thoraxRotationSigned", "armsAndClub" }, { "elbowAlignment", "armsAndClub" },
-        { "handPlaneCurve", "armsAndClub" },     { "swingPlaneCurve", "armsAndClub" },
-        { "shoulderPlaneAngle", "armsAndClub" }, { "handPlaneSteepening", "armsAndClub" },
+        { "handPlaneCurve", "swingPlane" },
+        { "shoulderPlaneAngle", "armsAndClub" }, { "handPlaneSteepening", "swingPlane" },
+        { "swingPlane", "swingPlane" },          { "swingPlaneAngle", "swingPlane" },
         { "headTilt", "posture" },               { "spineSideBend", "posture" },
         { "trunkRise", "posture" },              { "hipDepthButt", "posture" },
         { "headPitch", "posture" },              { "spineBackLine", "posture" },
@@ -77,7 +78,7 @@ const QSet<QString> &unplacedKeys()
 // The table's areas, in the contract's order.
 const QStringList &tableAreas()
 {
-    static const QStringList v{ "setup", "posture", "armsAndClub", "sequence", "lateral", "release", "impact", "finish" };
+    static const QStringList v{ "setup", "posture", "armsAndClub", "swingPlane", "sequence", "lateral", "release", "impact", "finish" };
     return v;
 }
 
@@ -144,7 +145,7 @@ private slots:
         pa::MetricCatalogue catalogue;
         pa::installMetricManifest(catalogue);
 
-        QCOMPARE(int(handPlacements().size()), 28);
+        QCOMPARE(int(handPlacements().size()), 29);
         for (auto it = handPlacements().constBegin(); it != handPlacements().constEnd(); ++it) {
             const pa::MetricDescriptor *d = catalogue.descriptor(it.key());
             QVERIFY2(d, qPrintable(it.key()));
@@ -159,7 +160,7 @@ private slots:
             QVERIFY2(tableAreas().contains(d->consistencyArea), qPrintable(d->key));
             QVERIFY2(pa::areaGroupOrder().contains(d->consistencyArea), qPrintable(d->key));
         }
-        QCOMPARE(carried, 28);
+        QCOMPARE(carried, 29);
     }
 
     // Appendix B says no condition detects on these. The hand placement wins here and the walk wins in the
@@ -181,8 +182,12 @@ private slots:
         QStringList wrong;
         for (auto it = tally.constBegin(); it != tally.constEnd(); ++it) {
             const QString ours = m_env.areaOf(it.key());
-            if (ours != it.value())
-                wrong << QStringLiteral("%1: tally \"%2\", env \"%3\"").arg(it.key(), it.value(), ours);
+            // The tally is a record of 6 Nov: Swing plane became its own area on 8 Nov (swing_plane_area.md).
+            static const QSet<QString> movedSince{ "swingPlaneCurve", "handPlaneCurve", "handPlaneSteepening", "swingPlane",
+                                                   "swingPlaneAngle", "handPathLoop", "transitionPlaneDelta" };
+            const QString want = movedSince.contains(it.key()) ? QStringLiteral("swingPlane") : it.value();
+            if (ours != want)
+                wrong << QStringLiteral("%1: tally \"%2\", env \"%3\"").arg(it.key(), want, ours);
             if (ours.isEmpty() && !unplacedKeys().contains(it.key()))
                 wrong << QStringLiteral("%1: unplaced and not on the named list").arg(it.key());
         }

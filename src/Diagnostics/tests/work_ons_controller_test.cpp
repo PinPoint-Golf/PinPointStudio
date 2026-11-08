@@ -875,7 +875,7 @@ int main(int argc, char **argv)
         check(areasSignals > before, "…and every publish does, a refresh with nothing new included");
     }
     check(areaGroups(c) == QStringList{ "setup", "posture", "ballFlight", "lateral",
-                                        "sequence", "armsAndClub", "release", "impact", "finish" },
+                                        "sequence", "armsAndClub", "swingPlane", "release", "impact", "finish" },
           "area order: one habit each, tied on share, address to finish; then the occasional; then the unmeasured "
           "in address-to-finish order");
     {

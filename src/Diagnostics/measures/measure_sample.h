@@ -143,7 +143,9 @@ namespace pinpoint::analysis {
 //    v8 sidecar's size+mtime guard still matches the unchanged swing document, so as with 3 the bump
 //    is the only thing that retires the stale extremes. The session's graded rows carry this number
 //    in their content stamp for the same reason.
-inline constexpr int kPhaseGridSchemaVersion = 9;
+// 10: the two plane curves' `values` are the curve AT the phase instant, not a ±15 ms median about it
+//    (fitted_curve.h, 8 Nov 2026). Other series are unchanged to the bit.
+inline constexpr int kPhaseGridSchemaVersion = 10;
 
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 

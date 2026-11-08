@@ -418,7 +418,7 @@ Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
-| `swingPlane` | ° | planned | a steeper plane | a flatter plane |
+| `swingPlane` | ° | live | above the address shaft plane, steeper; Δ PLANE + = came down steeper | below it, flatter |
 | `swingPlaneAngle` | ° | live | a more upright plane (absolute, to the ground; 90 = vertical) | a flatter plane |
 | `swingPlaneCurve` | ° | live | a more upright plane through the target line and the shaft, moment to moment | a flatter plane |
 | `handPlaneCurve` | ° | live | hands on a more upright plane through the ball line, moment to moment | hands on a flatter plane |

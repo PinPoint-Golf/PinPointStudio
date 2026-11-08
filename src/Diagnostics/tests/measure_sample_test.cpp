@@ -880,8 +880,9 @@ int main()
         // as a plain missing metric (trust_and_gates_design.md §4.4).
         // Schema 9 (issue #1) moved the extremes at a masked end (the window's line read at its anchor,
         // clamped): a v8 sidecar's guard still matches, so only the bump retires them.
-        check(kPhaseGridSchemaVersion == 9,
-              "the sidecar schema is 9: closed spans, no zero-width span, no endpoint seed, σ, route, withheld, gate records, masked-end extremes");
+        // Schema 10 reads the two plane curves at the phase instant (fitted_curve.h).
+        check(kPhaseGridSchemaVersion == 10,
+              "the sidecar schema is 10: closed spans, no zero-width span, no endpoint seed, σ, route, withheld, gate records, masked-end extremes");
         for (const int old : { 2, 3, 8 }) {
             QJsonObject prev = doc;
             prev.insert(QStringLiteral("schema"), old);
@@ -1131,6 +1132,27 @@ int main()
         const SwingPhaseGrid fresh = readPhaseGrid(m);
         check(fresh.ordinal == 104 && QFile::exists(phaseGridPath(m)),
               "the next read builds from the new document and indexes that");
+    }
+
+    // A curve that is already a fit is read at the phase's instant; any other curve keeps its window.
+    {
+        QJsonArray t, v;
+        const double vals[] = { 0, 0, 0, 0, 10, 10, 30, 50, 50 };
+        for (int i = 0; i < 9; ++i) { t.append(qint64(i) * 5000); v.append(vals[i]); }
+        const auto metric = [&](const char *key) {
+            return QJsonObject{ { QStringLiteral("key"), QString::fromLatin1(key) }, { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v } };
+        };
+        const QJsonObject an{ { QStringLiteral("phases"),
+                                QJsonArray{ QJsonObject{ { QStringLiteral("phase"), int(Phase::MidBackswing) }, { QStringLiteral("t_us"), 30000 } } } },
+                              { QStringLiteral("metrics"), QJsonArray{ metric("swingPlaneCurve"), metric("handPlaneCurve"), metric("pelvisRotation") } } };
+        const SwingPhaseGrid g = buildPhaseGrid(an);
+        const auto at = [&](const char *key) {
+            const MetricPhaseGrid *m = g.metric(QString::fromLatin1(key));
+            const PhaseGridValue *x = m ? m->at(Phase::MidBackswing) : nullptr;
+            return x ? x->value : -1.0;
+        };
+        check(at("swingPlaneCurve") == 30.0 && at("handPlaneCurve") == 30.0, "the plane curves read their value AT the phase");
+        check(at("pelvisRotation") == 20.0, "any other curve keeps the ±15 ms median");
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAILED" : "OK", g_fail);
