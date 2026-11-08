@@ -18,9 +18,11 @@
 
 // MATCHUPS — the swing themes (docs/design/home_themes_design.md), the body of Home's Matchups tab
 // (HmHomeTabs): today the faults that travel together; later also pairs that work together (Mark,
-// 28 Oct). One card in YOUR SWING's family,
-// a row per pair: a signal-strength mark for how firmly it holds, the two halves joined by a
-// connector, and a six-stop swing timeline showing where the pair first shows.
+// 28 Oct). One table card in the grammar of the Coaching tab's "What you do well" (the §2.5 visual
+// language), a row per pair:
+//
+//   strength mark · the two halves joined by a connector · a six-stop swing timeline of where the
+//   pair first shows, with its words beside it where there is room, else beneath
 //
 // Every string is WorkOnsController's (swingSummaryView):
 //   togetherItems  [{ tier "firm"|"probably"|"possibly", first ("When …", or the one part),
@@ -44,183 +46,181 @@ Column {
     // ── Palette ──────────────────────────────────────────────────────────────
     readonly property color toneTogether: Theme.gradientCool     // a relation, neither praise nor fault
 
-    // ── Shared geometry ──────────────────────────────────────────────────────
-    readonly property int cardGap:      Theme.gap(16)
-    readonly property int headlineSize: Theme.fontSzBody
-
     width:   parent ? parent.width : 0
     spacing: 0
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Layout
-    // ════════════════════════════════════════════════════════════════════════
+    PpCard {
+        id: togetherCard
+        width: root.width
+        height: implicitHeight
+        table: true
 
-    Column {
-        width:   root.width
-        spacing: root.cardGap
+        // Half the card at most, so a narrow window keeps room for the words.
+        readonly property int whereW: Math.min(Theme.sp(540), Math.floor(togetherCard.contentWidth / 2))
 
-        PpCard {
-            id: togetherCard
-            width: root.width
-            height: implicitHeight
-            tone:  root.toneTogether
-            title: Theme.caps(qsTr("Faults that travel together"))
+        columns: [{ width: Theme.sp(68) },
+                  { fill: true },
+                  { width: togetherCard.whereW }]
 
-            PpCardNote {
-                kind:    "aside"
-                width:   togetherCard.innerWidth
-                visible: root.together.length > 0
-                text:    qsTr("Things that rise and fall together from one swing to the next.")
+        // The card's header row: its title in its tone, what it means beneath, the caption on the line.
+        PpTableRow {
+            id: header
+            hoverEnabled: false
+            height: Math.max(Theme.sp(Theme.tableHeaderH), headerWords.implicitHeight + Theme.gap(14))
+
+            Item { width: 1; height: 1 }        // the strength mark's column
+            Column {
+                id: headerWords
+                width: header.columnWidth(1)
+                spacing: Theme.gap(2)
+                Text {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text:  qsTr("Faults that travel together")
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Font.DemiBold
+                    color:          root.toneTogether
+                }
+                PpCaption {
+                    visible:  root.together.length > 0
+                    width:    parent.width
+                    elide:    Text.ElideNone
+                    wrapMode: Text.WordWrap
+                    text:     qsTr("Things that rise and fall together from one swing to the next.")
+                }
             }
+            PpCaption {
+                visible: root.together.length > 0
+                width:   Math.min(implicitWidth, header.columnWidth(2))
+                text:    qsTr("Where it starts")
+            }
+        }
 
-            Repeater {
-                model: root.together
+        Repeater {
+            model: root.together
+            PpTableRow {
+                id: pair
+                objectName: "togetherItem"
+                required property var modelData
+                // The words as drawn — what a probe reads.
+                readonly property string tier:           pair.modelData.tier
+                readonly property string firstText:      pair.modelData.first
+                readonly property string secondText:     pair.modelData.second
+                readonly property string startWordsText: pair.modelData.startWords
+                readonly property string plainText:
+                    [firstText, secondText, startWordsText].filter(s => s !== "").join(" — ")
+                readonly property bool hasSecond: secondText !== ""
+                readonly property bool placed:    pair.modelData.startStop >= 0
+                readonly property int linkIndent: Theme.sp(18)
+                readonly property int chipRoom:   chip.visible ? chip.width + Theme.gap(16) : 0
+
+                secondLine: true
+                hoverEnabled: false
+                height: Math.max(Theme.sp(Theme.rowH2),
+                                 Math.max(strength.height, words.height, where.height) + Theme.gap(18))
+
+                PpStrengthMark {
+                    id: strength
+                    tier: pair.modelData.tier
+                    tone: root.toneTogether
+                }
+
+                // The two halves. "When …" is the controller's, as is the one part said alone.
                 Item {
-                    id: pair
-                    objectName: "togetherItem"
-                    required property var modelData
-                    required property int index
-                    // The words as drawn — what a probe reads.
-                    readonly property string tier:           pair.modelData.tier
-                    readonly property string firstText:      pair.modelData.first
-                    readonly property string secondText:     pair.modelData.second
-                    readonly property string startWordsText: pair.modelData.startWords
-                    readonly property string plainText:
-                        [firstText, secondText, startWordsText].filter(s => s !== "").join(" — ")
-                    readonly property bool hasSecond: secondText !== ""
-                    readonly property bool placed:    pair.modelData.startStop >= 0
-                    readonly property int strengthW: Theme.sp(68)
-                    readonly property int linkIndent: Theme.sp(18)
-                    readonly property int chipRoom: chip.visible ? chip.width + Theme.gap(16) : 0
-                    width:  togetherCard.innerWidth
-                    height: topRule.height + Theme.gap(16) + pairBody.implicitHeight
+                    id: words
+                    width:  pair.columnWidth(1)
+                    height: pair.hasSecond ? secondLine.y + secondLine.height : firstLine.height
 
-                    Rectangle {     // hairline between pairs (and under the intro)
-                        id: topRule
-                        width: parent.width; height: 1
-                        color: Theme.colorBorder
+                    // The connector: a dot at each half, a line between. One half: one dot.
+                    Rectangle {
+                        visible: pair.hasSecond
+                        x: Theme.sp(3) - width / 2 + Theme.sp(0.5)
+                        y: firstLine.y + firstLine.lineCentre
+                        width: 1
+                        height: (secondLine.y + secondLine.lineCentre) - y
+                        color: Qt.alpha(root.toneTogether, 0.6)
                     }
-
-                    PpStrengthMark {
-                        x: 0
-                        y: topRule.height + Theme.gap(16) + Math.round(firstLine.lineCentre) - Theme.sp(9)
-                        tier: pair.modelData.tier
-                        tone: root.toneTogether
-                    }
-
-                    Item {
-                        id: pairBody
-                        x: pair.strengthW
-                        y: topRule.height + Theme.gap(16)
-                        width: parent.width - pair.strengthW
-                        // The words, then the timeline (with its words beside it or beneath).
-                        readonly property real wordsBottom: pair.hasSecond ? secondLine.y + secondLine.height
-                                                                           : firstLine.height
-                        implicitHeight: !pair.placed       ? wordsBottom
-                                      : pairBody.wordsBeside ? timeline.y + timeline.implicitHeight
-                                      :                        startWords.y + startWords.height
-
-                        // The connector: a dot at each half, a line between. One half: one dot.
+                    Repeater {
+                        model: pair.hasSecond ? [firstLine, secondLine] : [firstLine]
                         Rectangle {
-                            visible: pair.hasSecond
+                            required property var modelData
+                            width: Theme.sp(7); height: width; radius: width / 2
                             x: Theme.sp(3) - width / 2 + Theme.sp(0.5)
-                            y: firstLine.y + firstLine.lineCentre
-                            width: 1
-                            height: (secondLine.y + secondLine.lineCentre) - y
-                            color: Qt.alpha(root.toneTogether, 0.6)
+                            y: modelData.y + modelData.lineCentre - height / 2
+                            color: root.toneTogether
                         }
-                        Repeater {
-                            model: pair.hasSecond ? [firstLine, secondLine] : [firstLine]
-                            Rectangle {
-                                required property var modelData
-                                width: Theme.sp(7); height: width; radius: width / 2
-                                x: Theme.sp(3) - width / 2 + Theme.sp(0.5)
-                                y: modelData.y + modelData.lineCentre - height / 2
-                                color: root.toneTogether
-                            }
-                        }
+                    }
 
-                        // "When …" is the controller's, as is the one part said alone.
-                        Text {
-                            id: firstLine
-                            readonly property real lineCentre: (font.pixelSize * 1.3) / 2
-                            x: pair.linkIndent
-                            width: parent.width - pair.linkIndent - pair.chipRoom
-                            text:  pair.modelData.first
-                            font.family:    Theme.fontBody
-                            font.pixelSize: root.headlineSize
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            wrapMode:       Text.WordWrap
-                            lineHeight:     1.3
-                        }
-                        Text {
-                            id: secondLine
-                            readonly property real lineCentre: (font.pixelSize * 1.3) / 2
-                            visible: pair.hasSecond
-                            x: pair.linkIndent
-                            y: firstLine.height + Theme.gap(6)
-                            width: parent.width - pair.linkIndent - pair.chipRoom
-                            text:  pair.modelData.second
-                            font.family:    Theme.fontBody
-                            font.pixelSize: root.headlineSize
-                            font.weight:    Theme.fontBodyWeight
-                            color:          Theme.colorText
-                            wrapMode:       Text.WordWrap
-                            lineHeight:     1.3
-                        }
-                        PpChip {
-                            id: chip
-                            anchors.right: parent.right
-                            y: Math.round(firstLine.lineCentre - height / 2)
-                            trend: pair.modelData.trend
-                        }
+                    HmHeadline {
+                        id: firstLine
+                        readonly property real lineCentre: (lineCount > 1 ? height / lineCount : height) / 2
+                        x: pair.linkIndent
+                        width: Math.max(0, parent.width - pair.linkIndent - pair.chipRoom)
+                        text:  pair.modelData.first
+                    }
+                    HmHeadline {
+                        id: secondLine
+                        readonly property real lineCentre: (lineCount > 1 ? height / lineCount : height) / 2
+                        visible: pair.hasSecond
+                        x: pair.linkIndent
+                        y: firstLine.height + Theme.gap(6)
+                        width: Math.max(0, parent.width - pair.linkIndent - pair.chipRoom)
+                        text:  pair.modelData.second
+                    }
+                    PpChip {
+                        id: chip
+                        anchors.right: parent.right
+                        y: Math.round(firstLine.lineCentre - height / 2)
+                        trend: pair.modelData.trend
+                    }
+                }
 
-                        // Timeline, with its words beside it where there is room, else beneath.
-                        // A theme with no swing position has neither.
-                        readonly property int timelineW: Math.min(Theme.sp(400), width - pair.linkIndent)
-                        readonly property bool wordsBeside:
-                            width - pair.linkIndent - timelineW - Theme.sp(24) >= startWords.implicitWidth
-                        PpSwingTimeline {
-                            id: timeline
-                            visible: pair.placed
-                            x: pair.linkIndent
-                            y: pairBody.wordsBottom + Theme.gap(14)
-                            width: pairBody.timelineW
-                            start: Math.max(0, pair.modelData.startStop)
-                            tone:  root.toneTogether
-                        }
-                        Text {
-                            id: startWords
-                            visible: pair.placed
-                            x: pairBody.wordsBeside ? timeline.x + timeline.width + Theme.gap(8)
-                                                    : pair.linkIndent
-                            y: pairBody.wordsBeside ? timeline.y + timeline.trackY - height / 2
-                                                    : timeline.y + timeline.implicitHeight + Theme.gap(6)
-                            text: pair.modelData.startWords
-                            font.family:    Theme.fontBody
-                            font.pixelSize: Theme.fontSzBody2
-                            font.weight:    Theme.fontBodyWeight
-                            font.italic:    true
-                            color:          Theme.colorText3
-                        }
+                // Where it first shows. A theme with no swing position has neither timeline nor words.
+                Item {
+                    id: where
+                    visible: pair.placed
+                    width:   pair.columnWidth(2)
+                    height:  !pair.placed      ? 0
+                           : where.wordsBeside ? timeline.implicitHeight
+                           :                     startWords.y + startWords.height
+
+                    readonly property int timelineW: Math.min(Theme.sp(400), width)
+                    readonly property bool wordsBeside:
+                        width - timelineW - Theme.gap(8) >= startWords.implicitWidth
+
+                    PpSwingTimeline {
+                        id: timeline
+                        width: where.timelineW
+                        start: Math.max(0, pair.modelData.startStop)
+                        tone:  root.toneTogether
+                    }
+                    PpCaption {
+                        id: startWords
+                        x: where.wordsBeside ? timeline.width + Theme.gap(8) : 0
+                        y: where.wordsBeside ? timeline.trackY - height / 2
+                                             : timeline.implicitHeight + Theme.gap(6)
+                        text: pair.modelData.startWords
                     }
                 }
             }
+        }
 
-            // Nothing that holds yet: said calmly, in the card.
-            Text {
+        // Nothing that holds yet: said calmly, in the card.
+        PpTableRow {
+            id: emptyRow
+            visible: root.together.length === 0
+            hoverEnabled: false
+            height: Math.max(Theme.sp(Theme.rowH), emptyNote.implicitHeight + Theme.gap(18))
+            Item { width: 1; height: 1 }
+            PpCaption {
+                id: emptyNote
                 objectName: "togetherNote"
-                visible: root.together.length === 0
-                width:   togetherCard.innerWidth
-                text:    root.note !== "" ? root.note
-                                          : qsTr("Nothing yet. This fills in as your sessions build up.")
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText2
-                wrapMode:       Text.WordWrap
-                lineHeight:     1.3
+                width:    emptyRow.columnWidth(1)
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     root.note !== "" ? root.note
+                                           : qsTr("Nothing yet. This fills in as your sessions build up.")
             }
         }
     }

@@ -27,7 +27,7 @@ import PinPointStudio
 // the same resolved template, so a figure sits under its caption whatever the card's width. The
 // oracle is the template's own arithmetic — fixed columns keep their width, fill columns share the
 // rest by weight, columnGap between — not a recorded render. The coaching card's oracle is its
-// own layout before table mode existed: HmSwingSummary and HmGoesTogether still draw it.
+// own layout before table mode existed.
 Item {
     id: probe
     width: 900; height: 700
