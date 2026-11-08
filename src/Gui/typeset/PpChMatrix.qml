@@ -27,7 +27,7 @@ import PinPointStudio
 // under three it hides. A cell puts that pair on the scatter (pairActivated).
 // THE RECTANGLE (`columns` + `rows`, Consistency): named columns across the full width and generic cells on an optional
 // wash, the one exception to "the corridor is the only wash" (§15.4): the word stays in the cell. When the words do not
-// fit, `short` turns on: each cell takes its short form on the same wash and `keyText` appears. No column is ever
+// fit, `shortForm` turns on: each cell takes its short form on the same wash and `keyText` appears. No column is ever
 // dropped. Whether they fit is MEASURED (R25, Mark 7 Nov 2026): the widest word in use (in fSmall, fSmallM when heavy),
 // its gutters and any mark, and the widest full head, so no word overflows its cell at any width. A picked cell (`on`) takes an outline, because the wash has taken over its old highlight.
 //   columns: [string | { text, short }]    rows: [{ id, name, cells: [{ text, short, strong, heavy, on, mark, tap, heat, soft }] }]
@@ -76,10 +76,10 @@ Column {
         return Math.ceil(w)
     }
     // the words fit, or the short forms take their place
-    readonly property bool short: !family && width - nameMax < nCols * wordW
+    readonly property bool shortForm: !family && width - nameMax < nCols * wordW
     readonly property real indent: family ? Math.round(2 * em) : 0   // the row numbers
     readonly property real nameW: family ? Math.round(12 * em)
-                                : mx.short ? Math.max(Math.round(6.2 * em), Math.min(nameMax, width - nCols * Math.round(1.9 * em))) : nameMax
+                                : mx.shortForm ? Math.max(Math.round(6.2 * em), Math.min(nameMax, width - nCols * Math.round(1.9 * em))) : nameMax
     readonly property real cellW: family ? Math.round((roles ? roles.r.ch.matrixCellEm : 3.3) * em) : Math.floor((width - nameW) / Math.max(1, nCols))
     readonly property var all: matrix && matrix.readings ? matrix.readings : []
     // how many readings fit: one name column, then one figure column per reading but the last
@@ -90,7 +90,7 @@ Column {
         const out = []
         for (let i = 0; i < (family ? n - 1 : nCols); ++i) {
             const c = columns[i]
-            out.push(family ? String(i + 1) : typeof c === "string" ? c : (mx.short && c.short) || c.text)
+            out.push(family ? String(i + 1) : typeof c === "string" ? c : (mx.shortForm && c.short) || c.text)
         }
         return out
     }
@@ -144,8 +144,8 @@ Column {
                     Rectangle { anchors.fill: parent; anchors.margins: 1; visible: modelData.on === true; color: mx.family ? mx.roles.pickWash : "transparent"
                                 border.width: mx.family ? 0 : mx.roles.r.figureRuleTop; border.color: mx.roles.ink }
                     Text { id: tx; x: mx.family ? parent.width - width - mx.roles.g(4) : Math.max(1, Math.min(mx.roles.g(5), parent.width - width - (modelData.mark ? mk.width + mx.roles.g(4) : 0))); anchors.verticalCenter: parent.verticalCenter
-                           text: (mx.short ? modelData.short : modelData.text) || ""
-                           font: mx.family || mx.short ? mx.roles.fFigS : modelData.heavy ? mx.roles.fSmallM : mx.roles.fSmall
+                           text: (mx.shortForm ? modelData.short : modelData.text) || ""
+                           font: mx.family || mx.shortForm ? mx.roles.fFigS : modelData.heavy ? mx.roles.fSmallM : mx.roles.fSmall
                            color: modelData.strong ? mx.roles.ink : mx.roles.ink3 }
                     Text { id: mk; visible: !!modelData.mark; x: Math.min(tx.x + tx.width + mx.roles.g(3), parent.width - width - mx.roles.g(3)); anchors.verticalCenter: parent.verticalCenter
                            text: modelData.mark || ""; font: mx.roles.fFigS; color: mx.roles.ink }
@@ -157,7 +157,7 @@ Column {
         }
     }
     Repeater {
-        model: mx.roles && mx.short && mx.keyText !== "" ? 1 : 0
+        model: mx.roles && mx.shortForm && mx.keyText !== "" ? 1 : 0
         delegate: Text { width: mx.width; topPadding: mx.roles.g(6); wrapMode: Text.WordWrap; text: mx.keyText; font: mx.roles.fSmall; color: mx.roles.ink3 }
     }
 }

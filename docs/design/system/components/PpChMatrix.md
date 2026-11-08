@@ -45,7 +45,7 @@ Setting `columns` chooses the rectangle. Every word comes from the presenter; th
 | mark | string | One glyph after the word in ink, such as `◆` "this shot left your pattern here". It stays inside the cell: in a tight cell it closes up to the right edge and the word moves left only if it must. Say what it means in `keyText` or a note. |
 | tap | bool | Pressable (while `interactive`). |
 
-Read-only: `family` (the family form), `short` (the short form is on: a screen can hang its own words on it), `n` (the family's readings that fit), `nCols`, `em`, `nameMax` (`nameEm` in pixels), `wordW`, `indent`, `nameW`, `cellW`, `rowH`, `tableW`, `all`, `heads`, `body`, `keyKinds`.
+Read-only: `family` (the family form), `shortForm` (the short form is on: a screen can hang its own words on it), `n` (the family's readings that fit), `nCols`, `em`, `nameMax` (`nameEm` in pixels), `wordW`, `indent`, `nameW`, `cellW`, `rowH`, `tableW`, `all`, `heads`, `body`, `keyKinds`.
 
 objectNames: `chMatrix`, `chMatrixCell` (each cell; `xId`, `yId` in the family).
 
