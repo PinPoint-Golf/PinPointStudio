@@ -62,33 +62,22 @@ Column {
                   { fill: true },
                   { width: togetherCard.whereW }]
 
-        // The card's header row: its title in its tone, what it means beneath, the caption on the line.
+        // The card's header row, one line as on the Coaching tab's cards: the title in its tone, in
+        // the words column, and the caption of the column it heads.
         PpTableRow {
             id: header
             hoverEnabled: false
-            height: Math.max(Theme.sp(Theme.tableHeaderH), headerWords.implicitHeight + Theme.gap(14))
+            height: Theme.sp(Theme.tableHeaderH)
 
             Item { width: 1; height: 1 }        // the strength mark's column
-            Column {
-                id: headerWords
-                width: header.columnWidth(1)
-                spacing: Theme.gap(2)
-                Text {
-                    width: parent.width
-                    elide: Text.ElideRight
-                    text:  qsTr("Faults that travel together")
-                    font.family:    Theme.fontBody
-                    font.pixelSize: Theme.fontSzBody2
-                    font.weight:    Font.DemiBold
-                    color:          root.toneTogether
-                }
-                PpCaption {
-                    visible:  root.together.length > 0
-                    width:    parent.width
-                    elide:    Text.ElideNone
-                    wrapMode: Text.WordWrap
-                    text:     qsTr("Things that rise and fall together from one swing to the next.")
-                }
+            Text {
+                width: Math.min(implicitWidth, header.columnWidth(1))
+                elide: Text.ElideRight
+                text:  qsTr("Faults that travel together")
+                font.family:    Theme.fontBody
+                font.pixelSize: Theme.fontSzBody2
+                font.weight:    Font.DemiBold
+                color:          root.toneTogether
             }
             PpCaption {
                 visible: root.together.length > 0
