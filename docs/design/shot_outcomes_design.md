@@ -540,7 +540,7 @@ session's (name, work-ons fingerprint, ledger size and mtime), so a correction, 
 ledger, counts. Computed on the themes pool with its own generation, cancelled by the same events. Every
 shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
 
-- **Key**: (club group, swing length). Club groups: driver · woods and hybrids · irons · wedges. Swing
+- **Key**: (club, swing length): one row per club, so the rule below is earned club by club. Each row belongs to a club group, which is Tendencies' filter. Club groups: driver · woods and hybrids · long irons (1–4) · mid irons (5–7) · short irons (8 to the pitching wedge) · wedges (gap, sand, lob). Swing
   length: full / partial (§3.6).
 - **Shots counted**: past the positional warm-ups, a launch-monitor reading, the ball's shape judged,
   straight intent (intended shapes excluded), corrections applied. A shot with a data warning still
@@ -576,7 +576,7 @@ sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, work
 - `HmHomeTabs.tabKeys` gains `"tendencies"`, label **"Tendencies"**, before Matchups; remembered per
   athlete through `hm_view_store.js` as the others.
 - `HmTendencies.qml` (table card, `homeTabTendencies`) + `HmTendencyRow.qml` (a `PpExpandRow` on
-  the table's column template, like `HmAreaRow`): chevron · club (with "· part swing") · usual miss ·
+  the table's column template, like `HmAreaRow`): chevron · club (with "· part swing") · usual distance · usual miss ·
   your shots (below) · seen with + strength · trend · work-on.
 - One row open at a time, held by `HmTendencies` (rows rebuild on publish).
 - Open row: "What leads to it" chain in golfer words with the §5.1 link words; "Also seen" line
@@ -591,7 +591,9 @@ sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, work
   Building, and there's no Practice until it's earned: what has shown up so far is shown, never as a verdict.
 - States: reading / nothing yet (`tendencyNote`) / building rows.
 - Evidence line on the tab bar: "From N shots over M sessions" (`tendencyNote`), when there is a table.
-- Golfer layer: the only figures in a row are the shot mix's percentages; counts only in the evidence line.
+- **Usual distance** is the club's full swing carry as average ± spread, from the same figures as Your distances; a part swing row shows a dash.
+- A **group filter** sits above the table (`PpChipGroup`, style `filter`): All and each group with rows, remembered per athlete, hidden with only one group.
+- Golfer layer: the only figures in a row are the usual distances and the shot mix's percentages; counts only in the evidence line.
 
 ### 7.3 F2 — Coaching "On the ball"
 
@@ -832,3 +834,6 @@ of date) and show intent only.
 
 Mocks are drawn in the Instrument Light theme with sample data; fonts fall back where Gelasio /
 DM Mono are not installed. Dashed boxes mark existing, unchanged parts of a surface.
+
+Hovering a box reads out its average ± spread ("188 ± 20 yd"), over the box in the table and beside it in the session chart. There is no median or quartile to show: the box is the average and one standard deviation either side.
+

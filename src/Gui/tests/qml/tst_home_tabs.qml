@@ -73,16 +73,18 @@ Item {
 
     readonly property var tendencyRows: [
         { key: "driver|full", club: "Driver", clubLine: "Driver", length: "full", miss: "Slice", missFamily: "direction",
+          distance: "188 ± 20 yd", clubGroup: "driver", groupLabel: "Driver",
           share: 0.42, frequency: "fairly often", building: false, noUsualMiss: false, sessions: 5, shots: 60,
           seenWith: "your hands come over the top coming down", seenWithId: "over_the_top", strength: "likely",
           trend: 1, trendWords: "↑ growing", workOn: "Active", workOnText: "Active" },
         { key: "irons|full", club: "Irons", clubLine: "Irons", length: "full", miss: "Fat, often with a slice", missFamily: "strike",
+          distance: "147 ± 31 yd", clubGroup: "mid_irons", groupLabel: "Mid irons",
           share: 0.3, frequency: "sometimes", building: false, noUsualMiss: false, sessions: 4, shots: 50,
           seenWith: "you stand up through the ball", seenWithId: "early_extension", strength: "possible",
           trend: 0, trendWords: "→ steady", workOn: "", workOnText: "",
           mix: { line: "Good 31% · Thin 41% · Weak strike 16% · Slice 6% · Other 6% · and a good many more words than the column can hold",
                  parts: [{ key: "good", kind: "good", count: 10 }, { key: "thin", kind: "main", count: 13 }, { key: "other", kind: "other", count: 9 }] } },
-        { key: "wedges|partial", club: "Wedges", clubLine: "Wedges · part swing", length: "partial", miss: "Push", missFamily: "direction",
+        { key: "wedges|partial", clubGroup: "wedges", groupLabel: "Wedges", distance: "", club: "Wedges", clubLine: "Wedges · part swing", length: "partial", miss: "Push", missFamily: "direction",
           share: 0.3, frequency: "sometimes", building: true, noUsualMiss: false, sessions: 1, shots: 9,
           seenWith: "", seenWithId: "", strength: "", trend: 0, trendWords: "", workOn: "", workOnText: "" }
     ]
@@ -240,6 +242,29 @@ Item {
             compare(all(tabs, "homeTendencyRow:irons|full").length, 1)
             compare(rowOf("wedges|partial").seenText, "Building — 1 session", "a building row says so, never a verdict")
             verify(!rowOf("wedges|partial").hasDetail, "and has nothing to open")
+        }
+
+        function test_tendencies_usual_distance_is_the_average_and_spread_in_words() {
+            showTendencies()
+            compare(one(rowOf("driver|full"), "tendencyDistance").text, "188 ± 20 yd")
+            compare(one(rowOf("wedges|partial"), "tendencyDistance").text, "—", "a part swing has no usual distance")
+        }
+
+        function test_tendencies_filter_by_group_and_remember_it() {
+            showTendencies()
+            verify(drawn(one(tabs, "tendencyGroupFilter")))
+            compare(tabs.tendencyGroups.map(g => g.value).join(","), "driver,mid_irons,wedges", "only groups with rows")
+            tabs.selectTendencyGroup("mid_irons")
+            laidOut()
+            compare(all(tabs, "homeTendencyRow:driver|full").length, 0, "another group's club is gone")
+            verify(drawn(rowOf("irons|full")))
+            compare(fakeSettings.homeViewByAthlete["athlete-a"].tendencyGroup, "mid_irons", "remembered for the athlete")
+            tabs.tendencyGroup = "long_irons"
+            laidOut()
+            compare(tabs.shownTendencyGroup, "all", "a group with no rows shows all")
+            verify(drawn(rowOf("driver|full")))
+            tabs.selectTendencyGroup("all")
+            laidOut()
         }
 
         function test_tendencies_a_long_shot_mix_wraps_and_the_row_grows() {

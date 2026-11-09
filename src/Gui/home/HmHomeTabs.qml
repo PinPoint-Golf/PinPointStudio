@@ -21,7 +21,7 @@
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
 //   Your swing   HmSwingAreas — how the whole swing stands, area by area
-//   Tendencies   HmTendencies — the usual miss with each club, cross-session
+//   Tendencies   HmTendencies under a club group filter — the usual miss with each club, cross-session
 //   Matchups     HmGoesTogether — what travels together: today faults that move together; later
 //                also pairs that work together (Mark, 28 Oct)
 //
@@ -58,9 +58,24 @@ Column {
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
+    // The Tendencies filter: "all", or a club group that has rows. Remembered per athlete; a group with no rows left shows all.
+    property string tendencyGroup: "all"
+    readonly property var tendencyGroups: {
+        const seen = {}, out = []
+        for (const t of (root.controller && root.controller.tendencyItems) || [])
+            if (t.clubGroup && !seen[t.clubGroup]) { seen[t.clubGroup] = true; out.push({ label: t.groupLabel, value: t.clubGroup }) }
+        return out
+    }
+    readonly property string shownTendencyGroup: root.tendencyGroups.some(g => g.value === root.tendencyGroup) ? root.tendencyGroup : "all"
+    function selectTendencyGroup(group) {
+        root.tendencyGroup = String(group)
+        ViewStore.write(root.settings, root.athleteUuid, "tendencyGroup", root.tendencyGroup)
+    }
+
     function _read() {
         const tab = String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
         root.current = root.tabKeys.indexOf(tab) >= 0 ? tab : "coaching"
+        root.tendencyGroup = String(ViewStore.read(root.settings, root.athleteUuid, "tendencyGroup", "all"))
     }
     // Show a tab, and remember it for this athlete (nothing written when it is already the one).
     function select(key) {
@@ -132,13 +147,29 @@ Column {
         }
         Item {
             id: tendenciesPage
-            implicitHeight: tendencies.implicitHeight
-            HmTendencies {
-                id: tendencies
-                width: tendenciesPage.width
-                controller:  root.controller
-                athleteUuid: root.athleteUuid
-                onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
+            implicitHeight: tendenciesColumn.implicitHeight
+            Column {
+                id: tendenciesColumn
+                width:   tendenciesPage.width
+                spacing: Theme.gap(12)
+                PpChipGroup {
+                    objectName: "tendencyGroupFilter"
+                    visible:  root.tendencyGroups.length > 1
+                    width:    parent.width
+                    wrap:     true
+                    style:    "filter"
+                    options:  [{ label: qsTr("All"), value: "all" }].concat(root.tendencyGroups)
+                    selected: root.shownTendencyGroup
+                    onSelectionChanged: (value) => root.selectTendencyGroup(value)
+                }
+                HmTendencies {
+                    id: tendencies
+                    width: tendenciesPage.width
+                    controller:  root.controller
+                    athleteUuid: root.athleteUuid
+                    group:       root.shownTendencyGroup === "all" ? "" : root.shownTendencyGroup
+                    onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
+                }
             }
         }
         Item {

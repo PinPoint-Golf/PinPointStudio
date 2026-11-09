@@ -143,7 +143,7 @@ QString tendencyClubGroup(const ContextTree &tree, const QString &club)
     };
     if (under("driver"))       return QStringLiteral("driver");
     if (under("fairway_wood")) return QStringLiteral("woods");
-    if (under("iron"))         return QStringLiteral("irons");
+    if (id == QLatin1String("wedge_pitching") || under("iron")) return tendencyIronGroup(club);
     if (under("wedge"))        return QStringLiteral("wedges");
     return QString();
 }
@@ -1551,6 +1551,9 @@ void WorkOnsController::publishTendencies()
                 { QStringLiteral("share"),       it.share },
                 { QStringLiteral("frequency"),   it.frequency },
                 { QStringLiteral("mix"),         shotMixBarToJson(it.mix).toVariantMap() },
+                { QStringLiteral("distance"),    tendencyUsualDistance(it.clubId, it.length, m_tendencySet.clubDistances) },
+                { QStringLiteral("clubGroup"),   it.clubGroup },
+                { QStringLiteral("groupLabel"),  tendencyClubLabel(it.clubGroup) },
                 { QStringLiteral("building"),    it.building },
                 { QStringLiteral("noUsualMiss"), it.noUsualMiss },
                 { QStringLiteral("sessions"),    it.sessions },

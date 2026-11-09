@@ -857,13 +857,13 @@ static void checkTendencies(const QString &root)
     check(c.waitForIdle(1000) && c.tendenciesReady() && QFile::exists(WorkOnsController::tendenciesPath(golfer)),
           "the catch-up ends in tendencies.json");
     {
-        const QVariantMap driver = tendencyItem(c, "driver|full");
+        const QVariantMap driver = tendencyItem(c, "DRIVER|full");
         check(!driver.value(QStringLiteral("building")).toBool()
                   && driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Slice")
                   && driver.value(QStringLiteral("seenWithId")).toString() == QStringLiteral("over_the_top")
                   && driver.value(QStringLiteral("shots")).toInt() == 18,
               "the driver earned its tendency: two sessions of nine counted shots, the positional warm-ups left out");
-        const QVariantMap iron = tendencyItem(c, "irons|full");
+        const QVariantMap iron = tendencyItem(c, "7 IRON|full");
         check(iron.value(QStringLiteral("building")).toBool() && iron.value(QStringLiteral("sessions")).toInt() == 1,
               "one short iron session is still building");
         check(c.tendencyNote() == QStringLiteral("From 22 shots over 3 sessions"),
@@ -871,7 +871,7 @@ static void checkTendencies(const QString &root)
         check(c.clubDistance(QStringLiteral("driver")).value(QStringLiteral("earned")).toBool()
                   && c.clubDistance(QStringLiteral("DRIVER")).value(QStringLiteral("n")).toInt() == 18,
               "the per-club distance is there, by the canonical club name");
-        const QVariantMap detail = c.tendencyDetail(QStringLiteral("driver|full"));
+        const QVariantMap detail = c.tendencyDetail(QStringLiteral("DRIVER|full"));
         check(!detail.value(QStringLiteral("playTo")).toString().isEmpty()
                   && detail.value(QStringLiteral("practiseConditionId")).toString() == QStringLiteral("over_the_top")
                   && !detail.value(QStringLiteral("chain")).toList().isEmpty(),
@@ -902,7 +902,7 @@ static void checkTendencies(const QString &root)
         }
         c.refresh();
         check(c.tendencyJobs() == jobs + 1, "a changed ledger re-reduces the tendencies");
-        const QVariantMap driver = tendencyItem(c, "driver|full");
+        const QVariantMap driver = tendencyItem(c, "DRIVER|full");
         check(driver.value(QStringLiteral("shots")).toInt() == 17 && !driver.value(QStringLiteral("building")).toBool(),
               "the intended shape is excluded from the tally, the tendency still earned");
         check(driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Hook"),

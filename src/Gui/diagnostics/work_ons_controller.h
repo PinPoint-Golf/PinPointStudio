@@ -209,7 +209,8 @@ class WorkOnsController : public QObject
     //   { conditionId, text, produced: [{ phrase, count }], costWords, tendencyKey, tendencyText, onTheBall } or {}.
     //
     // tendencyItems: [{ key, club, clubLine, length, miss, missFamily, share, frequency, building, noUsualMiss,
-    //   sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, workOnText }]. A building row
+    //   sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, workOnText, mix,
+    //   distance ("147 ± 31 yd", "" for a part swing), clubGroup, groupLabel }], one per club and swing length. A building row
     //   states no verdict: miss, building true, sessions, and no seen-with or trend.
     // tendencyNote: "From N shots over M sessions", or why nothing yet.
     // tendencyDetail(key): { chain: [{ text, words }], alsoSeen, playTo, practiseConditionId } or {}.

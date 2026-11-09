@@ -16,11 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// TENDENCIES — the usual miss with each club group, the body of Home's Tendencies tab (HmHomeTabs;
-// docs/design/shot_outcomes_design.md §7.2). One table card, a row per club and swing length
+// TENDENCIES — the usual miss with each club, the body of Home's Tendencies tab (HmHomeTabs;
+// docs/design/shot_outcomes_design.md §7.2). One table card, a row per club and swing length, optionally of one group
 // (HmTendencyRow):
 //
-//   chevron · Club · Usual miss · Your shots · Seen with · Trend · Work-on
+//   chevron · Club · Usual distance · Usual miss · Your shots · Seen with · Trend · Work-on
 //
 // One row open at a time. Held here and not on the row: each publish of the tendencies rebuilds them.
 //
@@ -39,32 +39,36 @@ PpCard {
     // Passed in rather than reached for, so a harness can drive the component.
     property var    controller:  (typeof workOns !== "undefined") ? workOns : null
     property string athleteUuid: ""
+    property string group: ""       // a clubGroup, or "" for every club
 
     signal practiseRequested(string conditionId, string label)
 
     readonly property var    tendencies: root.controller && root.controller.tendencyItems ? root.controller.tendencyItems : []
     readonly property bool   hasRows:    root.tendencies.length > 0
+    readonly property var    shownRows:  root.group === "" ? root.tendencies : root.tendencies.filter(t => t.clubGroup === root.group)
     readonly property string note:       root.controller && root.controller.tendencyNote ? root.controller.tendencyNote : ""
     readonly property bool   reading:    !root.hasRows && root.controller !== null
                                          && (!!root.controller.tendenciesUpdating || !!root.controller.updating)
 
     property string openKey: ""
     onAthleteUuidChanged: root.openKey = ""
+    onGroupChanged:       root.openKey = ""
 
     function caption(title) { return root.hasRows ? title : "" }
 
     width:  parent ? parent.width : 0
     table:  true
     columns: [{ title: "",                          width: Theme.sp(14) },     // the chevron's
-              { title: caption(qsTr("Club")),       fill: 0.95 },
-              { title: caption(qsTr("Usual miss")), fill: 0.95 },
-              { title: caption(qsTr("Your shots")), fill: 2.2 },
-              { title: caption(qsTr("Seen with")),  fill: 1.4 },
-              { title: caption(qsTr("Trend")),      width: Theme.sp(96) },
-              { title: caption(qsTr("Work-on")),    width: Theme.sp(96) }]
+              { title: caption(qsTr("Club")),           fill: 0.85 },
+              { title: caption(qsTr("Usual distance")), fill: 1.0 },
+              { title: caption(qsTr("Usual miss")),     fill: 0.9 },
+              { title: caption(qsTr("Your shots")),     fill: 1.75 },
+              { title: caption(qsTr("Seen with")),      fill: 1.5 },
+              { title: caption(qsTr("Trend")),          width: Theme.sp(84) },
+              { title: caption(qsTr("Work-on")),        width: Theme.sp(84) }]
 
     Repeater {
-        model: root.tendencies
+        model: root.shownRows
         HmTendencyRow {
             id: tendencyRow
             required property var modelData

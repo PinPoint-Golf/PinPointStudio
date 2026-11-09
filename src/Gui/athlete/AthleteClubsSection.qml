@@ -313,6 +313,9 @@ PpGroupCard {
                         stats: root._box(distanceRow.modelData.carryMean, distanceRow.modelData.carrySd)
                         bodyW: Theme.sp(10)
                         capW:  0
+                        // One label over the box: there is no median or quartile here to read out.
+                        valuesOnHover: true
+                        texts: ({ med: root._meanSd(distanceRow.modelData.carryMean, distanceRow.modelData.carrySd, "yd", 0) })
                     }
                 }
                 Text {                              // total
@@ -525,7 +528,11 @@ PpGroupCard {
                                     Repeater {
                                         model: sessionChart.points
                                         PpBoxPlot {
+                                            id: sessionBand
                                             required property var modelData
+                                            required property int index
+                                            readonly property bool showsValue: sessionHover.hovered || sessionBand.examined
+                                            z: sessionBand.showsValue ? 1 : 0       // over the next session's box
                                             width:  sessionChart.cellW
                                             height: Theme.sp(90)
                                             roles:      distancesTs
@@ -535,6 +542,20 @@ PpGroupCard {
                                             stats: root._box(modelData.mean, modelData.sd)
                                             bodyW: Theme.sp(8)
                                             capW:  0
+
+                                            // Average ± spread beside the box, at the average's height. The stood-up
+                                            // reading labels all five numbers, and here only three differ.
+                                            HoverHandler { id: sessionHover }
+                                            PpMicro {
+                                                objectName: "athleteSessionBandValue"
+                                                readonly property real off: Theme.sp(4) + sessionBand.bodyW / 2
+                                                readonly property bool flip: sessionBand.index > 0
+                                                                             && sessionBand.index >= sessionChart.points.length / 2
+                                                visible: sessionBand.showsValue && root._fin(sessionBand.modelData.mean)
+                                                x: sessionBand.width / 2 + (flip ? -off - implicitWidth : off)
+                                                y: sessionBand.map(sessionBand.modelData.mean) - implicitHeight / 2
+                                                text: root._meanSd(sessionBand.modelData.mean, sessionBand.modelData.sd, "yd", 0)
+                                            }
                                         }
                                     }
                                 }

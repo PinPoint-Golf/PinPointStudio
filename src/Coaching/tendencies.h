@@ -55,7 +55,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 4;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix
+inline constexpr int kTendencyRuleVersion   = 7;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -209,11 +209,25 @@ inline QString tendencyFrequencyWords(double share)
     return QStringLiteral("rarely");
 }
 
+// Irons split by how they are played: long 1-4, mid 5-7, short 8 to the pitching wedge. An iron with no number
+// goes in the middle. The pitching wedge is read here, by name, because the context tree holds it under wedges.
+inline QString tendencyIronGroup(const QString &club)
+{
+    const QString c = club.trimmed().toUpper();
+    if (c.contains(QLatin1String("PITCH"))) return QStringLiteral("short_irons");
+    int digits = 0;
+    while (digits < c.size() && c.at(digits).isDigit()) ++digits;
+    const int number = digits > 0 ? c.left(digits).toInt() : -1;
+    if (number > 0 && number <= 4) return QStringLiteral("long_irons");
+    if (number >= 8)               return QStringLiteral("short_irons");
+    return QStringLiteral("mid_irons");
+}
+
 // The club group's label, and what a sentence calls its shots.
 inline int tendencyClubRank(const QString &group)
 {
-    static const QStringList kOrder = { QStringLiteral("driver"), QStringLiteral("woods"), QStringLiteral("irons"),
-                                        QStringLiteral("wedges") };
+    static const QStringList kOrder = { QStringLiteral("driver"), QStringLiteral("woods"), QStringLiteral("long_irons"),
+                                        QStringLiteral("mid_irons"), QStringLiteral("short_irons"), QStringLiteral("wedges") };
     const int i = int(kOrder.indexOf(group));
     return i < 0 ? int(kOrder.size()) : i;
 }
@@ -222,7 +236,9 @@ inline QString tendencyClubLabel(const QString &group)
 {
     if (group == QLatin1String("driver")) return QStringLiteral("Driver");
     if (group == QLatin1String("woods"))  return QStringLiteral("Woods and hybrids");
-    if (group == QLatin1String("irons"))  return QStringLiteral("Irons");
+    if (group == QLatin1String("long_irons"))  return QStringLiteral("Long irons");
+    if (group == QLatin1String("mid_irons"))   return QStringLiteral("Mid irons");
+    if (group == QLatin1String("short_irons")) return QStringLiteral("Short irons");
     if (group == QLatin1String("wedges")) return QStringLiteral("Wedges");
     return group;
 }
@@ -231,7 +247,9 @@ inline QString tendencyClubShotWord(const QString &group)
 {
     if (group == QLatin1String("driver")) return QStringLiteral("driver");
     if (group == QLatin1String("woods"))  return QStringLiteral("wood and hybrid");
-    if (group == QLatin1String("irons"))  return QStringLiteral("iron");
+    if (group == QLatin1String("long_irons"))  return QStringLiteral("long iron");
+    if (group == QLatin1String("mid_irons"))   return QStringLiteral("mid iron");
+    if (group == QLatin1String("short_irons")) return QStringLiteral("short iron");
     if (group == QLatin1String("wedges")) return QStringLiteral("wedge");
     return group;
 }
@@ -240,7 +258,9 @@ inline QString tendencyClubPluralWord(const QString &group)
 {
     if (group == QLatin1String("driver")) return QStringLiteral("driver");
     if (group == QLatin1String("woods"))  return QStringLiteral("woods and hybrids");
-    if (group == QLatin1String("irons"))  return QStringLiteral("irons");
+    if (group == QLatin1String("long_irons"))  return QStringLiteral("long irons");
+    if (group == QLatin1String("mid_irons"))   return QStringLiteral("mid irons");
+    if (group == QLatin1String("short_irons")) return QStringLiteral("short irons");
     if (group == QLatin1String("wedges")) return QStringLiteral("wedges");
     return group;
 }
@@ -273,9 +293,10 @@ struct TendencyChainStep {
 };
 
 struct TendencyItem {
-    QString key;            // "irons|full"
-    QString clubGroup;      // "irons"
-    QString club;           // "Irons"
+    QString key;            // "7 IRON|full"
+    QString clubGroup;      // "mid_irons"; the row's filter
+    QString clubId;         // "7 IRON"
+    QString club;           // "7 iron"
     QString length;         // "full", "partial"
     QString handedness;     // the golfer's, off the documents: "Left", "Right", ""
     QString missId;         // the ROW id (for the left-hander's gloss, the display text below has it applied)
@@ -424,7 +445,7 @@ namespace tendency_detail {
 
 struct JudgedShot {
     int     session = 0;
-    QString key, group;
+    QString key, group, clubId;
     QString handedness;
     QString primaryId, primaryShort, primaryFamily, primaryGolfer;
     QHash<QString, QString> others;     // id -> short text, the misses in another family
@@ -455,7 +476,7 @@ inline QString stripClause(QString s)
 
 } // namespace tendency_detail
 
-// `clubGroupOf` maps a stored club to "driver", "woods", "irons", "wedges", or "" for a club left out (a
+// `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
 // putter, an undeclared club). `cancel`, polled between sessions, leaves `.cancelled` set.
 inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &input, const ShotOutcomePack &pack,
                                     const std::function<QString(const QString &)> &clubGroupOf,
@@ -497,8 +518,9 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             JudgedShot j;
             j.session = si;
             j.group   = group;
+            j.clubId  = canonicalClubId(shot.club);
             j.handedness = shot.handedness;
-            j.key     = group + QLatin1Char('|') + (shot.swingLength == QLatin1String("partial") ? QStringLiteral("partial") : QStringLiteral("full"));
+            j.key     = j.clubId + QLatin1Char('|') + (shot.swingLength == QLatin1String("partial") ? QStringLiteral("partial") : QStringLiteral("full"));
             if (!misses.empty()) {
                 const ShotOutcomeLabel *primary = misses.front();
                 j.primaryId     = primary->id;
@@ -531,8 +553,15 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
 
     QStringList keys = byKey.keys();
     std::sort(keys.begin(), keys.end(), [&byKey](const QString &a, const QString &b) {
-        const int ra = tendencyClubRank(byKey[a].front()->group), rb = tendencyClubRank(byKey[b].front()->group);
+        const JudgedShot *ja = byKey[a].front(), *jb = byKey[b].front();
+        const int ra = tendencyClubRank(ja->group), rb = tendencyClubRank(jb->group);
         if (ra != rb) return ra < rb;
+        if (ja->clubId != jb->clubId) {             // the bag's own order within a group, longest club first
+            const QStringList &order = clubVocabulary();
+            const auto rank = [&order](const QString &c) { const int i = int(order.indexOf(c)); return i < 0 ? int(order.size()) : i; };
+            const int ca = rank(ja->clubId), cb = rank(jb->clubId);
+            return ca != cb ? ca < cb : ja->clubId < jb->clubId;
+        }
         return a.endsWith(QLatin1String("full")) && !b.endsWith(QLatin1String("full"));
     });
 
@@ -575,7 +604,8 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         TendencyItem item;
         item.key       = key;
         item.clubGroup = shots.front()->group;
-        item.club      = tendencyClubLabel(item.clubGroup);
+        item.clubId    = shots.front()->clubId;
+        item.club      = clubDistanceLabel(item.clubId);
         item.length    = key.endsWith(QLatin1String("partial")) ? QStringLiteral("partial") : QStringLiteral("full");
         item.sessions  = int(keySessions.size());
         item.shots     = int(shots.size());
@@ -827,7 +857,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             if (item.confirmedSessions >= 2 && ball.onTheBall.isEmpty()) {
                 const QString missWord = item.miss.section(QLatin1Char(','), 0, 0).toLower();
                 ball.onTheBall = QStringLiteral("On the ball — your %1 with %2%3.")
-                                     .arg(missWord, tendencyClubPluralWord(item.clubGroup),
+                                     .arg(missWord, item.club.toLower(),
                                           item.length == QLatin1String("partial") ? QStringLiteral(" on part swings") : QString());
             }
             break;
@@ -861,6 +891,7 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
         items.append(QJsonObject{
             { QStringLiteral("key"), it.key },
             { QStringLiteral("clubGroup"), it.clubGroup },
+            { QStringLiteral("clubId"), it.clubId },
             { QStringLiteral("club"), it.club },
             { QStringLiteral("length"), it.length },
             { QStringLiteral("handedness"), it.handedness },
@@ -911,6 +942,17 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
     };
 }
 
+// The usual distance a Tendencies row shows: the club's full swing carry as stored. A part swing has none.
+inline QString tendencyUsualDistance(const QString &clubId, const QString &length, const QJsonArray &clubDistances)
+{
+    if (length != QLatin1String("full")) return QString();
+    for (const QJsonValue &v : clubDistances) {
+        const QJsonObject o = v.toObject();
+        if (o.value(QStringLiteral("club")).toString() == clubId) return o.value(QStringLiteral("carryText")).toString();
+    }
+    return QString();
+}
+
 // `*ok` is false for another rule or schema: its numbers are not to be shown as ours.
 inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullptr)
 {
@@ -931,6 +973,7 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
         TendencyItem it;
         it.key        = str(o, "key");
         it.clubGroup  = str(o, "clubGroup");
+        it.clubId     = str(o, "clubId");
         it.club       = str(o, "club");
         it.length     = str(o, "length");
         it.handedness = str(o, "handedness");

@@ -18,13 +18,13 @@
 
 // One row of Home's Tendencies tab (HmTendencies): a PpExpandRow on the table's column template.
 //
-//   header   chevron · club (with "· part swing") · usual miss · every shot with the club (a PpBandBar over its words, wrapping when long) ·
+//   header   chevron · club (with "· part swing") · usual distance (average ± spread) · usual miss · every shot with the club (a PpBandBar over its words, wrapping when long) ·
 //            seen with and how strongly, or "Building — N sessions" with a dashed ring · trend · work-on
 //   detail   what leads to it, in the golfer's words with the words that link them; also seen; how
 //            to play to it; Practice
 //
 // `tendency` is one of WorkOnsController.tendencyItems, every string final. The golfer layer: the only
-// figures in a row are the shot mix's percentages and the sessions a building row still needs words for.
+// figures in a row are the usual distances, the shot mix's percentages and the sessions a building row still needs words for.
 // Colour is never the only channel: the band bar has its words beneath, the trend carries an arrow and a word.
 //
 // The trend's tone follows Theme.trendTone of the negated value, as HmAreaRow's: a miss that grows is
@@ -66,6 +66,7 @@ PpExpandRow {
     secondLine: true
     // A long shot mix wraps rather than losing its last words, and the row grows to hold it.
     rowHeight: Math.max(Theme.sp(Theme.rowH2), mixCell.implicitHeight + Theme.gap(16))
+    readonly property string distance: tendencyRow.str("distance")
     readonly property var    mix:      tendencyRow.tendency && tendencyRow.tendency.mix ? tendencyRow.tendency.mix : ({})
     readonly property var    mixParts: tendencyRow.mix.parts || []
     readonly property string mixLine:  tendencyRow.mix.line || ""
@@ -186,16 +187,26 @@ PpExpandRow {
         objectName: "tendencyClub"
         width: tendencyRow.columnWidth(1)
         text:  tendencyRow.clubLine
-        elide: Text.ElideRight
+        wrapMode: Text.WordWrap                 // "Pitching wedge · part swing" takes two lines
         font.family:    Theme.fontBody
         font.pixelSize: Theme.fontSzBody
         font.weight:    Theme.fontBodyWeight
         color:          Theme.colorText
     }
 
+    Text {                                      // usual distance: average ± spread
+        objectName: "tendencyDistance"
+        width: tendencyRow.columnWidth(2)
+        text:  tendencyRow.distance !== "" ? tendencyRow.distance : "—"
+        elide: Text.ElideRight
+        font.family:    Theme.fontData
+        font.pixelSize: Theme.fontSzBody2
+        color:          tendencyRow.distance !== "" ? Theme.colorText : Theme.colorText3
+    }
+
     Row {                                       // usual miss; "No usual miss" wears a tick
         objectName: "tendencyMiss"
-        width:   tendencyRow.columnWidth(2)
+        width:   tendencyRow.columnWidth(3)
         spacing: Theme.gap(4)
         PpBadge {
             id: missTick
@@ -220,7 +231,7 @@ PpExpandRow {
     Column {                                    // every shot with this club: the bar, and its words beneath
         id: mixCell
         objectName: "tendencyOften"
-        width:   tendencyRow.columnWidth(3)
+        width:   tendencyRow.columnWidth(4)
         spacing: Theme.gap(4)
         PpBandBar {
             objectName: "tendencyMixBar"
@@ -238,7 +249,7 @@ PpExpandRow {
 
     Row {                                       // seen with, and how strongly; or still building
         objectName: "tendencySeenWith"
-        width:   tendencyRow.columnWidth(4)
+        width:   tendencyRow.columnWidth(5)
         spacing: Theme.gap(6)
         PpBadge {
             id: buildingMark
@@ -272,7 +283,7 @@ PpExpandRow {
 
     Text {                                      // trend
         objectName: "tendencyTrend"
-        width: tendencyRow.columnWidth(5)
+        width: tendencyRow.columnWidth(6)
         text:  tendencyRow.trendText !== "" ? tendencyRow.trendText : "—"
         elide: Text.ElideRight
         font.family:    Theme.fontData
@@ -282,7 +293,7 @@ PpExpandRow {
 
     Text {                                      // work-on
         objectName: "tendencyWorkOn"
-        width: tendencyRow.columnWidth(6)
+        width: tendencyRow.columnWidth(7)
         text:  tendencyRow.workOnText !== "" ? tendencyRow.workOnText : "—"
         elide: Text.ElideRight
         font.family:    Theme.fontBody
