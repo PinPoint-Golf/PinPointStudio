@@ -68,6 +68,16 @@ Item {
         property bool tendenciesUpdating: false
         property string tendencyNote: "From 140 shots over 6 sessions"
         property var tendencyItems: probe.tendencyRows
+        property string clubScope: "all"
+        property bool clubScopeRefreshing: false
+        property bool matchupsRefreshing: false
+        property bool clubScopeWorking: false
+        property var clubScopes: [
+            { value: "group:driver", group: "driver", label: "Driver", clubs: [{ value: "club:DRIVER", label: "Driver" }] },
+            { value: "group:mid_irons", group: "mid_irons", label: "Mid irons",
+              clubs: [{ value: "club:6 IRON", label: "6 iron" }, { value: "club:7 IRON", label: "7 iron" }] },
+            { value: "group:long_irons", group: "long_irons", label: "Long irons", clubs: [{ value: "club:3 IRON", label: "3 iron" }] },
+            { value: "group:wedges", group: "wedges", label: "Wedges", clubs: [{ value: "club:GAP WEDGE", label: "Gap wedge" }] }]
         function tendencyDetail(key) { return probe.tendencyDetails[key] || ({}) }
     }
 
@@ -250,21 +260,30 @@ Item {
             compare(one(rowOf("wedges|partial"), "tendencyDistance").text, "—", "a part swing has no usual distance")
         }
 
-        function test_tendencies_filter_by_group_and_remember_it() {
+        function test_tendencies_follow_the_shared_filter_on_its_top_row() {
             showTendencies()
-            verify(drawn(one(tabs, "tendencyGroupFilter")))
-            compare(tabs.tendencyGroups.map(g => g.value).join(","), "driver,mid_irons,wedges", "only groups with rows")
-            tabs.selectTendencyGroup("mid_irons")
+            verify(drawn(one(tabs, "clubScopeGroups")))
+            tabs.selectClubScope("group:mid_irons")
             laidOut()
             compare(all(tabs, "homeTendencyRow:driver|full").length, 0, "another group's club is gone")
             verify(drawn(rowOf("irons|full")))
-            compare(fakeSettings.homeViewByAthlete["athlete-a"].tendencyGroup, "mid_irons", "remembered for the athlete")
-            tabs.tendencyGroup = "long_irons"
+            compare(fakeSettings.homeViewByAthlete["athlete-a"].clubScope, "group:mid_irons", "remembered for the athlete")
+            verify(!drawn(one(tabs, "clubScopeClubs")), "no row of clubs: this page lists them")
+            tabs.selectClubScope("club:7 IRON")
             laidOut()
-            compare(tabs.shownTendencyGroup, "all", "a group with no rows shows all")
+            verify(drawn(rowOf("irons|full")), "a chosen club shows its group")
+            verify(!drawn(one(tabs, "clubScopeClubs")))
+            tabs.select("coaching")
+            laidOut()
+            verify(drawn(one(tabs, "clubScopeClubs")), "the other tabs keep the row of clubs")
+            showTendencies()
+            tabs.selectClubScope("group:long_irons")
+            laidOut()
+            verify(drawn(one(tabs, "tendenciesEmpty")), "a group with no rows says so")
+            compare(one(tabs, "tendenciesEmpty").text, "No tendencies with these clubs yet.")
+            tabs.selectClubScope("all")
+            laidOut()
             verify(drawn(rowOf("driver|full")))
-            tabs.selectTendencyGroup("all")
-            laidOut()
         }
 
         function test_tendencies_a_long_shot_mix_wraps_and_the_row_grows() {

@@ -24,8 +24,10 @@
 #include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
 #include "../variability/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 
+#include "../../Coaching/club_scope.h"
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/swing_areas_pack.h"
+#include "../../Coaching/work_ons_pack.h"
 
 #include "../../Diagnostics/packs/characteristic_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
@@ -186,6 +188,21 @@ bool readTendencySession(const QString &dir, TendencySessionInput &out)
     return true;
 }
 
+// One session's record under a club scope, from its in-scope shots. `stored` is the session's whole record: its
+// clock stands in when none of these shots carried one.
+SessionWorkOns scopedSessionRecord(const QString &dir, const std::vector<ShotRecord> &shots, const LedgerOptions &opt,
+                                   const CharacteristicPack &pack, const SessionWorkOns &stored)
+{
+    SessionWorkOns rec = sessionWorkOnsForPack(&pack, shots, conditionLedgers(shots, opt));
+    rec.sessionId = QFileInfo(dir).fileName();
+    for (WorkOnEntry &e : rec.entries) e.name = packLabel(pack, e.id);
+    if (rec.startMs <= 0) {
+        rec.startMs = stored.startMs;
+        rec.endMs   = stored.endMs;
+    }
+    return rec;
+}
+
 // The reduction over sessions already read, with the per-club distances from those same sessions.
 TendencySet tendencySetFromSessions(std::vector<TendencySessionInput> &sessions, const ShotOutcomePack &pack, const ContextTree &tree,
                                     const std::atomic<bool> *cancel = nullptr)
@@ -255,6 +272,12 @@ QString WorkOnsController::themesPath(const QString &athleteDir)
     return QDir(athleteDir).filePath(kThemesFile);
 }
 
+QString WorkOnsController::themesPath(const QString &athleteDir, const ClubScope &scope)
+{
+    if (scope.isAll()) return themesPath(athleteDir);
+    return QDir(athleteDir).filePath(QStringLiteral("swing_themes.%1.json").arg(clubScopeFileKey(scope.key)));
+}
+
 QString WorkOnsController::tendenciesPath(const QString &athleteDir)
 {
     return QDir(athleteDir).filePath(kTendenciesFile);
@@ -302,6 +325,15 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     m_marks.clear();
     m_marksFingerprint.clear();
     m_markRequests.clear();
+    // Which clubs this golfer has hit is theirs too; the scope is worked out again from their records.
+    m_scope = ClubScope();
+    m_scopeOptions.clear();
+    m_clubScopes.clear();
+    m_scopedRecords.clear();
+    m_summaryScope = m_togetherScope = clubScopeAllKey();
+    m_scopeWorking = false;
+    emit clubScopeChanged();
+    emit clubScopeStateChanged();
     clearSummary();
     clearTendencies();
     publish();
@@ -323,6 +355,7 @@ void WorkOnsController::setPaused(bool on)
     // A reduction is all cores for seconds; it never runs beside capture. The summary on screen
     // stays, and the pause lifting computes it again.
     if (on) cancelThemes();
+    if (on) setScopeWorking(false);
     if (on) cancelTendencies();
     // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
     if (on) cancelMarks();
@@ -557,26 +590,13 @@ bool WorkOnsController::waitForIdle(int msTimeout)
 
 void WorkOnsController::publish()
 {
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
-    const CharacteristicPack &pack = m_packProv->pack();
-    const DrillSet &drills = sharedDrillSet();
-
-    std::vector<SessionWorkOns> sessions;
-    QHash<QString, QString> dirOf;      // session id -> dir
-    QSet<QString> substantive;          // sessions that could say something about something
     const SessionWorkOns *newest = nullptr;
     for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) {
         const SessionWorkOns &r = it.value();
-        sessions.push_back(r);
-        dirOf.insert(r.sessionId, it.key());
-        if (r.substantive()) substantive.insert(r.sessionId);
         // The newest by when it was played — the aggregate's own order (start, then id).
         if (!newest || r.startMs > newest->startMs || (r.startMs == newest->startMs && r.sessionId > newest->sessionId))
             newest = &r;
     }
-    int totalSwings = 0;
-    for (const SessionWorkOns &s : sessions) totalSwings += s.shotCount;
-
     m_lastSession.clear();
     if (newest)
         m_lastSession = QVariantMap{
@@ -584,13 +604,65 @@ void WorkOnsController::publish()
             { QStringLiteral("shots"), newest->shotCount },
         };
 
-    // What the consistency marks are asked for, gathered afresh below (each area item, each detail).
-    m_markRequests.clear();
+    const DescribedWorkOns all = describeWorkOns(m_records);
+    m_items = all.items;
+    m_clearedCount = all.cleared;
 
-    // The areas first, while `sessions` is still whole: summariseAreas copies what it sorts. One call —
-    // the every-condition aggregate, and the same again without the newest substantive session for the
-    // trend — per publish, on this thread; the aggregate's per-session evidence index keeps it linear.
+    publishScreens(m_summaryScope == clubScopeAllKey() ? &all : nullptr);
+    emit itemsChanged();
+    // The Tendencies tab's work-on column reads the list just rebuilt.
+    publishTendencies();
+    updateClubScope();
+}
+
+const QHash<QString, SessionWorkOns> &WorkOnsController::shownRecords() const
+{
+    return m_summaryScope == clubScopeAllKey() ? m_records : m_scopedRecords;
+}
+
+void WorkOnsController::publishScreens(const DescribedWorkOns *known)
+{
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    const CharacteristicPack &pack = m_packProv->pack();
+
+    const QHash<QString, SessionWorkOns> &records = shownRecords();
+    DescribedWorkOns scoped;
+    if (!known) { scoped = describeWorkOns(records); known = &scoped; }
+    m_details = known->details;
+    ++m_detailsRevision;
+    // What the consistency marks are asked for: each detail's, then each area item's below.
+    m_markRequests = known->markRequests;
+
+    // One call — the every-condition aggregate, and the same again without the newest substantive session for
+    // the trend — per publish, on this thread; the aggregate's per-session evidence index keeps it linear.
+    std::vector<SessionWorkOns> sessions;
+    sessions.reserve(size_t(records.size()));
+    for (auto it = records.constBegin(); it != records.constEnd(); ++it) sessions.push_back(it.value());
     publishAreas(pack, sessions);
+
+    emit detailsChanged();
+    emit areasChanged();
+}
+
+WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHash<QString, SessionWorkOns> &records)
+{
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    const CharacteristicPack &pack = m_packProv->pack();
+    const DrillSet &drills = sharedDrillSet();
+
+    std::vector<SessionWorkOns> sessions;
+    sessions.reserve(size_t(records.size()));
+    QHash<QString, QString> dirOf;      // session id -> dir
+    QSet<QString> substantive;          // sessions that could say something about something
+    for (auto it = records.constBegin(); it != records.constEnd(); ++it) {
+        const SessionWorkOns &r = it.value();
+        sessions.push_back(r);
+        dirOf.insert(r.sessionId, it.key());
+        if (r.substantive()) substantive.insert(r.sessionId);
+    }
+    int totalSwings = 0;
+    for (const SessionWorkOns &s : sessions) totalSwings += s.shotCount;
+    QHash<QString, MarksRequest> markRequests;
 
     // Every condition any session assessed, for the details Home opens in place; then the list.
     const std::vector<WorkOnSummary> every = aggregateConditions(sessions);
@@ -721,9 +793,9 @@ void WorkOnsController::publish()
                                       : (w.hasLatest ? w.latest.measureId : QString());
         m[QStringLiteral("consistency")] = markFor(w.id, measureId);
         const QString key = markKey(w.id, measureId);
-        if (!m_markRequests.contains(key)) {
+        if (!markRequests.contains(key)) {
             const Measure *mm = pack.measure(measureId);
-            m_markRequests.insert(key, MarksRequest{ w.id, measureId, mm ? mm->unit : QString() });
+            markRequests.insert(key, MarksRequest{ w.id, measureId, mm ? mm->unit : QString() });
         }
 
         // Where to go and look: the newest session in which it was a pattern.
@@ -749,14 +821,74 @@ void WorkOnsController::publish()
         items.append(m);
     }
 
-    m_items = items;
-    m_details = details;
-    ++m_detailsRevision;
-    m_clearedCount = cleared;
-    emit itemsChanged();
-    emit areasChanged();
-    // The Tendencies tab's work-on column reads the list just rebuilt.
-    publishTendencies();
+    DescribedWorkOns out;
+    out.items   = std::move(items);
+    out.details = std::move(details);
+    out.markRequests = std::move(markRequests);
+    out.cleared = cleared;
+    return out;
+}
+
+// ── Club scope ──────────────────────────────────────────────────────────────────────────
+
+void WorkOnsController::setClubScope(const QString &key)
+{
+    if (key == m_scopeRequested) return;
+    m_scopeRequested = key;
+    updateClubScope();
+}
+
+void WorkOnsController::setScopeWorking(bool on)
+{
+    if (m_scopeWorking == on) return;
+    m_scopeWorking = on;
+    emit clubScopeStateChanged();
+}
+
+// The options, from the clubs the records name; then what the asked-for key resolves to among them. Last in
+// publish(), because a scope that moves can land inline (the test seam) and publish again.
+void WorkOnsController::updateClubScope()
+{
+    QStringList clubs;
+    for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) clubs += it->clubs;
+    if (!clubs.isEmpty() || !m_scopeOptions.empty()) {
+        const ContextTree &tree = sharedNormProvider()->contexts();
+        m_scopeOptions = clubScopeOptions(clubs, [&tree](const QString &club) { return tendencyClubGroup(tree, club); });
+    }
+
+    QVariantList list;
+    for (const ClubScopeGroupOption &g : m_scopeOptions) {
+        QVariantList groupClubs;
+        for (const ClubScopeOption &c : g.clubs)
+            groupClubs.append(QVariantMap{ { QStringLiteral("value"), c.value }, { QStringLiteral("label"), c.label } });
+        list.append(QVariantMap{ { QStringLiteral("value"), g.value }, { QStringLiteral("group"), g.group },
+                                 { QStringLiteral("label"), g.label },
+                                 { QStringLiteral("clubs"), groupClubs } });
+    }
+
+    ClubScope next = resolveClubScope(m_scopeRequested, m_scopeOptions);
+    const bool moved = next.key != m_scope.key || next.clubIds != m_scope.clubIds;
+    if (!moved && list == m_clubScopes) return;
+    m_clubScopes = list;
+    m_scope = std::move(next);
+    emit clubScopeChanged();
+    if (moved) onClubScopeMoved();
+}
+
+// A grade belongs to the shots it read, so the old scope's stop showing at once ("-" until the new ones land).
+void WorkOnsController::onClubScopeMoved()
+{
+    cancelMarks();
+    m_marks.clear();
+    m_marksFingerprint.clear();
+    emit clubScopeStateChanged();
+    maybeThemes();
+}
+
+// Whether a line tied to a tendency belongs to the scope on screen: the tendency's key starts with its club.
+bool WorkOnsController::onBallInScope(const QString &tendencyKey) const
+{
+    return tendencyKey.isEmpty() || m_scope.contains(tendencyKey.section(QLatin1Char('|'), 0, 0));
 }
 
 // The areas of "Your swing" (swing_areas.h), every string final but the grade's colour. Built from
@@ -862,6 +994,7 @@ QVariant WorkOnsController::markFor(const QString &conditionId, const QString &m
 void WorkOnsController::maybeMarks()
 {
     if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+    if (clubScopeRefreshing()) return;      // the landing asks again, for the rows it brings
     if (m_marksRunning) { m_marksAgain = true; return; }
     m_marksAgain = false;
 
@@ -876,6 +1009,7 @@ void WorkOnsController::maybeMarks()
     QCryptographicHash seed(QCryptographicHash::Sha1);
     seed.addData(QByteArray::number(kConsistencyMarksRule));
     seed.addData((m_model ? m_model->contentStamp() : QString()).toUtf8());
+    seed.addData(m_scope.key.toUtf8());
     for (const QString &key : keys) {
         MarksRequest r = m_markRequests.value(key);
         const Measure *m = pack.measure(r.measureId);
@@ -898,6 +1032,7 @@ void WorkOnsController::maybeMarks()
     job.generation = ++m_marksGeneration;
     job.seed       = QString::fromLatin1(seed.result().toHex());
     job.previous   = m_marksFingerprint;
+    job.scope      = m_scope;
     // Here, on the GUI thread: sharedNormProvider()'s first build is not safe on a worker (norm_provider.h).
     job.norms      = sharedNormProvider();
 
@@ -1001,6 +1136,7 @@ WorkOnsController::MarksOutcome WorkOnsController::runMarks(const MarksJob &job,
         // Every shot, data-warning shots included (R13; variability_ledger.h): a broken recording's rows
         // are already NotAssessable in the ledger, and the shared rule leaves those out.
         for (const ShotRecord &shot : shots) {
+            if (!job.scope.contains(shot)) continue;
             const qint64 ms = shot.timestampMs > 0 ? shot.timestampMs : s.startMs;
             for (const ConditionRow &row : shot.rows) {
                 const auto ids = byCondition.constFind(row.conditionId);
@@ -1058,7 +1194,9 @@ void WorkOnsController::applyMarks(int generation, MarksOutcome out)
         m_marksFingerprint = out.fingerprint;
         if (out.marks != m_marks) {
             m_marks = std::move(out.marks);
-            publish();      // the marks ride on areaItems and faultDetail(): a changed one rebuilds them
+            // The marks ride on areaItems and faultDetail(): a changed one rebuilds them.
+            if (m_summaryScope == clubScopeAllKey()) publish();
+            else publishScreens();
         }
     }
     if (m_marksAgain) maybeMarks();
@@ -1092,6 +1230,14 @@ QString WorkOnsController::themesFingerprint() const
         h.addData(QByteArrayLiteral("\x1f"));
         h.addData(m_fingerprints.value(d).toUtf8());
         h.addData(QByteArrayLiteral("\x1e"));
+    }
+    if (!m_scope.isAll()) {      // All's fingerprint stays what every stored summary was written under
+        QStringList clubs(m_scope.clubIds.begin(), m_scope.clubIds.end());
+        clubs.sort();
+        h.addData(QByteArrayLiteral("\x1d"));
+        h.addData(QByteArray::number(kClubScopeRuleVersion));
+        h.addData(m_scope.key.toUtf8());
+        h.addData(clubs.join(QLatin1Char('\x1f')).toUtf8());
     }
     return QString::fromLatin1(h.result().toHex().left(16));
 }
@@ -1131,6 +1277,12 @@ void WorkOnsController::maybeThemes()
     });
     job.measures   = themeMeasureInfo(pack);
     job.conditions = themeConditionInfo(pack, sharedDrillSet());
+    job.scope      = m_scope;
+    job.announce   = clubScopeRefreshing() || matchupsRefreshing();
+    if (!m_scope.isAll()) {
+        job.records = m_records;
+        job.pack    = std::make_shared<const CharacteristicPack>(pack);
+    }
 
     auto cancel = std::make_shared<std::atomic<bool>>(false);
     m_themesCancel = cancel;
@@ -1172,24 +1324,37 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
     out.fingerprint  = job.fingerprint;
     out.contentStamp = job.contentStamp;
     out.athleteDir   = job.athleteDir;
+    out.scope        = job.scope;
 
     // ── 1. The stored summary, when it was reduced from exactly this ──
     {
-        QFile f(themesPath(job.athleteDir));
+        QFile f(themesPath(job.athleteDir, job.scope));
         if (f.open(QIODevice::ReadOnly)) {
             const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
             const QString stored = root.value(QStringLiteral("derivedFrom")).toObject()
                                        .value(QStringLiteral("fingerprint")).toString();
             bool ok = false;
             SwingThemes st = swingThemesFromJson(root, &ok);     // another schema or rule: not ok
+            if (ok && !job.scope.isAll())
+                for (const QJsonValue &v : root.value(QStringLiteral("records")).toArray()) {
+                    bool recordOk = false;
+                    SessionWorkOns rec = sessionWorkOnsFromJson(v.toObject(), &recordOk);
+                    ok = ok && recordOk;
+                    out.records.insert(QDir(job.athleteDir).filePath(rec.sessionId), std::move(rec));
+                }
             if (ok && !st.cancelled && stored == job.fingerprint) {
                 out.fromDisk = true;
                 out.themes   = std::move(st);
                 out.wallMs   = clock.elapsed();
                 return out;
             }
+            out.records.clear();
         }
     }
+
+    // No stored result: the screens showing another scope are in for a wait.
+    if (job.announce)
+        QMetaObject::invokeMethod(this, [this, generation = job.generation]() { applyScopeWorking(generation); }, Qt::QueuedConnection);
 
     // ── 2. Every session's ledger ──
     std::vector<ThemeSessionInput> sessions;
@@ -1210,11 +1375,36 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
         }
         ThemeSessionInput in;
         in.name  = QFileInfo(dir).fileName();
-        in.shots = fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+        LedgerOptions ledgerOpt;
+        in.shots = fromJson(doc.object().value(QStringLiteral("ledger")).toObject(), &ledgerOpt);
+        if (!job.scope.isAll()) {
+            const bool whole = wholeSessionInScope(in.shots, job.scope);
+            if (!whole) in.shots = shotsInScope(in.shots, job.scope);
+            if (in.shots.empty()) continue;
+            const SessionWorkOns stored = job.records.value(dir);
+            out.records.insert(dir, whole ? stored : scopedSessionRecord(dir, in.shots, ledgerOpt, *job.pack, stored));
+        }
         sessions.push_back(std::move(in));
     }
+    if (cancel && cancel->load()) return out;
 
-    // ── 3. Reduce, the replicates fanned out ──
+    const ThemeOptions themeOpt;
+
+    // ── 3. What Coaching and Your swing read lands first, while a screen is showing another scope ──
+    if (job.announce) {
+        SwingThemes layerOne = reduceSwingSummary(sessions, job.conditions, themeOpt);
+        ppInfo() << qPrintable(QStringLiteral("[ClubScope] %1: summary after %2 ms").arg(job.scope.key).arg(clock.elapsed()));
+        if (m_synchronous) {
+            applyScopeSummary(job.generation, job.scope.key, out.records, std::move(layerOne));
+        } else {
+            QMetaObject::invokeMethod(this, [this, generation = job.generation, key = job.scope.key, records = out.records,
+                                             layerOne = std::move(layerOne)]() mutable {
+                applyScopeSummary(generation, key, std::move(records), std::move(layerOne));
+            }, Qt::QueuedConnection);
+        }
+    }
+
+    // ── 4. Reduce, the replicates fanned out ──
     // The calling thread works through the indices beside the pool's threads, and waits for them.
     // Only this one job uses the pool, so its threads are free when it asks.
     QThreadPool *pool = &m_replicatePool;
@@ -1230,7 +1420,7 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
         drain();
         done.acquire(helpers);
     };
-    SwingThemes st = reduceSwingThemes(sessions, job.measures, job.conditions, ThemeOptions{}, parallelFor, cancel);
+    SwingThemes st = reduceSwingThemes(sessions, job.measures, job.conditions, themeOpt, parallelFor, cancel);
     if (st.cancelled || (cancel && cancel->load())) return out;
 
     out.computed = true;
@@ -1247,6 +1437,7 @@ void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
     m_themesJobFingerprint.clear();
 
     if (!out.fromDisk && !out.computed) {              // stopped part way: neither written nor shown
+        setScopeWorking(false);
         emit summaryChanged();
         return;
     }
@@ -1258,9 +1449,15 @@ void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
             { QStringLiteral("contentStamp"), out.contentStamp },
             { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
         };
+        if (!out.scope.isAll()) {
+            QJsonArray records;
+            for (auto it = out.records.constBegin(); it != out.records.constEnd(); ++it) records.append(toJson(it.value()));
+            root[QStringLiteral("records")] = records;
+        }
+        const QString path = themesPath(out.athleteDir, out.scope);
         QString why;
-        if (!atomicWrite(themesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why))
-            ppWarn() << "[SwingThemes] could not write" << qPrintable(themesPath(out.athleteDir)) << "—" << qPrintable(why);
+        if (!atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), &why))
+            ppWarn() << "[SwingThemes] could not write" << qPrintable(path) << "—" << qPrintable(why);
 
         int firm = 0, probably = 0, possibly = 0, none = 0;
         for (const SwingTheme &t : out.themes.themes) {
@@ -1279,10 +1476,41 @@ void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
                                   .arg(out.wallMs));
     }
 
+    const bool wasOtherScope = m_summaryScope != out.scope.key;
     m_themes            = std::move(out.themes);
     m_themesFingerprint = out.fingerprint;
     m_summaryReady      = true;
+    if (out.scope.isAll()) m_scopedRecords.clear();
+    else m_scopedRecords = std::move(out.records);
+    m_summaryScope = m_togetherScope = out.scope.key;
+    m_scopeWorking = false;
+    emit clubScopeStateChanged();
     publishSummary();
+    if (!out.scope.isAll() || wasOtherScope) {
+        publishScreens();
+        maybeMarks();
+    }
+}
+
+// Coaching and Your swing, ahead of Matchups: Layer 1 and the records. The job carries on with the replicates.
+void WorkOnsController::applyScopeSummary(int generation, const QString &scopeKey, QHash<QString, SessionWorkOns> records,
+                                          SwingThemes layerOne)
+{
+    if (generation != m_themesGeneration) return;      // cancelled or superseded
+    m_scopedRecords = std::move(records);
+    m_summaryScope  = scopeKey;
+    m_themes        = std::move(layerOne);
+    m_summaryReady  = true;
+    emit clubScopeStateChanged();
+    publishSummary();
+    publishScreens();
+    maybeMarks();
+}
+
+void WorkOnsController::applyScopeWorking(int generation)
+{
+    if (generation != m_themesGeneration || !m_themesRunning) return;
+    setScopeWorking(true);
 }
 
 // The words, made now from the stored structure: a phrase edited in the pack (or a drill in the
@@ -1295,8 +1523,12 @@ void WorkOnsController::publishSummary()
     m_focusItem.clear();
     m_doWellItems.clear();
     m_nextItems.clear();
-    m_togetherItems.clear();
-    m_togetherNote.clear();
+    // While Layer 2 is still working for a new scope, Matchups keeps the answer it has.
+    const bool together = !matchupsRefreshing();
+    if (together) {
+        m_togetherItems.clear();
+        m_togetherNote.clear();
+    }
     if (m_summaryReady) {
         if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
         // The drill set gives the focus its drill's name and instruction.
@@ -1352,7 +1584,8 @@ void WorkOnsController::publishSummary()
             });
         for (const NeedsWorkItem &n : view.next)
             m_nextItems.append(fault(n));
-        for (const TogetherItem &t : view.together) {
+        const std::vector<TogetherItem> noneYet;
+        for (const TogetherItem &t : together ? view.together : noneYet) {
             QVariantList togetherFaults;
             for (const NeedsWorkItem &n : t.faults) togetherFaults.append(fault(n));
             m_togetherItems.append(QVariantMap{
@@ -1366,7 +1599,7 @@ void WorkOnsController::publishSummary()
                 { QStringLiteral("faults"),     togetherFaults },
             });
         }
-        m_togetherNote = view.note;
+        if (together) m_togetherNote = view.note;
     }
     emit summaryChanged();
 }
@@ -1653,7 +1886,7 @@ QVariantMap WorkOnsController::clubDistance(const QString &club) const
 QVariantMap WorkOnsController::onBallFor(const QString &conditionId) const
 {
     for (const TendencyOnBall &b : m_tendencySet.onBall) {
-        if (b.conditionId != conditionId) continue;
+        if (b.conditionId != conditionId || !onBallInScope(b.tendencyKey)) continue;
         QVariantList produced;
         for (const TendencyProduced &p : b.produced)
             produced.append(QVariantMap{ { QStringLiteral("phrase"), p.phrase }, { QStringLiteral("count"), p.count } });
@@ -1673,7 +1906,7 @@ QVariantMap WorkOnsController::onBallFor(const QString &conditionId) const
 QString WorkOnsController::onTheBallFor(const QString &conditionId) const
 {
     for (const TendencyOnBall &b : m_tendencySet.onBall)
-        if (b.conditionId == conditionId) return b.onTheBall;
+        if (b.conditionId == conditionId && onBallInScope(b.tendencyKey)) return b.onTheBall;
     return QString();
 }
 

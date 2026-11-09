@@ -21,9 +21,14 @@
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
 //   Your swing   HmSwingAreas — how the whole swing stands, area by area
-//   Tendencies   HmTendencies under a club group filter — the usual miss with each club, cross-session
+//   Tendencies   HmTendencies — the usual miss with each club, cross-session
 //   Matchups     HmGoesTogether — what travels together: today faults that move together; later
 //                also pairs that work together (Mark, 28 Oct)
+//
+// One club filter (HmClubScopeFilter) sits above the tabs: All, a group or one club, remembered per athlete.
+// It is the controller's scope (workOns.clubScope), so Coaching, Your swing and Matchups read the same properties
+// whichever is chosen, and dim while a new choice is worked out. Tendencies lists a row per club already, so it
+// shows only the top row and narrows to the group, the chosen club's group when a club is chosen.
 //
 // A fault on Coaching or Your swing opens its detail in place (HmFaultDetail); there is no page
 // behind Home. The bar carries the tab's evidence line straight after the tabs (controller.tendencyNote
@@ -58,24 +63,25 @@ Column {
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
-    // The Tendencies filter: "all", or a club group that has rows. Remembered per athlete; a group with no rows left shows all.
-    property string tendencyGroup: "all"
-    readonly property var tendencyGroups: {
-        const seen = {}, out = []
-        for (const t of (root.controller && root.controller.tendencyItems) || [])
-            if (t.clubGroup && !seen[t.clubGroup]) { seen[t.clubGroup] = true; out.push({ label: t.groupLabel, value: t.clubGroup }) }
-        return out
-    }
-    readonly property string shownTendencyGroup: root.tendencyGroups.some(g => g.value === root.tendencyGroup) ? root.tendencyGroup : "all"
-    function selectTendencyGroup(group) {
-        root.tendencyGroup = String(group)
-        ViewStore.write(root.settings, root.athleteUuid, "tendencyGroup", root.tendencyGroup)
+    // The club filter: the controller's scope, and whether a new one is being worked out.
+    readonly property bool   hasClubScope:  root.controller !== null && root.controller.clubScope !== undefined
+    readonly property string clubScope:     root.hasClubScope ? root.controller.clubScope : "all"
+    readonly property bool   readingScope:  root.hasClubScope && root.controller.clubScopeRefreshing
+    readonly property bool   matchingScope: root.hasClubScope && root.controller.matchupsRefreshing
+    readonly property bool   scopedTab:     root.current !== "tendencies"
+    // A stored choice is not "working", so it never flashes the page dim.
+    readonly property bool   scopeWorking:  root.scopedTab && root.hasClubScope && root.controller.clubScopeWorking
+                                            && (root.current === "matchups" ? root.matchingScope : root.readingScope)
+    function selectClubScope(key) {
+        key = String(key)
+        if (root.hasClubScope) root.controller.clubScope = key
+        ViewStore.write(root.settings, root.athleteUuid, "clubScope", key)
     }
 
     function _read() {
         const tab = String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
         root.current = root.tabKeys.indexOf(tab) >= 0 ? tab : "coaching"
-        root.tendencyGroup = String(ViewStore.read(root.settings, root.athleteUuid, "tendencyGroup", "all"))
+        if (root.hasClubScope) root.controller.clubScope = String(ViewStore.read(root.settings, root.athleteUuid, "clubScope", "all"))
     }
     // Show a tab, and remember it for this athlete (nothing written when it is already the one).
     function select(key) {
@@ -112,9 +118,24 @@ Column {
         onTabActivated: (key) => root.select(key)
     }
 
+    HmClubScopeFilter {
+        id: scopeFilter
+        objectName: "homeClubScope"
+        visible:    hasChoice
+        width:      root.width
+        groupsOnly: !root.scopedTab
+        enabled:    !root.controller || !root.controller.paused
+        options:    root.hasClubScope ? root.controller.clubScopes : []
+        selected:   root.clubScope
+        onScopeSelected: (key) => root.selectClubScope(key)
+    }
+
     StackLayout {
         id: pages
         width: root.width
+        // The last choice's results, until this one's land.
+        opacity: root.scopeWorking ? 0.45 : 1
+        enabled: !root.scopeWorking
         currentIndex: Math.max(0, root.tabKeys.indexOf(root.current))
         // As tall as the page showing, not the tallest.
         height: [coachingPage, swingPage, tendenciesPage, matchupsPage][currentIndex].implicitHeight
@@ -147,29 +168,14 @@ Column {
         }
         Item {
             id: tendenciesPage
-            implicitHeight: tendenciesColumn.implicitHeight
-            Column {
-                id: tendenciesColumn
-                width:   tendenciesPage.width
-                spacing: Theme.gap(12)
-                PpChipGroup {
-                    objectName: "tendencyGroupFilter"
-                    visible:  root.tendencyGroups.length > 1
-                    width:    parent.width
-                    wrap:     true
-                    style:    "filter"
-                    options:  [{ label: qsTr("All"), value: "all" }].concat(root.tendencyGroups)
-                    selected: root.shownTendencyGroup
-                    onSelectionChanged: (value) => root.selectTendencyGroup(value)
-                }
-                HmTendencies {
-                    id: tendencies
-                    width: tendenciesPage.width
-                    controller:  root.controller
-                    athleteUuid: root.athleteUuid
-                    group:       root.shownTendencyGroup === "all" ? "" : root.shownTendencyGroup
-                    onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
-                }
+            implicitHeight: tendencies.implicitHeight
+            HmTendencies {
+                id: tendencies
+                width: tendenciesPage.width
+                controller:  root.controller
+                athleteUuid: root.athleteUuid
+                group:       scopeFilter.group ? scopeFilter.group.group : ""
+                onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
             }
         }
         Item {

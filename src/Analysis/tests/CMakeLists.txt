@@ -157,6 +157,8 @@ pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
 pp_add_test(club_distances_test SOURCES club_distances_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 pp_add_test(shot_outcomes_test SOURCES shot_outcomes_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 pp_add_test(tendencies_test SOURCES tendencies_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
+# Which clubs Home's Coaching, Your swing and Matchups read (club_scope.h). Header-only.
+pp_add_test(club_scope_test SOURCES club_scope_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp LINK Threads::Threads)
 
 # Swing areas (swing_areas.h) — Home's "Your swing" tab, areas rated by habit counts: the four bands
 # and their boundaries, what counts (Movement/Delivery; ball flight's Outcomes only with launch-monitor

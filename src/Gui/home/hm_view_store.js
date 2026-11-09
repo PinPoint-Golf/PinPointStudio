@@ -21,7 +21,7 @@
 // HmSwingAreas): appSettings.homeViewByAthlete, a map of athlete uuid → entry, each pane keeping its
 // own keys in the one entry —
 //   tab            "coaching" | "swing" | "tendencies" | "matchups"    HmHomeTabs
-//   tendencyGroup  "all" | a club group                                HmHomeTabs
+//   clubScope      "all" | "group:mid_irons" | "club:7 IRON"           HmHomeTabs
 //   expanded       [group…]                             HmSwingAreas
 //   expandedSeen   bool                                 HmSwingAreas
 //

@@ -245,7 +245,7 @@ Column {
                     Item { width: 1; height: 1 }
                     PpCaption {
                         objectName: "doWellEmpty"
-                        width: wellEmptyRow.columnWidth(1)
+                        width: wellCard.contentWidth - root.markW - wellCard.columnGap
                         text:  qsTr("Nothing stands out here yet.")
                     }
                 }
@@ -360,7 +360,7 @@ Column {
                     Item { width: 1; height: 1 }
                     PpCaption {
                         objectName: "needsWorkEmpty"
-                        width: workEmptyRow.columnWidth(1)
+                        width: workCard.contentWidth - root.markW - workCard.columnGap
                         text:  qsTr("Nothing else shows up on most of your swings.")
                     }
                 }

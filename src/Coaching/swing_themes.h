@@ -1912,6 +1912,20 @@ inline SwingThemes reduceLayers(const std::vector<const ThemeSessionInput *> &so
 // unknown, its own family); `conditions` answers for every condition id (one it does not hold is
 // not a fault, so neither listed nor praised). Cancelling returns enough == false and cancelled ==
 // true with layer 1, "what you do well" and the focus groups filled.
+namespace themes {
+// What both reductions add once Layer 1 is in hand: the counts, the strengths and the focus order.
+inline void finishSummary(SwingThemes &out, const std::vector<const ThemeSessionInput *> &sorted,
+                          const QHash<QString, ThemeConditionInfo> &conditions, const ThemeOptions &opt)
+{
+    for (const ThemeSessionInput *s : sorted) {
+        out.allSwings += int(s->shots.size());
+        if (!s->shots.empty()) ++out.allSessions;
+    }
+    out.doWell = doWell(sorted, conditions, out.seenMost, opt);
+    out.focusOrder = focusOrder(out.seenMost, conditions);
+}
+} // namespace themes
+
 inline SwingThemes reduceSwingThemes(const std::vector<ThemeSessionInput> &sessions,
                                      const QHash<QString, ThemeMeasureInfo> &measures,
                                      const QHash<QString, ThemeConditionInfo> &conditions,
@@ -1920,12 +1934,21 @@ inline SwingThemes reduceSwingThemes(const std::vector<ThemeSessionInput> &sessi
 {
     const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(sessions);
     SwingThemes out = themes::reduceLayers(sorted, measures, conditions, opt, pf, cancel);
-    for (const ThemeSessionInput *s : sorted) {
-        out.allSwings += int(s->shots.size());
-        if (!s->shots.empty()) ++out.allSessions;
-    }
-    out.doWell = themes::doWell(sorted, conditions, out.seenMost, opt);
-    out.focusOrder = themes::focusOrder(out.seenMost, conditions);
+    themes::finishSummary(out, sorted, conditions, opt);
+    return out;
+}
+
+// LAYER 1 ALONE: everything Your focus, What you do well and Next on your list read, with none of what goes
+// together. Linear in the shots: no table and no replicates, so it can land while Layer 2 is still working.
+inline SwingThemes reduceSwingSummary(const std::vector<ThemeSessionInput> &sessions,
+                                      const QHash<QString, ThemeConditionInfo> &conditions,
+                                      const ThemeOptions &opt = {})
+{
+    const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(sessions);
+    SwingThemes out;
+    for (const ThemeSessionInput *s : sorted) out.sessionNames.append(s->name);
+    out.seenMost = themes::seenMost(sorted, conditions, opt);
+    themes::finishSummary(out, sorted, conditions, opt);
     return out;
 }
 
@@ -1964,6 +1987,13 @@ struct SwingSummaryLines {
 inline QString themeCapitalised(const QString &s)
 {
     return s.isEmpty() ? s : s.left(1).toUpper() + s.mid(1);
+}
+
+// "29 swings over 1 session".
+inline QString themeSwingsOverSessions(int swings, int sessions)
+{
+    return QStringLiteral("%1 %2 over %3 %4").arg(swings).arg(swings == 1 ? QStringLiteral("swing") : QStringLiteral("swings"))
+                                             .arg(sessions).arg(sessions == 1 ? QStringLiteral("session") : QStringLiteral("sessions"));
 }
 
 inline QString themeHowOften(double share, const ThemeOptions &opt = {})
@@ -2051,8 +2081,8 @@ inline SwingSummaryLines swingSummaryLines(const SwingThemes &st, const ThemePhr
     // What goes together.
     if (!st.enough) {
         out.together.append(QStringLiteral("Not yet — it takes about %1 swings over %2 sessions to see what goes "
-                                           "together (so far: %3 swings over %4 sessions).")
-                                .arg(opt.minSwings).arg(opt.minSessions).arg(st.swings).arg(st.sessions));
+                                           "together (so far: %3).")
+                                .arg(opt.minSwings).arg(opt.minSessions).arg(themeSwingsOverSessions(st.swings, st.sessions)));
         return out;
     }
     const auto rank = [](ThemeTier t) { return t == ThemeTier::Firm ? 0 : t == ThemeTier::Probably ? 1 : 2; };
@@ -2401,8 +2431,8 @@ inline SwingSummaryView swingSummaryView(const SwingThemes &st, const ThemePhras
     if (v.together.empty())
         v.note = st.enough ? QStringLiteral("Nothing yet — your faults don't rise and fall together clearly enough to say.")
                            : QStringLiteral("Not yet — it takes about %1 swings over %2 sessions to see what goes "
-                                            "together (so far: %3 swings over %4 sessions).")
-                                 .arg(opt.minSwings).arg(opt.minSessions).arg(st.swings).arg(st.sessions);
+                                            "together (so far: %3).")
+                                 .arg(opt.minSwings).arg(opt.minSessions).arg(themeSwingsOverSessions(st.swings, st.sessions));
     return v;
 }
 

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "../../Coaching/club_scope.h"
 #include "../../Coaching/swing_themes.h"
 #include "../../Coaching/tendencies.h"
 #include "../../Coaching/work_ons.h"
@@ -109,6 +110,22 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 //   - Which conditions: every one faultDetail() answers for, each on the measure an area item names
 //     (latestEvidence's driving measure, else the newest listing's: AreaItem::measureId's rule).
 //
+// CLUB SCOPE — which clubs Coaching, Your swing and Matchups read (club_scope.h): all of them, a group or
+// one club. It is one more input, so the properties below keep their names and QML reads them as before.
+//
+//   - ALL is the pipeline above, untouched: the records, swing_themes.json and its fingerprint.
+//   - Any other scope is the same job (maybeThemes / runThemes) with a filter on the shots. A session wholly
+//     in scope keeps its stored record; one partly in scope is re-reduced from its in-scope shots, without the
+//     session-level sequence verdict, which is the whole session's and is not in the ledger. It is stored in
+//     swing_themes.<key>.json, with its records, and read back when nothing has moved.
+//   - TWO LANDINGS, when the scope is changing. Layer 1 is quick and is all Coaching and Your swing read, so it
+//     lands first; Matchups keeps its last answer until the replicates finish. A session arriving under
+//     the same scope stays quiet and replaces everything at once, as it does under All.
+//   - BUSY IS COMPARED, NOT FLAGGED: m_scope is what was asked for, m_summaryScope and m_togetherScope what the
+//     screens show. They differ exactly while a screen is out of date.
+//   - ONLY THESE THREE TABS ARE SCOPED. m_records, `items`, `lastSession`, Tendencies' work-on column and the
+//     report list stay every club's, and a scoped landing emits no itemsChanged.
+//
 // The job runs once the catch-up settles (where the swing summary is started), one at a time on its
 // own single-thread, low-priority pool, never while a session is live, and is cancelled by the athlete
 // changing or a session going live. It first stats every session's ledger: the job's fingerprint is the
@@ -132,7 +149,7 @@ class WorkOnsController : public QObject
     // Active and easing work-ons, most persistent first; every string final.
     Q_PROPERTY(QVariantList items READ items NOTIFY itemsChanged)
     // Bumped with every publish: a QML binding on faultDetail() reads it to follow the records.
-    Q_PROPERTY(int detailsRevision READ detailsRevision NOTIFY itemsChanged)
+    Q_PROPERTY(int detailsRevision READ detailsRevision NOTIFY detailsChanged)
     Q_PROPERTY(int clearedCount READ clearedCount NOTIFY itemsChanged)
     // Sessions with a current record / sessions found. They differ while catching up.
     Q_PROPERTY(int sessionCount READ sessionCount NOTIFY itemsChanged)
@@ -220,6 +237,17 @@ class WorkOnsController : public QObject
     Q_PROPERTY(bool tendenciesReady READ tendenciesReady NOTIFY tendenciesChanged)
     Q_PROPERTY(bool tendenciesUpdating READ tendenciesUpdating NOTIFY tendenciesChanged)
 
+    // ── Club scope (CLUB SCOPE, above) ──
+    // "all", "group:mid_irons" or "club:7 IRON". Reads back "all" while the key names none of clubScopes.
+    Q_PROPERTY(QString clubScope READ clubScope WRITE setClubScope NOTIFY clubScopeChanged)
+    // The groups and clubs this golfer has hit: [{ value, group, label, clubs: [{ value, label }] }].
+    Q_PROPERTY(QVariantList clubScopes READ clubScopes NOTIFY clubScopeChanged)
+    // Coaching and Your swing, and then Matchups, are still showing another scope.
+    Q_PROPERTY(bool clubScopeRefreshing READ clubScopeRefreshing NOTIFY clubScopeStateChanged)
+    Q_PROPERTY(bool matchupsRefreshing READ matchupsRefreshing NOTIFY clubScopeStateChanged)
+    // A new scope is being reduced. False for one whose stored result is current, so that never dims a page.
+    Q_PROPERTY(bool clubScopeWorking READ clubScopeWorking NOTIFY clubScopeStateChanged)
+
 public:
     explicit WorkOnsController(QObject *parent = nullptr);
     ~WorkOnsController() override;
@@ -266,6 +294,13 @@ public:
     Q_INVOKABLE QVariantMap tendencyDetail(const QString &key) const;
     Q_INVOKABLE QVariantMap clubDistance(const QString &club) const;
 
+    QString clubScope() const { return m_scope.key; }
+    void    setClubScope(const QString &key);
+    QVariantList clubScopes() const { return m_clubScopes; }
+    bool clubScopeRefreshing() const { return m_summaryScope != m_scope.key; }
+    bool matchupsRefreshing() const { return m_togetherScope != m_scope.key; }
+    bool clubScopeWorking() const { return m_scopeWorking; }
+
     // Rescan the athlete's sessions and re-derive whatever is stale. Cheap when nothing is.
     Q_INVOKABLE void refresh();
     // A condition's name as the items show it: the pack label, else the id ("" for "").
@@ -285,6 +320,7 @@ public:
     static pinpoint::analysis::TendencySet tendenciesAsOf(const QString &sessionDir, const pinpoint::analysis::ShotOutcomePack &pack,
                                                           const pinpoint::analysis::INormProvider &norms);
     static QString themesPath(const QString &athleteDir);
+    static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope);
     static QString tendenciesPath(const QString &athleteDir);
     // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).
     int  tendencyJobs() const { return m_tendencyJobs; }
@@ -294,6 +330,9 @@ signals:
     void gradePolicyChanged();
     void pausedChanged();
     void itemsChanged();
+    void detailsChanged();
+    void clubScopeChanged();
+    void clubScopeStateChanged();
     void updatingChanged();
     void summaryChanged();
     void areasChanged();
@@ -319,6 +358,11 @@ private:
     void onModelSettled();
     void finishDerive();
     void publish();
+    const QHash<QString, pinpoint::analysis::SessionWorkOns> &shownRecords() const;
+    void updateClubScope();
+    void onClubScopeMoved();
+    void setScopeWorking(bool on);
+    bool onBallInScope(const QString &tendencyKey) const;
     void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
                       const std::vector<pinpoint::analysis::SessionWorkOns> &sessions);
     SessionDiagnosticsModel *model();
@@ -332,6 +376,10 @@ private:
         QStringList sessionDirs;    // name order
         QHash<QString, pinpoint::analysis::ThemeMeasureInfo>   measures;
         QHash<QString, pinpoint::analysis::ThemeConditionInfo> conditions;
+        pinpoint::analysis::ClubScope scope;
+        bool    announce = false;   // a screen is showing another scope: land Layer 1 early and say so
+        QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only: session dir -> its stored record
+        std::shared_ptr<const pinpoint::analysis::CharacteristicPack> pack;   // scoped only
     };
     struct ThemesOutcome {
         bool    fromDisk = false;   // the stored summary was current; nothing was reduced
@@ -341,12 +389,18 @@ private:
         QString contentStamp;
         QString athleteDir;
         qint64  wallMs = 0;
+        pinpoint::analysis::ClubScope scope;
+        QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only
     };
     QString themesFingerprint() const;
     void maybeThemes();
     void cancelThemes();
     ThemesOutcome runThemes(const ThemesJob &job, const std::atomic<bool> *cancel);
     void applyThemes(int generation, ThemesOutcome out);
+    void applyScopeSummary(int generation, const QString &scopeKey,
+                           QHash<QString, pinpoint::analysis::SessionWorkOns> records,
+                           pinpoint::analysis::SwingThemes layerOne);
+    void applyScopeWorking(int generation);
     void publishSummary();
     void clearSummary();
 
@@ -369,6 +423,7 @@ private:
         std::vector<MarksSession> sessions;     // newest first
         std::vector<MarksRequest> requests;
         std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
+        pinpoint::analysis::ClubScope scope;
     };
     struct MarksOutcome {
         QString fingerprint;
@@ -377,6 +432,17 @@ private:
         int     ledgersRead = 0;
         QHash<QString, pinpoint::variability::VariabilityResultView> marks;   // markKey -> mark
     };
+    // A set of records in final words: the list, every condition's detail, and the marks those ask for.
+    struct DescribedWorkOns {
+        QVariantList items;
+        QHash<QString, QVariantMap> details;
+        QHash<QString, MarksRequest> markRequests;
+        int cleared = 0;
+    };
+    DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionWorkOns> &records);
+    // What the three scoped tabs read: details and areas, from the records of the scope they show.
+    // `known` is that scope's description when the caller already has it.
+    void publishScreens(const DescribedWorkOns *known = nullptr);
     static QString markKey(const QString &conditionId, const QString &measureId);
     static MarksOutcome runMarks(const MarksJob &job, const std::atomic<bool> *cancel);
     void maybeMarks();
@@ -459,6 +525,16 @@ private:
     QString      m_togetherNote;
     QThreadPool  m_themesPool;          // one job at a time
     QThreadPool  m_replicatePool;       // that job's replicates
+
+    // ── Club scope ──
+    QString      m_scopeRequested = pinpoint::analysis::clubScopeAllKey();    // as asked; may name no option yet
+    pinpoint::analysis::ClubScope m_scope;                                    // what it resolves to
+    QString      m_summaryScope  = pinpoint::analysis::clubScopeAllKey();     // what Coaching and Your swing show
+    QString      m_togetherScope = pinpoint::analysis::clubScopeAllKey();     // what Matchups shows
+    std::vector<pinpoint::analysis::ClubScopeGroupOption> m_scopeOptions;
+    QVariantList m_clubScopes;
+    QHash<QString, pinpoint::analysis::SessionWorkOns> m_scopedRecords;       // valid while m_summaryScope is not all
+    bool         m_scopeWorking = false;
 
     // ── Tendencies ──
     pinpoint::analysis::TendencySet m_tendencySet;      // valid when m_tendenciesReady

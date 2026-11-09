@@ -592,7 +592,7 @@ sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, work
 - States: reading / nothing yet (`tendencyNote`) / building rows.
 - Evidence line on the tab bar: "From N shots over M sessions" (`tendencyNote`), when there is a table.
 - **Usual distance** is the club's full swing carry as average ± spread, from the same figures as Your distances; a part swing row shows a dash.
-- A **group filter** sits above the table (`PpChipGroup`, style `filter`): All and each group with rows, remembered per athlete, hidden with only one group.
+- Home's **shared club filter** sits above the table (`HmClubScopeFilter`): on this tab its top row only, All and each group, remembered per athlete. A club chosen on another tab shows its group here.
 - Golfer layer: the only figures in a row are the usual distances and the shot mix's percentages; counts only in the evidence line.
 
 ### 7.3 F2 — Coaching "On the ball"

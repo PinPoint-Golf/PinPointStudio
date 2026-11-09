@@ -925,6 +925,142 @@ static void checkTendencies(const QString &root)
     }
 }
 
+// ── The club scope (club_scope.h): Coaching, Your swing and Matchups on one club or group ──────────
+
+static void checkClubScope(const QString &root)
+{
+    std::printf("club scope\n");
+    const qint64 day = 86'400'000LL, t0 = 1'782'000'000'000LL;
+    const QString golfer = root + QStringLiteral("/scope");
+    QDir().mkpath(golfer);
+    stageTendencySession(golfer, QStringLiteral("2026-06-01_M_01"), t0, 12);
+    stageTendencySession(golfer, QStringLiteral("2026-06-02_M_01"), t0 + day, 12);
+    stageTendencySession(golfer, QStringLiteral("2026-06-03_M_01"), t0 + 2 * day, 7, QStringLiteral("7 IRON"));
+
+    WorkOnsController c;
+    c.setSynchronous(true);
+    c.setAthleteDir(golfer);
+    check(c.waitForIdle(), "the catch-up settles");
+
+    const QVariantList groups = c.clubScopes();
+    check(groups.size() == 2 && groups[0].toMap().value(QStringLiteral("value")).toString() == QStringLiteral("group:driver")
+              && groups[1].toMap().value(QStringLiteral("value")).toString() == QStringLiteral("group:mid_irons"),
+          "the options are the groups this golfer has hit, in the bag's order");
+    check(c.clubScope() == QStringLiteral("all") && c.summarySubtitle() == QStringLiteral("From 31 swings over 3 sessions"),
+          "every club to begin with");
+
+    const QVariantList itemsBefore = c.items(), tendenciesBefore = c.tendencyItems();
+    const QVariantMap lastBefore = c.lastSession();
+    int itemsSignals = 0, detailsSignals = 0;
+    QObject::connect(&c, &WorkOnsController::itemsChanged, [&itemsSignals] { ++itemsSignals; });
+    QObject::connect(&c, &WorkOnsController::detailsChanged, [&detailsSignals] { ++detailsSignals; });
+
+    c.setClubScope(QStringLiteral("club:7 IRON"));
+    check(c.waitForIdle(), "a club settles");
+    check(c.clubScope() == QStringLiteral("club:7 IRON") && !c.clubScopeRefreshing() && !c.matchupsRefreshing()
+              && !c.clubScopeWorking(), "the screens have caught up with it");
+    check(c.summarySubtitle() == QStringLiteral("From 7 swings over 1 session"), "the summary reads only that club's swings");
+    check(c.togetherNote().startsWith(QStringLiteral("Not yet")) && c.togetherNote().contains(QStringLiteral("so far")),
+          "Matchups follows it, and says when there are too few swings");
+    const QString file = WorkOnsController::themesPath(golfer, resolveClubScope(QStringLiteral("club:7 IRON"), clubScopeOptions({ "7 IRON" }, [](const QString &) { return QStringLiteral("mid_irons"); })));
+    check(file.endsWith(QStringLiteral("swing_themes.club_7_iron.json")) && QFile::exists(file), "the scope is stored beside the summary, in a file of its own");
+    check(itemsSignals == 0 && detailsSignals > 0, "a scoped landing rebuilds the details, and the all-club list is not touched");
+    check(c.items() == itemsBefore && c.lastSession() == lastBefore, "the work-on list and the last session stay every club's");
+    check(c.tendencyItems() == tendenciesBefore, "and so does the Tendencies tab");
+
+    c.setClubScope(QStringLiteral("group:driver"));
+    check(c.waitForIdle() && c.summarySubtitle() == QStringLiteral("From 24 swings over 2 sessions"), "a group reads all its clubs' swings");
+
+    c.setClubScope(QStringLiteral("club:4 IRON"));
+    check(c.waitForIdle() && c.clubScope() == QStringLiteral("all") && c.summarySubtitle() == QStringLiteral("From 31 swings over 3 sessions"),
+          "a club this golfer has not hit reads as all");
+
+    c.setClubScope(QStringLiteral("club:7 IRON"));
+    c.waitForIdle();
+    c.setClubScope(QStringLiteral("all"));
+    check(c.waitForIdle() && c.clubScope() == QStringLiteral("all") && c.summarySubtitle() == QStringLiteral("From 31 swings over 3 sessions")
+              && !c.clubScopeRefreshing() && c.items() == itemsBefore, "back to all, and everything is every club's again");
+
+    // A stored scope is read rather than reduced: its file is not rewritten by the next golfer's look at it.
+    {
+        const QDateTime stamp = QFileInfo(file).lastModified();
+        QThread::msleep(25);
+        WorkOnsController again;
+        again.setSynchronous(true);
+        again.setAthleteDir(golfer);
+        again.waitForIdle();
+        again.setClubScope(QStringLiteral("club:7 IRON"));
+        check(again.waitForIdle() && again.summarySubtitle() == QStringLiteral("From 7 swings over 1 session"), "a second look reads the same");
+        check(QFileInfo(file).lastModified() == stamp, "…from the stored file, with nothing reduced");
+    }
+
+    // A session partly in scope is re-reduced from its in-scope shots; the rest of the ledger is left alone.
+    {
+        const QString mixed = root + QStringLiteral("/scopeMixed");
+        QDir().mkpath(mixed);
+        const QString name = QStringLiteral("2026-06-10_M_01");
+        stageTendencySession(mixed, name, t0, 12);
+        const QString path = QDir(mixed).filePath(name) + QStringLiteral("/diagnostics.json");
+        QFile f(path);
+        check(f.open(QIODevice::ReadOnly), "the mixed ledger is there");
+        QJsonObject doc = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        QJsonObject ledger = doc.value(QStringLiteral("ledger")).toObject();
+        QJsonArray shots = ledger.value(QStringLiteral("shots")).toArray();
+        for (int i = 0; i < 4; ++i) {
+            QJsonObject s = shots[i].toObject();
+            s[QStringLiteral("club")] = QStringLiteral("7 IRON");
+            shots[i] = s;
+        }
+        ledger[QStringLiteral("shots")] = shots;
+        doc[QStringLiteral("ledger")] = ledger;
+        check(f.open(QIODevice::WriteOnly | QIODevice::Truncate), "it can be rewritten");
+        f.write(QJsonDocument(doc).toJson(QJsonDocument::Compact));
+        f.close();
+
+        WorkOnsController m;
+        m.setSynchronous(true);
+        m.setAthleteDir(mixed);
+        m.waitForIdle();
+        m.setClubScope(QStringLiteral("club:7 IRON"));
+        check(m.waitForIdle() && m.summarySubtitle() == QStringLiteral("From 4 swings over 1 session"),
+              "a mixed session counts only the scope's swings, from the first shot on");
+    }
+
+    // Asked twice in quick succession off the test seam: the last choice is what lands.
+    {
+        WorkOnsController a;
+        a.setAthleteDir(golfer);
+        check(a.waitForIdle(), "the background catch-up settles");
+        a.setClubScope(QStringLiteral("group:driver"));
+        a.setClubScope(QStringLiteral("club:7 IRON"));
+        check(a.waitForIdle() && a.clubScope() == QStringLiteral("club:7 IRON")
+                  && a.summarySubtitle() == QStringLiteral("From 7 swings over 1 session"), "a superseded choice is dropped");
+    }
+    check(WorkOnsController::themesPath(golfer, ClubScope()) == WorkOnsController::themesPath(golfer), "all keeps the one file it always had");
+
+    // The consistency marks read the scope's shots: its own last readings, not the other club's.
+    {
+        const QString marks = root + QStringLiteral("/scopeMarks");
+        QDir().mkpath(marks);
+        const char *knee = "lead_knee_drifts_in_at_top", *kneeM = "m_leadKneeDriftTop";
+        static const double jitter[] = { -0.3, 0.1, 0.4, -0.2, 0.0, 0.2, -0.1, 0.3, -0.4, 0.1 };
+        std::vector<MarkShot> plan;
+        for (int i = 0; i < 20; ++i) {
+            const bool iron = i % 2 == 0;
+            plan.push_back(MarkShot{ iron ? QStringLiteral("7 IRON") : QStringLiteral("DRIVER"),
+                                     { { knee, kneeM, (iron ? 6.0 : -6.0) + jitter[i % 10], true } } });
+        }
+        stageMarks(marks, QStringLiteral("2026-06-20_M_01"), t0, plan);
+        WorkOnsController m;
+        m.setSynchronous(true);
+        m.setAthleteDir(marks);
+        check(m.waitForIdle() && markOf(area(m, "lateral").value(QStringLiteral("consistency"))).n() == 20, "every club: all twenty readings");
+        m.setClubScope(QStringLiteral("club:7 IRON"));
+        check(m.waitForIdle() && markOf(area(m, "lateral").value(QStringLiteral("consistency"))).n() == 10, "one club: only its own ten");
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -1366,6 +1502,7 @@ int main(int argc, char **argv)
 
     checkConsistencyMarks(tmp.path());
     checkTendencies(tmp.path());
+    checkClubScope(tmp.path());
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

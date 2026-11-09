@@ -97,7 +97,7 @@ PpCard {
     // Nothing to read yet, or nothing that holds. Not said before the controller has an athlete.
     PpTableRow {
         id: emptyRow
-        visible: !root.hasRows && !root.reading && root.controller !== null
+        visible: root.shownRows.length === 0 && !root.reading && root.controller !== null
                  && (root.note !== "" || (root.controller.athleteDir || "") !== "")
         hoverEnabled: false
         height: Math.max(Theme.sp(Theme.rowH), emptyNote.implicitHeight + Theme.gap(18))
@@ -107,7 +107,8 @@ PpCard {
             width:    emptyRow.cellBox.width
             elide:    Text.ElideNone
             wrapMode: Text.WordWrap
-            text:     root.note !== "" ? root.note : qsTr("Nothing yet. This fills in as your sessions build up.")
+            text:     root.hasRows ? qsTr("No tendencies with these clubs yet.")
+                      : root.note !== "" ? root.note : qsTr("Nothing yet. This fills in as your sessions build up.")
         }
     }
 
