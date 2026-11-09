@@ -21,6 +21,7 @@
 // word bands under a half, and the JSON. Header-only: `shot_outcomes_test` proves the composer it calls.
 
 #include "../../Coaching/tendencies.h"
+#include "../../Gui/report/report_tendencies.h"
 
 #include <QJsonDocument>
 
@@ -410,6 +411,41 @@ int main()
         check(tendencyUsualDistance(QStringLiteral("7 IRON"), QStringLiteral("full"), rows) == QStringLiteral("147 yd"), "a club shows its own usual distance");
         check(tendencyUsualDistance(QStringLiteral("7 IRON"), QStringLiteral("partial"), rows).isEmpty(), "a part swing has no usual distance");
         check(tendencyUsualDistance(QStringLiteral("8 IRON"), QStringLiteral("full"), rows).isEmpty(), "a club with no distances shows none");
+    }
+
+    {
+        // As of a session: earlier days, and the same day up to and including it.
+        const auto counts = [](const char *f, const char *asOf) { return tendencySessionCounts(QString::fromLatin1(f), QString::fromLatin1(asOf)); };
+        const char *asOf = "2026-10-05_M_Wrist_02";
+        check(counts("2026-10-04_M_Wrist_01", asOf), "an earlier day counts");
+        check(counts("2026-10-05_M_Wrist_01", asOf) && counts(asOf, asOf), "the same day counts up to and including the session");
+        check(!counts("2026-10-05_M_Wrist_03", asOf), "a later session the same day doesn't");
+        check(!counts("2026-10-06_M_Wrist_01", asOf), "a later day doesn't");
+        check(!counts("notes", asOf) && counts("notes", "notes"), "an undated folder counts only as itself");
+    }
+    {
+        // The report's block.
+        check(pinpoint::report::tendenciesReportBlock(TendencySet{}).isEmpty(), "no rows, no page");
+        TendencySet set;
+        set.countedShots = 1; set.countedSessions = 2;
+        set.clubDistances.append(QJsonObject{ { QStringLiteral("club"), QStringLiteral("7 IRON") }, { QStringLiteral("carryText"), QStringLiteral("147 yd") } });
+        TendencyItem earned; earned.key = QStringLiteral("7 IRON|full"); earned.clubId = QStringLiteral("7 IRON"); earned.club = QStringLiteral("7 iron");
+        earned.length = QStringLiteral("full"); earned.miss = QStringLiteral("Thin"); earned.building = false;
+        earned.seenWith = QStringLiteral("you cast it"); earned.strength = QStringLiteral("likely"); earned.trendWords = QStringLiteral("→ steady");
+        TendencyItem early = earned; early.key = QStringLiteral("7 IRON|partial"); early.length = QStringLiteral("partial"); early.building = true; early.sessions = 1;
+        early.seenWith.clear();
+        set.items = { earned, early };
+        const QVariantMap block = pinpoint::report::tendenciesReportBlock(set);
+        const QVariantList rows = block.value(QStringLiteral("rows")).toList();
+        check(block.value(QStringLiteral("kicker")).toString() == QStringLiteral("1 shot  ·  2 sessions  ·  Tendencies"), "the kicker counts in words");
+        check(rows.size() == 2 && rows[0].toMap().value(QStringLiteral("distance")).toString() == QStringLiteral("147 yd")
+                  && rows[0].toMap().value(QStringLiteral("seen")).toString() == QStringLiteral("Seen with you cast it  ·  likely  ·  → steady"), "an earned row says what it's seen with");
+        check(rows[1].toMap().value(QStringLiteral("club")).toString() == QStringLiteral("7 iron · part swing")
+                  && rows[1].toMap().value(QStringLiteral("distance")).toString().isEmpty()
+                  && rows[1].toMap().value(QStringLiteral("seen")).toString() == QStringLiteral("Building, 1 session so far"), "a building row states no verdict");
+        check(block.value(QStringLiteral("foot")).toString().contains(QStringLiteral("2 sessions of 8 or more shots")), "and the foot says what earns it");
+        set.items = { earned };
+        check(pinpoint::report::tendenciesReportBlock(set).value(QStringLiteral("foot")).toString().isEmpty(), "no building row, no foot");
     }
 
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

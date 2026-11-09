@@ -4,7 +4,7 @@ Counts by category as one stacked horizontal bar: each category's share of the t
 
 Source: `src/Gui/components/PpBandBar.qml`.
 
-**Use** on an area row for its habit counts, and for a club's shot mix (Home's Tendencies rows, the session panel's `sdClubMix`, where a typeset caller sets `height` in `u(n)` and passes its roles' tones). The bar says how many in proportion only — the caller prints the count beside it ("3 habits"), so colour is never the only channel.
+**Use** on an area row for its habit counts, and for a club's shot mix (Home's Tendencies rows, the session panel's `sdClubMix`, the report's Tendencies page, where a typeset caller sets `height` in `u(n)` and passes its roles' tones). The bar says how many in proportion only — the caller prints the count beside it ("3 habits"), so colour is never the only channel.
 
 The consumer supplies `segments` in draw order, typically via `Theme.bandTone`: habit → `colorWarn` (the fault coral, never the alarm red), occasional → `colorAttention`, clean → `colorGood`, unclear → `colorMeterUnlit`.
 

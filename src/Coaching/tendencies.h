@@ -942,6 +942,16 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
     };
 }
 
+// Tendencies as of one session (the golfer report): sessions on an earlier day, and those of the same day up to and
+// including it by folder order. Undated folders have no place in the order, so one counts only as itself.
+inline bool tendencySessionCounts(const QString &folder, const QString &asOfFolder)
+{
+    if (folder == asOfFolder) return true;
+    const QDate day = sessionDayOfFolder(folder), asOf = sessionDayOfFolder(asOfFolder);
+    if (!day.isValid() || !asOf.isValid()) return false;
+    return day != asOf ? day < asOf : folder < asOfFolder;
+}
+
 // The usual distance a Tendencies row shows: the club's full swing carry as stored. A part swing has none.
 inline QString tendencyUsualDistance(const QString &clubId, const QString &length, const QJsonArray &clubDistances)
 {

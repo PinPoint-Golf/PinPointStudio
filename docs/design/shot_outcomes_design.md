@@ -589,6 +589,7 @@ sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, work
 - A **building** row opens too, headed "Seen so far": the reason that has most often come with the miss, every
   link "seen with", and a note that it's early and what would earn it. The Seen with column still says
   Building, and there's no Practice until it's earned: what has shown up so far is shown, never as a verdict.
+- The **golfer report** has a Your tendencies page after the order of work (`PpTendenciesPage`, `report_tendencies.h`): the same rows on paper, as of that session. It reads the report's own session and those before it in the athlete's folder (same-day sessions by folder order) and writes nothing, so remaking a report keeps its numbers. A correction made later to one of those sessions does count.
 - States: reading / nothing yet (`tendencyNote`) / building rows.
 - Evidence line on the tab bar: "From N shots over M sessions" (`tendencyNote`), when there is a table.
 - **Usual distance** is the club's full swing carry as average ± spread, from the same figures as Your distances; a part swing row shows a dash.

@@ -20,6 +20,7 @@
 
 #include "report_meta.h"
 #include "report_consistency.h"
+#include "report_tendencies.h"
 #include "report_delivery.h"
 #include "report_posture.h"
 #include "report_wrist.h"
@@ -44,7 +45,9 @@
 #include "../variability/variability_measures.h"       // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 #include "../../Coaching/session_report.h"
 #include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
+#include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons.h"
+#include "../diagnostics/work_ons_controller.h"
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
 #include "../../Core/studio_profile.h"
@@ -123,7 +126,7 @@ struct DocFacts {
 // flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
 // { posture, wrist, delivery, consistency }, each empty when nothing reads.
 QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
-                            const std::shared_ptr<const INormProvider> &norms)
+                            const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
@@ -133,7 +136,8 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
     return { { QStringLiteral("posture"), pinpoint::charts::postureSessionReportPayload(*snap, -1, QStringLiteral("swings")) },   // the report says swings
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
              { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
-             { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) } };
+             { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
+             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms)) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -257,7 +261,7 @@ struct SessionReportModel::Job {
     QFutureWatcher<QVector<DocFacts>> docsWatcher;
     QVector<DocFacts> docs;
     QFutureWatcher<QVariantMap> chartsWatcher;      // the Posture, Wrist, Club delivery and Consistency pages' payloads (readChartsPages)
-    QVariantMap posture, wrist, delivery, consistency;
+    QVariantMap posture, wrist, delivery, consistency, tendencies;
 
     QVariantMap         map;
     QVector<StillRequest> requests;
@@ -490,8 +494,11 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     const pinpoint::charts::ConsistencyEnv consistencyEnv = pinpoint::charts::consistencyEnvFromPacks();
     const std::shared_ptr<const INormProvider> norms = sharedNormProvider();
     const QString policy = gradePolicyName();
+    // The Tendencies page reads the sessions up to this one with the same outcome words Home uses.
+    const std::unique_ptr<ICharacteristicPackProvider> outcomeProvider = makeCharacteristicPackProvider();
+    const ShotOutcomePack outcomePack = shotOutcomePackFor(&outcomeProvider->pack());
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
-    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms] { return readChartsPages(dir, consistencyEnv, policy, norms); }));
+    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack] { return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack); }));
 
     SessionDiagnosticsModel *m = model();
     m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a reader: no club_baseline.json
@@ -532,6 +539,7 @@ void SessionReportModel::onChartsRead()
     m_job->wrist = pages.value(QStringLiteral("wrist")).toMap();
     m_job->delivery = pages.value(QStringLiteral("delivery")).toMap();
     m_job->consistency = pages.value(QStringLiteral("consistency")).toMap();
+    m_job->tendencies = pages.value(QStringLiteral("tendencies")).toMap();
     m_job->chartsReady = true;
     QTimer::singleShot(0, this, [this] { maybeBuild(); });
 }
@@ -1999,6 +2007,10 @@ void SessionReportModel::build()
             map[QStringLiteral("delivery")] = M::deliveryReportBlock(job.delivery, swingNoOfDir,
                 [](double lo, double hi, int n, const QString &unit) { return pinpoint::charts::ChartsRelationsPresenter::axisTicks(lo, hi, n, unit); });
         }
+
+        // The Tendencies page (shot_outcomes_design.md §7.2): each club as it stood at this session. Not in a note; absent
+        // when no session up to this one has a club to read.
+        map[QStringLiteral("tendencies")] = (isNote || job.tendencies.isEmpty()) ? kNull : QVariant(job.tendencies);
 
         // The Consistency page (consistency_design.md §3, Print): the Consistency tab's table and the launch monitor's
         // flagged shots, numbered as the report numbers its swings. Not in a note (the cover alone); absent when the

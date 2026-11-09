@@ -280,6 +280,10 @@ public:
     int  consistencyLedgersRead() const { return m_marksLedgersRead; }
 
     static QString recordPath(const QString &sessionDir);
+    // Tendencies as they stood at this session: its own folder and the ones before it in the athlete's. Reads the
+    // ledgers and writes nothing; any thread. For the golfer report, so a report remade later still says the same.
+    static pinpoint::analysis::TendencySet tendenciesAsOf(const QString &sessionDir, const pinpoint::analysis::ShotOutcomePack &pack,
+                                                          const pinpoint::analysis::INormProvider &norms);
     static QString themesPath(const QString &athleteDir);
     static QString tendenciesPath(const QString &athleteDir);
     // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).

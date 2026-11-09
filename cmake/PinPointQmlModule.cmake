@@ -504,6 +504,7 @@ set(PP_QML_FILES
     src/Gui/report/PpWristPage.qml
     src/Gui/report/PpDeliveryPage.qml
     src/Gui/report/PpConsistencyPage.qml
+    src/Gui/report/PpTendenciesPage.qml
     src/Gui/report/PpReportAbout.qml
     src/Gui/report/PpReportPrintHost.qml
     src/Gui/report/PpSessionReportList.qml

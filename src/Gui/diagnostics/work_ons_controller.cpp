@@ -186,7 +186,37 @@ bool readTendencySession(const QString &dir, TendencySessionInput &out)
     return true;
 }
 
+// The reduction over sessions already read, with the per-club distances from those same sessions.
+TendencySet tendencySetFromSessions(std::vector<TendencySessionInput> &sessions, const ShotOutcomePack &pack, const ContextTree &tree,
+                                    const std::atomic<bool> *cancel = nullptr)
+{
+    TendencySet set = reduceTendencies(sessions, pack, [&tree](const QString &club) { return tendencyClubGroup(tree, club); },
+                                       TendencyOptions{}, cancel);
+    if (set.cancelled || (cancel && cancel->load())) return set;
+
+    std::vector<ClubDistanceSession> clubSessions;
+    clubSessions.reserve(sessions.size());
+    for (TendencySessionInput &s : sessions) clubSessions.push_back(std::move(s.session));
+    QJsonArray distances;
+    for (const ClubDistanceItem &it : reduceClubDistances(clubSessions)) distances.append(clubDistanceItemToJson(it));
+    set.clubDistances = distances;
+    return set;
+}
+
 } // namespace
+
+TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const ShotOutcomePack &pack, const INormProvider &norms)
+{
+    const QFileInfo session{ QDir::cleanPath(sessionDir) };
+    std::vector<TendencySessionInput> sessions;
+    const QFileInfoList folders = QDir(session.absolutePath()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo &fi : folders) {
+        if (!tendencySessionCounts(fi.fileName(), session.fileName())) continue;
+        TendencySessionInput in;
+        if (readTendencySession(fi.absoluteFilePath(), in)) sessions.push_back(std::move(in));
+    }
+    return tendencySetFromSessions(sessions, pack, norms.contexts());
+}
 
 WorkOnsController::WorkOnsController(QObject *parent)
     : QObject(parent)
@@ -1474,18 +1504,8 @@ WorkOnsController::TendenciesOutcome WorkOnsController::runTendencies(const Tend
         if (readTendencySession(dir, in)) sessions.push_back(std::move(in));
     }
 
-    const ContextTree &tree = job.norms->contexts();
-    TendencySet set = reduceTendencies(sessions, job.pack,
-                                       [&tree](const QString &club) { return tendencyClubGroup(tree, club); },
-                                       TendencyOptions{}, cancel);
+    TendencySet set = tendencySetFromSessions(sessions, job.pack, job.norms->contexts(), cancel);
     if (set.cancelled || (cancel && cancel->load())) return out;
-
-    std::vector<ClubDistanceSession> clubSessions;
-    clubSessions.reserve(sessions.size());
-    for (TendencySessionInput &s : sessions) clubSessions.push_back(std::move(s.session));
-    QJsonArray distances;
-    for (const ClubDistanceItem &it : reduceClubDistances(clubSessions)) distances.append(clubDistanceItemToJson(it));
-    set.clubDistances = distances;
 
     out.computed = true;
     out.set = std::move(set);

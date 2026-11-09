@@ -147,6 +147,13 @@ Item {
             visible: root.kind === "report" && !!root.rep.order && root.workOns.length > 0
             ro: rr; rep: root.rep; host: root; pageH: pager.pageH
         }
+        // the tendencies page (shot_outcomes_design.md §7.2): each club as it stood at this session, before the work-ons
+        // that speak to one swing fault at a time; absent when the map has no `tendencies`. Not on the cover's Inside line.
+        PpTendenciesPage {
+            width: pager.textW
+            visible: root.kind !== "note" && !!root.rep.tendencies
+            ro: rr; td: root.rep.tendencies || null
+        }
         Repeater {
             model: root.kind === "report" ? root.workOns : []
             delegate: PpWorkOnPage {
