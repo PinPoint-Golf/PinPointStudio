@@ -5,6 +5,7 @@
 **Source**: [`foresight_gcquad_data_sources.md`](../reference/foresight_gcquad_data_sources.md) §Source 3 and §Source 4, plus direct measurement on the capture PC (§3)
 **Status**: ⛔ **DECLINED 2026-09-26 — do not build, and do not re-propose without new facts** (see below)
 **Written**: 2026-09-25
+**Update 2026-11-09**: a possible source of **club** data under GSPro has turned up, and the question is open again. See [`gspro_v4_connector.md`](gspro_v4_connector.md). The decision below still stands for a `ConnectDebug.txt`-only connector, and the 9050 exclusion is unchanged.
 
 ---
 
