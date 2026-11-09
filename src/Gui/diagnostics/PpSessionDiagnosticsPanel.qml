@@ -151,8 +151,13 @@ Item {
     // processor, "…/lib/athlete/…" from the carousel), and a session ending must not cost a
     // second scan of the folder the panel is already on (SessionMode.sameFolder).
     function _pointAtSession() {
-        if (!SessionMode.sameFolder(sessionDir, diagModel.sessionDir))
+        if (!SessionMode.sameFolder(sessionDir, diagModel.sessionDir)) {
+            // WHO MAY FREEZE THE BASELINE, set by hand before the load reads it (a binding's order isn't pinned, so
+            // one could race the activate): a reviewed session never writes its sidecar, a live panel may.
+            diagModel.baselineAuthority = (typeof sessionReviewController !== "undefined" && sessionReviewController
+                                           && sessionReviewController.reviewActive) ? "never" : "live"
             diagModel.activateSession(sessionDir)
+        }
         _adoptFocus()
     }
 

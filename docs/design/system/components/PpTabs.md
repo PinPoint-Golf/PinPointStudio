@@ -5,7 +5,7 @@ The view toggles of a typeset register: label + quiet count, the current one rul
 Source: `src/Gui/typeset/PpTabs.qml`.
 
 ## When to use
-Switching between the views of a typeset register (Session diagnostics Analyse and Replay, the Charts register, the launch monitor board) and Home's Coaching | Your swing | Matchups bar (`size: "title"`). Screen only. Keyboard: the bar is ONE Tab stop (the current tab, or the first when none is current); Left/Right move between tabs (wrapping), Home/End go to the ends, Space/Enter/Return activate; a focused tab or chip draws an accent focus ring. Tabs are `Accessible.PageTab` in an `Accessible.PageTabList`; the chip is a `Link`.
+Switching between the views of a typeset register (Session diagnostics Analyse and Replay, the Charts register, the launch monitor board) and Home's Coaching | Your swing | Tendencies | Matchups bar (`size: "title"`). Screen only. Keyboard: the bar is ONE Tab stop (the current tab, or the first when none is current); Left/Right move between tabs (wrapping), Home/End go to the ends, Space/Enter/Return activate; a focused tab or chip draws an accent focus ring. Tabs are `Accessible.PageTab` in an `Accessible.PageTabList`; the chip is a `Link`.
 
 Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choosing a value in place (`PpSegmentedControl`).
 
@@ -22,9 +22,9 @@ Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choos
 | tabs | var | [] | `[{ key, label, count }]`. |
 | current | string | "" | The current tab's key. |
 | note | string | "" | e.g. the review note (tier 3). |
-| chip | string | "" | e.g. "Declare miss" / "Miss: Slice"; "" = none. |
+| chip | string | "" | e.g. "‹ Back", a chart preset; "" = none. |
 | chipOn | bool | false | Draw the chip in ink (its picker is open). |
-| chipObjectName | string | "sdMissChip" | |
+| chipObjectName | string | "sdTabChip" | |
 | size | string | "" | "" (the view toggles) · "title" (Home's tab bar). |
 | accentUnderline | bool | `size === "title"` | Rule the current tab in accent, `Theme.tabUnderline` thick. |
 | noteAfterTabs | bool | false | Put the note straight after the tabs, on the labels' baseline. |

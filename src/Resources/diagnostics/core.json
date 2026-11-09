@@ -2477,7 +2477,7 @@
         "anchor": "p7"
       },
       "status": "held",
-      "gapReason": "Read from a launch monitor when one is connected (the camera's own ball tracker is planned), but not graded: ball speed has no corridor by club and golfer yet, so ball_speed_deficit cannot fire on it.",
+      "gapReason": "Read from a launch monitor when one is connected (the camera's own ball tracker is planned), but not graded: ball speed has no corridor by club and golfer, so ball_speed_deficit reads m_ballSpeedShortfall, the golfer's own usual with this club, instead.",
       "label": "Ball speed",
       "unit": "mph",
       "golferHigh": "the ball comes off the face faster",
@@ -2652,6 +2652,36 @@
       "golferHigh": "the ball comes off the face faster",
       "golferLow": "the ball comes off the face slower",
       "highMeans": "a faster ball off the face"
+    },
+    {
+      "id": "m_carryShortfall",
+      "kind": "provided",
+      "metricKey": "history.carryShortfallZ",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Carry against your usual",
+      "unit": "z",
+      "golferHigh": "the ball carries shorter than usual for you with this club",
+      "golferLow": "the ball carries further than usual for you with this club",
+      "highMeans": "carry short of this golfer's own usual with this club, in their own standard deviations"
+    },
+    {
+      "id": "m_ballSpeedShortfall",
+      "kind": "provided",
+      "metricKey": "history.ballSpeedShortfallZ",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p7"
+      },
+      "status": "live",
+      "label": "Ball speed against your usual",
+      "unit": "z",
+      "golferHigh": "the ball comes off the face slower than usual for you with this club",
+      "golferLow": "the ball comes off the face faster than usual for you with this club",
+      "highMeans": "ball speed short of this golfer's own usual with this club, in their own standard deviations"
     },
     {
       "id": "m_lmAttackAngle",
@@ -5212,6 +5242,60 @@
         "m_carryDistance"
       ],
       "direction": "low"
+    },
+    {
+      "id": "sig_carryShortfall",
+      "test": "threshold",
+      "measures": [
+        "m_carryShortfall"
+      ],
+      "direction": "high",
+      "threshold": 1.5
+    },
+    {
+      "id": "sig_ballSpeedShortfall",
+      "test": "threshold",
+      "measures": [
+        "m_ballSpeedShortfall"
+      ],
+      "direction": "high",
+      "threshold": 1.5
+    },
+    {
+      "id": "sig_fadeBeyondStraight",
+      "test": "threshold",
+      "measures": [
+        "m_spinAxis"
+      ],
+      "direction": "high",
+      "threshold": 4.0
+    },
+    {
+      "id": "sig_fadeShortOfSlice",
+      "test": "threshold",
+      "measures": [
+        "m_spinAxis"
+      ],
+      "direction": "low",
+      "threshold": 10.000000000000002
+    },
+    {
+      "id": "sig_drawBeyondStraight",
+      "test": "threshold",
+      "measures": [
+        "m_spinAxis"
+      ],
+      "direction": "low",
+      "threshold": -4.0
+    },
+    {
+      "id": "sig_drawShortOfHook",
+      "test": "threshold",
+      "measures": [
+        "m_spinAxis"
+      ],
+      "direction": "high",
+      "threshold": -10.000000000000002
     },
     {
       "id": "sig_hangingBackPelvisDown",
@@ -9803,6 +9887,10 @@
       "golfer": "you pull the ball off line, and it flies straight",
       "golferWell": "your shots start on line",
       "golferWhy": "A pull feels solid but starts off line and stays there, so even a well-struck shot finishes away from where you aimed.",
+      "golferShort": "Pull",
+      "golferAbbr": "PL",
+      "golferStory": "started it left",
+      "playTo": "Aim a touch to the right of your target.",
       "aliases": [
         "pulled it",
         "started left"
@@ -9810,6 +9898,7 @@
       "axis": "start_line",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9830,6 +9919,10 @@
       "golfer": "you push the ball off line, and it flies straight",
       "golferWell": "your shots start on line",
       "golferWhy": "A push flies straight but starts off line, so even a good strike misses the target by the same amount.",
+      "golferShort": "Push",
+      "golferAbbr": "PUSH",
+      "golferStory": "started it right",
+      "playTo": "Aim a touch to the left of your target.",
       "aliases": [
         "pushed it",
         "started right",
@@ -9839,6 +9932,7 @@
       "axis": "start_line",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9859,6 +9953,9 @@
       "golfer": "the ball comes off lower than the club should send it",
       "golferWell": "your shots launch at a good height for the club",
       "golferWhy": "A low launch runs out instead of stopping, so it is hard to hold a green or keep the ball's line in the wind.",
+      "golferShort": "Low launch",
+      "golferAbbr": "LOW",
+      "golferStory": "sent it off low",
       "aliases": [
         "flighted too low",
         "no height"
@@ -9866,6 +9963,7 @@
       "axis": "launch_angle",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9886,6 +9984,9 @@
       "golfer": "the ball climbs higher than the club should send it",
       "golferWell": "your shots launch at a good height for the club",
       "golferWhy": "A ball that climbs too high swaps distance for height, so it comes up short and the wind takes it.",
+      "golferShort": "High launch",
+      "golferAbbr": "HIGH",
+      "golferStory": "sent it off high",
       "aliases": [
         "ballooning",
         "too much height",
@@ -9894,6 +9995,7 @@
       "axis": "launch_angle",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9914,17 +10016,21 @@
       "golfer": "the ball comes off the face slower than usual for you with this club",
       "golferWell": "the ball comes off the face at your usual speed",
       "golferWhy": "Less ball speed means less distance, so the same club comes up short.",
+      "golferShort": "Lost speed",
+      "golferAbbr": "SPD",
+      "golferStory": "took speed off the ball",
       "aliases": [
         "no distance",
         "lost yards"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
-        "sig_ballSpeedDeficit"
+        "sig_ballSpeedShortfall"
       ],
       "state": "draft",
       "consequence": "The ball leaves slower than this golfer normally sends it with this club — energy went somewhere other than into the ball, which is usually the strike rather than the swing.",
@@ -9940,6 +10046,10 @@
       "golfer": "the ball slices, curving hard away from the target",
       "golferWell": "your shots hold their line in the air",
       "golferWhy": "A slice bends away from the target and loses distance as it curves, so you have to aim well off line to find the fairway.",
+      "golferShort": "Slice",
+      "golferAbbr": "SL",
+      "golferStory": "cut across it",
+      "playTo": "Favour the left side off the tee.",
       "aliases": [
         "slicing it",
         "cutting it",
@@ -9948,6 +10058,7 @@
       "axis": "curvature",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "ubiquitous",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9968,6 +10079,10 @@
       "golfer": "the ball hooks, curving hard across the target",
       "golferWell": "your shots hold their line in the air",
       "golferWhy": "A hook dives across the target and runs on, so it is hard to keep the ball in play.",
+      "golferShort": "Hook",
+      "golferAbbr": "HK",
+      "golferStory": "closed the face across it",
+      "playTo": "Favour the right side off the tee.",
       "aliases": [
         "hooking it",
         "snap hook",
@@ -9976,6 +10091,7 @@
       "axis": "curvature",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -9991,17 +10107,86 @@
       }
     },
     {
+      "id": "fade",
+      "label": "Fade",
+      "golfer": "the ball fades gently right",
+      "golferWell": "your shots hold their line in the air",
+      "golferWhy": "A fade curves gently right in the air, so you aim a little left to allow for it.",
+      "golferShort": "Fade",
+      "golferAbbr": "FD",
+      "golferStory": "faded it gently right",
+      "playTo": "Start it left of your target and let it drift back.",
+      "aliases": [
+        "fading it"
+      ],
+      "group": "ballFlight",
+      "kind": "outcome",
+      "family": "direction",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_fadeBeyondStraight",
+        "sig_fadeShortOfSlice"
+      ],
+      "detection": "all",
+      "state": "draft",
+      "consequence": "Curves gently to the right in flight, the playable version of the same shape as a slice: the face was a little open to the path. A shape, not a fault in itself; whether it was meant is the golfer's to say.",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight laws spin axis fade draw curvature golf"
+      }
+    },
+    {
+      "id": "draw",
+      "label": "Draw",
+      "golfer": "the ball draws gently left",
+      "golferWell": "your shots hold their line in the air",
+      "golferWhy": "A draw curves gently left in the air, so you aim a little right to allow for it.",
+      "golferShort": "Draw",
+      "golferAbbr": "DR",
+      "golferStory": "drew it gently left",
+      "playTo": "Start it right of your target and let it drift back.",
+      "aliases": [
+        "drawing it"
+      ],
+      "group": "ballFlight",
+      "kind": "outcome",
+      "family": "direction",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_drawBeyondStraight",
+        "sig_drawShortOfHook"
+      ],
+      "detection": "all",
+      "state": "draft",
+      "consequence": "Curves gently to the left in flight, the playable version of the same shape as a hook: the face was a little closed to the path. A shape, not a fault in itself; whether it was meant is the golfer's to say.",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight laws spin axis fade draw curvature golf"
+      }
+    },
+    {
       "id": "pull_hook",
       "label": "Pull-hook",
       "golfer": "you pull the ball and it hooks further off line",
       "golferWell": "your shots finish close to your target line",
       "golferWhy": "A pull-hook starts off line and curves further away, so it finishes a long way from the target and is the hardest miss to play your next shot from.",
+      "golferShort": "Pull-hook",
+      "golferAbbr": "PH",
+      "golferStory": "pulled it left and hooked it further",
+      "playTo": "Aim well to the right of your target.",
       "aliases": [
         "smother",
         "double cross"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10022,11 +10207,16 @@
       "golfer": "you push the ball and it slices further off line",
       "golferWell": "your shots finish close to your target line",
       "golferWhy": "A push-slice starts off line and curves further away, so it costs you both distance and direction.",
+      "golferShort": "Push-slice",
+      "golferAbbr": "PS",
+      "golferStory": "pushed it right and sliced it further",
+      "playTo": "Aim well to the left of your target.",
       "aliases": [
         "big block-slice"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "direction",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10047,6 +10237,9 @@
       "golfer": "the club hits the ground before the ball",
       "golferWell": "you strike the ball before the ground",
       "golferWhy": "Hitting the ground first spends the club's speed on the turf, so the ball comes up well short.",
+      "golferShort": "Fat",
+      "golferAbbr": "FAT",
+      "golferStory": "the club bottomed out behind the ball",
       "aliases": [
         "fat",
         "heavy",
@@ -10055,6 +10248,7 @@
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10078,6 +10272,9 @@
       "golfer": "you catch the ball on the bottom edge of the club",
       "golferWell": "you strike the ball cleanly, without catching it on the edge",
       "golferWhy": "A thin strike shoots off low with little spin, so it runs past where you wanted it to stop.",
+      "golferShort": "Thin",
+      "golferAbbr": "THIN",
+      "golferStory": "the club caught the ball low on the face",
       "aliases": [
         "blade",
         "bladed it",
@@ -10086,6 +10283,7 @@
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10109,12 +10307,16 @@
       "golfer": "the club catches the top of the ball and it runs along the ground",
       "golferWell": "you get the ball up in the air",
       "golferWhy": "A topped ball barely leaves the ground, so most of the shot's distance is lost.",
+      "golferShort": "Top",
+      "golferAbbr": "TOP",
+      "golferStory": "the club caught the top of the ball",
       "aliases": [
         "topped it",
         "dribbler"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "occasional",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10138,6 +10340,9 @@
       "golfer": "the ball pops up high off the top of the clubhead",
       "golferWell": "your tee shots come off the middle of the face",
       "golferWhy": "A skied shot goes very high and very short, so most of the distance is lost.",
+      "golferShort": "Sky",
+      "golferAbbr": "SKY",
+      "golferStory": "the club got under the ball and popped it up",
       "aliases": [
         "pop-up",
         "skied it",
@@ -10145,6 +10350,7 @@
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "uncommon",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10168,6 +10374,9 @@
       "golfer": "the ball comes off the hosel and shoots off sideways",
       "golferWell": "your strikes stay out of the hosel",
       "golferWhy": "A shank shoots off sideways and low, so even a short shot can finish well off line.",
+      "golferShort": "Shank",
+      "golferAbbr": "SHK",
+      "golferStory": "the ball came off the hosel",
       "aliases": [
         "hosel rocket",
         "shanked it",
@@ -10175,6 +10384,7 @@
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "uncommon",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10198,12 +10408,16 @@
       "golfer": "you strike the ball out toward the toe",
       "golferWell": "your strikes stay near the middle of the face",
       "golferWhy": "A toe strike costs ball speed and tends to draw, so the ball comes up short and off line.",
+      "golferShort": "Toe",
+      "golferAbbr": "TOE",
+      "golferStory": "the ball came off the toe",
       "aliases": [
         "off the toe"
       ],
       "axis": "strike_location",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10224,12 +10438,16 @@
       "golfer": "you strike the ball in toward the heel",
       "golferWell": "your strikes stay near the middle of the face",
       "golferWhy": "A heel strike costs ball speed and tends to fade, so the ball comes up short and off line.",
+      "golferShort": "Heel",
+      "golferAbbr": "HEEL",
+      "golferStory": "the ball came off the heel",
       "aliases": [
         "off the heel"
       ],
       "axis": "strike_location",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10250,11 +10468,15 @@
       "golfer": "the ball comes off slower than your club speed should give it",
       "golferWell": "you catch the ball solidly for your club speed",
       "golferWhy": "A strike that passes on less of the club's speed costs distance, so you lose yards without swinging any slower.",
+      "golferShort": "Weak strike",
+      "golferAbbr": "WEAK",
+      "golferStory": "you gave away ball speed at the strike",
       "aliases": [
         "not compressing it"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "strike",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10275,6 +10497,9 @@
       "golfer": "the ball spins more than the club should give it",
       "golferWell": "your spin suits the club",
       "golferWhy": "Too much spin makes the ball climb and stall, so you lose carry, most of all into the wind.",
+      "golferShort": "High spin",
+      "golferAbbr": "HSPIN",
+      "golferStory": "put too much spin on it",
       "aliases": [
         "spinny",
         "too much spin"
@@ -10282,6 +10507,7 @@
       "axis": "spin_rate",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10302,6 +10528,9 @@
       "golfer": "the ball spins less than the club should give it",
       "golferWell": "your spin suits the club",
       "golferWhy": "Too little spin lets the ball knuckle and wander, so it is hard to stop on the green.",
+      "golferShort": "Low spin",
+      "golferAbbr": "LSPIN",
+      "golferStory": "took the spin off it",
       "aliases": [
         "knuckleball",
         "no spin"
@@ -10309,6 +10538,7 @@
       "axis": "spin_rate",
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "uncommon",
       "observability": "observable",
       "confirmedBy": "measured",
@@ -10329,17 +10559,23 @@
       "golfer": "the ball carries shorter than usual for you with this club",
       "golferWell": "the ball carries your usual distance",
       "golferWhy": "Losing carry with the same club leaves you short of the target, so your club choice stops being reliable.",
+      "golferShort": "Short",
+      "golferAbbr": "SHORT",
+      "golferStory": "left it short",
       "aliases": [
         "coming up short"
       ],
       "group": "ballFlight",
       "kind": "outcome",
+      "family": "flight",
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
       "detectedBy": [
+        "sig_carryShortfall",
         "sig_carryDeficit"
       ],
+      "detection": "first",
       "state": "draft",
       "consequence": "The ball carries less than this golfer normally carries this club.",
       "provenance": {
@@ -19212,6 +19448,160 @@
         "tier": "practice",
         "searchedOn": "2026-11-08",
         "searchTerms": "ball flight intent trunk lateral bend golf"
+      }
+    },
+    {
+      "from": "chunk",
+      "to": "smash_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "chunk",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "thin",
+      "to": "launch_low",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "top",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "sky",
+      "to": "launch_high",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "sky",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "smash_deficit",
+      "to": "ball_speed_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "ball_speed_deficit",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "spin_excess",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "slice",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "hook",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "push_slice",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "pull_hook",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "shank",
+      "to": "carry_deficit",
+      "type": "leadsTo",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-08",
+        "searchTerms": "ball flight strike quality carry distance loss golf"
       }
     }
   ]

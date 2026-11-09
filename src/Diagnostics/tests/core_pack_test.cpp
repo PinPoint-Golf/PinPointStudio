@@ -29,6 +29,7 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <iterator>
@@ -125,7 +126,7 @@ int main()
     {
         std::map<ConditionGroup, int> byGroup;
         for (const Condition &c : p.conditions) ++byGroup[c.group];
-        check(p.conditions.size() == 188, "188 conditions in the shipped pack");
+        check(p.conditions.size() == 190, "190 conditions in the shipped pack");
         check(byGroup[ConditionGroup::Setup] == 25, "setup holds 25");
         check(byGroup[ConditionGroup::Posture] == 16, "posture holds 16");
         check(byGroup[ConditionGroup::Lateral] == 20, "lateral holds 20");
@@ -134,7 +135,7 @@ int main()
         check(byGroup[ConditionGroup::Wrists] == 14, "wrists holds 14");
         check(byGroup[ConditionGroup::PlanePath] == 18, "planePath holds 18");
         check(byGroup[ConditionGroup::Delivery] == 10, "delivery holds 10");
-        check(byGroup[ConditionGroup::BallFlight] == 20, "ballFlight holds 20");
+        check(byGroup[ConditionGroup::BallFlight] == 22, "ballFlight holds 22");
         check(byGroup[ConditionGroup::Golfer] == 28, "golfer holds 28");
 
         // The compiled alias table against the pack it describes. Every row names a shipped
@@ -147,6 +148,99 @@ int main()
         }
         for (const QString &id : drifted) std::printf("        off the regroup table: %s\n", qPrintable(id));
         check(drifted.isEmpty(), "every row of the alias table matches the shipped pack");
+    }
+
+    // ── Shot outcomes: families, the leads-to links, the personal baseline ──────
+    {
+        QStringList noFamily, strayFamily;
+        for (const Condition &c : p.conditions) {
+            if (c.kind == ConditionKind::Outcome && !isKnownConditionFamily(c.family)) noFamily << c.id;
+            if (c.kind != ConditionKind::Outcome && !c.family.isEmpty()) strayFamily << c.id;
+        }
+        for (const QString &id : noFamily) std::printf("        outcome with no family: %s\n", qPrintable(id));
+        for (const QString &id : strayFamily) std::printf("        non-outcome with a family: %s\n", qPrintable(id));
+        check(noFamily.isEmpty(), "every Outcome has exactly one family");
+        check(strayFamily.isEmpty(), "no condition other than an Outcome has a family");
+
+        const auto familyOf = [&](const char *id) {
+            const Condition *c = p.condition(QLatin1String(id));
+            return c ? c->family : QString();
+        };
+        check(familyOf("slice") == QLatin1String("direction") && familyOf("fade") == QLatin1String("direction")
+                  && familyOf("draw") == QLatin1String("direction"),
+              "slice, fade and draw are direction outcomes");
+        check(familyOf("chunk") == QLatin1String("strike"), "chunk is a strike outcome");
+        check(familyOf("carry_deficit") == QLatin1String("flight"), "carry_deficit is a flight outcome");
+
+        QStringList noWords;
+        for (const Condition &c : p.conditions)
+            if (c.kind == ConditionKind::Outcome
+                && (c.golferShort.isEmpty() || c.golferAbbr.isEmpty() || c.golferStory.isEmpty()))
+                noWords << c.id;
+        for (const QString &id : noWords) std::printf("        outcome missing its shot words: %s\n", qPrintable(id));
+        check(noWords.isEmpty(), "every Outcome carries golferShort, golferAbbr and golferStory");
+        for (const char *id : { "slice", "hook", "pull", "push", "pull_hook", "push_slice", "fade", "draw" }) {
+            const Condition *c = p.condition(QLatin1String(id));
+            check(c && !c->playTo.isEmpty(), "a direction outcome says how to play to it");
+        }
+
+        for (const char *id : { "fade", "draw" }) {
+            const Condition *c = p.condition(QLatin1String(id));
+            check(c && c->axis.isEmpty(), "fade and draw carry no axis");
+            check(c && c->detection == DetectionMode::All && c->detectedBy.size() == 2,
+                  "fade and draw are a conjunction of two signals");
+        }
+
+        // The §3.2 physics links are their own edge type, outcome to outcome.
+        const auto hasEdge = [&](const char *from, const char *to, EdgeType t) {
+            return std::any_of(p.edges.cbegin(), p.edges.cend(), [&](const Edge &e) {
+                return e.from == QLatin1String(from) && e.to == QLatin1String(to) && e.type == t;
+            });
+        };
+        const struct { const char *from, *to; } kLeadsTo[] = {
+            { "chunk", "smash_deficit" }, { "chunk", "carry_deficit" }, { "thin", "launch_low" },
+            { "top", "carry_deficit" }, { "sky", "launch_high" }, { "sky", "carry_deficit" },
+            { "smash_deficit", "ball_speed_deficit" }, { "ball_speed_deficit", "carry_deficit" },
+            { "spin_excess", "carry_deficit" }, { "slice", "carry_deficit" }, { "hook", "carry_deficit" },
+            { "push_slice", "carry_deficit" }, { "pull_hook", "carry_deficit" }, { "shank", "carry_deficit" },
+        };
+        for (const auto &l : kLeadsTo)
+            check(hasEdge(l.from, l.to, EdgeType::LeadsTo), "a §3.2 physics link is authored as leadsTo");
+        check(!hasEdge("chunk", "smash_deficit", EdgeType::Causes),
+              "a physics link is not a causal edge, so the explanation pass cannot walk it");
+        check(hasEdge("strike_toe", "smash_deficit", EdgeType::Causes)
+                  && hasEdge("strike_heel", "smash_deficit", EdgeType::Causes),
+              "the two strike-to-smash causal edges stay as they were");
+        int leadsTo = 0, leadsToBad = 0;
+        for (const Edge &e : p.edges) {
+            if (e.type != EdgeType::LeadsTo) continue;
+            ++leadsTo;
+            const Condition *a = p.condition(e.from), *b = p.condition(e.to);
+            if (!a || !b || a->kind != ConditionKind::Outcome || b->kind != ConditionKind::Outcome) ++leadsToBad;
+        }
+        check(leadsTo > 0 && leadsToBad == 0, "every leads-to link joins two outcomes");
+
+        // The personal baseline: both deficits move onto it, and carry keeps the duff guard behind it.
+        const Condition *carry = p.condition(QStringLiteral("carry_deficit"));
+        check(carry && carry->detection == DetectionMode::First
+                  && carry->detectedBy == QStringList({ QStringLiteral("sig_carryShortfall"),
+                                                        QStringLiteral("sig_carryDeficit") }),
+              "carry_deficit reads the golfer's usual first, then the duff guard");
+        const Condition *ball = p.condition(QStringLiteral("ball_speed_deficit"));
+        check(ball && ball->detectedBy == QStringList{ QStringLiteral("sig_ballSpeedShortfall") },
+              "ball_speed_deficit reads the shortfall against the golfer's usual");
+        for (const char *id : { "m_carryShortfall", "m_ballSpeedShortfall" }) {
+            const Measure *m = p.measure(QLatin1String(id));
+            check(m && m->kind == MeasureKind::Provided && m->status == MeasureStatus::Live
+                      && m->unit == QLatin1String("z") && m->metricKey.startsWith(QLatin1String("history.")),
+                  "a shortfall is a live provided z, in the reserved history namespace");
+        }
+        for (const char *id : { "sig_carryShortfall", "sig_ballSpeedShortfall" }) {
+            const Signal *sg = p.signal(QLatin1String(id));
+            check(sg && sg->test == SignalTest::Threshold && sg->threshold.has_value() && *sg->threshold == 1.5
+                      && sg->direction == Direction::High,
+                  "a shortfall signal fires past 1.5 of the golfer's standard deviations");
+        }
     }
 
     // ── Outcome and BallFlight are coextensive, in BOTH directions ──────────────
@@ -1697,6 +1791,56 @@ int main()
                   "with the club unknown, neither a wedge nor a driver setup is called a fault");
         }
 
+        // ── No spin axis is both a fade and a slice ─────────────────────────────
+        // fade and draw are thresholds on the spin axis and slice and hook its corridor, so the two
+        // meet at whatever the corridor's deviation edge is. This walks the actual numbers: the
+        // authored thresholds, and the two tests a corridor signal makes in the engine (grade and tail).
+        {
+            const GradePolicy pol = gradePolicyByName(QStringLiteral("standard"));
+            const Measure *spin = p.measure(QStringLiteral("m_spinAxis"));
+            const Norm    *n    = nres.pack.find(QStringLiteral("m_spinAxis"), QStringLiteral("any"));
+            check(spin && n, "the spin axis has its corridor");
+            if (spin && n) {
+                const auto thresholdFires = [&](const char *id, double v) {
+                    const Signal *sg = p.signal(QLatin1String(id));
+                    if (!sg || !sg->threshold || !sg->direction) return false;
+                    return *sg->direction == Direction::High ? v > *sg->threshold : v < *sg->threshold;
+                };
+                const NormBandEdges e = bandEdgesOf(*n, spin->shape, pol);
+                const auto corridorFires = [&](const char *id, double v) {
+                    const Signal *sg = p.signal(QLatin1String(id));
+                    if (!sg || !sg->direction) return false;
+                    const bool onTail = *sg->direction == Direction::High ? v > e.idealHi : v < e.idealLo;
+                    return isDeviation(grade(v, *n, spin->shape, pol)) && onTail;
+                };
+                const auto isFade = [&](double v) {
+                    return thresholdFires("sig_fadeBeyondStraight", v) && thresholdFires("sig_fadeShortOfSlice", v);
+                };
+                const auto isDraw = [&](double v) {
+                    return thresholdFires("sig_drawBeyondStraight", v) && thresholdFires("sig_drawShortOfHook", v);
+                };
+                int both = 0;
+                for (int i = -3000; i <= 3000; ++i) {
+                    const double v = i * 0.01;
+                    if ((isFade(v) && corridorFires("sig_slice", v)) || (isDraw(v) && corridorFires("sig_hook", v)))
+                        ++both;
+                }
+                check(both == 0, "no spin axis from -30 to +30 degrees is both a fade and a slice, or a draw and a hook");
+                check(isFade(9.9) && !isFade(4.0) && !corridorFires("sig_slice", 9.9),
+                      "9.9 degrees is a fade and not yet a slice; a fade begins above 4");
+                check(isFade(10.0) && !corridorFires("sig_slice", 10.0)
+                          && isDraw(-10.0) && !corridorFires("sig_hook", -10.0),
+                      "exactly 10 degrees is still a fade or a draw, so the band meets the corridor edge");
+                check(!isFade(std::nextafter(10.0, 11.0)) && corridorFires("sig_slice", std::nextafter(10.0, 11.0))
+                          && !isDraw(std::nextafter(-10.0, -11.0)) && corridorFires("sig_hook", std::nextafter(-10.0, -11.0)),
+                      "the next representable value past 10 is a slice or a hook and nothing else");
+                check(corridorFires("sig_slice", 10.1) && !isFade(10.1), "10.1 degrees is a slice and not a fade");
+                check(isDraw(-9.9) && !isDraw(-4.0) && corridorFires("sig_hook", -10.1) && !isDraw(-10.1),
+                      "the same edges hold on the draw and hook side");
+                check(!isFade(3.0) && !isDraw(-3.0), "a near-straight flight is neither fade nor draw");
+            }
+        }
+
         // ── Nothing the app can DETECT is left without an EXPLANATION ───────────
         // The counterpart to the check above, and the one that nearly slipped. A signal that can
         // fire on a condition with no cause hands the coach "your head moved" — which the golfer
@@ -1738,6 +1882,7 @@ int main()
             // dispersion finding, so the explanation lists it as unexplained — the honest answer.
             // Named, not a category: a second fireable condition with no cause still fails here.
             if (c.id == QLatin1String("inconsistent_sequence")) continue;
+            if (c.id == QLatin1String("fade") || c.id == QLatin1String("draw")) continue;   // shapes, not faults
             if (causesOf(p, c.id).isEmpty()) {
                 ++unexplained;
                 std::printf("        '%s' can fire today but has no cause — it would be reported "

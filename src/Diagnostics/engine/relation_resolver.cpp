@@ -17,6 +17,7 @@
  */
 
 #include "relation_resolver.h"
+#include "excludes_rule.h"
 
 #include <QSet>
 
@@ -95,13 +96,8 @@ Explanation explain(const CharacteristicPack &pack, const DetectionResult &detec
                 // independent tests is a stronger reading of the same swing than one that cleared
                 // one of them, and it stays true for any future pair without either of them having
                 // to know the other exists.
-                const float ca = confidence.value(a, 0.0f);
-                const float cb = confidence.value(b, 0.0f);
-                const int   sa = specificity.value(a, 0);
-                const int   sb = specificity.value(b, 0);
-                const bool  keepA = (ca != cb) ? (ca > cb)
-                                  : (sa != sb) ? (sa > sb)
-                                               : (a < b);
+                const bool keepA = keepFirstOfExcludingPair(confidence.value(a, 0.0f), specificity.value(a, 0), a,
+                                                            confidence.value(b, 0.0f), specificity.value(b, 0), b);
 
                 const QString kept    = keepA ? a : b;
                 const QString dropped = keepA ? b : a;

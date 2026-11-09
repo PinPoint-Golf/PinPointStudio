@@ -16,24 +16,25 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Home's three views of the swing, under one title-size tab bar
+// Home's four views of the swing, under one title-size tab bar
 // (docs/design/ux_refactor_away_from_4_modes.md §2.3, 03_home_coaching.png):
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
 //   Your swing   HmSwingAreas — how the whole swing stands, area by area
+//   Tendencies   HmTendencies — the usual miss with each club, cross-session
 //   Matchups     HmGoesTogether — what travels together: today faults that move together; later
 //                also pairs that work together (Mark, 28 Oct)
 //
 // A fault on Coaching or Your swing opens its detail in place (HmFaultDetail); there is no page
-// behind Home. The bar carries the evidence line (controller.summarySubtitle) straight after the
-// tabs. The tab last chosen is remembered per athlete in appSettings.homeViewByAthlete[uuid].tab
-// ("coaching" | "swing" | "matchups"); HmSwingAreas keeps its own keys in the same entry. Both read and
+// behind Home. The bar carries the tab's evidence line straight after the tabs (controller.tendencyNote
+// on Tendencies when there is a table to back, else controller.summarySubtitle). The tab last chosen is remembered per athlete in appSettings.homeViewByAthlete[uuid].tab
+// ("coaching" | "swing" | "tendencies" | "matchups"); HmSwingAreas keeps its own keys in the same entry. Both read and
 // write it through hm_view_store.js.
 //
 // Signals go up to ScreenHome: Practise, and an open fault's "Review the … session →".
 //
 // objectNames: homeTabs (this), homeTabBar (the PpTabs), homeTabCoaching, homeTabSwing and
-// homeTabMatchups (the three pages).
+// homeTabMatchups (the pages), homeTabTendencies (HmTendencies' card, the third page).
 
 import QtQuick
 import QtQuick.Layouts
@@ -53,7 +54,7 @@ Column {
     signal practiseRequested(string conditionId, string label)
     signal reviewSessionRequested(string sessionDir)
 
-    readonly property var tabKeys: ["coaching", "swing", "matchups"]
+    readonly property var tabKeys: ["coaching", "swing", "tendencies", "matchups"]
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
@@ -83,10 +84,16 @@ Column {
         size:   "title"
         noteAfterTabs: true
         tabs: [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") },
-               { key: "matchups", label: qsTr("Matchups") }]
+               { key: "tendencies", label: qsTr("Tendencies") }, { key: "matchups", label: qsTr("Matchups") }]
         current: root.current
-        // The evidence both tabs read: "From N swings over M sessions".
-        note: root.controller && root.controller.summarySubtitle ? root.controller.summarySubtitle : ""
+        // The evidence each tab reads: "From N swings over M sessions"; Tendencies counts its shots.
+        // With no table to back, Tendencies says why in its own card and the bar stays quiet.
+        note: {
+            if (!root.controller) return ""
+            if (root.current === "tendencies")
+                return (root.controller.tendencyItems || []).length > 0 ? (root.controller.tendencyNote || "") : ""
+            return root.controller.summarySubtitle || ""
+        }
         onTabActivated: (key) => root.select(key)
     }
 
@@ -95,7 +102,7 @@ Column {
         width: root.width
         currentIndex: Math.max(0, root.tabKeys.indexOf(root.current))
         // As tall as the page showing, not the tallest.
-        height: [coachingPage, swingPage, matchupsPage][currentIndex].implicitHeight
+        height: [coachingPage, swingPage, tendenciesPage, matchupsPage][currentIndex].implicitHeight
 
         Item {
             id: coachingPage
@@ -121,6 +128,17 @@ Column {
                 athleteUuid: root.athleteUuid
                 onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
                 onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+            }
+        }
+        Item {
+            id: tendenciesPage
+            implicitHeight: tendencies.implicitHeight
+            HmTendencies {
+                id: tendencies
+                width: tendenciesPage.width
+                controller:  root.controller
+                athleteUuid: root.athleteUuid
+                onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
             }
         }
         Item {

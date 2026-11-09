@@ -30,8 +30,9 @@
 //                      the first wears a "Next" tag. A fault opens in place (HmFaultDetail): what
 //                      it costs, where it stands, the drill, the way into its session
 //
-// No metrics, no figures, no P-positions, no claims about cause — a golfer reads this. Colour is
-// never the only channel: the meter carries a count of segments, and each has words beside it.
+// No metrics, no P-positions, no figures except distances (always with a unit and ± SD; a modelled one says
+// what it is against), no claims about cause except "because" for a ball ← club link measured on the shot
+// (shot_outcomes_design.md §1) — a golfer reads this. Colour is never the only channel: the meter carries a count of segments, and each has words beside it.
 // The evidence line ("From N swings over M sessions") and the way into every work-on ("All
 // work-ons ▸") are the tab bar's, not this page's.
 //
@@ -39,7 +40,7 @@
 //   summaryReady, summaryUpdating, updating, athleteDir
 //   focusItem      see HmFocus.qml
 //   doWellItems    [{ text, caption, share 0..1, sessions: [bool…] }]
-//   nextItems      [{ text, share 0..1, frequency, trend -1|0|1, sessions: [bool…] }]
+//   nextItems      [{ text, share 0..1, frequency, trend -1|0|1, sessions: [bool…], onTheBall }]
 // This file positions and paints. Before the first summary lands it says it is reading, and with
 // no session to read it says "Nothing yet".
 //
@@ -329,6 +330,15 @@ Column {
                                     anchors.verticalCenter: parent.verticalCenter
                                     trend: workItem.modelData.trend
                                 }
+                            }
+                            // What it does on the ball, only when a shot has shown it.
+                            PpCaption {
+                                objectName: "homeOnTheBall"
+                                visible:  text !== ""
+                                width:    parent.width
+                                elide:    Text.ElideNone
+                                wrapMode: Text.WordWrap
+                                text:     workItem.modelData.onTheBall || ""
                             }
                         }
                         PpMeter {

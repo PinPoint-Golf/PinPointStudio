@@ -8537,6 +8537,10 @@
    "drill": "drill.pumpToDelivery",
    "when": 6
   },
+  "draw": {
+   "drill": "",
+   "when": 7
+  },
   "early_extension": {
    "drill": "drill.postureRod",
    "when": 7
@@ -8588,6 +8592,10 @@
   "face_held_shut_takeaway": {
    "drill": "drill.takeawayFace",
    "when": 2
+  },
+  "fade": {
+   "drill": "",
+   "when": 7
   },
   "feet_alignment_closed": {
    "drill": "drill.alignmentSticks",

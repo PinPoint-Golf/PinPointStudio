@@ -23,7 +23,7 @@
 //   1. Start — one table card: left, a new session (Start session, the club, the last session);
 //      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
 //      offered sessions and the first device warning;
-//   2. HmHomeTabs — Coaching | Your swing | Matchups; a fault opens its detail in place.
+//   2. HmHomeTabs — Coaching | Your swing | Matchups | Tendencies; a fault opens its detail in place.
 // The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
 // The contour background (PpTopoBackground) sits behind all of Home, first run and golfer alike.
 
@@ -552,7 +552,7 @@ Item {
                 }
             }
 
-            // ── 2. Coaching | Your swing | Matchups ──────────────────────────
+            // ── 2. Coaching | Your swing | Matchups | Tendencies ─────────────
             //
             // The golfer's swing, read off WorkOnsController's catch-up (re-run whenever Home comes
             // back into view, onVisibleChanged — a session may have ended since). Practise opens the

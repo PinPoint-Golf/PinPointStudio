@@ -77,6 +77,12 @@ PpTypeset {
             { key: "path",  tier: 1, kind: "rich",  w: 0,   head: "" },
             { key: "links", tier: 3, kind: "small", w: 13,  head: "Links", fo: 1, fold: "links" },
             { key: "open",  tier: 1, kind: "link",  w: 2.8, head: "", align: "r", screenOnly: true }
+        ],
+        // what happened on a shot: each label and what fired it (Analyse and Print; cells from evidenceCell)
+        evidence: [
+            { key: "label",    tier: 1, kind: "name",  w: 8.6, head: "" },
+            { key: "evidence", tier: 1, kind: "small", w: 0,   head: "" },
+            { key: "source",   tier: 1, kind: "small", w: 7,   head: "Source", ink3: true }
         ]
     })
 
@@ -286,6 +292,15 @@ PpTypeset {
         const m = c.match(/^(.*?[.!?])\s+(.*)$/)
         return m ? [m[1], m[2]] : [c, ""]
     }
+    // ── what happened on a shot (shot_outcomes_design.md §6): the model's parts, set the same in every register ──
+    function evidenceCell(row, key) {
+        const ev = row.evidence || []
+        if (key === "label") return { t: row.short + (row.corrected ? " (you said)" : "") + (row.intended ? " (as planned)" : "") }
+        if (key === "evidence") return { t: ev.length ? ev.map(e => (e.label ? e.label + " " : "") + e.text).join(" · ") : "-" }
+        if (key === "source") return { t: ev.length ? ev.map(e => e.sourceText).filter((s, i, a) => !!s && a.indexOf(s) === i).join(" · ") : "-" }
+        return {}
+    }
+    function seenWith(driver) { return "Seen with: " + String((driver && (driver.golfer || driver.name)) || "").replace(/\.$/, "") }
     function headlineHtml(s) {
         s = String(s || ""); const i = s.indexOf(": ")
         return i < 0 ? esc(s) : strongHtml(s.slice(0, i) + ".") + " " + esc(cap1(s.slice(i + 2)))

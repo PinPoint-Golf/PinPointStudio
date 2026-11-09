@@ -20,6 +20,8 @@
 
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Coaching/firing_side.h"            // conditionFiringSide (#16)
+#include "../../Coaching/shot_outcomes.h"
+#include "../../Coaching/tendencies.h"
 #include "../../Coaching/work_ons.h"
 #include "../../Diagnostics/engine/characteristic_engine.h"
 #include "../../Diagnostics/engine/relation_resolver.h"
@@ -230,6 +232,35 @@ class SessionDiagnosticsModel : public QObject
     Q_PROPERTY(QString detailConditionId READ detailConditionId NOTIFY detailChanged)
     Q_PROPERTY(QVariantMap detail READ detail NOTIFY detailChanged)
 
+    // ── Shot outcomes: the session's outcome strip and reasons (shot_outcomes_design.md §4.2) ───
+    //
+    // shotLog      [{ shotId, cell, lines: [string], labels: [displayId], reasonId, reasonIndex, clean,
+    //                 intended, corrected, warmUp, noReading, swingDir }] in strike order. `cell` is the
+    //                 word lines joined; "" on a clean shot. Warm-up is the positional first shots.
+    // shotMix      { line: "11 clean · 6 slice · …", corrections: 2, correctionsLine: "2 labels corrected by you" }
+    // reasons      [{ id, conditionId, name, golfer, shots, produced: [{phrase, count}], cost, costText,
+    //                 tier, tierText, strength, chainConfirmed, trend (+1|0|-1), trendWords, colourIndex,
+    //                 ticks: [{state, shotId}], flaggable }], ordered by shots then cost, the unexplained
+    //                 row last (id/conditionId "", name "No reason found", tierText "Gap in the model",
+    //                 flaggable true). state: "fired" | "clean" | "notAssessable".
+    // carryToday   [{ club, clubId, mean, sd, n, usualMean, usualSd, usualN, line }], clubs in first-hit
+    //                 order, full swings past the warm-ups with strike misses left out. usual* NaN and no
+    //                 usual in `line` until the club has kClubBaselineMinShots behind it.
+    Q_PROPERTY(QVariantList shotLog READ shotLog NOTIFY surfaceChanged)
+    Q_PROPERTY(QVariantMap  shotMix READ shotMix NOTIFY surfaceChanged)
+    Q_PROPERTY(QVariantList reasons READ reasons NOTIFY surfaceChanged)
+    Q_PROPERTY(QVariantList carryToday READ carryToday NOTIFY surfaceChanged)
+    // clubMix      [{ club, clubId, judged, notRead, line: "Good 50% · Thin 25% · Slice 25%",
+    //                 parts: [{ key, label, kind: "good"|"main"|"other", count, percent }] }], clubs in first-hit order.
+    Q_PROPERTY(QVariantList clubMix READ clubMix NOTIFY surfaceChanged)
+
+    // WHO MAY WRITE club_baseline.json — set BEFORE activateSession (Contract A):
+    //   "always"  WorkOnsController's private model: on reaching a session, whatever else.
+    //   "live"    a live panel: only when every predecessor's ledger is schema 11, and never while reviewing.
+    //   "never"   review panels and the session report: read only. Unknown words read as "never".
+    // The default is "live", so a panel left on it behaves as a live one until it reviews.
+    Q_PROPERTY(QString baselineAuthority READ baselineAuthorityName WRITE setBaselineAuthorityName NOTIFY baselineAuthorityChanged)
+
 public:
     explicit SessionDiagnosticsModel(QObject *parent = nullptr);
     ~SessionDiagnosticsModel() override;
@@ -246,6 +277,15 @@ public:
     // writes diagnostics.json"). On by default — the panel and the work-ons catch-up own the file.
     bool    persistEnabled() const { return m_persistEnabled; }
     void    setPersistEnabled(bool on) { m_persistEnabled = on; }
+
+    enum class BaselineAuthority { Never, Live, Always };
+    BaselineAuthority baselineAuthority() const { return m_baselineAuthority; }
+    void    setBaselineAuthority(BaselineAuthority a);
+    QString baselineAuthorityName() const;
+    void    setBaselineAuthorityName(const QString &name);
+    // Whether this session's club_baseline.json exists (Contract A). Rows are stamped provisional until then.
+    bool    baselineFrozen() const { return m_baselineFrozen; }
+
     int     selectedShotId() const { return m_selectedShotId; }
     void    setSelectedShotId(int id);
     QString selectedSwingDir() const { return m_selectedSwingDir; }
@@ -287,6 +327,11 @@ public:
     QVariantList expectations() const { return m_expectations; }
     QString      detailConditionId() const { return m_detailConditionId; }
     QVariantMap  detail() const { return m_detail; }
+    QVariantList shotLog() const { ensureOutcomes(); return m_shotLog; }
+    QVariantMap  shotMix() const { ensureOutcomes(); return m_shotMix; }
+    QVariantList reasons() const { ensureOutcomes(); return m_reasons; }
+    QVariantList carryToday() const { ensureOutcomes(); return m_carryToday; }
+    QVariantList clubMix() const { ensureOutcomes(); return m_clubMix; }
 
     // ── Session lifecycle ───────────────────────────────────────────────────────────
 
@@ -369,6 +414,37 @@ public:
     // explain()'s knownScreenResults and NodeSpec::screenEntered — which is what lets a
     // screened root stop anchoring nothing.
     Q_INVOKABLE void recordScreenResult(const QString &conditionId, bool present);
+
+    // ── What happened on a shot (shot_outcomes_design.md §4) ────────────────────────────────
+
+    // One shot's words, or {} for a shot not in the ledger. A shot with no launch-monitor reading has
+    // noReading true and strike labels only.
+    //   { ready, noReading, golferMirrored, phrase, story, noReasonText, clean,
+    //     labels: [{ id, rowId, family, short, abbr, golfer, intended, corrected, miss,
+    //                evidence: [{ measureId, label, value, unit, source: "lm"|"impact"|"model",
+    //                             sourceText, text }] }],
+    //     driver: { id, displayId, name, golfer, strength, explains, of } | {},
+    //     links: [{ fromId, toId, grade, words, physics }],
+    //     carry: { usual, usualSd, actual, unit:"yd", shortBy, provenance, line, residual,
+    //              residualShown, parts: [{ id, name, loss, detail, lineWords }] } | {} }
+    // golferMirrored: a left-hander's labels are glossed (`id` is the displayed condition, `rowId` the
+    // ledger's). ids passed to correctOutcome/setShotIntent are the golfer's (Contract D).
+    Q_INVOKABLE QVariantMap shotOutcome(int shotId) const;
+
+    // Shaped as conditionDetail() for PpCauseGraph: { id, name, causeHeadline, noCausesLine, outcomeHeadline,
+    // noEffectsLine, causes: [rails], effects: [], causesCapped, effectsCapped, rivals: [], driverId }. Rails
+    // carry nodes and links as conditionDetail's, the driver's path marked `primary`; physics steps have
+    // grade "physics" and word "from the fat · clear". conditionDetail() never shows LeadsTo; this does.
+    Q_INVOKABLE QVariantMap shotOutcomeDetail(int shotId) const;
+
+    // §4.4. toId is the golfer's condition; "" means none in that family, and passing the detected one
+    // again withdraws the correction. Never touches a row, a corridor or a tier (A6).
+    Q_INVOKABLE void correctOutcome(int shotId, const QString &family, const QString &toId);
+    Q_INVOKABLE void setShotIntent(int shotId, const QString &shape);       // "" = straight
+    // "Hitting fades from the next shot": shots with id ≥ fromShot, including ones not yet struck.
+    Q_INVOKABLE void setIntentFrom(int fromShot, const QString &shape);
+    // Appends to <athlete>/outcome_corrections.jsonl: the tuning log's "no reason found" entries.
+    Q_INVOKABLE void flagForReview(int shotId);
 
     // ── Review (brief §6, option 13a) ───────────────────────────────────────────────
 
@@ -501,6 +577,9 @@ public:
     // What the rows are graded against, so a holder of this model can tell when a record it
     // derived earlier has gone stale. The same stamp gradedFrom carries.
     QString contentStamp() const { return computeContentStamp(); }
+    // This session's evidence per condition, for work_ons.json: what the tendency reduction needs to
+    // re-compose a shot without re-deriving the session (Contract: per condition, not per shot).
+    pinpoint::analysis::TendencySessionEvidence outcomeEvidence() const;
     // The corridor a condition's run of readings is drawn against (spreadCorridorOf, at the focus
     // shot), for a holder that builds its own figures from ledgerRows() — the session report does.
     // `measureId` empty = the driving measure. An empty corridor when the condition has no ledger.
@@ -544,6 +623,7 @@ signals:
     void reviewingChanged();
     void selectedShotIdChanged();
     void selectedSwingDirChanged();
+    void baselineAuthorityChanged();
     void sessionChanged();
     void intentChanged();
     void busyChanged();
@@ -626,10 +706,30 @@ private:
     // ── Persistence ─────────────────────────────────────────────────────────────────
     QString      diagnosticsPath() const;
     QString      faultProfilePath() const;
+    QString      clubBaselinePath() const;
+    QString      tuningLogPath() const;
     QJsonObject  envelope() const;
     void         persist();
     void         loadProfile();
     void         updateProfile();
+
+    // ── The frozen club baseline (Contract A) ────────────────────────────────────────
+    // Reads <session>/club_baseline.json, or freezes one when this model is allowed to. Called once per
+    // activation, before anything is queued.
+    void         prepareClubBaseline();
+    // The stamp a row graded now would carry: the content stamp, "|provisional" while unfrozen.
+    QString      rowContentStamp() const;
+    void         adoptClubBaseline(const QHash<QString, pinpoint::analysis::ClubBaselineEntry> &clubs);
+    const pinpoint::analysis::ClubBaselineEntry *usualFor(const QString &club) const;
+    void         appendTuningLine(const QJsonObject &line) const;
+    QJsonObject  shotMeasures(const pinpoint::analysis::ShotRecord &s) const;
+
+    // ── Shot outcomes, composed lazily once per reduction ────────────────────────────
+    void         ensureOutcomes() const;
+    QString      intentFor(int shotId) const;
+    pinpoint::analysis::ShotOutcomeSessionFacts outcomeSessionFacts() const;
+    QVariantMap  outcomeLabelMap(const pinpoint::analysis::ShotOutcomeLabel &l, const pinpoint::analysis::ShotRecord &s,
+                                 const pinpoint::analysis::ClubBaselineEntry *usual) const;
 
     // ── Surface builders (one per zone; all pure over the reduction) ────────────────
     void buildHeader();
@@ -867,6 +967,32 @@ private:
     void scanHistory();
     void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing);
     std::vector<HistorySession> m_history;
+
+    // ── The frozen baseline, read at activation; the worker reads it, activateSession() waits for
+    //    the worker before changing it.
+    BaselineAuthority m_baselineAuthority = BaselineAuthority::Live;
+    bool m_baselineFrozen = false;
+    QHash<QString, pinpoint::analysis::ClubBaselineEntry> m_baselineClubs;
+    std::shared_ptr<pinpoint::analysis::IClubBaselineProvider> m_clubBaseline;
+
+    // ── Corrections and intent (envelope; never a row) ───────────────────────────────
+    QHash<int, std::vector<pinpoint::analysis::ShotCorrection>> m_corrections;
+    QHash<int, QString> m_shotIntent;
+    int     m_intentFromShot = -1;
+    QString m_intentFromShape;
+
+    // ── Composed on first read after each reduction (ensureOutcomes) ─────────────────
+    mutable bool m_outcomesDirty = true;
+    pinpoint::analysis::ShotOutcomePack m_outcomePack;
+    mutable pinpoint::analysis::TendencySessionEvidence m_outcomeEvidence;   // grade > Unanchored only
+    mutable std::vector<pinpoint::analysis::NodeSpec>     m_outcomeNodes;
+    mutable std::vector<pinpoint::analysis::LinkEvidence> m_outcomeLinks;     // every graded link, for the detail
+    mutable std::vector<pinpoint::analysis::ShotOutcome> m_composed;     // aligned with m_shots
+    mutable QVariantList m_shotLog;
+    mutable QVariantMap  m_shotMix;
+    mutable QVariantList m_reasons;
+    mutable QVariantList m_carryToday;
+    mutable QVariantList m_clubMix;
     int  m_historyMissing = 0;      // sibling sessions with swings and no ledger yet
     bool m_historyLoading = false;
     int  m_historyGen     = 0;      // a scan for a session no longer loaded is discarded on arrival

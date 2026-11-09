@@ -69,4 +69,4 @@ PpBoxPlot {
 ```
 
 ## Used by
-Instantiated in `charts/PpChBoxCell.qml` — which the Charts panel places in `PpChProfile`, `PpChRunBox`, `PpChReadingTrace`, `PpChKindTable`, `PpChScatter`, `PpChPositionProfile`, `PpChPostureAddress`, `PpChDeliverySession` and the report's `PpReportProfile` and `PpDeliveryPage` — `diagnostics/PpBoxStrip.qml` (Session diagnostics Spread box), `diagnostics/PpHistoryStrip.qml` (across-sessions boxes) and `typeset/PpPageKey.qml` (the key's box swatch, `namePrefix: "sdKeyBox"`).
+Instantiated in `charts/PpChBoxCell.qml` — which the Charts panel places in `PpChProfile`, `PpChRunBox`, `PpChReadingTrace`, `PpChKindTable`, `PpChScatter`, `PpChPositionProfile`, `PpChPostureAddress`, `PpChDeliverySession` and the report's `PpReportProfile` and `PpDeliveryPage` — `diagnostics/PpBoxStrip.qml` (Session diagnostics Spread box), `diagnostics/PpHistoryStrip.qml` (across-sessions boxes), `athlete/AthleteClubsSection.qml` (Your distances, collapsed to mean ± SD) and `typeset/PpPageKey.qml` (the key's box swatch, `namePrefix: "sdKeyBox"`).

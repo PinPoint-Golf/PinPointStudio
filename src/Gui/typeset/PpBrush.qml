@@ -35,9 +35,12 @@ QtObject {
     property var highlightConditions: []    // condition ids
     property string question: ""            // the active question's id, if any (PpQuestions block)
     property var cards: []                  // the session cards: teaches the brush each shot's swingDir
+    property var shotLog: []                // the model's shotLog: every shot's swingDir, even in a Cold session with no cards
 
     readonly property var shotDirs: {
         const out = {}
+        const log = shotLog || []
+        for (let i = 0; i < log.length; ++i) if (log[i].swingDir && !out[log[i].shotId]) out[log[i].shotId] = log[i].swingDir
         const cs = cards || []
         for (let i = 0; i < cs.length; ++i) {
             const run = (cs[i].spread && cs[i].spread.run) || []

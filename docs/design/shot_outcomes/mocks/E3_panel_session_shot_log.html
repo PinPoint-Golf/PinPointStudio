@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Session — shot log and reasons</title>
+
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gelasio:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4efe3}
+a{color:#9a5e12;text-decoration:none}a:hover{color:#6e430c}
+.pp{font-family:Georgia,Gelasio,"Times New Roman",serif;color:#0a1115;font-size:13px;line-height:1.45}
+.mono{font-family:"DM Mono",ui-monospace,monospace}
+.cap{font-family:"DM Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#5a5246}
+.c{height:40px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:"DM Mono",ui-monospace,monospace;font-size:8px;line-height:1.1;text-align:center;color:#fbf8f0}
+.ok{background:rgba(53,112,88,.18);color:#357058}
+.ee{background:#a8482a}
+.ot{background:#6b4e8c}
+.cu{background:#2b6e7a}
+.un{background:#fbf8f0;border:1px dashed rgba(58,50,42,.45);color:#5a5246;box-sizing:border-box}
+.chip{display:inline-flex;align-items:center;min-height:22px;padding:0 8px;border-radius:11px;font-size:11px;background:#ece6d7}
+.rr{display:grid;grid-template-columns:minmax(200px,1.5fr) 44px minmax(180px,1.6fr) 60px 110px;align-items:center;column-gap:12px;min-height:56px;border-top:1px solid rgba(58,50,42,.08);font-size:12px}
+</style>
+</head>
+<body>
+
+
+<div class="pp" style="width: 960px; height: 760px; box-sizing: border-box; padding: 20px; background: #f4efe3">
+  <div style="background: #fbf8f0; border: 1px solid rgba(58,50,42,.17); border-radius: 10px; padding: 18px 22px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; gap: 16px; border-bottom: 1px solid rgba(58,50,42,.12); padding-bottom: 8px">
+      <span class="cap">This shot</span><span class="cap" style="color: #9a5e12">Session</span><span class="cap">Consistency</span><span class="cap">Watching</span>
+    </div>
+
+    <section>
+      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px">
+        <span class="cap" style="color: #a8482a">Shot log · what happened, coloured by why</span>
+        <span style="display: flex; gap: 8px; align-items: center"><span style="font-size: 11px; color: #5a5246">replaces the shot ruler</span><span class="cap" style="background: #9a5e12; color: #ffffff; padding: 2px 6px; border-radius: 3px">New</span></span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 3px">
+        <span class="c ok">✓</span><span class="c ee">FAT</span><span class="c ot">SL</span><span class="c ee">FAT SL</span><span class="c ee">FAT SL</span><span class="c ok">✓</span><span class="c ok">✓</span><span class="c ee">FAT</span><span class="c ot">SL</span><span class="c ee" style="outline: 2px solid #0a1115; outline-offset: 1px">FAT SL</span><span class="c ok">✓</span><span class="c ee">SL</span><span class="c ok">✓</span><span class="c ok">✓</span><span class="c ot">SL</span><span class="c ok">✓</span><span class="c cu">PUSH</span><span class="c ok">✓</span><span class="c ee">THIN PL</span><span class="c ok">✓</span><span class="c ot">SL</span><span class="c ok">✓</span><span class="c un">SL</span><span class="c ok">✓</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 4px"><span class="mono" style="font-size: 9px; color: #5a5246">1</span><span class="mono" style="font-size: 9px; color: #5a5246">24</span></div>
+      <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 11px; color: #5a5246">
+        <span>Mix: 11 clean · 6 slice · 3 fat slice · 2 fat · 1 thin pull · 1 push</span>
+        <span>2 labels corrected by you</span>
+        <span style="color: #0a1115">7 iron carry today <span class="mono">141 ± 9 m</span> · your usual <span class="mono">148 ± 6 m</span></span>
+      </div>
+    </section>
+
+    <section>
+      <div style="display: flex; justify-content: space-between; align-items: baseline">
+        <span class="cap">Reasons for the bad shots</span>
+        <span style="font-size: 11px; color: #5a5246">cards with reachesBall, ranked by bad shots explained</span>
+      </div>
+      <div class="rr" style="border-top: 0; min-height: 30px">
+        <span class="cap">Reason</span><span class="cap">Shots</span><span class="cap">What it produced</span><span class="cap">Cost</span><span class="cap">Trend</span>
+      </div>
+      <div class="rr">
+        <span style="display: flex; align-items: center; gap: 10px"><span style="width: 12px; height: 12px; border-radius: 2px; background: #a8482a; flex: none"></span><span><span style="display: block; font-size: 13px">Stood up through the ball</span><span class="cap" style="color: #2b6e7a">Likely · chain confirmed</span></span></span>
+        <span class="mono" style="font-size: 15px">7</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 4px"><span class="chip">Fat slice ×3</span><span class="chip">Fat ×2</span><span class="chip">Slice</span><span class="chip">Thin pull</span></span>
+        <span class="mono">96 m</span>
+        <span style="color: #357058">↓ none since 13</span>
+      </div>
+      <div class="rr">
+        <span style="display: flex; align-items: center; gap: 10px"><span style="width: 12px; height: 12px; border-radius: 2px; background: #6b4e8c; flex: none"></span><span><span style="display: block; font-size: 13px">Over the top</span><span class="cap" style="color: #2b6e7a">Likely · chain confirmed</span></span></span>
+        <span class="mono" style="font-size: 15px">4</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 4px"><span class="chip">Slice ×4</span></span>
+        <span class="mono">41 m</span>
+        <span style="color: #8a6612">→ steady</span>
+      </div>
+      <div class="rr">
+        <span style="display: flex; align-items: center; gap: 10px"><span style="width: 12px; height: 12px; border-radius: 2px; background: #2b6e7a; flex: none"></span><span><span style="display: block; font-size: 13px">Face open at the top</span><span class="cap">Possible · one shot</span></span></span>
+        <span class="mono" style="font-size: 15px">1</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 4px"><span class="chip">Push</span></span>
+        <span class="mono">12 m</span>
+        <span style="color: #5a5246">watching</span>
+      </div>
+      <div class="rr">
+        <span style="display: flex; align-items: center; gap: 10px"><span style="width: 12px; height: 12px; border-radius: 2px; border: 1px dashed rgba(58,50,42,.45); box-sizing: border-box; flex: none"></span><span><span style="display: block; font-size: 13px; color: #5a5246">No reason found</span><span class="cap">Gap in the model</span></span></span>
+        <span class="mono" style="font-size: 15px">1</span>
+        <span style="display: flex; flex-wrap: wrap; gap: 4px"><span class="chip">Slice</span></span>
+        <span class="mono">9 m</span>
+        <a href="#">Flag →</a>
+      </div>
+    </section>
+
+    <div style="height: 64px; border: 1px dashed rgba(58,50,42,.35); border-radius: 6px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 12px">
+      <span style="font-size: 12px; color: #5a5246">Existing, unchanged: pattern cards (spark rows / small multiples), cold expectations, coverage line</span>
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>

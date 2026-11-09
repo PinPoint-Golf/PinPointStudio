@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Athlete settings — club distances</title>
+
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&amp;family=Gelasio:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4efe3}
+a{color:#9a5e12;text-decoration:none}a:hover{color:#6e430c}
+.pp{font-family:Georgia,Gelasio,"Times New Roman",serif;color:#0a1115;font-size:13px;line-height:1.45}
+.mono{font-family:"DM Mono",ui-monospace,monospace}
+.cap{font-family:"DM Mono",ui-monospace,monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:#5a5246}
+.new{font-family:"DM Mono",ui-monospace,monospace;font-size:9px;letter-spacing:.8px;background:#9a5e12;color:#ffffff;padding:2px 6px;border-radius:3px}
+.dr{display:grid;grid-template-columns:96px 110px 250px 70px 100px 56px 1fr;column-gap:12px;align-items:center;min-height:34px;padding:0 16px;border-top:1px solid rgba(58,50,42,.08)}
+.tab{font-size:13px;padding:6px 2px;color:#5a5246;border-bottom:2px solid transparent}
+.tab.on{color:#0a1115;border-bottom-color:#9a5e12}
+.fig{display:flex;flex-direction:column;gap:2px}
+.fig .v{font-family:"DM Mono",ui-monospace,monospace;font-size:20px}
+.fig .v span{color:#5a5246;font-size:14px}
+</style>
+</head>
+<body>
+
+
+<div class="pp" style="width: 1100px; height: 1180px; box-sizing: border-box; padding: 24px; background: #f4efe3">
+  <section style="background: #fbf8f0; border: 1px solid rgba(58,50,42,.17); border-radius: 10px; padding: 20px 22px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <span style="font-size: 16px">Clubs</span>
+      <span style="font-size: 11px; color: #5a5246">Athlete settings · Mark</span>
+    </div>
+    <div style="height: 40px; border: 1px dashed rgba(58,50,42,.35); border-radius: 6px; display: flex; align-items: center; justify-content: center"><span style="font-size: 12px; color: #5a5246">Existing, unchanged: description · Add club</span></div>
+
+    <div style="border: 1px solid rgba(58,50,42,.17); border-radius: 8px; padding-bottom: 6px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px 6px">
+        <span style="display: flex; align-items: center; gap: 8px"><span class="cap">Your distances</span><span class="new">NEW</span></span>
+        <span style="font-size: 11px; color: #5a5246">Carry, average ± one standard deviation · full swings · last 10 sessions per club</span>
+      </div>
+      <div class="dr" style="border-top: 0; min-height: 28px">
+        <span class="cap">Club</span><span class="cap">Carry (m)</span><span class="cap">Spread</span><span class="cap">Total</span><span class="cap">Left–right</span><span class="cap">Shots</span><span class="cap">Trend</span>
+      </div>
+      <a class="dr" href="#" style="color: #0a1115"><span>Driver</span><span class="mono">214 <span style="color: #5a5246">± 14</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="187.5" y="1" width="43.8" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="209.4" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">236</span><span class="mono">± 19</span><span class="mono">96</span><span style="font-size: 12px; color: #357058">↑ 4 m</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>3 wood</span><span class="mono">196 <span style="color: #5a5246">± 11</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="164.1" y="1" width="34.4" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="181.2" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">212</span><span class="mono">± 14</span><span class="mono">40</span><span style="font-size: 12px; color: #8a6612">→ steady</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>Hybrid</span><span class="mono">178 <span style="color: #5a5246">± 10</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="137.5" y="1" width="31.2" height="10" rx="2" fill="rgba(154,94,18,.22)" stroke="rgba(154,94,18,.5)" stroke-dasharray="2 2"></rect><circle cx="153.1" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">189</span><span class="mono">± 11</span><span class="mono">22</span><span style="font-size: 12px; color: #5a5246">few shots yet</span></a>
+      <a class="dr" href="#" style="color: #0a1115; background: rgba(168,72,42,.04)"><span>5 iron</span><span class="mono">162 <span style="color: #5a5246">± 8</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="115.6" y="1" width="25.0" height="10" rx="2" fill="rgba(168,72,42,.22)"></rect><circle cx="128.1" cy="6" r="3.2" fill="#a8482a"></circle></svg><span class="mono">170</span><span class="mono">± 10</span><span class="mono">48</span><span style="font-size: 12px; color: #a8482a">overlaps 6 iron</span></a>
+      <a class="dr" href="#" style="color: #0a1115; background: rgba(168,72,42,.04)"><span>6 iron</span><span class="mono">155 <span style="color: #5a5246">± 7</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="106.2" y="1" width="21.9" height="10" rx="2" fill="rgba(168,72,42,.22)"></rect><circle cx="117.2" cy="6" r="3.2" fill="#a8482a"></circle></svg><span class="mono">162</span><span class="mono">± 8</span><span class="mono">61</span><span style="font-size: 12px; color: #a8482a">overlaps 5 iron</span></a>
+      <a class="dr" href="#" style="color: #0a1115; background: rgba(154,94,18,.07)"><span style="font-weight: 500">7 iron ▸</span><span class="mono">148 <span style="color: #5a5246">± 6</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="96.9" y="1" width="18.8" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="106.2" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">154</span><span class="mono">± 7</span><span class="mono">210</span><span style="font-size: 12px; color: #357058">↓ spread tighter</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>8 iron</span><span class="mono">139 <span style="color: #5a5246">± 6</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="82.8" y="1" width="18.8" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="92.2" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">144</span><span class="mono">± 6</span><span class="mono">57</span><span style="font-size: 12px; color: #8a6612">→ steady</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>9 iron</span><span class="mono">129 <span style="color: #5a5246">± 5</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="68.8" y="1" width="15.6" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="76.6" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">133</span><span class="mono">± 5</span><span class="mono">44</span><span style="font-size: 12px; color: #8a6612">→ steady</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>Pitching w.</span><span class="mono">116 <span style="color: #5a5246">± 5</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="48.4" y="1" width="15.6" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="56.2" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">119</span><span class="mono">± 5</span><span class="mono">52</span><span style="font-size: 12px; color: #8a6612">→ steady</span></a>
+      <a class="dr" href="#" style="color: #0a1115"><span>Gap w.</span><span class="mono">103 <span style="color: #5a5246">± 6</span></span><svg viewBox="0 0 250 12" width="250" height="12" aria-hidden="true"><line x1="0" y1="6" x2="250" y2="6" stroke="rgba(58,50,42,.12)"></line><rect x="26.6" y="1" width="18.8" height="10" rx="2" fill="rgba(154,94,18,.22)"></rect><circle cx="35.9" cy="6" r="3.2" fill="#9a5e12"></circle></svg><span class="mono">105</span><span class="mono">± 6</span><span class="mono">31</span><span style="font-size: 12px; color: #8a6612">→ steady</span></a>
+      <div class="dr" style="border-top: 0; min-height: 22px"><span></span><span></span><span class="mono" style="display: flex; justify-content: space-between; font-size: 10px; color: #5a5246"><span>80 m</span><span>240 m</span></span></div>
+      <p style="margin: 2px 16px 6px; font-size: 11px; color: #5a5246">A row opens that club's tab below. Fat, thin, topped and shanked shots are left out of the average. Gaps flag when two clubs' ± bands overlap.</p>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 14px; border-bottom: 1px solid rgba(58,50,42,.12)">
+      <span class="tab">Driver</span><span class="tab">3 wood</span><span class="tab">Hybrid</span><span class="tab">5 iron</span><span class="tab">6 iron</span><span class="tab on">7 iron</span><span class="tab">8 iron</span><span class="tab">9 iron</span><span class="tab">Pitching wedge</span><span class="tab">Gap wedge</span>
+    </div>
+
+    <div style="background: #ece6d7; border: 1px solid rgba(58,50,42,.12); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: center; gap: 10px"><span style="font-weight: 500">7 iron</span><span style="flex: 1"></span><span style="font-size: 12px; color: #5a5246">Remove</span></div>
+      <div style="background: #fbf8f0; border: 1px solid rgba(58,50,42,.12); border-radius: 6px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 8px"><span class="cap">Distances with this club</span><span class="new">NEW</span><span style="flex: 1"></span><span style="font-size: 11px; color: #5a5246">210 shots · 10 sessions · 6 mishits left out (fat 4, thin 2)</span></div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px">
+          <div class="fig"><span class="cap">Carry</span><span class="v">148 <span>± 6 m</span></span></div>
+          <div class="fig"><span class="cap">Total</span><span class="v">154 <span>± 7 m</span></span></div>
+          <div class="fig"><span class="cap">Left–right</span><span class="v">± 7 <span>m</span></span></div>
+          <div class="fig"><span class="cap">Club speed</span><span class="v">82 <span>± 2 mph</span></span></div>
+          <div class="fig"><span class="cap">Ball speed</span><span class="v">109 <span>± 3 mph</span></span></div>
+          <div class="fig"><span class="cap">Smash</span><span class="v">1.33 <span>± .03</span></span></div>
+        </div>
+        <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start">
+          <div>
+            <div class="cap" style="margin-bottom: 4px">Carry by session · average ± SD</div>
+            <svg viewBox="0 0 430 92" width="430" height="92" role="img" aria-label="Carry by session, last ten sessions, rising slightly and tightening">
+              <line x1="0" y1="44" x2="430" y2="44" stroke="rgba(58,50,42,.18)" stroke-dasharray="3 3"></line>
+              <text x="428" y="40" text-anchor="end" font-family="DM Mono, monospace" font-size="9" fill="#5a5246">148</text>
+              <line x1="24" y1="36" x2="24" y2="68" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="24" cy="52" r="3.5" fill="#9a5e12"></circle><line x1="66" y1="34" x2="66" y2="66" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="66" cy="50" r="3.5" fill="#9a5e12"></circle><line x1="108" y1="32" x2="108" y2="60" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="108" cy="46" r="3.5" fill="#9a5e12"></circle><line x1="150" y1="34" x2="150" y2="62" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="150" cy="48" r="3.5" fill="#9a5e12"></circle><line x1="192" y1="30" x2="192" y2="54" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="192" cy="42" r="3.5" fill="#9a5e12"></circle><line x1="234" y1="32" x2="234" y2="56" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="234" cy="44" r="3.5" fill="#9a5e12"></circle><line x1="276" y1="34" x2="276" y2="58" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="276" cy="46" r="3.5" fill="#9a5e12"></circle><line x1="318" y1="30" x2="318" y2="50" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="318" cy="40" r="3.5" fill="#9a5e12"></circle><line x1="360" y1="32" x2="360" y2="52" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="360" cy="42" r="3.5" fill="#9a5e12"></circle><line x1="402" y1="34" x2="402" y2="54" stroke="rgba(154,94,18,.45)" stroke-width="2"></line><circle cx="402" cy="44" r="3.5" fill="#9a5e12"></circle>
+              <text x="24" y="88" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#5a5246">Aug</text>
+              <text x="402" y="88" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#5a5246">8 Nov</text>
+            </svg>
+          </div>
+          <div style="flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 8px; font-size: 12px">
+            <div style="padding: 10px 12px; border-radius: 6px; background: rgba(43,110,122,.06); border: 1px solid rgba(43,110,122,.3)">
+              <div class="cap" style="color: #2b6e7a; margin-bottom: 2px">When a shot counts as short</div>
+              <span>Carry under <span class="mono">139 m</span> — your average less 1.5 × your spread. Slower club speed counts: the shot is judged on where it went.</span>
+            </div>
+            <span style="color: #5a5246">Gap to 6 iron: 7 m · to 8 iron: 9 m</span>
+          </div>
+        </div>
+      </div>
+      <div style="height: 90px; border: 1px dashed rgba(58,50,42,.35); border-radius: 6px; display: flex; align-items: center; justify-content: center"><span style="font-size: 12px; color: #5a5246">Existing, unchanged: shaft · loft · lengths · bands · hosel · retro patch · notes</span></div>
+    </div>
+  </section>
+</div>
+
+
+</body>
+</html>

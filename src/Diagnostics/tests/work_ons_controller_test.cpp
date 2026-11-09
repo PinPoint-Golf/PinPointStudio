@@ -332,7 +332,8 @@ static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
     const QString freq = m.value(QStringLiteral("frequency")).toString();
     const int trend = m.value(QStringLiteral("trend")).toInt();
     return keysAre(m, { QStringLiteral("text"), QStringLiteral("share"), QStringLiteral("frequency"),
-                        QStringLiteral("trend"), QStringLiteral("sessions"), QStringLiteral("conditionId") })
+                        QStringLiteral("trend"), QStringLiteral("sessions"), QStringLiteral("conditionId"),
+                        QStringLiteral("onTheBall") })
         && !m.value(QStringLiteral("text")).toString().isEmpty()
         && m.value(QStringLiteral("text")).toString().at(0).isUpper()
         && m.value(QStringLiteral("share")).typeId() == QMetaType::Double
@@ -373,7 +374,7 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     focus = keysAre(f, { QStringLiteral("present"), QStringLiteral("title"), QStringLiteral("aimFor"),
                          QStringLiteral("rightNow"), QStringLiteral("why"), QStringLiteral("practiseLabel"),
                          QStringLiteral("practise"), QStringLiteral("reason"), QStringLiteral("reasonShort"),
-                         QStringLiteral("focusConditionId") })
+                         QStringLiteral("focusConditionId"), QStringLiteral("onTheBall") })
         && f.value(QStringLiteral("present")).typeId() == QMetaType::Bool
         && f.value(QStringLiteral("aimFor")).typeId() == QMetaType::QVariantList
         && f.value(QStringLiteral("rightNow")).typeId() == QMetaType::QVariantList
@@ -444,7 +445,7 @@ static void checkSummaryShape(const WorkOnsController &c, const QJsonObject &sto
     std::snprintf(label, sizeof label, "%s: at most three 'do well' items", when);
     check(c.doWellItems().size() <= 3, label);
     std::snprintf(label, sizeof label, "%s: the focus is {present, title, aimFor, rightNow, why, practiseLabel, "
-                                       "practise, reason, reasonShort, focusConditionId}, each 'right now' a fault item a "
+                                       "practise, reason, reasonShort, focusConditionId, onTheBall}, each 'right now' a fault item a "
                                        "stored row backs, and a present focus has a short reason", when);
     check(focus, label);
     std::snprintf(label, sizeof label, "%s: focusConditionId is the first 'right now' fault's stored row, in a stored "
@@ -754,6 +755,175 @@ static void checkConsistencyMarks(const QString &root)
     const pv::VariabilityResultView after = markOf(area(c, "lateral").value(QStringLiteral("consistency")));
     check(c.waitForIdle() && c.consistencyLedgersRead() > read && after.graded() && after.grade() == 1,
           "a changed ledger is read again: the newest readings now scatter, and the column says so");
+}
+
+// ── Tendencies and the frozen baseline (shot_outcomes_design.md §7.1, Contract A) ──────────
+
+// A session of `shots` driver shots: every shot slices with over_the_top fired, past the
+// positional warm-ups. Dated folders, because the baseline and the catch-up order go by the day.
+static void stageTendencySession(const QString &athleteDir, const QString &session, qint64 t0, int shots,
+                                 const QString &club = QStringLiteral("DRIVER"),
+                                 const QJsonObject &extra = QJsonObject())
+{
+    const QString dir = QDir(athleteDir).filePath(session);
+    std::vector<ShotRecord> out;
+    for (int i = 0; i < shots; ++i) {
+        QDir().mkpath(dir + QStringLiteral("/swing_%1").arg(i + 1, 4, 10, QLatin1Char('0')));
+        ShotRecord s;
+        s.shotId = i + 1;
+        s.club   = club;
+        s.contextId = QStringLiteral("driver");
+        s.timestampMs = t0 + i * 45'000LL;
+        s.carry  = 200.0 + double(i % 5);
+        s.total  = 220.0;
+        s.offline = 3.0;
+        s.ballSpeed = 150.0;
+        s.lmClubSpeed = 100.0;
+        s.smash = 1.45;
+        s.swingLength = QStringLiteral("full");
+        for (const char *id : { "slice", "over_the_top" }) {
+            ConditionRow r;
+            r.conditionId = QString::fromLatin1(id);
+            r.drivingMeasureId = QStringLiteral("m_handPathLoop");
+            r.state = ShotState::Fired;
+            r.value = 10.0;
+            r.corridorLo = 0.0; r.corridorHi = 4.0;
+            r.corridorShape = CorridorShape::Ceiling;
+            r.z = 3.0;
+            r.direction = 1;
+            r.firedSignalCount = 1;
+            s.rows.push_back(r);
+        }
+        out.push_back(s);
+    }
+    QJsonObject root = extra;
+    root[QStringLiteral("schemaVersion")] = 1;
+    root[QStringLiteral("ledger")] = toJson(out);
+    QFile f(dir + QStringLiteral("/diagnostics.json"));
+    if (f.open(QIODevice::WriteOnly))
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+}
+
+static QVariantMap tendencyItem(const WorkOnsController &c, const char *key)
+{
+    for (const QVariant &v : c.tendencyItems())
+        if (v.toMap().value(QStringLiteral("key")).toString() == QLatin1String(key)) return v.toMap();
+    return {};
+}
+
+static void checkTendencies(const QString &root)
+{
+    std::printf("\ntendencies: earned, building, corrections, the catch-up order\n");
+    const qint64 day = 86'400'000LL, t0 = 1'780'000'000'000LL;
+
+    // ── Oldest first by folder day while a baseline is missing ──
+    {
+        const QString golfer = root + QStringLiteral("/tOrder");
+        QDir().mkpath(golfer);
+        const QString a = QStringLiteral("2026-03-01_M_01"), b = QStringLiteral("2026-03-02_M_01"), d = QStringLiteral("2026-03-03_M_01");
+        stageTendencySession(golfer, a, t0, 40);
+        QThread::msleep(25);
+        stageTendencySession(golfer, b, t0 + day, 40);
+        QThread::msleep(25);
+        stageTendencySession(golfer, d, t0 + 2 * day, 40);
+
+        WorkOnsController c;
+        c.setSynchronous(true);
+        c.setAthleteDir(golfer);
+        check(QFile::exists(golfer + QLatin1Char('/') + a + QStringLiteral("/club_baseline.json"))
+                  && QFile::exists(golfer + QLatin1Char('/') + d + QStringLiteral("/club_baseline.json")),
+              "every session reached has its sidecar");
+        check(writtenAt(golfer, a) <= writtenAt(golfer, b) && writtenAt(golfer, b) <= writtenAt(golfer, d)
+                  && writtenAt(golfer, a) < writtenAt(golfer, d),
+              "a missing baseline: derived oldest first by FOLDER DAY, not by mtime");
+
+        // And with every baseline present, the record is left alone.
+        const double aWritten = writtenAt(golfer, a);
+        c.refresh();
+        check(writtenAt(golfer, a) == aWritten, "a session with a current record and a baseline is not derived again");
+    }
+
+    // ── Earned, building, and the correction ──
+    const QString golfer = root + QStringLiteral("/tEarned");
+    QDir().mkpath(golfer);
+    stageTendencySession(golfer, QStringLiteral("2026-04-01_M_01"), t0, 12);
+    stageTendencySession(golfer, QStringLiteral("2026-04-02_M_01"), t0 + day, 12);
+    // A shorter run with an iron: it cannot earn yet.
+    stageTendencySession(golfer, QStringLiteral("2026-04-03_M_01"), t0 + 2 * day, 7, QStringLiteral("7 IRON"));
+
+    WorkOnsController c;
+    c.setSynchronous(true);
+    c.setAthleteDir(golfer);
+    check(c.waitForIdle(1000) && c.tendenciesReady() && QFile::exists(WorkOnsController::tendenciesPath(golfer)),
+          "the catch-up ends in tendencies.json");
+    {
+        const QVariantMap driver = tendencyItem(c, "driver|full");
+        check(!driver.value(QStringLiteral("building")).toBool()
+                  && driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Slice")
+                  && driver.value(QStringLiteral("seenWithId")).toString() == QStringLiteral("over_the_top")
+                  && driver.value(QStringLiteral("shots")).toInt() == 18,
+              "the driver earned its tendency: two sessions of nine counted shots, the positional warm-ups left out");
+        const QVariantMap iron = tendencyItem(c, "irons|full");
+        check(iron.value(QStringLiteral("building")).toBool() && iron.value(QStringLiteral("sessions")).toInt() == 1,
+              "one short iron session is still building");
+        check(c.tendencyNote() == QStringLiteral("From 22 shots over 3 sessions"),
+              "the evidence line counts what was counted");
+        check(c.clubDistance(QStringLiteral("driver")).value(QStringLiteral("earned")).toBool()
+                  && c.clubDistance(QStringLiteral("DRIVER")).value(QStringLiteral("n")).toInt() == 18,
+              "the per-club distance is there, by the canonical club name");
+        const QVariantMap detail = c.tendencyDetail(QStringLiteral("driver|full"));
+        check(!detail.value(QStringLiteral("playTo")).toString().isEmpty()
+                  && detail.value(QStringLiteral("practiseConditionId")).toString() == QStringLiteral("over_the_top")
+                  && !detail.value(QStringLiteral("chain")).toList().isEmpty(),
+              "a tendency's detail: the chain, play-to and what to practise");
+    }
+
+    // ── Intended shapes leave the tally; the correction re-reduces ──
+    {
+        const int jobs = c.tendencyJobs();
+        const QString dir = QDir(golfer).filePath(QStringLiteral("2026-04-02_M_01"));
+        QFile f(dir + QStringLiteral("/diagnostics.json"));
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonObject root_ = QJsonDocument::fromJson(f.readAll()).object();
+            f.close();
+            // One counted shot marked as an intended fade: it leaves the tally.
+            root_[QStringLiteral("shotIntent")] = QJsonObject{ { QStringLiteral("10"), QStringLiteral("fade") } };
+            // Every counted slice was really a hook, in this session.
+            QJsonObject corrections;
+            for (int id = 4; id <= 12; ++id)
+                corrections.insert(QString::number(id),
+                                   QJsonArray{ QJsonObject{ { QStringLiteral("family"), QStringLiteral("direction") },
+                                                            { QStringLiteral("from"), QStringLiteral("slice") },
+                                                            { QStringLiteral("to"), QStringLiteral("hook") } } });
+            root_[QStringLiteral("corrections")] = corrections;
+            if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+                f.write(QJsonDocument(root_).toJson(QJsonDocument::Compact));
+            f.close();
+        }
+        c.refresh();
+        check(c.tendencyJobs() == jobs + 1, "a changed ledger re-reduces the tendencies");
+        const QVariantMap driver = tendencyItem(c, "driver|full");
+        check(driver.value(QStringLiteral("shots")).toInt() == 17 && !driver.value(QStringLiteral("building")).toBool(),
+              "the intended shape is excluded from the tally, the tendency still earned");
+        check(driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Hook"),
+              "a correction changes the usual miss without re-deriving a session");
+    }
+
+    // ── Cancelled while a session is live; the pause lifting computes it ──
+    {
+        const QString paused = root + QStringLiteral("/tPaused");
+        QDir().mkpath(paused);
+        stageTendencySession(paused, QStringLiteral("2026-05-01_M_01"), t0, 12);
+        WorkOnsController p;
+        p.setSynchronous(true);
+        p.setPaused(true);
+        p.setAthleteDir(paused);
+        check(!QFile::exists(WorkOnsController::tendenciesPath(paused)) && !p.tendenciesUpdating(),
+              "no tendency job while a session is live");
+        p.setPaused(false);
+        check(p.waitForIdle(1000) && QFile::exists(WorkOnsController::tendenciesPath(paused)),
+              "the pause lifting computes them");
+    }
 }
 
 int main(int argc, char **argv)
@@ -1196,6 +1366,7 @@ int main(int argc, char **argv)
     }
 
     checkConsistencyMarks(tmp.path());
+    checkTendencies(tmp.path());
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

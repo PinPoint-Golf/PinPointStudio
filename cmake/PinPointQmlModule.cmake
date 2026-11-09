@@ -179,6 +179,9 @@ set(PP_QML_FILES
     # The athlete's swing in plain words, led by one focus (home_themes_design.md); a fault opens
     # its detail in place (HmFaultDetail), on Coaching and on Your swing.
     src/Gui/home/HmFaultDetail.qml
+    # The Tendencies tab: the usual miss per club and swing length.
+    src/Gui/home/HmTendencies.qml
+    src/Gui/home/HmTendencyRow.qml
     src/Gui/home/HmFaultRow.qml
     src/Gui/home/HmHeadline.qml
     # Home's sentence case and pip cap (.pragma library, imported relatively by HmFocus and
@@ -335,6 +338,10 @@ set(PP_QML_FILES
     src/Gui/diagnostics/PpQuestions.qml
     src/Gui/diagnostics/PpRunChart.qml
     src/Gui/diagnostics/PpShotRuler.qml
+    # Shot outcomes: what happened and why, per shot and per session.
+    src/Gui/diagnostics/PpShotOutcomeHead.qml
+    src/Gui/diagnostics/PpCarryWaterfall.qml
+    src/Gui/diagnostics/PpDiagSessionOutcomes.qml
     src/Gui/diagnostics/PpSmallMultiple.qml
     src/Gui/diagnostics/PpSmallMultiples.qml
     src/Gui/diagnostics/PpSparkHead.qml

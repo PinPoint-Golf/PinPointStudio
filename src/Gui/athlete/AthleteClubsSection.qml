@@ -20,6 +20,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import PinPointStudio
+import "../typeset/figure_format.js" as Figures
 
 // Per-athlete club records — a card group for ScreenAthleteForm (edit mode).
 // Records live under athletes/<uuid>/clubs keyed by the canonical club name
@@ -31,6 +32,12 @@ import PinPointStudio
 //
 // Unlike the scalar athlete fields (buffered until Save), club edits commit
 // IMMEDIATELY via athleteController — the section is only shown in edit mode.
+//
+// Above the club tabs, YOUR DISTANCES: a table of carry, a row per club (docs/design/
+// shot_outcomes_design.md §7.5); inside the selected club's card, the same club in full. Read from
+// the stored reduction, not workOns, because the form can edit a golfer who is not the current one.
+// The band and the session marks are PpBoxPlot with its five numbers collapsed to average ± spread,
+// which is not a quartile box: the words say so beside each.
 PpGroupCard {
     id: root
 
@@ -48,6 +55,79 @@ PpGroupCard {
     function _fixSelection() {
         if (configuredIds.indexOf(selectedClubId) < 0)
             selectedClubId = configuredIds.length > 0 ? configuredIds[0] : ""
+    }
+
+    // The stored distances for this golfer, read again when a catch-up lands or the golfer changes.
+    property int _distancesRevision: 0
+    Connections {
+        target: athleteController
+        function onClubDistancesChanged() { root._distancesRevision++ }
+    }
+    readonly property var distances: root._distancesRevision >= 0
+                                     ? athleteController.clubDistances(root.athleteUuid) : ({})
+    readonly property var distanceItems: root.distances.items || []
+    readonly property var selectedDistance: {
+        for (const it of root.distanceItems)
+            if (it.club === root.selectedClubId) return it
+        return null
+    }
+    // One axis for every row, at whole tens so the two ends read cleanly.
+    readonly property var distanceAxis: root._axis(root.distanceItems.map(it => root._box(it.carryMean, it.carrySd)), 10)
+
+    function _fin(v) { return typeof v === "number" && isFinite(v) }
+    // Average ± spread, as PpBoxPlot's five numbers. All five finite or the average vanishes, so a
+    // mean with no spread gives the mean five times; no mean, no box.
+    function _box(mean, sd) {
+        if (!root._fin(mean)) return null
+        const s = root._fin(sd) ? sd : 0
+        return { lo: mean - s, q1: mean - s, med: mean, q3: mean + s, hi: mean + s }
+    }
+    function _axis(boxes, step) {
+        let lo = Infinity, hi = -Infinity
+        for (const b of boxes) {
+            if (!b) continue
+            lo = Math.min(lo, b.lo)
+            hi = Math.max(hi, b.hi)
+        }
+        if (!isFinite(lo)) return { lo: 0, hi: step }
+        lo = Math.floor(lo / step) * step
+        hi = Math.ceil(hi / step) * step
+        return { lo: lo, hi: hi > lo ? hi : lo + step }
+    }
+    function _figure(v, unit, dec)  { return root._fin(v) ? Figures.withUnit(Figures.figure(v, dec), unit) : "—" }
+    function _spread(sd, unit, dec) { return root._fin(sd) ? "± " + Figures.withUnit(Figures.figure(sd, dec), unit) : "—" }
+    function _meanSd(mean, sd, unit, dec) {
+        if (!root._fin(mean)) return "—"
+        return Figures.figure(mean, dec) + " ± " + Figures.withUnit(root._fin(sd) ? Figures.figure(sd, dec) : "—", unit)
+    }
+    // The six figures of the selected club.
+    function _distanceCells(it) {
+        return [{ key: qsTr("Carry"),      val: it.carryText || "—" },
+                { key: qsTr("Total"),      val: root._meanSd(it.totalMean, it.totalSd, "yd", 0) },
+                { key: qsTr("Left–right"), val: root._spread(it.offlineSd, "yd", 0) },
+                { key: qsTr("Club speed"), val: root._meanSd(it.speedMean, it.speedSd, "mph", 0) },
+                { key: qsTr("Ball speed"), val: root._meanSd(it.ballSpeedMean, it.ballSpeedSd, "mph", 0) },
+                { key: qsTr("Smash"),      val: root._meanSd(it.smashMean, it.smashSd, "", 2) }]
+    }
+    // "2026-11-08" as "8 Nov". Split by hand: new Date(iso) would read it as UTC and can land a day early.
+    function _sessionDay(iso) {
+        const p = String(iso || "").split("-")
+        return p.length === 3 ? Qt.formatDate(new Date(+p[0], +p[1] - 1, +p[2]), "d MMM") : ""
+    }
+    // What the last column says: too few shots first, then an overlap, else the trend.
+    function _distanceNote(it) { return it.fewShotsText || it.gapWith || it.trendWords || "—" }
+    function _distanceNoteTone(it) {
+        if (it.fewShotsText) return Theme.colorText3
+        if (it.gapWith)      return Theme.colorWarn
+        return Theme.trendTone(it.trend === "up" || it.trend === "tighter" ? 1
+                             : it.trend === "down" || it.trend === "wider" ? -1 : 0)
+    }
+    // A row selects its club's tab, stealing focus first so an in-edit field commits against the
+    // OUTGOING club. A club hit but no longer in the bag has no tab.
+    function _selectFromDistances(id) {
+        if (root.configuredIds.indexOf(id) < 0) return
+        root.forceActiveFocus()
+        root.selectedClubId = id
     }
 
     // Re-evaluates whenever the controller reloads (every commit calls reload()).
@@ -152,6 +232,173 @@ PpGroupCard {
         wrapMode:       Text.WordWrap
     }
 
+    // Your distances: carry per club, one row each, on one shared axis.
+    PpCard {
+        id: distanceCard
+        objectName: "athleteDistanceCard"
+        visible: root.distanceItems.length > 0
+        width:   parent.width
+        height:  visible ? implicitHeight : 0
+        table:   true
+        title:   Theme.caps(qsTr("Your distances"))
+        aside:   qsTr("Full swings · last 10 sessions per club")
+
+        // Fixed columns as tight as their words, so the shared axis keeps room for its two labels.
+        columns: [{ title: qsTr("Club"),             width: Theme.sp(130) },
+                  { title: qsTr("Carry"),            width: Theme.sp(84) },
+                  { title: qsTr("Average ± spread"), fill: true },
+                  { title: qsTr("Total"),            width: Theme.sp(52) },
+                  { title: qsTr("Left–right"),       width: Theme.sp(60) },
+                  { title: qsTr("Shots"),            width: Theme.sp(40) },
+                  { title: qsTr("Trend"),            width: Theme.sp(104) }]
+
+        Repeater {
+            model: root.distanceItems
+            PpTableRow {
+                id: distanceRow
+                required property var modelData
+                readonly property string club:     distanceRow.modelData.club || ""
+                readonly property bool   selected: distanceRow.club === root.selectedClubId
+                readonly property bool   inBag:    root.configuredIds.indexOf(distanceRow.club) >= 0
+                objectName: "athleteDistanceRow:" + distanceRow.club
+
+                Accessible.role: Accessible.Button
+                Accessible.name: distanceRow.modelData.label || ""
+                Accessible.onPressAction: root._selectFromDistances(distanceRow.club)
+
+                Row {                               // club; the one showing below says so
+                    width:   distanceRow.columnWidth(0)
+                    spacing: Theme.gap(6)
+                    Text {
+                        id: clubWords
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(implicitWidth, Math.max(0, parent.width
+                                        - (shownWord.visible ? shownWord.implicitWidth + parent.spacing : 0)))
+                        text:  distanceRow.modelData.label || ""
+                        elide: Text.ElideRight
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody
+                        font.weight:    Theme.fontBodyWeight
+                        color:          Theme.colorText
+                    }
+                    PpCaption {
+                        id: shownWord
+                        visible: distanceRow.selected
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("shown below")
+                    }
+                }
+                Text {                              // carry
+                    objectName: "athleteDistanceCarry"
+                    width: distanceRow.columnWidth(1)
+                    text:  distanceRow.modelData.carryText || "—"
+                    elide: Text.ElideRight
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText
+                }
+                Item {                              // the band, on the card's one axis
+                    width:  distanceRow.columnWidth(2)
+                    height: Theme.sp(18)
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width; height: 1
+                        color: Theme.colorHairline
+                    }
+                    PpBoxPlot {
+                        anchors.fill: parent
+                        roles:      distancesTs
+                        namePrefix: "athleteDistanceBand"
+                        map:   function (v) { return (v - root.distanceAxis.lo) / (root.distanceAxis.hi - root.distanceAxis.lo) * width }
+                        stats: root._box(distanceRow.modelData.carryMean, distanceRow.modelData.carrySd)
+                        bodyW: Theme.sp(10)
+                        capW:  0
+                    }
+                }
+                Text {                              // total
+                    width: distanceRow.columnWidth(3)
+                    text:  root._figure(distanceRow.modelData.totalMean, "yd", 0)
+                    elide: Text.ElideRight
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText2
+                }
+                Text {                              // left–right
+                    width: distanceRow.columnWidth(4)
+                    text:  root._spread(distanceRow.modelData.offlineSd, "yd", 0)
+                    elide: Text.ElideRight
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText2
+                }
+                Text {                              // shots
+                    width: distanceRow.columnWidth(5)
+                    text:  String(distanceRow.modelData.shots || 0)
+                    font.family:    Theme.fontData
+                    font.pixelSize: Theme.fontSzBody2
+                    color:          Theme.colorText2
+                }
+                Text {                              // few shots, an overlap, or the trend: in words
+                    objectName: "athleteDistanceNote"
+                    width: distanceRow.columnWidth(6)
+                    text:  root._distanceNote(distanceRow.modelData)
+                    elide: Text.ElideRight
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Theme.fontBodyWeight
+                    color:          root._distanceNoteTone(distanceRow.modelData)
+                }
+                // Past the template's columns, so the row leaves it where it is put: over the whole row.
+                MouseArea {
+                    x: -distanceRow.padH
+                    width:  distanceRow.width
+                    height: distanceRow.height
+                    enabled: distanceRow.inBag
+                    cursorShape: distanceRow.inBag ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: root._selectFromDistances(distanceRow.club)
+                }
+            }
+        }
+
+        PpTableRow {                                // the shared axis
+            id: distanceAxisRow
+            hoverEnabled: false
+            height: Theme.sp(26)
+            Item { width: 1; height: 1 }
+            Item { width: 1; height: 1 }
+            Item {
+                width:  distanceAxisRow.columnWidth(2)
+                height: axisLow.implicitHeight
+                PpMicro {
+                    id: axisLow
+                    text: Figures.withUnit(Figures.figure(root.distanceAxis.lo, 0), "yd")
+                }
+                PpMicro {
+                    anchors.right: parent.right
+                    text: Figures.withUnit(Figures.figure(root.distanceAxis.hi, 0), "yd")
+                }
+            }
+        }
+
+        PpTableRow {
+            id: distanceFootRow
+            hoverEnabled: false
+            height: Math.max(Theme.sp(Theme.rowH), distanceFoot.implicitHeight + Theme.gap(18))
+            PpCardNote {
+                id: distanceFoot
+                width: distanceFootRow.cellBox.width
+                text:  qsTr("A row opens that club's tab below. Fat, thin, topped and shanked shots are left out of the average. Spread is one standard deviation either side, not a quartile box. Clubs overlap when their ± bands do.")
+            }
+        }
+    }
+
+    PpCardNote {
+        objectName: "athleteDistanceNoteLine"
+        visible: text !== ""
+        width:   parent.width
+        text:    root.distances.note || ""
+    }
+
     // Club tabs — the athlete's configured clubs in the app's stage-tab
     // language (see PpModeStage on the Wrist screen): no border, no
     // pill; the active club carries a 2px accent underline (theme
@@ -210,6 +457,137 @@ PpGroupCard {
                         label: qsTr("Remove")
                         destructive: true
                         onClicked: athleteController.removeClubRecord(root.athleteUuid, root.selectedClubId)
+                    }
+                }
+
+                // Distances with this club: its six figures, its carry session by session, and where
+                // "short" begins.
+                PpCard {
+                    id: clubDistanceCard
+                    objectName: "athleteClubDistances"
+                    visible: root.selectedDistance !== null
+                    Layout.fillWidth: true
+                    title: Theme.caps(qsTr("Distances with this club"))
+                    aside: root.selectedDistance
+                           ? qsTr("%1 · %2").arg(Theme.plural(root.selectedDistance.shots || 0, qsTr("%1 shot"), qsTr("%1 shots")))
+                                            .arg(Theme.plural(root.selectedDistance.sessions || 0, qsTr("%1 session"), qsTr("%1 sessions")))
+                           : ""
+                    itemGap: Theme.gap(12)
+
+                    PpFactStrip {
+                        objectName: "athleteClubFigures"
+                        width: parent.width
+                        cells: root.selectedDistance ? root._distanceCells(root.selectedDistance) : []
+                    }
+                    PpCaption {
+                        objectName: "athleteClubMishits"
+                        visible:  text !== ""
+                        width:    parent.width
+                        elide:    Text.ElideNone
+                        wrapMode: Text.WordWrap
+                        text:     root.selectedDistance ? (root.selectedDistance.mishitsText || "") : ""
+                    }
+
+                    Grid {
+                        id: distanceGrid
+                        width: parent.width
+                        readonly property bool stacked: width < Theme.sp(560)
+                        readonly property real cellW: stacked ? width : Math.floor((width - columnSpacing) / 2)
+                        columns: stacked ? 1 : 2
+                        columnSpacing: Theme.gap(24)
+                        rowSpacing:    Theme.gap(14)
+
+                        // Carry by session: one mark each, on one shared axis.
+                        Column {
+                            id: sessionChart
+                            objectName: "athleteClubCarryBySession"
+                            width:   distanceGrid.cellW
+                            spacing: Theme.gap(6)
+                            readonly property var  points: root.selectedDistance ? (root.selectedDistance.perSession || []) : []
+                            readonly property var  axis:   root._axis(sessionChart.points.map(p => root._box(p.mean, p.sd)), 5)
+                            readonly property int  gutter: Theme.sp(48)
+                            readonly property real cellW:  sessionChart.points.length > 0
+                                                           ? (sessionChart.width - sessionChart.gutter) / sessionChart.points.length : 0
+                            visible: sessionChart.points.length > 0
+
+                            PpMicro { text: Theme.caps(qsTr("Carry by session · average ± spread")) }
+
+                            Item {
+                                width:  parent.width
+                                height: Theme.sp(90)
+                                PpMicro { text: Figures.withUnit(Figures.figure(sessionChart.axis.hi, 0), "yd") }
+                                PpMicro {
+                                    anchors.bottom: parent.bottom
+                                    text: Figures.withUnit(Figures.figure(sessionChart.axis.lo, 0), "yd")
+                                }
+                                Row {
+                                    x: sessionChart.gutter
+                                    Repeater {
+                                        model: sessionChart.points
+                                        PpBoxPlot {
+                                            required property var modelData
+                                            width:  sessionChart.cellW
+                                            height: Theme.sp(90)
+                                            roles:      distancesTs
+                                            namePrefix: "athleteSessionBand"
+                                            vertical: true
+                                            map:   function (v) { return height - (v - sessionChart.axis.lo) / (sessionChart.axis.hi - sessionChart.axis.lo) * height }
+                                            stats: root._box(modelData.mean, modelData.sd)
+                                            bodyW: Theme.sp(8)
+                                            capW:  0
+                                        }
+                                    }
+                                }
+                            }
+                            Row {
+                                x: sessionChart.gutter
+                                Repeater {
+                                    model: sessionChart.points
+                                    Item {
+                                        required property var modelData
+                                        required property int index
+                                        width:  sessionChart.cellW
+                                        height: dayLabel.implicitHeight
+                                        PpMicro {
+                                            id: dayLabel
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            visible: parent.index === 0 || parent.index === sessionChart.points.length - 1
+                                                     || sessionChart.cellW >= Theme.sp(46)
+                                            text: root._sessionDay(parent.modelData.date)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Column {
+                            width:   distanceGrid.cellW
+                            spacing: Theme.gap(10)
+                            PpInset {
+                                objectName: "athleteClubShortBelow"
+                                visible: root.selectedDistance !== null && (root.selectedDistance.shortBelowText || "") !== ""
+                                width:   parent.width
+                                PpMicro { text: Theme.caps(qsTr("When a shot counts as short")) }
+                                Text {
+                                    width: parent.width
+                                    text:  root.selectedDistance ? (root.selectedDistance.shortBelowText || "") : ""
+                                    font.family:    Theme.fontBody
+                                    font.pixelSize: Theme.fontSzBody2
+                                    font.weight:    Theme.fontBodyWeight
+                                    color:          Theme.colorText2
+                                    wrapMode:       Text.WordWrap
+                                    lineHeight:     1.4
+                                }
+                            }
+                            PpCaption {
+                                objectName: "athleteClubGaps"
+                                visible:  text !== ""
+                                width:    parent.width
+                                elide:    Text.ElideNone
+                                wrapMode: Text.WordWrap
+                                text:     root.selectedDistance ? (root.selectedDistance.gapsText || "") : ""
+                            }
+                        }
                     }
                 }
 
@@ -359,4 +737,7 @@ PpGroupCard {
                 }
         }
     }
+
+    // Declared last: children are destroyed in creation order, and the distance bands read it to the end.
+    PpTypeset { id: distancesTs }
 }

@@ -112,9 +112,12 @@ struct AreaConditionInfo {
 // The counting rule, isolated so it is testable without a pack. `cls` is workOnClassFor()'s answer
 // (held back is already Excluded there); `held` is passed again because an Outcome is Excluded
 // whether held or not, and a held ball-flight reading must not count either.
-inline bool areaConditionCounts(const QString &group, WorkOnClass cls, bool outcome, bool held)
+inline bool areaConditionCounts(const QString &group, WorkOnClass cls, bool outcome, bool held,
+                                const QString &id = QString())
 {
     if (held) return false;
+    // A fade or draw is a shape a golfer can play, not a fault, so it is no habit against ball flight.
+    if (id == QLatin1String("fade") || id == QLatin1String("draw")) return false;
     if (cls == WorkOnClass::Movement || cls == WorkOnClass::Delivery) return true;
     return group == kAreaBallFlight() && outcome;
 }

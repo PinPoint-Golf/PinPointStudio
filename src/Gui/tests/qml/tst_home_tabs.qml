@@ -24,7 +24,8 @@ import PinPointStudio
 //
 // The design (ux_refactor_away_from_4_modes §2.3, D6): Home opens on Coaching; the tab last chosen
 // is remembered PER ATHLETE in homeViewByAthlete[uuid].tab, without disturbing the area table's own
-// keys in the same entry; the bar has three tabs (Matchups the third) and no chip. The Coaching tab is
+// keys in the same entry; the bar has four tabs (Tendencies the third, Matchups the fourth) and no chip.
+// Tendencies (shot_outcomes_design.md §7.2) holds one open row at a time and is told apart in words. The Coaching tab is
 // HmSwingSummary + HmFocus re-laid on the table components, so this also pins what those must
 // still do: Practise passes the focus up, and why/how is one click down rather than on the page.
 Item {
@@ -63,7 +64,35 @@ Item {
             { text: "your body turns in the wrong order coming down", share: 0.7, frequency: "most swings",
               trend: -1, sessions: [true, true, true] }]
         property var areaItems: []
+
+        property bool tendenciesUpdating: false
+        property string tendencyNote: "From 140 shots over 6 sessions"
+        property var tendencyItems: probe.tendencyRows
+        function tendencyDetail(key) { return probe.tendencyDetails[key] || ({}) }
     }
+
+    readonly property var tendencyRows: [
+        { key: "driver|full", club: "Driver", clubLine: "Driver", length: "full", miss: "Slice", missFamily: "direction",
+          share: 0.42, frequency: "fairly often", building: false, noUsualMiss: false, sessions: 5, shots: 60,
+          seenWith: "your hands come over the top coming down", seenWithId: "over_the_top", strength: "likely",
+          trend: 1, trendWords: "↑ growing", workOn: "Active", workOnText: "Active" },
+        { key: "irons|full", club: "Irons", clubLine: "Irons", length: "full", miss: "Fat, often with a slice", missFamily: "strike",
+          share: 0.3, frequency: "sometimes", building: false, noUsualMiss: false, sessions: 4, shots: 50,
+          seenWith: "you stand up through the ball", seenWithId: "early_extension", strength: "possible",
+          trend: 0, trendWords: "→ steady", workOn: "", workOnText: "",
+          mix: { line: "Good 31% · Thin 41% · Weak strike 16% · Slice 6% · Other 6% · and a good many more words than the column can hold",
+                 parts: [{ key: "good", kind: "good", count: 10 }, { key: "thin", kind: "main", count: 13 }, { key: "other", kind: "other", count: 9 }] } },
+        { key: "wedges|partial", club: "Wedges", clubLine: "Wedges · part swing", length: "partial", miss: "Push", missFamily: "direction",
+          share: 0.3, frequency: "sometimes", building: true, noUsualMiss: false, sessions: 1, shots: 9,
+          seenWith: "", seenWithId: "", strength: "", trend: 0, trendWords: "", workOn: "", workOnText: "" }
+    ]
+    readonly property var tendencyDetails: ({
+        "driver|full": { chain: [{ text: "the ball slices", words: "because" }, { text: "your hands come over the top", words: "" }],
+                         alsoSeen: "Also seen: you stand up through the ball.",
+                         playTo: "Favour the left side off the tee.", practiseConditionId: "over_the_top" },
+        "irons|full":  { chain: [{ text: "the club hits the ground first", words: "seen with" }, { text: "you stand up through the ball", words: "" }],
+                         alsoSeen: "", playTo: "", practiseConditionId: "early_extension" }
+    })
 
     QtObject {
         id: fakeSettings
@@ -106,6 +135,8 @@ Item {
             tabs.athleteUuid = ""
             tabs.athleteUuid = "athlete-a"
             practiseSpy.clear()
+            fakeWorkOns.tendencyItems = probe.tendencyRows
+            fakeWorkOns.tendencyNote  = "From 140 shots over 6 sessions"
             const row = all(tabs, "focusWhyRow")[0]
             if (row) row.expanded = false
         }
@@ -185,12 +216,88 @@ Item {
         }
 
         // ── the tabs ──
-        function test_three_tabs_and_no_chip() {
-            compare(all(tabs, "sdTab").map((t) => t.key).join(","), "coaching,swing,matchups")
+        function test_four_tabs_and_no_chip() {
+            compare(all(tabs, "sdTab").map((t) => t.key).join(","), "coaching,swing,tendencies,matchups")
             compare(one(tabs, "homeTabBar").chip, "", "no 'All work-ons': a fault opens in place")
             mouseClick(tabOf("matchups"))
             compare(tabs.current, "matchups")
             verify(one(tabs, "homeTabMatchups").visible)
+        }
+
+        // ── the Tendencies tab ──
+        function laidOut() { waitForRendering(tabs); wait(0) }
+        function rowOf(key) { return one(tabs, "homeTendencyRow:" + key) }
+        function showTendencies() { mouseClick(tabOf("tendencies")); laidOut() }
+
+        function test_tendencies_is_a_remembered_tab_with_its_evidence() {
+            showTendencies()
+            compare(tabs.current, "tendencies")
+            verify(drawn(one(tabs, "homeTabTendencies")))
+            verify(!drawn(one(tabs, "homeTabCoaching")))
+            compare(one(tabs, "homeTabBar").note, "From 140 shots over 6 sessions", "the evidence line is the shots'")
+            compare(fakeSettings.homeViewByAthlete["athlete-a"].tab, "tendencies")
+            compare(all(tabs, "homeTendencyRow:driver|full").length, 1)
+            compare(all(tabs, "homeTendencyRow:irons|full").length, 1)
+            compare(rowOf("wedges|partial").seenText, "Building — 1 session", "a building row says so, never a verdict")
+            verify(!rowOf("wedges|partial").hasDetail, "and has nothing to open")
+        }
+
+        function test_tendencies_a_long_shot_mix_wraps_and_the_row_grows() {
+            showTendencies()
+            const r = rowOf("irons|full"), words = one(r, "tendencyMixWords"), cell = one(r, "tendencyOften")
+            verify(drawn(one(r, "tendencyMixBar")), "the bar is drawn over its words")
+            verify(words.lineCount > 1, "a long mix takes more than one line")
+            verify(!words.truncated, "and loses none of its words")
+            verify(r.rowHeight >= cell.implicitHeight, "the row is tall enough to hold them")
+        }
+
+        function test_tendencies_one_row_open_at_a_time() {
+            showTendencies()
+            const a = rowOf("irons|full"), b = rowOf("driver|full")
+            verify(!a.expanded && !b.expanded, "closed by default")
+            mouseClick(a.headerRow)
+            laidOut()
+            verify(a.expanded)
+            verify(!b.expanded)
+            mouseClick(b.headerRow)
+            laidOut()
+            verify(b.expanded)
+            verify(!a.expanded, "opening one closes the other")
+            verify(drawn(one(b, "tendencyPlayTo")), "the open row plays to it")
+            mouseClick(b.headerRow)
+            laidOut()
+            verify(!b.expanded, "and a second press closes it")
+        }
+
+        function test_tendencies_the_open_row_survives_a_publish() {
+            showTendencies()
+            mouseClick(rowOf("driver|full").headerRow)
+            laidOut()
+            verify(rowOf("driver|full").expanded)
+            fakeWorkOns.tendencyItems = probe.tendencyRows.slice()
+            laidOut()
+            verify(rowOf("driver|full").expanded, "the rows rebuild; the open key is held above them")
+            verify(!rowOf("irons|full").expanded)
+        }
+
+        function test_tendencies_practice_passes_the_condition_up() {
+            showTendencies()
+            const row = rowOf("driver|full")
+            mouseClick(row.headerRow)
+            laidOut()
+            mouseClick(one(row, "tendencyPractise"))
+            compare(practiseSpy.count, 1)
+            compare(practiseSpy.signalArguments[0][0], "over_the_top")
+            compare(practiseSpy.signalArguments[0][1], "your hands come over the top coming down")
+        }
+
+        function test_tendencies_says_why_there_is_nothing_yet() {
+            fakeWorkOns.tendencyItems = []
+            fakeWorkOns.tendencyNote  = "Hit a few sessions with the launch monitor on"
+            showTendencies()
+            compare(one(tabs, "tendenciesEmpty").text, "Hit a few sessions with the launch monitor on")
+            verify(drawn(one(tabs, "tendenciesEmpty")))
+            compare(one(tabs, "homeTabBar").note, "", "no table to back: the bar stays quiet")
         }
 
         // ── the Coaching tab: HmFocus and HmSwingSummary on the table components ──

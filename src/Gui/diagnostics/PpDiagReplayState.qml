@@ -62,17 +62,6 @@ QtObject {
                                       : tense === "closing" ? "The session has closed — pick a shot in the carousel to read it here."
                                       : tense === "live" ? "the next swing reads here" : ""
 
-    // the declared miss (F66): invited in Cold and Forming while live; reported once declared, at any stage
-    readonly property string declaredMiss: source ? String(source.declaredMiss || "") : ""
-    readonly property string declaredMissName: source ? String(source.declaredMissName || "") : ""
-    readonly property bool missInvited: interactive && declaredMiss === "" && (cold || forming) && !reviewing && !!source
-    readonly property bool missShown: missInvited || declaredMiss !== ""
-    readonly property string missText: declaredMiss !== "" ? "Miss: " + (declaredMissName || declaredMiss) : "Declare miss"
-    function missCandidates() {
-        if (source && typeof source.missCandidates === "function") return source.missCandidates() || []
-        return []
-    }
-
     // the focus contract (S25): read back off the model, never remembered here
     readonly property string focusId: source ? String(source.focusConditionId || "") : ""
     function focusLine(name, state) {

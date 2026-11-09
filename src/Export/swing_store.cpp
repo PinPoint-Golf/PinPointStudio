@@ -92,6 +92,12 @@ QJsonObject deviceHeads(const ppsw::Reader &r, const ppsw::Value &root)
         if (const ppsw::Value *kind = lm->get("kind"); kind && kind->kind() == ppsw::Value::Kind::String)
             out.insert(QStringLiteral("launchMonitor"),
                        QJsonObject{ { QStringLiteral("kind"), QString::fromStdString(kind->asString()) } });
+
+    // The golfer's hand, for a summary block written before it recorded one (SwingSummary::handedness).
+    if (const ppsw::Value *ath = root.get("athlete"); ath && ath->kind() == ppsw::Value::Kind::Object)
+        if (const ppsw::Value *hand = ath->get("handedness"); hand && hand->kind() == ppsw::Value::Kind::String)
+            out.insert(QStringLiteral("athlete"),
+                       QJsonObject{ { QStringLiteral("handedness"), QString::fromStdString(hand->asString()) } });
     return out;
 }
 

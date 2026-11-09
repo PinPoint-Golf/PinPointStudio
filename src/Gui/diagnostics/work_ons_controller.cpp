@@ -24,6 +24,7 @@
 #include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
 #include "../variability/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 
+#include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/swing_areas_pack.h"
 
 #include "../../Diagnostics/packs/characteristic_pack.h"
@@ -31,6 +32,7 @@
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/swing_themes_pack.h"
+#include "../../Diagnostics/norms/context_tree.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Metrics/variability/variability_grader.h"
 #include "../../Core/pp_debug.h"
@@ -64,6 +66,8 @@ namespace {
 const QString kRecordFile = QStringLiteral("work_ons.json");
 const QString kThemesFile = QStringLiteral("swing_themes.json");
 const QString kLedgerFile = QStringLiteral("diagnostics.json");
+const QString kBaselineFile   = QStringLiteral("club_baseline.json");
+const QString kTendenciesFile = QStringLiteral("tendencies.json");
 
 // THE VERSION OF THE CONSISTENCY MARKS' RULE (the window, the filters, the scale): in the marks job's
 // fingerprint, so a new rule grades again. Nothing is stored, so a bump only costs the next settle a read.
@@ -129,6 +133,59 @@ QString packLabel(const CharacteristicPack &pack, const QString &id, const QStri
     return fallback.isEmpty() ? id : fallback;
 }
 
+// §7.1's club groups, by where the club resolves in the context tree. "" = a putter or an undeclared club.
+QString tendencyClubGroup(const ContextTree &tree, const QString &club)
+{
+    const QString id = contextIdForClub(club);
+    const auto under = [&tree, &id](const char *root) {
+        const QString r = QString::fromLatin1(root);
+        return id == r || tree.isDescendantOf(id, r);
+    };
+    if (under("driver"))       return QStringLiteral("driver");
+    if (under("fairway_wood")) return QStringLiteral("woods");
+    if (under("iron"))         return QStringLiteral("irons");
+    if (under("wedge"))        return QStringLiteral("wedges");
+    return QString();
+}
+
+// One session as the tendency reduction reads it. False with no readable ledger (it adds nothing).
+bool readTendencySession(const QString &dir, TendencySessionInput &out)
+{
+    const QString path = QDir(dir).filePath(kLedgerFile);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    QJsonParseError err;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        ppWarn() << "[Tendencies] ledger unreadable, left out:" << qPrintable(path) << "—" << qPrintable(err.errorString());
+        return false;
+    }
+    const QJsonObject root = doc.object();
+    out.session.folder = QFileInfo(dir).fileName();
+    out.session.day    = sessionDayOfFolder(out.session.folder);
+    out.session.shots  = fromJson(root.value(QStringLiteral("ledger")).toObject());
+    out.session.corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
+    const QJsonObject run = root.value(QStringLiteral("intentFrom")).toObject();
+    out.intents = resolvedShotIntents(shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject()),
+                                      out.session.shots, run.value(QStringLiteral("fromShot")).toInt(-1),
+                                      run.value(QStringLiteral("shape")).toString());
+
+    // The session's evidence as finishDerive() stored it. Absent on a record not re-derived yet: the words
+    // then say less, nothing more.
+    QFile rec(WorkOnsController::recordPath(dir));
+    if (rec.open(QIODevice::ReadOnly))
+        out.evidence = tendencyEvidenceFromJson(
+            QJsonDocument::fromJson(rec.readAll()).object().value(QStringLiteral("outcomeEvidence")).toObject());
+
+    QFile base(QDir(dir).filePath(kBaselineFile));
+    if (base.open(QIODevice::ReadOnly)) {
+        bool ok = false;
+        const ClubBaselineSnapshot snap = clubBaselineFromJson(QJsonDocument::fromJson(base.readAll()).object(), &ok);
+        if (ok) out.baseline = snap.clubs;
+    }
+    return true;
+}
+
 } // namespace
 
 WorkOnsController::WorkOnsController(QObject *parent)
@@ -150,6 +207,7 @@ WorkOnsController::~WorkOnsController()
     // The pools' lambdas deliver back to `this`; drain them before the members go. A themes job
     // in flight is told to stop first, so quitting does not wait out a reduction.
     if (m_themesCancel) m_themesCancel->store(true);
+    if (m_tendenciesCancel) m_tendenciesCancel->store(true);
     if (m_marksCancel) m_marksCancel->store(true);
     m_marksPool.waitForDone();
     m_themesPool.waitForDone();
@@ -167,11 +225,19 @@ QString WorkOnsController::themesPath(const QString &athleteDir)
     return QDir(athleteDir).filePath(kThemesFile);
 }
 
+QString WorkOnsController::tendenciesPath(const QString &athleteDir)
+{
+    return QDir(athleteDir).filePath(kTendenciesFile);
+}
+
 SessionDiagnosticsModel *WorkOnsController::model()
 {
     if (!m_model) {
         m_model = new SessionDiagnosticsModel(this);
         m_model->setSynchronous(m_synchronous);
+        // Reaching a session is the moment its baseline is frozen (Contract A): a predecessor that
+        // cannot be read adds no shots, and the session still gets its one snapshot.
+        m_model->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
         // REVIEWING, because that is what this model does: it reads recorded sessions, never the
         // live one (deriving pauses while a session runs). It is also the one switch that keeps
         // the panel-only work off the catch-up: a reviewed session's driver footer is final, so
@@ -200,12 +266,14 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     m_queue.clear();
     m_sessionsFound = 0;
     cancelThemes();
+    cancelTendencies();
     // The marks are this golfer's ledgers' alone.
     cancelMarks();
     m_marks.clear();
     m_marksFingerprint.clear();
     m_markRequests.clear();
     clearSummary();
+    clearTendencies();
     publish();
     refresh();
 }
@@ -225,6 +293,7 @@ void WorkOnsController::setPaused(bool on)
     // A reduction is all cores for seconds; it never runs beside capture. The summary on screen
     // stays, and the pause lifting computes it again.
     if (on) cancelThemes();
+    if (on) cancelTendencies();
     // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
     if (on) cancelMarks();
     // Unpausing is a session ending: the one moment a session is certain to have gone stale.
@@ -291,6 +360,10 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
         s.sessionDir  = sessionDir;
         s.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
         s.mtimeMs     = fi.lastModified().toMSecsSinceEpoch();
+        // NOT in the fingerprint: a baseline that appears mid-catch-up must not stale every record
+        // again. Its absence simply queues the session (applyScan), and that is the only thing it does.
+        s.hasBaseline = QFileInfo::exists(d.filePath(kBaselineFile)) && !clubBaselineIsOutdated(d.filePath(kBaselineFile));
+        s.day         = sessionDayOfFolder(fi.fileName());
 
         QFile f(recordPath(sessionDir));
         if (f.open(QIODevice::ReadOnly)) {
@@ -320,15 +393,27 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     m_dirMtime.clear();
     m_sessionsFound = int(rows.size());
 
-    // Newest first: the latest session is the one the golfer is about to look for.
-    std::sort(rows.begin(), rows.end(),
-              [](const Scanned &a, const Scanned &b) { return a.mtimeMs > b.mtimeMs; });
+    // Newest first: the latest session is the one the golfer is about to look for. BUT while any session
+    // still lacks its frozen baseline, oldest first by FOLDER DAY (Contract A): a session's baseline is read
+    // off its predecessors' rows, so they have to be current before it is frozen. A folder's mtime
+    // says nothing about when it was played.
+    const bool catchingUp = std::any_of(rows.begin(), rows.end(), [](const Scanned &s) { return !s.hasBaseline; });
+    if (catchingUp)
+        std::sort(rows.begin(), rows.end(), [](const Scanned &a, const Scanned &b) {
+            if (a.day.isValid() != b.day.isValid()) return a.day.isValid();
+            if (a.day != b.day) return a.day < b.day;
+            return a.sessionDir < b.sessionDir;
+        });
+    else
+        std::sort(rows.begin(), rows.end(),
+                  [](const Scanned &a, const Scanned &b) { return a.mtimeMs > b.mtimeMs; });
     QStringList queue;
     for (Scanned &s : rows) {
         m_fingerprints.insert(s.sessionDir, s.fingerprint);
         m_dirMtime.insert(s.sessionDir, s.mtimeMs);
+        const bool needsDerive = !s.fresh || !s.hasBaseline;
         if (s.fresh) m_records.insert(s.sessionDir, std::move(s.record));
-        else         queue << s.sessionDir;
+        if (needsDerive) queue << s.sessionDir;
     }
     // A derivation in flight keeps its place; it will land in the new record set.
     if (m_deriving) queue.removeAll(m_derivingDir);
@@ -366,6 +451,7 @@ void WorkOnsController::deriveNext()
     // consistency marks too.
     maybeThemes();
     maybeMarks();
+    maybeTendencies();
 }
 
 void WorkOnsController::onModelSettled()
@@ -402,6 +488,8 @@ void WorkOnsController::finishDerive()
         { QStringLiteral("gradePolicy"),  m_gradePolicy },
         { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
     };
+    // Per condition, never per shot: what the tendency reduction needs to re-compose every shot itself.
+    root[QStringLiteral("outcomeEvidence")] = tendencyEvidenceToJson(m_model->outcomeEvidence());
     atomicWrite(recordPath(dir), QJsonDocument(root).toJson(QJsonDocument::Compact));
 
     if (ours) {
@@ -417,7 +505,8 @@ bool WorkOnsController::waitForIdle(int msTimeout)
     // zero-timer, and the summary starts from the end of that call — so for one turn after the
     // last derivation nothing reads as busy although the reduction is about to begin.
     const auto busy = [this] {
-        return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning || m_marksRunning;
+        return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning || m_marksRunning
+            || m_tendenciesRunning;
     };
     QDeadlineTimer deadline(msTimeout);
     while (!deadline.hasExpired()) {
@@ -428,10 +517,10 @@ bool WorkOnsController::waitForIdle(int msTimeout)
         }
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
-        if (m_themesRunning) m_themesPool.waitForDone(20);
+        if (m_themesRunning || m_tendenciesRunning) m_themesPool.waitForDone(20);
         if (m_marksRunning) m_marksPool.waitForDone(20);
     }
-    return !m_scanning && !m_deriving && !m_themesRunning && !m_marksRunning;
+    return !m_scanning && !m_deriving && !m_themesRunning && !m_marksRunning && !m_tendenciesRunning;
 }
 
 // ── Publish ─────────────────────────────────────────────────────────────────────────────
@@ -592,6 +681,9 @@ void WorkOnsController::publish()
         m[QStringLiteral("drillLabel")]       = drill ? drill->label : QString();
         m[QStringLiteral("drillInstruction")] = drill ? drill->instruction : QString();
 
+        // What it does to the golfer's shots (§7.4), once the shot log has linked it to a result.
+        m[QStringLiteral("onBall")] = onBallFor(w.id);
+
         // Its consistency mark, on the measure an area item names (AreaItem::measureId's rule), so the
         // detail and its row agree. It sits beside the work-on's status (R10).
         const QString measureId = (w.hasLatestEvidence && !w.latestEvidence.measureId.isEmpty())
@@ -633,6 +725,8 @@ void WorkOnsController::publish()
     m_clearedCount = cleared;
     emit itemsChanged();
     emit areasChanged();
+    // The Tendencies tab's work-on column reads the list just rebuilt.
+    publishTendencies();
 }
 
 // The areas of "Your swing" (swing_areas.h), every string final but the grade's colour. Built from
@@ -1184,7 +1278,7 @@ void WorkOnsController::publishSummary()
             return out;
         };
         // One fault item, the same shape in the focus's "right now" and in "next on your list".
-        const auto fault = [&pips](const NeedsWorkItem &n) {
+        const auto fault = [this, &pips](const NeedsWorkItem &n) {
             return QVariantMap{
                 { QStringLiteral("text"),      n.text },
                 { QStringLiteral("share"),     n.share },
@@ -1193,6 +1287,8 @@ void WorkOnsController::publishSummary()
                 { QStringLiteral("sessions"),  pips(n.pips) },
                 // So Home's row can open the fault's detail in place (its work-on's `id`).
                 { QStringLiteral("conditionId"), n.conditionId },
+                // What it does to the ball, when an earned, confirmed tendency says (§7.3).
+                { QStringLiteral("onTheBall"), onTheBallFor(n.conditionId) },
             };
         };
 
@@ -1214,6 +1310,7 @@ void WorkOnsController::publishSummary()
             { QStringLiteral("reasonShort"),   f.reasonShort },
             // The condition the focus starts from: the first "right now" fault's id ("" when none).
             { QStringLiteral("focusConditionId"), f.rightNow.empty() ? QString() : f.rightNow.front().conditionId },
+            { QStringLiteral("onTheBall"), f.rightNow.empty() ? QString() : onTheBallFor(f.rightNow.front().conditionId) },
         };
 
         for (const DoWellItem &d : view.doWell)
@@ -1242,6 +1339,319 @@ void WorkOnsController::publishSummary()
         m_togetherNote = view.note;
     }
     emit summaryChanged();
+}
+
+// ── Tendencies ──────────────────────────────────────────────────────────────────────────
+
+const ShotOutcomePack &WorkOnsController::outcomePack() const
+{
+    if (!m_outcomePack) {
+        if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+        m_outcomePack = std::make_unique<ShotOutcomePack>(shotOutcomePackFor(&m_packProv->pack()));
+    }
+    return *m_outcomePack;
+}
+
+// Called once the catch-up is done, beside maybeThemes and maybeMarks. Cheap when nothing moved: the
+// job stats the ledgers and stops.
+void WorkOnsController::maybeTendencies()
+{
+    if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+
+    // No session with a swing in it: nothing to reduce, and nothing to write into the folder.
+    if (m_fingerprints.isEmpty()) {
+        cancelTendencies();
+        if (m_tendenciesReady) clearTendencies();
+        return;
+    }
+
+    cancelTendencies();      // superseded, if one was running
+
+    TendenciesJob job;
+    job.generation   = ++m_tendenciesGeneration;
+    job.athleteDir   = m_athleteDir;
+    job.previous     = m_tendencyFingerprint;
+    job.contentStamp = m_model ? m_model->contentStamp() : QString();
+    job.sessionDirs  = m_fingerprints.keys();
+    std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
+        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
+    });
+    // Marshalled here, on the GUI thread; sharedNormProvider()'s first build is not safe on a worker.
+    job.pack  = outcomePack();
+    job.norms = sharedNormProvider();
+
+    QCryptographicHash seed(QCryptographicHash::Sha1);
+    seed.addData(QByteArray::number(kTendencyRuleVersion));
+    seed.addData(QByteArray::number(kTendencySchemaVersion));
+    seed.addData(job.contentStamp.toUtf8());
+    for (const QString &d : std::as_const(job.sessionDirs)) {
+        seed.addData(QFileInfo(d).fileName().toUtf8());
+        seed.addData(QByteArrayLiteral("\x1f"));
+        seed.addData(m_fingerprints.value(d).toUtf8());
+        seed.addData(QByteArrayLiteral("\x1e"));
+    }
+    job.seed = QString::fromLatin1(seed.result().toHex());
+
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    m_tendenciesCancel = cancel;
+    const bool wasRunning = m_tendenciesRunning;
+    m_tendenciesRunning = true;
+    if (!wasRunning) emit tendenciesChanged();
+
+    if (m_synchronous) {
+        applyTendencies(job.generation, runTendencies(job, cancel.get()));
+        return;
+    }
+    m_themesPool.start([this, job = std::move(job), cancel]() {
+        TendenciesOutcome out = runTendencies(job, cancel.get());
+        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
+            applyTendencies(generation, std::move(out));
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Stops the running job, if any. Its result, should it still arrive, is a generation behind and is
+// dropped; the tendencies on screen stay.
+void WorkOnsController::cancelTendencies()
+{
+    if (m_tendenciesCancel) m_tendenciesCancel->store(true);
+    m_tendenciesCancel.reset();
+    ++m_tendenciesGeneration;
+    if (!m_tendenciesRunning) return;
+    m_tendenciesRunning = false;
+    emit tendenciesChanged();
+}
+
+// Worker thread (or inline when synchronous). Touches no member.
+WorkOnsController::TendenciesOutcome WorkOnsController::runTendencies(const TendenciesJob &job, const std::atomic<bool> *cancel)
+{
+    QElapsedTimer clock;
+    clock.start();
+    TendenciesOutcome out;
+    out.contentStamp = job.contentStamp;
+    out.athleteDir   = job.athleteDir;
+
+    // ── 1. The ledgers' identity: an unchanged library stops here ──
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(job.seed.toUtf8());
+    for (const QString &dir : job.sessionDirs) {
+        const QFileInfo fi(QDir(dir).filePath(kLedgerFile));
+        h.addData(QFileInfo(dir).fileName().toUtf8());
+        h.addData(QByteArrayLiteral("\x1f"));
+        h.addData(QByteArray::number(fi.exists() ? fi.size() : -1));
+        h.addData(QByteArray::number(fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : 0));
+        h.addData(QByteArrayLiteral("\x1e"));
+    }
+    out.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
+    if (out.fingerprint == job.previous) {
+        out.unchanged = true;
+        return out;
+    }
+
+    // ── 2. The stored file, when it was reduced from exactly this ──
+    {
+        QFile f(tendenciesPath(job.athleteDir));
+        if (f.open(QIODevice::ReadOnly)) {
+            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+            const QString stored = root.value(QStringLiteral("derivedFrom")).toObject()
+                                       .value(QStringLiteral("fingerprint")).toString();
+            bool ok = false;
+            TendencySet s = tendencySetFromJson(root, &ok);
+            if (ok && stored == out.fingerprint) {
+                out.fromDisk = true;
+                out.set = std::move(s);
+                return out;
+            }
+        }
+    }
+
+    // ── 3. Every session, re-composed shot by shot ──
+    std::vector<TendencySessionInput> sessions;
+    sessions.reserve(size_t(job.sessionDirs.size()));
+    for (const QString &dir : job.sessionDirs) {
+        if (cancel && cancel->load()) return out;
+        TendencySessionInput in;
+        if (readTendencySession(dir, in)) sessions.push_back(std::move(in));
+    }
+
+    const ContextTree &tree = job.norms->contexts();
+    TendencySet set = reduceTendencies(sessions, job.pack,
+                                       [&tree](const QString &club) { return tendencyClubGroup(tree, club); },
+                                       TendencyOptions{}, cancel);
+    if (set.cancelled || (cancel && cancel->load())) return out;
+
+    std::vector<ClubDistanceSession> clubSessions;
+    clubSessions.reserve(sessions.size());
+    for (TendencySessionInput &s : sessions) clubSessions.push_back(std::move(s.session));
+    QJsonArray distances;
+    for (const ClubDistanceItem &it : reduceClubDistances(clubSessions)) distances.append(clubDistanceItemToJson(it));
+    set.clubDistances = distances;
+
+    out.computed = true;
+    out.set = std::move(set);
+    ppInfo() << qPrintable(QStringLiteral("[Tendencies] %1 shots over %2 sessions, %3 keys, %4 ms")
+                               .arg(out.set.countedShots).arg(out.set.countedSessions)
+                               .arg(out.set.items.size()).arg(clock.elapsed()));
+    return out;
+}
+
+void WorkOnsController::applyTendencies(int generation, TendenciesOutcome out)
+{
+    if (generation != m_tendenciesGeneration) return;      // cancelled or superseded
+    m_tendenciesRunning = false;
+    m_tendenciesCancel.reset();
+
+    if (out.unchanged || (!out.fromDisk && !out.computed)) {  // the tendencies in hand stand
+        emit tendenciesChanged();
+        return;
+    }
+
+    if (out.computed) {
+        ++m_tendencyJobs;
+        QJsonObject root = tendencySetToJson(out.set);
+        root[QStringLiteral("derivedFrom")] = QJsonObject{
+            { QStringLiteral("fingerprint"),  out.fingerprint },
+            { QStringLiteral("contentStamp"), out.contentStamp },
+            { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
+        };
+        QString why;
+        if (!atomicWrite(tendenciesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why))
+            ppWarn() << "[Tendencies] could not write" << qPrintable(tendenciesPath(out.athleteDir)) << "—" << qPrintable(why);
+    }
+
+    m_tendencySet         = std::move(out.set);
+    m_tendencyFingerprint = out.fingerprint;
+    m_tendenciesReady     = true;
+    // As the marks do: the tendencies ride on faultDetail() and the focus, so a landing rebuilds both.
+    publish();
+    publishSummary();
+    publishTendencies();
+    emit tendenciesChanged();
+    emit tendenciesLanded();
+}
+
+void WorkOnsController::publishTendencies()
+{
+    QVariantList items;
+    if (m_tendenciesReady) {
+        QHash<QString, QString> workOnStatus;
+        for (const QVariant &v : std::as_const(m_items)) {
+            const QVariantMap m = v.toMap();
+            workOnStatus.insert(m.value(QStringLiteral("id")).toString(), m.value(QStringLiteral("status")).toString());
+        }
+        for (const TendencyItem &it : m_tendencySet.items) {
+            const QString workOn = workOnStatus.value(it.seenWithId);
+            items.append(QVariantMap{
+                { QStringLiteral("key"),         it.key },
+                { QStringLiteral("club"),        it.club },
+                { QStringLiteral("clubLine"),    it.length == QLatin1String("partial") ? it.club + QStringLiteral(" · part swing") : it.club },
+                { QStringLiteral("length"),      it.length },
+                { QStringLiteral("miss"),        it.miss },
+                { QStringLiteral("missFamily"),  it.missFamily },
+                { QStringLiteral("share"),       it.share },
+                { QStringLiteral("frequency"),   it.frequency },
+                { QStringLiteral("mix"),         shotMixBarToJson(it.mix).toVariantMap() },
+                { QStringLiteral("building"),    it.building },
+                { QStringLiteral("noUsualMiss"), it.noUsualMiss },
+                { QStringLiteral("sessions"),    it.sessions },
+                { QStringLiteral("shots"),       it.shots },
+                { QStringLiteral("seenWith"),    it.seenWith },
+                { QStringLiteral("seenWithId"),  it.seenWithId },
+                { QStringLiteral("strength"),    it.strength },
+                { QStringLiteral("trend"),       it.trend },
+                { QStringLiteral("trendWords"),  it.trendWords },
+                { QStringLiteral("workOn"),      workOn },
+                { QStringLiteral("workOnText"),  outcomeCapitalised(workOn) },
+            });
+        }
+    }
+
+    const QString note = !m_tendenciesReady ? QString()
+        : m_tendencySet.countedShots > 0
+            ? QStringLiteral("From %1 shots over %2 sessions").arg(m_tendencySet.countedShots).arg(m_tendencySet.countedSessions)
+            : QStringLiteral("Hit a few sessions with the launch monitor on");
+
+    if (items == m_tendencyItems && note == m_tendencyNote) return;
+    m_tendencyItems = items;
+    m_tendencyNote  = note;
+    emit tendenciesChanged();
+}
+
+void WorkOnsController::clearTendencies()
+{
+    m_tendencySet = TendencySet();
+    m_tendencyFingerprint.clear();
+    m_tendenciesReady = false;
+    m_tendencyItems.clear();
+    m_tendencyNote.clear();
+    emit tendenciesChanged();
+}
+
+QVariantMap WorkOnsController::tendencyDetail(const QString &key) const
+{
+    for (const TendencyItem &it : m_tendencySet.items) {
+        if (it.key != key) continue;
+        QVariantList chain;
+        for (const TendencyChainStep &s : it.chain)
+            chain.append(QVariantMap{ { QStringLiteral("text"), s.text }, { QStringLiteral("words"), s.words } });
+        const ShotOutcomePack &pack = outcomePack();
+        return QVariantMap{
+            { QStringLiteral("chain"),    chain },
+            { QStringLiteral("alsoSeen"), it.alsoSeen },
+            { QStringLiteral("earlyNote"), it.earlyNote },
+            { QStringLiteral("playTo"),   it.missId.isEmpty() ? QString()
+                                              : outcomePlayTo(pack, it.missId, it.handedness) },
+            { QStringLiteral("practiseConditionId"), it.seenWithId },
+        };
+    }
+    return QVariantMap();
+}
+
+QVariantMap WorkOnsController::clubDistance(const QString &club) const
+{
+    const QString canonical = pinpoint::canonicalClubId(club);
+    for (const QJsonValue &v : m_tendencySet.clubDistances) {
+        const QJsonObject o = v.toObject();
+        if (o.value(QStringLiteral("club")).toString() != canonical) continue;
+        const int n = o.value(QStringLiteral("shots")).toInt();
+        return QVariantMap{
+            { QStringLiteral("mean"),      o.value(QStringLiteral("carryMean")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
+            { QStringLiteral("sd"),        o.value(QStringLiteral("carrySd")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
+            { QStringLiteral("n"),         n },
+            { QStringLiteral("total"),     o.value(QStringLiteral("totalMean")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
+            { QStringLiteral("offlineSd"), o.value(QStringLiteral("offlineSd")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
+            { QStringLiteral("earned"),    n >= kClubBaselineMinShots },
+            { QStringLiteral("line"),      o.value(QStringLiteral("carryText")).toString() },
+        };
+    }
+    return QVariantMap();
+}
+
+QVariantMap WorkOnsController::onBallFor(const QString &conditionId) const
+{
+    for (const TendencyOnBall &b : m_tendencySet.onBall) {
+        if (b.conditionId != conditionId) continue;
+        QVariantList produced;
+        for (const TendencyProduced &p : b.produced)
+            produced.append(QVariantMap{ { QStringLiteral("phrase"), p.phrase }, { QStringLiteral("count"), p.count } });
+        return QVariantMap{
+            { QStringLiteral("conditionId"),  b.conditionId },
+            { QStringLiteral("text"),         b.text },
+            { QStringLiteral("produced"),     produced },
+            { QStringLiteral("costWords"),    b.costWords },
+            { QStringLiteral("tendencyKey"),  b.tendencyKey },
+            { QStringLiteral("tendencyText"), b.tendencyText },
+            { QStringLiteral("onTheBall"),    b.onTheBall },
+        };
+    }
+    return QVariantMap();
+}
+
+QString WorkOnsController::onTheBallFor(const QString &conditionId) const
+{
+    for (const TendencyOnBall &b : m_tendencySet.onBall)
+        if (b.conditionId == conditionId) return b.onTheBall;
+    return QString();
 }
 
 QString WorkOnsController::conditionLabel(const QString &id) const

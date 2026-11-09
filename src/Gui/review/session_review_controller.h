@@ -76,6 +76,11 @@ class SessionReviewController : public QObject
     Q_PROPERTY(QString  activeTimeLabel READ activeTimeLabel NOTIFY reviewActiveChanged)
     Q_PROPERTY(QString  activeClubMix   READ activeClubMix   NOTIFY reviewActiveChanged)
     Q_PROPERTY(int      activeShotCount READ activeShotCount NOTIFY activeShotCountChanged)
+    // THE REASON A REVIEW WAS OPENED ON ("See these shots →" on Home, shot_outcomes_design.md §7.4): a
+    // condition id, empty for none. Set it BEFORE loadSession(); the next loadSession keeps it, any other
+    // session being loaded, or leaving review, clears it, so it can never carry over to a session nobody
+    // opened through a reason.
+    Q_PROPERTY(QString  reasonFilter READ reasonFilter WRITE setReasonFilter NOTIFY reasonFilterChanged)
 
 public:
     SessionReviewController(ShotListModel     *liveModel,
@@ -95,6 +100,8 @@ public:
     QString  activeTimeLabel() const { return m_activeTimeLabel; }
     QString  activeClubMix()   const { return m_activeClubMix; }
     int      activeShotCount() const { return m_reviewModel.activeCount(); }
+    QString  reasonFilter()    const { return m_reasonFilter; }
+    void     setReasonFilter(const QString &conditionId);
 
     // Rebuild sessionsModel from disk + the live model. Call when the drawer
     // opens; also run on construction and whenever review state changes.
@@ -130,6 +137,7 @@ signals:
     void reviewActiveChanged();
     void activeShotCountChanged();
     void liveSessionDirChanged();
+    void reasonFilterChanged();
     // An ARCHIVED session was opened (SessionArchiver): its stubs are on screen — rows, scores,
     // chips — but no replay. main.cpp routes this to ArchiveController::restoreSession, whose
     // sessionRestored() re-opens it complete.
@@ -140,6 +148,9 @@ private:
     SessionListModel::Row buildDiskRow(const QString &sessionDir, qint64 nowMs) const;
     void updateLiveSessionDir();
     QString m_liveSessionDir;      // last value announced; see liveSessionDir()
+    void clearReasonFilter();
+    QString m_reasonFilter;
+    bool    m_reasonFilterArmed = false;   // set, and the loadSession it is meant for has not run yet
 
     ShotListModel     *m_liveModel = nullptr;
     AppSettings       *m_settings  = nullptr;

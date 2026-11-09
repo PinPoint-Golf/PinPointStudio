@@ -24,7 +24,11 @@
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include <QDate>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPair>
 #include <QVector>
 #include <QUuid>
@@ -708,6 +712,41 @@ QVariantMap AthleteController::clubsFor(const QString &uuid) const
     s.endGroup();
     s.endGroup();
     return clubs;
+}
+
+QVariantMap AthleteController::clubDistances(const QString &uuid) const
+{
+    const QString kReading = QStringLiteral("Distances are worked out when this golfer's sessions are read");
+    QVariantMap out{ { QStringLiteral("items"), QVariantList() },
+                     { QStringLiteral("stale"), true },
+                     { QStringLiteral("note"),  kReading } };
+
+    QString name;
+    for (const QVariant &v : m_athletes) {
+        const QVariantMap a = v.toMap();
+        if (a.value(QStringLiteral("uuid")).toString() == uuid) { name = a.value(QStringLiteral("name")).toString(); break; }
+    }
+    if (name.isEmpty() || !m_dirFor) return out;
+
+    const QDir athleteDir(m_dirFor(name));
+    const QFileInfo file(athleteDir.filePath(QStringLiteral("tendencies.json")));
+    if (!file.exists()) return out;
+
+    QFile f(file.absoluteFilePath());
+    if (!f.open(QIODevice::ReadOnly)) return out;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    out[QStringLiteral("items")] = root.value(QStringLiteral("clubDistances")).toArray().toVariantList();
+
+    // Older than the newest ledger: these numbers were reduced before that session was graded.
+    qint64 newestLedger = 0;
+    for (const QFileInfo &session : athleteDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QFileInfo ledger(QDir(session.absoluteFilePath()).filePath(QStringLiteral("diagnostics.json")));
+        if (ledger.exists()) newestLedger = std::max(newestLedger, ledger.lastModified().toMSecsSinceEpoch());
+    }
+    const bool stale = file.lastModified().toMSecsSinceEpoch() < newestLedger;
+    out[QStringLiteral("stale")] = stale;
+    out[QStringLiteral("note")]  = stale ? kReading : QString();
+    return out;
 }
 
 QStringList AthleteController::clubOptions() const

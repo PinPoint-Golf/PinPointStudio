@@ -47,4 +47,4 @@ PpStandfirst {
 ```
 
 ## Used by
-Session diagnostics: `diagnostics/PpDiagAnalyse.qml`, `PpDiagPrint.qml`, `PpMasthead.qml`.
+Session diagnostics: `diagnostics/PpDiagAnalyse.qml`, `PpDiagPrint.qml`, `PpMasthead.qml`, `PpShotOutcomeHead.qml`, `PpDiagSessionOutcomes.qml`.

@@ -127,6 +127,7 @@ The typeset controls live in `src/Gui/typeset/` and serve both screen and print:
 - [PpBoxReading](PpBoxReading.md) — A stood-up box's full reading beside it — whisker ends, quartiles, median and count line — each ticked from its true height.
 - [PpFigureScale](PpFigureScale.md) — The value axis a figure row's panels share: f → y, the zone edges named once, fault-forward bands behind drawn breaks.
 - [PpZonePlot](PpZonePlot.md) — The ground under a value panel: corridor wash, zone edges and baseline through one PpFigureScale.
+- [PpCarryWaterfall](PpCarryWaterfall.md) — Where the yards went on one shot: the usual, each part taken off it, the residual, the actual.
 - [PpBreakSlash](PpBreakSlash.md) — The pair of slashes that marks a broken value axis, at each break.
 - [PpPulseWash](PpPulseWash.md) — The after-shot pulse: one soft ink wash over a row whose condition changed on the shot just surfaced.
 - [PpPager](PpPager.md) — Print: one document on A4, laid out once as a galley and cut into pages only between atoms, with repeated heads and no stranded pages.

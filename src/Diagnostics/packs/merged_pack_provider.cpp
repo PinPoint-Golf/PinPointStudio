@@ -233,12 +233,15 @@ private:
             // A symmetric edge overrides per PAIR instead. That is what lets the user change what a
             // shipped relation SAYS — corroborates to excludes — without ending up with both rows
             // in the assembled library, each contradicting the other.
+            // A LeadsTo edge is directed and is overridden by itself alone.
             for (const Edge &u : src.edges) {
                 if (u.type == EdgeType::Causes) continue;
                 m_pack.edges.erase(
                     std::remove_if(m_pack.edges.begin(), m_pack.edges.end(),
                                    [&](const Edge &e) {
-                                       return e.type != EdgeType::Causes
+                                       if (u.type == EdgeType::LeadsTo)
+                                           return e.type == EdgeType::LeadsTo && e.from == u.from && e.to == u.to;
+                                       return isSymmetricEdge(e.type)
                                               && ((e.from == u.from && e.to == u.to)
                                                   || (e.from == u.to && e.to == u.from));
                                    }),
@@ -257,7 +260,7 @@ private:
         // provider exists to prevent, one step further.
         if (isLocal) {
             for (const Edge &t : src.retiredEdges) {
-                const bool symmetric = t.type != EdgeType::Causes;
+                const bool symmetric = isSymmetricEdge(t.type);
                 m_pack.edges.erase(
                     std::remove_if(m_pack.edges.begin(), m_pack.edges.end(),
                                    [&](const Edge &e) {

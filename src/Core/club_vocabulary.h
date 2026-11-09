@@ -68,6 +68,30 @@ inline const QStringList &clubVocabulary()
 // the club that was actually selected.
 inline QString clubStub() { return QStringLiteral("DRIVER"); }
 
+// A stored club token mapped to the vocabulary above. Handles the legacy picker values
+// ("Driver", "3-wood", "5-iron", "Wedge") so old data self-heals on read; canonical values pass
+// through. Empty in, empty out; an unknown token comes back uppercased, matching no bag key.
+inline QString canonicalClubId(const QString &raw)
+{
+    const QString t = raw.trimmed();
+    if (t.isEmpty())
+        return QString();
+
+    const QStringList &vocab = clubVocabulary();
+    if (vocab.contains(t))
+        return t;
+
+    QString up = t.toUpper();
+    up.replace(u'-', u' ');
+    up = up.simplified();                          // "3-wood" -> "3 WOOD"
+    if (vocab.contains(up))
+        return up;
+
+    if (up == QLatin1String("WEDGE"))              // legacy catch-all wedge
+        return QStringLiteral("SAND WEDGE");
+    return up;
+}
+
 // WHICH CLUB A SWING WAS HIT WITH, from its swing.json root. THE one resolver — the
 // session-picker summary (swing_doc.cpp) and the diagnostics phase grid
 // (measure_sample.cpp) both call it, so a per-club filter can never bucket the same swing

@@ -43,18 +43,29 @@ Item {
     property bool showCounts: true                       // the count line
     property string shotsLabel: "shot"
     property string countsLabel: "outside"
+    // A LINE OF WORDS IN PLACE OF THE COUNTS (the Session view's shot log, shot_outcomes_design.md §6.3): given entries
+    // [{ shotId, lines: ["FAT", "SL"], quiet }] the ruler is one cell per entry, and each cell carries its one or two lines
+    // of words where its count would be (quiet: ink3). The axis, the wrap, the pick column and the click are unchanged.
+    property var outcomeWords: []
+    readonly property bool hasWords: (outcomeWords || []).length > 0
     property bool atom: true
     readonly property var keyKinds: []
     signal shotActivated(string swingDir, int shotId)
     signal shotHovered(int shotId)
 
     readonly property int nShots: {
+        if (hasWords) return outcomeWords.length
         let n = readout && readout.shotCount !== undefined ? readout.shotCount : 0
         for (let i = 0; i < (conditions || []).length; ++i) n = Math.max(n, (conditions[i].ticks || []).length)
         return n
     }
     readonly property var cells: {
         const out = []
+        if (hasWords) {
+            for (let s = 0; s < outcomeWords.length; ++s)
+                out.push({ sid: outcomeWords[s].shotId, n: 0, known: 0, lines: outcomeWords[s].lines || [], quiet: !!outcomeWords[s].quiet })
+            return out
+        }
         for (let s = 0; s < nShots; ++s) out.push({ sid: s + 1, n: 0, known: 0 })
         const cs = conditions || []
         for (let i = 0; i < cs.length; ++i) {
@@ -78,14 +89,28 @@ Item {
     readonly property real lw: labelW >= 0 ? labelW : autoLabelW
     // fmF.font is read so the figure measures follow a theme change (advanceWidth() is a call, untracked)
     readonly property real figW88: fmF.font.pixelSize > 0 ? fmF.advanceWidth("88") : 0
-    readonly property real minPitch: Math.ceil(figW88) + (roles ? roles.u(3) : 3)
-    readonly property real cellPitch: availableWidth > 0 && nShots > 0 ? Math.max(Math.min(pitch, minPitch), Math.min(pitch, (availableWidth - lw) / nShots)) : pitch
+    // the widest line of words, so a word cell never narrows past its text
+    readonly property real wordW: {
+        if (!hasWords || fmF.font.pixelSize <= 0) return 0
+        let w = 0
+        for (let i = 0; i < cells.length; ++i) for (const line of (cells[i].lines || [])) w = Math.max(w, fmF.advanceWidth(line))
+        return w
+    }
+    readonly property int maxWordLines: {
+        let n = 1
+        for (let i = 0; i < cells.length; ++i) n = Math.max(n, (cells[i].lines || []).length)
+        return n
+    }
+    readonly property real minPitch: Math.ceil(Math.max(figW88, wordW)) + (roles ? roles.u(hasWords ? 6 : 3) : 3)
+    readonly property real wantPitch: hasWords ? Math.max(pitch, minPitch) : pitch
+    readonly property real cellPitch: availableWidth > 0 && nShots > 0 ? Math.max(Math.min(wantPitch, minPitch), Math.min(wantPitch, (availableWidth - lw) / nShots)) : wantPitch
     readonly property int perRowMax: availableWidth > 0 ? Math.max(1, Math.min(nShots, Math.floor((availableWidth - lw + 0.01) / cellPitch))) : Math.max(1, nShots)
     readonly property int perRow: Math.max(1, Math.ceil(nShots / Math.ceil(Math.max(1, nShots) / perRowMax)))    // balanced lines
     readonly property int rowsN: Math.max(1, Math.ceil(nShots / perRow))
     readonly property int labelStep: roles ? roles.shotLabelStep(cellPitch, figW88) : 1
     readonly property real lineH: roles ? roles.u(13) : 13
-    readonly property real bandH: (showShots ? lineH : 0) + (showShots && showCounts ? (roles ? roles.u(4) : 4) : 0) + (showCounts ? lineH : 0)
+    readonly property real countsH: hasWords ? maxWordLines * lineH : lineH
+    readonly property real bandH: (showShots ? lineH : 0) + (showShots && showCounts ? (roles ? roles.u(4) : 4) : 0) + (showCounts ? countsH : 0)
     readonly property real bandGap: roles ? roles.u(8) : 8
     readonly property real countsY: showShots ? lineH + (roles ? roles.u(4) : 4) : 0
 
@@ -108,7 +133,7 @@ Item {
         model: rl.roles ? rl.cells : []
         delegate: Item {
             id: cell
-            objectName: "sdRulerCell"
+            objectName: rl.hasWords ? "sdShotLogCell:" + modelData.sid : "sdRulerCell"
             required property var modelData
             required property int index
             readonly property int shotId: modelData.sid
@@ -125,9 +150,10 @@ Item {
             Text { visible: rl.showShots && cell.labelled; anchors.horizontalCenter: parent.horizontalCenter; y: (rl.lineH - height) / 2
                    text: String(cell.index + 1); font: rl.roles.fFigLabel
                    color: cell.picked || cell.hovered ? rl.roles.ink : rl.roles.ink3 }
-            Text { visible: rl.showCounts; anchors.horizontalCenter: parent.horizontalCenter; y: rl.countsY + (rl.lineH - height) / 2
-                   text: cell.count >= 0 ? String(cell.count) : "-"; font: rl.roles.fFigLabel
-                   color: cell.picked || cell.hovered ? rl.roles.ink : rl.roles.ink2
+            Text { visible: rl.showCounts; anchors.horizontalCenter: parent.horizontalCenter; y: rl.countsY + (rl.countsH - height) / 2
+                   horizontalAlignment: Text.AlignHCenter
+                   text: rl.hasWords ? (cell.modelData.lines || []).join("\n") : cell.count >= 0 ? String(cell.count) : "-"; font: rl.roles.fFigLabel
+                   color: cell.picked || cell.hovered ? rl.roles.ink : (rl.hasWords && cell.modelData.quiet) ? rl.roles.ink3 : rl.roles.ink2
                    opacity: rl.brush ? rl.brush.shotOpacity(cell.shotId, rl.roles.dim) : 1 }
             MouseArea {
                 enabled: rl.interactive; visible: enabled

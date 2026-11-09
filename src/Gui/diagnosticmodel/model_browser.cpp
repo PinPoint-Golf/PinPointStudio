@@ -207,6 +207,7 @@ QVariantList relationOptions()
     l.append(option(QStringLiteral("causes"), QObject::tr("causes")));
     l.append(option(QStringLiteral("corroborates"), QObject::tr("corroborates")));
     l.append(option(QStringLiteral("excludes"), QObject::tr("excludes")));
+    l.append(option(QStringLiteral("leadsTo"), QObject::tr("leads to")));
     return l;
 }
 QVariantList statusOptions()
@@ -1753,7 +1754,7 @@ QVariantMap ModelBrowser::edgeRow(const Edge &e) const
     cells.append(relCell);
     // A symmetric relation has no strength to state. Rendering "Moderate" on a corroboration would
     // be a confident wrong claim, which is worse than a blank.
-    cells.append(e.type == EdgeType::Causes ? strengthCell : cell(tr("—"), QStringLiteral("dim")));
+    cells.append(!isSymmetricEdge(e.type) ? strengthCell : cell(tr("—"), QStringLiteral("dim")));
     cells.append(tierCell);
 
     QVariantMap r;
@@ -1774,8 +1775,8 @@ QVariantMap ModelBrowser::edgeRow(const Edge &e) const
         }
         return QStringLiteral("none");
     };
-    r.insert(QStringLiteral("dot"), e.type == EdgeType::Causes ? dotFor(e.strength)
-                                                               : QStringLiteral("none"));
+    r.insert(QStringLiteral("dot"), !isSymmetricEdge(e.type) ? dotFor(e.strength)
+                                                             : QStringLiteral("none"));
     r.insert(QStringLiteral("cells"), cells);
     r.insert(QStringLiteral("fromId"), e.from);
     r.insert(QStringLiteral("toId"), e.to);
@@ -3407,6 +3408,20 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
            tr("what they do instead, when they are clear of it — never “don't”"));
         rf("golferWhy", tr("Why it matters"), QStringLiteral("prose"), c->golferWhy, {},
            tr("one sentence: what it costs the shot"));
+        if (c->kind == ConditionKind::Outcome) {
+            QVariantList families;
+            for (const QString &fam : conditionFamilies()) families.append(option(fam, fam));
+            rf("family", tr("Family"), QStringLiteral("enum"), c->family, families,
+               tr("where it goes, how you strike it, or how it flies"));
+            rf("golferShort", tr("Shot label"), QStringLiteral("text"), c->golferShort, {},
+               tr("the word a shot is called by — “Slice”"));
+            rf("golferAbbr", tr("Shot log"), QStringLiteral("text"), c->golferAbbr, {},
+               tr("the shot log's narrow cell — “SL”"));
+            rf("golferStory", tr("In the story"), QStringLiteral("text"), c->golferStory, {},
+               tr("the clause the shot's story uses — “cut across it”"));
+            rf("playTo", tr("Play to it"), QStringLiteral("prose"), c->playTo, {},
+               tr("course management, written for a right-hander"));
+        }
         rf("goal", tr("Work-on title"), QStringLiteral("text"), c->goal, {},
            tr("an instruction, at most 60 characters — “Keep the flex in your trail knee”"));
         rf("cue", tr("Feel to practice"), QStringLiteral("prose"), c->cue, {},
@@ -3500,7 +3515,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         // NAMED for what it says, not for what the enum is called. Its three values read
         // "sometimes / often / usually", and a column headed Strength hid that from the one author
         // who went looking for it.
-        if (e->type == EdgeType::Causes)
+        if (!isSymmetricEdge(e->type))
             f.append(fieldRow(QStringLiteral("strength"), tr("How often"), QStringLiteral("enum"),
                               strengthName(e->strength), strengthOptions(),
                               tr("how often this cause produces this effect")));
@@ -3699,6 +3714,18 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                                                    : tr("Excludes"),
                                         rel));
         }
+
+        // The shot's physics links run one way, so each way is its own section.
+        QVariantList leadsTo, comesFrom;
+        for (const Edge &e : p.edges) {
+            if (e.type != EdgeType::LeadsTo) continue;
+            const QString other = e.from == id ? e.to : (e.to == id ? e.from : QString());
+            if (other.isEmpty()) continue;
+            const Condition *o = p.condition(other);
+            (e.from == id ? leadsTo : comesFrom).append(hubRow(kCharacteristics, other, o ? o->label : other));
+        }
+        if (!leadsTo.isEmpty())   sections.append(section(tr("Leads to"), leadsTo));
+        if (!comesFrom.isEmpty()) sections.append(section(tr("Comes from"), comesFrom));
 
         if (!c->screenRef.isEmpty()) {
             const Screen *s = m_screens.screen(c->screenRef);
@@ -4711,7 +4738,7 @@ QVariantList ModelBrowser::linkCandidates(const QString &relation, const QString
         for (const Edge &e : p.edges)
             if (e.type == type
                 && ((e.from == candFrom && e.to == candTo)
-                    || (type != EdgeType::Causes && e.from == candTo && e.to == candFrom)))
+                    || (isSymmetricEdge(type) && e.from == candTo && e.to == candFrom)))
                 exists = true;
         if (exists) continue;
 
@@ -4726,6 +4753,11 @@ QVariantList ModelBrowser::linkCandidates(const QString &relation, const QString
             // direction — the pair would double-count in the confidence ranking, and the validator
             // rejects the whole library over it.
             if (hasCausalPath(p, fixedId, c.id) || hasCausalPath(p, c.id, fixedId)) continue;
+        } else if (type == EdgeType::LeadsTo) {
+            // Outcome to outcome only, and its own DAG (the validator refuses the rest).
+            const Condition *fixed = p.condition(fixedId);
+            if (!fixed || fixed->kind != ConditionKind::Outcome || c.kind != ConditionKind::Outcome) continue;
+            if (leadsToReaches(p, candTo, candFrom)) continue;
         }
 
         if (!search.trimmed().isEmpty()) {
@@ -5533,6 +5565,23 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
         } else if (field == QStringLiteral("golferWhy")) {
             c->golferWhy = text;
             what         = tr("Why it matters edited");
+        } else if (field == QStringLiteral("family")) {
+            if (!text.isEmpty() && !isKnownConditionFamily(text))
+                return reject(tr("%1 is not a family.").arg(text));
+            c->family = text;
+            what      = tr("Family → %1").arg(text);
+        } else if (field == QStringLiteral("golferShort")) {
+            c->golferShort = text;
+            what           = tr("Shot label → %1").arg(text);
+        } else if (field == QStringLiteral("golferAbbr")) {
+            c->golferAbbr = text;
+            what          = tr("Shot log → %1").arg(text);
+        } else if (field == QStringLiteral("golferStory")) {
+            c->golferStory = text;
+            what           = tr("In the story → %1").arg(text);
+        } else if (field == QStringLiteral("playTo")) {
+            c->playTo = text;
+            what      = tr("Play to it edited");
         } else if (field == QStringLiteral("goal")) {
             c->goal = text;
             what    = tr("Work-on title → %1").arg(text);
@@ -5733,7 +5782,7 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
         subject = tr("%1 → %2").arg(f ? f->label : from, o ? o->label : to);
 
         if (field == QStringLiteral("strength")) {
-            if (e->type != EdgeType::Causes)
+            if (isSymmetricEdge(e->type))
                 return reject(tr("A %1 relation has no strength.").arg(edgeTypeName(e->type)));
             Strength s{};
             if (!strengthFromName(text, s)) return reject(tr("%1 is not a strength.").arg(text));
@@ -5761,6 +5810,13 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
                     return reject(tr("%1 and %2 already have a causal path, so they cannot also "
                                      "corroborate each other.")
                                       .arg(f ? f->label : from, o ? o->label : to));
+            }
+            if (nt == EdgeType::LeadsTo) {
+                if (!f || !o || f->kind != ConditionKind::Outcome || o->kind != ConditionKind::Outcome)
+                    return reject(tr("A leads-to link joins two outcomes."));
+                if (leadsToReaches(pack(), to, from))
+                    return reject(tr("%1 already leads to %2, so this would create a cycle.")
+                                      .arg(o->label, f->label));
             }
             e->type = nt;
             what    = tr("Relation → %1").arg(text);
@@ -6065,6 +6121,13 @@ QVariantMap ModelBrowser::linkLegality(const QString &fromId, const QString &toI
         && (hasCausalPath(p, fromId, toId) || hasCausalPath(p, toId, fromId)))
         return no(tr("%1 and %2 already have a causal path, so they cannot also corroborate "
                      "each other.").arg(f->label, o->label));
+    if (type == EdgeType::LeadsTo) {
+        if (f->kind != ConditionKind::Outcome || o->kind != ConditionKind::Outcome)
+            return no(tr("A leads-to link joins two outcomes."));
+        if (leadsToReaches(p, toId, fromId))
+            return no(tr("%1 already leads to %2, so this would create a cycle.")
+                          .arg(o->label, f->label));
+    }
 
     QVariantMap r;
     r.insert(QStringLiteral("ok"), true);
@@ -6295,8 +6358,8 @@ QVariantMap ModelBrowser::removeLink(const QString &fromId, const QString &toId,
             break;
         }
 
-    // A SYMMETRIC edge belongs to neither end, so "absent from my list" does not remove it — the
-    // user pack has to tombstone it explicitly or the shipped one comes straight back.
+    // Every edge but a causal one is written individually, so "absent from my list" does not remove
+    // it — the user pack has to tombstone it explicitly or the shipped one comes straight back.
     if (type != EdgeType::Causes) {
         Edge t;
         t.from = fromId;
@@ -7073,6 +7136,11 @@ QVariantList ModelBrowser::fieldIssues(const QString &type, const QString &id, c
         if      (field == QStringLiteral("golfer"))         c.golfer         = text;
         else if (field == QStringLiteral("golferWell"))     c.golferWell     = text;
         else if (field == QStringLiteral("golferWhy"))      c.golferWhy      = text;
+        else if (field == QStringLiteral("family"))         c.family         = text;
+        else if (field == QStringLiteral("golferShort"))    c.golferShort    = text;
+        else if (field == QStringLiteral("golferAbbr"))     c.golferAbbr     = text;
+        else if (field == QStringLiteral("golferStory"))    c.golferStory    = text;
+        else if (field == QStringLiteral("playTo"))         c.playTo         = text;
         else if (field == QStringLiteral("goal"))           c.goal           = text;
         else if (field == QStringLiteral("cue"))            c.cue            = text;
         else if (field == QStringLiteral("check"))          c.check          = text;

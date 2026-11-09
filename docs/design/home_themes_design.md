@@ -49,7 +49,9 @@ Told only as firmly as their stability allows:
 
 Wording rules:
 - Co-movement is said as co-movement: "On swings where your hips slide toward the target, your
-  lead knee goes with them". Never "because" or "causes".
+  lead knee goes with them". Never "because" or "causes". The one exception
+  (shot_outcomes_design.md §1): "because" for a ball ← club link measured on the shot. Distances also
+  show on Home, always with a unit and ± SD, and a modelled one says what it is against.
 - Each theme line names the phase where it starts ("It starts in the backswing"), from its
   earliest member. That is the "where to start" a golfer can act on.
 - Each line ends with its trend: "may be easing", "may be growing" or "no clear change yet".

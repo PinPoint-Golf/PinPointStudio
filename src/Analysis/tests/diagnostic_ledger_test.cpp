@@ -1379,7 +1379,7 @@ int main()
               "#16: the side survives the round trip");
         check(firingSideFromString(QString()) == FiringSide::Either,
               "#16: a row with no side recorded reads as Either");
-        check(obj.value(QStringLiteral("schemaVersion")).toInt() == 10, "#16: the ledger is schema 10");
+        check(obj.value(QStringLiteral("schemaVersion")).toInt() == kDiagSchemaVersion, "#16: the ledger writes the current schema");
 
         // Two signals on one measure, one on each tail: between them both tails are watched.
         ConditionRow two = row(ShotState::Clean, 0.0, CorridorShape::TwoSided, FiringSide::Either);

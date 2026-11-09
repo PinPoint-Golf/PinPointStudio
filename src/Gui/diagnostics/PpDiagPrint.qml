@@ -81,6 +81,12 @@ Item {
     readonly property var whatChanged: (detail && detail.whatChanged) || ({})
     readonly property bool hasWhatChanged: (whatChanged.rows || []).length > 0
     readonly property bool composite: !!(detail && detail.composite)
+    // what happened on the printed shot: the model's words (shot_outcomes_design.md §6)
+    readonly property var outcome: hasShot && source && source.shotLog !== undefined && typeof source.shotOutcome === "function"
+                                   ? (source.shotOutcome(readout.shotId) || ({})) : ({})
+    readonly property bool outcomeReady: outcome.ready === true
+    readonly property var outcomeLabels: (outcome.labels || []).map(l => Object.assign({}, l, { id: l.rowId }))
+    readonly property var outcomeDriver: outcome.driver || ({})
 
     // ── the galley's flows, counted from the text width (portrait ≈ compact, landscape ≈ medium) ──
     readonly property real textW: width - 2 * ro.p.marginX
@@ -166,6 +172,8 @@ Item {
         // "How far can I trust this?" (trust_and_gates_design.md §7.4), set open: a report has nothing to unfold
         PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "session"
                              sessionDir: root.source ? String(root.source.sessionDir || "") : "" }
+        // what happened, shot by shot, and the reasons for the bad ones; set open, nothing to press
+        PpDiagSessionOutcomes { width: pager.textW; roles: ro; brush: br; medium: "print"; source: root.source }
         PpNotes { property bool keepNext: true
                 width: pager.textW; roles: ro; medium: "print"; rule: true; kicker: "Asked of the data"
                 text: "The questions the app asks beside each pattern, answered from the " + root.shotCount + " shots and numbered as above. They report what happened together, never what caused what." }
@@ -191,6 +199,34 @@ Item {
                      kicker: "2  ·  " + (root.shotName || "This shot") + "  ·  " + (root.header ? root.header.shotLabel : "")
                      head: root.fired.length ? ro.cap1(ro.word(root.fired.length)) + " outside the corridor" : "A clean swing"
                      standfirst: ro.shotStandfirst(root.readout, false) }
+        // what happened on this shot, set open: the phrase and the story, then the carry line
+        PpStandfirst { objectName: "sdOutcomeLead"; visible: root.outcomeReady
+                     width: pager.textW; roles: ro; medium: "print"
+                     kicker: "What happened"
+                     head: root.outcome.phrase || ""
+                     standfirst: root.outcome.clean || !root.outcome.story ? "" : ro.esc(root.outcome.story) }
+        PpNotes { objectName: "sdOutcomeNoReason"; keepPrev: true
+                width: pager.textW; roles: ro; medium: "print"; tone: 2; small: true
+                visible: root.outcomeReady && String(root.outcome.noReasonText || "") !== ""
+                text: ro.esc(root.outcome.noReasonText || "") }
+        PpNotes { objectName: "sdOutcomeCarryLine"; keepPrev: true
+                width: pager.textW; roles: ro; medium: "print"; tone: 2; small: true
+                visible: root.outcomeReady && !!(root.outcome.carry && root.outcome.carry.line)
+                text: root.outcome.carry ? ro.esc(root.outcome.carry.line || "") : "" }
+        PpNotes { objectName: "sdOutcomeSeenWith"; keepPrev: true
+                width: pager.textW; roles: ro; medium: "print"; tone: 2; small: true
+                visible: root.outcomeReady && !root.outcome.clean && !!root.outcomeDriver.id
+                text: ro.esc(ro.seenWith(root.outcomeDriver)) + (root.outcomeDriver.strength ? " · " + ro.esc(ro.cap1(root.outcomeDriver.strength)) : "") }
+        PpLedgerTable {
+            objectName: "sdOutcomeEvidence"
+            printGroup: "outcome-evidence"
+            visible: root.outcomeReady && root.outcomeLabels.length > 0
+            width: pager.textW; roles: ro; brush: br; medium: "print"
+            kind: "evidence"; title: "Each label and what fired it"
+            rows: root.outcomeLabels
+            getter: (row, key) => ro.evidenceCell(row, key)
+        }
+        PpCarryWaterfall { width: pager.textW; roles: ro; carry: root.outcome.carry || ({}) }
         PpTrustSummaryFold { width: pager.textW; roles: ro; printed: true; scope: "shot"
                              swingDir: root.readout ? String(root.readout.swingDir || "") : ""
                              sessionDir: root.source ? String(root.source.sessionDir || "") : ""
@@ -310,6 +346,7 @@ Item {
     PpBrush {
         id: br
         cards: root.allCards
+        shotLog: (root.source && root.source.shotLog) || []
         pickedShot: root.hasShot ? root.readout.shotId : -1
         pickedCondition: root.detail ? (root.detail.id || "") : ""
     }

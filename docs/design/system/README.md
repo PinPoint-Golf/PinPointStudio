@@ -35,7 +35,7 @@ PinPoint Studio is a desktop instrument for golf swing analysis: quiet chrome, f
 ## Content
 
 - Second person, plain words, sentence case: "Your hips open early on the downswing." "Seen in 7 of your last 10 swings."
-- Two layers. **The golfer layer** (home screen): no figures, no jargon, no claims about cause — "Picked first: …", never "because". **The technical layer** (Swing diagnostics, session screens): technical names and counts are allowed — "124 of 135 swings", "Δ plane".
+- Two layers. **The golfer layer** (home screen): no figures, no jargon, no claims about cause — "Picked first: …". Two exceptions: "because" for a ball ← club link measured on the shot, and distances, which always carry a unit and ± SD (a modelled one says what it is against). **The technical layer** (Swing diagnostics, session screens): technical names and counts are allowed — "124 of 135 swings", "Δ plane".
 - Write headings in sentence case in the source and let the theme set the case: `Theme.caps(qsTr("Your focus"))` or `font.capitalization: Theme.capsFont`. Acronyms stay capitals in the source (IMU, DTL, GRF, LM, P1…P10). `.arg()` goes after `caps()`.
 - Units are never capitalised: `Theme.capsUnit("Loft", "°")` → "LOFT (°)".
 - Links say where they go: "Swing diagnostics →", "← Home".

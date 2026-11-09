@@ -907,6 +907,14 @@ bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, cons
     return reachesIn(causalAdjacency(pack, /*downstream*/ true), fromId, toId);
 }
 
+bool leadsToReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId)
+{
+    CausalAdjacency next;
+    for (const Edge &e : pack.edges)
+        if (e.type == EdgeType::LeadsTo) next[e.from].append(e.to);
+    return reachesIn(next, fromId, toId);
+}
+
 bool hasCausalPath(const CharacteristicPack &pack, const QString &fromId, const QString &toId)
 {
     // Either direction: a Corroborates edge is symmetric in meaning, so a causal path either way
@@ -1460,6 +1468,14 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
         // while the two sets are exactly coextensive over shipped content, which `core_pack_test`
         // asserts in both directions. If a legitimate Outcome ever needs to sit outside BallFlight,
         // DELETE THIS RULE rather than bending the content to it.
+        if (!c.family.isEmpty() && c.kind != ConditionKind::Outcome)
+            err(r, QStringLiteral("familyNotOutcome"), c.id,
+                QStringLiteral("'%1' declares family '%2', and only an outcome has a family.")
+                    .arg(c.id, c.family));
+        if (kindsAuthored && c.kind == ConditionKind::Outcome && c.family.isEmpty())
+            warn(r, QStringLiteral("outcomeNoFamily"), c.id,
+                 QStringLiteral("'%1' is an outcome with no family, so its shot labels cannot be sorted.")
+                     .arg(c.id));
         if (kindsAuthored && c.kind == ConditionKind::Outcome
             && c.group != ConditionGroup::BallFlight)
             warn(r, QStringLiteral("outcomeNotBallFlight"), c.id,
@@ -1619,6 +1635,40 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                     QStringLiteral("The condition graph has a cycle through '%1'. Causes must form a DAG.")
                         .arg(c.id));
                 break;   // one report is enough; the author fixes the graph, not each edge
+            }
+        }
+    }
+
+    // The LeadsTo edges are a graph of their own: outcome to outcome only, and acyclic in themselves.
+    {
+        CausalAdjacency leads;
+        for (const Edge &e : pack.edges) {
+            if (e.type != EdgeType::LeadsTo) continue;
+            leads[e.from].append(e.to);
+            const Condition *from = pack.condition(e.from);
+            const Condition *to   = pack.condition(e.to);
+            if (from && to && (from->kind != ConditionKind::Outcome || to->kind != ConditionKind::Outcome))
+                err(r, QStringLiteral("leadsToNotOutcome"), e.from,
+                    QStringLiteral("'%1' leads to '%2', and a leads-to link joins two outcomes.")
+                        .arg(e.from, e.to));
+        }
+        QHash<QString, int> state;   // 0 unvisited, 1 on stack, 2 done
+        std::function<bool(const QString &)> visit = [&](const QString &id) -> bool {
+            const int st = state.value(id, 0);
+            if (st == 1) return true;
+            if (st == 2) return false;
+            state[id] = 1;
+            for (const QString &next : leads.value(id))
+                if (visit(next)) return true;
+            state[id] = 2;
+            return false;
+        };
+        for (const Condition &c : pack.conditions) {
+            if (state.value(c.id, 0) == 0 && visit(c.id)) {
+                err(r, QStringLiteral("leadsToCycle"), c.id,
+                    QStringLiteral("The leads-to links have a cycle through '%1'. They must form a DAG.")
+                        .arg(c.id));
+                break;
             }
         }
     }
@@ -2035,6 +2085,10 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         c.golfer     = o.value(QStringLiteral("golfer")).toString();
         c.golferWell = o.value(QStringLiteral("golferWell")).toString();
         c.golferWhy  = o.value(QStringLiteral("golferWhy")).toString();
+        c.golferShort = o.value(QStringLiteral("golferShort")).toString();
+        c.golferAbbr  = o.value(QStringLiteral("golferAbbr")).toString();
+        c.golferStory = o.value(QStringLiteral("golferStory")).toString();
+        c.playTo      = o.value(QStringLiteral("playTo")).toString();
         c.goal       = o.value(QStringLiteral("goal")).toString();
         c.cue        = o.value(QStringLiteral("cue")).toString();
         c.check      = o.value(QStringLiteral("check")).toString();
@@ -2088,6 +2142,11 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                 QStringLiteral("Condition '%1' declares domain '%2'; the domains are %3.")
                     .arg(c.id, o.value(QStringLiteral("domain")).toString(),
                          conditionDomains().join(QStringLiteral(", "))));
+        c.family     = o.value(QStringLiteral("family")).toString();
+        if (o.contains(QStringLiteral("family")) && !isKnownConditionFamily(c.family))
+            err(r, QStringLiteral("unknownFamily"), c.id,
+                QStringLiteral("Condition '%1' declares family '%2'; the families are %3.")
+                    .arg(c.id, c.family, conditionFamilies().join(QStringLiteral(", "))));
         c.detectedBy = readStringList(o.value(QStringLiteral("detectedBy")));
         // Absent => Any, so every condition authored before conjunctions existed keeps combining
         // its signals exactly as it did. An unknown token is an error rather than a silent fall
@@ -2425,6 +2484,11 @@ QJsonObject savePack(const CharacteristicPack &pack)
         if (!c.golfer.isEmpty()) o.insert(QStringLiteral("golfer"), c.golfer);
         if (!c.golferWell.isEmpty()) o.insert(QStringLiteral("golferWell"), c.golferWell);
         if (!c.golferWhy.isEmpty()) o.insert(QStringLiteral("golferWhy"), c.golferWhy);
+        if (!c.golferShort.isEmpty()) o.insert(QStringLiteral("golferShort"), c.golferShort);
+        if (!c.golferAbbr.isEmpty())  o.insert(QStringLiteral("golferAbbr"), c.golferAbbr);
+        if (!c.golferStory.isEmpty()) o.insert(QStringLiteral("golferStory"), c.golferStory);
+        if (!c.playTo.isEmpty())      o.insert(QStringLiteral("playTo"), c.playTo);
+        if (!c.family.isEmpty())      o.insert(QStringLiteral("family"), c.family);
         if (!c.goal.isEmpty())  o.insert(QStringLiteral("goal"), c.goal);
         if (!c.cue.isEmpty())   o.insert(QStringLiteral("cue"), c.cue);
         if (!c.check.isEmpty()) o.insert(QStringLiteral("check"), c.check);

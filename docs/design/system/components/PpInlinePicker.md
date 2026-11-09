@@ -5,7 +5,7 @@ A choice that opens IN PLACE, never a pop-up: a quiet question, one row per choi
 Source: `src/Gui/typeset/PpInlinePicker.qml`.
 
 ## When to use
-A short pick that belongs to a typeset register and opens under the control that asked for it — the declared-miss picker under the tab row, the Charts panel's choices (a preset, the metrics to trace, the window, what to split the session by or set against). It closes when the register sets `open` false (a pick, the chip again, or Esc). Nothing here is coloured: it is a control, not a finding.
+A short pick that belongs to a typeset register and opens under the control that asked for it — the Charts panel's choices (a preset, the metrics to trace, the window, what to split the session by or set against). It closes when the register sets `open` false (a pick, the chip again, or Esc). Nothing here is coloured: it is a control, not a finding.
 
 Not for: a dropdown in the app's chrome (use `PpComboBox`), a row menu (`PpMenuItem` in a popup), or a picker among tiles (`PpSelectTile` / `PpChipGroup`).
 
@@ -41,13 +41,15 @@ objectNames: `sdMissPicker` (the column; callers may override), `sdMissPickerLab
 ## Usage
 ```qml
 PpInlinePicker {
-    open: root.missOpen; width: under.width
-    roles: ro; brush: br; interactive: root.interactive
-    items: ss.missCandidates().map(m => ({ id: m.id, label: m.name || m.id }))
-    current: ss.declaredMiss
-    onPicked: id => { root.declareMiss(id); root.missOpen = false }
+    open: root.pickerOpen === "preset"; width: under.width
+    roles: ro; interactive: root.interactive
+    title: "Metrics to trace"
+    items: root.presets.map(p => ({ id: p.id, label: p.label, note: String(p.count) }))
+    current: root.preset
+    clearLabel: "The default for this view"
+    onPicked: id => { root.choosePreset(id); root.pickerOpen = "" }
 }
 ```
 
 ## Used by
-`diagnostics/PpDiagAnalyse.qml` and `diagnostics/PpDiagReplay.qml` (the declared-miss picker), `charts/PpChartsRegister.qml`, `charts/PpChartsSessionView.qml` and `charts/PpChartsShotView.qml` (Charts: presets, metrics, window, split, against).
+`charts/PpChartsRegister.qml`, `charts/PpChartsSessionView.qml` and `charts/PpChartsShotView.qml` (Charts: presets, metrics, window, split, against).

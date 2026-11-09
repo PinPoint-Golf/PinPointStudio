@@ -350,6 +350,7 @@ struct PersistedShot {
     // two ways, with nothing anywhere reporting a disagreement.
     QString     athleteUuid;
     QString     athleteName;        // display only; the uuid is the key
+    QString     handedness;         // "Left", "Right", or "" on a document written before it was recorded
     QString     club;
     bool        hasVideo = false;
     QString     thumbnailPath;      // absolute, empty if none
@@ -440,6 +441,11 @@ struct SwingSummary {
     // that adds one rebuilds the summary from the document.
     bool        excluded = false;
     QString     clubOverride;
+    // The golfer's handedness (document `athlete.handedness`, "Left"/"Right"/""), so a shot's words can
+    // be mirrored without a parse. Additive to /4 like `devices`, and for the same reason NOT right when
+    // absent: a swing.ppsw block without it derives it from the root chunk it already decoded, and a
+    // JSON-era sidecar without it is stale (readSwingSummary).
+    QString     handedness;
     // Provenance, never persisted: true when this came from the sidecar, false when the
     // full swing.json had to be parsed. Lets the parity test prove it actually exercised
     // the cheap path — a bug that always fell back would otherwise pass silently while

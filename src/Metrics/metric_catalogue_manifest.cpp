@@ -4297,7 +4297,7 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("needs a tracker that follows the ball after it leaves — the "
                                "detector we have locks the stationary ball and reports the "
                                "instant it vanishes"), PLANNED) },
-        .usedBy = { QStringLiteral("characteristic:ball_speed_deficit") },
+        .usedBy = {},
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
     });
@@ -4382,11 +4382,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("read from a launch monitor")) },
-        // ball_speed_deficit reads m_ballSpeed, which since 2026-10-20 prefers this key over our
-        // planned `ballSpeed` (the launch monitor is the primary source for what it measures), so
-        // both keys answer for it: this one first, the bare one where no monitor reported. Every
-        // rung of a ladder is a use (diagnostics_catalogue_integrity_test).
-        .usedBy = { QStringLiteral("characteristic:ball_speed_deficit") },
+        // ball_speed_deficit is judged against the golfer's usual with the club
+        // (m_ballSpeedShortfall, from the frozen baseline), so no characteristic reads this key.
+        .usedBy = {},
         // Variability scale (spec §8.2): a speed: strictly positive, with a true zero.
         .scaleType = ST::Ratio,
     });
@@ -4879,7 +4877,9 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("launchMonitor", RM::Device, Direct, { .launchMonitor = true },
                 QStringLiteral("the tilt of side spin against back spin, from a launch monitor")) },
-        .usedBy = { QStringLiteral("characteristic:hook"),
+        .usedBy = { QStringLiteral("characteristic:draw"),
+                    QStringLiteral("characteristic:fade"),
+                    QStringLiteral("characteristic:hook"),
                     QStringLiteral("characteristic:slice") },
     });
 

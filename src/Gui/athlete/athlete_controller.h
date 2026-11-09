@@ -206,6 +206,11 @@ public:
     Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);
 
     Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
+    // "Your distances" for any golfer (shot_outcomes_design.md §7.5), from <athlete>/tendencies.json:
+    // { items: [the stored per-club rows, keys as tendencies.h clubDistanceItemToJson writes them],
+    //   stale: bool (no file, or older than the newest ledger), note: "" or why they are not current }.
+    // clubDistancesChanged is the cue to read again after a catch-up lands.
+    Q_INVOKABLE QVariantMap clubDistances(const QString &uuid) const;
     Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
     // The athlete's bag: the club ids in their records, in vocabulary order (an id outside the
@@ -227,6 +232,7 @@ public:
 signals:
     void currentAthleteChanged();
     void athletesChanged();
+    void clubDistancesChanged();
 
 private:
     void reload();

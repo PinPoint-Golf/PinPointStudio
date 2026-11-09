@@ -494,6 +494,7 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms] { return readChartsPages(dir, consistencyEnv, policy, norms); }));
 
     SessionDiagnosticsModel *m = model();
+    m->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a reader: no club_baseline.json
     m->setGradePolicy(gradePolicyName());
     m->setSelectedSwingDir(QString());
     m->closeDetail();

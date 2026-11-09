@@ -37,10 +37,12 @@ import PinPointStudio
 //   • Detail: measure tabs (F49), "Run the screen" (F64 → body.screenRequested), Esc closes (F47). The
 //     honesty mark (F56), the norm's source (F51) and the hover readout (F53) are the lib's (PpFeatureHead,
 //     PpFigureRow) from round 4.
-//   • the declared-miss chip and its inline picker (F66-67); the after-shot pulse (D1).
+//   • This shot opens on what happened: the lead (phrase + story), each label's evidence, where the yards went, the
+//     causes merged on the outcomes (shot_outcomes_design.md §6.2); "Why →" on the glance's head reads it here, with
+//     the tab row's chip the way back (body.shotWhyOverGlance). The after-shot pulse (D1).
 //   • each view is its own named Flickable, built on first show and kept (D8); demo code runs only when
 //     demoState is non-empty, so a republish never scrolls or clears a hover.
-// demoState: "" | hoverShot12 | hoverCondition | question-clean | question-together | question-worse | missPicker
+// demoState: "" | hoverShot12 | hoverCondition | question-clean | question-together | question-worse
 Item {
     id: root
     objectName: "sdRegister"
@@ -62,7 +64,7 @@ Item {
     property bool interactive: true                  // body.interactive
     property string cardFilter: "all"                // body.cardFilter (navigation-saved)
     property var pulseCue: null                      // body.pulseCue
-    readonly property var demoStates: ["hoverShot12", "hoverCondition", "question-clean", "question-together", "question-worse", "missPicker"]
+    readonly property var demoStates: ["hoverShot12", "hoverCondition", "question-clean", "question-together", "question-worse"]
 
     // ── data ──
     readonly property var shot: ss.shot
@@ -99,6 +101,33 @@ Item {
         const name = card ? card.name : (c ? c.name : "")
         return name ? ss.focusLine(name, c ? c.stateKind : (ss.partial ? "clean" : "notAssessable")) : ""
     }
+
+    // ── what happened on this shot: the model's words. shotLog is read so the bindings follow surfaceChanged, which an
+    //    invokable alone never would ──
+    readonly property int outcomeShotId: shot ? shot.shotId : -1
+    readonly property var outcome: {
+        const src = root.source, id = root.outcomeShotId
+        if (!src || id < 0 || src.shotLog === undefined || typeof src.shotOutcome !== "function") return ({})
+        return src.shotOutcome(id) || ({})
+    }
+    readonly property var outcomeDetail: {
+        const src = root.source, id = root.outcomeShotId
+        if (!src || id < 0 || src.shotLog === undefined || typeof src.shotOutcomeDetail !== "function") return ({})
+        return src.shotOutcomeDetail(id) || ({})
+    }
+    readonly property bool outcomeReady: outcome.ready === true
+    readonly property string outcomeLead: {
+        if (!outcomeReady) return ""
+        const phrase = String(outcome.phrase || ""), story = String(outcome.story || "")
+        return outcome.clean || !story ? phrase : phrase + ". " + story
+    }
+    readonly property var outcomeLabels: (outcome.labels || []).map(l => Object.assign({}, l, { id: l.rowId }))
+    readonly property var outcomeDriver: outcome.driver || ({})
+    readonly property bool hasOutcomeCauses: !outcome.clean && (outcomeDetail.causes || []).length > 0
+    // the graph's driver is captioned on its node: the same count as a headline over it would say it twice
+    readonly property var outcomeGraphDetail: outcomeDriver.id ? Object.assign({}, outcomeDetail, { causeHeadline: "" }) : outcomeDetail
+    readonly property string outcomeGraphTitle: outcomeLabels.length > 1 ? "What might have caused this · rooted at all " + ro.word(outcomeLabels.length) + " outcomes"
+                                                                          : "What might have caused this"
 
     // ── the distance to travel (PpKeyFigures on Detail): what PpFeatureHead does not already state ──
     readonly property var travelItems: {
@@ -158,14 +187,17 @@ Item {
     // ── wiring: every click goes somewhere real ──
     function openCondition(id) { if (body && id && interactive) body._openDetail(id) }
     // A tab is the body's own view state (the panel and the cast read it), so a press goes to the body.
-    // A cell read over the Replay glance closes on the way, or the glance's Consistency tab would reopen it.
+    // A cell or Why read over the Replay glance closes on the way, or the glance's tab would reopen it.
     function pickView(key) {
         if (!interactive) return
         if (!root.body) root.view = key
         else if (root.cellOverGlance) root.body._closeConsistencyCell(key)
+        else if (root.whyOverGlance) root.body._closeShotWhy(key)
         else root.body.tab = key
     }
     readonly property bool cellOverGlance: !!body && body.consistencyOverGlance === true
+    readonly property bool whyOverGlance: !!body && body.shotWhyOverGlance === true
+    readonly property bool overGlance: cellOverGlance || whyOverGlance
     function pickShot(dir, id) { if (body && interactive && id > 0) body.shotRequested(dir || br.dirOf(id), id) }
     function setFilter(k) { if (!interactive) return; if (root.body) root.body.cardFilter = k; else root.cardFilter = k }
     function stepThrough(ids) {           // "step through them": the next answering shot after the picked one
@@ -174,7 +206,6 @@ Item {
         if (nxt === undefined) nxt = ids[0]
         pickShot("", nxt)
     }
-    property bool missOpen: false
     property int _pulseToken: -1
     onPulseCueChanged: firePulse()
     function firePulse() { _pulseToken = ro.takePulse(br, root.pulseCue, _pulseToken) }
@@ -239,7 +270,6 @@ Item {
         _lastDemo = demoState
         revealTimer.stop()
         br.clear()
-        missOpen = demoState === "missPicker"
         if (demoState === "hoverShot12") br.hoveredShot = 12
         else if (demoState === "hoverCondition")
             br.hoveredCondition = view === "detail" && detail ? (detail.id || "") : (ro.byId(conds, "early_extension") ? "early_extension" : (fired[0] ? fired[0].id : ""))
@@ -271,8 +301,8 @@ Item {
         topPadding: ro.g(12)
         onStepRequested: ids => root.stepThrough(ids)
     }
-    // the review note, folded to the foot of a view below medium (F7), or when the miss chip takes the right
-    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown || root.cellOverGlance }
+    // the review note, folded to the foot of a view below medium (F7), or when the way-back chip takes the right
+    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; chipShown: root.overGlance }
 
     // ═══════════════════════════ SCREEN ═══════════════════════════
     Item {
@@ -286,16 +316,14 @@ Item {
             width: parent.width; height: visible ? implicitHeight : 0
             roles: ro; brush: br
             current: root.view
-            note: root.header && !ss.missShown && !root.cellOverGlance ? ro.cap1(root.header.reviewNote) : ""
+            note: root.header && !root.overGlance ? ro.cap1(root.header.reviewNote) : ""
             interactive: root.interactive
-            // F66: the declared-miss chip at the right of the tab row; it stands down on the detail, and gives way to
-            // Back while a Consistency cell is read over the Replay glance
-            chip: root.cellOverGlance ? "‹ Back" : ss.missShown ? ss.missText : ""
-            chipOn: !root.cellOverGlance && root.missOpen
-            chipObjectName: root.cellOverGlance ? "sdConsistencyBack" : "sdMissChip"
+            // the way back, while a Consistency cell or the Why of a shot is read over the Replay glance
+            chip: root.overGlance ? "‹ Back" : ""
+            chipObjectName: root.cellOverGlance ? "sdConsistencyBack" : root.whyOverGlance ? "sdShotWhyBack" : "sdTabChip"
             onChipActivated: {
                 if (root.cellOverGlance) root.body._closeConsistencyCell()
-                else root.missOpen = !root.missOpen
+                else if (root.whyOverGlance) root.body._closeShotWhy()
             }
             // F2: the shot tab's note is its fired count, "quiet" on a quiet shot, nothing with nothing to read
             tabs: [{ key: "shot", label: "This shot", count: !ss.shot ? undefined : ss.quiet ? "quiet" : root.fired.length },
@@ -315,22 +343,7 @@ Item {
             onBackActivated: if (root.body && root.interactive) root.body._closeDetail()
             onFocusActivated: if (root.body && root.detail && root.interactive) root.body._declareFocus(root.detail.id, !focused)
         }
-        Column {
-            id: under
-            anchors.top: root.view === "detail" ? dbar.bottom : tabs.bottom
-            width: parent.width
-            // F67: the picker opens IN PLACE under the tab row; a pick goes to the model, "" clears
-            PpInlinePicker {
-                objectName: "sdMissPicker"
-                visible: root.missOpen && ss.missShown && root.view !== "detail"
-                open: visible
-                width: under.width
-                roles: ro; brush: br; interactive: root.interactive
-                items: visible ? ss.missCandidates().map(m => ({ id: m.id, label: m.name || m.id })) : []
-                current: ss.declaredMiss
-                onPicked: id => { if (root.body && typeof root.body._declareMiss === "function") root.body._declareMiss(id); root.missOpen = false }
-            }
-        }
+        Item { id: under; anchors.top: root.view === "detail" ? dbar.bottom : tabs.bottom; width: parent.width; height: 0 }
         ViewFlick { id: shotFlick; objectName: "sdShotCardsFlick"; key: "shot"; view: shotC }
         ViewFlick { id: sessionFlick; objectName: "sdCardsFlick"; key: "session"; view: sessionC }
         ViewFlick { id: consistencyFlick; objectName: "sdConsistencyFlick"; key: "consistency"; view: consistencyC }
@@ -369,6 +382,69 @@ Item {
                        text: (ss.delta ? ss.delta.headline : "") + " · the ledger kept counting; cadence gates surfacing, never the engine"
                        font: ro.fSmall; color: ro.ink3 }
             }
+            // ── WHAT HAPPENED (§6.2): the lead, then each label's evidence and where the yards went, then why ──
+            PpStandfirst {
+                objectName: "sdOutcomeLead"
+                visible: root.outcomeReady
+                width: sc.width; roles: ro; brush: br; interactive: false
+                size: "feature"
+                bottomPadding: ro.g(6)
+                kicker: !ss.shot ? "" : "What happened · " + root.shotWord + (ss.club ? " · " + ss.club : "")
+                head: root.outcomeLead
+            }
+            PpNotes {
+                objectName: "sdOutcomeNoReason"
+                visible: root.outcomeReady && String(root.outcome.noReasonText || "") !== ""
+                width: sc.width; roles: ro; small: true; tone: 2
+                text: ro.esc(root.outcome.noReasonText || "")
+            }
+            Flow {
+                id: outcomeRow
+                visible: root.outcomeReady && (root.outcomeLabels.length > 0 || !!root.outcome.carry)
+                readonly property bool pair: root.outcomeLabels.length > 0 && !!root.outcome.carry && root.outcome.carry.usual !== undefined && ro.atLeast(width, "medium")
+                readonly property real gapW: ro.g(24)
+                width: sc.width
+                spacing: gapW
+                PpLedgerTable {
+                    objectName: "sdOutcomeEvidence"
+                    visible: root.outcomeLabels.length > 0
+                    width: outcomeRow.pair ? (outcomeRow.width - outcomeRow.gapW) * 0.58 - 1 : outcomeRow.width
+                    roles: ro; brush: br; interactive: root.interactive
+                    kind: "evidence"
+                    title: "Each label and what fired it"
+                    rows: root.outcomeLabels
+                    getter: (row, key) => ro.evidenceCell(row, key)
+                    onConditionActivated: id => root.openCondition(id)
+                }
+                PpCarryWaterfall {
+                    width: outcomeRow.pair ? (outcomeRow.width - outcomeRow.gapW) * 0.42 - 1 : outcomeRow.width
+                    roles: ro; brush: br
+                    carry: root.outcome.carry || ({})
+                }
+            }
+            Item { visible: root.hasOutcomeCauses; width: 1; height: ro.g(14) }
+            PpCauseGraph {
+                visible: root.hasOutcomeCauses
+                width: sc.width; roles: ro; brush: br
+                detail: root.hasOutcomeCauses ? root.outcomeGraphDetail : null
+                which: "causes"
+                interactive: root.interactive
+                title: root.outcomeGraphTitle
+                rootNote: "The driver's path is drawn at full strength; an arrowhead only where the evidence gives a direction."
+                driverId: root.outcomeDriver.id || ""
+                driverSub: root.outcomeDriver.id ? "Driver · explains " + root.outcomeDriver.explains + " of " + root.outcomeDriver.of : ""
+                onConditionActivated: id => root.openCondition(id)
+                onScreenRequested: id => root.requestScreen(id)
+            }
+            PpPathChains {
+                visible: root.hasOutcomeCauses
+                width: sc.width; roles: ro; brush: br
+                detail: root.hasOutcomeCauses ? root.outcomeDetail : null
+                readout: root.shot; which: "causes"
+                interactive: root.interactive
+                onConditionActivated: id => root.openCondition(id)
+            }
+            Item { visible: root.outcomeReady; width: 1; height: ro.g(14) }
             PpStandfirst {
                 objectName: "sdShotHead"
                 visible: !!ss.shot
@@ -508,6 +584,15 @@ Item {
                 width: ssc.width; roles: ro; scope: "session"
                 topPadding: ro.g(6); bottomPadding: ro.g(6)
                 sessionDir: root.source ? String(root.source.sessionDir || "") : ""
+            }
+            // what happened, shot by shot, and the reasons for the bad ones (§6.3): the same block as the glance
+            PpDiagSessionOutcomes {
+                width: ssc.width
+                roles: ro; brush: br; source: root.source
+                interactive: root.interactive
+                bottomPadding: ro.g(14)
+                onConditionActivated: id => root.openCondition(id)
+                onShotActivated: (d, s) => root.pickShot(d, s)
             }
             Item { visible: !ss.cold; width: 1; height: ro.g(10) }
             PpLedgerTable {
@@ -783,6 +868,7 @@ Item {
     PpBrush {
         id: br
         cards: root.cards || []
+        shotLog: (root.source && root.source.shotLog) || []
         pickedShot: ss.shot ? ss.shot.shotId : -1
         pickedCondition: root.view === "detail" && root.detail ? (root.detail.id || "") : ""
     }

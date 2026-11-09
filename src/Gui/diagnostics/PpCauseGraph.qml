@@ -39,6 +39,11 @@ Item {
     property string which: "causes"
     property bool showKey: !isPrint
     property bool atom: true
+    // ── optional, off by default: a graph rooted at a shot's outcomes rather than a condition (shot_outcomes_design.md §6.2) ──
+    property string title: which === "causes" ? "What might have caused this" : "What this leads to"
+    property string rootNote: "Every root here is a physical limitation no camera can see: a screen would confirm it. The likely driver's path is drawn at full strength; an arrowhead only where the evidence gives a direction."
+    property string driverId: ""                  // the condition drawn as the driver: emphasised in weight and still clickable
+    property string driverSub: ""                 // its sub-line ("Driver · explains 2 of 3")
     objectName: "sdCauseGraph"
     readonly property var keyKinds: ["n-fired", "n-clean", "n-root", "n-ghost", "n-outcome"].concat(gradesUsed.map(g => "l-" + g))
     signal conditionActivated(string id)
@@ -46,7 +51,8 @@ Item {
     signal screenRequested(string id)             // a screened root: the physical screen would settle it (F64)
     readonly property var gradesUsed: {
         const seen = {}
-        ;(paths || []).forEach(p => (p.links || []).forEach(l => seen[roles.linkStyle(l).grade] = true))
+        // a physics link carries its own stroke and is keyed by its words, never as a grade
+        ;(paths || []).forEach(p => (p.links || []).forEach(l => { if (!l.physics) seen[roles.linkStyle(l).grade] = true }))
         return roles.linkGradeOrder.filter(g => seen[g])
     }
 
@@ -203,8 +209,9 @@ Item {
         spacing: dg.roles.g(8)
         Rectangle { width: parent.width; height: dg.roles.hw; color: dg.roles.grid; opacity: dg.roles.gridOpacity }
         PpSectionHead { width: parent.width; roles: dg.roles; paged: false; lead: 6; pad: 0
-                        title: dg.causes ? "What might have caused this" : "What this leads to" }
+                        title: dg.title }
         Text { objectName: dg.causes ? "sdDetailCauseHeadline" : "sdDetailOutcomeHeadline"
+               visible: text !== ""
                width: parent.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink2
                text: dg.detail ? ((dg.causes ? dg.detail.causeHeadline || dg.detail.noCausesLine : dg.detail.outcomeHeadline || dg.detail.noEffectsLine) || "") : "" }
         Text { visible: !dg.graph && dg.paths.length > 0; font: dg.roles.fLabel; color: dg.roles.ink3
@@ -250,6 +257,7 @@ Item {
                     readonly property string strokeStyle: st.stroke
                     readonly property bool hasArrow: st.arrow
                     readonly property real strokeOpacity: st.opacity
+                    readonly property bool physics: !!modelData.link && modelData.link.physics === true
                     opacity: st.opacity
                     width: 0; height: 0
                 }
@@ -267,6 +275,7 @@ Item {
                     readonly property string kind: n.kind
                     readonly property string mark: dg.nodeKind(n)
                     readonly property bool isSubject: n.id === dg.subject
+                    readonly property bool isDriver: dg.driverId !== "" && n.id === dg.driverId
                     readonly property bool hot: dg.brush && dg.brush.hoveredCondition === n.id
                     readonly property real textRight: nm.x + nm.contentWidth
                     x: n.col * dag.colW; y: n.row * dag.rowP
@@ -277,12 +286,20 @@ Item {
                         id: nm
                         x: dg.roles.u(15); width: dag.colW - x - dg.roles.u(26)
                         wrapMode: Text.WordWrap; text: nd.n.name
-                        font: nd.isSubject || nd.hot ? dg.roles.fSmallM : dg.roles.fSmall
-                        color: nd.n.state === "fired" || nd.isSubject || nd.hot ? dg.roles.ink : nd.n.state === "clean" ? dg.roles.ink2 : dg.roles.ink3
+                        font: nd.isSubject || nd.isDriver || nd.hot ? dg.roles.fSmallM : dg.roles.fSmall
+                        color: nd.n.state === "fired" || nd.isSubject || nd.isDriver || nd.hot ? dg.roles.ink : nd.n.state === "clean" ? dg.roles.ink2 : dg.roles.ink3
                         onContentWidthChanged: links.requestPaint()
                     }
+                    // the driver's sub-line: words under the name, the emphasis itself is the name's weight
+                    Text {
+                        objectName: "sdCauseDriverSub"
+                        visible: nd.isDriver && dg.driverSub !== ""
+                        x: nm.x; y: nm.y + nm.contentHeight; width: nm.width
+                        wrapMode: Text.WordWrap
+                        text: dg.driverSub; font: dg.roles.fLabel; color: dg.roles.ink3
+                    }
                     MouseArea {
-                        enabled: dg.interactive && !nd.isSubject; visible: enabled
+                        enabled: dg.interactive && (!nd.isSubject || nd.isDriver); visible: enabled
                         width: nm.x + nm.contentWidth; height: dag.lineH + 2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: if (dg.brush) dg.brush.hoverCondition(nd.n.id, containsMouse)
                         onClicked: nd.kind === "screenedRoot" ? dg.screenRequested(nd.n.id) : dg.conditionActivated(nd.n.id)
@@ -348,6 +365,7 @@ Item {
                     readonly property string kind: r.kind
                     readonly property string mark: dg.nodeKind(r)
                     readonly property bool isSubject: r.id === dg.subject
+                    readonly property bool isDriver: dg.driverId !== "" && r.id === dg.driverId
                     readonly property bool hot: dg.brush && dg.brush.hoveredCondition === r.id
                     y: index * pt.rowP; width: pt.width; height: pt.rowP
                     opacity: dg.brush ? dg.brush.conditionOpacity(r.id, dg.roles.dim) : 1
@@ -356,11 +374,17 @@ Item {
                         id: tt
                         x: pt.mx(tr.r.depth) + dg.roles.u(10); width: pt.width - x; y: (pt.rowP - height) / 2
                         text: tr.r.name
-                        font: tr.isSubject || tr.hot ? dg.roles.fSmallM : dg.roles.fSmall
-                        color: tr.r.state === "fired" || tr.isSubject || tr.hot ? dg.roles.ink : tr.r.state === "clean" ? dg.roles.ink2 : dg.roles.ink3
+                        font: tr.isSubject || tr.isDriver || tr.hot ? dg.roles.fSmallM : dg.roles.fSmall
+                        color: tr.r.state === "fired" || tr.isSubject || tr.isDriver || tr.hot ? dg.roles.ink : tr.r.state === "clean" ? dg.roles.ink2 : dg.roles.ink3
+                    }
+                    Text {
+                        objectName: "sdCauseDriverSub"
+                        visible: tr.isDriver && dg.driverSub !== ""
+                        x: tt.x + tt.contentWidth + dg.roles.u(10); y: (pt.rowP - height) / 2
+                        text: dg.driverSub; font: dg.roles.fLabel; color: dg.roles.ink3
                     }
                     MouseArea {
-                        enabled: dg.interactive && !tr.isSubject; visible: enabled
+                        enabled: dg.interactive && (!tr.isSubject || tr.isDriver); visible: enabled
                         x: tt.x; width: tt.contentWidth; height: parent.height; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: if (dg.brush) dg.brush.hoverCondition(tr.r.id, containsMouse)
                         onClicked: tr.kind === "screenedRoot" ? dg.screenRequested(tr.r.id) : dg.conditionActivated(tr.r.id)
@@ -406,8 +430,8 @@ Item {
             Text { text: "Key"; font: dg.roles.fLabel; color: dg.roles.ink2 }
             PpPageKey { width: dg.marginW; roles: dg.roles; kinds: dg.keyKinds; spacing: dg.roles.g(6) }
         }
-        Text { visible: dg.causes; width: parent.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink3
-               text: "Every root here is a physical limitation no camera can see: a screen would confirm it. The likely driver's path is drawn at full strength; an arrowhead only where the evidence gives a direction." }
+        Text { visible: dg.causes && dg.rootNote !== ""; width: parent.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink3
+               text: dg.rootNote }
         Repeater {
             model: dg.roles ? (dg.causes && dg.detail ? (dg.detail.rivals || []) : []) : []
             delegate: Text { required property var modelData; objectName: "sdDetailRival"; width: notes.width; wrapMode: Text.WordWrap; font: dg.roles.fSmall; color: dg.roles.ink3; text: modelData.text }

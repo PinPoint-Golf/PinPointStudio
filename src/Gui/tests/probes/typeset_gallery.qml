@@ -309,7 +309,7 @@ Item {
                 : [{ name: "Over the top", text: "Your profile: the hands come down outside the path they went up on, on most sessions." },
                    { name: "Early extension", text: "Your profile: the pelvis moves toward the ball through impact." }]
             property bool pickerOpen: true
-            property string demoMiss: "slice"
+            property string demoPreset: "strike"
 
             // ── wiring: every click goes somewhere real ──
             function openCondition(id) { if (body && id) body._openDetail(id) }
@@ -500,13 +500,14 @@ Item {
                               onConditionActivated: id => root.openCondition(id); onShotActivated: (d, s) => root.pickShot(d, s) }
                     Caption { block: "PpBarcode"; note: "round 4 · 45 shots (D7): the cell narrows and numbers thin, then the shots wrap into bands" }
                     PpBarcode { width: parent.width; roles: ro; brush: br; rows: root.watching.slice(0, 5); rowsAll: root.watching; readout: root.longReadout; source: root.source; showMarginNotes: false }
-                    Caption { block: "PpTabs + PpInlinePicker"; note: "round 4 · the miss chip at the right of the tab row; its picker opens in place" }
-                    PpTabs { width: parent.width; roles: ro; current: "watching"; chip: root.demoMiss ? "Miss: " + ro.cap1(root.demoMiss) : "Declare miss"; chipOn: root.pickerOpen
+                    Caption { block: "PpTabs + PpInlinePicker"; note: "a chip at the right of the tab row; its picker opens in place" }
+                    PpTabs { width: parent.width; roles: ro; current: "watching"; chip: root.demoPreset ? "Preset: " + ro.cap1(root.demoPreset) : "Choose a preset"; chipOn: root.pickerOpen
                            tabs: [{ key: "shot", label: "This shot" }, { key: "session", label: "Session" }, { key: "watching", label: "Watching" }]
                            onChipActivated: root.pickerOpen = !root.pickerOpen }
-                    PpInlinePicker { width: parent.width; roles: ro; open: root.pickerOpen; current: root.demoMiss
-                                   items: [{ id: "slice", label: "Slice", note: "curves right" }, { id: "hook", label: "Hook", note: "curves left" }, { id: "fat", label: "Fat", note: "ground before ball" }]
-                                   onPicked: id => { root.demoMiss = id; root.pickerOpen = false } }
+                    PpInlinePicker { width: parent.width; roles: ro; open: root.pickerOpen; current: root.demoPreset
+                                   title: "Metrics to trace"; clearLabel: "The default for this view"
+                                   items: [{ id: "strike", label: "Strike", note: "4" }, { id: "plane", label: "Plane", note: "6" }, { id: "tempo", label: "Tempo", note: "3" }]
+                                   onPicked: id => { root.demoPreset = id; root.pickerOpen = false } }
                     Caption { block: "PpLedgerTable"; note: "A · kind watching" }
                     PpLedgerTable { width: parent.width; roles: ro; brush: br; kind: "watching"; readout: root.readout
                                   rows: root.watching.slice().sort((a, b) => (ro.rate(b) - ro.rate(a)) || a.name.localeCompare(b.name))

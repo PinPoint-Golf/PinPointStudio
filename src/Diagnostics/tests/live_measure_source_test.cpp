@@ -243,7 +243,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 188 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 190 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -280,8 +280,9 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     check(shapeOk, "every finding is assessed WITH evidence or unavailable WITHOUT it");
     // 145 -> 153 on 2026-10-22: the eight posture conditions (posture_metrics_design.md §7.2).
     // 153 -> 154 the same day: lead_knee_folds_backswing (posture_chart_design.md D7).
-    check(cov.findings == 160,
-          "detect() asked all 160 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
+    // 160 -> 162 on 2026-11-08: fade and draw (shot_outcomes_design.md §3.4).
+    check(cov.findings == 162,
+          "detect() asked all 162 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -324,7 +325,7 @@ int main(int argc, char **argv)
     // reverse_tilt_at_address.
     // 181 -> 182 on 2026-10-22: lead_knee_folds_backswing, the lead knee folding going back
     // (posture_chart_design.md D7).
-    check(pack.conditions.size() == 188, "the shipped pack carries 188 conditions");   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
+    check(pack.conditions.size() == 190, "the shipped pack carries 190 conditions");   // +fade, +draw (2026-11-08)   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -361,7 +362,7 @@ int main(int argc, char **argv)
     // 203 -> 206 on 2026-10-22: m_spineBackLine_p3/_p4/_p5 — the back line's change from address at P3–P5,
     // drawn as the trunk-bend row's second reading under its own ⚠ (posture_chart_design.md §2.3); no signal
     // reads them and they carry no band of their own.
-    check(pack.measures.size() == 210, "…and 210 measures");   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    check(pack.measures.size() == 212, "…and 212 measures");   // +m_carryShortfall, +m_ballSpeedShortfall (2026-11-08)   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -686,7 +687,7 @@ int main(int argc, char **argv)
     // assessable here: the impact and top ones read too little of their weight face-on without
     // trunkRise (which this older fixture lacks), and the setup one requires the down-the-line trunk
     // hinge. All three report compositeCoverage, which is the refusal working.
-    check(cRich.assessable == 57, "rich_7iron: 57 of 188 conditions assessable (observed)");
+    check(cRich.assessable == 57, "rich_7iron: 57 of 190 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -761,9 +762,10 @@ int main(int argc, char **argv)
     // 2026-08-12 again. The four measures are m_clubPathAtImpact, m_launchAngle, m_launchDirection
     // and m_clubheadSpeedImpact, each now reading its monitor rung. m_ballSpeed resolves too but is
     // held, so it is not counted, and ball_speed_deficit stays Unavailable: no norm to judge it by.
-    check(cLm.assessable   == 23, "lm_7iron: 23 of 188 conditions assessable (observed)");
+    // 23 -> 25 on 2026-11-08: fade and draw read the spin axis this fixture reports.
+    check(cLm.assessable   == 25, "lm_7iron: 25 of 190 conditions assessable (observed)");
     check(cLm.measures     == 30, "lm_7iron: 30 live measures resolved (observed)");
-    check(cSparse.assessable == 2, "sparse_noclub: 2 of 188 conditions assessable (observed)");
+    check(cSparse.assessable == 2, "sparse_noclub: 2 of 190 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
     check(cRich.assessable > cSparse.assessable,
           "a richer capture assesses strictly more than a degraded one");

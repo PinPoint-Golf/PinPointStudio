@@ -222,6 +222,9 @@ void SessionReviewController::loadSession(const QString &sessionId)
         return;
     }
 
+    if (m_reasonFilterArmed) m_reasonFilterArmed = false;   // this is the load it was set for
+    else                     clearReasonFilter();
+
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     m_reviewModel.clear();
 
@@ -270,8 +273,25 @@ void SessionReviewController::onAthleteChanged()
     refresh();                           // sidecar-only, so this is safe to run inline
 }
 
+void SessionReviewController::setReasonFilter(const QString &conditionId)
+{
+    m_reasonFilterArmed = !conditionId.isEmpty();
+    if (m_reasonFilter == conditionId) return;
+    m_reasonFilter = conditionId;
+    emit reasonFilterChanged();
+}
+
+void SessionReviewController::clearReasonFilter()
+{
+    m_reasonFilterArmed = false;
+    if (m_reasonFilter.isEmpty()) return;
+    m_reasonFilter.clear();
+    emit reasonFilterChanged();
+}
+
 void SessionReviewController::resumeLive()
 {
+    clearReasonFilter();
     if (!m_reviewActive)
         return;
     m_reviewActive = false;

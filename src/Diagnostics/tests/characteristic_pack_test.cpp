@@ -249,6 +249,88 @@ int main()
         check(c && c->axis == QStringLiteral("stanceWidth"), "axis survives");
     }
 
+    // ── Shot outcome fields round-trip, and LeadsTo with them ───────────────────
+    {
+        CharacteristicPack orig = goodPack();
+        Condition out = orig.conditions.front();
+        out.id          = QStringLiteral("slice");
+        out.label       = QStringLiteral("Slice");
+        out.axis.clear();
+        out.group       = ConditionGroup::BallFlight;
+        out.kind        = ConditionKind::Outcome;
+        out.family      = QStringLiteral("direction");
+        out.golferShort = QStringLiteral("Slice");
+        out.golferAbbr  = QStringLiteral("SL");
+        out.golferStory = QStringLiteral("cut across it");
+        out.playTo      = QStringLiteral("Favour the left side off the tee.");
+        Condition short_ = out;
+        short_.id     = QStringLiteral("short");
+        short_.label  = QStringLiteral("Short");
+        short_.family = QStringLiteral("flight");
+        orig.conditions.push_back(out);
+        orig.conditions.push_back(short_);
+        Edge leads;
+        leads.from = QStringLiteral("slice");
+        leads.to   = QStringLiteral("short");
+        leads.type = EdgeType::LeadsTo;
+        leads.provenance.tier     = ProvenanceTier::Supported;
+        leads.provenance.citation = QStringLiteral("10.0000/example");
+        orig.edges.push_back(leads);
+
+        const PackLoadResult back = loadPack(savePack(orig), QStringLiteral("round-trip"));
+        check(back.loaded, "a pack with shot outcome fields and a leadsTo edge round-trips");
+        const Condition *c = back.pack.condition(QStringLiteral("slice"));
+        check(c && c->family == QStringLiteral("direction") && c->golferShort == QStringLiteral("Slice")
+                  && c->golferAbbr == QStringLiteral("SL") && c->golferStory == QStringLiteral("cut across it")
+                  && c->playTo == QStringLiteral("Favour the left side off the tee."),
+              "family, golferShort, golferAbbr, golferStory and playTo survive");
+        check(back.pack.edges.back().type == EdgeType::LeadsTo, "a leadsTo edge keeps its type");
+        check(edgeTypeName(EdgeType::LeadsTo) == QStringLiteral("leadsTo"), "the JSON token is leadsTo");
+
+        check(leadsToReaches(orig, QStringLiteral("slice"), QStringLiteral("short")), "leadsToReaches follows the edge");
+        check(!causallyReaches(orig, QStringLiteral("slice"), QStringLiteral("short")),
+              "and a causal walk does not see it");
+
+        check(isSymmetricEdge(EdgeType::Excludes) && isSymmetricEdge(EdgeType::Corroborates)
+                  && !isSymmetricEdge(EdgeType::LeadsTo) && !isSymmetricEdge(EdgeType::Causes),
+              "LeadsTo runs one way, like Causes");
+
+        // A LeadsTo edge only ever joins two outcomes.
+        CharacteristicPack notOutcome = orig;
+        notOutcome.edges.back().from = QStringLiteral("stanceWide");
+        check(hasError(validatePack(notOutcome), "leadsToNotOutcome"), "a leadsTo edge from a non-outcome is rejected");
+
+        // Its own DAG, apart from the causal check.
+        CharacteristicPack cycle = orig;
+        Edge back2 = leads;
+        std::swap(back2.from, back2.to);
+        cycle.edges.push_back(back2);
+        check(hasError(validatePack(cycle), "leadsToCycle"), "a cycle of leadsTo edges is rejected");
+        check(!hasError(validatePack(cycle), "cycle"), "and it is not reported as a causal cycle");
+
+        // Family: closed, outcome only, and required on every outcome.
+        CharacteristicPack strayFamily = orig;
+        strayFamily.conditions.front().family = QStringLiteral("direction");
+        check(hasError(validatePack(strayFamily), "familyNotOutcome"), "a family on a non-outcome is rejected");
+        CharacteristicPack missing = orig;
+        for (Condition &oc : missing.conditions)
+            if (oc.kind == ConditionKind::Outcome) oc.family.clear();
+        check(hasWarning(validatePack(missing), "outcomeNoFamily"), "an outcome with no family warns");
+
+        QJsonObject root = savePack(orig);
+        QJsonArray  rows = root.value(QStringLiteral("conditions")).toArray();
+        for (int i = 0; i < rows.size(); ++i) {
+            QJsonObject row = rows.at(i).toObject();
+            if (row.value(QStringLiteral("id")).toString() == QStringLiteral("slice")) {
+                row.insert(QStringLiteral("family"), QStringLiteral("drection"));
+                rows.replace(i, row);
+            }
+        }
+        root.insert(QStringLiteral("conditions"), rows);
+        check(hasError(loadPack(root, QStringLiteral("family typo")).report, "unknownFamily"),
+              "a misspelt family is the load error unknownFamily");
+    }
+
     // ── The strength ladder ─────────────────────────────────────────────────────
     {
         // Five rungs, weakest first, and the ORDER is the contract: the picker, the graph's collar

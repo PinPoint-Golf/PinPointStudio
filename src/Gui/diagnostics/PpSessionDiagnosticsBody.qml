@@ -40,9 +40,9 @@
 // cast window, the tests and every probe reach in): source, readout, tab, _tab, cardFilter,
 // watchingExpanded, interactive, framed, cardAside, readingShot, reviewing, detailOpen,
 // detailConditionId, detail, cards, header, chains, pulseCue, consistencyCell, consistencyGlanceCell,
-// consistencyOpenCell, consistencyOverGlance; _openDetail,
-// _closeDetail, _setDetailMeasure, _declareFocus, _declareMiss, pulseAfterShot, _openConsistencyCell,
-// _closeConsistencyCell; screenRequested, shotRequested;
+// consistencyOpenCell, consistencyOverGlance, shotWhyOverGlance; _openDetail,
+// _closeDetail, _setDetailMeasure, _declareFocus, pulseAfterShot, _openConsistencyCell,
+// _closeConsistencyCell, _openShotWhy, _closeShotWhy; screenRequested, shotRequested;
 // objectName "sdBody". Change none of it without changing every caller.
 
 import QtQuick
@@ -105,7 +105,17 @@ Item {
     // PICKING A SHOT OFF THE CAROUSEL IS ASKING ABOUT IT. Only on the edge into shot-reading, never on
     // every re-fetch of the readout, so a reader who goes back to Session is not dragged back.
     // Consistency keeps the reader: it has a picked shot of its own, which follows the same selection.
-    onReadingShotChanged: if (readingShot && tab !== "consistency") tab = "shot"
+    // A reason opened from Home holds Session: the shot a review load focuses must not take the reader off its highlight.
+    onReadingShotChanged: if (readingShot && tab !== "consistency" && _reasonFilter === "") tab = "shot"
+    // "See these shots →" from Home: the filter is only drawn on Session, so that is where it lands. Deferred at build,
+    // so it comes after the panel has restored its saved tab; the session dir, for the same filter on another session.
+    readonly property string _reasonFilter:
+        typeof sessionReviewController !== "undefined" && sessionReviewController ? String(sessionReviewController.reasonFilter || "") : ""
+    readonly property string _sourceSessionDir: source ? String(source.sessionDir || "") : ""
+    function _goToReasonFilter() { if (_reasonFilter !== "" && surface !== "cast") tab = "session" }
+    on_ReasonFilterChanged: _goToReasonFilter()
+    on_SourceSessionDirChanged: _goToReasonFilter()
+    Component.onCompleted: Qt.callLater(root._goToReasonFilter)
     // What the register shows: the open detail over the tab (an open detail loads PpDiagAnalyse; the cast's
     // PpDiagReplay, and the one held under the detail, read "detail" as the reader's tab, D9).
     readonly property string view: detailOpen ? "detail" : _tab
@@ -120,8 +130,8 @@ Item {
     }
     readonly property int _watchingCount: (source && source.watching) ? source.watching.length : 0
 
-    // ── the two declarations the golfer can make (design §A6) ────────────────
-    // BOTH GO STRAIGHT TO THE MODEL AND NEITHER IS MIRRORED HERE; the read-back is the model's.
+    // ── the focus the golfer can declare (design §A6) ────────────────────────
+    // IT GOES STRAIGHT TO THE MODEL AND IS NOT MIRRORED HERE; the read-back is the model's.
     // GUARDED ON THE FUNCTION, not on the source: a test fixture that wants to assert the tap arrived
     // supplies a spy of the same name; one that does not gets a no-op rather than a TypeError.
     function _declareFocus(conditionId, on) {
@@ -150,16 +160,6 @@ Item {
         if (!c) return
         if (c.focusFromShot !== fromShot) c.focusFromShot = fromShot
         if ((c.focusConditionId || "") !== id) c.focusConditionId = id
-    }
-    // The register's inline picker closes itself on a pick.
-    function _declareMiss(missId) {
-        if (source && typeof source.declareMiss === "function")
-            source.declareMiss(missId)
-    }
-    function _missCandidates() {
-        if (source && typeof source.missCandidates === "function")
-            return source.missCandidates() || []
-        return []
     }
 
     // ── the condition detail ─────────────────────────────────────────────────
@@ -207,8 +207,27 @@ Item {
         if (toTab) tab = toTab
         consistencyGlanceCell = ""
     }
-    onTabChanged: if (tab !== "consistency") consistencyGlanceCell = ""
-    on_BaseRegisterChanged: consistencyGlanceCell = ""
+    onTabChanged: {
+        if (tab !== "consistency") consistencyGlanceCell = ""
+        if (tab !== "shot") shotWhyOverGlance = false
+    }
+    on_BaseRegisterChanged: { consistencyGlanceCell = ""; shotWhyOverGlance = false }
+
+    // ── "Why →" on the Replay glance's shot head: This shot read in Analyse ──
+    // As a Consistency cell over the glance: read with the stage still in Replay, the chip in the tab row the way
+    // back. Off on every cast (the head's Why is too, but a press must not reach here from one). A plain input like
+    // consistencyGlanceCell, written only by that press, so the register it moves is never part of what decides it.
+    property bool shotWhyOverGlance: false
+    function _openShotWhy() {
+        if (_baseRegister === "Replay" && forceRegister === "" && surface !== "cast" && interactive) {
+            tab = "shot"
+            shotWhyOverGlance = true
+        }
+    }
+    function _closeShotWhy(toTab) {
+        if (toTab) tab = toTab
+        shotWhyOverGlance = false
+    }
 
     // ── the after-shot pulse (§B3, §B8; D1) ──────────────────────────────────
     // ONE CUE OBJECT, PUBLISHED DOWNWARD: { token, ids, focusId }. `ids` are condition IDS, in the
@@ -282,13 +301,6 @@ Item {
     readonly property bool isForming:   stage === "forming"
     readonly property bool isEstablished: stage === "established"
     readonly property bool isClosing:   stage === "closing"
-
-    // The declared miss: invited while the answer can still shape the session (Cold, Forming), reported
-    // once declared. The register draws the chip and its inline picker (PpDiagReplayState).
-    readonly property string declaredMiss:     source ? (source.declaredMiss || "")     : ""
-    readonly property string declaredMissName: source ? (source.declaredMissName || "") : ""
-    readonly property bool _missInvited:
-        interactive && declaredMiss === "" && (isCold || isForming) && !reviewing
 
     // ── review (13a, brief §6) ───────────────────────────────────────────────
     // READ OFF THE PUBLISHED SURFACE: the badge is non-empty exactly when the model is reviewing.
@@ -386,7 +398,7 @@ Item {
     readonly property string _baseRegister: forceRegister !== "" ? forceRegister
                                           : surface === "cast" ? "Replay"
                                           : SessionMode.mode === SessionMode.analyse ? "Analyse" : "Replay"
-    readonly property string register: _baseRegister === "Replay" && (detailOpen || consistencyOverGlance) && forceRegister === ""
+    readonly property string register: _baseRegister === "Replay" && (detailOpen || consistencyOverGlance || shotWhyOverGlance) && forceRegister === ""
                                        && surface !== "cast" ? "Analyse" : _baseRegister
     readonly property Item registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item
 

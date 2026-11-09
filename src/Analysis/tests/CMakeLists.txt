@@ -152,6 +152,12 @@ pp_add_test(diagnostic_ledger_test SOURCES diagnostic_ledger_test.cpp)
 # weights, easing/cleared, and work_ons.json round-trip. Header-only.
 pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
 
+# Shot outcomes: per-club distances and the as-of baseline (club_distances.h), and the per-shot
+# labels, story, driver and carry waterfall (shot_outcomes.h). Both header-only.
+pp_add_test(club_distances_test SOURCES club_distances_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
+pp_add_test(shot_outcomes_test SOURCES shot_outcomes_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
+pp_add_test(tendencies_test SOURCES tendencies_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
+
 # Swing areas (swing_areas.h) — Home's "Your swing" tab, areas rated by habit counts: the four bands
 # and their boundaries, what counts (Movement/Delivery; ball flight's Outcomes only with launch-monitor
 # evidence), the trend against the newest substantive session, area and item order, the top fault and
@@ -1312,6 +1318,21 @@ pp_add_test(live_measure_source_test
     INCLUDE ${NORM_INC}
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(live_measure_source_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
+
+# The golfer's own usual with a club is the only path from history to firing.
+pp_add_test(club_baseline_provider_test
+    SOURCES ${DIAG}/tests/club_baseline_provider_test.cpp
+            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+            ${DIAG}/engine/characteristic_engine.cpp
+            ${DIAG_NORM}
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${DIAG}/packs/merged_pack_provider.cpp
+    INCLUDE ${NORM_INC})
+set_tests_properties(club_baseline_provider_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
 
 # THE ORCHESTRATION between the two tests above it: SessionDiagnosticsModel, the QML façade that

@@ -22,8 +22,8 @@ import QtQuick
 // least: counts go below compact (each view's head states its own), the review note on the right goes
 // below medium (to a note at the foot of the view); the toggles never go. Screen only.
 // Round 4: `interactive` (false on an auto-closing cast: the tabs are drawn, never pressed); an optional
-// CHIP sits quietly at the far right of the row (the declared miss, F66: "Declare miss" / "Miss: Slice"),
-// a link while interactive, plain ink3 text otherwise; `chipOn` draws it in ink (its picker is open).
+// CHIP sits quietly at the far right of the row (a way back, a chart preset), a link while interactive,
+// plain ink3 text otherwise; `chipOn` draws it in ink.
 // Phase 4a (Home's Coaching | Your swing bar), all opt-in, the default look unchanged:
 //   • `size: "title"` sets the labels at Theme.fontSzTab in the display face, and the row grows to hold them;
 //   • `accentUnderline` (implied by the title size) rules the current tab in accent, Theme.tabUnderline thick;
@@ -46,9 +46,9 @@ Item {
     property var tabs: []                        // [{ key, label, count }]
     property string current: ""
     property string note: ""                     // e.g. the review note; tier 3
-    property string chip: ""                     // e.g. "Declare miss" / "Miss: Slice"; "" = none
+    property string chip: ""                     // e.g. "‹ Back"; "" = none
     property bool chipOn: false
-    property string chipObjectName: "sdMissChip"
+    property string chipObjectName: "sdTabChip"
     property string size: ""                     // "" (the view toggles) | "title" (Home's tab bar)
     property bool accentUnderline: size === "title"
     property bool noteAfterTabs: false

@@ -159,6 +159,7 @@ const Row<EdgeType> kEdgeTypes[] = {
     { EdgeType::Causes,       "causes",       "causes" },
     { EdgeType::Corroborates, "corroborates", "corroborates" },
     { EdgeType::Excludes,     "excludes",     "excludes" },
+    { EdgeType::LeadsTo,      "leadsTo",      "leads to" },
 };
 
 // Words only. Strengths are not probabilities and must never be rendered as percentages.

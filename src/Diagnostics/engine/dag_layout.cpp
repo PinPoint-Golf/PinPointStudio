@@ -423,6 +423,7 @@ DagLayout layoutDag(const CharacteristicPack &pack, const QString &focusId,
         // focus, matching the admission rule above. A corroborates edge between two causes would
         // otherwise appear as a line with no arrow between two boxes, saying nothing a reader of
         // THIS page came for.
+        if (e.type == EdgeType::LeadsTo) continue;                // the shot's physics, not this picture
         if (e.type != EdgeType::Causes && e.from != focusId && e.to != focusId) continue;
         const auto rf = rankOf.constFind(e.from);
         const auto rt = rankOf.constFind(e.to);
@@ -938,7 +939,7 @@ DagLayout layoutDag(const CharacteristicPack &pack, const QString &focusId,
             e.weight        = strokeWidthFor(src.strength);
             e.offeredOnly   = offeredOnly;
             e.relation      = edgeTypeName(src.type);
-            e.symmetric     = (src.type != EdgeType::Causes);
+            e.symmetric     = isSymmetricEdge(src.type);
             e.segment       = int(i);
             e.segments      = int(hops.size());
 

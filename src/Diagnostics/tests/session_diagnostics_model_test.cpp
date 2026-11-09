@@ -1393,6 +1393,445 @@ static void variabilityMarksSuite(const QTemporaryDir &tmp)
           "R11: …and on a condition that fired on every shot, \"every firing, no change\"");
 }
 
+// ── Shot outcomes (shot_outcomes_design.md §11, E3) ───────────────────────────────────────
+
+namespace {
+
+// The conditions every synthetic shot carries a row for, so the ball's shape is judged on each.
+const char *const kOutcomeRowIds[] = { "chunk", "thin", "slice", "pull", "push", "carry_deficit",
+                                       "early_extension", "over_the_top", "in_to_out_path" };
+
+ShotRecord outcomeShot(int shotId, qint64 t, double carry, std::initializer_list<const char *> fired)
+{
+    ShotRecord s;
+    s.shotId      = shotId;
+    s.timestampMs = t;
+    s.club        = QStringLiteral("7 IRON");
+    s.contextId   = QStringLiteral("iron_7");
+    s.carry       = carry;
+    s.total       = carry + 8.0;
+    s.offline     = 0.0;
+    s.ballSpeed   = 118.0;
+    s.lmClubSpeed = 84.0;
+    s.smash       = 1.33;
+    s.swingLength = QStringLiteral("full");
+    for (const char *id : kOutcomeRowIds) {
+        ConditionRow r;
+        r.conditionId      = QLatin1String(id);
+        r.drivingMeasureId = QStringLiteral("m_handPathLoop");
+        r.contextId        = s.contextId;
+        const bool hit = std::any_of(fired.begin(), fired.end(), [id](const char *f) { return qstrcmp(f, id) == 0; });
+        r.state            = hit ? ShotState::Fired : ShotState::Clean;
+        r.firedSignalCount = hit ? 1 : 0;
+        r.value            = hit ? 3.0 : 0.5;
+        r.corridorLo = -1.0; r.corridorHi = 1.0;
+        r.corridorShape    = CorridorShape::TwoSided;
+        r.z                = r.value;
+        r.direction        = hit ? 1 : 0;
+        s.rows.push_back(r);
+    }
+    return s;
+}
+
+// §11's session, shots 1..24. The pack's real edges: stood-up-through-it (`early_extension`) reaches
+// the fat, the slice, the thin and the pull; over the top reaches the slice. The mock's "face open
+// at the top" does not reach a push in the shipped pack, so shot 17 stands on `in_to_out_path` instead.
+std::vector<ShotRecord> fixture24(qint64 t0)
+{
+    const auto at = [t0](int i) { return t0 + qint64(i) * 60000; };
+    std::vector<ShotRecord> out;
+    const auto clean = [&](int id) { out.push_back(outcomeShot(id, at(id), 160.0, {})); };
+    clean(1);
+    out.push_back(outcomeShot(2, at(2), 148.0, { "chunk", "early_extension" }));
+    out.push_back(outcomeShot(3, at(3), 150.0, { "slice", "over_the_top" }));
+    out.push_back(outcomeShot(4, at(4), 142.0, { "chunk", "slice", "early_extension" }));
+    out.push_back(outcomeShot(5, at(5), 141.0, { "chunk", "slice", "early_extension" }));
+    clean(6);
+    out.push_back(outcomeShot(7, at(7), 158.0, { "slice" }));           // corrected to an intended fade
+    out.push_back(outcomeShot(8, at(8), 146.0, { "chunk", "early_extension" }));
+    out.push_back(outcomeShot(9, at(9), 152.0, { "slice", "over_the_top" }));
+    out.push_back(outcomeShot(10, at(10), 138.0, { "chunk", "slice", "carry_deficit", "early_extension" }));
+    clean(11);
+    out.push_back(outcomeShot(12, at(12), 151.0, { "slice", "early_extension" }));
+    clean(13);
+    clean(14);
+    out.push_back(outcomeShot(15, at(15), 153.0, { "slice", "over_the_top" }));
+    clean(16);
+    out.push_back(outcomeShot(17, at(17), 154.0, { "push", "in_to_out_path" }));
+    clean(18);
+    out.push_back(outcomeShot(19, at(19), 147.0, { "chunk", "pull", "early_extension" }));   // corrected to thin
+    clean(20);
+    out.push_back(outcomeShot(21, at(21), 151.0, { "slice", "over_the_top" }));
+    clean(22);
+    out.push_back(outcomeShot(23, at(23), 156.0, { "slice" }));
+    clean(24);
+    return out;
+}
+
+bool writeOutcomeSession(const QString &dir, const std::vector<ShotRecord> &shots, const QJsonObject &extra = QJsonObject())
+{
+    QJsonObject root = extra;
+    root[QStringLiteral("schemaVersion")] = 1;
+    root[QStringLiteral("ledger")] = toJson(shots);
+    return writeDiagnosticsJson(dir, root);
+}
+
+// A frozen sidecar: this 7 iron's usual, 162 ± 7 yd off 40 shots, in the sidecar's own shape.
+bool writeUsual7Iron(const QString &dir)
+{
+    ClubBaselineEntry e;
+    e.club          = QStringLiteral("7 IRON");
+    e.carryMean     = 162.0;
+    e.carrySd       = 7.0;
+    e.speedMean     = 84.0;
+    e.smashMean     = 1.33;
+    e.ballSpeedMean = 118.0;
+    e.ballSpeedSd   = 3.0;
+    e.shaftAngleP4Mean = 90.0;
+    e.n             = 40;
+    ClubBaselineSnapshot snap;
+    snap.frozenAt = QStringLiteral("2026-11-01T00:00:00Z");
+    snap.clubs.insert(e.club, e);
+    QFile f(QDir(dir).filePath(QStringLiteral("club_baseline.json")));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    f.write(QJsonDocument(clubBaselineToJson(snap)).toJson(QJsonDocument::Compact));
+    return true;
+}
+
+QVariantMap reasonById(const QVariantList &reasons, const char *id)
+{
+    for (const QVariant &v : reasons)
+        if (v.toMap().value(QStringLiteral("id")).toString() == QLatin1String(id)) return v.toMap();
+    return QVariantMap();
+}
+
+QVariantMap producedPhrase(const QVariantList &produced, const char *phrase)
+{
+    for (const QVariant &v : produced)
+        if (v.toMap().value(QStringLiteral("phrase")).toString() == QLatin1String(phrase)) return v.toMap();
+    return QVariantMap();
+}
+
+} // namespace
+
+static void shotOutcomesSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nshot outcomes: labels, the shot log, reasons, corrections\n");
+    const qint64 t0 = kStageEpochMs + 86400000LL * 300;
+
+    const QString dir = makeSession(tmp, "athlete_outcomes", "2026-10-30_M_01");
+    check(writeOutcomeSession(dir, fixture24(t0)) && writeUsual7Iron(dir), "the §11 session on disk, frozen");
+
+    auto m = freshModel();
+    m->activateSession(dir);
+    check(m->baselineFrozen(), "the sidecar's existence is what freezes the session");
+    check(m->shotCount() == 24, "twenty-four shots, as the fixture stages them");
+
+    const QByteArray before = ledgerBytesOf(dir);
+    m->correctOutcome(19, QStringLiteral("strike"), QStringLiteral("thin"));
+    m->correctOutcome(7, QStringLiteral("direction"), QStringLiteral("fade"));
+    m->setShotIntent(7, QStringLiteral("fade"));
+
+    // ── E3: the mix and the reasons ──
+    // Ties in the mix keep first-seen order (composeSessionMix), so the two singles read push, thin pull.
+    check(m->shotMix().value(QStringLiteral("line")).toString()
+              == QStringLiteral("11 clean · 6 slice · 3 fat slice · 2 fat · 1 push · 1 thin pull"),
+          "E3: the mix line");
+    check(m->shotMix().value(QStringLiteral("corrections")).toInt() == 2
+              && m->shotMix().value(QStringLiteral("correctionsLine")).toString() == QStringLiteral("2 labels corrected by you"),
+          "E3: two labels corrected by you");
+
+    const QVariantList reasons = m->reasons();
+    const QVariantMap stood = reasonById(reasons, "early_extension");
+    const QVariantMap over  = reasonById(reasons, "over_the_top");
+    const QVariantMap inner = reasonById(reasons, "in_to_out_path");
+    const QVariantMap none  = reasonById(reasons, "");
+    check(reasons.size() == 4 && reasons.first().toMap().value(QStringLiteral("id")).toString() == QStringLiteral("early_extension")
+              && reasons.last().toMap().value(QStringLiteral("id")).toString().isEmpty(),
+          "E3: four reasons, most shots first, no-reason last");
+    check(stood.value(QStringLiteral("shots")).toInt() == 7 && over.value(QStringLiteral("shots")).toInt() == 4
+              && inner.value(QStringLiteral("shots")).toInt() == 1 && none.value(QStringLiteral("shots")).toInt() == 1,
+          "E3: 7 stood up through it, 4 over the top, 1 for the push, 1 with no reason");
+    {
+        const QVariantList p = stood.value(QStringLiteral("produced")).toList();
+        check(p.size() == 4 && producedPhrase(p, "Fat slice").value(QStringLiteral("count")).toInt() == 3
+                  && producedPhrase(p, "Fat").value(QStringLiteral("count")).toInt() == 2
+                  && producedPhrase(p, "Slice").value(QStringLiteral("count")).toInt() == 1
+                  && producedPhrase(p, "Thin pull").value(QStringLiteral("count")).toInt() == 1,
+              "E3: fat slice ×3, fat ×2, slice, thin pull");
+        check(over.value(QStringLiteral("produced")).toList().size() == 1
+                  && producedPhrase(over.value(QStringLiteral("produced")).toList(), "Slice").value(QStringLiteral("count")).toInt() == 4,
+              "E3: over the top, slice ×4");
+        check(producedPhrase(inner.value(QStringLiteral("produced")).toList(), "Push").value(QStringLiteral("count")).toInt() == 1,
+              "E3: the push");
+    }
+    check(none.value(QStringLiteral("name")).toString() == QStringLiteral("No reason found")
+              && none.value(QStringLiteral("tierText")).toString() == QStringLiteral("Gap in the model")
+              && none.value(QStringLiteral("flaggable")).toBool(),
+          "E3: the no-reason row says so, and offers a flag");
+    {
+        const QVariantList ticks = stood.value(QStringLiteral("ticks")).toList();
+        check(ticks.size() == 24 && ticks.value(1).toMap().value(QStringLiteral("state")).toString() == QStringLiteral("fired")
+                  && ticks.value(0).toMap().value(QStringLiteral("state")).toString() == QStringLiteral("clean")
+                  && ticks.value(2).toMap().value(QStringLiteral("state")).toString() == QStringLiteral("clean"),
+              "ticks: one per shot, fired for its shots, clean for the other judged shots");
+        check(ticks.value(1).toMap().value(QStringLiteral("shotId")).toInt() == 2, "ticks carry the shot id");
+    }
+    check(stood.value(QStringLiteral("costText")).toString().endsWith(QStringLiteral(" yd"))
+              && stood.value(QStringLiteral("cost")).toDouble() > 0.0,
+          "the cost is in yards, against the usual");
+    check(!stood.contains(QStringLiteral("costWords")), "costWords is dropped");
+
+    // ── The log ──
+    {
+        const QVariantList log = m->shotLog();
+        check(log.size() == 24, "the shot log has a cell per shot");
+        const QVariantMap s10 = log.value(9).toMap();
+        check(s10.value(QStringLiteral("cell")).toString() == QStringLiteral("FAT SL")
+                  && s10.value(QStringLiteral("lines")).toList().size() == 2
+                  && s10.value(QStringLiteral("reasonId")).toString() == QStringLiteral("early_extension"),
+              "shot 10's cell: FAT SL, two lines, its reason");
+        const QVariantMap s7 = log.value(6).toMap();
+        check(s7.value(QStringLiteral("clean")).toBool() && s7.value(QStringLiteral("corrected")).toBool()
+                  && s7.value(QStringLiteral("intended")).toBool(),
+              "shot 7: corrected to an intended fade reads clean");
+        check(log.value(0).toMap().value(QStringLiteral("warmUp")).toBool() && !log.value(3).toMap().value(QStringLiteral("warmUp")).toBool(),
+              "warm-up is the first three shots");
+    }
+
+    // ── The per-shot map (§4.1): shot 10 is the mock's "fat slice, short" ──
+    {
+        const QVariantMap o = m->shotOutcome(10);
+        check(o.value(QStringLiteral("phrase")).toString() == QStringLiteral("Fat slice, 24 yd short"),
+              "shot 10: fat slice, 24 yd short of the usual 162");
+        check(o.value(QStringLiteral("driver")).toMap().value(QStringLiteral("id")).toString() == QStringLiteral("early_extension"),
+              "…with the driver the fat and the slice share");
+        const QVariantMap carry = o.value(QStringLiteral("carry")).toMap();
+        check(carry.value(QStringLiteral("usual")).toDouble() == 162.0
+                  && carry.value(QStringLiteral("provenance")).toString() == QStringLiteral("against your usual 162 ± 7 yd"),
+              "…the carry is against the frozen usual, and says so");
+        check(!o.contains(QStringLiteral("analysed")), "no `analysed` field: labels and story land together");
+    }
+
+    // ── Today's carry from the frozen sidecar ──
+    {
+        const QVariantList today = m->carryToday();
+        check(today.size() == 1 && today.first().toMap().value(QStringLiteral("line")).toString().startsWith(QStringLiteral("7 iron carry today "))
+                  && today.first().toMap().value(QStringLiteral("line")).toString().endsWith(QStringLiteral(" · your usual 162 ± 7 yd")),
+              "carry today, beside the frozen usual");
+    }
+
+    // ── A shot's words are the session's, but a correction leaves the rows ──
+    check(ledgerBytesOf(dir) == before, "A6: corrections and intent leave the rows byte-identical");
+    check(!diagnosticsJsonOf(dir).value(QStringLiteral("corrections")).toObject().isEmpty()
+              && diagnosticsJsonOf(dir).value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("7")).toString() == QStringLiteral("fade"),
+          "corrections and intent are in the envelope");
+    check(QFile::exists(QFileInfo(dir).dir().filePath(QStringLiteral("outcome_corrections.jsonl"))),
+          "the tuning log got the corrections");
+
+    // Withdrawing a correction: the detected label again, and the row never moved.
+    m->correctOutcome(19, QStringLiteral("strike"), QStringLiteral("chunk"));
+    check(m->shotOutcome(19).value(QStringLiteral("labels")).toList().first().toMap().value(QStringLiteral("id")).toString() == QStringLiteral("chunk")
+              && m->shotMix().value(QStringLiteral("corrections")).toInt() == 1,
+          "passing the detected label back withdraws the correction");
+    check(ledgerBytesOf(dir) == before, "…and the rows have still not moved");
+
+    // ── Reloaded from disk ──
+    {
+        auto again = freshModel();
+        again->activateSession(dir);
+        check(again->shotOutcome(7).value(QStringLiteral("clean")).toBool()
+                  && again->shotMix().value(QStringLiteral("corrections")).toInt() == 1,
+              "corrections and intent survive a reload");
+    }
+
+    // ── The catch-up writing over a correction made while it ran ──
+    {
+        const QString raceDir = makeSession(tmp, "athlete_outcomes", "2026-11-01_M_01");
+        check(writeOutcomeSession(raceDir, fixture24(t0)) && writeUsual7Iron(raceDir), "a session the catch-up and a panel both hold");
+        auto catchUp = freshModel();
+        catchUp->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        catchUp->activateSession(raceDir);
+        auto panel = freshModel();
+        panel->activateSession(raceDir);
+        panel->correctOutcome(19, QStringLiteral("strike"), QStringLiteral("thin"));
+        panel->setShotIntent(7, QStringLiteral("fade"));
+        panel->setIntentFrom(20, QStringLiteral("draw"));
+        catchUp->declareFocusFrom(QStringLiteral("over_the_top"), 0);      // its write, from what it read before them
+        const QJsonObject onDisk = diagnosticsJsonOf(raceDir);
+        check(onDisk.value(QStringLiteral("corrections")).toObject().contains(QStringLiteral("19"))
+                  && onDisk.value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("7")).toString() == QStringLiteral("fade")
+                  && onDisk.value(QStringLiteral("intentFrom")).toObject().value(QStringLiteral("fromShot")).toInt() == 20,
+              "a catch-up write keeps a correction, an intent and a run made since it read the file");
+    }
+
+    // ── A low-speed shot still counts short: slower speed is a reason, never an excuse (D8) ──
+    {
+        const QString slowDir = makeSession(tmp, "athlete_outcomes", "2026-10-31_M_02");
+        std::vector<ShotRecord> shots = fixture24(t0 + 86400000LL);
+        ShotRecord &slow = shots[9];         // shot 10
+        slow.lmClubSpeed = 74.0;
+        slow.smash = 1.33;
+        check(writeOutcomeSession(slowDir, shots) && writeUsual7Iron(slowDir), "a session with a slow, short shot");
+        auto ms = freshModel();
+        ms->activateSession(slowDir);
+        const QVariantMap o = ms->shotOutcome(10);
+        const QVariantList parts = o.value(QStringLiteral("carry")).toMap().value(QStringLiteral("parts")).toList();
+        check(o.value(QStringLiteral("phrase")).toString().contains(QStringLiteral("short"))
+                  && !parts.isEmpty() && parts.first().toMap().value(QStringLiteral("id")).toString() == QStringLiteral("speed"),
+              "the slow shot is short, and the slower club speed is its first listed part");
+    }
+
+    // ── An old declared miss: read as ever, and the rows do not move (Contract F) ──
+    {
+        const QString oldDir = makeSession(tmp, "athlete_outcomes", "2026-10-20_M_01");
+        std::vector<ShotRecord> shots = fixture24(t0 - 86400000LL);
+        QJsonObject extra;
+        extra[QStringLiteral("intent")] = QJsonObject{ { QStringLiteral("declaredMiss"), QStringLiteral("slice") } };
+        check(writeOutcomeSession(oldDir, shots, extra) && writeUsual7Iron(oldDir), "an old file with a declared miss");
+        const QByteArray oldBytes = ledgerBytesOf(oldDir);
+        auto mo = freshModel();
+        mo->activateSession(oldDir);
+        check(mo->declaredMiss() == QStringLiteral("slice"), "the declared miss stays readable");
+        mo->declareFocusFrom(QStringLiteral("over_the_top"), 0);        // forces a write of the same rows
+        check(ledgerBytesOf(oldDir) == oldBytes, "…and it re-reduces with identical rows");
+    }
+
+    // ── A left-hander's labels read as a left-hander's (Contract D) ──
+    {
+        const QString leftDir = makeSession(tmp, "athlete_outcomes_left", "2026-10-30_M_01");
+        std::vector<ShotRecord> shots = fixture24(t0);
+        for (ShotRecord &s : shots) s.handedness = QStringLiteral("Left");
+        check(writeOutcomeSession(leftDir, shots) && writeUsual7Iron(leftDir), "a left-hander's session");
+        auto ml = freshModel();
+        ml->activateSession(leftDir);
+        const QVariantMap o = ml->shotOutcome(3);        // the row says slice, the golfer's ball hooked
+        check(o.value(QStringLiteral("phrase")).toString() == QStringLiteral("Hook")
+                  && o.value(QStringLiteral("labels")).toList().first().toMap().value(QStringLiteral("rowId")).toString() == QStringLiteral("slice")
+                  && o.value(QStringLiteral("labels")).toList().first().toMap().value(QStringLiteral("id")).toString() == QStringLiteral("hook")
+                  && o.value(QStringLiteral("golferMirrored")).toBool(),
+              "a left-hander's slice row reads Hook, the row untouched");
+        // The golfer's picks are in their own words: "pull" on a left-hander is a push row.
+        ml->correctOutcome(3, QStringLiteral("direction"), QStringLiteral("pull"));
+        const QJsonArray corrections = diagnosticsJsonOf(leftDir).value(QStringLiteral("corrections")).toObject().value(QStringLiteral("3")).toArray();
+        check(corrections.size() == 1 && corrections.first().toObject().value(QStringLiteral("to")).toString() == QStringLiteral("push"),
+              "a left-hander's correction is stored as the row's id");
+    }
+}
+
+// Contract A: who writes the sidecar, and the provisional stamp's one regrade. Staged swings, because
+// the stamp is only meaningful on a shot that can be graded.
+static void baselineAuthoritySuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nthe frozen baseline: authority and the provisional stamp\n");
+    const auto stamps = [](const QString &dir) {
+        const QJsonObject gf = diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject()
+                                   .value(QStringLiteral("gradedFrom")).toObject();
+        QStringList out;
+        for (auto it = gf.constBegin(); it != gf.constEnd(); ++it)
+            out << it.value().toObject().value(QStringLiteral("content")).toString();
+        return out;
+    };
+    const auto allProvisional = [&stamps](const QString &dir) {
+        const QStringList s = stamps(dir);
+        return !s.isEmpty() && std::all_of(s.begin(), s.end(), [](const QString &v) { return v.endsWith(QStringLiteral("|provisional")); });
+    };
+    const auto noneProvisional = [&stamps](const QString &dir) {
+        const QStringList s = stamps(dir);
+        return !s.isEmpty() && std::none_of(s.begin(), s.end(), [](const QString &v) { return v.endsWith(QStringLiteral("|provisional")); });
+    };
+
+    const QString sidecar = QStringLiteral("club_baseline.json");
+    const QString earlier = makeSession(tmp, "athlete_frozen", "2026-02-01_M_01");
+    const QString now     = makeSession(tmp, "athlete_frozen", "2026-02-02_M_01");
+    check(stageLayout(now), "staged swings for the session being frozen");
+
+    // A predecessor from before schema 11: a live panel may not freeze over it.
+    QJsonObject stale;
+    stale[QStringLiteral("schemaVersion")] = kDiagSchemaVersion - 1;
+    stale[QStringLiteral("shots")] = QJsonArray();
+    check(writeDiagnosticsJson(earlier, QJsonObject{ { QStringLiteral("schemaVersion"), 1 }, { QStringLiteral("ledger"), stale } }),
+          "an older ledger beside it");
+
+    {
+        auto live = freshModel();
+        live->activateSession(now);
+        check(!QFile::exists(QDir(now).filePath(sidecar)) && !live->baselineFrozen(),
+              "a live panel does not freeze while a predecessor predates schema 11");
+        check(allProvisional(now), "…and the rows it grades are stamped provisional");
+    }
+    {
+        auto review = freshModel();
+        review->setReviewing(true);
+        review->activateSession(now);
+        check(!QFile::exists(QDir(now).filePath(sidecar)), "a review panel writes no sidecar");
+        check(review->persistCount() == 0, "…and regrades nothing: the provisional stamp still matches");
+    }
+    {
+        auto never = freshModel();
+        never->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);
+        never->activateSession(now);
+        check(!QFile::exists(QDir(now).filePath(sidecar)), "\"never\" (the session report's setting) writes no sidecar");
+    }
+
+    // The catch-up's model may always freeze; the rows then regrade exactly once.
+    const QJsonObject beforeGrades = diagnosticsJsonOf(now);
+    {
+        auto always = freshModel();
+        always->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        always->activateSession(now);
+        check(QFile::exists(QDir(now).filePath(sidecar)) && always->baselineFrozen(), "the catch-up's model freezes it");
+        check(always->persistCount() > 0 && noneProvisional(now), "…the rows regrade, the stamp no longer provisional");
+    }
+    {
+        auto again = freshModel();
+        again->activateSession(now);
+        check(again->persistCount() == 0 && noneProvisional(now), "frozen, a further activation regrades nothing: exactly once");
+    }
+
+    // An undated folder has no predecessors: a panel must not freeze an empty snapshot for it.
+    {
+        const QString undated = makeSession(tmp, "athlete_frozen_undated", "no_date_in_this_name");
+        check(writeOutcomeSession(undated, fixture24(kStageEpochMs)), "a session in a folder with no date");
+        auto panel = freshModel();
+        panel->activateSession(undated);
+        check(!QFile::exists(QDir(undated).filePath(sidecar)) && !panel->baselineFrozen(),
+              "a live panel leaves an undated session unfrozen");
+    }
+
+    // Reads while a batch is still landing: rows have moved and the reduction has not run yet.
+    {
+        const QString batch = makeSession(tmp, "athlete_frozen_batch", "2026-03-01_M_01");
+        check(stageLayout(batch), "staged swings for a batch landing off the GUI thread");
+        auto m = freshModel();
+        m->setSynchronous(false);
+        bool aligned = true;
+        int  reads = 0;
+        QObject::connect(m.get(), &SessionDiagnosticsModel::busyChanged, m.get(), [&m, &aligned, &reads] {
+            const QVariantList log = m->shotLog();
+            const std::vector<ShotRecord> &rows = m->shotRecords();
+            ++reads;
+            if (log.size() != int(rows.size())) { aligned = false; return; }
+            for (int i = 0; i < log.size(); ++i)
+                if (log.at(i).toMap().value(QStringLiteral("shotId")).toInt() != rows[size_t(i)].shotId) aligned = false;
+        });
+        m->activateSession(batch);
+        check(m->waitForIdle(120000) && m->shotCount() == kShots, "the batch lands");
+        check(reads >= kShots && aligned, "the outcomes read mid-batch stay aligned with the rows as they land");
+    }
+
+    // A live panel over a session whose predecessors are current does freeze, with no history for the club.
+    const QString fresh = makeSession(tmp, "athlete_frozen", "2026-02-03_M_01");
+    check(stageLayout(fresh), "staged swings for a session after a schema-11 predecessor");
+    {
+        auto panel = freshModel();
+        QDir().remove(QDir(earlier).filePath(QStringLiteral("diagnostics.json")));
+        panel->activateSession(fresh);
+        check(QFile::exists(QDir(fresh).filePath(sidecar)) && panel->baselineFrozen(),
+              "with no older ledger left to be old, a live panel freezes");
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -3449,6 +3888,8 @@ int main(int argc, char **argv)
     sequenceConsistencySuite(tmp);
     compositePresentationSuite(tmp);
     variabilityMarksSuite(tmp);
+    shotOutcomesSuite(tmp);
+    baselineAuthoritySuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

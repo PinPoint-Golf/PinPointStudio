@@ -19,9 +19,11 @@
 #pragma once
 
 #include "../../Coaching/swing_themes.h"
+#include "../../Coaching/tendencies.h"
 #include "../../Coaching/work_ons.h"
 #include "../variability/variability_facade.h"      // VariabilityResultView: the consistency marks
 
+#include <QDate>
 #include <QHash>
 #include <QObject>
 #include <QSet>
@@ -196,6 +198,27 @@ class WorkOnsController : public QObject
     Q_PROPERTY(int summarySwings READ summarySwings NOTIFY summaryChanged)
     Q_PROPERTY(int summarySessions READ summarySessions NOTIFY summaryChanged)
 
+    // ── Tendencies (docs/design/shot_outcomes_design.md §7) ──
+    //
+    // The same catch-up ends in one more reduction (tendencies.h), <athlete>/tendencies.json, fingerprinted
+    // on the rule, the schema, the content stamp and each session's (name, work-ons fingerprint, ledger size
+    // and mtime), so a correction, which only touches the ledger, counts. On the themes pool, cancelled by the
+    // same events; the file is read rather than reduced when nothing moved. Strings final.
+    //
+    // focusItem and every nextItems entry gain `onTheBall` (a line, "" when none); faultDetail(id) gains `onBall`:
+    //   { conditionId, text, produced: [{ phrase, count }], costWords, tendencyKey, tendencyText, onTheBall } or {}.
+    //
+    // tendencyItems: [{ key, club, clubLine, length, miss, missFamily, share, frequency, building, noUsualMiss,
+    //   sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, workOnText }]. A building row
+    //   states no verdict: miss, building true, sessions, and no seen-with or trend.
+    // tendencyNote: "From N shots over M sessions", or why nothing yet.
+    // tendencyDetail(key): { chain: [{ text, words }], alsoSeen, playTo, practiseConditionId } or {}.
+    // clubDistance(club): { mean, sd, n, total, offlineSd, earned, line } for the current athlete, or {}.
+    Q_PROPERTY(QVariantList tendencyItems READ tendencyItems NOTIFY tendenciesChanged)
+    Q_PROPERTY(QString tendencyNote READ tendencyNote NOTIFY tendenciesChanged)
+    Q_PROPERTY(bool tendenciesReady READ tendenciesReady NOTIFY tendenciesChanged)
+    Q_PROPERTY(bool tendenciesUpdating READ tendenciesUpdating NOTIFY tendenciesChanged)
+
 public:
     explicit WorkOnsController(QObject *parent = nullptr);
     ~WorkOnsController() override;
@@ -235,6 +258,13 @@ public:
     int  summarySwings() const { return m_summaryReady ? m_themes.swings : 0; }
     int  summarySessions() const { return m_summaryReady ? m_themes.sessions : 0; }
 
+    QVariantList tendencyItems() const { return m_tendencyItems; }
+    QString      tendencyNote() const { return m_tendencyNote; }
+    bool tendenciesReady() const { return m_tendenciesReady; }
+    bool tendenciesUpdating() const { return m_tendenciesRunning; }
+    Q_INVOKABLE QVariantMap tendencyDetail(const QString &key) const;
+    Q_INVOKABLE QVariantMap clubDistance(const QString &club) const;
+
     // Rescan the athlete's sessions and re-derive whatever is stale. Cheap when nothing is.
     Q_INVOKABLE void refresh();
     // A condition's name as the items show it: the pack label, else the id ("" for "").
@@ -250,6 +280,9 @@ public:
 
     static QString recordPath(const QString &sessionDir);
     static QString themesPath(const QString &athleteDir);
+    static QString tendenciesPath(const QString &athleteDir);
+    // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).
+    int  tendencyJobs() const { return m_tendencyJobs; }
 
 signals:
     void athleteDirChanged();
@@ -259,6 +292,10 @@ signals:
     void updatingChanged();
     void summaryChanged();
     void areasChanged();
+    void tendenciesChanged();
+    // A new set of tendencies is in hand (a reduction or the stored file), and not the busy flag moving:
+    // the cue for anything that pays to read the file again.
+    void tendenciesLanded();
 
 private:
     struct Scanned {
@@ -266,6 +303,8 @@ private:
         QString fingerprint;
         bool    fresh = false;
         qint64  mtimeMs = 0;
+        bool    hasBaseline = false;         // <session>/club_baseline.json exists
+        QDate   day;                         // the folder's day: what the catch-up order goes by when one is missing
         pinpoint::analysis::SessionWorkOns record;   // valid when fresh
     };
     static std::vector<Scanned> scan(const QString &athleteDir, const QString &contentStamp);
@@ -340,6 +379,36 @@ private:
     void applyMarks(int generation, MarksOutcome out);
     QVariant markFor(const QString &conditionId, const QString &measureId) const;
 
+    // ── Tendencies ──
+    struct TendenciesJob {
+        int     generation = 0;
+        QString athleteDir;
+        QString seed;                   // the rule, schema, content stamp and every session's work-ons fingerprint
+        QString previous;               // the fingerprint of the tendencies in hand
+        QString contentStamp;
+        QStringList sessionDirs;        // name order
+        pinpoint::analysis::ShotOutcomePack pack;
+        std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
+    };
+    struct TendenciesOutcome {
+        QString fingerprint;
+        QString contentStamp;
+        QString athleteDir;
+        bool    unchanged = false;      // the ledgers are those of the tendencies in hand
+        bool    fromDisk = false;       // the stored file was current
+        bool    computed = false;       // reduced here (and not cancelled)
+        pinpoint::analysis::TendencySet set;
+    };
+    void maybeTendencies();
+    void cancelTendencies();
+    static TendenciesOutcome runTendencies(const TendenciesJob &job, const std::atomic<bool> *cancel);
+    void applyTendencies(int generation, TendenciesOutcome out);
+    void publishTendencies();
+    void clearTendencies();
+    QVariantMap onBallFor(const QString &conditionId) const;
+    QString onTheBallFor(const QString &conditionId) const;
+    const pinpoint::analysis::ShotOutcomePack &outcomePack() const;
+
     QString m_athleteDir;
     QString m_gradePolicy = QStringLiteral("standard");
     bool    m_paused = false;
@@ -385,6 +454,18 @@ private:
     QString      m_togetherNote;
     QThreadPool  m_themesPool;          // one job at a time
     QThreadPool  m_replicatePool;       // that job's replicates
+
+    // ── Tendencies ──
+    pinpoint::analysis::TendencySet m_tendencySet;      // valid when m_tendenciesReady
+    QString      m_tendencyFingerprint;                 // what m_tendencySet was reduced from
+    bool         m_tendenciesReady = false;
+    bool         m_tendenciesRunning = false;
+    int          m_tendenciesGeneration = 0;
+    int          m_tendencyJobs = 0;
+    std::shared_ptr<std::atomic<bool>> m_tendenciesCancel;   // the running job's
+    QVariantList m_tendencyItems;
+    QString      m_tendencyNote;
+    mutable std::unique_ptr<pinpoint::analysis::ShotOutcomePack> m_outcomePack;   // marshalled once, on demand
 
     // ── Consistency marks ──
     QHash<QString, pinpoint::variability::VariabilityResultView> m_marks;   // markKey -> the mark shown

@@ -127,6 +127,13 @@ inline void appendRules(std::vector<GateEntry> &c)
                         "cameras saw too few of them — less than half of what the finding weighs, or not the one "
                         "it cannot do without — the check is not made. A part that was not seen is never counted "
                         "as fine."), engine, "docs/design/posture_metrics_design.md §4.6");
+    rule(c, "rule.diag.clubBaselineMinShots", diag, "Not enough shots with this club",
+         "not enough shots with this club yet",
+         QStringLiteral("Short carry and lost ball speed are judged against this golfer's own usual numbers with "
+                        "this club, from earlier sessions. With too few earlier shots there is no usual to judge "
+                        "against, so the check is not made; a topped or duffed shot is still caught by its "
+                        "fixed floor."),
+         "src/Diagnostics/measures/live_measure_source.cpp", "docs/design/shot_outcomes_design.md §3.3");
     rule(c, "rule.diag.inferredContext", diag, "Club assumed", "club assumed",
          QStringLiteral("When a shot has no club set, its readings are judged against the default club's range and "
                         "trusted less, so a finding is kept but marked: the deviation is real, the range it was "

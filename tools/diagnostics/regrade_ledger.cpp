@@ -95,6 +95,7 @@ int main(int argc, char **argv)
         SessionDiagnosticsModel m;
         m.setSynchronous(true);
         m.setCadence(QStringLiteral("everyShot"));
+        m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
         m.activateSession(dir);
 
         std::printf("%-48s %s  shots %2d  stage %-11s patterns %2d  %s\n",

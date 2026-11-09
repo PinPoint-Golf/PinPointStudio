@@ -905,6 +905,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
 // /4: + metrics, rating, note, lmDeviceKind, dataWarningDetail — everything a carousel row shows, so
 // loading a session never has to fat-parse (2026-09-16). Pure cache: an older sidecar simply fails the
 // schema check and is rewritten from the document.
+// `devices` and `handedness` are ADDITIVE to /4, not a bump: a bump would fat-parse every swing.ppsw on
+// the next list (the stall /4 exists to prevent). Each reader makes up for an older block without them.
 constexpr auto kSummarySchema = "pinpoint.swingsummary/4";
 
 QString summaryPath(const QString &swingDir) { return SwingStore::legacySummaryPath(swingDir); }
@@ -1176,6 +1178,8 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
     s.lmDeviceKind = root[QStringLiteral("launchMonitor")].toObject()
                          [QStringLiteral("kind")].toString();
     s.devices      = swingDeviceTokens(root);
+    s.handedness   = root[QStringLiteral("athlete")].toObject()
+                         [QStringLiteral("handedness")].toString();
 
     s.ok = true;
     return s;
@@ -1230,6 +1234,7 @@ SwingSummary summaryFromShot(const PersistedShot &ps)
     s.note              = ps.note;
     s.lmDeviceKind      = ps.lmDeviceKind;
     s.devices           = ps.devices;
+    s.handedness        = ps.handedness;
     s.dataWarningDetail = ps.dataWarningDetail;
     s.excluded          = ps.excluded;
     s.clubOverride      = ps.clubOverride;
@@ -1303,6 +1308,9 @@ QJsonObject summaryJson(const SwingSummary &s)
         // Additive to /4 as well, but an older block lacking it is NOT right — see
         // SwingSummary::devices for how each reader makes up for that.
         { QStringLiteral("devices"),          QJsonArray::fromStringList(s.devices) },
+        // The same again (SwingSummary::handedness). Written even when empty: the key's presence is
+        // what says this summary was written knowing about it.
+        { QStringLiteral("handedness"),       s.handedness },
     };
 }
 
@@ -1337,6 +1345,7 @@ void summaryFromJson(const QJsonObject &root, const QString &swingDir, SwingSumm
     s.clubOverride      = root[QStringLiteral("clubOverride")].toString();
     for (const QJsonValue &d : root[QStringLiteral("devices")].toArray())
         s.devices.append(d.toString());
+    s.handedness = root[QStringLiteral("handedness")].toString();
     s.fromSidecar    = true;
     s.ok             = true;
 }
@@ -2123,6 +2132,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     const QJsonObject athlete = root[QStringLiteral("athlete")].toObject();
     ps.athleteUuid    = athlete[QStringLiteral("uuid")].toString();
     ps.athleteName    = athlete[QStringLiteral("name")].toString();
+    ps.handedness     = athlete[QStringLiteral("handedness")].toString();
 
     // The kind alone out of the raw block, for the same reason as the athlete above.
     // Everything else in that block (deviceShotId, sourcePath, the raw columns) is
@@ -2323,6 +2333,10 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
             // chunk read, so derive them here rather than send the whole library to a fat parse.
             if (!block.contains(QStringLiteral("devices")))
                 s.devices = swingDeviceTokens(heads);
+            // ...and the handedness, out of the same read, for a block written before it existed.
+            if (!block.contains(QStringLiteral("handedness")))
+                s.handedness = heads[QStringLiteral("athlete")].toObject()
+                                   [QStringLiteral("handedness")].toString();
             return s;
         }
         // Missing or an older schema: derive it from the document. Not written back — a list read
@@ -2348,6 +2362,7 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
             && root[QStringLiteral("schema")].toString() == QLatin1String(kSummarySchema)
             // A sidecar from before `devices` cannot say what recorded the swing — stale.
             && root.contains(QStringLiteral("devices"))
+            && root.contains(QStringLiteral("handedness"))
             && qint64(srcObj[QStringLiteral("size")].toDouble())     == src.size()
             && qint64(srcObj[QStringLiteral("mtime_ms")].toDouble()) == src.lastModified().toMSecsSinceEpoch();
         if (fresh) {

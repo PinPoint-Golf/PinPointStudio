@@ -19,7 +19,8 @@
 // YOUR FOCUS — the one thing to practise, first on Home's Coaching tab, as a table card in the
 // §2.5 visual language (docs/design/ux_refactor_away_from_4_modes/03_home_coaching.png):
 //
-//   header      focus mark · YOUR FOCUS · the drill's title · the short reason · Practise
+//   header      focus mark · YOUR FOCUS · the drill's title · the short reason · Practise;
+//               beneath them, only when a shot has shown it, "On the ball — …" (onTheBall)
 //   captions    Aim for            | Right now      How often                     Sessions
 //   rows        ✓ the ideal        | the fault      meter · frequency words + trend   pips
 //   expand row  ▸ Why it matters · how to practise   (closed: the two paragraphs inside)
@@ -31,7 +32,7 @@
 // Every string is WorkOnsController's (swingSummaryView's focus, docs/design/home_themes_design.md):
 //   focusItem { present, title, aimFor [string], rightNow [{ text, share, frequency, trend,
 //               sessions: [bool…] }], why, practiseLabel, practise, reason, reasonShort,
-//               focusConditionId }
+//               focusConditionId, onTheBall }
 // The title is the drill's label (for a fault with no drill, its ideal); practiseLabel repeats it
 // and is not drawn twice. Not drawn when present is false — nothing on the list yet. Positions and
 // paints only; Practise is passed up (practiseRequested) for the screen to open the wizard with.
@@ -63,6 +64,7 @@ Item {
     readonly property var rightNow: focusItem ? (focusItem.rightNow || []) : []
     readonly property string conditionId: focusItem ? (focusItem.focusConditionId || "") : ""
     readonly property string reasonShort: focusItem ? (focusItem.reasonShort || focusItem.reason || "") : ""
+    readonly property string onTheBallText: focusItem ? (focusItem.onTheBall || "") : ""
     readonly property bool hasWhyHow: focusItem !== null
                                       && ((focusItem.why || "") !== "" || (focusItem.practise || "") !== "")
 
@@ -110,10 +112,11 @@ Item {
                                        ? focusTable.gridLayout[1].x - focusTable.columnGap / 2 : 0)
 
         // ── The header: mark · YOUR FOCUS · title · reason · Practise ─────────
+        // One baseline row, and "On the ball" under it when there is one.
         Item {
             id: header
             width:  focusTable.width
-            height: Theme.sp(Theme.rowH) + Theme.sp(16)
+            height: titleRow.height + (onTheBall.visible ? onTheBall.height + Theme.gap(4) : 0)
 
             readonly property int pad: focusTable.rowPad
             readonly property int gapS: Theme.gap(12)
@@ -122,58 +125,76 @@ Item {
                                          - 3 * header.gapS
                                          - (practise.visible ? practise.width + header.gapS : 0)
 
-            PpBadge {
-                id: mark
-                x: header.pad
-                anchors.verticalCenter: parent.verticalCenter
-                kind:  "target"
-                plain: true
-                tone:  root.tone
-                size:  root.markW
+            Item {
+                id: titleRow
+                width:  header.width
+                height: Theme.sp(Theme.rowH) + Theme.sp(16)
+
+                PpBadge {
+                    id: mark
+                    x: header.pad
+                    anchors.verticalCenter: parent.verticalCenter
+                    kind:  "target"
+                    plain: true
+                    tone:  root.tone
+                    size:  root.markW
+                }
+                PpMicro {
+                    id: label
+                    x: mark.x + mark.width + header.gapS
+                    anchors.baseline: headline.baseline
+                    text: Theme.caps(qsTr("Your focus"))
+                }
+                Text {
+                    id: headline
+                    objectName: "focusTitle"
+                    x: label.x + label.implicitWidth + header.gapS
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(0, Math.min(implicitWidth, header.room))
+                    elide: Text.ElideRight
+                    text:  root.focusItem ? root.focusItem.title : ""
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzHeading
+                    font.weight:    Font.DemiBold
+                    color:          Theme.colorText
+                }
+                // Why this one, in a line: "covers 2 things on your list · comes earliest in your swing".
+                Text {
+                    id: reason
+                    objectName: "focusReason"
+                    x: headline.x + headline.width + header.gapS
+                    anchors.baseline: headline.baseline
+                    readonly property real room: header.room - headline.width - header.gapS
+                    width:   Math.max(0, Math.min(implicitWidth, room))
+                    visible: text !== "" && room >= Theme.sp(60)
+                    elide:   Text.ElideRight
+                    text:    root.reasonShort
+                    font.family:    Theme.fontBody
+                    font.pixelSize: Theme.fontSzBody2
+                    font.weight:    Theme.fontBodyWeight
+                    color:          Theme.colorText3
+                }
+                PpButton {
+                    id: practise
+                    objectName: "focusPracticeButton"
+                    anchors { right: parent.right; rightMargin: header.pad; verticalCenter: parent.verticalCenter }
+                    visible: root.conditionId !== ""
+                    glyph:   "▶"
+                    label:   qsTr("Practice")
+                    onClicked: root.practiseRequested(root.conditionId, root.focusItem ? root.focusItem.title : "")
+                }
             }
-            PpMicro {
-                id: label
-                x: mark.x + mark.width + header.gapS
-                anchors.baseline: headline.baseline
-                text: Theme.caps(qsTr("Your focus"))
-            }
-            Text {
-                id: headline
-                objectName: "focusTitle"
-                x: label.x + label.implicitWidth + header.gapS
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, Math.min(implicitWidth, header.room))
-                elide: Text.ElideRight
-                text:  root.focusItem ? root.focusItem.title : ""
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzHeading
-                font.weight:    Font.DemiBold
-                color:          Theme.colorText
-            }
-            // Why this one, in a line: "covers 2 things on your list · comes earliest in your swing".
-            Text {
-                id: reason
-                objectName: "focusReason"
-                x: headline.x + headline.width + header.gapS
-                anchors.baseline: headline.baseline
-                readonly property real room: header.room - headline.width - header.gapS
-                width:   Math.max(0, Math.min(implicitWidth, room))
-                visible: text !== "" && room >= Theme.sp(60)
-                elide:   Text.ElideRight
-                text:    root.reasonShort
-                font.family:    Theme.fontBody
-                font.pixelSize: Theme.fontSzBody2
-                font.weight:    Theme.fontBodyWeight
-                color:          Theme.colorText3
-            }
-            PpButton {
-                id: practise
-                objectName: "focusPracticeButton"
-                anchors { right: parent.right; rightMargin: header.pad; verticalCenter: parent.verticalCenter }
-                visible: root.conditionId !== ""
-                glyph:   "▶"
-                label:   qsTr("Practice")
-                onClicked: root.practiseRequested(root.conditionId, root.focusItem ? root.focusItem.title : "")
+
+            PpCaption {
+                id: onTheBall
+                objectName: "homeOnTheBall"
+                x: label.x
+                y: titleRow.height - Theme.gap(10)
+                width: Math.max(0, header.width - x - header.pad)
+                visible:  text !== ""
+                elide:    Text.ElideNone
+                wrapMode: Text.WordWrap
+                text:     root.onTheBallText
             }
         }
 

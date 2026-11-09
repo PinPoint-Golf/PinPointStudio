@@ -200,6 +200,11 @@ int main()
         check(!areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, true)
                   && !areaConditionCounts("posture", WorkOnClass::Movement, false, true),
               "a held-back condition never counts, in ball flight or out of it");
+        check(!areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "fade")
+                  && !areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "draw"),
+              "a fade or draw is a shape, not a habit against ball flight");
+        check(areaConditionCounts("ballFlight", WorkOnClass::Excluded, true, false, "slice"),
+              "a slice still counts");
     }
 
     // ── Ball flight: shown only with launch-monitor evidence ────────────────────

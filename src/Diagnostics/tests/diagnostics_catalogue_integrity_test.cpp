@@ -134,6 +134,7 @@ int main()
     {
         int missing = 0;
         for (const auto &[key, users] : packUses) {
+            if (key.startsWith(QLatin1String("history."))) continue;   // reserved: read from the club baseline, never a swing
             if (cat.descriptor(key) == nullptr) {
                 ++missing;
                 std::printf("        pack names unknown metric: %s\n", qPrintable(key));

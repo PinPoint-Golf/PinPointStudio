@@ -271,6 +271,17 @@ struct Condition {
     // screen has no evidence for. Never another fault as the reason. Required on the same rows as
     // `golferWell`.
     QString                     golferWhy;
+    // THE SHOT OUTCOME'S WORDS (docs/design/shot_outcomes_design.md §3). What a shot's label is made
+    // of: `family` is which question the outcome answers (where it goes, how you struck it, how it
+    // flew) and every Outcome has exactly one; `golferShort` is its label ("Slice"), `golferAbbr` the
+    // narrow shot-log cell ("SL"), `golferStory` the physics clause the per-shot story joins ("cut
+    // across it"), and `playTo` a direction outcome's course-management line, written for a
+    // right-hander (the composer mirrors it). `family` is a closed vocabulary, conditionFamilies().
+    QString                     family;
+    QString                     golferShort;
+    QString                     golferAbbr;
+    QString                     golferStory;
+    QString                     playTo;
     // THE SESSION REPORT'S WORDS (docs/design/session_report_design.md §5). A client report is only
     // useful if it can say what to DO, so a condition the work-on rule can list carries, besides the
     // three phrases above: `goal`, golferWell as an instruction (the work-on page's title — "Keep the
@@ -354,7 +365,17 @@ enum class EdgeType {
                    // already have a causal path — a pair that both causes and corroborates would
                    // double-count in the confidence ranking.
     Excludes,
+    LeadsTo,       // one outcome producing another in the shot's physics (fat -> short). Outcome to
+                   // outcome only, directed, and deliberately NOT Causes: every causal walk, the ranking
+                   // and the explanation pass stop at an outcome, and these edges must never reach them.
 };
+
+// Corroborates and Excludes belong to neither end; Causes and LeadsTo run one way. A check for "not
+// Causes" is not a check for symmetry.
+inline bool isSymmetricEdge(EdgeType t)
+{
+    return t == EdgeType::Corroborates || t == EdgeType::Excludes;
+}
 
 // Five-valued and never continuous: nobody can author 0.73 meaningfully, and rendering strength as
 // a percentage would imply a probability it is not.
@@ -518,6 +539,15 @@ inline const QStringList &conditionDomains()
     return k;
 }
 inline bool isKnownConditionDomain(const QString &d) { return conditionDomains().contains(d); }
+
+// The tokens Condition::family may hold, closed for the same reason as the domains.
+inline const QStringList &conditionFamilies()
+{
+    static const QStringList k{ QStringLiteral("direction"), QStringLiteral("strike"),
+                                QStringLiteral("flight") };
+    return k;
+}
+inline bool isKnownConditionFamily(const QString &f) { return conditionFamilies().contains(f); }
 QString confirmedByName(ConfirmedBy c);
 bool    confirmedByFromName(const QString &s, ConfirmedBy &out);
 QString provenanceTierName(ProvenanceTier t);

@@ -213,7 +213,14 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // `allOf`, so a clean all-of row reads the part that kept it clean. A file at 9 reads back with Either,
 // no line and not all-of on every row — its old reading — and regrades on activation (the content
 // stamp carries this version), which writes them.
-inline constexpr int kDiagSchemaVersion = 10;
+// 11 added ConditionRow::firedSignalCount (shot_outcomes_design.md: the composer's excludes keep-rule) and
+// the ShotRecord fields the per-club distances are reduced from: the launch monitor's carry, total,
+// offline, ball speed, club speed and smash, the shaft angle at P4, the shot's swing length and the
+// golfer's handedness. A file at 10 reads back with none of them (NaN, ""), and regrades on activation
+// (the content stamp carries this version), which writes them.
+// 12 added the launch angle, start direction and attack angle a strike is read from when the monitor gave
+// no impact location (strike_from_flight.h). A file at 11 reads back with NaN and regrades the same way.
+inline constexpr int kDiagSchemaVersion = 12;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -610,6 +617,10 @@ struct ConditionRow {
     // otherwise. On a NotAssessable row refused for coverage this is empty too — the engine forms no
     // evidence for a finding it could not assess — and the reason says "too few parts".
     CompositeRowEvidence composite;
+
+    // Schema 11: how many of the condition's signals fired — the middle rung of the excludes keep-rule
+    // (keepFirstOfExcludingPair). 0 on a row written before it, and on a row that did not fire.
+    int     firedSignalCount = 0;
 };
 
 // The readings behind a row: every signal's when they were recorded, else the driving one alone
@@ -705,6 +716,23 @@ struct ShotRecord {
     double  clubheadSpeed = std::numeric_limits<double>::quiet_NaN();
     // Schema 6: the shot's placed peak instants, for the session's timing spread (§10.9 P8).
     std::vector<PeakTimeRow> peakTimes;
+
+    // Schema 11: the launch monitor's readings the per-club distances are reduced from
+    // (club_distances.h). NaN = not reported; absent is never zero. Yards and mph, as stored. `offline`
+    // is signed right-positive for BOTH hands and never flipped. `lmClubSpeed` is the monitor's own
+    // reading, unlike `clubheadSpeed` above, which takes whichever source had one.
+    double  carry        = std::numeric_limits<double>::quiet_NaN();
+    double  total        = std::numeric_limits<double>::quiet_NaN();
+    double  offline      = std::numeric_limits<double>::quiet_NaN();
+    double  ballSpeed    = std::numeric_limits<double>::quiet_NaN();
+    double  lmClubSpeed  = std::numeric_limits<double>::quiet_NaN();
+    double  smash        = std::numeric_limits<double>::quiet_NaN();
+    double  shaftAngleP4 = std::numeric_limits<double>::quiet_NaN();
+    double  launchAngle    = std::numeric_limits<double>::quiet_NaN();   // schema 12: what a strike is read from
+    double  startDirection = std::numeric_limits<double>::quiet_NaN();   // right-positive for both hands, as offline
+    double  attackAngle    = std::numeric_limits<double>::quiet_NaN();
+    QString swingLength;              // "" = not classified, "full", "partial"
+    QString handedness;                 // "", "Left", "Right"
 };
 
 // The row for `conditionId` on this shot, or nullptr. Linear — a shot carries tens of
@@ -2215,6 +2243,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             }
             // Schema 9 — only on a row whose driving measure is a composite.
             if (r.composite.present()) ro[QStringLiteral("composite")] = compositeToJson(r.composite);
+            // Schema 11 — only on a row that fired a signal.
+            if (r.firedSignalCount != 0) ro[QStringLiteral("firedSignalCount")] = r.firedSignalCount;
             rowArr.append(ro);
         }
         QJsonObject so;
@@ -2247,6 +2277,19 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             so[QStringLiteral("signals")] = sa;
         }
         if (std::isfinite(s.clubheadSpeed)) so[QStringLiteral("clubheadSpeed")] = s.clubheadSpeed;
+        // Schema 11 — written only when present, so a shot with none is byte-identical to before.
+        if (std::isfinite(s.carry))        so[QStringLiteral("carry")]        = s.carry;
+        if (std::isfinite(s.total))        so[QStringLiteral("total")]        = s.total;
+        if (std::isfinite(s.offline))      so[QStringLiteral("offline")]      = s.offline;
+        if (std::isfinite(s.ballSpeed))    so[QStringLiteral("ballSpeed")]    = s.ballSpeed;
+        if (std::isfinite(s.lmClubSpeed))  so[QStringLiteral("lmClubSpeed")]  = s.lmClubSpeed;
+        if (std::isfinite(s.smash))        so[QStringLiteral("smash")]        = s.smash;
+        if (std::isfinite(s.shaftAngleP4)) so[QStringLiteral("shaftAngleP4")] = s.shaftAngleP4;
+        if (std::isfinite(s.launchAngle))    so[QStringLiteral("launchAngle")]    = s.launchAngle;
+        if (std::isfinite(s.startDirection)) so[QStringLiteral("startDirection")] = s.startDirection;
+        if (std::isfinite(s.attackAngle))    so[QStringLiteral("attackAngle")]    = s.attackAngle;
+        if (!s.swingLength.isEmpty())      so[QStringLiteral("swingLength")]  = s.swingLength;
+        if (!s.handedness.isEmpty())       so[QStringLiteral("handedness")]   = s.handedness;
         // Schema 6 — written only when present.
         if (!s.peakTimes.empty()) {
             QJsonArray pa;
@@ -2373,6 +2416,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             }
             if (const QJsonValue cv = ro.value(QStringLiteral("composite")); cv.isObject())
                 r.composite = compositeFromJson(cv.toObject());
+            r.firedSignalCount = ro.value(QStringLiteral("firedSignalCount")).toInt();
             s.rows.push_back(std::move(r));
         }
         for (const QJsonValue &gv : so.value(QStringLiteral("signals")).toArray()) {
@@ -2390,6 +2434,23 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         }
         if (const QJsonValue cv = so.value(QStringLiteral("clubheadSpeed")); cv.isDouble())
             s.clubheadSpeed = cv.toDouble();
+        // Schema 11: absent reads back as NaN / "", never as zero.
+        const auto reading = [&so](const char *key) {
+            const QJsonValue v = so.value(QLatin1String(key));
+            return v.isDouble() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
+        };
+        s.carry        = reading("carry");
+        s.total        = reading("total");
+        s.offline      = reading("offline");
+        s.ballSpeed    = reading("ballSpeed");
+        s.lmClubSpeed  = reading("lmClubSpeed");
+        s.smash        = reading("smash");
+        s.shaftAngleP4 = reading("shaftAngleP4");
+        s.launchAngle    = reading("launchAngle");
+        s.startDirection = reading("startDirection");
+        s.attackAngle    = reading("attackAngle");
+        s.swingLength  = so.value(QStringLiteral("swingLength")).toString();
+        s.handedness   = so.value(QStringLiteral("handedness")).toString();
         for (const QJsonValue &tv : so.value(QStringLiteral("peakTimes")).toArray()) {
             const QJsonObject to = tv.toObject();
             const QJsonValue v = to.value(QStringLiteral("valueMs"));

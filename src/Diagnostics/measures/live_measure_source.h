@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "club_baseline_provider.h"
 #include "measure_sample.h"
 #include "../norms/norm_measure_source.h"
 
@@ -84,6 +85,8 @@ enum class MissingKind {
                                 // NormMeasureSource composes it from its parts, so this source is only
                                 // ever asked about one after it was refused — too few parts read
                                 // (posture_metrics_design.md §4.6, rule.diag.compositeCoverage)
+    ClubBaselineNotEarned,      // a history.* measure with no baseline to read against: no provider, or
+                                // too few of this golfer's shots with this club (rule.diag.clubBaselineMinShots)
 };
 
 // The sentence a not-assessable cell shows. Generic on purpose — see the header comment on why
@@ -169,15 +172,25 @@ public:
     void setWithSigma(bool on) { m_withSigma = on; }
     bool withSigma() const     { return m_withSigma; }
 
+    // The golfer's frozen usual numbers, read only by the two `history.*` measures (m_carryShortfall,
+    // m_ballSpeedShortfall). Absent: those two are unreadable, and nothing else changes.
+    void setClubBaselineProvider(std::shared_ptr<IClubBaselineProvider> provider)
+    {
+        m_clubBaseline = std::move(provider);
+    }
+
 private:
     void note(const QString &measureId, MissingKind k) const;
     // Value::atStart / atEnd for a Delta or anchored-Extremum measure; left NaN otherwise.
     void seriesEndpoints(const Measure &m, double &atStart, double &atEnd) const;
+    // A reserved `history.*` measure: this shot's monitor reading against the club's baseline.
+    std::optional<Value> historyValue(const Measure &m) const;
 
     SwingPhaseGrid                  m_grid;
     const CharacteristicPack       &m_pack;
     mutable QHash<QString, MissingKind> m_reasons;
     bool                            m_withSigma = tuned::diagUncertainty::kEnabled;
+    std::shared_ptr<IClubBaselineProvider> m_clubBaseline;
 };
 
 // ── The whole stack, for one swing ──────────────────────────────────────────

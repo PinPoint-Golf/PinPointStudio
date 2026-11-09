@@ -28,8 +28,10 @@
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
+#include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons_pack.h"
 #include "../../Metrics/gate_catalogue.h"
+#include "../../Core/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
 #include "../../Metrics/variability/variability_grader.h"
 #include "../../Metrics/variability/variability_trend.h"
@@ -84,6 +86,14 @@ constexpr int kRowWordsVersion = 1;
 
 const QString kDiagnosticsFile = QStringLiteral("diagnostics.json");
 const QString kProfileFile     = QStringLiteral("fault_profile.json");
+const QString kBaselineFile    = QStringLiteral("club_baseline.json");
+const QString kTuningLogFile   = QStringLiteral("outcome_corrections.jsonl");
+
+// What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
+constexpr int kDiagObservedMissMin = 3;
+
+// A provisional row: graded against no frozen baseline, so it is regraded once when one appears.
+const QString kProvisionalSuffix = QStringLiteral("|provisional");
 
 // Every figure through the app's one formatter (Core/figure_format.h): the true minus, "-" for none,
 // −0 as 0. Brief §6: the value slot and the corridor slot must agree, and a hyphen-minus beside a
@@ -631,6 +641,32 @@ int folderShotId(const QString &swingDir)
     return (ok && id >= 0) ? id : -1;
 }
 
+// The baseline's keys are canonical bag ids; the detection asks with whatever spelling the swing carries.
+class CanonicalClubBaseline final : public IClubBaselineProvider {
+public:
+    explicit CanonicalClubBaseline(std::shared_ptr<IClubBaselineProvider> inner) : m_inner(std::move(inner)) {}
+    std::optional<ClubBaselineEntry> forClub(const QString &club) const override
+    {
+        return m_inner->forClub(pinpoint::canonicalClubId(club));
+    }
+private:
+    std::shared_ptr<IClubBaselineProvider> m_inner;
+};
+
+// The reading a measure records, NaN when the capture had none (absent is never zero).
+double measuredOrNaN(const LiveMeasureSource &src, const char *measureId)
+{
+    const auto v = src.value(QLatin1String(measureId));
+    return (v && std::isfinite(v->value)) ? v->value : std::numeric_limits<double>::quiet_NaN();
+}
+
+QString normaliseHandedness(const QString &raw)
+{
+    if (raw.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0)  return QStringLiteral("Left");
+    if (raw.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0) return QStringLiteral("Right");
+    return QString();
+}
+
 } // namespace
 
 // ── Construction ────────────────────────────────────────────────────────────────────────
@@ -647,6 +683,7 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     // arrives every twenty seconds and takes well under a second to reduce.
     m_pool.setMaxThreadCount(1);
     m_historyPool.setMaxThreadCount(1);
+    if (m_packProv) m_outcomePack = shotOutcomePackFor(&m_packProv->pack());
     rebuild();
 }
 
@@ -803,6 +840,9 @@ void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
 
 bool SessionDiagnosticsModel::dropShot(int shotId)
 {
+    m_outcomesDirty = true;     // the composed words are indexed by position in m_shots
+    m_corrections.remove(shotId);
+    m_shotIntent.remove(shotId);
     const int at = indexOfShot(shotId);
     if (at >= 0) {
         m_shots.erase(m_shots.begin() + at);
@@ -884,7 +924,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
     out.from.docSize    = doc.size;
     out.from.docMtimeMs = doc.mtimeMs;
-    out.from.content    = m_contentStamp;
+    out.from.content    = rowContentStamp();
     if (!m_packProv || !m_norms) return out;
 
     const CharacteristicPack &pack = m_packProv->pack();
@@ -905,6 +945,13 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // same session costs a small read rather than a second fat parse of every document.
     LiveMeasureSource src(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
     src.setWithSigma(m_withSigma);
+    // Null while unfrozen: the two history measures then read as not earned, and nothing else changes.
+    // A part swing never sees them either: "short" is judged on full swings only (design §3.3), so
+    // a pitch falls through to the duff guard rather than being measured against a full-swing carry.
+    if (m_clubBaseline
+        && classifySwingLength(measuredOrNaN(src, "m_shaftAngleP4"), measuredOrNaN(src, "m_lmClubheadSpeed"),
+                               usualFor(src.club()), measuredOrNaN(src, "m_lmBallSpeed")) != QLatin1String("partial"))
+        src.setClubBaselineProvider(m_clubBaseline);
 
     // ⚠ THE INSTANT THE DOCUMENT RECORDS, NOT THE INSTANT THE FILE WAS LAST TOUCHED.
     // This read the file's mtime, which is only incidentally the capture time: copying, moving or
@@ -957,6 +1004,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         r.grossRisk        = f.grossRisk;
         r.quantified       = f.quantified;
         r.contextId        = d.contextId;
+        r.firedSignalCount = int(f.firedSignals.size());
         // LiveMeasureSource::club() applies the house-wide DRIVER stub for a shot that
         // declares none, so this seam cannot tell an undeclared club from a declared driver
         // and never trips the inferred-context demotion. Stated rather than faked: a `true`
@@ -1138,6 +1186,21 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         }
     }
 
+    // Schema 11: the monitor's readings the per-club distances are reduced from, the backswing, and
+    // how far the swing went against this club's frozen usual numbers (Contract E).
+    rec.carry        = measuredOrNaN(src, "m_carryDistance");
+    rec.total        = measuredOrNaN(src, "m_lmTotalDistance");
+    rec.offline      = measuredOrNaN(src, "m_lmOffline");
+    rec.ballSpeed    = measuredOrNaN(src, "m_lmBallSpeed");
+    rec.lmClubSpeed  = measuredOrNaN(src, "m_lmClubheadSpeed");
+    rec.smash        = measuredOrNaN(src, "m_smashFactor");
+    rec.shaftAngleP4 = measuredOrNaN(src, "m_shaftAngleP4");
+    rec.handedness   = normaliseHandedness(summary.handedness);
+    rec.launchAngle    = measuredOrNaN(src, "m_lmLaunchAngle");
+    rec.startDirection = measuredOrNaN(src, "m_lmLaunchDirection");
+    rec.attackAngle    = measuredOrNaN(src, "m_attackAngle");
+    rec.swingLength  = classifySwingLength(rec.shaftAngleP4, rec.lmClubSpeed, usualFor(rec.club), rec.ballSpeed);
+
     // Data-integrity exclusion. A shot whose recording is known broken — frames lost
     // during capture (captureIntegrity), or an IMU record that does not reproduce
     // (imuIntegrity) — is still drawn on the strip, still carries the ⚠ the card shows,
@@ -1225,6 +1288,7 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     if (present && !in.regrade) { settleBatch(); return; }   // belt and braces — and it may be the batch's last
     if (present) *pos = in.record;
     else         m_shots.insert(pos, in.record);
+    m_outcomesDirty = true;     // a read before the batch settles must not see the old positions
     if (in.hasLaunchMonitor) m_lmShots.insert(id);
     else if (in.regrade)     m_lmShots.remove(id);
     m_gradedFrom.insert(id, in.from);
@@ -1305,6 +1369,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 
     m_sessionDir = sessionDir;
     m_shots.clear();
+    m_outcomesDirty = true;
     m_ingested.clear();
     m_lmShots.clear();
     m_swingDirs.clear();
@@ -1317,6 +1382,13 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     m_focusConditionId.clear();
     m_focusFromShot = -1;
     m_declaredMiss.clear();
+    m_corrections.clear();
+    m_shotIntent.clear();
+    m_intentFromShot = -1;
+    m_intentFromShape.clear();
+    m_baselineFrozen = false;
+    m_baselineClubs.clear();
+    m_clubBaseline.reset();
     m_stage  = Stage::Cold;
     m_reachedEstablished = false;
     m_closed = false;
@@ -1393,6 +1465,13 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         m_focusFromShot    = intent.value(QStringLiteral("focusFromShot")).toInt(-1);
         m_declaredMiss     = intent.value(QStringLiteral("declaredMiss")).toString();
 
+        // §4.4. Read only into the outcome surfaces; detection, corridors and tiers never see them.
+        m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
+        m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
+        const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
+        m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
+        m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
+
         const QJsonObject screens = root.value(QStringLiteral("screens")).toObject();
         for (auto it = screens.constBegin(); it != screens.constEnd(); ++it)
             m_screens.insert(it.key(), it.value().toBool());
@@ -1400,6 +1479,9 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 
     // ── 2. The athlete's history ────────────────────────────────────────────────────
     loadProfile();
+    // BEFORE ANYTHING IS QUEUED: every row graded from here on reads this baseline, and carries the
+    // stamp that says which it read.
+    prepareClubBaseline();
 
     // ── 3. Reconcile against what is actually on disk ───────────────────────────────
     //
@@ -1465,7 +1547,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
         if (!doc.exists()) continue;
         const bool stale = it == m_gradedFrom.constEnd()
-                        || it->content != m_contentStamp
+                        || it->content != rowContentStamp()
                         || it->docSize != doc.size
                         || it->docMtimeMs != doc.mtimeMs;
         if (stale) {
@@ -1553,11 +1635,38 @@ QVariantList SessionDiagnosticsModel::missCandidates() const
     for (const Condition &c : m_packProv->pack().conditions) {
         if (c.kind != ConditionKind::Outcome) continue;
         out.append(QVariantMap{
-            { QStringLiteral("id"),   c.id },
-            { QStringLiteral("name"), conditionName(c.id) },
+            { QStringLiteral("id"),     c.id },
+            { QStringLiteral("name"),   conditionName(c.id) },
+            { QStringLiteral("family"), c.family },
         });
     }
     return out;
+}
+
+// ── Who may freeze the baseline ─────────────────────────────────────────────────────────
+
+void SessionDiagnosticsModel::setBaselineAuthority(BaselineAuthority a)
+{
+    if (m_baselineAuthority == a) return;
+    m_baselineAuthority = a;
+    emit baselineAuthorityChanged();
+}
+
+QString SessionDiagnosticsModel::baselineAuthorityName() const
+{
+    switch (m_baselineAuthority) {
+    case BaselineAuthority::Always: return QStringLiteral("always");
+    case BaselineAuthority::Live:   return QStringLiteral("live");
+    case BaselineAuthority::Never:  break;
+    }
+    return QStringLiteral("never");
+}
+
+void SessionDiagnosticsModel::setBaselineAuthorityName(const QString &name)
+{
+    setBaselineAuthority(name == QLatin1String("always") ? BaselineAuthority::Always
+                         : name == QLatin1String("live") ? BaselineAuthority::Live
+                                                         : BaselineAuthority::Never);
 }
 
 void SessionDiagnosticsModel::recordScreenResult(const QString &conditionId, bool present)
@@ -1571,10 +1680,816 @@ void SessionDiagnosticsModel::recordScreenResult(const QString &conditionId, boo
     persist();
 }
 
+// ── Shot outcomes ────────────────────────────────────────────────────────────────────────
+//
+// shot_outcomes_design.md §4. What the golfer reads about a shot, composed from the rows (the ledger
+// keeps the detected firings; a correction only ever changes these words, never a row, corridor or tier).
+// Composed lazily, once per reduction: the panel reads these many times, the catch-up's private model
+// reads them only for the evidence block.
+
+QString SessionDiagnosticsModel::intentFor(int shotId) const
+{
+    const auto it = m_shotIntent.constFind(shotId);
+    if (it != m_shotIntent.constEnd()) return it.value();
+    return (m_intentFromShot >= 0 && shotId >= m_intentFromShot) ? m_intentFromShape : QString();
+}
+
+ShotOutcomeSessionFacts SessionDiagnosticsModel::outcomeSessionFacts() const
+{
+    return ShotOutcomeSessionFacts{ m_outcomeEvidence.links, m_outcomeEvidence.tiers, sessionFlightUsuals(m_shots) };
+}
+
+TendencySessionEvidence SessionDiagnosticsModel::outcomeEvidence() const
+{
+    ensureOutcomes();
+    return m_outcomeEvidence;
+}
+
+void SessionDiagnosticsModel::ensureOutcomes() const
+{
+    if (!m_outcomesDirty) return;
+    m_outcomesDirty = false;
+
+    m_composed.clear();
+    m_shotLog.clear();
+    m_shotMix.clear();
+    m_reasons.clear();
+    m_carryToday.clear();
+    m_clubMix.clear();
+    m_outcomeNodes.clear();
+    m_outcomeLinks.clear();
+    m_outcomeEvidence = TendencySessionEvidence();
+    if (!m_packProv) return;
+    const CharacteristicPack &pack = m_packProv->pack();
+
+    // The session's evidence on every path up from an outcome this shot could name. Wider than the
+    // chains' graph (a miss hit once has links too), but the same grading, on the same ledgers.
+    QSet<QString> keep;
+    for (const ConditionLedger &l : m_ledgers) {
+        const Condition *cond = pack.condition(l.id);
+        if (!cond || cond->kind != ConditionKind::Outcome || l.fired < 1) continue;
+        keep.insert(l.id);
+        keep.unite(causalClosure(pack, l.id, /*downstream*/ false));
+    }
+    std::vector<EdgeSpec> edges;
+    marshalGraph(keep, m_outcomeNodes, edges);
+    FocusSplit focus;
+    focus.declared    = !m_focusConditionId.isEmpty() && m_focusFromShot >= 0;
+    focus.baselineEnd = m_focusFromShot - 1;
+    m_outcomeLinks = gradeLinks(m_outcomeNodes, edges, m_ledgers, focus, m_opt);
+
+    for (const ConditionLedger &l : m_ledgers)
+        if (l.tier != Tier::Clean) m_outcomeEvidence.tiers.insert(l.id, l.tier);
+    for (const LinkEvidence &e : m_outcomeLinks)
+        if (e.grade != LinkGrade::Unanchored) m_outcomeEvidence.links.push_back(e);
+    m_outcomeEvidence.chainConfirmed = chainConfirmedConditions(m_outcomePack, m_outcomeLinks);
+
+    const ShotOutcomeSessionFacts facts = outcomeSessionFacts();
+    m_composed.reserve(m_shots.size());
+    for (const ShotRecord &s : m_shots)
+        m_composed.push_back(composeShotOutcome(s, m_corrections.value(s.shotId), intentFor(s.shotId),
+                                                usualFor(s.club), m_outcomePack, facts));
+
+    // ── The reasons (§4.2): one row per headline driver of a bad shot, the unexplained last ──
+    struct ReasonTally {
+        QString id;
+        int shots = 0;
+        QStringList phraseOrder;
+        QHash<QString, int> phrases;
+        double cost = 0.0;
+        int    costN = 0;
+        int    strengthRank = 0;
+        QString strength;
+        std::vector<int> firedAt;          // indices into m_shots
+    };
+    const auto strengthRank = [](const QString &s) {
+        return s == QLatin1String("clear") ? 3 : s == QLatin1String("likely") ? 2 : s == QLatin1String("possible") ? 1 : 0;
+    };
+    QHash<QString, ReasonTally> tally;
+    QStringList tallyOrder;
+    QVector<bool> assessedAt(int(m_composed.size()), false);
+    for (int i = 0; i < int(m_composed.size()); ++i) {
+        const ShotOutcome &o = m_composed[size_t(i)];
+        const bool anyMiss = std::any_of(o.labels.begin(), o.labels.end(), [](const ShotOutcomeLabel &l) { return l.miss; });
+        assessedAt[i] = o.ready && !o.noReading && (o.clean || anyMiss);
+        if (!anyMiss || o.clean) continue;
+
+        const QString &id = o.driver.id;       // "" for the unexplained
+        if (!tally.contains(id)) tallyOrder << id;
+        ReasonTally &t = tally[id];
+        t.id = id;
+        ++t.shots;
+        t.firedAt.push_back(i);
+        if (!o.mixKey.isEmpty()) {
+            if (!t.phrases.contains(o.mixKey)) t.phraseOrder << o.mixKey;
+            ++t.phrases[o.mixKey];
+        }
+        const double loss = shotCarryLoss(m_shots[size_t(i)], usualFor(m_shots[size_t(i)].club));
+        if (std::isfinite(loss)) { t.cost += loss; ++t.costN; }
+        if (strengthRank(o.driver.strength) > t.strengthRank) {
+            t.strengthRank = strengthRank(o.driver.strength);
+            t.strength = o.driver.strength;
+        }
+    }
+
+    std::sort(tallyOrder.begin(), tallyOrder.end(), [&tally](const QString &a, const QString &b) {
+        if (a.isEmpty() != b.isEmpty()) return !a.isEmpty();
+        const ReasonTally &x = tally[a], &y = tally[b];
+        if (x.shots != y.shots) return x.shots > y.shots;
+        if (x.cost != y.cost)   return x.cost > y.cost;
+        return a < b;
+    });
+
+    QHash<QString, int> reasonIndex;
+    const int nShots = int(m_composed.size());
+    for (int ri = 0; ri < tallyOrder.size(); ++ri) {
+        const QString &id = tallyOrder.at(ri);
+        const ReasonTally &t = tally[id];
+        reasonIndex.insert(id, ri);
+
+        QVariantList produced;
+        QStringList phrases = t.phraseOrder;
+        std::stable_sort(phrases.begin(), phrases.end(), [&t](const QString &a, const QString &b) {
+            return t.phrases.value(a) > t.phrases.value(b);
+        });
+        for (const QString &p : std::as_const(phrases))
+            produced.append(QVariantMap{ { QStringLiteral("phrase"), outcomeCapitalised(p) },
+                                         { QStringLiteral("count"),  t.phrases.value(p) } });
+
+        // The strip: this reason's shots fired, the other shots the ball's shape was judged on clean, and
+        // the rest not measured — the same tick vocabulary as every other strip.
+        QSet<int> firedSet(t.firedAt.begin(), t.firedAt.end());
+        QVariantList ticks;
+        for (int i = 0; i < nShots; ++i) {
+            const QString state = firedSet.contains(i) ? QStringLiteral("fired")
+                                : assessedAt[i]        ? QStringLiteral("clean")
+                                                       : QStringLiteral("notAssessable");
+            ticks.append(QVariantMap{ { QStringLiteral("state"), state },
+                                      { QStringLiteral("shotId"), m_shots[size_t(i)].shotId } });
+        }
+
+        // The trend: the last third of the session against the first two thirds (§4.2).
+        int trend = 0;
+        QString trendWords;
+        if (!id.isEmpty()) {
+            const int lastStart = nShots - std::max(1, nShots / 3);
+            int late = 0, early = 0;
+            for (int i : t.firedAt) (i >= lastStart ? late : early) += 1;
+            const double lateShare  = double(late)  / double(std::max(1, nShots - lastStart));
+            const double earlyShare = double(early) / double(std::max(1, lastStart));
+            if (t.shots < 2) {
+                trendWords = QStringLiteral("watching");
+            } else if (lateShare - earlyShare <= -0.15) {
+                trend = -1;
+                trendWords = late == 0 ? QStringLiteral("↓ none since %1").arg(m_shots[size_t(t.firedAt.back())].shotId)
+                                       : QStringLiteral("↓ easing");
+            } else if (lateShare - earlyShare >= 0.15) {
+                trend = 1;
+                trendWords = QStringLiteral("↑ growing");
+            } else {
+                trendWords = QStringLiteral("→ steady");
+            }
+        }
+
+        const ConditionLedger *ledgerRow = id.isEmpty() ? nullptr : ledger(id);
+        const bool confirmed = !id.isEmpty() && m_outcomeEvidence.chainConfirmed.contains(id);
+        const QString strengthWord = t.strength.isEmpty() ? QStringLiteral("possible") : t.strength;
+        const QString tierText = id.isEmpty()
+            ? QStringLiteral("Gap in the model")
+            : outcomeCapitalised(strengthWord)
+                  + (confirmed ? QStringLiteral(" · chain confirmed")
+                               : t.shots == 1 ? QStringLiteral(" · one shot") : QString());
+        const QString golferPhrase = [&]() -> QString {
+            if (id.isEmpty()) return QString();
+            const QString display = glossedConditionId(id, m_shots[size_t(t.firedAt.front())].handedness);
+            const ShotConditionFacts *f = outcomeFacts(m_outcomePack, display);
+            QString text = f ? f->golfer : conditionName(id);
+            while (text.endsWith(QLatin1Char('.'))) text.chop(1);
+            return outcomeCapitalised(text);
+        }();
+
+        m_reasons.append(QVariantMap{
+            { QStringLiteral("id"),             id },
+            { QStringLiteral("conditionId"),    id },
+            { QStringLiteral("name"),           id.isEmpty() ? QStringLiteral("No reason found")
+                                                             : conditionName(glossedConditionId(id, m_shots[size_t(t.firedAt.front())].handedness)) },
+            { QStringLiteral("golfer"),         golferPhrase },
+            { QStringLiteral("shots"),          t.shots },
+            { QStringLiteral("produced"),       produced },
+            { QStringLiteral("cost"),           t.costN > 0 ? t.cost : std::numeric_limits<double>::quiet_NaN() },
+            { QStringLiteral("costText"),       t.costN > 0 ? yardsText(t.cost) : QString(F::kMissing) },
+            { QStringLiteral("tier"),           ledgerRow ? tierTag(ledgerRow->tier) : QString() },
+            { QStringLiteral("tierText"),       tierText },
+            { QStringLiteral("strength"),       t.strength },
+            { QStringLiteral("chainConfirmed"), confirmed },
+            { QStringLiteral("trend"),          trend },
+            { QStringLiteral("trendWords"),     trendWords },
+            { QStringLiteral("colourIndex"),    ri },
+            { QStringLiteral("ticks"),          ticks },
+            { QStringLiteral("flaggable"),      id.isEmpty() },
+        });
+    }
+
+    // ── The shot log, every shot in strike order ──
+    for (int i = 0; i < nShots; ++i) {
+        const ShotOutcome &o = m_composed[size_t(i)];
+        QVariantList lines, labels;
+        bool intended = false, corrected = false;
+        for (const QString &l : o.cellLines) lines << l;
+        for (const ShotOutcomeLabel &l : o.labels) {
+            labels << l.displayId;
+            intended  = intended || l.intended;
+            corrected = corrected || l.corrected;
+        }
+        const bool anyMiss = std::any_of(o.labels.begin(), o.labels.end(), [](const ShotOutcomeLabel &l) { return l.miss; });
+        m_shotLog.append(QVariantMap{
+            { QStringLiteral("shotId"),      m_shots[size_t(i)].shotId },
+            { QStringLiteral("cell"),        o.cell },
+            { QStringLiteral("lines"),       lines },
+            { QStringLiteral("labels"),      labels },
+            { QStringLiteral("reasonId"),    anyMiss && !o.clean ? o.driver.id : QString() },
+            { QStringLiteral("reasonIndex"), anyMiss && !o.clean ? reasonIndex.value(o.driver.id, -1) : -1 },
+            { QStringLiteral("clean"),       o.clean },
+            { QStringLiteral("intended"),    intended },
+            { QStringLiteral("corrected"),   corrected },
+            { QStringLiteral("warmUp"),      i < m_opt.warmUpShots },
+            { QStringLiteral("noReading"),   o.noReading },
+            { QStringLiteral("swingDir"),    m_swingDirs.value(m_shots[size_t(i)].shotId) },
+        });
+    }
+
+    const ShotMix mix = composeSessionMix(m_composed);
+    m_shotMix = QVariantMap{
+        { QStringLiteral("line"),            mix.line },
+        { QStringLiteral("corrections"),     mix.corrections },
+        { QStringLiteral("correctionsLine"), mix.corrections == 0 ? QString()
+                                             : mix.corrections == 1 ? QStringLiteral("1 label corrected by you")
+                                                                    : QStringLiteral("%1 labels corrected by you").arg(mix.corrections) },
+        { QStringLiteral("fromFlightLine"),  mix.fromFlight == 0 ? QString()
+                                             : mix.fromFlight == 1 ? QStringLiteral("1 strike read from the flight")
+                                                                   : QStringLiteral("%1 strikes read from the flight").arg(mix.fromFlight) },
+    };
+
+    // ── Today's carry against the usual (§4.2), from the FROZEN sidecar ──
+    ClubDistanceSession self;
+    self.folder = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
+    self.day    = sessionDayOfFolder(m_sessionDir);
+    self.shots  = m_shots;
+    self.corrections = m_corrections;
+    for (const ClubSessionPool &pool : poolSessionByClub(self, m_opt.warmUpShots)) {
+        if (pool.shots.empty()) continue;
+        ClubWindowSession window;
+        window.shots = pool.shots;
+        const std::vector<LmFieldStats> stats = lmSessionStats(windowLmValues({ window }), -1);
+        const double mean = clubStatMean(stats, "lm.carryDistance");
+        const double sd   = clubStatSd(stats, "lm.carryDistance");
+        const LmFieldStats *carry = clubStat(stats, "lm.carryDistance");
+
+        const ClubBaselineEntry *usual = usualFor(pool.club);
+        const bool earned = usual && usual->n >= kClubBaselineMinShots && std::isfinite(usual->carryMean);
+        QString line = QStringLiteral("%1 carry today %2").arg(clubDistanceLabel(pool.club), yardsMeanSdText(mean, sd));
+        if (earned) line += QStringLiteral(" · your usual ") + yardsMeanSdText(usual->carryMean, usual->carrySd);
+
+        const double noUsual = std::numeric_limits<double>::quiet_NaN();
+        m_carryToday.append(QVariantMap{
+            { QStringLiteral("club"),      clubDistanceLabel(pool.club) },
+            { QStringLiteral("clubId"),    pool.club },
+            { QStringLiteral("mean"),      mean },
+            { QStringLiteral("sd"),        sd },
+            { QStringLiteral("n"),         carry ? carry->n : 0 },
+            { QStringLiteral("usualMean"), earned ? usual->carryMean : noUsual },
+            { QStringLiteral("usualSd"),   earned ? usual->carrySd : noUsual },
+            { QStringLiteral("usualN"),    earned ? usual->n : 0 },
+            { QStringLiteral("line"),      line },
+        });
+    }
+
+    // ── Each club's shot mix: good, or the shot's primary miss, as the Tendencies tab counts it ──
+    QStringList mixClubs;
+    QHash<QString, ShotMixTally> mixTallies;
+    for (size_t i = 0; i < m_composed.size() && i < m_shots.size(); ++i) {
+        const ShotOutcome &o = m_composed[i];
+        const QString club = pinpoint::canonicalClubId(m_shots[i].club);
+        if (!o.ready || club.isEmpty()) continue;
+        if (!mixTallies.contains(club)) mixClubs << club;
+        ShotMixTally &tally = mixTallies[club];
+        const std::vector<const ShotOutcomeLabel *> misses = tendencyMissLabels(o, m_outcomePack);
+        if (o.clean) ++tally.good;
+        else if (misses.empty()) ++tally.notRead;
+        else tally.addMiss(misses.front()->id, misses.front()->shortText);
+    }
+    for (const QString &club : mixClubs) {
+        const ShotMixBar bar = composeShotMixBar(mixTallies.value(club));
+        if (bar.judged == 0) continue;
+        QVariantMap row = shotMixBarToJson(bar).toVariantMap();
+        row.insert(QStringLiteral("club"), clubDistanceLabel(club));
+        row.insert(QStringLiteral("clubId"), club);
+        m_clubMix.append(row);
+    }
+}
+
+// One label, with what fired it and where that reading came from.
+QVariantMap SessionDiagnosticsModel::outcomeLabelMap(const ShotOutcomeLabel &l, const ShotRecord &s,
+                                                     const ClubBaselineEntry *usual) const
+{
+    QVariantList evidence;
+    const auto addEvidence = [&evidence](const QString &measureId, const QString &label, double value, const QString &unit,
+                                         const QString &source, const QString &sourceText, const QString &text) {
+        evidence.append(QVariantMap{ { QStringLiteral("measureId"), measureId }, { QStringLiteral("label"), label },
+                                     { QStringLiteral("value"), value },         { QStringLiteral("unit"), unit },
+                                     { QStringLiteral("source"), source },       { QStringLiteral("sourceText"), sourceText },
+                                     { QStringLiteral("text"), text } });
+    };
+
+    if (l.id == QLatin1String("carry_deficit") && std::isfinite(s.carry)) {
+        // A z-score reads like a yardage and is not one: the golfer sees the carry and the usual it sits against.
+        QString text = yardsText(s.carry);
+        if (usual && std::isfinite(usual->carryMean))
+            text += QStringLiteral(" · your usual ") + yardsMeanSdText(usual->carryMean, usual->carrySd);
+        if (std::isfinite(s.lmClubSpeed) && usual && std::isfinite(usual->speedMean))
+            text += QStringLiteral(" · club speed %1 mph (usual %2)").arg(lmFormat(s.lmClubSpeed, 0), lmFormat(usual->speedMean, 0));
+        addEvidence(QStringLiteral("m_carryDistance"), measureLabelOf(QStringLiteral("m_carryDistance")), s.carry,
+                    QStringLiteral("yd"), QStringLiteral("model"), QStringLiteral("LM + history"), text);
+    } else if (l.id == QLatin1String("ball_speed_deficit") && std::isfinite(s.ballSpeed)) {
+        QString text = lmFormat(s.ballSpeed, 0) + QStringLiteral(" mph");
+        if (usual && std::isfinite(usual->ballSpeedMean))
+            text += QStringLiteral(" · your usual ") + lmFormat(usual->ballSpeedMean, 0)
+                    + (std::isfinite(usual->ballSpeedSd) ? QStringLiteral(" ± ") + lmFormat(usual->ballSpeedSd, 0) : QString())
+                    + QStringLiteral(" mph");
+        addEvidence(QStringLiteral("m_lmBallSpeed"), measureLabelOf(QStringLiteral("m_lmBallSpeed")), s.ballSpeed,
+                    QStringLiteral("mph"), QStringLiteral("model"), QStringLiteral("LM + history"), text);
+    } else {
+        const CharacteristicPack &pack = m_packProv->pack();
+        for (const ShotOutcomeEvidence &e : l.evidence) {
+            const Measure *m = pack.measure(e.measureId);
+            if (!m || !std::isfinite(e.value) || m->metricKey.startsWith(QLatin1String("history.")) || isCompositeMeasure(e.measureId))
+                continue;
+            const bool lm = m->metricKey.startsWith(QLatin1String("lm."));
+            const QString unit = measureUnitOf(e.measureId);
+            addEvidence(e.measureId, measureLabelOf(e.measureId), e.value, unit,
+                        lm ? QStringLiteral("lm") : QStringLiteral("impact"),
+                        lm ? QStringLiteral("LM") : QStringLiteral("impact cam"),
+                        F::withUnit(F::fig(e.value, 1), unit));
+        }
+    }
+
+    return QVariantMap{
+        { QStringLiteral("id"),        l.displayId },
+        { QStringLiteral("rowId"),     l.id },
+        { QStringLiteral("family"),    l.family },
+        { QStringLiteral("short"),     l.shortText },
+        { QStringLiteral("abbr"),      l.abbr },
+        { QStringLiteral("golfer"),    l.golfer },
+        { QStringLiteral("intended"),  l.intended },
+        { QStringLiteral("corrected"), l.corrected },
+        { QStringLiteral("inferred"),  l.inferred },
+        { QStringLiteral("absorbed"),  l.absorbed },
+        { QStringLiteral("miss"),      l.miss },
+        { QStringLiteral("evidence"),  evidence },
+    };
+}
+
+QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
+{
+    ensureOutcomes();
+    const int at = indexOfShot(shotId);
+    if (at < 0 || size_t(at) >= m_composed.size()) return QVariantMap();
+    const ShotRecord &s = m_shots[size_t(at)];
+    const ShotOutcome &o = m_composed[size_t(at)];
+    const ClubBaselineEntry *usual = usualFor(s.club);
+
+    QVariantList labels;
+    for (const ShotOutcomeLabel &l : o.labels) labels.append(outcomeLabelMap(l, s, usual));
+
+    QVariantMap driver;
+    if (!o.driver.id.isEmpty())
+        driver = QVariantMap{
+            { QStringLiteral("id"),        o.driver.id },
+            { QStringLiteral("displayId"), o.driver.displayId },
+            { QStringLiteral("name"),      o.driver.name },
+            { QStringLiteral("golfer"),    o.driver.golfer },
+            { QStringLiteral("strength"),  o.driver.strength },
+            { QStringLiteral("explains"),  o.driver.explains },
+            { QStringLiteral("of"),        o.driver.of },
+        };
+
+    QVariantList links;
+    for (const ShotOutcomeLink &l : o.links)
+        links.append(QVariantMap{
+            { QStringLiteral("fromId"),  l.fromId },
+            { QStringLiteral("toId"),    l.toId },
+            { QStringLiteral("grade"),   l.physics ? QStringLiteral("physics") : gradeName(l.grade) },
+            { QStringLiteral("words"),   l.words },
+            { QStringLiteral("physics"), l.physics },
+        });
+
+    QVariantMap carry;
+    if (o.carry.present) {
+        QVariantList parts;
+        for (const ShotCarryPart &p : o.carry.parts)
+            parts.append(QVariantMap{ { QStringLiteral("id"), p.id }, { QStringLiteral("name"), p.name },
+                                      { QStringLiteral("loss"), p.loss }, { QStringLiteral("detail"), p.detail },
+                                      { QStringLiteral("lineWords"), p.lineWords },
+                                      { QStringLiteral("modelled"), p.modelled } });
+        carry = QVariantMap{
+            { QStringLiteral("usual"),         o.carry.usual },
+            { QStringLiteral("usualSd"),       o.carry.usualSd },
+            { QStringLiteral("actual"),        o.carry.actual },
+            { QStringLiteral("unit"),          QStringLiteral("yd") },
+            { QStringLiteral("shortBy"),       o.carry.shortBy },
+            { QStringLiteral("provenance"),    o.carry.provenance },
+            { QStringLiteral("line"),          o.carry.line },
+            { QStringLiteral("parts"),         parts },
+            { QStringLiteral("residual"),      o.carry.residual },
+            { QStringLiteral("residualShown"), o.carry.residualShown },
+            { QStringLiteral("scaled"),        o.carry.scaled },
+        };
+    }
+
+    return QVariantMap{
+        { QStringLiteral("ready"),          o.ready },
+        { QStringLiteral("noReading"),      o.noReading },
+        { QStringLiteral("golferMirrored"), s.handedness == QLatin1String("Left") },
+        { QStringLiteral("phrase"),         o.phrase },
+        { QStringLiteral("story"),          o.story },
+        { QStringLiteral("noReasonText"),   o.noReasonText },
+        { QStringLiteral("producedLine"),   o.producedLine },
+        { QStringLiteral("clean"),          o.clean },
+        { QStringLiteral("labels"),         labels },
+        { QStringLiteral("driver"),         driver },
+        { QStringLiteral("links"),          links },
+        { QStringLiteral("carry"),          carry },
+    };
+}
+
+QVariantMap SessionDiagnosticsModel::shotOutcomeDetail(int shotId) const
+{
+    ensureOutcomes();
+    QVariantMap out;
+    const int at = indexOfShot(shotId);
+    if (at < 0 || !m_packProv || size_t(at) >= m_composed.size()) return out;
+    const CharacteristicPack &pack = m_packProv->pack();
+    const ShotRecord &shot = m_shots[size_t(at)];
+    const ShotOutcome &o = m_composed[size_t(at)];
+
+    QSet<QString> onShot;
+    for (const ShotOutcomeLabel &l : o.labels) onShot.insert(l.id);
+
+    // A step of a rail: the pack's link where one was graded, the physics words on an outcome-to-outcome
+    // step, "from the fat · clear".
+    const auto physicsWords = [&o](const QString &from, const QString &to) -> QString {
+        for (const ShotOutcomeLink &l : o.links)
+            if (l.physics && l.fromId == from && l.toId == to) return l.words;
+        return QString();
+    };
+    const auto linkFor_ = [&](const QString &from, const QString &to, bool physics) -> QVariantMap {
+        if (physics) {
+            const QString words = physicsWords(from, to);
+            return QVariantMap{ { QStringLiteral("from"), from }, { QStringLiteral("to"), to },
+                                { QStringLiteral("grade"), QStringLiteral("physics") },
+                                { QStringLiteral("word"), words.isEmpty() ? QStringLiteral("leads to") : words + QStringLiteral(" · clear") },
+                                { QStringLiteral("stroke"), QStringLiteral("solid") }, { QStringLiteral("width"), 1.5 },
+                                { QStringLiteral("arrow"), true }, { QStringLiteral("opacity"), 1.0 },
+                                { QStringLiteral("note"), QString() }, { QStringLiteral("pairs"), 0 },
+                                { QStringLiteral("physics"), true } };
+        }
+        if (const LinkEvidence *e = linkFor(m_outcomeLinks, from, to)) return linkMap(*e);
+        LinkEvidence none;
+        none.from = from;
+        none.to   = to;
+        return linkMap(none);
+    };
+    const auto kindOf = [&](const QString &id) {
+        const Condition *c = pack.condition(id);
+        if (c && c->kind == ConditionKind::Outcome) return ChainNodeKind::Outcome;
+        const NodeSpec *ns = nodeFor(m_outcomeNodes, id);
+        return ns ? chainNodeKind(*ns, ledger(id)) : ChainNodeKind::Ghost;
+    };
+
+    struct RailSeed { QStringList ids; std::vector<bool> physics; };
+    std::vector<RailSeed> seeds;
+    QSet<QString> seenRails;
+    const auto addSeed = [&](const std::vector<ShotReachStep> &path) {
+        if (path.empty()) return;
+        RailSeed r;
+        r.ids << path.front().from;
+        for (const ShotReachStep &step : path) { r.ids << step.to; r.physics.push_back(step.physics); }
+        const QString key = r.ids.join(QLatin1Char('>'));
+        if (seenRails.contains(key)) return;
+        seenRails.insert(key);
+        seeds.push_back(std::move(r));
+    };
+
+    // Each fired condition that reaches a label: the union of the cause paths this shot supports.
+    for (const ConditionRow &r : shot.rows) {
+        if (r.state != ShotState::Fired) continue;
+        const ShotConditionFacts *f = outcomeFacts(m_outcomePack, r.conditionId);
+        if (!f || f->layer == ShotConditionLayer::Ball) continue;
+        const ShotDriverReach reach = walkDriverReach(r.conditionId, m_outcomePack, onShot);
+        for (const ShotOutcomeLabel &l : o.labels)
+            if (reach.depth.contains(l.id)) addSeed(driverPathTo(reach, l.id));
+    }
+    // The physics that happened with no cause fired: fat to short, on its own.
+    for (const ShotOutcomeLabel &l : o.labels) {
+        const ShotDriverReach reach = walkDriverReach(l.id, ShotOutcomePack{ m_outcomePack.conditions, {}, m_outcomePack.physics, {} }, onShot);
+        for (const ShotOutcomeLabel &to : o.labels)
+            if (to.id != l.id && reach.depth.contains(to.id)) addSeed(driverPathTo(reach, to.id));
+    }
+
+    QVariantList rails;
+    for (const RailSeed &seed : seeds) {
+        QVariantList nodes, links;
+        int live = 0;
+        for (int k = 0; k < seed.ids.size(); ++k) {
+            const QString &id = seed.ids.at(k);
+            const ChainNodeKind kind = kindOf(id);
+            if (kind == ChainNodeKind::LiveCard) ++live;
+            QVariantMap node = nodeMap(id, nodeFor(m_outcomeNodes, id), kind, m_outcomeLinks, at, at);
+            node[QStringLiteral("name")] = conditionName(glossedConditionId(id, shot.handedness));
+            nodes.append(node);
+            if (k + 1 < seed.ids.size())
+                links.append(linkFor_(id, seed.ids.at(k + 1), seed.physics[size_t(k)]));
+        }
+        const bool primary = !o.driver.id.isEmpty() && seed.ids.contains(o.driver.id);
+        const QVariantMap last = nodes.isEmpty() ? QVariantMap() : nodes.last().toMap();
+        rails.append(QVariantMap{
+            { QStringLiteral("nodes"),     nodes },
+            { QStringLiteral("links"),     links },
+            { QStringLiteral("liveCount"), live },
+            { QStringLiteral("anyLive"),   live > 0 },
+            { QStringLiteral("primary"),   primary },
+            { QStringLiteral("endId"),     last.value(QStringLiteral("id")) },
+            { QStringLiteral("endName"),   last.value(QStringLiteral("name")) },
+            { QStringLiteral("endKind"),   last.value(QStringLiteral("kind")) },
+        });
+    }
+
+    // The driver's first, then the session's own order; the cap gives way for the driver.
+    std::stable_sort(rails.begin(), rails.end(), [](const QVariant &a, const QVariant &b) {
+        const bool pa = a.toMap().value(QStringLiteral("primary")).toBool();
+        const bool pb = b.toMap().value(QStringLiteral("primary")).toBool();
+        if (pa != pb) return pa;
+        return railBefore(a.toMap(), b.toMap());
+    });
+    const bool capped = rails.size() > kDetailMaxPaths;
+    while (rails.size() > kDetailMaxPaths) rails.removeLast();
+
+    out[QStringLiteral("id")]              = o.driver.id;
+    out[QStringLiteral("name")]            = o.phrase;
+    out[QStringLiteral("causes")]          = rails;
+    out[QStringLiteral("effects")]         = QVariantList();
+    out[QStringLiteral("causesCapped")]    = capped;
+    out[QStringLiteral("effectsCapped")]   = false;
+    out[QStringLiteral("rivals")]          = QVariantList();
+    out[QStringLiteral("driverId")]        = o.driver.id;
+    out[QStringLiteral("causeHeadline")]   = o.driver.id.isEmpty()
+                                                 ? o.noReasonText
+                                                 : QStringLiteral("Explains %1 of %2").arg(o.driver.explains).arg(o.driver.of);
+    out[QStringLiteral("outcomeHeadline")] = QString();
+    out[QStringLiteral("noCausesLine")]    = rails.isEmpty() ? QStringLiteral("Nothing fired on this shot leads to what the ball did.") : QString();
+    out[QStringLiteral("noEffectsLine")]   = QString();
+    return out;
+}
+
+QJsonObject SessionDiagnosticsModel::shotMeasures(const ShotRecord &s) const
+{
+    QJsonObject out;
+    const auto put = [&out](const char *key, double v) { if (std::isfinite(v)) out[QLatin1String(key)] = v; };
+    put("carry", s.carry);
+    put("total", s.total);
+    put("offline", s.offline);
+    put("ballSpeed", s.ballSpeed);
+    put("clubSpeed", s.lmClubSpeed);
+    put("smash", s.smash);
+    QJsonObject fired;
+    if (m_packProv)
+        for (const ConditionRow &r : s.rows) {
+            const Condition *c = m_packProv->pack().condition(r.conditionId);
+            if (c && c->kind == ConditionKind::Outcome && r.state == ShotState::Fired && std::isfinite(r.value))
+                fired.insert(r.conditionId, r.value);
+        }
+    out[QStringLiteral("firedOutcomes")] = fired;
+    return out;
+}
+
+// The tuning log (§4.4): one JSON object per line, in the athlete folder, appended and never rewritten.
+void SessionDiagnosticsModel::appendTuningLine(const QJsonObject &line) const
+{
+    const QString path = tuningLogPath();
+    if (path.isEmpty() || !m_persistEnabled) return;
+    QFile f(path);
+    if (!f.open(QIODevice::Append | QIODevice::Text)) {
+        ppWarn() << "[Outcomes] could not append to the tuning log:" << qPrintable(path) << "—" << qPrintable(f.errorString());
+        return;
+    }
+    f.write(QJsonDocument(line).toJson(QJsonDocument::Compact));
+    f.write("\n");
+}
+
+void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, const QString &toId)
+{
+    const int at = indexOfShot(shotId);
+    if (at < 0 || family.isEmpty()) return;
+    const ShotRecord &s = m_shots[size_t(at)];
+
+    // The golfer's label names their own shape; the row stays what the ledger holds (Contract D).
+    const QString to = glossedConditionId(toId, s.handedness);
+    if (!to.isEmpty()) {
+        const ShotConditionFacts *f = outcomeFacts(m_outcomePack, to);
+        if (!f || f->layer != ShotConditionLayer::Ball || f->family != family) return;
+    }
+
+    std::vector<ShotCorrection> list = m_corrections.value(shotId);
+    auto existing = std::find_if(list.begin(), list.end(), [&family](const ShotCorrection &c) { return c.family == family; });
+    QString detected;
+    if (existing != list.end()) {
+        detected = existing->from;
+    } else {
+        ensureOutcomes();
+        const ShotOutcome bare = composeShotOutcome(s, {}, intentFor(shotId), usualFor(s.club), m_outcomePack, outcomeSessionFacts());
+        for (const ShotOutcomeLabel &l : bare.labels)
+            if (l.family == family) { detected = l.id; break; }
+    }
+    if (existing == list.end() && to == detected) return;       // nothing to correct
+    if (existing != list.end()) list.erase(existing);
+    if (to != detected) list.push_back(ShotCorrection{ family, detected, to });
+
+    if (list.empty()) m_corrections.remove(shotId);
+    else              m_corrections.insert(shotId, list);
+
+    appendTuningLine(QJsonObject{
+        { QStringLiteral("kind"),      QStringLiteral("correction") },
+        { QStringLiteral("session"),   QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
+        { QStringLiteral("shotId"),    shotId },
+        { QStringLiteral("swingDir"),  m_swingDirs.value(shotId) },
+        { QStringLiteral("family"),    family },
+        { QStringLiteral("detected"),  detected },
+        { QStringLiteral("corrected"), to },
+        { QStringLiteral("measures"),  shotMeasures(s) },
+        { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
+    });
+
+    emit intentChanged();
+    rebuild();
+    persist();
+}
+
+void SessionDiagnosticsModel::setShotIntent(int shotId, const QString &shape)
+{
+    if (indexOfShot(shotId) < 0) return;
+    // "" is straight. Straight is the default and not written, unless a run from setIntentFrom would
+    // otherwise cover this shot: then it has to say so.
+    const QString next = !shape.isEmpty() ? shape
+                         : (m_intentFromShot >= 0 && shotId >= m_intentFromShot) ? QStringLiteral("straight")
+                                                                                 : QString();
+    if (m_shotIntent.value(shotId) == next) return;
+    if (next.isEmpty()) m_shotIntent.remove(shotId);
+    else                m_shotIntent.insert(shotId, next);
+    emit intentChanged();
+    rebuild();
+    persist();
+}
+
+void SessionDiagnosticsModel::setIntentFrom(int fromShot, const QString &shape)
+{
+    const int from = shape.isEmpty() ? -1 : std::max(0, fromShot);
+    if (m_intentFromShot == from && m_intentFromShape == shape) return;
+    m_intentFromShot  = from;
+    m_intentFromShape = shape;
+    emit intentChanged();
+    rebuild();
+    persist();
+}
+
+void SessionDiagnosticsModel::flagForReview(int shotId)
+{
+    const int at = indexOfShot(shotId);
+    if (at < 0) return;
+    ensureOutcomes();
+    if (size_t(at) >= m_composed.size()) return;
+    const ShotRecord &s = m_shots[size_t(at)];
+    QJsonArray labels;
+    for (const ShotOutcomeLabel &l : m_composed[size_t(at)].labels) labels.append(l.id);
+    appendTuningLine(QJsonObject{
+        { QStringLiteral("kind"),     QStringLiteral("flag") },
+        { QStringLiteral("session"),  QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
+        { QStringLiteral("shotId"),   shotId },
+        { QStringLiteral("swingDir"), m_swingDirs.value(shotId) },
+        { QStringLiteral("phrase"),   m_composed[size_t(at)].phrase },
+        { QStringLiteral("labels"),   labels },
+        { QStringLiteral("measures"), shotMeasures(s) },
+        { QStringLiteral("atMs"),     double(QDateTime::currentMSecsSinceEpoch()) },
+    });
+}
+
+// ── The frozen baseline (Contract A) ────────────────────────────────────────────────────
+
+QString SessionDiagnosticsModel::rowContentStamp() const
+{
+    return m_baselineFrozen ? m_contentStamp : m_contentStamp + kProvisionalSuffix;
+}
+
+const ClubBaselineEntry *SessionDiagnosticsModel::usualFor(const QString &club) const
+{
+    const auto it = m_baselineClubs.constFind(pinpoint::canonicalClubId(club));
+    return it == m_baselineClubs.constEnd() ? nullptr : &it.value();
+}
+
+void SessionDiagnosticsModel::adoptClubBaseline(const QHash<QString, ClubBaselineEntry> &clubs)
+{
+    m_baselineClubs = clubs;
+    // The sidecar's keys are canonical; the provider asks with the swing's own spelling.
+    m_clubBaseline  = std::make_shared<CanonicalClubBaseline>(makeClubBaselineProvider(clubs));
+}
+
+void SessionDiagnosticsModel::prepareClubBaseline()
+{
+    const QString path = clubBaselinePath();
+    if (path.isEmpty()) return;
+
+    // FROZEN MEANS THE FILE EXISTS. A file we cannot read as ours still says "this session was frozen":
+    // the rows must not regrade every activation because of it, and the snapshot is simply empty.
+    if (QFileInfo::exists(path) && !clubBaselineIsOutdated(path)) {
+        m_baselineFrozen = true;
+        QFile f(path);
+        bool ok = false;
+        if (f.open(QIODevice::ReadOnly)) {
+            const ClubBaselineSnapshot snap = clubBaselineFromJson(QJsonDocument::fromJson(f.readAll()).object(), &ok);
+            if (ok) adoptClubBaseline(snap.clubs);
+        }
+        if (!ok)
+            ppWarn() << "[Diagnostics] club baseline unreadable, this session has no usual numbers:" << qPrintable(path);
+        return;
+    }
+
+    if (!m_persistEnabled || m_baselineAuthority == BaselineAuthority::Never
+        || (m_baselineAuthority == BaselineAuthority::Live && m_reviewing))
+        return;
+
+    // Predecessors: strictly earlier folder days, the newest ten that hold a session. A sibling with
+    // nothing recorded is not a session; one that cannot be read just gives no shots.
+    const QDate day = sessionDayOfFolder(m_sessionDir);
+    // A folder with no date has no predecessors, so a snapshot now would be empty for good. The catch-up
+    // still writes one (it has to reach an end); a panel leaves the session unfrozen.
+    if (m_baselineAuthority == BaselineAuthority::Live && !day.isValid()) return;
+    const QDir athlete = QFileInfo(QDir::cleanPath(m_sessionDir)).absoluteDir();
+    struct Candidate { QDate day; QString name; };
+    std::vector<Candidate> candidates;
+    if (day.isValid()) {
+        for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QDate d = sessionDayOfFolder(name);
+            if (d.isValid() && d < day) candidates.push_back(Candidate{ d, name });
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
+            return a.day != b.day ? a.day > b.day : a.name > b.name;
+        });
+    }
+
+    std::vector<ClubDistanceSession> earlier;
+    bool allCurrent = true;
+    int taken = 0;
+    for (const Candidate &c : candidates) {
+        if (taken >= kClubDistanceWindowSessions) break;
+        const QDir sessionFolder(athlete.filePath(c.name));
+        const bool hasSwings = !sessionFolder.entryList(QStringList{ QStringLiteral("swing_*") },
+                                                        QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
+        QFile f(sessionFolder.filePath(kDiagnosticsFile));
+        if (!f.open(QIODevice::ReadOnly)) {
+            if (hasSwings) { allCurrent = false; ++taken; }       // a session not reduced yet, or a damaged one
+            continue;
+        }
+        ++taken;
+        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        const QJsonObject ledgerObj = root.value(QStringLiteral("ledger")).toObject();
+        if (ledgerObj.value(QStringLiteral("schemaVersion")).toInt() != kDiagSchemaVersion) allCurrent = false;
+
+        ClubDistanceSession s;
+        s.folder = c.name;
+        s.day    = c.day;
+        s.shots  = fromJson(ledgerObj);
+        s.corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
+        earlier.push_back(std::move(s));
+    }
+    if (m_baselineAuthority == BaselineAuthority::Live && !allCurrent) return;
+
+    ClubBaselineSnapshot snap;
+    snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    snap.clubs    = clubBaselineAsOf(earlier, day, m_opt.warmUpShots);
+    QString why;
+    if (!atomicWrite(path, QJsonDocument(clubBaselineToJson(snap)).toJson(QJsonDocument::Compact), &why)) {
+        ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(why);
+        return;
+    }
+    m_baselineFrozen = true;
+    adoptClubBaseline(snap.clubs);
+}
+
 // ── The reduction ───────────────────────────────────────────────────────────────────────
 
 void SessionDiagnosticsModel::rebuild()
 {
+    m_outcomesDirty = true;     // the shot outcomes are composed on their next read
     m_ledgers  = conditionLedgers(m_shots, m_opt);
     appendSessionScope();
     m_coverage = sessionCoverage(m_ledgers, m_packProv ? int(m_packProv->pack().conditions.size()) : 0);
@@ -1766,6 +2681,12 @@ void SessionDiagnosticsModel::buildGraph()
     for (const ConditionLedger &l : m_ledgers)
         if (l.tier == Tier::Pattern) seeds.insert(l.id);
     if (!m_declaredMiss.isEmpty() && pack.condition(m_declaredMiss)) seeds.insert(m_declaredMiss);
+    // OBSERVED MISSES PRE-ARM THE CHAINS (Contract F): what the ball did on enough shots seeds the graph
+    // just as a declared miss did, and only that: no outcomeId, so the links into it stay on their evidence.
+    for (const ConditionLedger &l : m_ledgers) {
+        const Condition *c = pack.condition(l.id);
+        if (c && c->kind == ConditionKind::Outcome && l.fired >= kDiagObservedMissMin) seeds.insert(l.id);
+    }
 
     QSet<QString> keep = seeds;
     for (const QString &id : std::as_const(seeds))
@@ -1997,6 +2918,20 @@ QString SessionDiagnosticsModel::diagnosticsPath() const
     return m_sessionDir.isEmpty() ? QString() : QDir(m_sessionDir).filePath(kDiagnosticsFile);
 }
 
+QString SessionDiagnosticsModel::clubBaselinePath() const
+{
+    return m_sessionDir.isEmpty() ? QString() : QDir(m_sessionDir).filePath(kBaselineFile);
+}
+
+QString SessionDiagnosticsModel::tuningLogPath() const
+{
+    // The athlete folder, as the fault profile: one golfer's corrections, read across sessions.
+    if (m_sessionDir.isEmpty()) return QString();
+    QDir d(m_sessionDir);
+    if (!d.cdUp()) return QString();
+    return d.filePath(kTuningLogFile);
+}
+
 QString SessionDiagnosticsModel::faultProfilePath() const
 {
     // The ATHLETE folder, which is the session directory's parent —
@@ -2052,6 +2987,18 @@ QJsonObject SessionDiagnosticsModel::envelope() const
     root[QStringLiteral("session")]       = session;
     root[QStringLiteral("intent")]        = intent;
     root[QStringLiteral("screens")]       = screens;
+    // §4.4: per shot, in the envelope, never in the rows. Each written only when there is something to say.
+    if (!m_shotIntent.isEmpty()) {
+        QJsonObject shotIntent;
+        for (auto it = m_shotIntent.constBegin(); it != m_shotIntent.constEnd(); ++it)
+            shotIntent.insert(QString::number(it.key()), it.value());
+        root[QStringLiteral("shotIntent")] = shotIntent;
+    }
+    if (m_intentFromShot >= 0 && !m_intentFromShape.isEmpty())
+        root[QStringLiteral("intentFrom")] = QJsonObject{ { QStringLiteral("fromShot"), m_intentFromShot },
+                                                          { QStringLiteral("shape"),    m_intentFromShape } };
+    if (!m_corrections.isEmpty())
+        root[QStringLiteral("corrections")] = shotCorrectionsToJson(m_corrections);
     // The ledger is nested rather than merged, so diagnostic_ledger.h's reader takes exactly
     // the object its writer produced — including ITS schemaVersion, which is a different
     // number about a different contract.
@@ -2063,6 +3010,26 @@ void SessionDiagnosticsModel::persist()
 {
     const QString path = diagnosticsPath();
     if (path.isEmpty() || !m_persistEnabled) return;
+    // THE CATCH-UP MUST NOT WRITE OVER THE GOLFER. While it regrades a session a panel can correct a shot
+    // in that same file, and what the catch-up read at activation is by now out of date. These three are
+    // the panel's to change, so the file's say-so wins, read at the last moment before the write. A file
+    // that cannot be read has nothing to say and the ones in hand stand.
+    if (m_baselineAuthority == BaselineAuthority::Always) {
+        QFile current(path);
+        if (current.open(QIODevice::ReadOnly)) {
+            QJsonParseError err;
+            const QJsonDocument doc = QJsonDocument::fromJson(current.readAll(), &err);
+            if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                const QJsonObject root = doc.object();
+                m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
+                m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
+                const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
+                m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
+                m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
+                m_outcomesDirty   = true;
+            }
+        }
+    }
     // The house's write-to-temp-then-rename helper (pack_io.h), not a bare QFile: an
     // interrupted write must not truncate the session's evidence, and a half-written
     // diagnostics.json would load, report what survived, and look exactly like a session in
@@ -5083,8 +6050,9 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     // ── path enumeration ───────────────────────────────────────────────────────────
     //
     // Every simple path from a ROOT down to this condition, and from this condition out to every
-    // SINK below it (which is where the outcomes are — the pack forbids an outcome that causes
-    // something, so an outcome is always a sink). Branch order is the rail's own: grade, then the
+    // SINK below it over the swing's `causes` edges, which is where the outcomes are. Outcome-to-outcome
+    // physics runs on its own LeadsTo edges (fat -> short) that this walk does not take, so a condition's
+    // detail stays one question: shotOutcomeDetail() is where those are drawn. Branch order is the rail's own: grade, then the
     // authored strength, then id — so the walk is deterministic and the page does not reshuffle
     // between launches, exactly as extractChains() promises for the rail.
     auto neighbours = [&](const QString &id, bool upstream) {
@@ -5327,7 +6295,7 @@ QVariantMap SessionDiagnosticsModel::conditionDetail(const QString &conditionId)
     if (outcomeHeadline.isEmpty()) {
         outcomeHeadline =
             selfKind == ChainNodeKind::Outcome
-                ? QStringLiteral("This is the outcome — the model authors nothing downstream of it.")
+                ? QStringLiteral("This is the outcome — the swing's chain ends here.")
                 : QStringLiteral("No authored outcome downstream of this condition.");
     }
 

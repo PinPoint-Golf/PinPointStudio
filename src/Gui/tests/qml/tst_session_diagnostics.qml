@@ -55,10 +55,12 @@ import "data/diag_session.js" as Real
 //   REWRITTEN FROM "NEEDS NEW DESIGN" (the design now exists: BRIEF4 D1-D11, the registers' NOTES4):
 //     01 02 03 (Cold, expectations) · 05 (the not-measured stub, D5) · 06 (the quiet shot, D2)
 //     15 (five link grades, D6) · 16 (node kinds, the screened-root request, F56/F64) · 27 (focus on the
-//     rows, F33) · 29 (a screened root asks for its screen) · 30 31 (declared miss, inline picker, F66-67)
+//     rows, F33) · 29 (a screened root asks for its screen) · 30 (the declared miss, retired)
 //     32 33 (the after-shot pulse and reduceMotion, D1)
-//   NEW (what the redesign promises): 50-61, see each function.
+//   NEW (what the redesign promises): 50-61, see each function. The shot outcomes: 65-74.
 //   OBSOLETE, deleted — each with its reason:
+//     test_31_theMissPickerOpensInPlaceAndDeclaresOne — the declared-miss picker is retired; corrections
+//         replace it (test_67).
 //     test_10_designSizeIsScaleOneAndAWiderStageScalesUp — the panel fit factor `k` is gone (house rule
 //         2: type never scales with the panel). Replaced by test_55 (a font role's size is the same in a
 //         480 and a 1522 panel).
@@ -123,16 +125,24 @@ Item {
     }
 
     // ── the declarations, spied ──────────────────────────────────────────────
-    // declareFocus / clearFocus / declareMiss / missCandidates / openDetail / closeDetail /
-    // setDetailMeasure are INVOKABLES on the model, reached through `source`. A fixture supplies spies,
+    // declareFocus / clearFocus / missCandidates / correctOutcome / setShotIntent / setIntentFrom /
+    // flagForReview / openDetail / closeDetail / setDetailMeasure are INVOKABLES on the model, reached through `source`. A fixture supplies spies,
     // so the test asserts what the panel ASKED FOR. The render is asserted against fixtures that already
     // carry the model's answer (a plain JS object's properties are not bindable: a spy that mutated the
     // fixture would change nothing on screen).
     property int    focusCalls: 0
     property string lastFocusId: ""
     property int    clearFocusCalls: 0
-    property int    missCalls: 0
-    property string lastMissId: "\u0000"      // distinguishable from declareMiss("")
+    property int    correctCalls: 0
+    property int    lastCorrectShot: -1
+    property string lastCorrectFamily: ""
+    property string lastCorrectTo: "\u0000"   // distinguishable from correctOutcome(id, family, "")
+    property int    lastIntentShot: -1
+    property string lastIntentShape: "\u0000"
+    property int    lastIntentFromShot: -1
+    property string lastIntentFromShape: "\u0000"
+    property int    flagCalls: 0
+    property int    lastFlagShot: -1
     property int    detailCalls: 0
     property string lastDetailId: ""
     property int    closeDetailCalls: 0
@@ -152,16 +162,20 @@ Item {
     }
 
     readonly property var missRows: [
-        { id: "slice",       name: "Slice" },
-        { id: "hook",        name: "Hook" },
-        { id: "thin_strike", name: "Thin strike" }
+        { id: "chunk", name: "Fat",   family: "strike" },
+        { id: "thin",  name: "Thin",  family: "strike" },
+        { id: "slice", name: "Slice", family: "direction" },
+        { id: "hook",  name: "Hook",  family: "direction" }
     ]
 
     function spied(s) {
         if (!s) return s
         s.declareFocus     = function (id) { probe.focusCalls += 1; probe.lastFocusId = id }
         s.clearFocus       = function ()   { probe.clearFocusCalls += 1 }
-        s.declareMiss      = function (id) { probe.missCalls += 1; probe.lastMissId = id }
+        s.correctOutcome   = function (id, fam, to) { probe.correctCalls += 1; probe.lastCorrectShot = id; probe.lastCorrectFamily = fam; probe.lastCorrectTo = to }
+        s.setShotIntent    = function (id, shape)   { probe.lastIntentShot = id; probe.lastIntentShape = shape }
+        s.setIntentFrom    = function (id, shape)   { probe.lastIntentFromShot = id; probe.lastIntentFromShape = shape }
+        s.flagForReview    = function (id)          { probe.flagCalls += 1; probe.lastFlagShot = id }
         s.missCandidates   = function ()   { return probe.missRows }
         s.openDetail       = function (id) { probe.detailCalls += 1; probe.lastDetailId = id }
         s.closeDetail      = function ()   { probe.closeDetailCalls += 1 }
@@ -228,7 +242,7 @@ Item {
     function coldSource(expectations) {
         return {
             stage: "cold", closed: false, shotCount: 2, patternCount: 0,
-            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            focusConditionId: "",
             headerInfo: {
                 stage: "cold", stageLabel: "COLD", shotLabel: "shot 2", shotCount: 2, patternCount: 0,
                 reachedEstablished: false, reviewBadge: "", reviewNote: "",
@@ -261,7 +275,7 @@ Item {
     function formingSource(quiet) {
         return {
             stage: "forming", closed: false, shotCount: 5, patternCount: 2,
-            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            focusConditionId: "",
             headerInfo: {
                 stage: "forming", stageLabel: "FORMING", shotLabel: "shot 5", shotCount: 5, patternCount: 2,
                 recordedStage: "forming", reachedEstablished: false, reviewBadge: "", reviewNote: "",
@@ -353,7 +367,7 @@ Item {
             : { eligible: false, waitingText: "the driver appears once the pattern set has held still for 3 shots" }
         return {
             stage: "established", closed: false, shotCount: 11, patternCount: 2,
-            focusConditionId: "", declaredMiss: "", declaredMissName: "",
+            focusConditionId: "",
             headerInfo: {
                 stage: "established", stageLabel: "ESTABLISHED", shotLabel: "shot 11", shotCount: 11, patternCount: 2,
                 recordedStage: "established", reachedEstablished: true, reviewBadge: "", reviewNote: "",
@@ -403,7 +417,7 @@ Item {
                                    "4 of 6 measurable shots", "clean", "Shaft lean sits behind the ball on 4 of 6.")
         const scooping = liveNode("scooping", "Scooping", "impact", "lead wrist extension",
                                   "3 of 6 measurable shots", "fired", "Scooping on 3 of the 6 swings measured.")
-        const slice = chainNode("slice", "Slice", "outcome", "declared miss · launch-monitor verified",
+        const slice = chainNode("slice", "Slice", "outcome", "outcome · launch-monitor verified",
                                 { recurrence: "5 of 6 measurable shots", state: "fired", statePill: "FIRED", lmAnchored: true })
         const pelvic = chainNode("pelvic_disassociation", "Poor pelvic disassociation", "screenedRoot",
                                  "screened root · needs a physical screen",
@@ -910,8 +924,16 @@ Item {
             probe.focusCalls = 0
             probe.lastFocusId = ""
             probe.clearFocusCalls = 0
-            probe.missCalls = 0
-            probe.lastMissId = "\u0000"
+            probe.correctCalls = 0
+            probe.lastCorrectShot = -1
+            probe.lastCorrectFamily = ""
+            probe.lastCorrectTo = "\u0000"
+            probe.lastIntentShot = -1
+            probe.lastIntentShape = "\u0000"
+            probe.lastIntentFromShot = -1
+            probe.lastIntentFromShape = "\u0000"
+            probe.flagCalls = 0
+            probe.lastFlagShot = -1
             probe.detailCalls = 0
             probe.lastDetailId = ""
             probe.closeDetailCalls = 0
@@ -1674,7 +1696,7 @@ Item {
             compare(oneShown(root, "sdScreenCta").text, "Run the screen", "a screened root is drawn as a request")
             const outcome = nodeById("slice")
             compare(outcome.kind, "outcome")
-            compare(outcome.mark, "outcome", "the declared miss is an outcome, not a fired condition")
+            compare(outcome.mark, "outcome", "a miss is an outcome, not a fired condition")
 
             // The honesty mark: the page of a condition that is not a pattern card says what it is.
             verify(!shown(one(viewOf("detail"), "sdDetailMark")), "a pattern's own page carries no mark")
@@ -1689,7 +1711,7 @@ Item {
             laidOut()
             const words = allText(oneShown(viewOf("detail"), "sdPathChains"))
             verify(words.indexOf("screened root, needs a physical screen") >= 0, "the screened root's mark: " + words)
-            verify(words.indexOf("declared miss, launch-monitor verified") >= 0, "and the outcome's")
+            verify(words.indexOf("outcome, launch-monitor verified") >= 0, "and the outcome's")
         }
 
         // KEPT, narrowed: a measured condition below the gate is a READING, never an absence. A watched
@@ -1977,12 +1999,11 @@ Item {
         function test_39_theDetailDrawsCausesEffectsAndBothHeadlines() {
             useRegister("Analyse")
             const s = detailSource()
-            s.stage = "forming"                         // the miss chip would be inviting on the tabs
+            s.stage = "forming"
             setSource(s)
             const d = viewOf("detail")
             compare(shownAll(body, "sdSessionView").length, 0, "the detail is the view")
             compare(shownAll(body, "sdTab").length, 0, "the tabs stand down over one condition's page")
-            compare(shownAll(body, "sdMissChip").length, 0, "and so does the session's opening question")
             verify(shown(one(body, "sdDetailBack")), "with a way back")
             verify(plain(oneShown(body, "sdDetailTitle").text).indexOf("Casting") >= 0, "and the condition named")
             verify(shown(one(d, "sdFeatureHead")))
@@ -2712,77 +2733,260 @@ Item {
             }
         }
 
-        // ═══════════════════════════ the declared miss (F66-F67) ═══════════════════════════
+        // ═══════════════════════════ the declared miss, retired ═══════════════════════════
 
-        // NEEDS-NEW-DESIGN → rewritten: a quiet link at the right of the tab row — it invites in Cold and
-        // Forming, stands down from Established, reports a declaration by name at any stage, stands down on
-        // the detail and on the cast, and never invites on a surface nobody can press.
-        function test_30_theMissChipInvitesInColdAndFormingAndReportsOnceDeclared() {
+        // Rewritten: the chip and both pickers are gone from every register. A session that declared a
+        // miss before the retirement still loads; `declaredMiss` stays readable on the model.
+        function test_30_theDeclaredMissHasNoControlsLeft() {
             for (const r of ["Replay", "Analyse"]) {
                 useRegister(r)
                 setSource(spied(coldSource(probe.expectationRows)))
-                compare(plain(oneShown(body, "sdMissChip").text), "Declare miss", r + ": Cold asks the opening question")
+                compare(findAll(body, "sdMissChip").length, 0, r + ": no invitation in Cold")
                 setSource(spied(formingSource(false)))
-                compare(plain(oneShown(body, "sdMissChip").text), "Declare miss", r + ": so does Forming")
-                setSource(spied(establishedSource(true)))
-                compare(shownAll(body, "sdMissChip").length, 0, r + ": Established does not ask again")
-                const s = spied(establishedSource(true))
+                compare(findAll(body, "sdMissChip").length, 0, r + ": nor in Forming")
+                compare(findAll(body, "sdMissPicker").length, 0, r + ": and no picker")
+                const s = spied(formingSource(false))
                 s.declaredMiss = "slice"
                 s.declaredMissName = "Slice"
                 setSource(s)
-                compare(plain(oneShown(body, "sdMissChip").text), "Miss: Slice", r + ": a declaration is reported, by name")
-                body.interactive = false
-                setSource(spied(formingSource(false)))
-                compare(shownAll(body, "sdMissChip").length, 0, r + ": no invitation on a surface nobody can press")
-                body.interactive = true
+                compare(findAll(body, "sdMissChip").length, 0, r + ": an old declaration is not reported on the tabs")
+                verify(shownAll(body, "sdTab").length > 0, r + ": and the session still reads")
             }
-            useRegister("Analyse")
-            const d = detailSource()
-            d.stage = "forming"
-            setSource(d)
-            compare(shownAll(body, "sdMissChip").length, 0, "it stands down over one condition's page")
-            body.surface = "cast"
-            setSource(spied(formingSource(false)))
-            compare(shownAll(body, "sdMissChip").length, 0, "and on the cast")
         }
 
-        // NEEDS-NEW-DESIGN → rewritten: the picker opens INLINE under the tab row — inside the panel, never a
-        // pop-up — lists the model's candidates (the current one marked), declares by id, closes on an
-        // answer, and "No declared miss" clears with declareMiss("").
-        function test_31_theMissPickerOpensInPlaceAndDeclaresOne() {
+        // ═══════════════════════════ the shot outcomes (shot_outcomes_design.md §6) ═══════════════════════════
+
+        function outcomeSource() { return spied(Real.withOutcomes(formingSource(false))) }
+        function chipOf(row, key) {
+            const c = findAll(row, "sdFilterTool").filter(function (t) { return t.key === key })
+            verify(c.length === 1, "one '" + key + "' link")
+            return c[0]
+        }
+        function press(item) { intoView(item); mouseClick(item); laidOut() }
+
+        // §6.1: the head of This shot on the glance: the labels in words, the story, the quiet lines.
+        function test_65_theOutcomeHeadLeadsThisShotOnTheGlance() {
+            useRegister("Replay")
+            setReview(outcomeSource(), newestReadout())
+            showTab("shot")
+            const h = oneShown(viewOf("shot"), "sdOutcomeHead")
+            compare(h.headText, "Fat · Slice · Short", "the labels, as words")
+            compare(one(h, "sdOutcomeChip:chunk").text, "Fat", "a marker per label")
+            compare(one(h, "sdOutcomeChip:slice").labelFamily, "direction")
+            const words = allText(h)
+            verify(words.indexOf("What happened · shot 5") >= 0, "the kicker: " + words)
+            verify(words.indexOf("You stand up through the ball") >= 0, "the story: " + words)
+            verify(allText(oneShown(h, "sdOutcomeSeenWith")).indexOf("Seen with: you stand up through the ball") >= 0, "the driver, as seen with")
+            compare(oneShown(h, "sdOutcomeCarryLine").text, "24 yd short of your usual 162: 16 from the fat, 6 slower club speed, 2 curve")
+            verify(shown(one(h, "sdOutcomeWhy")), "and the way into the read")
+            compare(shownAll(body, "sdCarryWaterfall").length, 0, "the waterfall is the Analyse read's; the glance has its line")
+        }
+
+        // Nothing is drawn until the shot is analysed, and a source with no outcomes has no head at all.
+        function test_66_theHeadWaitsForAnalysisAndSaysWhenThereIsNoReason() {
+            useRegister("Replay")
+            const pending = outcomeSource()
+            pending.outcomesByShot[5] = { ready: false }
+            setReview(pending, newestReadout())
+            showTab("shot")
+            compare(shownAll(viewOf("shot"), "sdOutcomeHead").length, 0, "not ready: nothing, and no spinner")
+
+            setReview(spied(formingSource(false)), newestReadout())
+            showTab("shot")
+            compare(shownAll(viewOf("shot"), "sdOutcomeHead").length, 0, "a session with no outcomes has no head")
+
+            const unexplained = outcomeSource()
+            unexplained.outcomesByShot[5] = Real.noReasonOutcome()
+            setReview(unexplained, newestReadout())
+            showTab("shot")
+            const h = oneShown(viewOf("shot"), "sdOutcomeHead")
+            compare(oneShown(h, "sdOutcomeNoReason").text, "No reason found", "said plainly")
+            compare(shownAll(h, "sdOutcomeSeenWith").length, 0, "and no driver is invented")
+        }
+
+        // §6.1: corrections are quiet links, per family; a press asks the model and nothing here mirrors it.
+        function test_67_theCorrectionRowAsksTheModel() {
+            useRegister("Replay")
+            setReview(outcomeSource(), newestReadout())
+            showTab("shot")
+            const h = oneShown(viewOf("shot"), "sdOutcomeHead")
+            compare(shownAll(h, "sdOutcomeCorrectRow").length, 0, "closed until asked for")
+            press(oneShown(h, "sdOutcomeNotRight"))
+            oneShown(h, "sdOutcomeCorrectRow")
+            const strike = oneShown(h, "sdOutcomeCorrect:strike")
+            verify(chipOf(strike, "chunk").on, "the detected label is marked")
+            press(chipOf(strike, "thin"))
+            compare(probe.correctCalls, 1)
+            compare(probe.lastCorrectShot, 5)
+            compare(probe.lastCorrectFamily, "strike")
+            compare(probe.lastCorrectTo, "thin", "the candidate's id, not its name")
+            compare(shownAll(h, "sdOutcomeCorrectRow").length, 0, "a correction closes the row")
+
+            press(oneShown(h, "sdOutcomeNotRight"))
+            const direction = oneShown(h, "sdOutcomeCorrect:direction")
+            press(chipOf(direction, "meant:fade"))
+            compare(probe.lastIntentShot, 5)
+            compare(probe.lastIntentShape, "fade", "a miss the golfer meant")
+            press(oneShown(h, "sdOutcomeFromHere"))
+            compare(probe.lastIntentFromShot, 5)
+            compare(probe.lastIntentFromShape, "fade", "and from here on")
+        }
+
+        // §6.1: a clean shot is one calm line, the row folded until "Not right?" opens it.
+        function test_68_aCleanShotIsOneCalmLine() {
+            useRegister("Replay")
+            const s = outcomeSource()
+            s.outcomesByShot[5] = Real.cleanOutcome()
+            setReview(s, newestReadout())
+            showTab("shot")
+            const h = oneShown(viewOf("shot"), "sdOutcomeHead")
+            compare(h.headText, "Good shot")
+            compare(shownAll(h, "sdOutcomeSeenWith").length, 0)
+            compare(shownAll(h, "sdOutcomeCarryLine").length, 0)
+            compare(shownAll(h, "sdOutcomeCorrectRow").length, 0, "folded")
+            press(oneShown(h, "sdOutcomeNotRight"))
+            oneShown(h, "sdOutcomeCorrectRow")
+            compare(oneShown(h, "sdOutcomeNotRight").text, "Close", "the same link folds it again")
+            press(oneShown(h, "sdOutcomeNotRight"))
+            compare(shownAll(h, "sdOutcomeCorrectRow").length, 0, "unchanged")
+        }
+
+        // §6.1: the auto-closing cast shows the words and nothing to press; Why is off on every cast.
+        function test_69_theCastShowsTheWordsAndNothingToPress() {
+            useRegister("Replay")
+            body.surface = "cast"
+            body.interactive = false
+            setReview(outcomeSource(), newestReadout())
+            showTab("shot")
+            const h = oneShown(viewOf("shot"), "sdOutcomeHead")
+            compare(h.headText, "Fat · Slice · Short")
+            compare(shownAll(h, "sdOutcomeCorrectRow").length, 0, "no correction row")
+            compare(shownAll(h, "sdOutcomeFromHere").length, 0)
+            compare(shownAll(h, "sdOutcomeWhy").length, 0, "no way into the read")
+        }
+
+        // §6.1: "Why →" reads This shot in Analyse with the stage still in Replay, and comes back.
+        function test_70_whyReadsThisShotInAnalyseOverTheGlance() {
+            useRegister("Replay")
+            setReview(outcomeSource(), newestReadout())
+            showTab("shot")
+            press(oneShown(oneShown(viewOf("shot"), "sdOutcomeHead"), "sdOutcomeWhy"))
+            compare(body.register, "Analyse", "read in Analyse")
+            compare(SessionMode.mode, SessionMode.replay, "the stage has not moved")
+            oneShown(body, "sdOutcomeLead")
+            press(oneShown(body, "sdShotWhyBack"))
+            compare(body.register, "Replay", "and the chip is the way back")
+        }
+
+        // §6.2: where the yards went, Analyse only, each part in causal order and the estimate said in words.
+        function test_71_theCarryWaterfallIsTheReadsAccount() {
+            useRegister("Analyse")
+            setReview(outcomeSource(), newestReadout())
+            showTab("shot")
+            const v = viewOf("shot")
+            verify(plain(oneShown(v, "sdOutcomeLead").head).indexOf("Fat slice, 24 yd short") === 0, "the phrase leads")
+            oneShown(v, "sdOutcomeEvidence")
+            const w = oneShown(v, "sdCarryWaterfall")
+            compare(w.rows.map(function (r) { return r.name }).join(","), "Your usual,Club speed,Fat strike,Curve,Actual")
+            compare(shownAll(w, "sdCarryWaterfallScaled").length, 0, "nothing was cut to fit")
+            verify(allText(w).indexOf("against your usual 162 ± 7 yd") >= 0, "a modelled distance carries its provenance: " + allText(w))
+
+            const scaled = outcomeSource()
+            scaled.outcomesByShot[5].carry = Real.carryBlock({
+                scaled: true, residual: 3, residualShown: true,
+                parts: [{ id: "strike", name: "Fat strike", loss: 21, detail: "", lineWords: "from the fat" },
+                        { id: "launch_spin", name: "Launch / spin", loss: 1, detail: "", lineWords: "launch and spin" }] })
+            setReview(scaled, newestReadout())
+            showTab("shot")
+            const w2 = oneShown(viewOf("shot"), "sdCarryWaterfall")
+            compare(w2.rows.map(function (r) { return r.name }).join(","), "Your usual,Fat strike,Launch / spin (estimate),Not accounted for,Actual")
+            oneShown(w2, "sdCarryWaterfallScaled")
+
+            const none = outcomeSource()
+            none.outcomesByShot[5].carry = ({})
+            setReview(none, newestReadout())
+            showTab("shot")
+            compare(shownAll(viewOf("shot"), "sdCarryWaterfall").length, 0, "no usual to be short of: no waterfall")
+            oneShown(viewOf("shot"), "sdOutcomeEvidence")
+        }
+
+        // §6.3: the shot log is the ruler with words: one cell a shot, ✓ for clean, * for corrected; a click moves the carousel.
+        function test_72_theShotLogIsOneCellAShot() {
             for (const r of ["Replay", "Analyse"]) {
                 useRegister(r)
-                probe.missCalls = 0
+                setSource(outcomeSource())
+                showTab("session")
+                const v = viewOf("session")
+                const log = oneShown(v, "sdShotLog")
+                verify(log.hasWords, r + ": words in place of counts")
+                compare(log.nShots, 5, r + ": every shot")
+                const cellText = function (id) { return allText(one(log, "sdShotLogCell:" + id)) }
+                verify(cellText(1).indexOf("✓") >= 0, r + ": clean is ✓: " + cellText(1))
+                verify(cellText(2).indexOf("FD ✓") >= 0, r + ": an intended shape keeps its name and ✓: " + cellText(2))
+                verify(cellText(3).indexOf("SL*") >= 0, r + ": a corrected cell ends in *: " + cellText(3))
+                verify(cellText(5).indexOf("FAT") >= 0 && cellText(5).indexOf("SL") >= 0, r + ": the labels: " + cellText(5))
+                probe.shotCalls = 0
+                press(one(log, "sdShotLogCell:4"))
+                compare(probe.shotCalls, 1, r + ": a click moves the carousel")
+                compare(probe.lastShotId, 4, r)
+                compare(probe.lastShotDir, "/fake/session/swing_0004", r + ": the swing the log names")
+            }
+        }
+
+        // §6.3: the mix and today's carry, the model's lines as written; absent when there is nothing to say.
+        function test_73_theMixAndTodaysCarryAreTheModelsLines() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                setSource(outcomeSource())
+                showTab("session")
+                const v = viewOf("session")
+                const mix = plain(oneShown(v, "sdShotMix").text)
+                verify(mix.indexOf("Mix: 2 clean · 2 fat slice · 1 slice") === 0, r + ": " + mix)
+                verify(mix.indexOf("1 corrected (cells marked *)") >= 0, r + ": corrections are counted: " + mix)
+                compare(plain(oneShown(v, "sdCarryToday").text), "7 iron carry today 151 ± 9 yd · your usual 162 ± 7 yd", r)
+
+                const none = outcomeSource()
+                none.carryToday = []
+                setSource(none)
+                showTab("session")
+                compare(shownAll(viewOf("session"), "sdCarryToday").length, 0, r + ": no carry reported, no line")
+
                 setSource(spied(formingSource(false)))
                 showTab("session")
-                compare(shownAll(body, "sdMissPicker").length, 0, r + ": closed until asked for")
-                const y0 = oneShown(body, "sdCardsFlick").mapToItem(body, 0, 0).y
-                mouseClick(oneShown(body, "sdMissChip"))
-                laidOut()
-                const pk = oneShown(body, "sdMissPicker")     // shown() walks up to the body: in the panel's own tree
-                verify(oneShown(body, "sdCardsFlick").mapToItem(body, 0, 0).y > y0, r + ": it opens in place and pushes the view down")
-                compare(plain(one(pk, "sdMissPickerLabel").text), "What is the bad shot?", r + ": it states its question")
-                const rows = shownAll(pk, "sdMissCandidate")
-                compare(rows.map(function (c) { return c.missId }).join(","), "slice,hook,thin_strike", r + ": the model's candidates")
-                mouseClick(rows[1])
-                laidOut()
-                compare(probe.missCalls, 1)
-                compare(probe.lastMissId, "hook", r + ": the row's id, not its label")
-                compare(shownAll(body, "sdMissPicker").length, 0, r + ": answering closes it")
+                compare(shownAll(viewOf("session"), "sdShotLog").length, 0, r + ": a session with no outcomes has no log")
+                compare(shownAll(viewOf("session"), "sdReasonsTable").length, 0, r + ": nor reasons")
+            }
+        }
 
-                const s = spied(formingSource(false))
-                s.declaredMiss = "hook"
-                s.declaredMissName = "Hook"
-                setSource(s)
-                compare(plain(oneShown(body, "sdMissChip").text), "Miss: Hook")
-                mouseClick(oneShown(body, "sdMissChip"))
-                laidOut()
-                const marked = shownAll(body, "sdMissCandidate").filter(function (c) { return c.on })
-                compare(marked.length, 1, r + ": the current one is marked")
-                compare(marked[0].missId, "hook")
-                mouseClick(oneShown(body, "sdMissClear"))
-                laidOut()
-                compare(probe.lastMissId, "", r + ": declareMiss('') is the clear")
+        // §6.3: one row a reason, its shots on a strip, cost in yards in both registers; a row opens its
+        // condition, and the unexplained row offers the flag instead.
+        function test_74_theReasonsTableAccountsForTheBadShots() {
+            for (const r of ["Replay", "Analyse"]) {
+                useRegister(r)
+                probe.detailCalls = 0
+                probe.flagCalls = 0
+                setSource(outcomeSource())
+                showTab("session")
+                const t = oneShown(viewOf("session"), "sdReasonsTable")
+                const rows = shownAll(t, "sdPathRow")
+                compare(rows.map(function (x) { return x.cardId }).join(","), "early_extension,", r + ": the reason, then the unexplained")
+                const words = allText(rows[0])
+                verify(words.indexOf("Early extension") >= 0, r + ": " + words)
+                verify(words.indexOf("30 yd") >= 0, r + ": cost in yards: " + words)
+                compare(findAll(rows[0], "sdShotCell").length, 5, r + ": a cell per shot")
+                compare(findAll(rows[0], "sdShotCell").filter(function (c) { return c.cellState === "fired" }).length, 2, r + ": this reason's shots")
+                verify(allText(rows[1]).indexOf("Flag for review") >= 0 || t.width < Theme.sp(400), r + ": the unexplained row offers the flag: " + allText(rows[1]))
+
+                clickRow(rows[0], "sdPathRowName")
+                compare(probe.detailCalls, 1, r + ": a row opens its condition")
+                compare(probe.lastDetailId, "early_extension", r)
+
+                setSource(outcomeSource())
+                showTab("session")
+                clickRow(shownAll(oneShown(viewOf("session"), "sdReasonsTable"), "sdPathRow")[1], "sdPathRowName")
+                compare(probe.flagCalls, 1, r + ": one flag for the one unexplained shot")
+                compare(probe.lastFlagShot, 4, r)
+                compare(probe.detailCalls, 1, r + ": and it opens nothing")
             }
         }
 

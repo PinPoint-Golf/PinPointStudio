@@ -19,6 +19,8 @@
 // A FAULT, OPENED — the detail under a fault row on Home, in place (Mark, 28 Oct: a fault opens where
 // it is, never on another page). Used by Coaching's focus ("Right now") and "Next on your list", and
 // by an open area's items on Your swing:
+//   what it does to your shots   only where a shot has shown it (item.onBall): what it produced, what
+//                   it costs in carry, the tendency it feeds, "See these shots →"
 //   what it costs   the pack's consequence
 //   Now · Latest    where it stands — a listed work-on's status, its consistency badge beside it
 //                   (R10; the badge alone never makes the line) — and the newest session that judged it
@@ -54,11 +56,70 @@ Column {
     }
     function str(key) { return root.item && root.item[key] !== undefined ? String(root.item[key]) : "" }
 
+    // What this fault did on the ball ({} when no shot has shown it).
+    readonly property var  onBall:    root.item && root.item.onBall ? root.item.onBall : ({})
+    readonly property bool hasOnBall: (root.onBall.text || "") !== ""
+    readonly property string onBallFoot: [root.onBall.costWords || "", root.onBall.tendencyText || ""]
+                                         .filter(s => s !== "").join(" · ")
+
+    // Open the session on this reason's shots: the filter first, so the session reads it as it loads.
+    function seeTheseShots() {
+        if (typeof sessionReviewController !== "undefined" && sessionReviewController)
+            sessionReviewController.reasonFilter = root.onBall.conditionId || ""
+        root.reviewSessionRequested(root.str("sessionDir"))
+    }
+
     spacing: Theme.gap(10)
 
     FontMetrics { id: body2Metrics; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2 }
 
     Item { width: 1; height: Theme.gap(2) }
+
+    Column {
+        objectName: "homeFaultOnBall"
+        visible: root.hasOnBall
+        width:   Math.min(parent.width, Theme.sp(720))
+        spacing: Theme.gap(6)
+
+        PpMicro { text: Theme.caps(qsTr("What it does to your shots")) }
+        HmHeadline {
+            objectName: "faultOnBallText"
+            width: parent.width
+            text:  root.onBall.text || ""
+        }
+        Flow {
+            objectName: "faultOnBallProduced"
+            visible: (root.onBall.produced || []).length > 0
+            width:   parent.width
+            spacing: Theme.gap(6)
+            Repeater {
+                model: root.onBall.produced || []
+                PpChip {
+                    required property var modelData
+                    tinted: false
+                    text:   modelData.count > 1 ? qsTr("%1 ×%2").arg(modelData.phrase).arg(modelData.count)
+                                                : String(modelData.phrase)
+                }
+            }
+        }
+        PpCaption {
+            objectName: "faultOnBallFoot"
+            visible:  text !== ""
+            width:    parent.width
+            elide:    Text.ElideNone
+            wrapMode: Text.WordWrap
+            text:     root.onBallFoot
+        }
+        PpLink {
+            objectName: "faultSeeShots"
+            visible:    root.str("sessionDir") !== ""
+            text:       qsTr("See these shots →")
+            hoverTint:  false
+            onClicked:  root.seeTheseShots()
+        }
+    }
+
+    Item { width: 1; height: Theme.gap(2); visible: root.hasOnBall }
 
     Text {
         width:          Math.min(parent.width, Theme.sp(720))

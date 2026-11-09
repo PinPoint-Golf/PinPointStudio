@@ -41,4 +41,4 @@ PpNotes {
 ```
 
 ## Used by
-Session diagnostics: `diagnostics/PpDiagAnalyse.qml`, `PpDiagPrint.qml`, `PpDiagReviewFoot.qml`. Charts: `charts/PpChartsKindsView.qml`, `PpChartsShotView.qml`. The launch monitor board: `session/PpLmGraphicsBody.qml`.
+Session diagnostics: `diagnostics/PpDiagAnalyse.qml`, `PpDiagPrint.qml`, `PpDiagReviewFoot.qml`, `PpDiagSessionOutcomes.qml`. Charts: `charts/PpChartsKindsView.qml`, `PpChartsShotView.qml`. The launch monitor board: `session/PpLmGraphicsBody.qml`.

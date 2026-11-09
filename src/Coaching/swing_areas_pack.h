@@ -66,7 +66,7 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.label  = c.label;
         i.golfer = c.golfer;
         i.counts = areaConditionCounts(i.group, workOnClassFor(c), c.kind == ConditionKind::Outcome,
-                                       !c.reportHold.isEmpty());
+                                       !c.reportHold.isEmpty(), c.id);
         bool anyMeasure = false, allLm = true;
         bool allBinary = !c.detectedBy.isEmpty();
         for (const QString &sigId : c.detectedBy) {

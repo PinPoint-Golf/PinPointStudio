@@ -20,7 +20,7 @@
 // Home's per-athlete view state (.pragma library, imported relatively by HmHomeTabs and
 // HmSwingAreas): appSettings.homeViewByAthlete, a map of athlete uuid → entry, each pane keeping its
 // own keys in the one entry —
-//   tab            "coaching" | "swing" | "matchups"    HmHomeTabs
+//   tab            "coaching" | "swing" | "tendencies" | "matchups"    HmHomeTabs
 //   expanded       [group…]                             HmSwingAreas
 //   expandedSeen   bool                                 HmSwingAreas
 //

@@ -396,6 +396,7 @@ int main(int argc, char *argv[])
                 return c ? c->goal : QString();
             });
         QObject::connect(&workOns, &WorkOnsController::itemsChanged, &sessionReportList, &SessionReportListModel::refresh);
+        QObject::connect(&workOns, &WorkOnsController::tendenciesLanded, &athleteController, &AthleteController::clubDistancesChanged);
         QTimer::singleShot(3'500, &sessionReportList, repoint);
     }
 

@@ -63,7 +63,7 @@ Item {
     property bool interactive: true              // body.interactive: false on the auto-closing cast
     property string cardFilter: "all"            // body.cardFilter: an Analyse tool; the glance shows every pattern
     property var pulseCue: null                  // body.pulseCue
-    readonly property var demoStates: ["", "hoverShot12", "hoverCondition", "hoverWatching", "missPicker"]
+    readonly property var demoStates: ["", "hoverShot12", "hoverCondition", "hoverWatching"]
 
     readonly property bool cast: surface === "cast"
     // D9: the cast never drills. "detail" (open on the main stage) shows the tab the reader is on, and the
@@ -117,6 +117,20 @@ Item {
         return name ? "focus: " + ss.focusLine(name, c ? c.stateKind : (ss.partial ? "clean" : "notAssessable")) : ""
     }
     function n(x) { return ro.word(x) }              // words to ten, figures above (house style)
+    // What happened on this shot: the model's words. Reading shotLog ties the binding to surfaceChanged, which an
+    // invokable alone never would; the guard is on the function, as a fixture may carry neither.
+    readonly property var outcome: {
+        const src = root.source, id = root.shot ? root.shot.shotId : -1
+        if (!src || id < 0 || src.shotLog === undefined || typeof src.shotOutcome !== "function") return ({})
+        return src.shotOutcome(id) || ({})
+    }
+    // the outcome head's and the session block's height for the cast's zoom: lines, from the data, never measured
+    readonly property real outcomeEm: !outcome.ready ? 0 : outcome.clean ? 2.6
+                                    : 6 + (outcome.carry && outcome.carry.line ? 1.4 : 0) + (root.interactive ? 1.4 : 0)
+    readonly property real sessionOutcomesEm: {
+        const log = (source && source.shotLog) || [], rs = (source && source.reasons) || [], cts = (source && source.carryToday) || []
+        return log.length ? 3.2 + 1.3 + cts.length * 1.2 + (rs.length ? 2 + rs.length * 2.4 : 0) : 0
+    }
 
     // ── wiring: every click goes somewhere real ──
     // A condition opens its detail in place: the body reads it in the Analyse register and the stage stays
@@ -135,7 +149,6 @@ Item {
             root.body.tab = key
         } else root.view = key
     }
-    property bool missOpen: false
     // D1: the after-shot pulse. The body publishes a cue ({ token, ids, focusId }) when a shot surfaces; the
     // PpBrush carries it and every row block washes its own rows once (lib PpPulseWash), the focus first.
     property int _pulseToken: -1
@@ -149,7 +162,6 @@ Item {
         if (demoState === "" && _lastDemo === "") return
         _lastDemo = demoState
         br.clear()
-        missOpen = demoState === "missPicker"
         if (demoState === "hoverShot12") br.hoveredShot = 12
         else if (demoState === "hoverCondition") br.hoveredCondition = "early_extension"
         else if (demoState === "hoverWatching") br.hoveredCondition = "sway"
@@ -170,7 +182,7 @@ Item {
                y: hd.title === "" ? 0 : hd.side ? tt.y + tt.baselineOffset - baselineOffset : tt.implicitHeight + ro.g(2) }
     }
     // the review note, folded to the foot of a view below medium (F7, RULES 3)
-    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; missShown: ss.missShown; cast: root.cast; glance: true }
+    component ReviewFoot: PpDiagReviewFoot { roles: ro; header: root.header; cast: root.cast; glance: true }
 
     // ── one named Flickable per view, built on first show and never torn down (D8, §0.2-0.3) ──
     component ViewFlick: PpViewFlick { roles: ro; shown: root.shown; below: under; gap: 12; foot: 16 }
@@ -179,8 +191,8 @@ Item {
     // page it lays out is about one compact panel, never type growing inside a panel. The zoom is chosen
     // from the DATA (an em estimate of the view's height), clamped to 1…1.6, never below compact (42 em).
     readonly property bool castTabs: cast && interactive
-    readonly property real castEm: (shown === "shot" ? 9 + fired.length * 1.25
-                                  : shown === "session" ? 6 + (cards || []).length * 2.3
+    readonly property real castEm: (shown === "shot" ? 9 + fired.length * 1.25 + outcomeEm
+                                  : shown === "session" ? 6 + (cards || []).length * 2.3 + sessionOutcomesEm
                                   : shown === "consistency" ? 38
                                   : 8 + watching.length * 1.95) + (castTabs ? 2.2 : 0)
     readonly property real zoom: cast ? ro.castZoom(width, height, castEm) : 1
@@ -214,34 +226,15 @@ Item {
             width: parent.width; height: visible ? implicitHeight : 0
             roles: ro; brush: br
             current: root.shown
-            // tier 3 on the right; below medium, or when the miss chip takes the right, the foot of the view
-            note: root.header && !ss.missShown ? ro.cap1(root.header.reviewNote) : ""
+            // tier 3 on the right; below medium, the foot of the view
+            note: root.header ? ro.cap1(root.header.reviewNote) : ""
             interactive: root.interactive
-            // F66: the declared-miss chip at the right of the tab row (not on the cast)
-            chip: !root.cast && ss.missShown ? ss.missText : ""
-            chipOn: root.missOpen
-            onChipActivated: root.missOpen = !root.missOpen
             // no counts: in a glance each view's head states its own; the toggles alone stay (RULES 11)
             tabs: [{ key: "shot", label: "This shot" }, { key: "session", label: "Session" },
                    { key: "consistency", label: "Consistency" }, { key: "watching", label: "Watching" }]
             onTabActivated: k => root.pickView(k)
         }
-        Column {
-            id: under
-            anchors.top: tabs.bottom
-            width: parent.width
-            // F67: the picker opens IN PLACE under the tab row; a pick goes to the model, "" clears
-            PpInlinePicker {
-                objectName: "sdMissPicker"
-                visible: root.missOpen && ss.missShown && !root.cast
-                open: visible
-                width: under.width
-                roles: ro; brush: br; interactive: root.interactive
-                items: visible ? ss.missCandidates().map(m => ({ id: m.id, label: m.name || m.id })) : []
-                current: ss.declaredMiss
-                onPicked: id => { if (root.body && typeof root.body._declareMiss === "function") root.body._declareMiss(id); root.missOpen = false }
-            }
-        }
+        Item { id: under; anchors.top: tabs.bottom; width: parent.width; height: 0 }
 
         ViewFlick { id: shotFlick; objectName: "sdShotCardsFlick"; key: "shot"; view: shotC }
         ViewFlick { id: sessionFlick; objectName: "sdCardsFlick"; key: "session"; view: sessionC }
@@ -273,6 +266,18 @@ Item {
                 Text { visible: ss.emptyTitle !== ""; text: ss.emptyTitle; font: ro.fTitle; color: ro.ink }
                 Text { width: parent.width; wrapMode: Text.WordWrap; text: ss.emptyLine
                        font: ss.emptyTitle !== "" ? ro.fSmall : ro.fBody; color: ss.emptyTitle !== "" ? ro.ink3 : ro.ink2 }
+            }
+            // what happened, first: the labels and the story, above the existing read of the shot (§6.1)
+            PpShotOutcomeHead {
+                id: outHead
+                width: sc.width
+                roles: ro; brush: br
+                source: root.source; outcome: root.outcome
+                shotId: root.shot ? root.shot.shotId : -1
+                shotNo: ro.shotNo(root.shot)
+                interactive: root.interactive
+                whyEnabled: root.interactive && !root.cast && !!root.body && typeof root.body._openShotWhy === "function"
+                onWhyRequested: root.body._openShotWhy()
             }
             // D2: a quiet shot says so in one calm line, keeps its ruler, and leaves the tabs live
             Column {
@@ -319,6 +324,7 @@ Item {
                 // close they came to their edge, as many as fit — never bigger type, never a second block.
                 // the trust fold's height counts against the plot's (closed it is one line; opened, the plot gives way)
                 readonly property real room: shotFlick.height - ro.g(16) - shotHead.height - foot.height - 2 * sc.spacing
+                                             - (outHead.visible ? outHead.height + sc.spacing : 0)
                                              - (shotTrust.visible ? shotTrust.height + sc.spacing : 0)
                                              - (njFoot.visible ? njFoot.height + sc.spacing : 0)
                                              - (wcList.visible ? wcList.height + sc.spacing : 0)
@@ -456,11 +462,22 @@ Item {
                 width: sv.width; roles: ro; scope: "session"
                 sessionDir: root.source ? String(root.source.sessionDir || "") : ""
             }
+            // what happened, shot by shot, and the reasons for the bad ones: after the trust fold, before the patterns (§6.3)
+            PpDiagSessionOutcomes {
+                id: sessOutcomes
+                width: sv.width
+                roles: ro; brush: br; source: root.source
+                interactive: root.interactive
+                conditionsInteractive: root.interactive && !root.cast
+                onConditionActivated: id => root.openCondition(id)
+                onShotActivated: (d, s) => root.pickShot(d, s)
+            }
             // HEIGHT IS A RESOURCE TOO: when the panel is tall enough for every pattern's small multiple, the
             // glance shows the tiles (the same run against the same corridor, larger); otherwise one sparkline
             // row per pattern. Measured, never guessed: the tiles lay out (hidden) to say how tall they are.
             readonly property real room: sessionFlick.height - ro.g(16) - sessHead.height - sv.spacing - ro.u(24) - cov.height - sv.spacing
                                          - (sessTrust.visible ? sessTrust.height + sv.spacing : 0)
+                                         - (sessOutcomes.visible ? sessOutcomes.height + sv.spacing : 0)
                                          - (closingNote.visible ? closingNote.height + sv.spacing : 0)
             readonly property bool hasCards: !ss.cold && (root.cards || []).length > 0
             readonly property bool useTiles: hasCards && !root.cast && tiles.height > 0 && tiles.height <= room
@@ -570,6 +587,7 @@ Item {
     PpBrush {
         id: br
         cards: root.cards || []
+        shotLog: (root.source && root.source.shotLog) || []
         pickedShot: ss.shot ? ss.shot.shotId : -1
         pickedCondition: ""
     }

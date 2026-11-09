@@ -63,6 +63,7 @@ RunOut runMode(const QString &dir, const Mode &m)
     model.setSynchronous(true);
     model.setCadence(QStringLiteral("everyShot"));
     model.setUncertaintyModes(m.sigma, m.soft, m.post);
+    model.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
     model.activateSession(dir);
     RunOut o;
     o.shots = model.shotRecords();

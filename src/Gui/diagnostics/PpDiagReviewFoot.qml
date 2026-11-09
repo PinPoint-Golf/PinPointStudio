@@ -19,8 +19,8 @@
 import QtQuick
 
 // PPDIAGREVIEWFOOT — the review note ("final session state · …") folded to the foot of a Session diagnostics
-// view (F7, RULES 3): drawn there below medium, where the tab row has no room for it, or when the declared-miss
-// chip takes the right of the tab row; never on the cast. One rule for the Analyse and Replay registers; each
+// view (F7, RULES 3): drawn there below medium, where the tab row has no room for it, or when a chip (the way
+// back over the glance) takes the right of the tab row; never on the cast. One rule for the Analyse and Replay registers; each
 // keeps its own type for it — Analyse a footnote (PpNotes), the Replay glance one small quiet line (`glance`).
 // objectName: sdReviewNote (its `text` is the note as drawn).
 Column {
@@ -28,11 +28,11 @@ Column {
     objectName: "sdReviewNote"
     property QtObject roles: PpTypeset {}           // the register passes its one PpDiagRoles; this default only covers creation order
     property var header: null                        // the register's header (reviewNote)
-    property bool missShown: false                   // the declared-miss chip is in the tab row
+    property bool chipShown: false                   // a chip has taken the right of the tab row
     property bool cast: false
     property bool glance: false                      // the Replay register's small line, not Analyse's footnote
     readonly property string text: header ? roles.cap1(header.reviewNote) + "." : ""
-    visible: !cast && !!header && String(header.reviewNote || "") !== "" && (!roles.shows("reviewNote", width) || missShown)
+    visible: !cast && !!header && String(header.reviewNote || "") !== "" && (!roles.shows("reviewNote", width) || chipShown)
     PpNotes {
         visible: !rf.glance
         width: rf.width

@@ -73,6 +73,9 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unknownDomain        a condition declares a domain that is not in conditionDomains() ("wrist").
 //                        A misspelt domain would silently drop the row out of the domain surface's
 //                        findings and score, which reads as the fault having gone away
+//   unknownFamily        a condition declares a family that is not in conditionFamilies()
+//                        (direction, strike, flight). Absent is legal; a misspelt one would drop
+//                        the outcome out of every label and tally that is sorted by family
 //   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine
 //                        a condition's report `picture` names a token outside its closed
 //                        vocabulary (reportPictureKinds / Cameras / Lines below; phase is P1…P10).
@@ -107,6 +110,10 @@ inline constexpr int kPackSchemaVersion = 1;
 //   unknownSignal        a condition's detectedBy names a signal that does not exist
 //   unknownCondition     an edge endpoint does not exist
 //   cycle                the condition graph is not a DAG
+//   leadsToCycle         the LeadsTo edges are not a DAG. Checked apart from `cycle`: the shot's
+//                        physics and the swing's causes are two graphs
+//   leadsToNotOutcome    a LeadsTo edge with an end that is not an Outcome
+//   familyNotOutcome     a `family` on a condition that is not an Outcome
 //   selfEdge             an edge from a condition to itself
 //   signalArity          wrong measure count for the test (2 for order/ratio, 1 otherwise)
 //   signalDirection      a corridor/threshold/ratio signal with no direction — it cannot identify a
@@ -184,6 +191,9 @@ inline constexpr int kPackSchemaVersion = 1;
 //                        code for both, because an author fixes either the same way
 //   outcomeNotBallFlight an Outcome outside the BallFlight group. The ONE rule coupling the two
 //                        otherwise-orthogonal axes; if it ever fires legitimately, delete the rule
+//   outcomeNoFamily      an Outcome with no `family`. Its shot labels cannot be sorted into a
+//                        family, so they go unsaid. A warning so a user's own pack still loads;
+//                        `core_pack_test` holds the shipped pack to zero
 //   outcomeHasEffect     an Outcome that causes something. What the ball did cannot cause the swing
 //                        that produced it, so this is an edge written back to front
 //
@@ -360,6 +370,9 @@ std::vector<ReportContentGap> reportContentGaps(const CharacteristicPack &pack,
 //                         missing; its `field` is the first missing one (golferHigh, then golferLow)
 //   golferPhraseWording   (warning) every phrase and sentence above, under the rules on the code
 //                         table at the top of this file
+//   unknownFamily        a condition declares a family that is not in conditionFamilies()
+//                        (direction, strike, flight). Absent is legal; a misspelt one would drop
+//                        the outcome out of every label and tally that is sorted by family
 //   unknownPictureKind · unknownPictureCamera · unknownPicturePhase · unknownPictureLine   (error)
 //                         `field` is "picture.kind" / "picture.camera" / "picture.phase" /
 //                         "picture.line". A picture with all four parts blank is "no picture
@@ -404,6 +417,10 @@ int  coverageOf(const CharacteristicPack &pack, const QString &conditionId);
 // question, and it is the one to ask before drawing a causal edge: `from → to` closes a cycle
 // exactly when `to` already reaches `from`.
 bool causallyReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId);
+
+// The same question over LeadsTo edges: true when outcome `fromId` leads to `toId`, directly or through
+// a chain. `from → to` is a cycle exactly when `to` already leads to `from`.
+bool leadsToReaches(const CharacteristicPack &pack, const QString &fromId, const QString &toId);
 
 // True when a `Corroborates` edge would be illegal between these two: a causal path already exists
 // in either direction. SYMMETRIC, because corroboration is — which is why it is a separate function

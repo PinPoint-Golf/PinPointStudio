@@ -17,10 +17,12 @@
  */
 
 #include "live_measure_source.h"
+#include "../../Core/club_vocabulary.h"     // baseline keys are canonical club ids
 #include "../../Metrics/gate_catalogue.h"   // the gate behind an absent measure (gateCause)
 
 #include "../norms/context_tree.h"
 
+#include <cmath>
 #include <utility>
 
 namespace pinpoint::analysis {
@@ -31,6 +33,12 @@ namespace {
 // and hasLaunchMonitor() must agree about what counts as a launch-monitor metric or a shot with a
 // monitor attached could still be told it has none.
 const QLatin1String kLmPrefix("lm.");
+
+// Reserved metric keys, read from the club baseline rather than the swing's grid. The catalogue knows
+// nothing of them: a history reading is never in a swing.json.
+const QLatin1String kHistoryPrefix("history.");
+const QLatin1String kCarryShortfallKey("history.carryShortfallZ");
+const QLatin1String kBallSpeedShortfallKey("history.ballSpeedShortfallZ");
 
 } // namespace
 
@@ -53,6 +61,7 @@ QString missingReasonText(MissingKind k)
     case MissingKind::CaptureDataIssue:         return QStringLiteral("frames were lost during capture, so this shot is not assessed");
     case MissingKind::SessionScope:             return QStringLiteral("read over the session, never one swing");
     case MissingKind::CompositeCoverage:        return QStringLiteral("too few of its parts read on this shot");
+    case MissingKind::ClubBaselineNotEarned:    return QStringLiteral("not enough shots with this club yet");
     }
     return QString();
 }
@@ -124,6 +133,9 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         return std::nullopt;
     }
 
+    if (m->metricKey.startsWith(kHistoryPrefix))
+        return historyValue(*m);
+
     if (const std::optional<GridReading> v = reduceOverGridReading(m_grid, *m)) {
         note(measureId, MissingKind::None);
 
@@ -182,6 +194,41 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
     return std::nullopt;
 }
 
+// How many of this golfer's standard deviations short of their usual this shot was (+ is short).
+std::optional<IMeasureValueSource::Value> LiveMeasureSource::historyValue(const Measure &m) const
+{
+    const bool carry = m.metricKey == kCarryShortfallKey;
+    if (!carry && m.metricKey != kBallSpeedShortfallKey) {
+        note(m.id, MissingKind::NoMetricBinding);
+        return std::nullopt;
+    }
+
+    // The shot's own reading first: with no monitor reading the baseline is not what is missing.
+    const Measure *reading = m_pack.measure(carry ? QStringLiteral("m_carryDistance")
+                                                  : QStringLiteral("m_lmBallSpeed"));
+    const std::optional<GridReading> actual =
+        reading ? reduceOverGridReading(m_grid, *reading) : std::nullopt;
+    if (!actual || !std::isfinite(actual->value)) {
+        note(m.id, hasLaunchMonitor() ? MissingKind::LaunchMonitorFieldAbsent : MissingKind::NoLaunchMonitor);
+        return std::nullopt;
+    }
+
+    // gate rule: PP_GATE("rule.diag.clubBaselineMinShots")
+    const std::optional<ClubBaselineEntry> usual =
+        m_clubBaseline ? m_clubBaseline->forClub(pinpoint::canonicalClubId(m_grid.club)) : std::nullopt;
+    const double mean = !usual ? std::nan("") : carry ? usual->carryMean : usual->ballSpeedMean;
+    const double sd   = !usual ? std::nan("") : carry ? usual->carrySd : usual->ballSpeedSd;
+    if (!usual || usual->n < kClubBaselineMinShots || !std::isfinite(mean) || !std::isfinite(sd) || !(sd > 0.0)) {
+        note(m.id, MissingKind::ClubBaselineNotEarned);
+        return std::nullopt;
+    }
+
+    note(m.id, MissingKind::None);
+    Value out{ (mean - actual->value) / sd, 1.0f };
+    out.withheld = actual->withheld;
+    return out;
+}
+
 void LiveMeasureSource::seriesEndpoints(const Measure &m, double &atStart, double &atEnd) const
 {
     // Only a reading BETWEEN two instants has two ends. A value read at one phase stays NaN at both:
@@ -212,6 +259,12 @@ void LiveMeasureSource::seriesEndpoints(const Measure &m, double &atStart, doubl
 LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measureId) const
 {
     const Measure *m = m_pack.measure(measureId);
+    // A rule, not a record: nothing on the swing says so, so there is no subject to open.
+    if (missingKind(measureId) == MissingKind::ClubBaselineNotEarned) {
+        const QString rule = QStringLiteral("rule.diag.clubBaselineMinShots");
+        const gates::GateEntry *e = gates::gateEntry(rule);
+        return { rule, QString(), e ? e->shortText : missingReasonText(MissingKind::ClubBaselineNotEarned) };
+    }
     if (!m || m_grid.gatesVersion <= 0) return {};
     QStringList keys = measureKeyLadder(*m);
     for (const QString &key : keys) {

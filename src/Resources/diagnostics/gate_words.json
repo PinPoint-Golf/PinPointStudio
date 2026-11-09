@@ -332,6 +332,10 @@
       "golfer": "it is read from several readings taken together, and the cameras saw too few of them to judge it"
     },
     {
+      "id": "rule.diag.clubBaselineMinShots",
+      "golfer": "not enough shots with this club yet"
+    },
+    {
       "id": "rule.diag.inferredContext",
       "golfer": "no club was set, so it was judged against a default club's range"
     },
