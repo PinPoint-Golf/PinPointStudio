@@ -3209,6 +3209,10 @@ set_source_files_properties(src/Skeleton3d/skeleton3d_fit.cpp PROPERTIES
     COMPILE_DEFINITIONS "EIGEN_NO_DEBUG"
     COMPILE_OPTIONS "$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-O2>")
 
+# Template-heavy enough that a Debug object passes MSVC's 65,279 section limit (C1128).
+set_source_files_properties(src/Gui/diagnostics/work_ons_controller.cpp PROPERTIES
+    COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/bigobj>")
+
 option(PINPOINT_BUILD_TOOLS "Build the SwingLab offline analysis tools" OFF)
 if(PINPOINT_BUILD_TOOLS)
     # Shared offline reconstruction + analysis sources (the disk → SwingWindow →
