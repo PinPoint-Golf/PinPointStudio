@@ -87,7 +87,7 @@ inline constexpr int kWorkOnSchemaVersion = 3;
 // 4: when the session can test none of its authored links (linksTestable false), SWING ORDER
 // decides before magnitude — setup, backswing, top, transition, downswing, impact, follow-through
 // (docs/design/session_report_design.md §4.3, option A, Mark 20 Oct 2026). See WorkOnReasons.
-inline constexpr int kWorkOnRuleVersion   = 4;
+inline constexpr int kWorkOnRuleVersion   = 5;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns
@@ -754,7 +754,7 @@ inline std::vector<WorkOnSummary> aggregateWorkOnsIn(std::vector<SessionWorkOns>
                      });
     const int n = int(sessions.size());
 
-    // Age in SUBSTANTIVE sessions since. A warm-up of three balls between two real sessions
+    // Age in SUBSTANTIVE sessions since. Three balls hit between two real sessions
     // must not make the first one older.
     std::vector<int> age(size_t(n), 0);
     {

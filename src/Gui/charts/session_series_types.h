@@ -107,7 +107,6 @@ struct ShotDiagnostics {
         double confidence = kNaN;
     };
     QString     club;
-    bool        warmUp      = false;
     bool        dataWarning = false;
     QStringList fired;                    // condition ids, sorted
     QStringList clean;                    // condition ids, sorted

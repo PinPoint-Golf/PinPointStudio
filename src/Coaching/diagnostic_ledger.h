@@ -147,11 +147,6 @@ inline constexpr int kDiagRankBandWidth = 1;
 // Better absent than flickering.
 inline constexpr int kDiagDriverDebounceShots = 3;
 
-// Warm-up: the first N shots are not representative and would seed early patterns badly.
-// Down-weighted (§5.4), never excluded — a shank on shot 1 is still a shank.
-inline constexpr int kDiagWarmUpShots  = 3;
-inline constexpr double kDiagWarmUpWeight = 0.5;
-
 // 95% one-sided normal deviate for the Wilson bound.
 inline constexpr double kDiagWilsonZ = 1.96;
 
@@ -236,9 +231,6 @@ struct LedgerOptions {
     int    movedTogetherWindow    = kDiagMovedTogetherWindow;
     int    rankBandWidth          = kDiagRankBandWidth;
     int    driverDebounceShots    = kDiagDriverDebounceShots;
-    int    warmUpShots            = kDiagWarmUpShots;
-    // 1.0 disables warm-up handling entirely without a second flag to keep in step.
-    double warmUpWeight           = kDiagWarmUpWeight;
     double wilsonZ                = kDiagWilsonZ;
 
     // Measurement uncertainty in the session counts (session_diagnostics_design.md §A8.5). With
@@ -254,9 +246,8 @@ struct LedgerOptions {
 
 // Wilson score interval, LOWER bound, at `z` (1.96 ⇒ 95%). Clamped at zero.
 //
-// Counts are DOUBLES because warm-up down-weighting produces fractional effective counts
-// (9 firings of which two were warm-up is 8.0 effective firings, not 9). The Wilson form
-// is a smooth function of k and n and extends to fractional counts without ceremony; what
+// Counts are DOUBLES because the soft tier's expected counts are fractional (§A8.5). The Wilson
+// form is a smooth function of k and n and extends to fractional counts without ceremony; what
 // it must never do is go negative, because a lower bound below zero is not a rate the
 // golfer can be shown and the gate compares against 0.30.
 //
@@ -706,7 +697,6 @@ struct ShotRecord {
     QString club;
     QString contextId;
     qint64  timestampMs = 0;
-    bool    warmUp      = false;    // declared warm-up, over and above the first-N rule
     bool    dataWarning = false;    // recording known broken: every row NotAssessable, shot
                                     // drawn but weightless (session_diagnostics_model detectShot)
     std::vector<ConditionRow> rows;
@@ -885,22 +875,6 @@ inline int severityLevel(double excess,
     return level;
 }
 
-// This shot's weight on the effective Wilson counts. Warm-up shots are DOWN-WEIGHTED,
-// not dropped: the swings are real and the ticks are drawn, they simply seed a pattern
-// claim less hard than a shot hit once the golfer is loose.
-//
-// UPSTREAM NOTE: the design mock (`Session Dashboard.dc.html`, `_sdRows`) has no warm-up
-// handling at all — every shot weighs 1. The mock's published tiers and recurrence counts
-// therefore correspond to opt.warmUpWeight == 1.0, and the parity test in
-// diagnostic_ledger_test.cpp pins them with warm-up disabled for exactly that reason. The
-// mock needs regenerating with §5.4 weighting before its numbers can be quoted as final.
-inline double shotWeight(const ShotRecord &shot, int index, const LedgerOptions &opt)
-{
-    // gate rule: PP_GATE("rule.diag.warmUp")
-    const bool warm = shot.warmUp || index < opt.warmUpShots;
-    return warm ? opt.warmUpWeight : 1.0;
-}
-
 // ── Tiers (brief §3.2, design §A3) ──────────────────────────────────────────────
 
 enum class Tier { Clean, Watching, Pattern };
@@ -933,7 +907,7 @@ struct ConditionLedger {
     int assessable = 0;
     int fired      = 0;
 
-    // The same two after warm-up weighting. These, not the raw counts, feed the bound —
+    // The same two as expected counts under the soft tier (§A8.5). These, not the raw counts, feed the bound —
     // while the RECURRENCE CAPTION quotes the raw counts, because the caption is a
     // statement about swings that happened and a golfer can count them.
     double effAssessable = 0.0;
@@ -1045,9 +1019,8 @@ struct TierSnapshot {
 };
 
 // `soft`, when given and opt.softTier is set, carries each shot's (P(fire), trusted share) — the
-// §A8.5 expected counts. Absent, or softTier off, every assessable shot counts 1 × its weight.
+// §A8.5 expected counts. Absent, or softTier off, every assessable shot counts 1.
 inline TierSnapshot tierAtPrefix(const std::vector<ShotState> &run,
-                                 const std::vector<double>    &weights,
                                  int n, const LedgerOptions &opt,
                                  const std::vector<std::pair<double, double>> *soft = nullptr)
 {
@@ -1057,16 +1030,15 @@ inline TierSnapshot tierAtPrefix(const std::vector<ShotState> &run,
     const bool useSoft = opt.softTier && soft && int(soft->size()) >= lim;
     for (int i = 0; i < lim; ++i) {
         if (run[size_t(i)] == ShotState::NotAssessable) continue;   // rule 1
-        const double w = i < int(weights.size()) ? weights[size_t(i)] : 1.0;
         ++s.assessable;
         if (run[size_t(i)] == ShotState::Fired) ++s.fired;
         if (useSoft) {
             const auto [p, trust] = (*soft)[size_t(i)];
-            effA += w * trust;
-            effF += w * trust * p;
+            effA += trust;
+            effF += trust * p;
         } else {
-            effA += w;
-            if (run[size_t(i)] == ShotState::Fired) effF += w;
+            effA += 1.0;
+            if (run[size_t(i)] == ShotState::Fired) effF += 1.0;
         }
     }
     s.wilsonLower = wilsonLowerBound(effF, effA, opt.wilsonZ);
@@ -1088,9 +1060,6 @@ inline std::vector<QSet<QString>> patternDraws(const std::vector<ShotRecord> &sh
     std::vector<QSet<QString>> out;
     const int n = int(shots.size());
     if (n == 0 || opt.mcDraws <= 0) return out;
-
-    std::vector<double> weights(size_t(n), 1.0);
-    for (int i = 0; i < n; ++i) weights[size_t(i)] = shotWeight(shots[size_t(i)], i, opt);
 
     std::vector<QString> order;
     QHash<QString, int>  index;
@@ -1126,7 +1095,7 @@ inline std::vector<QSet<QString>> patternDraws(const std::vector<ShotRecord> &sh
         }
         QSet<QString> pat;
         for (size_t c = 0; c < order.size(); ++c)
-            if (tierAtPrefix(runs[c], weights, n, hard).tier == Tier::Pattern) pat.insert(order[c]);
+            if (tierAtPrefix(runs[c], n, hard).tier == Tier::Pattern) pat.insert(order[c]);
         out.push_back(std::move(pat));
     }
     return out;
@@ -1148,9 +1117,6 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
                                                      const LedgerOptions &opt = LedgerOptions())
 {
     const int n = int(shots.size());
-
-    std::vector<double> weights(size_t(std::max(n, 0)), 1.0);
-    for (int i = 0; i < n; ++i) weights[size_t(i)] = shotWeight(shots[size_t(i)], i, opt);
 
     // First-seen order, with a hash purely for lookup — never iterated, because QHash's
     // iteration order is randomised in Qt6 and a panel that reorders per launch is a bug.
@@ -1215,7 +1181,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
             L.firingExcess = std::isfinite(m) ? m : 0.0;
         }
 
-        const TierSnapshot now = tierAtPrefix(L.run, weights, n, opt, &soft);
+        const TierSnapshot now = tierAtPrefix(L.run, n, opt, &soft);
         L.assessable  = now.assessable;
         L.fired       = now.fired;
         L.wilsonLower = now.wilsonLower;
@@ -1223,11 +1189,11 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         for (int i = 0; i < n; ++i) {
             if (L.run[size_t(i)] == ShotState::NotAssessable) continue;
             if (opt.softTier) {
-                L.effAssessable += weights[size_t(i)] * soft[size_t(i)].second;
-                L.effFired      += weights[size_t(i)] * soft[size_t(i)].second * soft[size_t(i)].first;
+                L.effAssessable += soft[size_t(i)].second;
+                L.effFired      += soft[size_t(i)].second * soft[size_t(i)].first;
             } else {
-                L.effAssessable += weights[size_t(i)];
-                if (L.run[size_t(i)] == ShotState::Fired) L.effFired += weights[size_t(i)];
+                L.effAssessable += 1.0;
+                if (L.run[size_t(i)] == ShotState::Fired) L.effFired += 1.0;
             }
         }
         L.recurrence = recurrenceText(L.fired, L.assessable);
@@ -1249,7 +1215,7 @@ inline std::vector<ConditionLedger> conditionLedgers(const std::vector<ShotRecor
         // The comparison is against the ledger's own past, not against a remembered flag,
         // so replay and live agree by construction.
         const TierSnapshot then =
-            tierAtPrefix(L.run, weights, std::max(0, n - opt.freshWindow), opt, &soft);
+            tierAtPrefix(L.run, std::max(0, n - opt.freshWindow), opt, &soft);
         L.freshThisShot = L.tier == Tier::Pattern && then.tier != Tier::Pattern;
 
         L.resolving = L.tier == Tier::Pattern && L.sinceLastFiring >= opt.resolvingWindow;
@@ -2252,7 +2218,6 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
         so[QStringLiteral("club")]        = s.club;
         so[QStringLiteral("contextId")]   = s.contextId;
         so[QStringLiteral("timestampMs")] = double(s.timestampMs);
-        so[QStringLiteral("warmUp")]      = s.warmUp;
         so[QStringLiteral("dataWarning")] = s.dataWarning;
         so[QStringLiteral("rows")]        = rowArr;
         // Schema 5 — written only when present, so a shot with none is byte-identical to before.
@@ -2318,8 +2283,6 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
     oo[QStringLiteral("movedTogetherWindow")]     = opt.movedTogetherWindow;
     oo[QStringLiteral("rankBandWidth")]           = opt.rankBandWidth;
     oo[QStringLiteral("driverDebounceShots")]     = opt.driverDebounceShots;
-    oo[QStringLiteral("warmUpShots")]             = opt.warmUpShots;
-    oo[QStringLiteral("warmUpWeight")]            = opt.warmUpWeight;
     oo[QStringLiteral("wilsonZ")]                 = opt.wilsonZ;
 
     QJsonObject root;
@@ -2350,8 +2313,6 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         o.movedTogetherWindow     = i("movedTogetherWindow",     o.movedTogetherWindow);
         o.rankBandWidth           = i("rankBandWidth",           o.rankBandWidth);
         o.driverDebounceShots     = i("driverDebounceShots",     o.driverDebounceShots);
-        o.warmUpShots             = i("warmUpShots",             o.warmUpShots);
-        o.warmUpWeight            = d("warmUpWeight",            o.warmUpWeight);
         o.wilsonZ                 = d("wilsonZ",                 o.wilsonZ);
         *optOut = o;
     }
@@ -2366,7 +2327,6 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         s.club        = so.value(QStringLiteral("club")).toString();
         s.contextId   = so.value(QStringLiteral("contextId")).toString();
         s.timestampMs = qint64(so.value(QStringLiteral("timestampMs")).toDouble());
-        s.warmUp      = so.value(QStringLiteral("warmUp")).toBool();
         s.dataWarning = so.value(QStringLiteral("dataWarning")).toBool();
         for (const QJsonValue &rv : so.value(QStringLiteral("rows")).toArray()) {
             const QJsonObject ro = rv.toObject();

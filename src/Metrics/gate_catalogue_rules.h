@@ -74,10 +74,6 @@ inline void appendRules(std::vector<GateEntry> &c)
                         "shots, and the overlap would rarely happen by chance (5%). Fewer shots invite seeing a "
                         "link that is not there."), ledger, diagDesign)
         .tuning = { tune("ledger.minPairsForDependence", 8, "shots"), tune("ledger.fisherAlpha", 0.05, "") };
-    rule(c, "rule.diag.warmUp", diag, "Warm-up shots count for less", "warm-up",
-         QStringLiteral("The first three shots of a session are warm-up: they count half as much toward a pattern. "
-                        "They are never dropped — a shank on the first shot is still a shank."), ledger, diagDesign)
-        .tuning = { tune("ledger.warmUpShots", 3, "shots"), tune("ledger.warmUpWeight", 0.5, "") };
     rule(c, "rule.diag.debounce", diag, "Waiting for the picture to settle", "settling",
          QStringLiteral("The main-cause line stays empty until the set of patterns has not changed for three shots. "
                         "Better nothing than a line that changes its mind every swing."), ledger, diagDesign)

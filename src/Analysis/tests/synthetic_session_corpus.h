@@ -132,7 +132,6 @@ inline constexpr double kCorridorHalf = 2.0;
 struct CorpusSpec {
     uint64_t seed  = 20260807;
     int      shots = 14;
-    int      warmUpShots = 3;       // flagged on the record; the ledger's own §4 tunable
                                     // is separate and injected there
     FocusSplit focus;               // declared ⇒ baselineEnd splits the session
     QString  club = QStringLiteral("7i");
@@ -282,7 +281,6 @@ inline Corpus generate(const CorpusSpec &spec)
         s.club        = spec.club;
         s.contextId   = spec.contextId;
         s.timestampMs = qint64(1'700'000'000'000LL) + qint64(i) * 45'000LL;   // no clock
-        s.warmUp      = i < spec.warmUpShots;
 
         for (size_t ci = 0; ci < spec.conditions.size(); ++ci) {
             const PlantedCondition &c = spec.conditions[ci];

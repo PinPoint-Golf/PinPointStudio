@@ -188,7 +188,7 @@ struct CalibrationRow {
     pv::VariabilityResult r;
     double  rhoM = kNaN;                  // scalar rows: the coupled §8.5 ρm
     int     offered = 0;                  // shots of the club offered to the grader
-    int     excluded = 0;                 // shots of the club left out (the guard; warm-ups count, R13)
+    int     excluded = 0;                 // shots of the club left out (the guard, R13)
     QString detail;                       // ordinal: the modal order
     QString ksSegments;                   // ordinal: the window's placed-segment set, "leadArm,club"
     int     ksExcluded = -1;              // ordinal: resolved swings with another set, plus unresolved ones

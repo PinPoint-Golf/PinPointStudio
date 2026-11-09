@@ -2391,8 +2391,7 @@ bool wholeReading(const VariabilityTrace &r)
 
 // OUT OF EVERY VARIABILITY WINDOW: a shot whose P-ladder cannot be trusted to time-normalise it (consistencyGuarded,
 // the Consistency matrix's own guard, on the P-alignment's warp). Both kinds of reading here — the top → impact curve
-// and the peak order — rest on that ladder. Warm-ups stay in (R13: the golfer should be warmed up before PinPoint
-// assesses them).
+// and the peak order — rest on that ladder. Every other shot stays in (R13).
 bool outOfVariabilityWindow(const Ctx &c, size_t i)
 {
     const ShotSeries &s = *c.snap->shots[i];
@@ -2495,7 +2494,7 @@ QVariantList clubGradesOf(Ctx &c, const QString &key)
 // sentence uses (q.commonOrder), less a segment never or rarely placed (fewer than N_MIN placed peaks in the session:
 // the face-on chest, whose peak the sentence orders as a probable one, drops out), k = m! orders
 // of those m segments. Each swing's token is its peak order cut to the kept segments ("pelvis>leadArm>club"); only a
-// swing with every KEPT segment placed has one; a guarded shot none (warm-ups count, R13). The basis names the kept
+// swing with every KEPT segment placed has one; a guarded shot none (R13). The basis names the kept
 // segments, appended here to the grader's own string: "Same order in 12 of 15 swings · pelvis, lead arm, club".
 // Fewer than two segments kept: ungraded, no entry.
 // [{ club, readings, k, segments: [ids], result (a plain variabilityResult map) }], clubs by readings descending, then

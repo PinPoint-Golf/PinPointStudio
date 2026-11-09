@@ -132,7 +132,7 @@ void checkApart(const SessionSnapshot &s, int ordinal, const QVariantList &rows)
 }
 
 // R8's window, worked out here apart from the presenter: shot `ordinal`'s value in `values` (a row's, one per shot)
-// against the session's other shots with its club, guarded P-ladders left out (warm-ups count, R13). nullopt below eight.
+// against the session's other shots with its club, guarded P-ladders left out (R13). nullopt below eight.
 std::optional<pinpoint::variability::ScalarTypicality> expectedTypicality(const SessionSnapshot &s, int ordinal, const QVariantList &values,
                                                                           const QString &key)
 {
@@ -151,8 +151,8 @@ std::optional<pinpoint::variability::ScalarTypicality> expectedTypicality(const 
     return pinpoint::variability::scalarTypicality(mine.toDouble(), window, d ? d->scaleType : pinpoint::variability::ScaleType::Interval);
 }
 
-// A copy of a session with some shots given another club, or marked warm-ups.
-std::shared_ptr<SessionSnapshot> withShots(const SessionSnapshot &in, const QList<int> &ordinals, const QString &club, bool warmUp = false)
+// A copy of a session with some shots given another club.
+std::shared_ptr<SessionSnapshot> withShots(const SessionSnapshot &in, const QList<int> &ordinals, const QString &club)
 {
     auto s = std::make_shared<SessionSnapshot>(in);
     ++s->revision;
@@ -160,7 +160,6 @@ std::shared_ptr<SessionSnapshot> withShots(const SessionSnapshot &in, const QLis
         if (!ordinals.contains(sp->ordinal)) continue;
         auto c = std::make_shared<ShotSeries>(*sp);
         if (!club.isEmpty()) { c->club = club; c->diagnostics.club = club; }
-        if (warmUp) c->diagnostics.warmUp = true;
         sp = c;
     }
     return s;
@@ -995,15 +994,12 @@ private slots:
     }
 
     // An Apart row (the launch monitor's, on 5 Oct) carries its typicality over the row's own values — unless it is an
-    // outcome: ball flight and smash factor have no badge at all (R4). Warm-ups count towards the usual (R13): marking
-    // every other shot a warm-up changes no row's badge.
+    // outcome: ball flight and smash factor have no badge at all (R4).
     void apartRowsCarryTypicality()
     {
         const charts_test::Fixture oct = charts_test::loadFixture(kDataDir + QStringLiteral("/session_1005.json"));
         QVERIFY(oct.ok);
         auto snap = withDirs(oct.session);
-        QList<int> warm;
-        for (int o = 1; o <= snap->count(); ++o) if (o != 7) warm << o;
         int outcomes = 0;
         const auto checkRows = [&outcomes](const SessionSnapshot &s, const QVariantMap &ts) {
             for (const QVariant &v : ts.value(QStringLiteral("apart")).toList()) {
@@ -1023,18 +1019,6 @@ private slots:
         const QVariantMap ts = p->thisShot();
         checkRows(*snap, ts);
         QVERIFY2(outcomes > 0, "the fixture's Apart has a ball-flight or smash row (smash factor on shot 7)");
-        auto w = withShots(*snap, warm, QString(), true);
-        auto pw = make(w, 7);
-        const QVariantMap tw = pw->thisShot();
-        checkRows(*w, tw);
-        const auto badges = [](const QVariantMap &t) {
-            QStringList out;
-            for (const QVariant &v : t.value(QStringLiteral("apart")).toList())
-                out << v.toMap().value(QStringLiteral("key")).toString() + QLatin1Char(':')
-                           + v.toMap().value(QStringLiteral("variability")).toMap().value(QStringLiteral("basisText")).toString();
-            return out;
-        };
-        QCOMPARE(badges(tw), badges(ts));
     }
 
     // R11: Replay's "now" says the median is the median; with a result, the typicality rides beside it.

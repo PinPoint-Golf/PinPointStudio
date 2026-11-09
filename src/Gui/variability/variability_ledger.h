@@ -29,8 +29,7 @@
 //       (SessionDiagnosticsModel, "Data-integrity exclusion"), so that is how a broken recording is left out. The
 //       shot's `dataWarning` flag is NOT a filter: it also marks warnings that withhold nothing (a refused club
 //       track), whose rows the ledger counts and Home's habit counts show;
-//     - WARM-UPS STAY IN (R13): the golfer should be warmed up before PinPoint assesses them, and the ledger's
-//       first-shots down-weighting is diagnostics' own;
+//     - EVERY SHOT STAYS IN (R13): the golfer is warmed up before PinPoint assesses them;
 //     - only a row whose DRIVING measure is the measure graded;
 //     - `noBand`: judged against an authored number (faultAt), against no band, or a composite's reading.
 //   THE GRADE (ledgerConsistencyGrade): pooled within club (R2a, pooledWithinClubInput) on the scalar basis, against

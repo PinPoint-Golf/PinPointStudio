@@ -85,7 +85,6 @@ std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans)
 LedgerOptions flatOpts()
 {
     LedgerOptions o;
-    o.warmUpWeight = 1.0;
     o.softTier = false;
     return o;
 }
@@ -1056,7 +1055,7 @@ int main()
         Session s;
         s.shots = sessionOf(plans);
         s.ledgers = conditionLedgers(s.shots, flatOpts());
-        // The model's own tiers (warm-up weighting and soft tiers included), from its cards.
+        // The model's own tiers (soft tiers included), from its cards.
         for (ConditionLedger &l : s.ledgers)
             l.tier = patterns.contains(l.id) ? Tier::Pattern : l.fired > 0 ? Tier::Watching : Tier::Clean;
         QHash<QString, WorkOnClass> cls;

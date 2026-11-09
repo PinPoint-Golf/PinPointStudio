@@ -71,7 +71,7 @@ const QString kTendenciesFile = QStringLiteral("tendencies.json");
 
 // THE VERSION OF THE CONSISTENCY MARKS' RULE (the window, the filters, the scale): in the marks job's
 // fingerprint, so a new rule grades again. Nothing is stored, so a bump only costs the next settle a read.
-constexpr int kConsistencyMarksRule = 2;     // 2: warm-ups and data-warning shots in (R13), outcomes ungraded (R4)
+constexpr int kConsistencyMarksRule = 2;     // 2: every shot in, data-warning shots too (R13), outcomes ungraded (R4)
 
 QString dayLabel(qint64 ms)
 {
@@ -641,7 +641,7 @@ void WorkOnsController::publish()
         QString statusText;
         const WorkOnPoint *lastPattern = w.latestPatternIndex >= 0 ? &w.history[size_t(w.latestPatternIndex)] : nullptr;
         const WorkOnPoint *lastConclusive = w.latestConclusiveIndex >= 0 ? &w.history[size_t(w.latestConclusiveIndex)] : nullptr;
-        // A later session that measured OTHER things and not this one. Three warm-up balls
+        // A later session that measured OTHER things and not this one. Three balls
         // that measured nothing are not a session this fault went missing from.
         bool unmeasuredSince = false;
         for (int i = w.latestConclusiveIndex + 1; i < int(w.history.size()); ++i)
@@ -998,7 +998,7 @@ WorkOnsController::MarksOutcome WorkOnsController::runMarks(const MarksJob &job,
         }
         ++out.ledgersRead;
         const std::vector<ShotRecord> shots = fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
-        // Every shot, warm-ups and data-warning shots included (R13; variability_ledger.h): a broken recording's rows
+        // Every shot, data-warning shots included (R13; variability_ledger.h): a broken recording's rows
         // are already NotAssessable in the ledger, and the shared rule leaves those out.
         for (const ShotRecord &shot : shots) {
             const qint64 ms = shot.timestampMs > 0 ? shot.timestampMs : s.startMs;

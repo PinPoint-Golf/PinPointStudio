@@ -134,19 +134,6 @@ std::shared_ptr<SessionSnapshot> withClub(const SessionSnapshot &base, std::init
     return mixed;
 }
 
-// The snapshot with shots `ords` (1-based) marked warm-up in their diagnostics row.
-std::shared_ptr<SessionSnapshot> withWarmUp(const SessionSnapshot &base, std::initializer_list<int> ords, quint64 revision)
-{
-    auto s = std::make_shared<SessionSnapshot>(base);
-    s->revision = revision;
-    for (int o : ords) {
-        auto c = std::make_shared<ShotSeries>(*s->shots[size_t(o - 1)]);
-        c->diagnostics.warmUp = true;
-        s->shots[size_t(o - 1)] = c;
-    }
-    return s;
-}
-
 QVariantMap rowOf(const QVariantList &rows, const QString &key)
 {
     for (const QVariant &r : rows) if (r.toMap().value(QStringLiteral("key")).toString() == key) return r.toMap();
@@ -497,24 +484,6 @@ private slots:
             }
             QVERIFY2(graded > 0, "some curve of the fixture is graded");
         }
-        // a warm-up swing stays in every window (R13): one warm-up shot, the same readings everywhere
-        {
-            const auto readingsOf = [](ChartsTracesPresenter &pp) {
-                QHash<QString, int> out;
-                for (const QVariant &rv : pp.session().value(QStringLiteral("rows")).toList()) {
-                    const QVariantList g = rv.toMap().value(QStringLiteral("clubGrades")).toList();
-                    out.insert(rv.toMap().value(QStringLiteral("key")).toString(), g.isEmpty() ? 0 : g[0].toMap().value(QStringLiteral("readings")).toInt());
-                }
-                return out;
-            };
-            ChartsTracesPresenter w;
-            w.setVariabilityScalesForTest(scaledTraces(10.0));
-            setUp(w, withWarmUp(*m_snap, { 3 }, 34));
-            const QHash<QString, int> base = readingsOf(one), warm = readingsOf(w);
-            QVERIFY(!base.isEmpty());
-            for (auto it = base.begin(); it != base.end(); ++it)
-                QVERIFY2(it.value() == warm.value(it.key()), qPrintable(it.key()));
-        }
         // two clubs: two grades per row, the bigger club first, the 2-swing club graded 0
         ChartsTracesPresenter p;
         p.setVariabilityScalesForTest(scaledTraces(10.0));
@@ -644,14 +613,6 @@ private slots:
             QCOMPARE(r.value(QStringLiteral("basisText")).toString(), QStringLiteral("Same order in 12 of 15 swings · pelvis, chest, lead arm, club"));
             report("    order (synthetic): grade %d · %s\n", r.value(QStringLiteral("grade")).toInt(), qPrintable(r.value(QStringLiteral("basisText")).toString()));
         }
-        {   // a warm-up swing keeps its token (R13): shot 1 (in order) a warm-up, still 12 of 15
-            ChartsTracesPresenter f;
-            setUp(f, withWarmUp(*full, { 1 }, 35));
-            const QVariantList gf = f.session().value(QStringLiteral("sequence")).toMap().value(QStringLiteral("orderGrades")).toList();
-            QCOMPARE(gf.size(), 1);
-            QCOMPARE(gf[0].toMap().value(QStringLiteral("readings")).toInt(), 15);
-            QCOMPARE(res(gf[0]).value(QStringLiteral("basisText")).toString(), QStringLiteral("Same order in 12 of 15 swings · pelvis, chest, lead arm, club"));
-        }
         {   // fewer than two segments kept: ungraded, no entry — every shot places the club alone
             auto one = std::make_shared<SessionSnapshot>(*m_snap);
             one->revision = 37;
@@ -733,18 +694,6 @@ private slots:
         for (const QString &mode : { QStringLiteral("previous"), QStringLiteral("next"), QStringLiteral("leastTypical") }) {
             p.setAgainst(mode);
             for (const QVariant &t : typOf(p.reference())) QVERIFY2(t.metaType().id() != QMetaType::QVariantMap, qPrintable(mode));
-        }
-        // warm-ups are in the window (R13): shots 1-7 warm-ups still leave shot 8 its fourteen others
-        {
-            ChartsTracesPresenter w;
-            w.setVariabilityScalesForTest(scaledTraces(10.0));
-            setUp(w, withWarmUp(*m_snap, { 1, 2, 3, 4, 5, 6, 7 }, 36));
-            w.setAgainst(QStringLiteral("median"));
-            const QVariantMap ref = w.reference();
-            QVERIFY(ref.value(QStringLiteral("active")).toBool());
-            int with = 0;
-            for (const QVariant &t : typOf(ref)) with += t.metaType().id() == QMetaType::QVariantMap ? 1 : 0;
-            QVERIFY2(with > 0, "warm-ups count towards the usual");
         }
         // a club with fewer than 8 other shots: none (shot 2 is one of 7 gap wedges: 6 others)
         ChartsTracesPresenter q;

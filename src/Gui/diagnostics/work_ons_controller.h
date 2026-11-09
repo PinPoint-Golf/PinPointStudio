@@ -93,8 +93,8 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 //     first by shot time, off each session's diagnostics.json ledger. Which rows are readings, and how a
 //     window is graded, is the rule the report's work-on page shares (src/Gui/variability/
 //     variability_ledger.h): rows of that condition whose driving measure is that measure, assessed
-//     (not NotAssessable), with a finite value. Warm-ups count (R13), and so does a shot carrying a data
-//     warning: the ledger has already made a broken recording's rows NotAssessable, and a warning that
+//     (not NotAssessable), with a finite value. A shot carrying a data
+//     warning counts: the ledger has already made a broken recording's rows NotAssessable, and a warning that
 //     withholds nothing (a refused club track) leaves rows the habit counts beside this column count too.
 //   - Centred per club (R2a, pooledWithinClubInput) and graded by the scalar grader against the norm
 //     corridor half-width, (σLo + σHi)/2 whatever the norm's shape (R12), resolved for each shot's

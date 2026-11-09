@@ -271,13 +271,13 @@ int main()
               "a newest session that clears a habit reads −1 habit");
         check(areaOf(a, "lateral") && !areaOf(a, "lateral")->hasTrend, "an unmeasurable area has no trend");
 
-        // A three-ball warm-up after it is not substantive: the trend is still against s2.
+        // Three balls after it are not substantive: the trend is still against s2.
         ss.push_back(session("s3", 2, { { "sway", 2, 2 } }));
-        check(!ss.back().substantive(), "the warm-up is not substantive");
+        check(!ss.back().substantive(), "three balls are not substantive");
         a = summariseAreas(ss, info);
         p = areaOf(a, "posture");
         check(p && p->hasTrend && p->habitTrend == -1 && p->habits == 1,
-              "…and a warm-up after it changes neither which session the trend drops nor its answer");
+              "…and three balls after it change neither which session the trend drops nor its answer");
 
         // Two sessions of which only one is substantive: no trend.
         const std::vector<AreaSummary> one = summariseAreas(
@@ -363,7 +363,7 @@ int main()
                                { "eased", 10, 10 }, { "gone", 0, 10 } }, { "eased" }),
             session("s3", 2, { { "never", 10, 10 }, { "again", 10, 10 }, { "fresh", 10, 10 }, { "old", 10, 10 },
                                { "eased", 0, 10 }, { "gone", 0, 10 } }, { "again", "fresh" }),
-            session("s4", 3, { { "fresh", 1, 2 } }),          // a warm-up: not the newest SUBSTANTIVE session
+            session("s4", 3, { { "fresh", 1, 2 } }),          // three balls: not the newest SUBSTANTIVE session
         };
         const std::vector<AreaSummary> aw = summariseAreas(ss, info, all);
         const AreaSummary *p = areaOf(aw, "posture");
@@ -373,7 +373,7 @@ int main()
               "a pattern in every session that was never listed is not a work-on");
         check(again && again->workOn == QStringLiteral("active") && again->sessionsListed == 2, "listed before and now: active");
         check(fresh && fresh->workOn == QStringLiteral("new") && fresh->sessionsListed == 1,
-              "listed only in the newest substantive session: new (a warm-up after it changes nothing)");
+              "listed only in the newest substantive session: new (three balls after it change nothing)");
         check(old && old->workOn == QStringLiteral("active") && old->sessionsListed == 1,
               "listed once, long ago, and still a pattern: active, NOT new");
         check(eased && eased->workOn == QStringLiteral("easing"), "quiet in the newest conclusive session: easing");

@@ -91,7 +91,6 @@ static std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans, qint64 
 static LedgerOptions flatOpts()
 {
     LedgerOptions o;
-    o.warmUpWeight = 1.0;
     o.softTier = false;
     return o;
 }
@@ -262,7 +261,7 @@ int main()
         v3[QStringLiteral("ruleVersion")]   = 3;
         v3[QStringLiteral("schemaVersion")] = 1;
         sessionWorkOnsFromJson(v3, &ok);
-        check(kWorkOnRuleVersion == 4 && !ok, "a rule-3 record is stale under rule 4");
+        check(kWorkOnRuleVersion == 5 && !ok, "a rule-3 record is stale under rule 5");
 
         // Reasons and linksTestable round-trip, the 2x2 included.
         const QHash<QString, WorkOnClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
@@ -295,8 +294,8 @@ int main()
 
     // ── Schema 3: the evidence carries its measure and the typical over EVERY assessed reading ──
     {
-        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 4,
-              "schema 3 (evidence typical) under rule 4: a schema bump, not a rule bump");
+        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 5,
+              "schema 3 (evidence typical) under rule 5: a schema bump, not a rule bump");
         const QHash<QString, WorkOnClass> cls{ { "a", M } };
         // `a` fires on six of nine (a pattern) reading 6..11, and is clean on three reading 0, 1, 2.
         std::vector<ShotRecord> shots = sessionOf({ plan("a", { 1,1,1,1,1,1,0,0,0 }), plan("quiet", rep(0, 8)),
@@ -490,7 +489,7 @@ int main()
                                                { "gone", M }, { "dtl", M } };
         const qint64 day = 86'400'000LL, t0 = 1'700'000'000'000LL;
         // Oldest first. `dtl` is only measurable in session 1; `eased` is quiet in the last one;
-        // `gone` is quiet in the last two; s3 is a three-ball warm-up that can say nothing.
+        // `gone` is quiet in the last two; s3 is three balls that can say nothing.
         std::vector<SessionWorkOns> all = {
             reduce({ plan("keeps", rep(1, 10)), plan("old", rep(1, 10)), plan("eased", rep(1, 10)),
                      plan("gone", rep(1, 10)), plan("dtl", rep(1, 10)), plan("new", rep(-1, 10)) }, cls, {}, "s1", t0),
@@ -515,14 +514,14 @@ int main()
                   && keeps->sessionsConclusive == 3 && keeps->history.size() == 4,
                   "3 of 3 conclusive sessions; all four sessions have a point");
             check(keeps->history[2].state == SessionEvidence::Inconclusive && keeps->history[0].sessionId == QStringLiteral("s1"),
-                  "history is oldest first and the warm-up's point is Inconclusive");
-            // s4 is age 0, s2 age 1, s1 age 2 — the warm-up does not age anything.
+                  "history is oldest first and the three-ball session's point is Inconclusive");
+            // s4 is age 0, s2 age 1, s1 age 2 — the three-ball session does not age anything.
             // Swings that showed it, each session's fading by 0.75 per substantive session since:
-            // 10 at age 2, 10 at age 1, the warm-up's 2 at age 1, 10 at age 0.
+            // 10 at age 2, 10 at age 1, the three-ball session's 2 at age 1, 10 at age 0.
             check(near(keeps->weightedFired, 10 * 0.5625 + 10 * 0.75 + 2 * 0.75 + 10, 1e-9)
                   && near(keeps->weightedAssessable, keeps->weightedFired, 1e-9)
                   && keeps->swingsFired == 32 && keeps->swingsAssessable == 32,
-                  "the order counts SWINGS: 32 of 32, the warm-up's two included and ageing nothing");
+                  "the order counts SWINGS: 32 of 32, the three-ball session's two included and ageing nothing");
             check(near(keeps->score, wilsonLowerBound(24.625, 24.625), 1e-9), "…and is the Wilson lower bound on the faded counts");
             // The same 10 of 10: at age 0 it is 10 of 10, at age 2 it is 5.6 of 5.6 — the rate
             // is unchanged and the bound is lower. Unmeasured swings are in neither count.

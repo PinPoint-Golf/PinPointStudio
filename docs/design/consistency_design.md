@@ -237,7 +237,7 @@ are retired.)
 **Home** (since 7 Nov, R5; the picture below is the retired 6 Nov roll-up). One column on Your swing, after Trend: a
 golfer-layer badge grading the measure of the **Biggest fault** beside it, over that fault's last 20 readings across sessions
 (`Variability.nWindow`), read from each session's `diagnostics.json` ledger, centred per club, unassessable rows left out,
-warm-ups kept (R13). A yes/no, composite, fixed-number or outcome condition (ball flight, smash) is ungraded: "-". An
+every shot kept (R13). A yes/no, composite, fixed-number or outcome condition (ball flight, smash) is ungraded: "-". An
 opened area lists its faults, each with its own badge over the same window, and a work-on's badge sits beside its status
 (R10). The opened area's row of span words is gone. The column is `sp(136)`, still paid for by Habits (§6). Rules:
 `work_ons_controller.h`, CONSISTENCY MARKS; `src/Gui/variability/variability_ledger.h`.
@@ -449,7 +449,7 @@ a print one on the Folio aesthetic. No line was added to `design_system_allowlis
 - It does not judge good or bad: a grooved fault reads Grooved.
 - It does not grade ball flight (R4): the ball line keeps its figures and has no badge.
 - It does not compare one golfer with another: the spread is always the golfer's own, and the norm's σ only scales it.
-- It does not read the session's order: Drift does that. Shots 1 to 3 of 4 July had the most flags, possibly warm-up, unchecked.
+- It does not read the session's order: Drift does that. Shots 1 to 3 of 4 July had the most flags.
 - No new chart, no heat map on a curve, no bad-shot verdict without a launch monitor.
 
 ---

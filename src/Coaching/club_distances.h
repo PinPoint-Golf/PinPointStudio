@@ -29,8 +29,7 @@
 // Yards only: distances are stored and shown in yd, with no conversion anywhere. Every number comes
 // through lmSessionStats(), so a club's mean and SD are the same arithmetic as the launch monitor panel.
 //
-// WHICH SHOTS COUNT. A shot qualifies when it is past the positional warm-ups, was not a part swing, and
-// has a carry. A strike miss (chunk, thin, top, sky, shank, corrections applied) is left out and counted.
+// WHICH SHOTS COUNT. A shot qualifies when it was not a part swing and has a carry. A strike miss (chunk, thin, top, sky, shank, corrections applied) is left out and counted.
 // ShotRecord::dataWarning is deliberately NOT a filter: it also marks a refused club track or a broken
 // recording, and the monitor's readings on those shots stand. The monitor's own flag is the import's
 // drop list (LaunchMonitorReading::dropped), which leaves the field absent — so a refused carry is
@@ -71,7 +70,7 @@ inline constexpr double kPartialSpeedFraction       = 0.85; // D6: club speed un
 inline constexpr int    kClubTrendRecentSessions    = 3;
 inline constexpr double kClubTrendMinYards          = 3.0;
 inline constexpr double kClubTrendSpreadChange      = 0.20;
-inline constexpr int    kClubBaselineSchemaVersion  = 2;    // club_baseline.json; 2: strikes read from the flight leave the pool
+inline constexpr int    kClubBaselineSchemaVersion  = 3;    // club_baseline.json; 2: strikes read from the flight leave the pool; 3: every shot counts
 
 // A golfer's correction to one shot's labels (diagnostics.json `corrections`). `from` is what was
 // detected, `to` what it should have been ("" = none in that family).
@@ -235,17 +234,14 @@ struct ClubSessionPool {
     std::vector<ClubPoolMishit> mishits;
 };
 
-// The session's pools, one per club, in the order the clubs were first hit. `warmUpShots` is the
-// ledger's positional warm-up (ShotRecord::warmUp is never set, so position decides).
-inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession &session,
-                                                      int warmUpShots = kDiagWarmUpShots)
+// The session's pools, one per club, in the order the clubs were first hit.
+inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession &session)
 {
     std::vector<ClubSessionPool> pools;
     QHash<QString, int> indexOf;
     const QHash<QString, ClubFlightUsual> flightUsuals = sessionFlightUsuals(session.shots);
     for (int i = 0; i < int(session.shots.size()); ++i) {
         const ShotRecord &s = session.shots[size_t(i)];
-        if (s.warmUp || i < warmUpShots) continue;
         if (s.swingLength == QLatin1String("partial")) continue;
         if (!std::isfinite(s.carry)) continue;
         const QString club = canonicalClubId(s.club);
@@ -346,11 +342,11 @@ inline ClubDistanceWindow clubWindow(const QString &club, const std::vector<Club
 
 // Each club's pools across the given sessions, oldest first.
 inline QHash<QString, std::vector<ClubSessionPool>>
-poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst, int warmUpShots = kDiagWarmUpShots)
+poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst)
 {
     QHash<QString, std::vector<ClubSessionPool>> out;
     for (const ClubDistanceSession *s : oldestFirst)
-        for (ClubSessionPool &p : poolSessionByClub(*s, warmUpShots))
+        for (ClubSessionPool &p : poolSessionByClub(*s))
             out[p.club].push_back(std::move(p));
     return out;
 }
@@ -423,7 +419,7 @@ inline ClubBaselineEntry clubBaselineEntryFromWindow(const ClubDistanceWindow &w
 // The usual numbers as of a session on `day`: strictly earlier days only, so a session and its
 // same-day neighbours never judge each other. A club with no qualifying shots has no entry.
 inline QHash<QString, ClubBaselineEntry> clubBaselineAsOf(const std::vector<ClubDistanceSession> &sessions,
-                                                          const QDate &day, int warmUpShots = kDiagWarmUpShots)
+                                                          const QDate &day)
 {
     QHash<QString, ClubBaselineEntry> out;
     if (!day.isValid()) return out;
@@ -432,7 +428,7 @@ inline QHash<QString, ClubBaselineEntry> clubBaselineAsOf(const std::vector<Club
     for (const ClubDistanceSession *s : sessionsByDay(sessions))
         if (s->day < day) earlier.push_back(s);
 
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(earlier, warmUpShots);
+    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(earlier);
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {
         const ClubDistanceWindow window = clubWindow(it.key(), it.value());
         if (window.shotCount > 0) out.insert(it.key(), clubBaselineEntryFromWindow(window));
@@ -664,10 +660,9 @@ inline void applyClubGaps(std::vector<ClubDistanceItem> &items)
 // One row per club with at least one qualifying shot, in `bagOrder` (the canonical order when empty,
 // and any club not in it follows, alphabetically). A club with no carry reported has no row.
 inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
-                                                         const QStringList &bagOrder = QStringList(),
-                                                         int warmUpShots = kDiagWarmUpShots)
+                                                         const QStringList &bagOrder = QStringList())
 {
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions), warmUpShots);
+    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions));
 
     std::vector<ClubDistanceItem> items;
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {

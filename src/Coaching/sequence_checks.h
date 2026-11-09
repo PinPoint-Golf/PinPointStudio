@@ -472,7 +472,7 @@ struct SessionOrderShare {
     int    resolved = 0;      // swings with all three order checks assessed (hard)
     int    inOrder  = 0;      // …of which none fired (hard) — the caption's k of n
     double effOut   = 0.0;    // Σ w·P(out of order): soft with LedgerOptions::softTier, else hard
-    double effN     = 0.0;    // Σ w
+    double effN     = 0.0;    // the swings counted
     double lowerOut = 0.0;    // wilsonLowerBound(effOut, effN)
     double value    = std::numeric_limits<double>::quiet_NaN();   // 1 − lowerOut; NaN unless available
     bool   available = false; // resolved >= minSwings
@@ -529,11 +529,10 @@ inline SessionSequenceConsistency sessionSequenceConsistency(const std::vector<S
             pIn *= 1.0 - sequenceCheckFireProb(*row);
         }
         if (!all) continue;
-        const double w = shotWeight(shot, i, opt);
         ++out.share.resolved;
         if (!anyFired) ++out.share.inOrder;
-        out.share.effN   += w;
-        out.share.effOut += w * (opt.softTier ? (1.0 - pIn) : (anyFired ? 1.0 : 0.0));
+        out.share.effN   += 1.0;
+        out.share.effOut += opt.softTier ? (1.0 - pIn) : (anyFired ? 1.0 : 0.0);
     }
     // gate rule: PP_GATE("rule.diag.sequenceOrderShare")
     out.share.lowerOut  = wilsonLowerBound(out.share.effOut, out.share.effN, opt.wilsonZ);

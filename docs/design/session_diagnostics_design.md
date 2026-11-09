@@ -59,7 +59,7 @@ The central new data structure. Per condition × per shot, the ledger records:
       contextId, contextInferred, material, implausibleMeasures[] }
 
 plus per-shot metadata (club, declared context, timestamp, launch-monitor outcome
-fields when present, warm-up flag — see §5.4). The ledger is the single source of
+fields when present). The ledger is the single source of
 truth: every tier, trend, chain grade and panel state is a pure reduction over it, and
 it persists as `diagnostics.json` in the session folder so review mode rebuilds the
 identical panel.
@@ -305,10 +305,9 @@ D2 only adds information. The ledger row persists `pFire`, `measSigma`, `grossRi
 
 #### A8.5 Stage D3: soft session counts
 
-**The Wilson bound takes expected counts.** The ledger already weighs shots (warm-up),
-so this is the same machinery:
+**The Wilson bound takes expected counts:**
 
-    effA = Σ w·(1 − g)          effF = Σ w·(1 − g)·pFire
+    effA = Σ (1 − g)          effF = Σ (1 − g)·pFire
 
 over the assessable shots. A gross reading is the share of a shot that assessed nothing.
 
@@ -591,7 +590,7 @@ known-groups tests — this is where pack semantics meet real data first.
 
 **C2.2 Session evidence ledger** (`session_ledger.h/.cpp`, Diagnostics): the A2
 record store; append per shot; serialise/load `diagnostics.json` (schema versioned);
-warm-up and context metadata.
+context metadata.
 
 **C2.3 `session_diagnostic_reductions.h`** (Analysis, pure, header-only, no Qt-GUI —
 sibling of `lm_session_reductions.h`, same four-rules discipline): Wilson bound,
@@ -653,7 +652,6 @@ the test asset everything else leans on; build it first.
 | Moved-together window | 5+5 baseline/intervention | Honest only under a focus contract |
 | Rank-band width (hysteresis) | 1 band | Cards move on decisive change only |
 | Driver-footer stability debounce | pattern set unchanged 3 shots | |
-| Warm-up default | first 3 shots down-weighted, wizard-adjustable | §5.4 |
 | Monte Carlo draws for P(Pattern) and root stability | 200, fixed seed | A8.5, A8.6 |
 | Stability words | firm ≥ 0.8, likely ≥ 0.5, else fragile | A8.6 |
 | Borderline shot (G3) | 0.2 < pFire < 0.8 or grossRisk > 0.2 | A8.8 |
@@ -677,10 +675,9 @@ the panel* and cannot be defended when interrogated ("why 74?"). The chain is th
 headline; the wrist donut remains a mode-local device. If a score is ever wanted, it
 must be derivable and interrogable, and it is out of scope here.
 
-**5.4 Warm-up shots.** First swings are not representative and would seed early
-patterns badly. Default: down-weight (not exclude) the first 3 shots, adjustable in
-the session wizard; a wedge-then-driver progression argues for club-aware handling
-later. Cheap now, awkward to retrofit.
+**5.4 Every shot counts.** Golfers warm up before a session in PinPoint, so the first shot
+of a session weighs the same as the last (Mark, 9 Nov 2026). An earlier draft down-weighted
+the first three; it is withdrawn.
 
 **5.5 Coach-present vs solo sessions** may deserve different defaults throughout
 (cadence, vernacular density, screen prompts). The lesson-model work (Scope→…→Wrap-up)

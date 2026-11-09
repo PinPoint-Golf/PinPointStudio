@@ -100,8 +100,8 @@ which is what happens to every down-the-line fault once the second camera is not
 **Order:** active before easing, then the ledger's own question asked across sessions: how
 often does the fault show on the swings where it could be judged, at the cautious end of what
 the evidence supports. Concretely, the Wilson lower bound on (fired, assessable) counted in
-SWINGS, each session's swings counting 0.75^k (k = substantive sessions since; a three-ball
-warm-up is not one).
+SWINGS, each session's swings counting 0.75^k (k = substantive sessions since; three balls
+are not one).
 
 - A swing the capture could not judge is in neither count, so a fault only the down-the-line
   camera can see is not marked down for sessions without one — it may have been there throughout.

@@ -647,9 +647,8 @@ static void addPeak(ShotRecord &r, const char *mid, double v, double sigma)
 static void sequenceConsistencySuite(const QTemporaryDir &tmp)
 {
     std::printf("\nsequence consistency (session)\n");
-    LedgerOptions hard;           // the published arithmetic: hard counts, no warm-up down-weighting
+    LedgerOptions hard;           // the published arithmetic: hard counts
     hard.softTier     = false;
-    hard.warmUpWeight = 1.0;
     const auto near = [](double a, double b, double tol) { return std::fabs(a - b) <= tol; };
 
     // consistency_share_resolved_only
@@ -813,7 +812,7 @@ static void sequenceConsistencySuite(const QTemporaryDir &tmp)
               "…nothing read: \"not assessed\" is only ever said when nothing was");
     }
 
-    // The soft counts carry each order check's pFire, with the warm-up weights.
+    // The soft counts carry each order check's pFire.
     {
         LedgerOptions soft = hard;
         soft.softTier = true;
@@ -1595,8 +1594,6 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
         check(s7.value(QStringLiteral("clean")).toBool() && s7.value(QStringLiteral("corrected")).toBool()
                   && s7.value(QStringLiteral("intended")).toBool(),
               "shot 7: corrected to an intended fade reads clean");
-        check(log.value(0).toMap().value(QStringLiteral("warmUp")).toBool() && !log.value(3).toMap().value(QStringLiteral("warmUp")).toBool(),
-              "warm-up is the first three shots");
     }
 
     // ── The per-shot map (§4.1): shot 10 is the mock's "fat slice, short" ──

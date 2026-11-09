@@ -235,8 +235,8 @@ class SessionDiagnosticsModel : public QObject
     // ── Shot outcomes: the session's outcome strip and reasons (shot_outcomes_design.md §4.2) ───
     //
     // shotLog      [{ shotId, cell, lines: [string], labels: [displayId], reasonId, reasonIndex, clean,
-    //                 intended, corrected, warmUp, noReading, swingDir }] in strike order. `cell` is the
-    //                 word lines joined; "" on a clean shot. Warm-up is the positional first shots.
+    //                 intended, corrected, noReading, swingDir }] in strike order. `cell` is the
+    //                 word lines joined; "" on a clean shot.
     // shotMix      { line: "11 clean · 6 slice · …", corrections: 2, correctionsLine: "2 labels corrected by you" }
     // reasons      [{ id, conditionId, name, golfer, shots, produced: [{phrase, count}], cost, costText,
     //                 tier, tierText, strength, chainConfirmed, trend (+1|0|-1), trendWords, colourIndex,
@@ -244,7 +244,7 @@ class SessionDiagnosticsModel : public QObject
     //                 row last (id/conditionId "", name "No reason found", tierText "Gap in the model",
     //                 flaggable true). state: "fired" | "clean" | "notAssessable".
     // carryToday   [{ club, clubId, mean, sd, n, usualMean, usualSd, usualN, line }], clubs in first-hit
-    //                 order, full swings past the warm-ups with strike misses left out. usual* NaN and no
+    //                 order, full swings with strike misses left out. usual* NaN and no
     //                 usual in `line` until the club has kClubBaselineMinShots behind it.
     Q_PROPERTY(QVariantList shotLog READ shotLog NOTIFY surfaceChanged)
     Q_PROPERTY(QVariantMap  shotMix READ shotMix NOTIFY surfaceChanged)

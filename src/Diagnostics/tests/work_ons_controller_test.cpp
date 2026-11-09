@@ -34,7 +34,7 @@
 // swing_areas_test proves the counting; this proves the plumbing and the words.
 //
 // And Home's consistency marks (R5, R10): the Consistency column grades the measure behind each area's
-// biggest fault over its last 20 readings across the ledgers, newest first, warm-ups out, centred per
+// biggest fault over its last 20 readings across the ledgers, newest first, centred per
 // club; a yes/no condition is ungraded; under 8 readings is grade 0; an unchanged library reads no
 // ledger, and a changed ledger is graded again. variability_grader_test proves the grade.
 //
@@ -583,7 +583,7 @@ static void checkAreasShape(const WorkOnsController &c, const char *when)
 //
 // Home's Consistency column and the badges beside its faults (R5, R10): the measure behind each area's
 // biggest fault, graded over that fault's last 20 readings across the ledgers, newest first, unassessed
-// rows left out — warm-ups and data-warning shots whose rows the ledger kept IN (R13; the 5 Oct library
+// rows left out — data-warning shots whose rows the ledger kept are IN (R13; the 5 Oct library
 // session is 29 data-warning shots of 31, with dozens of assessed rows) — centred per club, against the
 // norm corridor half-width.
 
@@ -591,7 +591,7 @@ namespace pv = pinpoint::variability;
 
 // One reading on one shot: the condition, its measure, the value; NotAssessable when !assessed.
 struct MarkRow { const char *condition; const char *measure; double value; bool assessed; };
-struct MarkShot { QString club; bool warmUp; std::vector<MarkRow> rows; bool dataWarning = false; };
+struct MarkShot { QString club; std::vector<MarkRow> rows; bool dataWarning = false; };
 
 static void stageMarks(const QString &athleteDir, const QString &session, qint64 t0, const std::vector<MarkShot> &plan)
 {
@@ -602,7 +602,6 @@ static void stageMarks(const QString &athleteDir, const QString &session, qint64
         ShotRecord s;
         s.shotId = i + 1;
         s.club = plan[size_t(i)].club;
-        s.warmUp = plan[size_t(i)].warmUp;
         s.dataWarning = plan[size_t(i)].dataWarning;
         s.timestampMs = t0 + i * 45'000LL;
         for (const MarkRow &m : plan[size_t(i)].rows) {
@@ -665,28 +664,28 @@ static void checkConsistencyMarks(const QString &root)
     };
     // Wild: ±60, alternating within each club (the clubs alternate shot by shot).
     const auto wild = [](int i) { return (i / 2) % 2 ? 60.0 : -60.0; };
-    const auto shot = [&](const QString &club, bool warmUp, double kneeValue, bool spineSeen) {
-        return MarkShot{ club, warmUp, { { knee, kneeM, kneeValue, true }, { spine, spineM, 2.0, spineSeen },
+    const auto shot = [&](const QString &club, double kneeValue, bool spineSeen) {
+        return MarkShot{ club, { { knee, kneeM, kneeValue, true }, { spine, spineM, 2.0, spineSeen },
                                          { order, orderM, 1.0, true } } };
     };
     const auto clubOf = [](int i) { return i % 2 ? QStringLiteral("D") : QStringLiteral("7I"); };
 
-    // m1, the oldest: ten wild readings. m2: six wild, then six tight. m3, the newest: two declared
-    // warm-ups, then twelve, all fourteen tight; four of them carry a data warning whose rows the ledger
+    // m1, the oldest: ten wild readings. m2: six wild, then six tight. m3, the newest: fourteen, all
+    // tight; four of them carry a data warning whose rows the ledger
     // kept (as the 5 Oct session's do), and a fifteenth is a broken recording (its rows NotAssessable, as
     // the ledger's integrity exclusion writes them). The newest 20 that count are m3's fourteen and m2's
-    // last six: all tight. Leave the warm-ups or the data-warning shots out and the window reaches m2's
+    // last six: all tight. Leave the data-warning shots out and the window reaches m2's
     // wild readings: Scattered.
     std::vector<MarkShot> m1, m2, m3;
-    for (int i = 0; i < 10; ++i) m1.push_back(shot(clubOf(i), false, wild(i), false));
-    for (int i = 0; i < 12; ++i) m2.push_back(shot(clubOf(i), false, i < 6 ? wild(i) : tight(i, clubOf(i)), false));
+    for (int i = 0; i < 10; ++i) m1.push_back(shot(clubOf(i), wild(i), false));
+    for (int i = 0; i < 12; ++i) m2.push_back(shot(clubOf(i), i < 6 ? wild(i) : tight(i, clubOf(i)), false));
     for (int i = 0; i < 14; ++i) {
-        MarkShot m = shot(clubOf(i), i < 2, tight(i, clubOf(i)), i >= 2 && i < 7);
+        MarkShot m = shot(clubOf(i), tight(i, clubOf(i)), i >= 2 && i < 7);
         m.dataWarning = i == 3 || i == 5 || i == 8 || i == 11;
         m3.push_back(std::move(m));
     }
     {
-        MarkShot broken = shot(clubOf(14), false, wild(14), false);
+        MarkShot broken = shot(clubOf(14), wild(14), false);
         broken.dataWarning = true;
         for (MarkRow &r : broken.rows) r.assessed = false;
         m3.push_back(std::move(broken));
@@ -713,7 +712,7 @@ static void checkConsistencyMarks(const QString &root)
     check(col.n() == pv::kNWindow,
           "the window is the last 20 readings across sessions, newest first (m3's fourteen, m2's last six)");
     check(col.hasRho() && col.rho() < 0.25,
-          "…centred per club (two clubs at their own levels), warm-ups and kept data-warning shots in it (R13), "
+          "…centred per club (two clubs at their own levels), kept data-warning shots in it (R13), "
           "the broken recording not");
     check(row == col, "the opened item's own badge is the same mark");
     check(markOf(c.faultDetail(QString::fromLatin1(knee)).value(QStringLiteral("consistency"))) == col,
@@ -748,7 +747,7 @@ static void checkConsistencyMarks(const QString &root)
 
     // The newest session's ledger changes: its twelve readings go wild, and the column follows.
     std::vector<MarkShot> m3b;
-    for (int i = 0; i < 14; ++i) m3b.push_back(shot(clubOf(i), i < 2, wild(i), i >= 2 && i < 7));
+    for (int i = 0; i < 14; ++i) m3b.push_back(shot(clubOf(i), wild(i), i >= 2 && i < 7));
     QThread::msleep(20);    // a new mtime, whatever the file system's resolution
     stageMarks(golfer, QStringLiteral("m3"), t0 + 2 * day, m3b);
     c.refresh();
@@ -759,8 +758,8 @@ static void checkConsistencyMarks(const QString &root)
 
 // ── Tendencies and the frozen baseline (shot_outcomes_design.md §7.1, Contract A) ──────────
 
-// A session of `shots` driver shots: every shot slices with over_the_top fired, past the
-// positional warm-ups. Dated folders, because the baseline and the catch-up order go by the day.
+// A session of `shots` driver shots: every shot slices with over_the_top fired.
+// Dated folders, because the baseline and the catch-up order go by the day.
 static void stageTendencySession(const QString &athleteDir, const QString &session, qint64 t0, int shots,
                                  const QString &club = QStringLiteral("DRIVER"),
                                  const QJsonObject &extra = QJsonObject())
@@ -861,15 +860,15 @@ static void checkTendencies(const QString &root)
         check(!driver.value(QStringLiteral("building")).toBool()
                   && driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Slice")
                   && driver.value(QStringLiteral("seenWithId")).toString() == QStringLiteral("over_the_top")
-                  && driver.value(QStringLiteral("shots")).toInt() == 18,
-              "the driver earned its tendency: two sessions of nine counted shots, the positional warm-ups left out");
+                  && driver.value(QStringLiteral("shots")).toInt() == 24,
+              "the driver earned its tendency: two sessions of twelve shots, every one counted");
         const QVariantMap iron = tendencyItem(c, "7 IRON|full");
         check(iron.value(QStringLiteral("building")).toBool() && iron.value(QStringLiteral("sessions")).toInt() == 1,
               "one short iron session is still building");
-        check(c.tendencyNote() == QStringLiteral("From 22 shots over 3 sessions"),
+        check(c.tendencyNote() == QStringLiteral("From 31 shots over 3 sessions"),
               "the evidence line counts what was counted");
         check(c.clubDistance(QStringLiteral("driver")).value(QStringLiteral("earned")).toBool()
-                  && c.clubDistance(QStringLiteral("DRIVER")).value(QStringLiteral("n")).toInt() == 18,
+                  && c.clubDistance(QStringLiteral("DRIVER")).value(QStringLiteral("n")).toInt() == 24,
               "the per-club distance is there, by the canonical club name");
         const QVariantMap detail = c.tendencyDetail(QStringLiteral("DRIVER|full"));
         check(!detail.value(QStringLiteral("playTo")).toString().isEmpty()
@@ -886,11 +885,11 @@ static void checkTendencies(const QString &root)
         if (f.open(QIODevice::ReadOnly)) {
             QJsonObject root_ = QJsonDocument::fromJson(f.readAll()).object();
             f.close();
-            // One counted shot marked as an intended fade: it leaves the tally.
+            // One shot marked as an intended fade: it leaves the tally.
             root_[QStringLiteral("shotIntent")] = QJsonObject{ { QStringLiteral("10"), QStringLiteral("fade") } };
-            // Every counted slice was really a hook, in this session.
+            // Every slice was really a hook, in this session.
             QJsonObject corrections;
-            for (int id = 4; id <= 12; ++id)
+            for (int id = 1; id <= 12; ++id)
                 corrections.insert(QString::number(id),
                                    QJsonArray{ QJsonObject{ { QStringLiteral("family"), QStringLiteral("direction") },
                                                             { QStringLiteral("from"), QStringLiteral("slice") },
@@ -903,7 +902,7 @@ static void checkTendencies(const QString &root)
         c.refresh();
         check(c.tendencyJobs() == jobs + 1, "a changed ledger re-reduces the tendencies");
         const QVariantMap driver = tendencyItem(c, "DRIVER|full");
-        check(driver.value(QStringLiteral("shots")).toInt() == 17 && !driver.value(QStringLiteral("building")).toBool(),
+        check(driver.value(QStringLiteral("shots")).toInt() == 23 && !driver.value(QStringLiteral("building")).toBool(),
               "the intended shape is excluded from the tally, the tendency still earned");
         check(driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Hook"),
               "a correction changes the usual miss without re-deriving a session");

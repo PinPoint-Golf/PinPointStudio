@@ -577,7 +577,7 @@ struct Ctx {
     const pinpoint::analysis::INormProvider *norms = nullptr;
     pinpoint::analysis::GradePolicy policy;
     const ConsistencyEnv *env = nullptr;    // the stand-out rule's, taken on the GUI thread
-    // R8: per shot, true when no "usual" counts it (a warm-up, or a guarded P-ladder); filled only when a typicality
+    // R8: per shot, true when no "usual" counts it (a guarded P-ladder); filled only when a typicality
     // window could hold N_MIN others (outOfTypicalityWindow)
     std::vector<uint8_t> typicalOut;
 
@@ -772,8 +772,7 @@ QVariantMap rowMap(const Ctx &x, int i) { return rowMapOf(x, x.r(i), x.m(i), i);
 namespace pv = pinpoint::variability;
 
 // The shots no "usual" counts: a shot whose P-ladder cannot be trusted (consistencyGuarded, the Consistency matrix's own
-// guard, on the session's P-alignment). Warm-ups count (R13: the golfer should be warmed up before PinPoint assesses
-// them). Filled once a job, only when a typicality window could hold N_MIN others; the picked shot is compared, never
+// guard, on the session's P-alignment). Every other shot counts (R13). Filled once a job, only when a typicality window could hold N_MIN others; the picked shot is compared, never
 // counted, whatever it is.
 std::vector<uint8_t> outOfTypicalityWindow(Cache &c, const SessionSnapshot &S, int pick)
 {

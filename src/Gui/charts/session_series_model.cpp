@@ -81,7 +81,7 @@ bool sameNumber(double a, double b)
 
 bool sameDiagnostics(const ShotDiagnostics &a, const ShotDiagnostics &b)
 {
-    if (a.club != b.club || a.warmUp != b.warmUp || a.dataWarning != b.dataWarning
+    if (a.club != b.club || a.dataWarning != b.dataWarning
         || a.fired != b.fired || a.clean != b.clean || a.values.size() != b.values.size())
         return false;
     if (a.drivenBy.size() != b.drivenBy.size()) return false;
@@ -129,7 +129,6 @@ ShotDiagnostics diagnosticsOf(const pinpoint::analysis::ShotRecord &s,
     using pinpoint::analysis::ShotState;
     ShotDiagnostics d;
     d.club        = s.club;
-    d.warmUp      = s.warmUp;
     d.dataWarning = s.dataWarning;
     for (const pinpoint::analysis::ConditionRow &r : s.rows)
         if (r.state == ShotState::NotAssessable && !r.notJudgedSubject.isEmpty()) {

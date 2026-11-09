@@ -233,8 +233,8 @@
 // ── TYPICALITY (Mark's ruling R8; docs/design/system/variability.md) ─────────────────────────
 // Charts is the technical layer, and Apart, Readings, the key figures and Replay's "now" are all this shot against
 // "the usual": a Typicality badge with the grader's basis, never a grade. The window is the session's OTHER shots with
-// this shot's club, this shot left out, shots whose P-ladder is guarded (consistencyGuarded) left out (warm-ups count,
-// R13), at least N_MIN (8) of them (scalarTypicalityWindow); fewer, and there is no badge. Ball flight and smash factor
+// this shot's club, this shot left out, shots whose P-ladder is guarded (consistencyGuarded) left out (R13),
+// at least N_MIN (8) of them (scalarTypicalityWindow); fewer, and there is no badge. Ball flight and smash factor
 // have none (R4, isOutcomeMetric). The value set is what the row shows
 // (a stand-out's point, a launch-monitor row's club values); the corridor is the reading's norm corridor where both
 // edges are closed. Apart's pick rule and every other number are unchanged.

@@ -985,9 +985,6 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     rec.club        = d.club;
     rec.contextId   = d.contextId;
     rec.timestampMs = timestampMs;
-    // Warm-up is the FIRST-N rule only, applied inside shotWeight(). A declared warm-up flag
-    // has no producer yet and inventing one from the shot index would double-count the rule.
-    rec.warmUp = false;
 
     rec.rows.reserve(d.result.findings.size());
     for (const Finding &f : d.result.findings) {
@@ -1574,6 +1571,9 @@ void SessionDiagnosticsModel::closeSession()
     if (m_closed) return;
     m_pool.waitForDone();
     m_closed = true;
+    // Rank on the final evidence, whenever the pattern set last moved: the closed session must read as a
+    // reload of it will, and a reload ranks once, on the final numbers.
+    m_patternSet.clear();
     rebuild();
     persist();
     // The profile is updated ONCE, at close, and from the frozen ledger. Updating it per shot
@@ -1912,7 +1912,6 @@ void SessionDiagnosticsModel::ensureOutcomes() const
             { QStringLiteral("clean"),       o.clean },
             { QStringLiteral("intended"),    intended },
             { QStringLiteral("corrected"),   corrected },
-            { QStringLiteral("warmUp"),      i < m_opt.warmUpShots },
             { QStringLiteral("noReading"),   o.noReading },
             { QStringLiteral("swingDir"),    m_swingDirs.value(m_shots[size_t(i)].shotId) },
         });
@@ -1936,7 +1935,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     self.day    = sessionDayOfFolder(m_sessionDir);
     self.shots  = m_shots;
     self.corrections = m_corrections;
-    for (const ClubSessionPool &pool : poolSessionByClub(self, m_opt.warmUpShots)) {
+    for (const ClubSessionPool &pool : poolSessionByClub(self)) {
         if (pool.shots.empty()) continue;
         ClubWindowSession window;
         window.shots = pool.shots;
@@ -2475,7 +2474,7 @@ void SessionDiagnosticsModel::prepareClubBaseline()
 
     ClubBaselineSnapshot snap;
     snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    snap.clubs    = clubBaselineAsOf(earlier, day, m_opt.warmUpShots);
+    snap.clubs    = clubBaselineAsOf(earlier, day);
     QString why;
     if (!atomicWrite(path, QJsonDocument(clubBaselineToJson(snap)).toJson(QJsonDocument::Compact), &why)) {
         ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(why);

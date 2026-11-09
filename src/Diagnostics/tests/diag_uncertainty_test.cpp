@@ -216,7 +216,7 @@ int main()
             }
             return shots;
         };
-        LedgerOptions hard; hard.softTier = false; hard.warmUpWeight = 1.0;
+        LedgerOptions hard; hard.softTier = false;
         LedgerOptions soft = hard; soft.softTier = true;
         const auto noProb = session(-1.f, true, 6);
         const auto L0 = conditionLedgers(noProb, hard), L1 = conditionLedgers(noProb, soft);

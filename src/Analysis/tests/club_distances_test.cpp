@@ -39,7 +39,7 @@ static void check(bool c, const char *label)
 }
 static bool near(double a, double b, double tol) { return std::fabs(a - b) <= tol; }
 
-// A shot past the warm-ups with a clean carry and the readings the reductions look up.
+// A shot with a clean carry and the readings the reductions look up.
 static ShotRecord shotWith(int shotId, const QString &club, double carry)
 {
     ShotRecord s;
@@ -65,8 +65,7 @@ static ConditionRow firedRow(const QString &id, int nSignals = 1, float confiden
     return r;
 }
 
-// A session on `day` with `kDiagWarmUpShots` warm-ups first (carry 999, so a warm-up that leaks in is
-// obvious), then the given carries.
+// A session on `day` with the given carries.
 static ClubDistanceSession sessionOn(const QString &day, const QString &club, const std::vector<double> &carries,
                                      const char *suffix = "01")
 {
@@ -74,7 +73,6 @@ static ClubDistanceSession sessionOn(const QString &day, const QString &club, co
     s.folder = day + QStringLiteral("_Mark_Range_") + QLatin1String(suffix);
     s.day    = sessionDayOfFolder(s.folder);
     int id = 1;
-    for (int i = 0; i < kDiagWarmUpShots; ++i) s.shots.push_back(shotWith(id++, club, 999.0));
     for (double c : carries) s.shots.push_back(shotWith(id++, club, c));
     return s;
 }
@@ -110,7 +108,6 @@ int main()
         ClubDistanceSession s;
         s.folder = QStringLiteral("2026-10-05_x_y_01");
         s.day = QDate(2026, 10, 5);
-        for (int i = 0; i < kDiagWarmUpShots; ++i) s.shots.push_back(wedge(i + 1, 100.0, 30.0, -2.0, "unread"));
         for (int i = 0; i < 6; ++i) s.shots.push_back(wedge(10 + i, 100.0, 30.0, -2.0, "unread"));
         s.shots.push_back(wedge(20, 11.0, 1.4, 12.6, "unread"));     // the shank
         s.shots.push_back(wedge(21, 60.0, 28.0, -1.0, "unread"));    // far short, nothing else to say
@@ -260,12 +257,12 @@ int main()
     {
         ClubDistanceSession s = sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 151, 152, 90, 88, 150 });
         // The two fat shots.
-        s.shots[size_t(kDiagWarmUpShots) + 3].rows.push_back(firedRow(QStringLiteral("chunk")));
-        s.shots[size_t(kDiagWarmUpShots) + 4].rows.push_back(firedRow(QStringLiteral("chunk")));
+        s.shots[3].rows.push_back(firedRow(QStringLiteral("chunk")));
+        s.shots[4].rows.push_back(firedRow(QStringLiteral("chunk")));
         // A shot the golfer corrected as a thin one, and a detected fat the golfer said was not.
-        s.corrections[s.shots[size_t(kDiagWarmUpShots)].shotId] = { ShotCorrection{ QStringLiteral("strike"), QString(), QStringLiteral("thin") } };
-        s.shots[size_t(kDiagWarmUpShots) + 5].rows.push_back(firedRow(QStringLiteral("chunk")));
-        s.corrections[s.shots[size_t(kDiagWarmUpShots) + 5].shotId] = { ShotCorrection{ QStringLiteral("strike"), QStringLiteral("chunk"), QString() } };
+        s.corrections[s.shots[0].shotId] = { ShotCorrection{ QStringLiteral("strike"), QString(), QStringLiteral("thin") } };
+        s.shots[5].rows.push_back(firedRow(QStringLiteral("chunk")));
+        s.corrections[s.shots[5].shotId] = { ShotCorrection{ QStringLiteral("strike"), QStringLiteral("chunk"), QString() } };
 
         const auto items = reduceClubDistances({ s });
         const ClubDistanceItem *i = itemFor(items, k7i);

@@ -27,7 +27,7 @@
 // effect at the next reduction without re-deriving a session. Rows are never mirrored; the composer's
 // words are (Contract D).
 //
-// WHICH SHOTS COUNT: past the positional warm-ups, straight intent, assessable (a launch monitor reading,
+// WHICH SHOTS COUNT: straight intent, assessable (a launch monitor reading,
 // and the ball's shape judged). A shot with a data warning that withheld nothing still counts: a broken
 // recording's rows are NotAssessable, so it falls out as not assessable.
 //
@@ -55,7 +55,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 7;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix
+inline constexpr int kTendencyRuleVersion   = 8;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -69,7 +69,6 @@ struct TendencyOptions {
     double trendDelta      = 0.15;  // the 15-point rule
     int    trendMinJudged  = 3;
     int    recentSessions  = 5;     // what "your last ... shots" means on Home
-    int    warmUpShots     = kDiagWarmUpShots;
 };
 
 // ── The session's evidence, stored per condition (work_ons.json `outcomeEvidence`) ──────────────────
@@ -500,9 +499,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         if (cancel && cancel->load()) { out.cancelled = true; return out; }
         const TendencySessionInput &s = *sessions[size_t(si)];
         const ShotOutcomeSessionFacts facts{ s.evidence.links, s.evidence.tiers, sessionFlightUsuals(s.session.shots) };
-        for (int pos = 0; pos < int(s.session.shots.size()); ++pos) {
-            if (pos < opt.warmUpShots) continue;
-            const ShotRecord &shot = s.session.shots[size_t(pos)];
+        for (const ShotRecord &shot : s.session.shots) {
             const QString intent = s.intents.value(shot.shotId);
             if (!intent.isEmpty() && intent != QLatin1String("straight")) continue;
             const QString group = clubGroupOf ? clubGroupOf(shot.club) : QString();

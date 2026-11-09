@@ -288,10 +288,6 @@
       "golfer": "too few swings to tell whether the two go together"
     },
     {
-      "id": "rule.diag.warmUp",
-      "golfer": "your first few swings count for less, as warm-up"
-    },
-    {
       "id": "rule.diag.debounce",
       "golfer": "the picture was still settling"
     },

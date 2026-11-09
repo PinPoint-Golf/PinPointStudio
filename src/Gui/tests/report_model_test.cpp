@@ -1178,12 +1178,12 @@ int main(int argc, char **argv)
             s.rows.push_back(r);
             return s;
         };
-        // Ten assessed readings, two clubs, a warm-up and a data-warning shot whose rows the ledger kept (R13: both count),
+        // Ten assessed readings, two clubs, a data-warning shot whose rows the ledger kept (R13: it counts),
         // plus what the rule leaves out: a broken recording (the ledger made its rows NotAssessable), a swing the capture
         // could not assess, and a row another measure drove.
         std::vector<A::ShotRecord> shots;
         for (int k = 0; k < 10; ++k) shots.push_back(shot(k + 1, k % 2 ? QStringLiteral("7i") : QStringLiteral("PW"), (k % 2 ? 40.0 : 30.0) + 0.3 * (k % 3)));
-        A::ShotRecord warm = shot(11, QStringLiteral("7i"), 40.1); warm.warmUp = true; shots.push_back(warm);
+        shots.push_back(shot(11, QStringLiteral("7i"), 40.1));
         A::ShotRecord flagged = shot(12, QStringLiteral("PW"), 30.1); flagged.dataWarning = true; shots.push_back(flagged);
         A::ShotRecord broken = shot(15, QStringLiteral("7i"), 90.0, A::ShotState::NotAssessable); broken.dataWarning = true; shots.push_back(broken);
         shots.push_back(shot(13, QStringLiteral("7i"), 90.0, A::ShotState::NotAssessable));
@@ -1192,7 +1192,7 @@ int main(int argc, char **argv)
         for (const A::ShotRecord &s : shots) swings.push_back(&s);
 
         const std::vector<V::LedgerConsistencyReading> readings = V::ledgerConsistencyReadings(swings, cond, meas);
-        check(readings.size() == 12, "readings: the assessed ones of that measure, warm-up and kept data-warning shot included (R13); "
+        check(readings.size() == 12, "readings: the assessed ones of that measure, kept data-warning shot included (R13); "
                                      "no broken recording, unassessed swing or other measure");
         check(!readings.empty() && readings.front().contextId == QLatin1String("ctx.row"), "a reading's context is its row's corridor context");
         QStringList asked;

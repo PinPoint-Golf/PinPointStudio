@@ -354,7 +354,7 @@ function noReasonOutcome() {
 }
 function outcomeLogRow(id, lines, over) {
     return Object.assign({ shotId: id, cell: lines.join(" "), lines: lines, labels: [], reasonId: "", reasonIndex: -1,
-                           clean: false, intended: false, corrected: false, warmUp: id <= 3, noReading: false,
+                           clean: false, intended: false, corrected: false, noReading: false,
                            swingDir: "/fake/session/swing_000" + id }, over || {})
 }
 function withOutcomes(s) {

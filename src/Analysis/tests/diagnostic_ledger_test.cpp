@@ -97,13 +97,10 @@ static std::vector<ShotRecord> sessionOf(const std::vector<Plan> &plans)
     return shots;
 }
 
-// Warm-up handling OFF — the design mock has none (see shotWeight()'s upstream note), and
-// most gate boundaries below are stated in raw counts. The weighting gets its own section.
+// Most gate boundaries below are stated in raw counts.
 static LedgerOptions flatOpts()
 {
-    LedgerOptions o;
-    o.warmUpWeight = 1.0;
-    return o;
+    return LedgerOptions();
 }
 
 static const ConditionLedger &led(const std::vector<ConditionLedger> &ls, const char *id)
@@ -156,7 +153,7 @@ int main()
               "…and 8 of 10 outranks 1 of 2, which the raw rate barely does");
         check(near(wilsonLowerBound(10, 10), 0.7224598, 1e-6), "10 of 10 is still not 1.0");
 
-        // Same rate, less evidence: the bound has to fall, or warm-up weighting means
+        // Same rate, less evidence: the bound has to fall, or the weight of evidence means
         // nothing (the weighting works by shrinking n as well as k).
         check(wilsonLowerBound(4, 5) < wilsonLowerBound(8, 10), "same rate, fewer shots, lower bound");
         check(near(wilsonLowerBound(4, 5), 0.3755283, 1e-6), "…and the fractional path agrees");
@@ -351,42 +348,17 @@ int main()
         check(led(rec, "c").latest == ShotState::Clean, "the latest state is the last shot's");
     }
 
-    // ── Warm-up weighting (design §5.4) ─────────────────────────────────────────
+    // ── Every shot counts in full (Mark, 9 Nov 2026) ─────────────────────────────
     //
-    // Down-weighted, never excluded: the swings happened and the ticks are drawn. What
-    // changes is how hard they seed a PATTERN CLAIM, which is the thing an unrepresentative
-    // first three balls would poison.
+    // Golfers warm up before a session; the first shot weighs the same as the last.
     {
         const auto shots = sessionOf({ plan("w", { 1,1,1,1,1, 0,0,0 }) });
-
-        const auto flat = conditionLedgers(shots, O);
-        check(led(flat, "w").fired == 5 && led(flat, "w").assessable == 8, "5 of 8 either way");
-        check(near(led(flat, "w").wilsonLower, 0.3057379, 1e-6), "unweighted bound, hand-computed");
-        check(led(flat, "w").tier == Tier::Pattern, "…which clears the gate");
-
-        LedgerOptions warm = O;
-        warm.warmUpShots  = 3;
-        warm.warmUpWeight = 0.5;
-        const auto weighted = conditionLedgers(shots, warm);
-        check(near(led(weighted, "w").effFired, 3.5, 1e-12), "three warm-up firings weigh 1.5");
-        check(near(led(weighted, "w").effAssessable, 6.5, 1e-12), "…of an effective 6.5 shots");
-        check(led(weighted, "w").fired == 5 && led(weighted, "w").assessable == 8,
-              "the RAW counts are untouched — the caption still says 5 of 8");
-        check(led(weighted, "w").wilsonLower < led(flat, "w").wilsonLower,
-              "the weighted bound is lower");
-        check(led(weighted, "w").tier == Tier::Watching,
-              "…far enough to hold a warm-up-seeded pattern back to watching");
-        check(led(weighted, "w").recurrence == QStringLiteral("5 of 8 measurable shots"),
-              "and the golfer is still told about all five swings");
-
-        // The declared flag reaches shots the first-N rule does not.
-        auto declared = shots;
-        declared[6].warmUp = true;
-        LedgerOptions none = O;
-        none.warmUpShots = 0;
-        none.warmUpWeight = 0.5;
-        check(near(conditionLedgers(declared, none)[0].effAssessable, 7.5, 1e-12),
-              "a declared warm-up shot is down-weighted on its own");
+        const auto ls = conditionLedgers(shots, LedgerOptions());
+        check(led(ls, "w").fired == 5 && led(ls, "w").assessable == 8, "5 of 8");
+        check(near(led(ls, "w").effFired, 5.0, 1e-12) && near(led(ls, "w").effAssessable, 8.0, 1e-12),
+              "the first shot of a session weighs the same as the last");
+        check(near(led(ls, "w").wilsonLower, 0.3057379, 1e-6), "the bound, hand-computed");
+        check(led(ls, "w").tier == Tier::Pattern, "…which clears the gate");
     }
 
     // ── Trend: ordinal, on |z|, over assessable shots only ──────────────────────
@@ -686,7 +658,6 @@ int main()
     {
         cp::CorpusSpec spec;
         spec.shots = 14;
-        spec.warmUpShots = 3;
         for (const Plan &p : mockPlans()) {
             cp::PlantedCondition c;
             c.id = p.id;
@@ -1115,7 +1086,6 @@ int main()
         bool rowsMatch = true;
         for (size_t i = 0; i < rebuilt.size() && rowsMatch; ++i) {
             if (rebuilt[i].shotId != c.shots[i].shotId) rowsMatch = false;
-            if (rebuilt[i].warmUp != c.shots[i].warmUp) rowsMatch = false;
             if (rebuilt[i].timestampMs != c.shots[i].timestampMs) rowsMatch = false;
             if (rebuilt[i].rows.size() != c.shots[i].rows.size()) { rowsMatch = false; break; }
             for (size_t k = 0; k < rebuilt[i].rows.size(); ++k) {
@@ -1689,8 +1659,7 @@ int main()
 
     // ── Parity with the design mock ────────────────────────────────────────────
     //
-    // The nine fires arrays out of `Session Dashboard.dc.html`, at N = 14, with warm-up
-    // weighting DISABLED because the mock has none (shotWeight()'s upstream note). If this
+    // The nine fires arrays out of `Session Dashboard.dc.html`, at N = 14. If this
     // block fails, our arithmetic and the published design have parted company and one of
     // them needs regenerating — the brief asks to be told which.
     {

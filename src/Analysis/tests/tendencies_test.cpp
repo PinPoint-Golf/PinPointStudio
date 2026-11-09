@@ -101,14 +101,14 @@ static ShotRecord shot(int id, std::initializer_list<const char *> fired, const 
     return s;
 }
 
-// `n` shots past the three positional warm-ups, every one fired with `fired`.
+// `n` shots, every one fired with `fired`.
 static TendencySessionInput session(int dayNumber, int n, std::initializer_list<const char *> fired, const char *club = "DRIVER")
 {
     TendencySessionInput s;
     s.session.day    = QDate(2026, 3, dayNumber);
     s.session.folder = s.session.day.toString(Qt::ISODate) + QStringLiteral("_M_01");
-    for (int i = 0; i < 3 + n; ++i)
-        s.session.shots.push_back(shot(i + 1, i < 3 ? std::initializer_list<const char *>{} : fired, club));
+    for (int i = 0; i < n; ++i)
+        s.session.shots.push_back(shot(i + 1, fired, club));
     return s;
 }
 
@@ -140,11 +140,11 @@ int main()
 
     std::printf("\nwhich shots count, and the earn rule:\n");
     {
-        // Two sessions of nine counted shots: earned at 15, the warm-ups left out by position.
+        // Two sessions of nine shots: earned at 15, every shot counted.
         std::vector<TendencySessionInput> in{ session(1, 9, { "slice", "over_the_top" }), session(2, 9, { "slice", "over_the_top" }) };
         const TendencySet set = reduceTendencies(in, pack, driverGroup);
         const TendencyItem *it = itemFor(set, "DRIVER|full");
-        check(set.countedShots == 18 && set.countedSessions == 2, "the shots past the warm-ups count; the warm-ups do not");
+        check(set.countedShots == 18 && set.countedSessions == 2, "every shot counts, the first of a session too");
         check(it && !it->building && it->miss == QStringLiteral("Slice") && it->shots == 18 && it->sessions == 2, "earned: the usual miss is the slice");
         check(it && it->share > 0.99 && it->frequency == QStringLiteral("every swing"), "every counted shot, in words");
         check(it && it->seenWithId == QStringLiteral("over_the_top") && it->chain.size() == 3, "seen with the driver, with its chain to the ball");
@@ -231,7 +231,7 @@ int main()
     {
         // A correction reaches the reduction: the shot now reads hook.
         std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }), session(2, 9, { "slice" }) };
-        for (int id = 4; id <= 12; ++id) {
+        for (int id = 1; id <= 9; ++id) {
             std::vector<ShotCorrection> &list = in[1].session.corrections[id];
             list.push_back(ShotCorrection{ QStringLiteral("direction"), QStringLiteral("slice"), QStringLiteral("hook") });
         }
@@ -244,7 +244,7 @@ int main()
     {
         // Fat on every shot, a slice on 9 of the 18 (the second family at the 50% line).
         std::vector<TendencySessionInput> in{ session(1, 9, { "chunk", "early_extension" }), session(2, 9, { "chunk", "early_extension" }) };
-        for (int i = 3; i < 12; ++i) {
+        for (int i = 0; i < 9; ++i) {
             in[0].session.shots[size_t(i)] = shot(i + 1, { "chunk", "slice", "early_extension" });
         }
         const TendencySet set = reduceTendencies(in, pack, driverGroup);
