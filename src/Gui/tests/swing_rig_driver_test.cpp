@@ -39,6 +39,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QThreadPool>
 
 #include <cmath>
 #include <cstdio>
@@ -76,6 +77,143 @@ static bool writeDoc(const QString &dir, const QJsonObject &analysis)
     if (!f.open(QIODevice::WriteOnly)) return false;
     f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
     return true;
+}
+
+// ── a session on disk ────────────────────────────────────────────────────────
+using PKeys = std::array<qint64, 7>;
+
+// One shot: the elbow is linear from 0 at P1 to `perStep`·6 at P7, so a pose read at a P-time says
+// whether the figure is on that shot's clock.
+static void writeSessionShot(const QString &sessionDir, int n, const PKeys &p, const QString &club)
+{
+    const sk::Rig &R = sk::rig();
+    const int elbow = dof("lElbow.flex");
+    sk::FitResult r;
+    r.valid = true;
+    r.dtlUsed = true;
+    r.scale.fill(1.0);
+    r.scaleGlobal = 1.0;
+    r.displayOrigin = { 0, 2, 0 };
+    r.clubLengthM = 0.95;
+    for (qint64 t = p[0]; t <= p[6] + 150000; t += 5000) {
+        double u = 6.0;
+        if (t < p[6]) {
+            size_t k = 0;
+            while (k + 1 < 6 && t >= p[k + 1]) ++k;
+            u = double(k) + double(t - p[k]) / double(p[k + 1] - p[k]);
+        }
+        r.t_us.push_back(t);
+        std::vector<double> th(size_t(R.dofCount()), 0.0);
+        th[1] = 2.0; th[2] = 1.0;
+        th[size_t(elbow)] = 0.2 * u;
+        r.theta.push_back(th);
+        sk::Pose ps;
+        std::array<double, sk::GroupCount> sc; sc.fill(1.0);
+        sk::forwardKinematics(R, th.data(), sc.data(), ps);
+        std::array<sk::V3, sk::Rig::N> joints {};
+        for (int j = 0; j < sk::Rig::N; ++j) joints[size_t(j)] = ps.pos[j];
+        r.joints.push_back(joints);
+        std::array<uint8_t, sk::Rig::N> tier; tier.fill(sk::TierMeasured);
+        r.tier.push_back(tier);
+        r.sigmaM.push_back({});
+        r.flags.push_back(0);
+        r.grip.push_back(ps.pos[sk::ybot::LeftHand]);
+        r.shaftDir.push_back({ 0, 0, -1 });
+        r.shaftTier.push_back(3);
+    }
+    QJsonArray positions;
+    for (int k = 0; k < 7; ++k)
+        positions.append(QJsonObject { { QStringLiteral("p"), k + 1 }, { QStringLiteral("t_us"), double(p[size_t(k)]) },
+                                       { QStringLiteral("source"), 1 } });
+    QJsonObject root;
+    root[QStringLiteral("clock")] = QJsonObject { { QStringLiteral("t0_us"), 0 } };
+    root[QStringLiteral("review")] = QJsonObject { { QStringLiteral("club"), club } };
+    root[QStringLiteral("athlete")] = QJsonObject { { QStringLiteral("handedness"), QStringLiteral("Right") } };
+    root[QStringLiteral("analysis")] = QJsonObject {
+        { QStringLiteral("skeleton3d"), sk::skeleton3dToJson(r, 0, 17) },
+        { QStringLiteral("club"), QJsonObject { { QStringLiteral("positions"), positions } } } };
+    const QString dir = QDir(sessionDir).filePath(QStringLiteral("swing_%1").arg(n, 4, 10, QLatin1Char('0')));
+    QDir().mkpath(dir);
+    QFile f(QDir(dir).filePath(QStringLiteral("swing.json")));
+    if (f.open(QIODevice::WriteOnly)) f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+}
+
+static PKeys scaled(double factor)
+{
+    static const PKeys base { 100000, 350000, 510000, 800000, 970000, 1035000, 1090000 };
+    PKeys p;
+    for (size_t k = 0; k < 7; ++k) p[k] = 100000 + qint64(double(base[k] - 100000) * factor);
+    return p;
+}
+
+static double elbowDeg(const SwingRigDriver &drv)
+{
+    const sk::Rig &R = sk::rig();
+    const sk::Q q = (R.restQ[sk::ybot::LeftForeArm] * R.neutral[sk::ybot::LeftForeArm]).normalized();
+    const QQuaternion rest(float(q.w), float(q.x), float(q.y), float(q.z));
+    const QQuaternion g = drv.localRotation(sk::ybot::LeftForeArm, drv.revision());
+    return 2.0 * std::acos(std::min(1.0, std::fabs(double(QQuaternion::dotProduct(rest, g))))) / sk::kDeg;
+}
+
+static void sessionView(QTemporaryDir &tmp)
+{
+    const QString session = tmp.filePath(QStringLiteral("session"));
+    const PKeys slow = scaled(1.2), quick = scaled(0.85);
+    writeSessionShot(session, 1, slow, QStringLiteral("7 IRON"));
+    writeSessionShot(session, 2, quick, QStringLiteral("7 IRON"));
+    writeSessionShot(session, 3, scaled(1.0), QStringLiteral("7 IRON"));
+    writeSessionShot(session, 4, scaled(1.1), QStringLiteral("7 IRON"));
+    writeSessionShot(session, 5, scaled(1.0), QStringLiteral("DRIVER"));
+    const QString shot1 = session + QStringLiteral("/swing_0001"), shot2 = session + QStringLiteral("/swing_0002");
+
+    SwingRigDriver drv;
+    check(drv.loadSessionNow(shot1), "the session view synthesises");
+    check(drv.sessionShots() == 4, "…from the four shots with the selected shot's club");
+    check(drv.sessionFallback().isEmpty(), "…with nothing to apologise for");
+    check(drv.faceOnOnly() && drv.sessionPlaneShots() == 0, "no plane shots: face-on only");
+    check(drv.clubAfterImpactUncertain(), "…and the club after impact is flagged");
+    check(!drv.cameraAvailable(0) && !drv.cameraAvailable(1), "the session view has no fitted cameras");
+
+    auto p4Of = [](const SwingRigDriver &d) {
+        for (int i = 0; i < d.positionCount(); ++i) if (d.positionP(i) == 4) return d.positionTimeUs(i);
+        return qint64(-1);
+    };
+    check(p4Of(drv) == slow[3], "P4 is on the selected shot's clock");
+    drv.setPositionUs(slow[3]);
+    std::printf("      elbow at this shot's P4: %.2f° (want %.2f°)\n", elbowDeg(drv), 0.6 / sk::kDeg);
+    check(std::fabs(elbowDeg(drv) - 0.6 / sk::kDeg) < 0.5, "…and the figure is at P4 when the shot is");
+
+    // Another shot of the same club is a retime: the files are gone and it still works, at once.
+    QDir(session).removeRecursively();
+    drv.setSwingDir(shot2);
+    check(!drv.loading() && drv.available(), "another shot with the club needs no file");
+    check(p4Of(drv) == quick[3], "…and moves the figure onto its clock");
+    drv.setPositionUs(quick[3]);
+    check(std::fabs(elbowDeg(drv) - 0.6 / sk::kDeg) < 0.5, "…so the figure is at P4 when that shot is");
+
+    // Below three shots: the shot itself, and why.
+    const QString small = tmp.filePath(QStringLiteral("small"));
+    writeSessionShot(small, 1, scaled(1.0), QStringLiteral("7 IRON"));
+    writeSessionShot(small, 2, scaled(1.1), QStringLiteral("7 IRON"));
+    SwingRigDriver two;
+    two.loadSessionNow(small + QStringLiteral("/swing_0001"));
+    std::printf("      fallback: %s\n", qPrintable(two.sessionFallback()));
+    check(two.available() && two.sessionShots() == 0, "below three shots the panel shows the shot");
+    check(!two.sessionFallback().isEmpty(), "…and says why");
+
+    // Nothing is read until the panel is on show.
+    const QString later = tmp.filePath(QStringLiteral("later"));
+    for (int n = 1; n <= 3; ++n) writeSessionShot(later, n, scaled(1.0), QStringLiteral("7 IRON"));
+    SwingRigDriver hidden;
+    hidden.setPanelShown(false);
+    hidden.setSessionScope(true);
+    hidden.setSwingDir(later + QStringLiteral("/swing_0001"));
+    check(!hidden.loading() && !hidden.available(), "with the panel hidden nothing starts");
+    hidden.setPanelShown(true);
+    check(hidden.loading(), "showing the panel starts it");
+    QThreadPool::globalInstance()->waitForDone();
+    QCoreApplication::processEvents();
+    check(hidden.available() && hidden.sessionShots() == 3, "…and it arrives");
 }
 
 int main(int argc, char **argv)
@@ -334,6 +472,8 @@ int main(int argc, char **argv)
         std::printf("      plane corners off the plane: %.2e m\n", off);
         check(off < 1e-5, "the quad lies in the plane, through the clubhead at impact");
     }
+
+    sessionView(tmp);
 
     std::printf("=== %s (%d failure%s) ===\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;

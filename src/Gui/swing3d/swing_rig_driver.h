@@ -119,6 +119,15 @@ class SwingRigDriver : public QObject
     // so the panel can word a refused skeleton or plane in the gate's own words (TrustWords.gateFor;
     // trust stage 6 session 2). Empty on a swing analysed before records existed.
     Q_PROPERTY(QVariantList gates    READ gates         NOTIFY loadedChanged)
+    // SESSION VIEW (docs/design/swing_3d_session_synthesis_design.md): with sessionScope on, the
+    // figure is the session's usual swing with the selected shot's club, retimed to that shot.
+    // Nothing is read while panelShown is false; a change waits for the panel to come back.
+    Q_PROPERTY(bool    sessionScope READ sessionScope WRITE setSessionScope NOTIFY sessionScopeChanged)
+    Q_PROPERTY(bool    panelShown   READ panelShown   WRITE setPanelShown   NOTIFY panelShownChanged)
+    Q_PROPERTY(int     sessionShots      READ sessionShots      NOTIFY loadedChanged)   // 0 = not showing a synthesis
+    Q_PROPERTY(int     sessionPlaneShots READ sessionPlaneShots NOTIFY loadedChanged)
+    Q_PROPERTY(QString sessionFallback   READ sessionFallback   NOTIFY loadedChanged)   // why the shot is shown instead
+    Q_PROPERTY(bool    clubAfterImpactUncertain READ clubAfterImpactUncertain NOTIFY loadedChanged)
 
 public:
     explicit SwingRigDriver(QObject *parent = nullptr);
@@ -163,6 +172,18 @@ public:
 
     // Synchronous load for tests and probes (the property path is asynchronous).
     Q_INVOKABLE bool loadNow(const QString &dir);
+    Q_INVOKABLE bool loadSessionNow(const QString &swingDir);
+
+    bool    sessionScope() const { return m_sessionScope; }
+    void    setSessionScope(bool on);
+    bool    panelShown() const { return m_panelShown; }
+    void    setPanelShown(bool shown);
+    int     sessionShots() const { return m_sessionShots; }
+    int     sessionPlaneShots() const { return m_sessionPlaneShots; }
+    QString sessionFallback() const { return m_sessionFallback; }
+    bool    clubAfterImpactUncertain() const { return m_clubAfterImpactUncertain; }
+    // Forget the session's synthesis: a shot has gone from it.
+    Q_INVOKABLE void invalidateSession();
 
     // ── motion annotations ──
     bool inSwingWindow() const;
@@ -200,10 +221,19 @@ signals:
     void swingDirChanged();
     void loadedChanged();
     void revisionChanged();
+    void sessionScopeChanged();
+    void panelShownChanged();
 
 private:
     struct Prepared;                                  // the track, pre-baked per frame
+    struct SessionData;                               // what a session's read produced
     void startLoad();
+    void startShotLoad();
+    void startSessionLoad();
+    void adoptSession(std::shared_ptr<const SessionData> data, bool synchronous);
+    void clearSessionFacts();
+    static std::shared_ptr<const SessionData> prepareSession(const QString &sessionDir, const QString &shotFolder,
+                                                             std::shared_ptr<const SessionData> previous);
     void adopt(std::shared_ptr<const Prepared> p, quint64 generation);
     void evaluate();
     static std::shared_ptr<const Prepared> prepare(const QString &dir, QString *reason, QVariantList *gates = nullptr);
@@ -216,6 +246,16 @@ private:
     int     m_revision = 0;
     quint64 m_generation = 0;
     std::shared_ptr<const Prepared> m_track;
+
+    bool    m_sessionScope = false;
+    bool    m_panelShown = true;
+    bool    m_loadPending = false;       // a load that waited for the panel to come back
+    bool    m_sessionCheck = false;      // re-check the session's files before trusting what is held
+    int     m_sessionShots = 0;
+    int     m_sessionPlaneShots = 0;
+    QString m_sessionFallback;
+    bool    m_clubAfterImpactUncertain = false;
+    std::shared_ptr<const SessionData> m_session;
 
     std::vector<QQuaternion> m_local;
     std::vector<int>         m_tier;

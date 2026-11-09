@@ -215,7 +215,9 @@ Item {
     // The screen's ONE 3-D swing view, created on first use and lent to the swing3d slot.
     SwingViz3DHost {
         id: swing3dHost
+        objectName: "swing3dHost"
         swingDir: root._focusedSwingDir
+        sessionAvailable: sessionReviewController.reviewActive    // a session opened from the library
         positionUs: shotReplay.active ? shotReplay.positionUs : -1     // −1: rest at address
         // The same Motion setting the replay tiles draw with (PpCameraTiles.qml).
         motionOn:          ViewLayout.motionOn(SessionMode.mode)

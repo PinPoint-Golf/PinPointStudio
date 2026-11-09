@@ -43,6 +43,8 @@ Item {
     property var    motionModes: ({})
     property string motionTraceTarget: ""
     property bool   leadIsLeft: true
+    // A completed session is on the stage: the view may offer its Session / This shot toggle.
+    property bool   sessionAvailable: false
     property Item   slot: null
     readonly property Item view: loader.item
 
@@ -67,6 +69,8 @@ Item {
             motionModes: host.motionModes
             motionTraceTarget: host.motionTraceTarget
             leadIsLeft: host.leadIsLeft
+            sessionAvailable: host.sessionAvailable
+            panelShown: host.slot !== null
         }
     }
 }

@@ -31,6 +31,8 @@
 #include <QJsonParseError>
 
 #include <algorithm>
+#include <string>
+#include <vector>
 
 namespace pinpoint::SwingStore {
 
@@ -154,17 +156,22 @@ constexpr auto kMetricsChunk = "/analysis/metrics";
 constexpr const char *kTrackKeys[] = { "pose2d", "poseDtl", "skeleton3d", "club", "clubDtl",
                                        "club3d", "ball", "impact" };
 
-// A chunk on the path to /analysis/metrics: the chunk itself, anything inside it, or any chunk
-// ABOVE it (the "/analysis" a big analysis block is split into).
-bool onMetricsPath(const std::string &name)
+// A chunk on the path to `target`: the chunk itself, anything inside it, or any chunk ABOVE it (the
+// "/analysis" a big analysis block is split into).
+bool onPath(const std::string &name, const std::string &target)
 {
-    const std::string m = kMetricsChunk;
-    return name == m || name.rfind(m + "/", 0) == 0 || m.rfind(name + "/", 0) == 0;
+    return name == target || name.rfind(target + "/", 0) == 0 || target.rfind(name + "/", 0) == 0;
 }
 
-// Resolve the refs on the metrics path in place; drop every other ref unread (an object member is
+bool onAnyPath(const std::string &name, const std::vector<std::string> &targets)
+{
+    return std::any_of(targets.begin(), targets.end(),
+                       [&](const std::string &t) { return onPath(name, t); });
+}
+
+// Resolve the refs on the wanted paths in place; drop every other ref unread (an object member is
 // removed, an array element becomes null — no swing document puts a ref in an array).
-void keepMetricsPath(const ppsw::Reader &r, ppsw::Value &v)
+void keepPaths(const ppsw::Reader &r, ppsw::Value &v, const std::vector<std::string> &targets)
 {
     using K = ppsw::Value::Kind;
     if (v.kind() == K::Object) {
@@ -172,19 +179,19 @@ void keepMetricsPath(const ppsw::Reader &r, ppsw::Value &v)
         for (auto it = mem.begin(); it != mem.end();) {
             if (it->second.kind() == K::Ref) {
                 const std::string name = it->second.asRef().name;
-                if (!onMetricsPath(name)) { it = mem.erase(it); continue; }
+                if (!onAnyPath(name, targets)) { it = mem.erase(it); continue; }
                 it->second = r.chunk(name);
             }
-            keepMetricsPath(r, it->second);
+            keepPaths(r, it->second, targets);
             ++it;
         }
     } else if (v.kind() == K::Array) {
         for (ppsw::Value &e : v.asArray()) {
             if (e.kind() == K::Ref) {
                 const std::string name = e.asRef().name;
-                e = onMetricsPath(name) ? r.chunk(name) : ppsw::Value();
+                e = onAnyPath(name, targets) ? r.chunk(name) : ppsw::Value();
             }
-            keepMetricsPath(r, e);
+            keepPaths(r, e, targets);
         }
     }
 }
@@ -258,7 +265,7 @@ QJsonObject loadAnalysis(const QString &swingDir, QString *error)
     try {
         const ppsw::Reader r = ppsw::Reader::open(nativePath(d.path));
         ppsw::Value root = r.root();
-        keepMetricsPath(r, root);
+        keepPaths(r, root, { kMetricsChunk });
         if (root.kind() == ppsw::Value::Kind::Object) {
             if (ppsw::Value *an = root.asObject().find("analysis");
                 an && an->kind() == ppsw::Value::Kind::Object) {
@@ -270,6 +277,31 @@ QJsonObject loadAnalysis(const QString &swingDir, QString *error)
                           }), mem.end());
             }
         }
+        const QJsonObject out = ppswqt::toQtObject(root);
+        if (out.isEmpty() && error)
+            *error = QStringLiteral("%1 holds no document object").arg(d.path);
+        return out;
+    } catch (const std::exception &e) {
+        if (error) *error = QStringLiteral("cannot read %1: %2").arg(d.path, QString::fromUtf8(e.what()));
+        return {};
+    }
+}
+
+QJsonObject loadParts(const QString &swingDir, const QStringList &chunkPaths, QString *error)
+{
+    const DocInfo d = info(swingDir);
+    if (d.format == Format::Json) return loadJsonFile(d.path, error);
+    if (d.format == Format::None) {
+        if (error) *error = QStringLiteral("no swing document in %1").arg(swingDir);
+        return {};
+    }
+    try {
+        std::vector<std::string> targets;
+        targets.reserve(size_t(chunkPaths.size()));
+        for (const QString &p : chunkPaths) targets.push_back(p.toStdString());
+        const ppsw::Reader r = ppsw::Reader::open(nativePath(d.path));
+        ppsw::Value root = r.root();
+        keepPaths(r, root, targets);
         const QJsonObject out = ppswqt::toQtObject(root);
         if (out.isEmpty() && error)
             *error = QStringLiteral("%1 holds no document object").arg(d.path);

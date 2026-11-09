@@ -892,6 +892,13 @@ pp_add_test(skeleton3d_pool_test
     SOURCES skeleton3d_pool_test.cpp
     INCLUDE ${EIGEN_DIR})
 
+# The 3-D panel's session view (skeleton3d_synthesis.h, swing_3d_session_synthesis_design.md): which
+# shots count, the time alignment, weights that ignore where the ball was, the club on the averaged
+# hand, plane-only after impact, and the rig's forwardChain against forwardKinematics.
+pp_add_test(skeleton3d_synthesis_test
+    SOURCES skeleton3d_synthesis_test.cpp
+    INCLUDE ${EIGEN_DIR})
+
 # Down-the-line posture (dtl_posture.h, dtl_posture_design.md): one synthetic golfer seen from
 # down the line — a hip TURN is not a thrust (the midpoint holds), a thrust is, the same golfer
 # mirrored reads the same numbers because the sign comes from the feet, a ball that disagrees

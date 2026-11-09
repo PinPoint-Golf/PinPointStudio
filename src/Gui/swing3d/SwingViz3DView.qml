@@ -53,6 +53,15 @@ Item {
     property var    motionModes: ({})
     property string motionTraceTarget: ""
     property bool   leadIsLeft: true
+    // SESSION VIEW (docs/design/swing_3d_session_synthesis_design.md): the session's usual swing, or
+    // this shot. Offered only for a completed session; every launch starts on Session.
+    property bool   sessionAvailable: false
+    property bool   panelShown: true
+    property string scope: "session"          // session | shot
+    readonly property bool sessionWanted: sessionAvailable && scope === "session"
+    readonly property bool sessionShown: drv.sessionShots > 0
+    // A fitted camera belongs to one shot: leaving for the session view leaves its preset too.
+    onSessionShownChanged: if (sessionShown && (preset === "camFo" || preset === "camDtl")) applyPreset("faceOn")
     function elemMode(key) {
         if (!root.motionOn || !root.motionModes) return "off"
         var m = root.motionModes[key]
@@ -95,6 +104,12 @@ Item {
         id: drv
         swingDir: root.swingDir
         positionUs: root.positionUs
+        sessionScope: root.sessionWanted
+        panelShown: root.panelShown
+    }
+    Connections {
+        target: SessionMode
+        function onSwingTrashed() { drv.invalidateSession() }
     }
 
     // THE GATES BEHIND A MISSING SKELETON OR PLANE (trust stage 6 session 2): the swing's records, read
@@ -469,16 +484,47 @@ Item {
         onActivated: (v) => root.applyPreset(keys[options.indexOf(v)])
     }
 
+    PpSegmentedControl {
+        id: scopeToggle
+        objectName: "scopeToggle"
+        anchors { top: presets.bottom; left: parent.left; topMargin: Theme.gap(6); leftMargin: Theme.gap(10) }
+        width: Theme.sp(180)
+        solid: false
+        visible: root.sessionAvailable
+        readonly property var keys: ["session", "shot"]
+        options: [qsTr("Session"), qsTr("This shot")]
+        selected: options[keys.indexOf(root.scope)]
+        onActivated: (v) => root.scope = keys[options.indexOf(v)]
+    }
+
     // The chips wrap upward rather than run off a narrow panel.
     Flow {
         id: chipRow
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom; margins: Theme.gap(10) }
         spacing: Theme.gap(6)
+        Chip {
+            objectName: "sessionChip"
+            visible: drv.available && root.sessionShown
+            label: qsTr("Session · from %1 shots").arg(drv.sessionShots)
+        }
+        Chip {
+            objectName: "sessionFallbackChip"
+            visible: drv.sessionFallback !== ""
+            caveat: true
+            label: drv.sessionFallback
+        }
         Chip { id: tierChip; visible: drv.available; label: drv.frameTierText }
         Chip {
             visible: drv.available && root.faceOnOnly
             caveat: true
-            label: drv.twoViews ? qsTr("face-on only: no fused shaft plane") : qsTr("face-on only")
+            label: root.sessionShown ? qsTr("face-on only: %1 of %2 shots have a plane").arg(drv.sessionPlaneShots).arg(drv.sessionShots)
+                   : drv.twoViews ? qsTr("face-on only: no fused shaft plane") : qsTr("face-on only")
+        }
+        Chip {
+            objectName: "clubAfterImpactChip"
+            visible: drv.available && root.sessionShown && drv.clubAfterImpactUncertain
+            caveat: true
+            label: qsTr("club after impact uncertain")
         }
         Chip { visible: drv.available && drv.heldAtEnd; label: qsTr("held at P8") }
         Chip {
@@ -606,7 +652,7 @@ Item {
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             textFormat: Text.StyledText
-            text: drv.loading ? qsTr("Loading the 3-D swing…")
+            text: drv.loading ? (root.sessionWanted ? qsTr("Putting the session's swing together…") : qsTr("Loading the 3-D swing…"))
                   : !noSkeleton.gated ? drv.reason
                   : qsTr("3-D skeleton") + " <font color='" + Theme.colorAccent + "'>" + root.skeletonGate.words + " ›</font>"
             MouseArea {

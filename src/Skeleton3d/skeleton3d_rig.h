@@ -216,39 +216,16 @@ struct Pose {
     std::vector<V3> dofAxisW, dofPivotW;
 };
 
-// θ: one value per DoF. scale: one per LengthGroup (1 = Y-bot).
-inline void forwardKinematics(const Rig &rig, const double *theta, const double *scale, Pose &out)
+// Everything below the root, given the root's pos / rot / local already in `out`. The session
+// synthesis (skeleton3d_synthesis.h) supplies a root it averaged in the scene frame, which no set of
+// root DoFs describes; everything else goes through forwardKinematics below.
+inline void forwardChain(const Rig &rig, const double *theta, const double *scale, Pose &out)
 {
-    const int nd = rig.dofCount();
-    out.dofAxisW.resize(size_t(nd));
-    out.dofPivotW.resize(size_t(nd));
+    out.dofAxisW.resize(size_t(rig.dofCount()));
+    out.dofPivotW.resize(size_t(rig.dofCount()));
     for (int j = 0; j < Rig::N; ++j) {
         const int p = rig.parent[j];
-        if (p < 0) {
-            // Root: translation DoFs place the joint; rotation DoFs are world-axis, applied
-            // outermost first, then rig → world and the rest rotation.
-            V3 t;
-            Q  r;
-            for (int k = rig.firstDof[j]; k < rig.firstDof[j] + rig.nDof[j]; ++k) {
-                const Dof &d = rig.dofs[size_t(k)];
-                if (d.kind == DofKind::RootTrans) t += d.axis * theta[k];
-            }
-            out.pos[j] = t;
-            for (int k = rig.firstDof[j]; k < rig.firstDof[j] + rig.nDof[j]; ++k) {
-                const Dof &d = rig.dofs[size_t(k)];
-                if (d.kind == DofKind::RootTrans) {
-                    out.dofAxisW[size_t(k)] = d.axis;
-                    out.dofPivotW[size_t(k)] = t;
-                } else {
-                    out.dofAxisW[size_t(k)] = r.rotate(d.axis);
-                    out.dofPivotW[size_t(k)] = t;
-                    r = r * Q::axisAngle(d.axis, theta[k]);
-                }
-            }
-            out.local[j] = (r * rig.rigToWorld * rig.restQ[j] * rig.neutral[j]).normalized();
-            out.rot[j] = out.local[j];
-            continue;
-        }
+        if (p < 0) continue;
         const int g = jointGroup(j);
         const double s = g >= 0 ? scale[g] : 1.0;
         out.pos[j] = out.pos[p] + out.rot[p].rotate(rig.restT[j] * s);
@@ -265,6 +242,40 @@ inline void forwardKinematics(const Rig &rig, const double *theta, const double 
         out.local[j] = local.normalized();
         out.rot[j] = w.normalized();
     }
+}
+
+// θ: one value per DoF. scale: one per LengthGroup (1 = Y-bot).
+inline void forwardKinematics(const Rig &rig, const double *theta, const double *scale, Pose &out)
+{
+    const int nd = rig.dofCount();
+    out.dofAxisW.resize(size_t(nd));
+    out.dofPivotW.resize(size_t(nd));
+    for (int j = 0; j < Rig::N; ++j) {
+        if (rig.parent[j] >= 0) continue;
+        // Root: translation DoFs place the joint; rotation DoFs are world-axis, applied
+        // outermost first, then rig → world and the rest rotation.
+        V3 t;
+        Q  r;
+        for (int k = rig.firstDof[j]; k < rig.firstDof[j] + rig.nDof[j]; ++k) {
+            const Dof &d = rig.dofs[size_t(k)];
+            if (d.kind == DofKind::RootTrans) t += d.axis * theta[k];
+        }
+        out.pos[j] = t;
+        for (int k = rig.firstDof[j]; k < rig.firstDof[j] + rig.nDof[j]; ++k) {
+            const Dof &d = rig.dofs[size_t(k)];
+            if (d.kind == DofKind::RootTrans) {
+                out.dofAxisW[size_t(k)] = d.axis;
+                out.dofPivotW[size_t(k)] = t;
+            } else {
+                out.dofAxisW[size_t(k)] = r.rotate(d.axis);
+                out.dofPivotW[size_t(k)] = t;
+                r = r * Q::axisAngle(d.axis, theta[k]);
+            }
+        }
+        out.local[j] = (r * rig.rigToWorld * rig.restQ[j] * rig.neutral[j]).normalized();
+        out.rot[j] = out.local[j];
+    }
+    forwardChain(rig, theta, scale, out);
 }
 
 // World position of a marker at a pose: the joint plus its local offset.

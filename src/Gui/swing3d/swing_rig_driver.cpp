@@ -18,6 +18,9 @@
 
 #include "swing_rig_driver.h"
 
+#include <QDir>
+#include <QFileInfo>
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QMetaObject>
@@ -25,10 +28,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 #include "swing_annotation_mesh.h"
 #include "../../Skeleton3d/skeleton3d_json.h"
 #include "../../Skeleton3d/skeleton3d_rig.h"
+#include "../../Skeleton3d/skeleton3d_synthesis.h"
 #include "../../Export/swing_store.h"
 
 namespace sk = pinpoint::skeleton3d;
@@ -147,6 +152,31 @@ void streamHeights(const QJsonObject &root, const QJsonObject &an, double fo[2],
     }
 }
 
+// The fused downswing plane's normal in the scene frame, and its inclination (annotations design
+// §5b). club3d's frame is the face-on CAMERA's (X image-right, Y view ray, Z up — the camera assumed
+// level); the fit pitched and rolled that camera, so the normal is carried through the fitted
+// face-on axes into the world first. False when the plane was not offered.
+bool downPlaneNormal(const QJsonObject &an, const SceneFrame &S, QVector3D *normal, double *inclDeg)
+{
+    const QJsonObject down = an.value(QStringLiteral("club3d")).toObject().value(QStringLiteral("planes"))
+                                 .toObject().value(QStringLiteral("down")).toObject();
+    const QJsonArray nj = down.value(QStringLiteral("normal")).toArray();
+    if (!down.value(QStringLiteral("offered")).toBool() || nj.size() != 3) return false;
+    const QJsonObject camJ = an.value(QStringLiteral("skeleton3d")).toObject().value(QStringLiteral("camera")).toObject();
+    const double pF = camJ.value(QStringLiteral("pFDeg")).toDouble() * sk::kDeg;
+    const double rF = camJ.value(QStringLiteral("rFDeg")).toDouble() * sk::kDeg;
+    sk::V3 right { 1, 0, 0 }, fwd { 0, std::cos(pF), -std::sin(pF) }, up { 0, std::sin(pF), std::cos(pF) };
+    if (rF != 0.0) {
+        const sk::V3 R0 = right, D0 = -up;
+        right = R0 * std::cos(rF) + D0 * std::sin(rF);
+        up = -(D0 * std::cos(rF) - R0 * std::sin(rF));
+    }
+    const sk::V3 nw = right * nj[0].toDouble() + fwd * nj[1].toDouble() + up * nj[2].toDouble();
+    *normal = S.dir(nw).normalized();
+    *inclDeg = down.value(QStringLiteral("inclDeg")).toDouble();
+    return normal->lengthSquared() > 0.5f;
+}
+
 } // namespace
 
 // ── SwingAnnotTrack ──────────────────────────────────────────────────────────
@@ -209,7 +239,199 @@ struct SwingRigDriver::Prepared {
     std::vector<Position> positions;
     std::array<SceneCamera, 2> cams {};
     bool foMirrored = false;
+
+    void setBones(const std::array<double, sk::GroupCount> &lengths);
+    void appendFrame(const sk::Pose &pose, const SceneFrame &S, qint64 t, const std::array<uint8_t, sk::Rig::N> &jointTier,
+                     const sk::V3 &grip, const sk::V3 &shaftDir, int shaftTierNow);
+    bool finishFrames(QString *reason);
+    void setPlane(const QVector3D &normal, double inclDeg);
+    static std::shared_ptr<const Prepared> fromSynthesis(const sk::SynthResult &r, QString *reason);
+    std::shared_ptr<const Prepared> retimed(const std::array<qint64, 7> &from, const std::array<qint64, 7> &to) const;
 };
+
+// What one read of a session produced: every shot's club and P-times (a change of selected shot needs
+// nothing else), and the finished synthesis for each club asked about so far.
+struct SwingRigDriver::SessionData {
+    struct Keys { QString club; std::array<qint64, 7> p {}; };
+    struct Entry {
+        std::shared_ptr<const Prepared> canon;     // null: refused, the shot is shown instead
+        std::array<qint64, 7> canonP {};
+        int shots = 0, planeShots = 0;
+        bool uncertain = false;
+    };
+    QString dir, fingerprint;
+    QHash<QString, Keys> shots;                    // by swing folder name
+    std::map<QString, std::shared_ptr<const Entry>> entries;
+};
+
+void SwingRigDriver::Prepared::setBones(const std::array<double, sk::GroupCount> &lengths)
+{
+    const sk::Rig &R = sk::rig();
+    for (int j = 0; j < sk::Rig::N; ++j) {
+        const int g = sk::jointGroup(j);
+        const double s = g >= 0 ? lengths[size_t(g)] : lengths[sk::GSpine];
+        const sk::V3 o = R.restT[j] * s;
+        offset[size_t(j)] = { float(o.x), float(o.y), float(o.z) };
+        meshScale[size_t(j)] = s;
+    }
+}
+
+void SwingRigDriver::Prepared::appendFrame(const sk::Pose &pose, const SceneFrame &S, qint64 tUs,
+                                           const std::array<uint8_t, sk::Rig::N> &jointTier,
+                                           const sk::V3 &grip, const sk::V3 &shaftDir, int shaftTierNow)
+{
+    using AP = SwingAnnotTrack;
+    using namespace sk::ybot;
+    static constexpr std::array<int, 13> kAnnotJoint {
+        LeftArm, RightArm, LeftForeArm, RightForeArm, LeftHand, RightHand, LeftUpLeg, RightUpLeg,
+        LeftLeg, RightLeg, LeftFoot, RightFoot, Head };
+    std::array<QQuaternion, sk::Rig::N> loc;
+    for (int j = 0; j < sk::Rig::N; ++j) loc[size_t(j)] = toQt(pose.local[j]);
+    loc[0] = toQt((S.rot * pose.local[0]).normalized());
+    t.push_back(tUs);
+    local.push_back(loc);
+    rootPos.push_back(S.point(pose.pos[0]));
+    tier.push_back(jointTier);
+    const sk::V3 butt = grip - shaftDir * 0.04;
+    shaftButt.push_back(S.point(butt));
+    shaftRot.push_back(QQuaternion::rotationTo(QVector3D(0, 1, 0), S.dir(shaftDir).normalized()));
+    shaftTier.push_back(shaftTierNow);
+    std::array<QVector3D, AP::PointCount> ap;
+    std::array<quint8, AP::PointCount> at;
+    for (size_t k = 0; k < kAnnotJoint.size(); ++k) {
+        ap[k] = S.point(pose.pos[kAnnotJoint[k]]);
+        at[k] = jointTier[size_t(kAnnotJoint[k])];
+    }
+    const sk::V3 head = butt + shaftDir * clubLengthM;     // the tip of the drawn club
+    ap[AP::Grip] = S.point(grip);
+    ap[AP::ClubButt] = S.point(butt);
+    ap[AP::ClubHead] = S.point(head);
+    at[AP::Grip] = at[AP::ClubButt] = at[AP::ClubHead] = quint8(std::clamp(shaftTierNow, 0, 3));
+    annot.t.push_back(tUs);
+    annot.p.push_back(ap);
+    annot.tier.push_back(at);
+    if (t.size() == 1)
+        centre = S.point((pose.pos[sk::ybot::LeftUpLeg] + pose.pos[sk::ybot::RightUpLeg]) * 0.5);
+}
+
+bool SwingRigDriver::Prepared::finishFrames(QString *reason)
+{
+    using AP = SwingAnnotTrack;
+    // Drop the frames past the end, keeping the first one beyond it so the pose AT the end
+    // interpolates exactly.
+    if (endUs >= 0) {
+        size_t keep = t.size();
+        for (size_t i = 0; i < t.size(); ++i)
+            if (t[i] >= endUs) { keep = i + 1; break; }
+        t.resize(keep); local.resize(keep); rootPos.resize(keep); tier.resize(keep);
+        shaftButt.resize(keep); shaftRot.resize(keep); shaftTier.resize(keep);
+        annot.t.resize(keep); annot.p.resize(keep); annot.tier.resize(keep);
+    }
+    if (t.size() < 2) {
+        *reason = QObject::tr("the 3-D skeleton has fewer than two frames");
+        return false;
+    }
+    if (endUs < 0 || endUs > t.back()) endUs = t.back();
+    positions.erase(std::remove_if(positions.begin(), positions.end(),
+                                   [&](const Position &q) { return q.t > endUs; }),
+                    positions.end());
+
+    // Stabilise the club for display: smooth the clubhead path, keep the butt in the fitted hands,
+    // and point the drawn club at the smoothed head — the club model, its trace and the P-positions
+    // stay one object. The length is the fitted one: stabilising must not hide that it is short.
+    const size_t n = annot.t.size();
+    std::vector<QVector3D> heads(n);
+    std::vector<float> w(n);
+    for (size_t i = 0; i < n; ++i) {
+        heads[i] = annot.p[i][AP::ClubHead];
+        w[i] = annot.tier[i][AP::ClubHead] > 0 ? 1.f : 0.f;
+    }
+    const std::vector<QVector3D> sm = swing3d::smoothPath(annot.t, heads, w, kClubSmoothUs);
+    for (size_t i = 0; i < n; ++i) {
+        const QVector3D butt = annot.p[i][AP::ClubButt];
+        const QVector3D d = sm[i] - butt;
+        if (d.lengthSquared() < 1e-6f) continue;
+        const QVector3D dir = d.normalized();
+        annot.p[i][AP::ClubHead] = butt + dir * float(clubLengthM);
+        shaftRot[i] = QQuaternion::rotationTo(QVector3D(0, 1, 0), dir);
+    }
+    return true;
+}
+
+// The fused downswing plane as a quad through the clubhead at impact (annotations design §5b).
+void SwingRigDriver::Prepared::setPlane(const QVector3D &n, double inclDeg)
+{
+    using AP = SwingAnnotTrack;
+    if (impactUs < 0) return;
+    const QVector3D H = annot.sample(impactUs, AP::ClubHead);
+    const QVector3D B = annot.sample(impactUs, AP::ClubButt);
+    const QVector3D s = (B - H).normalized();
+    const QVector3D e1 = (s - n * QVector3D::dotProduct(n, s)).normalized();
+    const QVector3D e2 = QVector3D::crossProduct(n, e1).normalized();
+    if (n.lengthSquared() > 0.5f && e1.lengthSquared() > 0.5f) {
+        annot.planeValid = true;
+        annot.planeInclDeg = inclDeg;
+        annot.planeQuad = { H - e2 * kPlaneSideM, H + e2 * kPlaneSideM,
+                            H + e1 * kPlaneUpM + e2 * kPlaneSideM, H + e1 * kPlaneUpM - e2 * kPlaneSideM };
+    }
+}
+
+std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::Prepared::fromSynthesis(const sk::SynthResult &r, QString *reason)
+{
+    auto P = std::make_shared<Prepared>();
+    P->dtl = true;
+    P->clubLengthM = r.clubLengthM > 0.5 ? r.clubLengthM : 0.95;
+    P->setBones(r.lengths);
+    P->addressUs = r.pUs[0];
+    P->impactUs = r.pUs[6];
+    P->p8Us = r.pUs[7];
+    P->endUs = r.pUs[7];
+    P->annot.addressUs = P->addressUs;
+    P->annot.impactUs = P->impactUs;
+    P->annot.finishUs = P->endUs;
+    for (size_t k = 0; k < r.pUs.size(); ++k) P->positions.push_back({ int(k + 1), r.pSource[k], r.pUs[k] });
+    if (r.ballValid) {
+        P->ball = { float(r.ball.x), float(r.ball.y), float(r.ball.z) };
+        P->ballValid = true;
+    }
+    const SceneFrame identity {};           // the synthesis is in the scene frame already
+    sk::Pose pose;
+    for (const sk::SynthFrame &f : r.frames) {
+        sk::synthPose(r, f, pose);
+        P->appendFrame(pose, identity, f.t_us, f.tier, f.grip, f.shaftDir, f.shaftTier);
+    }
+    if (!P->finishFrames(reason)) return {};
+    if (r.planeValid)
+        P->setPlane(QVector3D(float(r.planeNormal.x), float(r.planeNormal.y), float(r.planeNormal.z)).normalized(), r.planeInclDeg);
+    return P;
+}
+
+// A copy on the selected shot's clock: `from` (canonical P1–P7) → `to` (that shot's), so the figure
+// reaches the top when the video does. Past P7 it runs at canonical speed.
+std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::Prepared::retimed(const std::array<qint64, 7> &from,
+                                                                                  const std::array<qint64, 7> &to) const
+{
+    auto map = [&](qint64 c) -> qint64 {
+        if (c < 0) return c;
+        if (c >= from[6]) return to[6] + (c - from[6]);
+        size_t k = 0;
+        while (k + 1 < 6 && c >= from[k + 1]) ++k;
+        const double f = double(c - from[k]) / double(std::max<qint64>(1, from[k + 1] - from[k]));
+        return to[k] + qint64(std::llround(f * double(to[k + 1] - to[k])));
+    };
+    auto P = std::make_shared<Prepared>(*this);
+    for (qint64 &v : P->t) v = map(v);
+    for (qint64 &v : P->annot.t) v = map(v);
+    P->addressUs = map(addressUs);
+    P->impactUs = map(impactUs);
+    P->p8Us = map(p8Us);
+    P->endUs = map(endUs);
+    P->annot.addressUs = map(annot.addressUs);
+    P->annot.impactUs = map(annot.impactUs);
+    P->annot.finishUs = map(annot.finishUs);
+    for (Position &q : P->positions) q.t = map(q.t);
+    return P;
+}
 
 SwingRigDriver::SwingRigDriver(QObject *parent)
     : QObject(parent), m_local(size_t(sk::Rig::N)), m_tier(size_t(sk::Rig::N), 0)
@@ -303,7 +525,53 @@ bool SwingRigDriver::loadNow(const QString &dir)
     return available();
 }
 
+void SwingRigDriver::setSessionScope(bool on)
+{
+    if (on == m_sessionScope) return;
+    m_sessionScope = on;
+    m_sessionCheck = on;
+    emit sessionScopeChanged();
+    startLoad();
+}
+
+void SwingRigDriver::setPanelShown(bool shown)
+{
+    if (shown == m_panelShown) return;
+    m_panelShown = shown;
+    emit panelShownChanged();
+    if (shown && m_loadPending) startLoad();
+}
+
+void SwingRigDriver::invalidateSession()
+{
+    m_session.reset();
+    if (m_sessionScope) startLoad();
+}
+
+void SwingRigDriver::clearSessionFacts()
+{
+    m_sessionShots = 0;
+    m_sessionPlaneShots = 0;
+    m_sessionFallback.clear();
+    m_clubAfterImpactUncertain = false;
+}
+
 void SwingRigDriver::startLoad()
+{
+    if (m_sessionScope && !m_panelShown) {          // nothing is worked out until the panel is on show
+        m_loadPending = true;
+        return;
+    }
+    m_loadPending = false;
+    if (m_sessionScope && !m_swingDir.isEmpty()) {
+        startSessionLoad();
+        return;
+    }
+    clearSessionFacts();
+    startShotLoad();
+}
+
+void SwingRigDriver::startShotLoad()
 {
     const quint64 gen = ++m_generation;
     m_track.reset();
@@ -329,6 +597,190 @@ void SwingRigDriver::startLoad()
             self->adopt(p, gen);
         }, Qt::QueuedConnection);
     });
+}
+
+void SwingRigDriver::startSessionLoad()
+{
+    const QFileInfo fi(m_swingDir);
+    const QString sessionDir = fi.absolutePath(), folder = fi.fileName();
+    // Another shot of a session already worked out: a lookup and a retime, no file read.
+    if (!m_sessionCheck && m_session && m_session->dir == sessionDir) {
+        const auto keys = m_session->shots.constFind(folder);
+        if (keys != m_session->shots.constEnd() && m_session->entries.count(keys->club)) {
+            ++m_generation;
+            adoptSession(m_session, false);
+            return;
+        }
+    }
+    const quint64 gen = ++m_generation;
+    m_track.reset();
+    m_loading = true;
+    m_reason = tr("loading…");
+    m_gates.clear();
+    clearSessionFacts();
+    emit loadedChanged();
+    ++m_revision;
+    emit revisionChanged();
+    QPointer<SwingRigDriver> self(this);
+    std::shared_ptr<const SessionData> previous = m_session;
+    QThreadPool::globalInstance()->start([self, sessionDir, folder, previous, gen]() {
+        auto data = prepareSession(sessionDir, folder, previous);
+        QMetaObject::invokeMethod(self, [self, data, gen]() {
+            if (!self || gen != self->m_generation) return;
+            self->adoptSession(data, false);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void SwingRigDriver::adoptSession(std::shared_ptr<const SessionData> data, bool synchronous)
+{
+    m_session = std::move(data);
+    m_sessionCheck = false;
+    const SessionData::Keys keys = m_session->shots.value(QFileInfo(m_swingDir).fileName());
+    const auto it = m_session->entries.find(keys.club);
+    const std::shared_ptr<const SessionData::Entry> entry = it == m_session->entries.end() ? nullptr : it->second;
+    if (!entry || !entry->canon) {
+        clearSessionFacts();
+        m_sessionFallback = tr("Session needs %1 shots in 3-D · showing this shot").arg(sk::kSynthMinShots);
+        if (synchronous) {
+            QString why;
+            QVariantList gates;
+            auto p = prepare(m_swingDir, &why, &gates);
+            m_reason = why;
+            m_gates = gates;
+            adopt(p, m_generation);
+        } else {
+            startShotLoad();
+        }
+        return;
+    }
+    // The selected shot's clock. Known P-times stand; a missing one takes its place from the
+    // canonical durations; a shot with none plays on the canonical clock.
+    std::array<qint64, 7> to = entry->canonP;
+    std::array<bool, 7> known {};
+    int nKnown = 0;
+    qint64 last = -1;
+    for (size_t k = 0; k < 7; ++k)
+        if (keys.p[k] > last) { known[k] = true; last = keys.p[k]; ++nKnown; }
+    if (nKnown > 0) {
+        for (size_t k = 0; k < 7; ++k) {
+            if (known[k]) { to[k] = keys.p[k]; continue; }
+            int a = int(k) - 1, b = int(k) + 1;
+            while (a >= 0 && !known[size_t(a)]) --a;
+            while (b < 7 && !known[size_t(b)]) ++b;
+            const auto &c = entry->canonP;
+            if (a >= 0 && b < 7) {
+                const double f = double(c[k] - c[size_t(a)]) / double(std::max<qint64>(1, c[size_t(b)] - c[size_t(a)]));
+                to[k] = keys.p[size_t(a)] + qint64(std::llround(f * double(keys.p[size_t(b)] - keys.p[size_t(a)])));
+            } else if (a >= 0) {
+                to[k] = keys.p[size_t(a)] + (c[k] - c[size_t(a)]);
+            } else {
+                to[k] = keys.p[size_t(b)] - (c[size_t(b)] - c[k]);
+            }
+        }
+    }
+    m_sessionShots = entry->shots;
+    m_sessionPlaneShots = entry->planeShots;
+    m_clubAfterImpactUncertain = entry->uncertain;
+    m_sessionFallback.clear();
+    m_reason.clear();
+    m_gates.clear();
+    adopt(entry->canon->retimed(entry->canonP, to), m_generation);
+}
+
+bool SwingRigDriver::loadSessionNow(const QString &swingDir)
+{
+    m_swingDir = swingDir;
+    m_sessionScope = true;
+    ++m_generation;
+    const QFileInfo fi(swingDir);
+    adoptSession(prepareSession(fi.absolutePath(), fi.fileName(), m_session), true);
+    return available();
+}
+
+std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSession(const QString &sessionDir, const QString &shotFolder,
+                                                                                  std::shared_ptr<const SessionData> previous)
+{
+    // The carousel's own enumeration (SwingDocReader::findSwingDirs): swing_* by name.
+    const QStringList folders = QDir(sessionDir).entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    QString fingerprint;
+    for (const QString &name : folders) {
+        const pinpoint::SwingStore::DocInfo d = pinpoint::SwingStore::info(sessionDir + QLatin1Char('/') + name);
+        fingerprint += QStringLiteral("%1:%2:%3;").arg(name).arg(d.size).arg(d.mtimeMs);
+    }
+    const bool sameFiles = previous && previous->dir == sessionDir && previous->fingerprint == fingerprint;
+    if (sameFiles) {
+        const auto keys = previous->shots.constFind(shotFolder);
+        if (keys != previous->shots.constEnd() && previous->entries.count(keys->club)) return previous;
+    }
+
+    auto out = std::make_shared<SessionData>();
+    out->dir = sessionDir;
+    out->fingerprint = fingerprint;
+    if (sameFiles) out->entries = previous->entries;
+
+    // Only what the synthesis uses: the pose tracks are most of a document.
+    static const QStringList kParts {
+        QStringLiteral("/analysis/skeleton3d"), QStringLiteral("/analysis/club/positions"),
+        QStringLiteral("/analysis/club3d/planes"), QStringLiteral("/review"),
+        QStringLiteral("/athlete"), QStringLiteral("/clock") };
+    std::vector<sk::SynthSwing> swings;
+    swings.reserve(size_t(folders.size()));
+    bool leadIsLeft = true;
+    for (const QString &name : folders) {
+        const QJsonObject root = pinpoint::SwingStore::loadParts(sessionDir + QLatin1Char('/') + name, kParts);
+        const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+        const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+        sk::SynthSwing s;
+        s.id = name;
+        s.club = root.value(QStringLiteral("review")).toObject().value(QStringLiteral("club")).toString();
+        SessionData::Keys keys;
+        keys.club = s.club;
+        keys.p.fill(-1);
+        for (const QJsonValue &pv : an.value(QStringLiteral("club")).toObject().value(QStringLiteral("positions")).toArray()) {
+            const QJsonObject po = pv.toObject();
+            const int p = po.value(QStringLiteral("p")).toInt();
+            const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble(-1));
+            if (p < 1 || p > 7 || raw < 0) continue;
+            keys.p[size_t(p - 1)] = raw >= t0 ? raw - t0 : raw;
+            s.pSource[size_t(p - 1)] = po.value(QStringLiteral("source")).toInt();
+        }
+        for (size_t k = 0; k < 7; ++k) s.pUs[k] = keys.p[k];
+        out->shots.insert(name, keys);
+        if (name == shotFolder) {
+            const QString hand = root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("handedness")).toString();
+            if (!hand.isEmpty()) leadIsLeft = hand.compare(QLatin1String("left"), Qt::CaseInsensitive) != 0;
+        }
+        s.track = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject(), t0);
+        if (s.track.valid) {
+            SceneFrame S;
+            S.rot = (sk::Q::axisAngle({ 1, 0, 0 }, -sk::kPi / 2.0)
+                     * sk::Q::axisAngle({ 0, 0, 1 }, -s.track.stanceYawDeg * sk::kDeg)).normalized();
+            S.origin = s.track.displayOrigin;
+            QVector3D n;
+            double incl = 0;
+            if (downPlaneNormal(an, S, &n, &incl)) {
+                s.hasPlane = true;
+                s.planeNormal = { n.x(), n.y(), n.z() };
+                s.planeInclDeg = incl;
+            }
+            swings.push_back(std::move(s));
+        }
+    }
+
+    const QString club = out->shots.value(shotFolder).club;
+    const sk::SynthResult r = sk::synthesiseSession(swings, club, leadIsLeft);
+    auto entry = std::make_shared<SessionData::Entry>();
+    if (r.valid) {
+        QString why;
+        entry->canon = Prepared::fromSynthesis(r, &why);
+        for (size_t k = 0; k < 7; ++k) entry->canonP[k] = r.pUs[k];
+        entry->shots = r.nShots;
+        entry->planeShots = r.nPlaneShots;
+        entry->uncertain = r.clubAfterImpactUncertain;
+    }
+    out->entries[club] = entry;
+    return out;
 }
 
 void SwingRigDriver::adopt(std::shared_ptr<const Prepared> p, quint64 generation)
@@ -372,13 +824,7 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
              * sk::Q::axisAngle({ 0, 0, 1 }, -trk.stanceYawDeg * sk::kDeg)).normalized();
     S.origin = trk.displayOrigin;
 
-    for (int j = 0; j < sk::Rig::N; ++j) {
-        const int g = sk::jointGroup(j);
-        const double s = g >= 0 ? trk.lengths[size_t(g)] : trk.lengths[sk::GSpine];
-        const sk::V3 o = R.restT[j] * s;
-        P->offset[size_t(j)] = { float(o.x), float(o.y), float(o.z) };
-        P->meshScale[size_t(j)] = s;
-    }
+    P->setBones(trk.lengths);
 
     // Impact, window-relative, for the ball.
     for (const QJsonValue &pv : an.value(QStringLiteral("phases")).toArray()) {
@@ -413,83 +859,13 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     }
 
     const std::array<double, sk::GroupCount> &scale = trk.lengths;
-    using AP = SwingAnnotTrack;
-    using namespace sk::ybot;
-    static constexpr std::array<int, 13> kAnnotJoint {
-        LeftArm, RightArm, LeftForeArm, RightForeArm, LeftHand, RightHand, LeftUpLeg, RightUpLeg,
-        LeftLeg, RightLeg, LeftFoot, RightFoot, Head };
     sk::Pose pose;
     for (const sk::Skeleton3DFrame &f : trk.frames) {
         if (int(f.dof.size()) != R.dofCount()) continue;
         sk::forwardKinematics(R, f.dof.data(), scale.data(), pose);
-        std::array<QQuaternion, sk::Rig::N> loc;
-        for (int j = 0; j < sk::Rig::N; ++j) loc[size_t(j)] = toQt(pose.local[j]);
-        loc[0] = toQt((S.rot * pose.local[0]).normalized());
-        P->t.push_back(f.t_us);
-        P->local.push_back(loc);
-        P->rootPos.push_back(S.point(pose.pos[0]));
-        P->tier.push_back(f.tier);
-        const sk::V3 butt = f.grip - f.shaftDir * 0.04;
-        P->shaftButt.push_back(S.point(butt));
-        P->shaftRot.push_back(QQuaternion::rotationTo(QVector3D(0, 1, 0), S.dir(f.shaftDir).normalized()));
-        P->shaftTier.push_back(f.shaftTier);
-        std::array<QVector3D, AP::PointCount> ap;
-        std::array<quint8, AP::PointCount> at;
-        for (size_t k = 0; k < kAnnotJoint.size(); ++k) {
-            ap[k] = S.point(pose.pos[kAnnotJoint[k]]);
-            at[k] = f.tier[size_t(kAnnotJoint[k])];
-        }
-        const sk::V3 head = butt + f.shaftDir * P->clubLengthM;     // the tip of the drawn club
-        ap[AP::Grip] = S.point(f.grip);
-        ap[AP::ClubButt] = S.point(butt);
-        ap[AP::ClubHead] = S.point(head);
-        at[AP::Grip] = at[AP::ClubButt] = at[AP::ClubHead] = quint8(std::clamp(f.shaftTier, 0, 3));
-        P->annot.t.push_back(f.t_us);
-        P->annot.p.push_back(ap);
-        P->annot.tier.push_back(at);
-        if (P->t.size() == 1)
-            P->centre = S.point((pose.pos[sk::ybot::LeftUpLeg] + pose.pos[sk::ybot::RightUpLeg]) * 0.5);
+        P->appendFrame(pose, S, f.t_us, f.tier, f.grip, f.shaftDir, f.shaftTier);
     }
-    // Drop the frames past the end, keeping the first one beyond it so the pose AT the end
-    // interpolates exactly.
-    if (P->endUs >= 0) {
-        size_t keep = P->t.size();
-        for (size_t i = 0; i < P->t.size(); ++i)
-            if (P->t[i] >= P->endUs) { keep = i + 1; break; }
-        P->t.resize(keep); P->local.resize(keep); P->rootPos.resize(keep); P->tier.resize(keep);
-        P->shaftButt.resize(keep); P->shaftRot.resize(keep); P->shaftTier.resize(keep);
-        P->annot.t.resize(keep); P->annot.p.resize(keep); P->annot.tier.resize(keep);
-    }
-    if (P->t.size() < 2) {
-        *reason = QObject::tr("the 3-D skeleton has fewer than two frames");
-        return {};
-    }
-    if (P->endUs < 0 || P->endUs > P->t.back()) P->endUs = P->t.back();
-    P->positions.erase(std::remove_if(P->positions.begin(), P->positions.end(),
-                                      [&](const Prepared::Position &q) { return q.t > P->endUs; }),
-                       P->positions.end());
-
-    // Stabilise the club for display: smooth the clubhead path, keep the butt in the fitted hands,
-    // and point the drawn club at the smoothed head — the club model, its trace and the P-positions
-    // stay one object. The length is the fitted one: stabilising must not hide that it is short.
-    {
-        const size_t n = P->annot.t.size();
-        std::vector<QVector3D> heads(n);
-        std::vector<float> w(n);
-        for (size_t i = 0; i < n; ++i) {
-            heads[i] = P->annot.p[i][AP::ClubHead];
-            w[i] = P->annot.tier[i][AP::ClubHead] > 0 ? 1.f : 0.f;
-        }
-        const std::vector<QVector3D> sm = swing3d::smoothPath(P->annot.t, heads, w, kClubSmoothUs);
-        for (size_t i = 0; i < n; ++i) {
-            const QVector3D butt = P->annot.p[i][AP::ClubButt];
-            const QVector3D d = sm[i] - butt;
-            if (d.lengthSquared() < 1e-6f) continue;
-            const QVector3D dir = d.normalized();
-            P->annot.p[i][AP::ClubHead] = butt + dir * float(P->clubLengthM);
-            P->shaftRot[i] = QQuaternion::rotationTo(QVector3D(0, 1, 0), dir);
-        }
-    }
+    if (!P->finishFrames(reason)) return {};
 
     // The fitted cameras, for the match presets (annotations design §5a).
     const QJsonObject sk3 = an.value(QStringLiteral("skeleton3d")).toObject();
@@ -500,35 +876,10 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     P->cams[0] = sceneCamera(camJ, 0, foWH[0], foWH[1], S);
     if (trk.dtl) P->cams[1] = sceneCamera(camJ, 1, dtlWH[0], dtlWH[1], S);
 
-    // The fused downswing plane (annotations design §5b). club3d's frame is the face-on CAMERA's
-    // (X image-right, Y view ray, Z up — the camera assumed level); the fit pitched and rolled that
-    // camera, so the normal is carried through the fitted face-on axes into the world first.
-    const QJsonObject down = an.value(QStringLiteral("club3d")).toObject().value(QStringLiteral("planes"))
-                                 .toObject().value(QStringLiteral("down")).toObject();
-    const QJsonArray nj = down.value(QStringLiteral("normal")).toArray();
-    if (down.value(QStringLiteral("offered")).toBool() && nj.size() == 3 && P->impactUs >= 0) {
-        const double pF = camJ.value(QStringLiteral("pFDeg")).toDouble() * sk::kDeg;
-        const double rF = camJ.value(QStringLiteral("rFDeg")).toDouble() * sk::kDeg;
-        sk::V3 right { 1, 0, 0 }, fwd { 0, std::cos(pF), -std::sin(pF) }, up { 0, std::sin(pF), std::cos(pF) };
-        if (rF != 0.0) {
-            const sk::V3 R0 = right, D0 = -up;
-            right = R0 * std::cos(rF) + D0 * std::sin(rF);
-            up = -(D0 * std::cos(rF) - R0 * std::sin(rF));
-        }
-        const sk::V3 nw = right * nj[0].toDouble() + fwd * nj[1].toDouble() + up * nj[2].toDouble();
-        const QVector3D n = S.dir(nw).normalized();
-        const QVector3D H = P->annot.sample(P->impactUs, AP::ClubHead);
-        const QVector3D B = P->annot.sample(P->impactUs, AP::ClubButt);
-        const QVector3D s = (B - H).normalized();
-        const QVector3D e1 = (s - n * QVector3D::dotProduct(n, s)).normalized();
-        const QVector3D e2 = QVector3D::crossProduct(n, e1).normalized();
-        if (n.lengthSquared() > 0.5f && e1.lengthSquared() > 0.5f) {
-            P->annot.planeValid = true;
-            P->annot.planeInclDeg = down.value(QStringLiteral("inclDeg")).toDouble();
-            P->annot.planeQuad = { H - e2 * kPlaneSideM, H + e2 * kPlaneSideM,
-                                   H + e1 * kPlaneUpM + e2 * kPlaneSideM, H + e1 * kPlaneUpM - e2 * kPlaneSideM };
-        }
-    }
+    // The fused downswing plane (annotations design §5b).
+    QVector3D planeN;
+    double planeIncl = 0;
+    if (downPlaneNormal(an, S, &planeN, &planeIncl)) P->setPlane(planeN, planeIncl);
     reason->clear();
     return P;
 }

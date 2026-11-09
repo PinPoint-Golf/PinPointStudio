@@ -265,6 +265,8 @@ struct Skeleton3DTrack {
     bool dtl = false;
     std::array<double, GroupCount> lengths {};
     double clubLengthM = 0.95;
+    std::array<double, 3> gripOffsetLocal {};  // the grip point in the lead hand's frame
+    int stageVersion = 0;
     V3 displayOrigin;
     double stanceYawDeg = 0;
     bool ballValid = false;
@@ -290,6 +292,9 @@ inline Skeleton3DTrack skeleton3dFromJson(const QJsonObject &o, int64_t clockT0U
     const QJsonObject L = o.value(QStringLiteral("lengths")).toObject();
     for (int g = 0; g < GroupCount; ++g) t.lengths[size_t(g)] = L.value(QString::fromLatin1(groupName(g))).toDouble(1.0);
     t.clubLengthM = o.value(QStringLiteral("grip")).toObject().value(QStringLiteral("clubLengthM")).toDouble(0.95);
+    const QJsonArray gripOff = o.value(QStringLiteral("grip")).toObject().value(QStringLiteral("offset")).toArray();
+    for (int c = 0; c < 3 && c < gripOff.size(); ++c) t.gripOffsetLocal[size_t(c)] = gripOff[c].toDouble();
+    t.stageVersion = o.value(QStringLiteral("stageVersion")).toInt();
     const QJsonObject D = o.value(QStringLiteral("display")).toObject();
     t.displayOrigin = v3(D.value(QStringLiteral("originWorld")).toArray());
     t.stanceYawDeg = D.value(QStringLiteral("stanceYawDeg")).toDouble();

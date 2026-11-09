@@ -157,6 +157,13 @@ QJsonObject loadSummaryBlock(const QString &swingDir, QJsonObject *heads = nullp
 // removed, so the result has the same shape. Empty on no document or a read failure.
 QJsonObject loadAnalysis(const QString &swingDir, QString *error = nullptr);
 
+// The document with only the named chunks read (paths such as "/analysis/skeleton3d"): everything
+// the root holds inline, plus each chunk on the path to one of `chunkPaths`. Every other chunk is
+// left unread and its key removed. A JSON-era swing.json has no chunks and comes back whole. Empty
+// on no document or a read failure. For a caller reading many swings at once — the 3-D panel's
+// session view — where a full load() would convert every pose track only to throw it away.
+QJsonObject loadParts(const QString &swingDir, const QStringList &chunkPaths, QString *error = nullptr);
+
 // Write the document as swing.ppsw (atomic: temp file + rename), then remove any swing.json and
 // swing_summary.json beside it — the rewrite supersedes both. Removing them is what migrates a
 // JSON-era swing the first time anything rewrites it.
