@@ -218,30 +218,32 @@ pinpoint::report::ReportFingerprintFn ArchiveController::reportFingerprint() con
 }
 
 bool ArchiveController::startJob(const QString &what,
-                                 std::function<QString(ArchiveController *, std::shared_ptr<std::atomic_bool>)> job,
+                                 std::function<JobOutcome(ArchiveController *, std::shared_ptr<std::atomic_bool>)> job,
                                  const QString &restoredDir)
 {
     if (m_busy) return false;
     m_busy = true;
     m_progress = 0.0;
     m_status = what;
+    m_failed = false;
     emit changed();
 
     auto abort = std::make_shared<std::atomic_bool>(false);
     m_abort = abort;
     m_watcher.disconnect();
-    connect(&m_watcher, &QFutureWatcher<QString>::finished, this, [this, restoredDir] {
-        const QString outcome = m_watcher.result();
+    connect(&m_watcher, &QFutureWatcher<JobOutcome>::finished, this, [this, restoredDir] {
+        const JobOutcome outcome = m_watcher.result();
         m_busy = false;
         m_progress = 1.0;
-        m_status = outcome;
-        ppInfo() << "[Archive]" << outcome;
+        m_status = outcome.words;
+        m_failed = !outcome.ok;
+        ppInfo() << "[Archive]" << outcome.words;
         emit changed();
         if (!restoredDir.isEmpty() && !pinpoint::SessionArchiver::isArchived(restoredDir))
             emit sessionRestored(restoredDir);
         refresh();
     });
-    m_watcher.setFuture(QtConcurrent::run([this, job, abort]() -> QString { return job(this, abort); }));
+    m_watcher.setFuture(QtConcurrent::run([this, job, abort]() -> JobOutcome { return job(this, abort); }));
     return true;
 }
 
@@ -285,10 +287,10 @@ bool ArchiveController::archiveSession(const QString &sessionDir)
         });
         if (!r.ok) {
             ppWarn() << "[Archive] archiving" << sessionDir << "failed:" << r.error;
-            return QObject::tr("%1 was not archived: %2").arg(name, r.error);
+            return JobOutcome(QObject::tr("%1 was not archived: %2").arg(name, r.error), false);
         }
-        return QObject::tr("%1 archived: %2 swings, %3 MB freed in the library.")
-            .arg(name).arg(r.swings).arg(qint64(r.bytesFreed / (1024 * 1024)));
+        return JobOutcome(QObject::tr("%1 archived: %2 swings, %3 MB freed in the library.")
+                              .arg(name).arg(r.swings).arg(qint64(r.bytesFreed / (1024 * 1024))));
     });
 }
 
@@ -307,9 +309,9 @@ void ArchiveController::restoreSession(const QString &sessionDir)
         });
         if (!r.ok) {
             ppWarn() << "[Archive] restoring" << sessionDir << "failed:" << r.error;
-            return QObject::tr("%1 was not restored: %2").arg(name, r.error);
+            return JobOutcome(QObject::tr("%1 was not restored: %2").arg(name, r.error), false);
         }
-        return QObject::tr("%1 restored: %2 swings are back in the library.").arg(name).arg(r.swings);
+        return JobOutcome(QObject::tr("%1 restored: %2 swings are back in the library.").arg(name).arg(r.swings));
     }, sessionDir);
 }
 

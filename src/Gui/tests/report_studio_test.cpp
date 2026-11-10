@@ -114,6 +114,8 @@ private slots:
         for (const QVariant &m : missing) QCOMPARE(m.toMap().value("where").toString(), QStringLiteral("studio"));
         QCOMPARE(missing[0].toMap().value("text").toString(),
                  QStringLiteral("No studio name yet — add it in Settings → Studio"));
+        // Settings → Studio shows the same thing without the way to itself.
+        QCOMPARE(missing[0].toMap().value("brief").toString(), QStringLiteral("No studio name yet"));
         QVERIFY(!p.stamp().isEmpty());
 
         // Nothing is written until something is set.
