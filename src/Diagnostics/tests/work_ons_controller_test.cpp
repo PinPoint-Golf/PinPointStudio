@@ -918,10 +918,13 @@ static void checkTendencies(const QString &root)
               "the per-club distance is there, by the canonical club name");
         const QVariantMap detail = c.tendencyDetail(QStringLiteral("DRIVER|full"));
         const QVariantMap dirDetail = detail.value(QStringLiteral("direction")).toMap();
-        check(keysAre(detail, { QStringLiteral("strike"), QStringLiteral("direction"), QStringLiteral("flight") })
+        check(keysAre(detail, { QStringLiteral("strike"), QStringLiteral("direction"), QStringLiteral("flight"),
+                                QStringLiteral("together") })
+                  && keysAre(detail.value(QStringLiteral("together")).toMap(),
+                             { QStringLiteral("pairs"), QStringLiteral("combos"), QStringLiteral("moreCombos") })
                   && keysAre(dirDetail, { QStringLiteral("chain"), QStringLiteral("alsoSeen"), QStringLiteral("earlyNote"),
                                           QStringLiteral("playTo"), QStringLiteral("practiseConditionId") }),
-              "a tendency's detail: one block per factor");
+              "a tendency's detail: one block per factor, and how they came together");
         check(!dirDetail.value(QStringLiteral("playTo")).toString().isEmpty()
                   && dirDetail.value(QStringLiteral("practiseConditionId")).toString() == QStringLiteral("over_the_top")
                   && !dirDetail.value(QStringLiteral("chain")).toList().isEmpty()

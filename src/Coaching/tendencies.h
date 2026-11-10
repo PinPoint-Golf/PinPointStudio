@@ -67,7 +67,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 14;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's
+inline constexpr int kTendencyRuleVersion   = 15;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -328,6 +328,26 @@ struct TendencyFactor {
     QString playTo;             // an earned fault's play-to line, in the golfer's hand
 };
 
+// How a row's three factors came together on its shots (rule 15; Mark, 10 Nov 2026). Each factor's usual is
+// chosen on its own, so two usual faults side by side ("Toe", "Slice") can read as one shot shape when they
+// were different shots: a 4 hybrid's toe strikes went left while its slices came off the middle. This says
+// which. Every line is golfer-ready and shows only in the open row, never on the row itself.
+//   pairs       one line per pair of factors whose usuals are both faults, in factor order: how many shots
+//               read on both had both, then where each fault's shots went in the other factor, counted by the
+//               value each shot shows in that factor's bar ("Toe and slice came together on 1 of 7 shots. Your
+//               toe shots went Pull 2 · Slice 1. Your slice shots were struck Solid 2 · Toe 1.")
+//   combos      the commonest combinations over the shots read on every factor the row reads (at least two
+//               factors, at least two shots), up to three, most shots first ("Solid · Slice · Low — 2 of 7 shots")
+//   moreCombos  the rest, counted ("and 2 other combinations, 3 shots"); "" with none
+// No factor outranks another here either: a pair's breakdown is said both ways, and a combination lists the
+// factors in their column order.
+struct TendencyTogether {
+    QStringList pairs;
+    QStringList combos;
+    QString     moreCombos;
+    bool empty() const { return pairs.isEmpty() && combos.isEmpty(); }
+};
+
 struct TendencyItem {
     QString key;            // "7 IRON|full"
     QString clubGroup;      // "mid_irons"; the row's filter
@@ -338,6 +358,7 @@ struct TendencyItem {
     int     sessions = 0;   // sessions with a counted shot in this key
     int     shots = 0;
     TendencyFactor strike, direction, flight;
+    TendencyTogether together;
 
     const TendencyFactor &factor(const QString &name) const
     {
@@ -608,6 +629,126 @@ inline std::vector<TendencyClubOutcomes> orderedClubOutcomes(const QHash<QString
     return out;
 }
 
+// The verb for where a fault's shots ended up in another factor: "went" Pull 2, "flew" Low 3, "were struck" Solid 2.
+inline QString togetherVerb(const QString &factor)
+{
+    return factor == shotFactorStrike()    ? QStringLiteral("were struck")
+         : factor == shotFactorDirection() ? QStringLiteral("went")
+                                           : QStringLiteral("flew");
+}
+
+// Values with their shot counts, most shots first, ties in the value table's order: "Pull 2 · Slice 1".
+inline QString togetherCounts(const QHash<QString, int> &n, const ShotOutcomePack &pack)
+{
+    QStringList ids = n.keys();
+    std::sort(ids.begin(), ids.end(), [&n](const QString &a, const QString &b) {
+        const int na = n.value(a), nb = n.value(b);
+        if (na != nb) return na > nb;
+        const int ra = shotFactorValueRank(a), rb = shotFactorValueRank(b);
+        return ra != rb ? ra < rb : a < b;
+    });
+    QStringList parts;
+    for (const QString &id : ids) parts << QStringLiteral("%1 %2").arg(shotFactorValueLabel(pack, id)).arg(n.value(id));
+    return parts.join(QStringLiteral(" · "));
+}
+
+// One row's TendencyTogether (see the struct). `leadOf[factor][shot]` is the value the shot is counted under in
+// that factor's bar; a shot not read on a factor has none.
+inline TendencyTogether tendencyTogether(const TendencyItem &item, const std::vector<const JudgedShot *> &shots,
+                                         const QHash<QString, QHash<const JudgedShot *, QString>> &leadOf,
+                                         const ShotOutcomePack &pack)
+{
+    TendencyTogether out;
+    const QStringList &names = shotFactorNames();
+
+    // ── Two usual faults: did they come together, and where did each one's shots go ──
+    for (int a = 0; a < names.size(); ++a) {
+        for (int b = a + 1; b < names.size(); ++b) {
+            const TendencyFactor &fa = item.factor(names.at(a)), &fb = item.factor(names.at(b));
+            if (!fa.fault || !fb.fault || fa.value.isEmpty() || fb.value.isEmpty()) continue;
+            int both = 0, together = 0;
+            QHash<QString, int> aWent, bWent;
+            for (const JudgedShot *j : shots) {
+                const ShotFactor &xa = j->factors.factor(names.at(a)), &xb = j->factors.factor(names.at(b));
+                if (!xa.read || !xb.read) continue;
+                ++both;
+                const bool hasA = xa.values.contains(fa.value), hasB = xb.values.contains(fb.value);
+                if (hasA && hasB) ++together;
+                if (hasA) { const QString l = leadOf.value(names.at(b)).value(j); if (!l.isEmpty()) ++aWent[l]; }
+                if (hasB) { const QString l = leadOf.value(names.at(a)).value(j); if (!l.isEmpty()) ++bWent[l]; }
+            }
+            if (both == 0) continue;
+            const QString la = fa.label.toLower(), lb = fb.label.toLower();
+            QString line;
+            if (together == 0)
+                line = QStringLiteral("%1 and %2 never came together in %3 %4.")
+                           .arg(la, lb).arg(both).arg(both == 1 ? QStringLiteral("shot") : QStringLiteral("shots"));
+            else if (both == 1)
+                line = QStringLiteral("%1 and %2 came together on the one shot read for both.").arg(la, lb);
+            else if (together == both)
+                line = QStringLiteral("%1 and %2 came together on all %3 shots.").arg(la, lb).arg(both);
+            else
+                line = QStringLiteral("%1 and %2 came together on %3 of %4 shots.").arg(la, lb).arg(together).arg(both);
+            line = outcomeCapitalised(line);
+            if (!aWent.isEmpty())
+                line += QStringLiteral(" Your %1 shots %2 %3.").arg(la, togetherVerb(names.at(b)), togetherCounts(aWent, pack));
+            if (!bWent.isEmpty())
+                line += QStringLiteral(" Your %1 shots %2 %3.").arg(lb, togetherVerb(names.at(a)), togetherCounts(bWent, pack));
+            out.pairs << line;
+        }
+    }
+
+    // ── The commonest combinations, over the shots read on every factor this row reads ──
+    QStringList readNames;
+    for (const QString &name : names) if (item.factor(name).shots > 0) readNames << name;
+    if (readNames.size() < 2) return out;
+
+    QHash<QString, int> count;
+    QHash<QString, QStringList> idsOf;
+    int counted = 0;
+    for (const JudgedShot *j : shots) {
+        QStringList ids;
+        for (const QString &name : readNames) {
+            const QString l = leadOf.value(name).value(j);
+            if (l.isEmpty()) break;
+            ids << l;
+        }
+        if (ids.size() != readNames.size()) continue;
+        ++counted;
+        const QString key = ids.join(QLatin1Char('|'));
+        ++count[key];
+        idsOf.insert(key, ids);
+    }
+    if (counted < 2) return out;
+
+    QStringList keys = count.keys();
+    std::sort(keys.begin(), keys.end(), [&count, &idsOf](const QString &a, const QString &b) {
+        const int na = count.value(a), nb = count.value(b);
+        if (na != nb) return na > nb;
+        const QStringList &ia = idsOf[a], &ib = idsOf[b];
+        for (int i = 0; i < ia.size() && i < ib.size(); ++i) {
+            const int ra = shotFactorValueRank(ia.at(i)), rb = shotFactorValueRank(ib.at(i));
+            if (ra != rb) return ra < rb;
+        }
+        return a < b;
+    });
+    const int shown = std::min(3, int(keys.size()));
+    for (int k = 0; k < shown; ++k) {
+        QStringList labels;
+        for (const QString &id : idsOf[keys.at(k)]) labels << shotFactorValueLabel(pack, id);
+        out.combos << QStringLiteral("%1 — %2 of %3 shots").arg(labels.join(QStringLiteral(" · "))).arg(count.value(keys.at(k))).arg(counted);
+    }
+    if (keys.size() > shown) {
+        int rest = 0;
+        for (int k = shown; k < keys.size(); ++k) rest += count.value(keys.at(k));
+        const int others = int(keys.size()) - shown;
+        out.moreCombos = QStringLiteral("and %1 other %2, %3 %4")
+                             .arg(others).arg(others == 1 ? QStringLiteral("combination") : QStringLiteral("combinations"))
+                             .arg(rest).arg(rest == 1 ? QStringLiteral("shot") : QStringLiteral("shots"));
+    }
+    return out;
+}
+
 } // namespace tendency_detail
 
 // `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
@@ -766,6 +907,8 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         for (auto it = keyShots.rbegin(); it != keyShots.rend(); ++it)     // newest first: an old row may not say
             if (!(*it)->handedness.isEmpty()) { item.handedness = (*it)->handedness; break; }
 
+        // The value each shot is counted under in each factor's bar, for how the factors came together.
+        QHash<QString, QHash<const JudgedShot *, QString>> leadOf;
         for (const QString &name : shotFactorNames()) {
             TendencyFactor &tf = item.factor(name);
             tf.factor = name;
@@ -826,6 +969,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
                 const ShotFactor &f = j->factors.factor(name);
                 const QString lead = tendencyLeadMiss(f.values, share, count);
                 tally.add(lead, labelOf(lead), f.faults.contains(lead));
+                if (!lead.isEmpty()) leadOf[name].insert(j, lead);
             }
             tf.mix = composeFactorMixBar(tally);
 
@@ -941,6 +1085,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             tf.playTo = outcomePlayTo(pack, tf.rowId, item.handedness);
         }
 
+        item.together = tendencyTogether(item, keyShots, leadOf, pack);
         out.items.push_back(std::move(item));
     }
 
@@ -1121,6 +1266,10 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
             { QStringLiteral("strike"), tendencyFactorToJson(it.strike) },
             { QStringLiteral("direction"), tendencyFactorToJson(it.direction) },
             { QStringLiteral("flight"), tendencyFactorToJson(it.flight) },
+            { QStringLiteral("together"), QJsonObject{
+                { QStringLiteral("pairs"), QJsonArray::fromStringList(it.together.pairs) },
+                { QStringLiteral("combos"), QJsonArray::fromStringList(it.together.combos) },
+                { QStringLiteral("moreCombos"), it.together.moreCombos } } },
         });
     }
     QJsonArray onBall;
@@ -1216,6 +1365,12 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
         it.strike     = tendencyFactorFromJson(o.value(QStringLiteral("strike")).toObject());
         it.direction  = tendencyFactorFromJson(o.value(QStringLiteral("direction")).toObject());
         it.flight     = tendencyFactorFromJson(o.value(QStringLiteral("flight")).toObject());
+        {
+            const QJsonObject t = o.value(QStringLiteral("together")).toObject();
+            for (const QJsonValue &x : t.value(QStringLiteral("pairs")).toArray())  it.together.pairs << x.toString();
+            for (const QJsonValue &x : t.value(QStringLiteral("combos")).toArray()) it.together.combos << x.toString();
+            it.together.moreCombos = t.value(QStringLiteral("moreCombos")).toString();
+        }
         s.items.push_back(std::move(it));
     }
     for (const QJsonValue &v : root.value(QStringLiteral("onBall")).toArray()) {

@@ -289,9 +289,9 @@ class WorkOnsController : public QObject
     //   A factor's usual is its most common fault when that earns, else its most common value said plainly
     //   (fault false); a building factor states no verdict; one never read is label "-".
     // tendencyNote: "From N shots over M sessions", or why nothing yet.
-    // tendencyDetail(key): { strike: D, direction: D, flight: D } or {} for no such row; each D is
+    // tendencyDetail(key): { strike: D, direction: D, flight: D, together: T } or {} for no such row; each D is
     //   { chain: [{ text, words }], alsoSeen, earlyNote, playTo, practiseConditionId }, or {} for a factor with
-    //   nothing to say.
+    //   nothing to say; T is { pairs: [line], combos: [line], moreCombos } (TendencyTogether), golfer-ready.
     // clubDistance(club): { mean, sd, n, total, offlineSd, earned, line } for the current athlete, or {}.
     Q_PROPERTY(QVariantList tendencyItems READ tendencyItems NOTIFY tendenciesChanged)
     Q_PROPERTY(QString tendencyNote READ tendencyNote NOTIFY tendenciesChanged)

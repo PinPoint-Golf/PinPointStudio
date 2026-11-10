@@ -25,14 +25,18 @@
 //            "Building — N sessions" beside a dashed ring, and never a verdict's tone.
 //   detail   one block per factor with something to say, headed by the factor's name: every shot it was read on
 //            (a PpBandBar over its words), the trend, what leads to it (the golfer's words with the words that
-//            link them), also seen, how to play to it, Practice.
+//            link them), also seen, how to play to it, Practice. Then one Together block: when two factors' usuals
+//            are both faults, how often they came together and where each one's shots went; and the commonest
+//            combinations of all three (TendencyTogether). Each factor's usual is chosen on its own, so the row
+//            alone can read as one shot shape when it was different shots; this says which.
 //
 // `tendency` is one of WorkOnsController.tendencyItems, every string final: { key, clubLine, distance, workOnText,
 // strike, direction, flight }, each factor { label, fault, building, frequency, sessions, shots, seenWith, trend,
-// trendWords, mix: { line, parts: [{ count, kind }] } }. tendencyDetail(key) gives { strike, direction, flight },
-// each { chain, alsoSeen, earlyNote, playTo, practiseConditionId } or {} for a factor with nothing to say.
-// The golfer layer: the only figures in a row are the usual distances, the shot mix's percentages and the sessions
-// a building factor still needs words for. Colour is never the only channel: a fault has its words, the band bar
+// trendWords, mix: { line, parts: [{ count, kind }] } }. tendencyDetail(key) gives { strike, direction, flight,
+// together }, each factor { chain, alsoSeen, earlyNote, playTo, practiseConditionId } or {} for a factor with
+// nothing to say, together { pairs, combos, moreCombos }.
+// The golfer layer: the only figures in a row are the usual distances, the shot mix's percentages, the sessions
+// a building factor still needs words for, and the Together block's shot counts. Colour is never the only channel: a fault has its words, the band bar
 // has its words beneath, the trend carries an arrow and a word.
 //
 // A shot-mix part's tone by its kind: good → clean, value → value (neither praise nor fault), main → habit,
@@ -93,7 +97,12 @@ PpExpandRow {
                || (d.practiseConditionId || "") !== "" || (d.earlyNote || "") !== ""
     }
     readonly property var  detailFactors: tendencyRow.factorKeys.filter(f => tendencyRow.hasFactorDetail(f))
-    readonly property bool hasDetail:     tendencyRow.detailFactors.length > 0
+    // How the three factors came together on the row's shots: lines, golfer-ready, shown last in the open row.
+    readonly property var  together:      tendencyRow.tendencyDetail.together || ({})
+    readonly property var  togetherPairs:  tendencyRow.together.pairs || []
+    readonly property var  togetherCombos: tendencyRow.together.combos || []
+    readonly property bool hasTogether:   tendencyRow.togetherPairs.length > 0 || tendencyRow.togetherCombos.length > 0
+    readonly property bool hasDetail:     tendencyRow.detailFactors.length > 0 || tendencyRow.hasTogether
 
     secondLine: true
     // As tall as its tallest cell: a long club line or a building factor wraps rather than losing its words.
@@ -293,6 +302,59 @@ PpExpandRow {
                             }
                         }
                     }
+                }
+            }
+
+            // How the factors came together: the pairs of usual faults, then the commonest combinations.
+            Column {
+                id: togetherBlock
+                objectName: "tendencyBlock:together"
+                visible: tendencyRow.hasTogether
+                width:   blocks.width < Theme.sp(640) ? blocks.width : Math.round(blocks.width * 0.52)
+                spacing: Theme.gap(8)
+
+                PpMicro {
+                    objectName: "tendencyBlockHead"
+                    text: Theme.caps(qsTr("Together"))
+                }
+                Repeater {
+                    model: tendencyRow.togetherPairs
+                    Text {
+                        required property var modelData
+                        objectName: "tendencyTogetherPair"
+                        width: togetherBlock.width
+                        text:  String(modelData)
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Theme.fontBodyWeight
+                        color:          Theme.colorText2
+                        wrapMode:       Text.WordWrap
+                        lineHeight:     1.4
+                    }
+                }
+                PpCaption {
+                    visible: tendencyRow.togetherCombos.length > 0
+                    text:    qsTr("Your most common shots")
+                }
+                Repeater {
+                    model: tendencyRow.togetherCombos
+                    Text {
+                        required property var modelData
+                        objectName: "tendencyTogetherCombo"
+                        width: togetherBlock.width
+                        text:  String(modelData)
+                        elide: Text.ElideRight
+                        font.family:    Theme.fontBody
+                        font.pixelSize: Theme.fontSzBody2
+                        font.weight:    Theme.fontBodyWeight
+                        color:          Theme.colorText
+                    }
+                }
+                PpCaption {
+                    objectName: "tendencyTogetherMore"
+                    visible: text !== ""
+                    width:   togetherBlock.width
+                    text:    tendencyRow.together.moreCombos || ""
                 }
             }
         }

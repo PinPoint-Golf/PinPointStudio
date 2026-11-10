@@ -431,6 +431,47 @@ int main()
         check(reduce({}).clubOutcomes.empty(), "no shots, no counts");
     }
     {
+        // Rule 15: how a row's factors came together (TendencyTogether). Two usual faults, Fat and Slice, that
+        // were mostly different shots: 2 fat slices, 3 fats that flew straight, 6 slices struck solid, 5 clean.
+        // The row alone reads "Fat · Slice"; the open row says they came together on 2 of 16 and where each went.
+        std::vector<TendencySessionInput> in{ session(1, 8, { "slice" }), session(2, 8, {}) };
+        for (int i = 0; i < 2; ++i) in[0].session.shots[size_t(i)] = shot(i + 1, { "chunk", "slice" });
+        for (int i = 0; i < 3; ++i) in[1].session.shots[size_t(i)] = shot(i + 1, { "chunk" });
+        const TendencySet set = reduce(in);
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
+        check(it && it->strike.fault && it->strike.value == QStringLiteral("chunk") && it->direction.fault
+                  && it->direction.value == QStringLiteral("slice"), "the row's usuals: Fat and Slice, both faults");
+        const QString pair = QStringLiteral("Fat and slice came together on 2 of 16 shots. Your fat shots went Straight 3 · Slice 2. "
+                                            "Your slice shots were struck Solid 6 · Fat 2.");
+        check(it && it->together.pairs == QStringList{ pair }, "the pair: how often together, and where each one's shots went, both ways");
+        if (it && it->together.pairs != QStringList{ pair }) fprintf(stderr, "  pairs: %s\n", qPrintable(it->together.pairs.join(" | ")));
+        const QStringList combos{ QStringLiteral("Solid · Slice — 6 of 16 shots"), QStringLiteral("Solid · Straight — 5 of 16 shots"),
+                                  QStringLiteral("Fat · Straight — 3 of 16 shots") };
+        check(it && it->together.combos == combos && it->together.moreCombos == QStringLiteral("and 1 other combination, 2 shots"),
+              "the commonest combinations over the factors read (flight never is here), most shots first, the rest counted");
+        if (it && it->together.combos != combos)
+            fprintf(stderr, "  combos: %s / %s\n", qPrintable(it->together.combos.join(" | ")), qPrintable(it->together.moreCombos));
+
+        bool ok = false;
+        const TendencySet back = tendencySetFromJson(tendencySetToJson(set), &ok);
+        const TendencyItem *b = itemFor(back, "DRIVER|full");
+        check(ok && b && b->together.pairs == it->together.pairs && b->together.combos == it->together.combos
+                  && b->together.moreCombos == it->together.moreCombos, "the Together lines survive the saved file");
+
+        // One usual fault: no pair to speak of, the combinations still said.
+        const TendencySet one = reduce({ session(1, 8, { "slice" }), session(2, 8, {}) });
+        const TendencyItem *o = itemFor(one, "DRIVER|full");
+        check(o && o->together.pairs.isEmpty() && o->together.combos.size() == 2, "one fault: no pair line, two combinations");
+
+        // Never together: said as that.
+        std::vector<TendencySessionInput> apart{ session(1, 8, { "slice" }), session(2, 8, { "chunk" }) };
+        const TendencySet apartSet = reduce(apart);
+        const TendencyItem *ap = itemFor(apartSet, "DRIVER|full");
+        check(ap && ap->together.pairs.size() == 1
+                  && ap->together.pairs.first().startsWith(QStringLiteral("Fat and slice never came together in 16 shots.")),
+              "two faults on different shots: never together");
+    }
+    {
         // Rule 11 (rule 14: decided on the ledger): a measured fat counts only when the flight agrees. Three fats
         // among nine drivers: carrying the usual 200 they are no fault at all; carrying 160 (under 0.85 of it)
         // they are Fat. The reduction reads the rows as diagnostics.json holds them, checked against the flight
@@ -738,7 +779,12 @@ int main()
         thirteen[QStringLiteral("rule")] = 13;
         bool thirteenOk = true;
         tendencySetFromJson(thirteen, &thirteenOk);
-        check(kTendencyRuleVersion == 14 && !thirteenOk, "rule 14: a file of rule 13 (rows not checked against the flight) is not read");
+        check(kTendencyRuleVersion == 15 && !thirteenOk, "rule 15: a file of rule 13 is not read");
+        QJsonObject fourteen = json;
+        fourteen[QStringLiteral("rule")] = 14;
+        bool fourteenOk = true;
+        tendencySetFromJson(fourteen, &fourteenOk);
+        check(!fourteenOk, "rule 15: a file of rule 14 (no Together lines) is not read");
 
         TendencySessionEvidence ev;
         ev.tiers.insert(QStringLiteral("over_the_top"), Tier::Pattern);

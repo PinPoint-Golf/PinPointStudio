@@ -2242,6 +2242,12 @@ QVariantMap WorkOnsController::tendencyDetail(const QString &key) const
                 { QStringLiteral("practiseConditionId"), f.workOn },
             });
         }
+        // How the factors came together (rule 15): the open row's last block.
+        out.insert(QStringLiteral("together"), QVariantMap{
+            { QStringLiteral("pairs"),      QVariant(it.together.pairs) },
+            { QStringLiteral("combos"),     QVariant(it.together.combos) },
+            { QStringLiteral("moreCombos"), it.together.moreCombos },
+        });
         return out;
     }
     return QVariantMap();

@@ -636,6 +636,15 @@ retention mechanism to wire "keep the clearest shot" into.
   belong to a factor's fault and show in the open row, one block per factor, each with its own shot bar. The
   row's Work-on column says the status of its factors' work-ons. The report's Your tendencies page has the same
   three columns.
+  - **Together (rule 15; Mark, 10 Nov 2026).** Each factor's usual is chosen on its own, so two usual faults
+    side by side can read as one shot shape when they were different shots (Mark's 4 hybrid read Toe · Slice;
+    its toe strikes went left and its slices came off the middle). The open row ends with a Together block,
+    never on the row itself (`TendencyTogether`): for each pair of factors whose usuals are both faults, how
+    many of the shots read on both had both, and where each fault's shots went in the other factor, said both
+    ways ("Toe and slice came together on 1 of 7 shots. Your toe shots went Pull 2 · Slice 1. Your slice shots
+    were struck Solid 2 · Toe 1."); then the three commonest combinations over the shots read on every factor
+    the row reads (two at least), each shot under the value its bars count it under, and the rest counted.
+    Counts, not percentages: the numbers are small and the golfer checks them against shots they remember.
 - **Shot bars** draw a non-fault value (Fade, Draw, Low, Mid, High) in the cool "neither praise nor fault"
   tone (`Theme.bandTone("value")`, approved by Mark 10 Nov); Solid and Straight are good; the commonest fault
   is the habit tone, other faults the occasional tone.
