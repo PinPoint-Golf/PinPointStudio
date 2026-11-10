@@ -74,6 +74,7 @@ static ShotOutcomePack fixturePack()
         facts("push_slice",    "direction", "Push slice", "PS", L::Ball, order++),     // last, so no other pack order moves
         facts("pull",          "direction", "Pull",       "PL", L::Ball, order++),
         facts("pull_hook",     "direction", "Pull hook",  "PH", L::Ball, order++),
+        facts("thin",          "strike",    "Thin",       "TH", L::Ball, order++),
     };
     for (const ShotConditionFacts &f : list) p.conditions.insert(f.id, f);
     const auto cause = [&p](const char *from, const char *to) { p.causes[QString::fromLatin1(from)] << QString::fromLatin1(to); };
@@ -94,7 +95,7 @@ static ShotRecord shot(int id, std::initializer_list<const char *> fired, const 
     s.club   = QString::fromLatin1(club);
     s.carry  = 200.0;
     s.swingLength = QStringLiteral("full");
-    for (const char *rid : { "chunk", "slice", "hook", "push", "carry_deficit", "over_the_top", "early_extension" }) {
+    for (const char *rid : { "chunk", "thin", "slice", "hook", "push", "pull", "carry_deficit", "over_the_top", "early_extension" }) {
         ConditionRow r;
         r.conditionId = QString::fromLatin1(rid);
         const bool hit = std::any_of(fired.begin(), fired.end(), [rid](const char *f) { return qstrcmp(f, rid) == 0; });
@@ -283,8 +284,8 @@ int main()
         check(reduceTendencies({}, pack, driverGroup).clubOutcomes.empty(), "no shots, no counts");
     }
     {
-        // A push slice (here the golfer's correction) is counted under Push slice, Slice and Push, while its
-        // row in Tendencies still has the one primary miss, the push slice.
+        // A push slice (here the golfer's correction) is counted under Push slice, Slice and Push. In the row's
+        // shot mix it is counted once, under the one of those three commonest with the club: the slice.
         std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }) };
         in[0].session.corrections[1].push_back(ShotCorrection{ QStringLiteral("direction"), QStringLiteral("slice"), QStringLiteral("push_slice") });
         const TendencySet set = reduceTendencies(in, pack, driverGroup);
@@ -301,9 +302,11 @@ int main()
                   && set.clubOutcomes[0].misses[1].id == QStringLiteral("push") && set.clubOutcomes[0].misses[1].label == QStringLiteral("Push")
                   && set.clubOutcomes[0].misses[2].id == QStringLiteral("push_slice"), "most shots first, then by id");
         const TendencyItem *it = itemFor(set, "DRIVER|full");
-        check(it && it->mix.judged == 9 && it->mix.parts.size() == 2 && it->mix.parts[0].key == QStringLiteral("slice")
-                  && it->mix.parts[0].count == 8 && it->mix.parts[1].key == QStringLiteral("push_slice") && it->mix.parts[1].count == 1,
-              "the row's mix still counts each shot once, under its primary miss");
+        // Rule 10 (10 Nov 2026): this was Slice 8 · Push slice 1 when the first label was the shot's "primary"
+        // miss. The push slice is a slice too, and the slice is on all nine shots, so it is filed there.
+        check(it && it->mix.judged == 9 && it->mix.parts.size() == 1 && it->mix.parts[0].key == QStringLiteral("slice")
+                  && it->mix.parts[0].count == 9,
+              "the row's mix still counts each shot once, the push slice under the slice, the club's commonest");
 
         for (TendencySessionInput &s : in)
             for (ShotRecord &r : s.session.shots) r.handedness = QStringLiteral("Left");
@@ -327,7 +330,8 @@ int main()
         const TendencySet set = reduceTendencies(in, pack, driverGroup);
         const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && it->miss == QStringLiteral("Fat, often with a slice"), "\"Fat, often with a slice\" at half the shots");
-        check(it && it->missFamily == QStringLiteral("strike"), "the strike family leads the label");
+        // Fat is the usual miss because it is on all 18 shots and the slice on 9, not because it is a strike.
+        check(it && it->missFamily == QStringLiteral("strike"), "the usual miss's own family: fat, the commonest, is a strike");
     }
     {
         // Under half the shots, no suffix.
@@ -336,6 +340,141 @@ int main()
         const TendencySet set = reduceTendencies(in, pack, driverGroup);
         const TendencyItem *it = itemFor(set, "DRIVER|full");
         check(it && it->miss == QStringLiteral("Fat"), "a second family on few shots does not reach the label");
+    }
+
+    std::printf("\nthe commonest miss wins, whatever its family (rule 10):\n");
+    {
+        // Lead miss, directly: the biggest weight, then the most shots, then the id; a combined miss over its
+        // own halves on an exact tie.
+        const QHash<QString, double> even{ { QStringLiteral("thin"), 0.3 }, { QStringLiteral("slice"), 0.3 } };
+        check(tendencyLeadMiss({ QStringLiteral("thin"), QStringLiteral("slice") },
+                               { { QStringLiteral("thin"), 0.2 }, { QStringLiteral("slice"), 0.3 } },
+                               { { QStringLiteral("thin"), 9 }, { QStringLiteral("slice"), 3 } }) == QStringLiteral("slice"),
+              "lead miss: the biggest share wins over more shots");
+        check(tendencyLeadMiss({ QStringLiteral("slice"), QStringLiteral("thin") }, even,
+                               { { QStringLiteral("thin"), 4 }, { QStringLiteral("slice"), 3 } }) == QStringLiteral("thin"),
+              "lead miss: an even share goes to the miss on more shots");
+        check(tendencyLeadMiss({ QStringLiteral("thin"), QStringLiteral("slice") }, even,
+                               { { QStringLiteral("thin"), 3 }, { QStringLiteral("slice"), 3 } }) == QStringLiteral("slice"),
+              "lead miss: an exact tie goes by id, not by family");
+        const QHash<QString, double> halves{ { QStringLiteral("push"), 0.5 }, { QStringLiteral("push_slice"), 0.5 }, { QStringLiteral("slice"), 0.5 } };
+        const QHash<QString, int> halvesN{ { QStringLiteral("push"), 3 }, { QStringLiteral("push_slice"), 3 }, { QStringLiteral("slice"), 3 } };
+        check(tendencyLeadMiss({ QStringLiteral("slice"), QStringLiteral("push"), QStringLiteral("push_slice") }, halves, halvesN)
+                  == QStringLiteral("push_slice"),
+              "lead miss: the same shots as a push slice and its halves are named whole");
+        check(tendencyLeadMiss({}, {}, {}).isEmpty(), "lead miss: no misses, none");
+        check(tendencySameMiss(QStringLiteral("slice"), QStringLiteral("push_slice")) && tendencySameMiss(QStringLiteral("pull_hook"), QStringLiteral("pull"))
+                  && !tendencySameMiss(QStringLiteral("slice"), QStringLiteral("push")) && !tendencySameMiss(QStringLiteral("slice"), QStringLiteral("pull_hook")),
+              "the same miss seen another way: a combined miss and its own halves only");
+    }
+    {
+        // A 7 iron's thin pulls: the pull on all 18 shots, the thin on the 9 newest. Under the old strike-first
+        // rule each thin pull counted only as Thin, and the newer session made Thin the usual miss.
+        std::vector<TendencySessionInput> in{ session(1, 9, { "pull" }, "7 IRON"), session(2, 9, { "thin", "pull" }, "7 IRON") };
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        const TendencyItem *it = itemFor(set, "7 IRON|full");
+        check(it && !it->building && it->missId == QStringLiteral("pull") && it->miss == QStringLiteral("Pull, often with a thin")
+                  && it->missFamily == QStringLiteral("direction") && it->share > 0.99,
+              "thin pulls: the pull outnumbers the thin, so it is the usual miss, often with a thin at half");
+        check(it && it->mix.judged == 18 && it->mix.parts.size() == 1 && it->mix.parts[0].key == QStringLiteral("pull"),
+              "each thin pull is filed under the pull in the bar, the club's commonest");
+
+        in[1].session.shots[8] = shot(9, { "pull" }, "7 IRON");          // 8 thin pulls of 18: under half
+        const TendencySet fewer = reduceTendencies(in, pack, driverGroup);
+        const TendencyItem *f = itemFor(fewer, "7 IRON|full");
+        check(f && f->miss == QStringLiteral("Pull"), "a thin on under half of the pulls does not reach the words");
+    }
+    {
+        // Mark's driver: a slice on 6 shots and a weak strike (here fat) on 6, two of them fat slices. The
+        // newer session decides; the strike does not win for being a strike.
+        std::vector<TendencySessionInput> in{ session(1, 8, {}), session(2, 8, {}) };
+        for (int i = 0; i < 2; ++i) in[0].session.shots[size_t(i)] = shot(i + 1, { "chunk", "slice" });
+        for (int i = 2; i < 6; ++i) in[0].session.shots[size_t(i)] = shot(i + 1, { "chunk" });
+        for (int i = 0; i < 4; ++i) in[1].session.shots[size_t(i)] = shot(i + 1, { "slice" });
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
+        check(it && !it->building && it->missId == QStringLiteral("slice") && it->miss == QStringLiteral("Slice"),
+              "slice 6, fat 6: the slices are newer, so Slice (strike-first said Fat)");
+        check(it && it->mix.judged == 16 && it->mix.parts.size() == 3 && it->mix.parts[1].key == QStringLiteral("slice")
+                  && it->mix.parts[1].count == 6 && it->mix.parts[2].key == QStringLiteral("chunk") && it->mix.parts[2].count == 4,
+              "the bar: good 6, slice 6 (the two fat slices filed under the slice, the commoner here), fat 4");
+
+        std::vector<TendencySessionInput> flipped{ session(1, 8, {}), session(2, 8, {}) };
+        for (int i = 0; i < 4; ++i) flipped[0].session.shots[size_t(i)] = shot(i + 1, { "slice" });
+        for (int i = 0; i < 2; ++i) flipped[1].session.shots[size_t(i)] = shot(i + 1, { "chunk", "slice" });
+        for (int i = 2; i < 6; ++i) flipped[1].session.shots[size_t(i)] = shot(i + 1, { "chunk" });
+        const TendencySet back = reduceTendencies(flipped, pack, driverGroup);
+        const TendencyItem *b = itemFor(back, "DRIVER|full");
+        check(b && b->missId == QStringLiteral("chunk") && b->miss == QStringLiteral("Fat"),
+              "the same shots with the fat ones newer: Fat");
+
+        // An exact tie, every session the same: by id, so the slice over the thin.
+        std::vector<TendencySessionInput> tie{ session(1, 8, {}), session(2, 8, {}) };
+        for (TendencySessionInput &s : tie) {
+            for (int i = 0; i < 3; ++i) s.session.shots[size_t(i)] = shot(i + 1, { "thin" });
+            for (int i = 3; i < 6; ++i) s.session.shots[size_t(i)] = shot(i + 1, { "slice" });
+        }
+        const TendencySet tied = reduceTendencies(tie, pack, driverGroup);
+        const TendencyItem *t = itemFor(tied, "DRIVER|full");
+        check(t && t->missId == QStringLiteral("slice") && t->miss == QStringLiteral("Slice"), "thin 6, slice 6, the same in each session: by id, Slice");
+        int barShots = 0;
+        if (t) for (const ShotMixPart &p : t->mix.parts) barShots += p.count;
+        check(t && barShots == t->shots && t->mix.judged == 16, "the bar adds up to the shots");
+    }
+    {
+        // A push slice is a slice: the four push slices count toward the slice on all 18 shots.
+        const auto toPushSlice = [](TendencySessionInput &s, int shotId) {
+            s.session.corrections[shotId].push_back(ShotCorrection{ QStringLiteral("direction"), QStringLiteral("slice"), QStringLiteral("push_slice") });
+        };
+        std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }), session(2, 9, { "slice" }) };
+        for (int id = 1; id <= 4; ++id) toPushSlice(in[1], id);
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
+        check(it && it->missId == QStringLiteral("slice") && it->miss == QStringLiteral("Slice") && it->share > 0.99,
+              "a push slice counts toward the slice: every swing, not 14 of 18");
+        check(it && it->mix.parts.size() == 1 && it->mix.parts[0].key == QStringLiteral("slice") && it->mix.parts[0].count == 18,
+              "and is filed under the slice in the bar");
+
+        // Half the slices are push slices: never "often with a push slice", the slice seen another way. The
+        // push they start with is a different miss (where the ball started), so it may be named.
+        std::vector<TendencySessionInput> half{ session(1, 9, { "slice" }), session(2, 9, { "slice" }) };
+        for (int id = 1; id <= 9; ++id) toPushSlice(half[1], id);
+        const TendencySet halfSet = reduceTendencies(half, pack, driverGroup);
+        const TendencyItem *h = itemFor(halfSet, "DRIVER|full");
+        check(h && h->missId == QStringLiteral("slice") && !h->miss.contains(QStringLiteral("push slice"), Qt::CaseInsensitive)
+                  && h->miss == QStringLiteral("Slice, often with a push"),
+              "a usual slice is never 'often with a push slice'");
+
+        // Every shot a push slice: the push slice, its halves on the same shots, names them whole, and is never
+        // "often with a slice" or "a push".
+        std::vector<TendencySessionInput> all{ session(1, 9, { "slice" }), session(2, 9, { "slice" }) };
+        for (TendencySessionInput &s : all)
+            for (int id = 1; id <= 9; ++id) toPushSlice(s, id);
+        const TendencySet allSet = reduceTendencies(all, pack, driverGroup);
+        const TendencyItem *a = itemFor(allSet, "DRIVER|full");
+        check(a && a->missId == QStringLiteral("push_slice") && a->miss == QStringLiteral("Push slice"),
+              "a usual push slice is never 'often with a slice'");
+        check(a && a->mix.parts.size() == 1 && a->mix.parts[0].key == QStringLiteral("push_slice") && a->mix.parts[0].count == 18,
+              "and the bar files them whole");
+
+        // A left-hander's push slice row is their pull hook, its halves their hook and pull.
+        for (TendencySessionInput &s : all)
+            for (ShotRecord &r : s.session.shots) r.handedness = QStringLiteral("Left");
+        const TendencySet leftSet = reduceTendencies(all, pack, driverGroup);
+        const TendencyItem *l = itemFor(leftSet, "DRIVER|full");
+        check(l && l->missId == QStringLiteral("push_slice") && l->miss == QStringLiteral("Pull hook")
+                  && l->mix.parts.size() == 1 && l->mix.parts[0].label == QStringLiteral("Pull hook"),
+              "a left-hander's push slices read as the pull hook they see");
+    }
+    {
+        // A left-hander's thin pushes: the push row is their pull, and it is the commoner miss.
+        std::vector<TendencySessionInput> in{ session(1, 9, { "push" }), session(2, 9, { "thin", "push" }) };
+        for (TendencySessionInput &s : in)
+            for (ShotRecord &r : s.session.shots) r.handedness = QStringLiteral("Left");
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
+        check(it && it->missId == QStringLiteral("push") && it->miss == QStringLiteral("Pull, often with a thin"),
+              "a left-hander's usual miss is still glossed: their pull, often with a thin");
     }
 
     std::printf("\na left-hander's words:\n");

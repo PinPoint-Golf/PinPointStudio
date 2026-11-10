@@ -544,8 +544,14 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
 - **Shots counted**: a launch-monitor reading, the ball's shape judged,
   straight intent (intended shapes excluded), corrections applied. A shot with a data warning still
   counts unless its rows are NotAssessable.
-- **Usual miss**: the primary miss weighing most in the key, recency-weighted, with an "often with …"
-  suffix when a second family co-occurs on ≥ 50 % of those shots ("Fat, often with a slice").
+- **Usual miss**: the miss on the biggest recency-weighted share of the key's shots, whatever its family;
+  every miss a shot shows counts, the halves of a combined one among them (a push slice is a slice and a push
+  too, so a thin pull counts as a pull as much as a thin). Ties: the most shots, then the id; on an exact tie a
+  combined miss stands over its own halves. No miss family ranks above another in anything that counts or
+  chooses (Mark, 10 Nov 2026): the strike-first order of a shot's labels is only the order its words are said
+  in. An "often with …" suffix names the commonest other miss, any family, on ≥ 50 % of the shots showing the
+  usual miss ("Fat, often with a slice"); the usual miss seen another way (its halves, or the combined miss it
+  is half of) is not another miss.
 - **Earned** when: ≥ 2 sessions with ≥ 8 shots each in the key, ≥ 15 shots total, recency-weighted share
   (0.75 per older session, as home_themes) ≥ 25 %. Below that: **Building — N sessions** (dashed ring),
   never a verdict. Enough shots but no miss at that share: "No usual miss".
@@ -582,8 +588,8 @@ sessions, shots, seenWith, seenWithId, strength, trend, trendWords, workOn, work
   (a minority second reason); **Play to it** box (`playTo`, handedness-mirrored); Practice
   (`practiseRequested(conditionId, label)` → wizard, existing path). The row shows work-on status.
 - The **Your shots** column replaces the F1 mock's How often meter: a `PpBandBar` over its words ("Good 50% ·
-  Thin 25% · Slice 25%"). Every counted shot once, as good or under its primary miss, by plain count; up to three
-  misses are named and the rest are "Other". Good is the clean tone, the commonest miss the habit tone, the others
+  Thin 25% · Slice 25%"). Every counted shot once, as good or under its most common miss for that club (of the
+  misses it shows, the one on the biggest share of the club's shots), by plain count; up to three misses are named and the rest are "Other". Good is the clean tone, the commonest miss the habit tone, the others
   the occasional tone. The Session view has the same bar per club (`clubMix`, `sdClubMix`) in all three registers.
 - A **building** row opens too, headed "Seen so far": the reason that has most often come with the miss, every
   link "seen with", and a note that it's early and what would earn it. The Seen with column still says

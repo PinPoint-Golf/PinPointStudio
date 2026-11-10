@@ -1540,6 +1540,26 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
               && m->shotMix().value(QStringLiteral("correctionsLine")).toString() == QStringLiteral("2 labels corrected by you"),
           "E3: two labels corrected by you");
 
+    // ── The club mix: each shot once, under its commonest miss with the club (Tendencies rule 10) ──
+    // The 7 iron shows a slice on 9 shots (3, 4, 5, 9, 10, 12, 15, 21, 23) and a fat on 5 (2, 4, 5, 8, 10).
+    // The three fat slices go under the slice, the club's commonest, not under the fat for being a strike:
+    // slice 9 and fat 2, where the strike-first rule gave slice 6 and fat 5.
+    {
+        const QVariantList mix = m->clubMix();
+        const QVariantMap iron = mix.isEmpty() ? QVariantMap() : mix.first().toMap();
+        const auto partCount = [&iron](const char *key) {
+            for (const QVariant &v : iron.value(QStringLiteral("parts")).toList())
+                if (v.toMap().value(QStringLiteral("key")).toString() == QLatin1String(key)) return v.toMap().value(QStringLiteral("count")).toInt();
+            return -1;
+        };
+        int barShots = 0;
+        for (const QVariant &v : iron.value(QStringLiteral("parts")).toList()) barShots += v.toMap().value(QStringLiteral("count")).toInt();
+        check(mix.size() == 1 && iron.value(QStringLiteral("clubId")).toString() == QStringLiteral("7 IRON"), "club mix: the one club");
+        check(partCount("good") == 11 && partCount("slice") == 9 && partCount("chunk") == 2,
+              "club mix: a fat slice is filed under the slice, the club's commonest miss, not under its strike");
+        check(barShots == 24 && iron.value(QStringLiteral("judged")).toInt() == 24, "club mix: every shot once, adding up to the 24");
+    }
+
     const QVariantList reasons = m->reasons();
     const QVariantMap stood = reasonById(reasons, "early_extension");
     const QVariantMap over  = reasonById(reasons, "over_the_top");

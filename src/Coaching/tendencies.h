@@ -32,6 +32,13 @@
 // recording's rows are NotAssessable, so it falls out as not assessable. The rule is judgeTendencyShot,
 // which Home's outcome filter (outcome_scope.h) reads shots through too.
 //
+// THE USUAL MISS is the commonest: the miss on the biggest recency-weighted share of the key's shots,
+// whatever its family. Every miss a shot shows counts, the halves of a combined one among them (a push
+// slice is a slice and a push too), so a thin pull counts as a pull as much as a thin. No family ranks above
+// another in anything that counts or chooses; the strike-first order of a shot's labels is only the order
+// the words are said in. Where a shot can be in one place only (the Your shots bar, the session panel's
+// club mix), it goes under its own commonest miss for that club (tendencyLeadMiss).
+//
 // The JSON (<athlete>/tendencies.json) carries a rule and schema version; another version is not read.
 //
 // Unit-tested standalone in src/Analysis/tests/tendencies_test.cpp.
@@ -56,7 +63,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 9;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices
+inline constexpr int kTendencyRuleVersion   = 10;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -66,7 +73,7 @@ struct TendencyOptions {
     int    minShots        = 15;
     double minShare        = 0.25;  // recency-weighted
     double recency         = 0.75;  // each older session weighs this much less
-    double coOccur         = 0.5;   // a second family on this share of the shots: "often with"
+    double coOccur         = 0.5;   // another miss, any family, on this share of the usual miss's shots: "often with"
     double trendDelta      = 0.15;  // the 15-point rule
     int    trendMinJudged  = 3;
     int    recentSessions  = 5;     // what "your last ... shots" means on Home
@@ -301,7 +308,7 @@ struct TendencyItem {
     QString handedness;     // the golfer's, off the documents: "Left", "Right", ""
     QString missId;         // the ROW id (for the left-hander's gloss, the display text below has it applied)
     QString miss;           // "Fat, often with a slice"; "No usual miss"
-    QString missFamily;
+    QString missFamily;     // the usual miss's own family; it chose nothing
     double  share = 0.0;    // 0..1, recency-weighted
     QString frequency;      // "fairly often"
     bool    building   = true;
@@ -317,7 +324,7 @@ struct TendencyItem {
     std::vector<TendencyChainStep> chain;       // the miss first, then what leads to it
     QString alsoSeen;
     QString earlyNote;                          // a building row: says it's early, and what would earn it
-    ShotMixBar mix;                             // every counted shot with this club: good, or its primary miss
+    ShotMixBar mix;                             // every counted shot with this club once: good, or its lead miss (tendencyLeadMiss)
 };
 
 struct TendencyProduced {
@@ -441,7 +448,9 @@ inline QJsonObject clubDistanceItemToJson(const ClubDistanceItem &it)
 
 // ── The reduction ───────────────────────────────────────────────────────────────────────────────────
 
-// The miss labels a tendency can name: what no other label on the shot accounts for (§4.1 step 2).
+// The miss labels a tendency can name: what no other label on the shot accounts for (§4.1 step 2). They come
+// in the labels' word order (strike, direction, flight), which must never matter to a count or a choice:
+// every miss counts the same, and the commonest decides (tendencyLeadMiss).
 inline std::vector<const ShotOutcomeLabel *> tendencyMissLabels(const ShotOutcome &o, const ShotOutcomePack &pack)
 {
     std::vector<const ShotOutcomeLabel *> out;
@@ -460,6 +469,88 @@ inline std::vector<const ShotOutcomeLabel *> tendencyMissLabels(const ShotOutcom
     return out;
 }
 
+// The two halves of a combined miss, as ROW ids: a push slice is a slice and a push, a pull hook a hook and a
+// pull. Any other miss has none.
+inline QStringList tendencyMissHalves(const QString &rowId)
+{
+    if (rowId == QLatin1String("push_slice")) return { QStringLiteral("slice"), QStringLiteral("push") };
+    if (rowId == QLatin1String("pull_hook"))  return { QStringLiteral("hook"), QStringLiteral("pull") };
+    return {};
+}
+
+// Two ROW ids that are the same miss seen another way: the same id, or a combined miss and one of its halves.
+// A usual slice is never "often with a push slice", nor a usual push slice "often with a slice".
+inline bool tendencySameMiss(const QString &a, const QString &b)
+{
+    return a == b || tendencyMissHalves(a).contains(b) || tendencyMissHalves(b).contains(a);
+}
+
+// One miss a shot shows.
+struct TendencyShotMiss {
+    QString id;                 // the ROW id
+    QString displayId;          // as glossed for the golfer's hand
+    QString family;             // the row's family
+    QString shortText;          // the golfer's words, glossed ("Slice")
+};
+
+// Every miss the shot shows: each label tendencyMissLabels names, each followed by the halves of a combined one,
+// once each. The halves are glossed like the label, so a left-hander's push slice row (their pull hook) brings
+// their hook and their pull. The order is only the labels' word order; every miss here counts the same.
+inline std::vector<TendencyShotMiss> tendencyShotMisses(const std::vector<const ShotOutcomeLabel *> &named,
+                                                        const ShotOutcomePack &pack, const QString &handedness)
+{
+    std::vector<TendencyShotMiss> out;
+    const auto add = [&out](TendencyShotMiss m) {
+        if (std::none_of(out.begin(), out.end(), [&m](const TendencyShotMiss &o) { return o.id == m.id; }))
+            out.push_back(std::move(m));
+    };
+    for (const ShotOutcomeLabel *l : named) {
+        add(TendencyShotMiss{ l->id, l->displayId, l->family, l->shortText });
+        for (const QString &half : tendencyMissHalves(l->id)) {
+            const QString displayId = glossedConditionId(half, handedness);
+            const ShotConditionFacts *row = outcomeFacts(pack, half);
+            const ShotConditionFacts *f = outcomeFacts(pack, displayId);
+            if (!f) f = row;
+            add(TendencyShotMiss{ half, displayId, row ? row->family : QString(),
+                                  !f ? displayId : !f->golferShort.isEmpty() ? f->golferShort : f->label });
+        }
+    }
+    return out;
+}
+
+// The one miss to file a shot under where it can be in one place only (the Your shots bar, the session
+// panel's club mix), and the usual miss of a key: of `missIds`, the one with the biggest `weight` among the
+// club's shots (Tendencies: its recency-weighted share; one session: how many shots show it), then the most
+// shots (`count`), then the id. No family ranks above another. On an exact tie a combined miss stands over its
+// own halves: the same shots, named whole (a push slice, not a push). "" for no misses.
+inline QString tendencyLeadMiss(const QStringList &missIds, const QHash<QString, double> &weight,
+                                const QHash<QString, int> &count)
+{
+    QStringList tied;
+    double bestWeight = 0.0;
+    int bestCount = 0;
+    for (const QString &id : missIds) {
+        if (tied.contains(id)) continue;
+        const double w = weight.value(id);
+        const int n = count.value(id);
+        if (tied.isEmpty() || w > bestWeight || (w == bestWeight && n > bestCount)) {
+            tied = QStringList{ id };
+            bestWeight = w;
+            bestCount = n;
+        } else if (w == bestWeight && n == bestCount) {
+            tied << id;
+        }
+    }
+    QString lead;
+    for (const QString &id : tied) {
+        const bool halfOfATie = std::any_of(tied.begin(), tied.end(), [&id](const QString &other) {
+            return tendencyMissHalves(other).contains(id);
+        });
+        if (!halfOfATie && (lead.isEmpty() || id < lead)) lead = id;
+    }
+    return lead;
+}
+
 // ── Which shots count ───────────────────────────────────────────────────────────────────────────────
 
 // One shot as the Tendencies rule judges it. Tendencies and Home's outcome filter both read a shot through
@@ -467,8 +558,9 @@ inline std::vector<const ShotOutcomeLabel *> tendencyMissLabels(const ShotOutcom
 struct ShotJudgement {
     bool        judged = false;     // straight intent, analysed, a launch monitor reading, the ball's shape judged
     bool        good   = false;     // the shot was clean
-    QStringList missIds;            // the displayId of each miss tendencyMissLabels names, each followed by the
-                                    // halves of a combined one (push slice: slice, push); primary first, once each
+    QStringList missIds;            // the displayId of each miss tendencyShotMisses gives: every miss
+                                    // tendencyMissLabels names, each followed by the halves of a combined one
+                                    // (push slice: slice, push), once each; in word order, which counts for nothing
     QStringList missLabels;         // their short words ("Slice"), in the same order
 };
 
@@ -507,27 +599,11 @@ inline ShotJudgement judgeTendencyShot(const ShotRecord &shot, const std::vector
 
     j.judged = true;
     j.good   = o.clean;
-    const auto add = [&j](const QString &id, const QString &label) {
-        if (j.missIds.contains(id)) return;
-        j.missIds << id;
-        j.missLabels << label;
-    };
     // A shot is under every miss it shows, so a combined label brings its two halves: a push slice is a
-    // slice and a push too. The halves are glossed like the label, so a left-hander's push slice row
-    // (their pull hook) brings their hook and their pull. Only these lists see the halves; Tendencies'
-    // primary miss and shot mix still read `named`.
-    const auto halvesOf = [](const QString &rowId) -> QStringList {
-        if (rowId == QLatin1String("push_slice")) return { QStringLiteral("slice"), QStringLiteral("push") };
-        if (rowId == QLatin1String("pull_hook"))  return { QStringLiteral("hook"), QStringLiteral("pull") };
-        return {};
-    };
-    for (const ShotOutcomeLabel *m : named) {
-        add(m->displayId, m->shortText);
-        for (const QString &half : halvesOf(m->id)) {
-            const QString displayId = glossedConditionId(half, shot.handedness);
-            const ShotConditionFacts *f = outcomeFacts(pack, displayId);
-            add(displayId, !f ? displayId : !f->golferShort.isEmpty() ? f->golferShort : f->label);
-        }
+    // slice and a push too (tendencyShotMisses, the one place that rule lives).
+    for (const TendencyShotMiss &m : tendencyShotMisses(named, pack, shot.handedness)) {
+        j.missIds << m.displayId;
+        j.missLabels << m.shortText;
     }
     if (misses && outcome) *misses = named;
     return j;
@@ -539,8 +615,9 @@ struct JudgedShot {
     int     session = 0;
     QString key, group, clubId;
     QString handedness;
-    QString primaryId, primaryShort, primaryFamily, primaryGolfer;
-    QHash<QString, QString> others;     // id -> short text, the misses in another family
+    QStringList missIds;                // every miss it shows, ROW ids, a combined one's halves among them (tendencyShotMisses)
+    QHash<QString, QString> missShort;  // id -> the golfer's short words, glossed
+    QHash<QString, QString> missFamily; // id -> its family
     QString driverId, driverText;
     bool    confirmed = false;
     QString mixKey;
@@ -650,14 +727,11 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             j.clubId  = canonicalClubId(shot.club);
             j.handedness = shot.handedness;
             j.key     = j.clubId + QLatin1Char('|') + (shot.swingLength == QLatin1String("partial") ? QStringLiteral("partial") : QStringLiteral("full"));
-            if (!misses.empty()) {
-                const ShotOutcomeLabel *primary = misses.front();
-                j.primaryId     = primary->id;
-                j.primaryShort  = primary->shortText;
-                j.primaryFamily = primary->family;
-                j.primaryGolfer = primary->golfer;
-                for (const ShotOutcomeLabel *m : misses)
-                    if (m != primary && m->family != primary->family) j.others.insert(m->id, m->shortText);
+            // Every miss it shows counts, whatever its family: none comes first.
+            for (const TendencyShotMiss &m : tendencyShotMisses(misses, pack, shot.handedness)) {
+                j.missIds << m.id;
+                j.missShort.insert(m.id, m.shortText);
+                j.missFamily.insert(m.id, m.family);
             }
             j.driverId   = o.driver.id;
             j.driverText = stripClause(o.driver.golfer);
@@ -709,27 +783,28 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         for (int si : keySessions) if (shotsIn.value(si) >= opt.minSessionShots) judgedSessions << si;
         const bool enoughShots = int(judgedSessions.size()) >= opt.minSessions && int(shots.size()) >= opt.minShots;
 
-        // Which primary miss weighs most, recency-weighted over the key's sessions.
-        QStringList primaries;
-        for (const JudgedShot *j : shots) if (!j->primaryId.isEmpty() && !primaries.contains(j->primaryId)) primaries << j->primaryId;
-        const auto shareOf = [&](const QString &id) {
+        // Every miss the key's shots show, each on its recency-weighted share of them. The usual miss is the
+        // commonest, whatever its family: how often the golfer hits it decides, nothing else.
+        QStringList keyMisses;
+        QHash<QString, int> missCount;
+        for (const JudgedShot *j : shots)
+            for (const QString &id : j->missIds) {
+                if (!missCount.contains(id)) keyMisses << id;
+                ++missCount[id];
+            }
+        std::sort(keyMisses.begin(), keyMisses.end());
+        QHash<QString, double> missShare;
+        for (const QString &id : keyMisses) {
             std::vector<std::pair<int, int>> perSession;
             for (int si : keySessions) {
                 int hit = 0;
-                for (const JudgedShot *j : shots) if (j->session == si && j->primaryId == id) ++hit;
+                for (const JudgedShot *j : shots) if (j->session == si && j->missIds.contains(id)) ++hit;
                 perSession.push_back({ hit, shotsIn.value(si) });
             }
-            return weightedShare(perSession, opt.recency);
-        };
-        QString missId;
-        double bestShare = -1.0;
-        int bestCount = 0;
-        std::sort(primaries.begin(), primaries.end());
-        for (const QString &id : primaries) {
-            const double sh = shareOf(id);
-            const int n = int(std::count_if(shots.begin(), shots.end(), [&id](const JudgedShot *j) { return j->primaryId == id; }));
-            if (sh > bestShare || (sh == bestShare && n > bestCount)) { bestShare = sh; bestCount = n; missId = id; }
+            missShare.insert(id, weightedShare(perSession, opt.recency));
         }
+        const QString missId = tendencyLeadMiss(keyMisses, missShare, missCount);
+        const double bestShare = missId.isEmpty() ? -1.0 : missShare.value(missId);
 
         TendencyItem item;
         item.key       = key;
@@ -744,10 +819,13 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         item.missId    = missId;
         item.share     = std::max(bestShare, 0.0);
         item.frequency = tendencyFrequencyWords(item.share);
+        // Each shot once, so the bar adds up to the shots: good, or under whichever of its misses is
+        // commonest with this club (a fat slice under the slice when slices are the commoner).
         ShotMixTally mixTally;
         for (const JudgedShot *j : shots) {
-            if (j->primaryId.isEmpty()) ++mixTally.good;
-            else mixTally.addMiss(j->primaryId, j->primaryShort);
+            if (j->missIds.isEmpty()) { ++mixTally.good; continue; }
+            const QString lead = tendencyLeadMiss(j->missIds, missShare, missCount);
+            mixTally.addMiss(lead, j->missShort.value(lead));
         }
         item.mix = composeShotMixBar(mixTally);
 
@@ -815,9 +893,9 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
                 item.miss = QStringLiteral("-");
             } else {
                 std::vector<const JudgedShot *> missShots;
-                for (const JudgedShot *j : shots) if (j->primaryId == missId) missShots.push_back(j);
-                item.miss = missShots.front()->primaryShort;
-                item.missFamily = missShots.front()->primaryFamily;
+                for (const JudgedShot *j : shots) if (j->missIds.contains(missId)) missShots.push_back(j);
+                item.miss = missShots.front()->missShort.value(missId);
+                item.missFamily = missShots.front()->missFamily.value(missId);
 
                 const MissReasons reasons = reasonsBehind(missShots);
                 const QString top = reasons.ids.isEmpty() ? QString() : reasons.ids.first();
@@ -841,25 +919,28 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             continue;
         }
 
+        // Every shot in the key that shows the usual miss, whatever else it shows.
         std::vector<const JudgedShot *> missShots;
-        for (const JudgedShot *j : shots) if (j->primaryId == missId) missShots.push_back(j);
+        for (const JudgedShot *j : shots) if (j->missIds.contains(missId)) missShots.push_back(j);
         const JudgedShot *first = missShots.front();
-        item.missFamily = first->primaryFamily;
-        item.miss = first->primaryShort;
+        item.missFamily = first->missFamily.value(missId);
+        item.miss = first->missShort.value(missId);
 
-        // "Fat, often with a slice": the second family on at least half of these shots.
+        // "Fat, often with a slice": the commonest other miss, any family, on at least half of these shots. The
+        // usual miss seen another way (its own halves, or the combined miss it is half of) is not another miss.
         QHash<QString, int> otherCount;
+        QHash<QString, double> otherWeight;
         QHash<QString, QString> otherShort;
+        QStringList otherIds;
         for (const JudgedShot *j : missShots)
-            for (auto it = j->others.constBegin(); it != j->others.constEnd(); ++it) {
-                ++otherCount[it.key()];
-                otherShort.insert(it.key(), it.value());
+            for (const QString &id : j->missIds) {
+                if (tendencySameMiss(id, missId)) continue;
+                if (!otherCount.contains(id)) otherIds << id;
+                ++otherCount[id];
+                otherWeight[id] += 1.0;
+                otherShort.insert(id, j->missShort.value(id));
             }
-        QStringList otherIds = otherCount.keys();
-        std::sort(otherIds.begin(), otherIds.end());
-        QString bestOther;
-        for (const QString &id : otherIds)
-            if (bestOther.isEmpty() || otherCount.value(id) > otherCount.value(bestOther)) bestOther = id;
+        const QString bestOther = tendencyLeadMiss(otherIds, otherWeight, otherCount);
         if (!bestOther.isEmpty() && double(otherCount.value(bestOther)) >= opt.coOccur * double(missShots.size())) {
             const QString w = otherShort.value(bestOther).toLower();
             item.miss += QStringLiteral(", often with %1 %2").arg(tendencyArticle(w), w);
@@ -935,7 +1016,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     QHash<QString, int> badInGroup;
     for (const JudgedShot &j : judged) {
         if (j.session < firstRecent) continue;
-        if (!j.primaryId.isEmpty()) ++badInGroup[j.group];
+        if (!j.missIds.isEmpty()) ++badInGroup[j.group];
         for (const QString &c : j.firedConditions) ++tallies[c].firings;
         if (j.driverId.isEmpty()) continue;
         ConditionTally &t = tallies[j.driverId];

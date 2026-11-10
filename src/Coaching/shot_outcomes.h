@@ -258,6 +258,10 @@ inline const ShotConditionFacts *outcomeFacts(const ShotOutcomePack &pack, const
     return it == pack.conditions.constEnd() ? nullptr : &*it;
 }
 
+// English word order only: where a family's word goes in the phrase ("Fat slice", never "Slice fat") and
+// in the shot-log cell. It is not a ranking of how much a miss matters: a pull or a push costs a golfer as
+// much as a fat or a thin. It must never be used to choose or to count a miss (Tendencies' usual miss, a
+// shot mix): there the commonest miss decides (tendencyLeadMiss, tendencies.h).
 inline int outcomeFamilyRank(const QString &family)
 {
     if (family == QLatin1String("strike"))    return 0;
@@ -616,6 +620,7 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         }
         out.labels.push_back(std::move(l));
     }
+    // Word order for the phrase and the cell, nothing more: no count or choice reads the first label.
     std::stable_sort(out.labels.begin(), out.labels.end(), [&pack](const ShotOutcomeLabel &a, const ShotOutcomeLabel &b) {
         const int fa = outcomeFamilyRank(a.family), fb = outcomeFamilyRank(b.family);
         if (fa != fb) return fa < fb;
@@ -938,7 +943,8 @@ struct ShotMixBar {
     QString line;
 };
 
-// The shots of one club, each counted once: good, under its primary miss, or not read.
+// The shots of one club, each counted once: good, under its lead miss (the one of its misses commonest with
+// that club, tendencyLeadMiss in tendencies.h), or not read.
 struct ShotMixTally {
     int good = 0, notRead = 0;
     QHash<QString, int>     count;

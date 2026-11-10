@@ -1963,19 +1963,40 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         });
     }
 
-    // ── Each club's shot mix: good, or the shot's primary miss, as the Tendencies tab counts it ──
+    // ── Each club's shot mix, as the Tendencies tab counts it: every shot once, good, or under whichever of
+    // its misses is commonest with that club today (tendencyLeadMiss). Every miss a shot shows is counted
+    // first, a combined one's halves among them; no family comes first. ──
     QStringList mixClubs;
     QHash<QString, ShotMixTally> mixTallies;
+    QHash<QString, QHash<QString, int>> mixMissCount;           // club -> miss (ROW id) -> shots showing it
+    QHash<QString, QHash<QString, QString>> mixMissWords;       // club -> miss -> the golfer's short words
+    std::vector<std::pair<QString, QStringList>> mixMissed;     // (club, the shot's misses), each shot that missed
     for (size_t i = 0; i < m_composed.size() && i < m_shots.size(); ++i) {
         const ShotOutcome &o = m_composed[i];
         const QString club = pinpoint::canonicalClubId(m_shots[i].club);
         if (!o.ready || club.isEmpty()) continue;
         if (!mixTallies.contains(club)) mixClubs << club;
         ShotMixTally &tally = mixTallies[club];
-        const std::vector<const ShotOutcomeLabel *> misses = tendencyMissLabels(o, m_outcomePack);
+        const std::vector<TendencyShotMiss> misses =
+            tendencyShotMisses(tendencyMissLabels(o, m_outcomePack), m_outcomePack, m_shots[i].handedness);
         if (o.clean) ++tally.good;
         else if (misses.empty()) ++tally.notRead;
-        else tally.addMiss(misses.front()->id, misses.front()->shortText);
+        else {
+            QStringList ids;
+            for (const TendencyShotMiss &miss : misses) {
+                ids << miss.id;
+                ++mixMissCount[club][miss.id];
+                mixMissWords[club].insert(miss.id, miss.shortText);
+            }
+            mixMissed.emplace_back(club, ids);
+        }
+    }
+    QHash<QString, QHash<QString, double>> mixMissWeight;       // one session: a miss weighs its shots
+    for (auto c = mixMissCount.constBegin(); c != mixMissCount.constEnd(); ++c)
+        for (auto it = c->constBegin(); it != c->constEnd(); ++it) mixMissWeight[c.key()].insert(it.key(), double(it.value()));
+    for (const auto &[club, ids] : mixMissed) {
+        const QString lead = tendencyLeadMiss(ids, mixMissWeight.value(club), mixMissCount.value(club));
+        mixTallies[club].addMiss(lead, mixMissWords.value(club).value(lead));
     }
     for (const QString &club : mixClubs) {
         const ShotMixBar bar = composeShotMixBar(mixTallies.value(club));
