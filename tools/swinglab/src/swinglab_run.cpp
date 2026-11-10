@@ -733,6 +733,17 @@ int main(int argc, char **argv)
     // never replace a document we could not read back.
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
+        // A launch-monitor-only swing, as the in-app controller handles it: nothing to re-analyse,
+        // so its launch monitor rows are rebuilt from the reading it holds (refreshLaunchMonitorRows).
+        if (pinpoint::SwingDocWriter::isDeviceOnlySwing(SwingStore::load(swingDir))) {
+            bool changed = false;
+            QString lerr;
+            if (!pinpoint::SwingDocWriter::refreshLaunchMonitorRows(swingDir, &changed, &lerr))
+                return fail(QStringLiteral("launch monitor refresh failed: ") + lerr);
+            std::fprintf(stderr, "[swinglab] write-back ok — launch monitor only, rows %s\n",
+                         changed ? "rebuilt" : "already current");
+            return 0;
+        }
         ReanalyzeOptions ropts;
         ropts.forceRerun = cli.isSet(optForce);
         ropts.fullWindow = cli.isSet(optFullWindow);

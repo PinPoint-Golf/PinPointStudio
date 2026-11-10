@@ -90,6 +90,10 @@ private slots:
 
 private:
     void startNext();
+    // A launch-monitor-only swing has nothing to re-analyse; its launch monitor rows are rebuilt
+    // from the reading it holds instead (SwingDocWriter::refreshLaunchMonitorRows). True when `dir`
+    // was one, counted and reported like any re-analysed swing.
+    bool refreshIfDeviceOnly(const QString &dir);
     void setReanalysing(bool on);
 
     QStringList m_queue;        // pending swing dirs

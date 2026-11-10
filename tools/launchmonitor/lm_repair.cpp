@@ -41,6 +41,10 @@
 // rewrites the raw block, strips any surviving `lm.` and derived rows before re-adding, and
 // refreshes the summary sidecar guard that the rewrite invalidates.
 //
+// A swing whose `lm.` rows are all there but whose DERIVED rows (lmDerivedKeys) are missing or out
+// of date — a launch-monitor-only swing written before the derivation existed — is rebuilt by
+// SwingDocWriter::refreshLaunchMonitorRows instead, which leaves the raw block as it is.
+//
 // Safe to re-run. Safe on a swing that never had a reading (there is nothing to read back,
 // and it is skipped). Reports what it changed and touches nothing else in the document.
 //
@@ -145,7 +149,7 @@ bool loadDoc(const QString &swingDir, QJsonObject *root)
 // with no swing.json at all is an unanalysed capture — which is worth seeing on a report about
 // missing data even though it is not this tool's business to fix.
 struct Tally {
-    int visited = 0, repaired = 0, intact = 0, noReading = 0, noDoc = 0, failed = 0, rows = 0;
+    int visited = 0, repaired = 0, derived = 0, intact = 0, noReading = 0, noDoc = 0, failed = 0, rows = 0;
 };
 
 void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
@@ -184,8 +188,34 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
             ++available;
 
     if (before >= available) {
-        out() << "  " << name << ": already intact — " << before << " lm.* rows\n";
-        ++t.intact;
+        // Every reading has its row, but a row WE derive from them (compoundMiss, lowPointFromAttack)
+        // may be missing or out of date: a launch-monitor-only swing written before the derivation
+        // existed is never re-analysed, so it kept the rows of its day. Rebuilt from the block,
+        // which is left as it is (SwingDocWriter::refreshLaunchMonitorRows).
+        bool stale = false;
+        QString err;
+        if (!SwingDocWriter::refreshLaunchMonitorRows(swingDir, &stale, &err, /*dryRun*/ true)) {
+            out() << "  " << name << ": FAILED — " << err << "\n";
+            ++t.failed;
+            return;
+        }
+        if (!stale) {
+            out() << "  " << name << ": already intact — " << before << " lm.* rows\n";
+            ++t.intact;
+            return;
+        }
+        if (dryRun) {
+            out() << "  " << name << ": would rebuild the derived rows (all " << before << " lm.* rows present)\n";
+            ++t.derived;
+            return;
+        }
+        if (!SwingDocWriter::refreshLaunchMonitorRows(swingDir, &stale, &err)) {
+            out() << "  " << name << ": FAILED — " << err << "\n";
+            ++t.failed;
+            return;
+        }
+        out() << "  " << name << ": rebuilt the derived rows (all " << before << " lm.* rows present)\n";
+        ++t.derived;
         return;
     }
 
@@ -277,6 +307,7 @@ int main(int argc, char *argv[])
     out() << "\n" << (dryRun ? "would repair " : "repaired ") << t.repaired
           << " of " << t.visited << " swings carrying a document"
           << " (" << t.rows << " lm.* rows)\n"
+          << "  " << t.derived   << " " << (dryRun ? "would have" : "had") << " their derived rows rebuilt\n"
           << "  " << t.intact    << " already intact\n"
           << "  " << t.noReading << " never had a launch monitor reading\n"
           << "  " << t.noDoc     << " with no document at all — never analysed\n"

@@ -45,6 +45,20 @@ bool SwingDocWriter::writeSwingJson(const QString & /*swingDir*/, const QJsonObj
     return true;   // unreached: onWorkerFinished needs an event loop the test never runs
 }
 
+// startNext() asks whether each queued swing is launch-monitor-only before handing it to the
+// worker. The seam test's "dirs" are bare ids with no document, so none is: the queue reaches
+// the worker exactly as before.
+bool SwingDocWriter::isDeviceOnlySwing(const QJsonObject & /*root*/)
+{
+    return false;
+}
+
+bool SwingDocWriter::refreshLaunchMonitorRows(const QString & /*swingDir*/, bool * /*changed*/,
+                                              QString * /*error*/, bool /*dryRun*/)
+{
+    return false;   // unreached: isDeviceOnlySwing() is false for every swing here
+}
+
 void applyImuIntegrity(QJsonObject & /*manifest*/, const ImuRefusionVerdict * /*v*/)
 {
     // Same seam, same reason — onWorkerFinished is never reached by this test.

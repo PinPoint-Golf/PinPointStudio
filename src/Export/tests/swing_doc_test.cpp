@@ -1708,6 +1708,42 @@ int main()
         check(sum.ok && sum.fromSidecar, "the picker sidecar was written at the same time");
         check(!sum.hasVideo, "…and it agrees there is no video");
 
+        // ── Its rows rebuilt from the reading it holds (refreshLaunchMonitorRows) ──
+        // A launch-monitor-only swing is never re-analysed, so a derivation that changed after it
+        // was written reached it only through this. Fresh, it is current: nothing is written.
+        check(SwingDocWriter::isDeviceOnlySwing(root), "it is a launch-monitor-only swing");
+        bool changed = true;
+        QString rerr;
+        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed,
+              "a fresh one's rows are current: nothing to rebuild");
+
+        // A row of a derivation this reading cannot support (an old compoundMiss, say), as an older
+        // build might have left it: rebuilt away, the raw block untouched, and a dry run writes nothing.
+        QJsonObject old = SwingStore::load(d5);
+        {
+            QJsonObject oan = old[QStringLiteral("analysis")].toObject();
+            QJsonArray om = oan[QStringLiteral("metrics")].toArray();
+            om.append(QJsonObject{ { QStringLiteral("key"), QStringLiteral("compoundMiss") },
+                                   { QStringLiteral("phaseSamples"), QJsonArray() } });
+            oan[QStringLiteral("metrics")] = om;
+            old[QStringLiteral("analysis")] = oan;
+        }
+        check(SwingStore::save(d5, old), "an older row written in");
+        const auto hasCompound = [&d5] {
+            for (const QJsonValue &v : SwingStore::load(d5)[QStringLiteral("analysis")].toObject()
+                                           [QStringLiteral("metrics")].toArray())
+                if (v.toObject()[QStringLiteral("key")].toString() == QStringLiteral("compoundMiss")) return true;
+            return false;
+        };
+        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr, /*dryRun*/ true) && changed && hasCompound(),
+              "a dry run says it would change, and writes nothing");
+        const QJsonObject rawBefore = SwingStore::load(d5)[QStringLiteral("launchMonitor")].toObject();
+        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && changed && !hasCompound(),
+              "the rows are rebuilt from the reading: the row it cannot support is gone");
+        check(SwingStore::load(d5)[QStringLiteral("launchMonitor")].toObject() == rawBefore,
+              "…and the device's raw block is exactly as it was");
+        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed, "…and once is enough");
+
         QDir(d5).removeRecursively();
     }
 

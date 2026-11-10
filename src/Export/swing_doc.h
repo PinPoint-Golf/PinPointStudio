@@ -205,6 +205,25 @@ public:
                                     const QJsonObject &captureClub = {},
                                     bool *clubReplaced = nullptr);
 
+    // Rebuilds the document's `lm.` rows and the rows WE derive from them (lmDerivedKeys:
+    // compoundMiss, lowPointFromAttack) from the raw `launchMonitor` block already in the file,
+    // through the same emitter as updateLaunchMonitor(). THE RAW BLOCK IS NOT REWRITTEN: it is
+    // what the device said, and nothing here has anything new to say about it.
+    //
+    // WHY: a derivation added or changed after a swing was paired reaches a swing with video when
+    // it is re-analysed (writeSwingJson derives again from the raw block), but a launch-monitor-
+    // only swing (writeDeviceOnlySwing) has nothing to re-analyse, so it kept the rows of the day it
+    // was written. The 4 Aug 2026 session's 25 shots had no compoundMiss, so pull-hook and
+    // push-slice could not be judged on any of them. Re-analysis of such a swing calls this.
+    //
+    // Writes only when the rows change; *changed says whether they did (or would, with dryRun).
+    // A document with no raw block, or no analysis block, is left alone and is not an error.
+    static bool refreshLaunchMonitorRows(const QString &swingDir, bool *changed = nullptr,
+                                         QString *error = nullptr, bool dryRun = false);
+
+    // A swing the launch monitor alone recorded: no streams, and a raw `launchMonitor` block.
+    static bool isDeviceOnlySwing(const QJsonObject &root);
+
     // ── CORE §8.5 — where a stream's bytes came from, when they came off a wire ──
     //
     // ⭐ PROVENANCE, AND ONLY PROVENANCE.  This is the swing.json half of the link

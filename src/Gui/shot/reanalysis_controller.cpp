@@ -24,6 +24,7 @@
 #include <QtConcurrent>
 
 #include "../Export/swing_doc.h"
+#include "../Export/swing_store.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
 
@@ -67,8 +68,31 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
     }
 }
 
+bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
+{
+    if (!pinpoint::SwingDocWriter::isDeviceOnlySwing(pinpoint::SwingStore::load(dir)))
+        return false;
+    QString err;
+    bool changed = false;
+    if (pinpoint::SwingDocWriter::refreshLaunchMonitorRows(dir, &changed, &err)) {
+        ++m_succeeded;
+        emit reanalysed(dir);
+        ppInfo() << "[Reanalysis] launch monitor only:" << dir
+                 << (changed ? "— its readings' rows rebuilt" : "— its readings' rows were current");
+    } else {
+        ++m_failed;
+        m_lastError = QStringLiteral("Couldn't update this shot's launch monitor readings: %1").arg(err);
+        ppError() << "[Reanalysis] launch monitor refresh failed for" << dir << ":" << err;
+    }
+    return true;
+}
+
 void ReanalysisController::startNext()
 {
+    // Launch-monitor-only swings first, in queue order: no pose, no worker, a few KB each.
+    while (!m_queue.isEmpty() && !m_liveBusy && refreshIfDeviceOnly(m_queue.first()))
+        m_queue.removeFirst();
+
     if (m_queue.isEmpty()) {
         m_current.clear();
         m_startDeferred = false;

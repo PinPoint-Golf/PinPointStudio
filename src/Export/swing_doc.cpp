@@ -1968,6 +1968,82 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
     return true;
 }
 
+// The same JSON, a number counted the same when it differs only in its last bits: a derivation
+// re-run on another build can land one ulp away, and that is not a change worth rewriting a
+// document (and regrading its shot) for.
+static bool sameJson(const QJsonValue &a, const QJsonValue &b)
+{
+    if (a.isDouble() && b.isDouble()) {
+        const double x = a.toDouble(), y = b.toDouble();
+        return x == y || std::abs(x - y) <= 1e-12 * std::max(std::abs(x), std::abs(y));
+    }
+    if (a.type() != b.type()) return false;
+    if (a.isArray()) {
+        const QJsonArray x = a.toArray(), y = b.toArray();
+        if (x.size() != y.size()) return false;
+        for (qsizetype i = 0; i < x.size(); ++i)
+            if (!sameJson(x.at(i), y.at(i))) return false;
+        return true;
+    }
+    if (a.isObject()) {
+        const QJsonObject x = a.toObject(), y = b.toObject();
+        if (x.keys() != y.keys()) return false;
+        for (auto it = x.begin(); it != x.end(); ++it)
+            if (!sameJson(it.value(), y.value(it.key()))) return false;
+        return true;
+    }
+    return a == b;
+}
+
+bool SwingDocWriter::isDeviceOnlySwing(const QJsonObject &root)
+{
+    return root.value(QStringLiteral("streams")).toArray().isEmpty()
+        && !root.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
+}
+
+bool SwingDocWriter::refreshLaunchMonitorRows(const QString &swingDir, bool *changed, QString *error, bool dryRun)
+{
+    if (changed)
+        *changed = false;
+    QJsonObject root = SwingStore::load(swingDir, error);
+    if (root.isEmpty())
+        return false;
+    const QJsonObject raw = root.value(QStringLiteral("launchMonitor")).toObject();
+    if (raw.isEmpty() || !root.contains(QStringLiteral("analysis")))
+        return true;
+
+    // The same rows, in the same order, updateLaunchMonitor() writes: everything not ours kept
+    // as it was, then the readings and the derived rows from the raw block, anchored at impact.
+    QJsonObject an = root[QStringLiteral("analysis")].toObject();
+    const QJsonArray before = an[QStringLiteral("metrics")].toArray();
+    QJsonArray metrics;
+    for (const QJsonValue &v : before) {
+        const QString key = v.toObject().value(QStringLiteral("key")).toString();
+        if (key.startsWith(QStringLiteral("lm.")) || lmDerivedKeys().contains(key))
+            continue;
+        metrics.append(v);
+    }
+    const qint64 impactUs =
+        qMax<qint64>(0, qint64(root[QStringLiteral("capture")].toObject()
+                                   .value(QStringLiteral("impactUs")).toDouble(-1)));
+    for (const QJsonValue &v : lmMetricEntries(lmReadingFromRaw(raw), impactUs, lmArcRadiusM(root)))
+        metrics.append(v);
+    if (sameJson(metrics, before))
+        return true;
+    if (changed)
+        *changed = true;
+    if (dryRun)
+        return true;
+
+    an[QStringLiteral("metrics")] = metrics;
+    lm::applyLmGates(an, raw);
+    root[QStringLiteral("analysis")] = an;
+    if (!saveDocument(swingDir, root, error))
+        return false;
+    clearJustWritten(swingDir);
+    return true;
+}
+
 bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
                                           const lm::LaunchMonitorReading &reading,
                                           const DeviceOnlyMeta &meta,
