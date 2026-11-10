@@ -25,7 +25,9 @@ import PinPointStudio
 // The design (ux_refactor_away_from_4_modes §2.3, D6): Home opens on Coaching; the tab last chosen
 // is remembered PER ATHLETE in homeViewByAthlete[uuid].tab, without disturbing the area table's own
 // keys in the same entry; the bar has four tabs (Tendencies the third, Matchups the fourth) and no chip.
-// Tendencies (shot_outcomes_design.md §7.2) holds one open row at a time and is told apart in words. The Coaching tab is
+// Tendencies (shot_outcomes_design.md §7.2) holds one open row at a time and is told apart in words; a row says each
+// factor's usual (strike, direction, flight) and opens one block per factor with something to say. The filter line
+// (HmShotFilter) picks the club, strike, direction and flight, counts in its lists, remembered per athlete. The Coaching tab is
 // HmSwingSummary + HmFocus re-laid on the table components, so this also pins what those must
 // still do: Practise passes the focus up, and why/how is one click down rather than on the page.
 Item {
@@ -78,32 +80,67 @@ Item {
               clubs: [{ value: "club:6 IRON", label: "6 iron" }, { value: "club:7 IRON", label: "7 iron" }] },
             { value: "group:long_irons", group: "long_irons", label: "Long irons", clubs: [{ value: "club:3 IRON", label: "3 iron" }] },
             { value: "group:wedges", group: "wedges", label: "Wedges", clubs: [{ value: "club:GAP WEDGE", label: "Gap wedge" }] }]
+        property string shotFilter: "all"
+        property var shotFilterOptions: ({
+            strike:    [{ value: "any", label: "Any", count: 42 }, { value: "solid", label: "Solid", count: 20 },
+                        { value: "thin", label: "Thin", count: 11 }, { value: "fat", label: "Fat", count: 0 }],
+            direction: [{ value: "any", label: "Any", count: 42 }, { value: "straight", label: "Straight", count: 15 },
+                        { value: "pull", label: "Pull", count: 11 }, { value: "push", label: "Push", count: 5 }],
+            flight:    [{ value: "any", label: "Any", count: 42 }, { value: "mid", label: "Mid", count: 30 },
+                        { value: "high", label: "High", count: 12 }]
+        })
+        property string shotFilterLine: "Your pulled mid-iron shots: 11 over 5 sessions, against 31 others."
         function tendencyDetail(key) { return probe.tendencyDetails[key] || ({}) }
     }
 
     readonly property var tendencyRows: [
-        { key: "driver|full", club: "Driver", clubLine: "Driver", length: "full", miss: "Slice", missFamily: "direction",
-          distance: "188 ± 20 yd", clubGroup: "driver", groupLabel: "Driver",
-          share: 0.42, frequency: "fairly often", building: false, noUsualMiss: false, sessions: 5, shots: 60,
-          seenWith: "your hands come over the top coming down", seenWithId: "over_the_top", strength: "likely",
-          trend: 1, trendWords: "↑ growing", workOn: "Active", workOnText: "Active" },
-        { key: "irons|full", club: "Irons", clubLine: "Irons", length: "full", miss: "Fat, often with a slice", missFamily: "strike",
-          distance: "147 ± 31 yd", clubGroup: "mid_irons", groupLabel: "Mid irons",
-          share: 0.3, frequency: "sometimes", building: false, noUsualMiss: false, sessions: 4, shots: 50,
-          seenWith: "you stand up through the ball", seenWithId: "early_extension", strength: "possible",
-          trend: 0, trendWords: "→ steady", workOn: "", workOnText: "",
-          mix: { line: "Good 31% · Thin 41% · Weak strike 16% · Slice 6% · Other 6% · and a good many more words than the column can hold",
-                 parts: [{ key: "good", kind: "good", count: 10 }, { key: "thin", kind: "main", count: 13 }, { key: "other", kind: "other", count: 9 }] } },
-        { key: "wedges|partial", clubGroup: "wedges", groupLabel: "Wedges", distance: "", club: "Wedges", clubLine: "Wedges · part swing", length: "partial", miss: "Push", missFamily: "direction",
-          share: 0.3, frequency: "sometimes", building: true, noUsualMiss: false, sessions: 1, shots: 9,
-          seenWith: "", seenWithId: "", strength: "", trend: 0, trendWords: "", workOn: "", workOnText: "" }
+        { key: "driver|full", club: "Driver", clubLine: "Driver", length: "full",
+          distance: "188 ± 20 yd", clubGroup: "driver", sessions: 5, shots: 60, workOnText: "Active",
+          strike:    { factor: "strike", value: "toe", label: "Toe", fault: true, building: false, share: 0.25,
+                       frequency: "sometimes", sessions: 5, shots: 60, seenWith: "you stand too far from the ball",
+                       trend: 0, trendWords: "→ steady",
+                       mix: { line: "Solid 60% · Toe 25% · Other 15%",
+                              parts: [{ key: "solid", kind: "good", count: 36 }, { key: "toe", kind: "main", count: 15 },
+                                      { key: "other", kind: "other", count: 9 }] } },
+          direction: { factor: "direction", value: "slice", label: "Slice", fault: true, building: false, share: 0.37,
+                       frequency: "fairly often", sessions: 5, shots: 60,
+                       seenWith: "your hands come over the top coming down", seenWithId: "over_the_top", strength: "likely",
+                       trend: 1, trendWords: "↑ growing",
+                       mix: { line: "Straight 30% · Fade 33% · Slice 37%",
+                              parts: [{ key: "straight", kind: "good", count: 18 }, { key: "fade", kind: "value", count: 20 },
+                                      { key: "slice", kind: "main", count: 22 }] } },
+          flight:    { factor: "flight", value: "high", label: "High", fault: false, building: false, sessions: 5, shots: 60,
+                       frequency: "most shots", mix: { line: "High 70% · Mid 30%", parts: [] } } },
+        { key: "irons|full", club: "Irons", clubLine: "Irons", length: "full",
+          distance: "147 ± 31 yd", clubGroup: "mid_irons", sessions: 4, shots: 50, workOnText: "",
+          strike:    { factor: "strike", value: "solid", label: "Solid", fault: false, building: false, sessions: 4, shots: 50,
+                       frequency: "most shots" },
+          direction: { factor: "direction", value: "pull", label: "Pull, often with a long tail of words that wraps",
+                       fault: true, building: false, share: 0.3, frequency: "sometimes", sessions: 4, shots: 50,
+                       seenWith: "you stand up through the ball", seenWithId: "early_extension", strength: "possible",
+                       trend: 0, trendWords: "→ steady",
+                       mix: { line: "Straight 31% · Pull 41% · Draw 16% · Push 6% · Other 6% · and a good many more words than the column can hold",
+                              parts: [{ key: "straight", kind: "good", count: 10 }, { key: "draw", kind: "value", count: 5 },
+                                      { key: "pull", kind: "main", count: 13 }, { key: "other", kind: "other", count: 9 }] } },
+          flight:    { factor: "flight", value: "mid", label: "Mid", fault: false, building: false, sessions: 4, shots: 50 } },
+        { key: "wedges|partial", clubGroup: "wedges", distance: "", club: "Wedges", clubLine: "Wedges · part swing",
+          length: "partial", sessions: 1, shots: 9, workOnText: "",
+          strike:    { factor: "strike", value: "thin", label: "Thin", fault: true, building: true, sessions: 1, shots: 9,
+                       frequency: "sometimes" },
+          direction: { factor: "direction", value: "straight", label: "Straight", fault: false, building: true, sessions: 1, shots: 9 },
+          flight:    { factor: "flight", value: "", label: "-", fault: false, building: true, sessions: 0, shots: 0 } }
     ]
     readonly property var tendencyDetails: ({
-        "driver|full": { chain: [{ text: "the ball slices", words: "because" }, { text: "your hands come over the top", words: "" }],
-                         alsoSeen: "Also seen: you stand up through the ball.",
-                         playTo: "Favour the left side off the tee.", practiseConditionId: "over_the_top" },
-        "irons|full":  { chain: [{ text: "the club hits the ground first", words: "seen with" }, { text: "you stand up through the ball", words: "" }],
-                         alsoSeen: "", playTo: "", practiseConditionId: "early_extension" }
+        "driver|full": { strike:    { chain: [{ text: "the ball comes off the toe", words: "seen with" },
+                                              { text: "you stand too far from the ball", words: "" }] },
+                         direction: { chain: [{ text: "the ball slices", words: "because" }, { text: "your hands come over the top", words: "" }],
+                                      alsoSeen: "Also seen: you stand up through the ball.",
+                                      playTo: "Favour the left side off the tee.", practiseConditionId: "over_the_top" },
+                         flight: {} },
+        "irons|full":  { strike: {},
+                         direction: { chain: [{ text: "the ball starts left", words: "seen with" }, { text: "you stand up through the ball", words: "" }],
+                                      alsoSeen: "", playTo: "", practiseConditionId: "early_extension" },
+                         flight: {} }
     })
 
     QtObject {
@@ -149,6 +186,8 @@ Item {
             practiseSpy.clear()
             fakeWorkOns.tendencyItems = probe.tendencyRows
             fakeWorkOns.tendencyNote  = "From 140 shots over 6 sessions"
+            fakeWorkOns.clubScope  = "all"
+            fakeWorkOns.shotFilter = "all"
             const row = all(tabs, "focusWhyRow")[0]
             if (row) row.expanded = false
         }
@@ -250,7 +289,9 @@ Item {
             compare(fakeSettings.homeViewByAthlete["athlete-a"].tab, "tendencies")
             compare(all(tabs, "homeTendencyRow:driver|full").length, 1)
             compare(all(tabs, "homeTendencyRow:irons|full").length, 1)
-            compare(rowOf("wedges|partial").seenText, "Building — 1 session", "a building row says so, never a verdict")
+            compare(rowOf("wedges|partial").factorWords("strike"), "Building — 1 session", "a building factor says so, never a verdict")
+            verify(!rowOf("wedges|partial").fault("strike"), "and does not wear the fault tone")
+            compare(rowOf("wedges|partial").factorWords("flight"), "", "a factor never read has nothing to build")
             verify(!rowOf("wedges|partial").hasDetail, "and has nothing to open")
         }
 
@@ -260,22 +301,29 @@ Item {
             compare(one(rowOf("wedges|partial"), "tendencyDistance").text, "—", "a part swing has no usual distance")
         }
 
-        function test_tendencies_follow_the_shared_filter_on_its_top_row() {
+        function clubBox() { return one(tabs, "shotFilterClub") }
+        function test_tendencies_follow_the_shared_filter_with_groups_only() {
             showTendencies()
-            verify(drawn(one(tabs, "clubScopeGroups")))
+            verify(drawn(clubBox()))
+            compare(clubBox().model.join(","), "All clubs,Driver,Mid irons,Long irons,Wedges", "groups only: this page lists the clubs")
+            verify(!drawn(one(tabs, "shotFilterStrike")), "Tendencies shows the Club picker alone")
+            verify(!drawn(one(tabs, "shotFilterLine")))
             tabs.selectClubScope("group:mid_irons")
             laidOut()
             compare(all(tabs, "homeTendencyRow:driver|full").length, 0, "another group's club is gone")
             verify(drawn(rowOf("irons|full")))
             compare(fakeSettings.homeViewByAthlete["athlete-a"].clubScope, "group:mid_irons", "remembered for the athlete")
-            verify(!drawn(one(tabs, "clubScopeClubs")), "no row of clubs: this page lists them")
+            compare(clubBox().displayText, "Mid irons")
             tabs.selectClubScope("club:7 IRON")
             laidOut()
             verify(drawn(rowOf("irons|full")), "a chosen club shows its group")
-            verify(!drawn(one(tabs, "clubScopeClubs")))
+            compare(clubBox().displayText, "Mid irons", "and the picker names the group")
             tabs.select("coaching")
             laidOut()
-            verify(drawn(one(tabs, "clubScopeClubs")), "the other tabs keep the row of clubs")
+            compare(clubBox().model.join(","), "All clubs,Driver,Mid irons,6 iron,7 iron,Long irons,Wedges",
+                    "the other tabs list a group's clubs (a group of one club lists only the group)")
+            compare(clubBox().displayText, "7 iron")
+            verify(drawn(one(tabs, "shotFilterStrike")), "and the strike, direction and flight pickers")
             showTendencies()
             tabs.selectClubScope("group:long_irons")
             laidOut()
@@ -286,13 +334,37 @@ Item {
             verify(drawn(rowOf("driver|full")))
         }
 
-        function test_tendencies_a_long_shot_mix_wraps_and_the_row_grows() {
+        function test_tendencies_factor_cells_say_the_usual() {
             showTendencies()
-            const r = rowOf("irons|full"), words = one(r, "tendencyMixWords"), cell = one(r, "tendencyOften")
-            verify(drawn(one(r, "tendencyMixBar")), "the bar is drawn over its words")
+            const d = rowOf("driver|full"), i = rowOf("irons|full"), w = rowOf("wedges|partial")
+            compare(one(one(d, "tendencyDirection"), "tendencyFactorLabel").text, "Slice")
+            compare(one(one(d, "tendencyDirection"), "tendencyFactorWords").text, "fairly often", "a fault has its words")
+            verify(Qt.colorEqual(one(one(d, "tendencyDirection"), "tendencyFactorLabel").color, Theme.colorWarn), "in the fault tone")
+            const solid = one(one(i, "tendencyStrike"), "tendencyFactorLabel")
+            compare(solid.text, "Solid")
+            verify(!Qt.colorEqual(solid.color, Theme.colorWarn), "a value is plain")
+            verify(!drawn(one(one(i, "tendencyStrike"), "tendencyFactorWords")), "and stands alone")
+            compare(one(one(d, "tendencyFlight"), "tendencyFactorLabel").text, "High")
+            compare(one(one(w, "tendencyFlight"), "tendencyFactorLabel").text, "—", "nothing to name")
+            compare(one(d, "tendencyWorkOn").text, "Active")
+            compare(one(i, "tendencyWorkOn").text, "—")
+        }
+
+        function test_tendencies_a_long_cell_wraps_and_the_row_grows() {
+            showTendencies()
+            const r = rowOf("irons|full"), cell = one(r, "tendencyDirection"), label = one(cell, "tendencyFactorLabel")
+            verify(label.lineCount > 1, "a long usual takes more than one line")
+            verify(r.rowHeight >= cell.implicitHeight, "the row is tall enough to hold it")
+            for (const n of ["tendencyClub", "tendencyStrike", "tendencyFlight"])
+                verify(r.rowHeight >= one(r, n).implicitHeight, "and every other cell: " + n)
+            mouseClick(r.headerRow)
+            laidOut()
+            const block = one(r, "tendencyBlock:direction"), words = one(block, "tendencyMixWords")
+            verify(drawn(one(block, "tendencyMixBar")), "the open block draws the factor's bar over its words")
             verify(words.lineCount > 1, "a long mix takes more than one line")
             verify(!words.truncated, "and loses none of its words")
-            verify(r.rowHeight >= cell.implicitHeight, "the row is tall enough to hold them")
+            mouseClick(r.headerRow)
+            laidOut()
         }
 
         function test_tendencies_one_row_open_at_a_time() {
@@ -307,7 +379,10 @@ Item {
             laidOut()
             verify(b.expanded)
             verify(!a.expanded, "opening one closes the other")
-            verify(drawn(one(b, "tendencyPlayTo")), "the open row plays to it")
+            compare(all(b, "tendencyBlockHead").filter(drawn).map(h => h.text).join(","),
+                    [Theme.caps("Strike"), Theme.caps("Direction")].join(","), "one block per factor with something to say")
+            verify(drawn(one(one(b, "tendencyBlock:direction"), "tendencyPlayTo")), "the open row plays to it")
+            compare(one(one(b, "tendencyBlock:direction"), "tendencyTrend").text, "↑ growing", "with the trend in words")
             mouseClick(b.headerRow)
             laidOut()
             verify(!b.expanded, "and a second press closes it")
@@ -329,7 +404,9 @@ Item {
             const row = rowOf("driver|full")
             mouseClick(row.headerRow)
             laidOut()
-            mouseClick(one(row, "tendencyPractise"))
+            const buttons = all(row, "tendencyPractise").filter(drawn)
+            compare(buttons.length, 1, "practice where the factor has one")
+            mouseClick(buttons[0])
             compare(practiseSpy.count, 1)
             compare(practiseSpy.signalArguments[0][0], "over_the_top")
             compare(practiseSpy.signalArguments[0][1], "your hands come over the top coming down")
@@ -342,6 +419,51 @@ Item {
             compare(one(tabs, "tendenciesEmpty").text, "Hit a few sessions with the launch monitor on")
             verify(drawn(one(tabs, "tendenciesEmpty")))
             compare(one(tabs, "homeTabBar").note, "", "no table to back: the bar stays quiet")
+        }
+
+        // ── the filter line ──
+        function test_filter_counts_in_the_list_and_the_choice_in_the_field() {
+            laidOut()
+            const box = one(tabs, "shotFilterStrike")
+            verify(drawn(box))
+            compare(box.model.join(","), "Any,Solid  ·  20,Thin  ·  11,Fat  ·  0")
+            compare(box.displayText, "Any")
+            verify(!box.itemEnabledFn(3), "a choice that leaves nothing is muted")
+            verify(box.itemEnabledFn(0) && box.itemEnabledFn(2))
+            verify(!drawn(one(tabs, "shotFilterClear")), "nothing chosen: no Clear")
+            compare(one(tabs, "shotFilterLine").text, fakeWorkOns.shotFilterLine)
+            box.activated(2)
+            laidOut()
+            compare(fakeWorkOns.shotFilter, "strike:thin|direction:any|flight:any")
+            compare(fakeSettings.homeViewByAthlete["athlete-a"].shotFilter, "strike:thin|direction:any|flight:any",
+                    "remembered for the athlete")
+            compare(box.displayText, "Thin", "the field says only the choice")
+            compare(box.currentIndex, 2)
+            const dir = one(tabs, "shotFilterDirection")
+            dir.activated(2)
+            laidOut()
+            compare(fakeWorkOns.shotFilter, "strike:thin|direction:pull|flight:any", "the choices add up")
+            compare(dir.displayText, "Pull")
+            tabs.selectClubScope("group:mid_irons")
+            laidOut()
+            verify(drawn(one(tabs, "shotFilterClear")))
+            mouseClick(one(tabs, "shotFilterClear"))
+            laidOut()
+            compare(fakeWorkOns.shotFilter, "all", "Clear clears every choice")
+            compare(fakeWorkOns.clubScope, "all")
+            compare(box.displayText, "Any")
+        }
+
+        function test_filter_is_read_back_for_each_athlete() {
+            fakeSettings.homeViewByAthlete = { "athlete-e": { clubScope: "club:7 IRON", shotFilter: "strike:any|direction:pull|flight:mid" } }
+            tabs.athleteUuid = "athlete-e"
+            laidOut()
+            compare(fakeWorkOns.clubScope, "club:7 IRON")
+            compare(fakeWorkOns.shotFilter, "strike:any|direction:pull|flight:mid")
+            compare(one(tabs, "shotFilterDirection").displayText, "Pull")
+            compare(one(tabs, "shotFilterFlight").displayText, "Mid")
+            compare(one(tabs, "shotFilterStrike").displayText, "Any")
+            verify(fakeSettings.homeViewByAthlete["athlete-e"].outcomeScope === undefined, "no outcomeScope key")
         }
 
         // ── the Coaching tab: HmFocus and HmSwingSummary on the table components ──

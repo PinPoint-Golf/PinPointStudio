@@ -584,6 +584,11 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         if (out.strikeFlightNote.isEmpty()) out.strikeFlightNote = measuredStrikeFlightNote(shot, *rowOf.value(id));
         fired.removeAt(i);
     }
+    // Sky is a FLIGHT fault (shot_factors.h, 10 Nov 2026): a high launch, an attack steeper than the club's usual
+    // and a carry well short, on a driver, wood or hybrid, judged against the golfer's handicap averages. The old
+    // measured route (a high strike, a low point ahead, a steep attack) no longer names it: the row stays as it
+    // fired and is not a label. A golfer's own correction to Sky still stands.
+    fired.removeAll(QStringLiteral("sky"));
 
     // Step 1: excludes, then corrections, then intent. No reading means no word on where the ball went.
     QStringList active = resolveOutcomeExcludes(fired, rowOf, pack);
@@ -601,7 +606,9 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
 
     // A strike the monitor couldn't measure, read from the flight. Ahead of the corrections, so "Not right?"
     // takes it off the same way as any other label.
-    const QString flightStrike = hasLm ? strikeFromFlight(shot, session.flightUsuals) : QString();
+    // Sky is not a strike any more, so the flight's sky is no label here either (shot_factors.h names it).
+    QString flightStrike = hasLm ? strikeFromFlight(shot, session.flightUsuals) : QString();
+    if (flightStrike == QLatin1String("sky")) flightStrike.clear();
     if (!flightStrike.isEmpty() && outcomeFacts(pack, flightStrike) && !active.contains(flightStrike))
         active << flightStrike;
 
@@ -654,7 +661,7 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
                 l.evidence.push_back(ShotOutcomeEvidence{ QStringLiteral("m_lmLaunchDirection"), shot.startDirection });
             else if (id != QLatin1String("thin"))
                 l.evidence.push_back(ShotOutcomeEvidence{ QStringLiteral("m_smashFactor"), shot.smash });
-            if (id == QLatin1String("chunk") || id == QLatin1String("sky"))
+            if (id == QLatin1String("chunk"))
                 l.evidence.push_back(ShotOutcomeEvidence{ QStringLiteral("m_attackAngle"), shot.attackAngle });
         }
         out.labels.push_back(std::move(l));

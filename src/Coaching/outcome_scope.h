@@ -18,19 +18,18 @@
 
 #pragma once
 
-// OUTCOME SCOPE — pure, header-only. Which shots Home's Coaching, Your swing and Matchups read by what the
-// ball did: every shot, the good ones, or the ones carrying one miss (docs/design/shot_outcomes_design.md
-// §7.6). Like the club scope it only chooses which shots the reductions see; the rows are never re-graded.
+// THE SHOT FILTER — pure, header-only. Which shots Home's Coaching, Your swing and Matchups read by what the
+// ball did, factor by factor (docs/design/shot_outcomes_design.md §7.6): a strike, a direction and a flight
+// (shot_factors.h), each "any" or one value. Like the club scope it only chooses which shots the reductions
+// see; the rows are never re-graded.
 //
-// A shot is in a choice when the Tendencies rule judges it (judgeTendencyShot in tendencies.h, the one
-// helper both read through, so the filter and Tendencies can never disagree about a shot). Good is a clean
-// shot. A miss is any shot showing it, so a fat slice is under Fat and under Slice, and a push slice is
-// under Push slice, Slice and Push: a combined label brings its two halves. Otherwise a miss another label
-// implies (the short a fat strike explains) folds in exactly as Tendencies folds it. The choices' counts can
-// so add up to more than the shots. A shot that isn't judged is in no choice but All.
+// A shot is in a filter when it matches every factor chosen (AND). A factor not read on a shot fails any
+// choice for that factor but Any. A factor's values are every one the shot shows, so a fat slice is under
+// Fat and under Slice, and a push slice under Push slice, Slice and Push; a toe and a weak strike both. All
+// three Any is All: every shot, judged or not.
 //
-// A key is "all", "good" or "miss:slice". The miss is the label as glossed for the golfer's hand
-// (displayId), so a left-hander's "Slice" is the slice they see, though the row under it is a hook.
+// A key is "all", or "strike:thin|direction:pull|flight:any", the three parts in that order. A value is a
+// displayId (shot_factors.h's table), so a left-hander's "slice" is the slice they see.
 //
 // A filter alone would make a fault that is on every shot look like a cause. So each fault is also set
 // against the golfer's other judged shots: how often it fired on the chosen shots, and on the rest. The
@@ -39,6 +38,7 @@
 // Unit-tested standalone in src/Analysis/tests/outcome_scope_test.cpp.
 
 #include "diagnostic_ledger.h"
+#include "shot_factors.h"
 #include "tendencies.h"
 
 #include <QHash>
@@ -54,70 +54,113 @@ namespace pinpoint::analysis {
 // evidence line says and Coaching's "too few measured" note reads, so a version-1 file re-reduces.
 // 3: a measured thin, top or fat is a miss only when the flight agrees (measuredStrikeFlightAgrees), so the
 // shots a miss choice holds change.
-inline constexpr int kOutcomeScopeRuleVersion = 3;
+// 4: the filter is three factors, strike, direction and flight (shot_factors.h), keyed
+// "strike:…|direction:…|flight:…", so every stored key and count is another filter's.
+inline constexpr int kOutcomeScopeRuleVersion = 4;
 
-inline const QString &outcomeScopeAllKey()  { static const QString k = QStringLiteral("all");  return k; }
-inline const QString &outcomeScopeGoodKey() { static const QString k = QStringLiteral("good"); return k; }
-inline QString outcomeScopeMissKey(const QString &displayId) { return QStringLiteral("miss:") + displayId; }
+inline const QString &shotFilterAllKey() { static const QString k = QStringLiteral("all"); return k; }
+inline const QString &shotFilterAny()    { static const QString k = QStringLiteral("any"); return k; }
 
-struct OutcomeScope {
-    QString key = outcomeScopeAllKey();
-    bool    good = false;
-    QString missId;                     // a displayId ("slice"); empty unless a miss is chosen
+struct ShotFilter {
+    QString strike    = shotFilterAny();      // "any" or a strike value ("thin", "solid")
+    QString direction = shotFilterAny();      // "any" or a direction value ("pull", "straight", "fade")
+    QString flight    = shotFilterAny();      // "any" or a flight value ("high", "sky")
 
-    bool isAll() const { return !good && missId.isEmpty(); }
+    bool isAll() const { return strike == shotFilterAny() && direction == shotFilterAny() && flight == shotFilterAny(); }
 
-    // All holds every shot, judged or not. Good and a miss hold only judged shots.
-    bool contains(const ShotJudgement &j) const
+    // "all", or the three parts in order.
+    QString key() const
     {
-        if (isAll()) return true;
-        if (!j.judged) return false;
-        return good ? j.good : j.missIds.contains(missId);
+        if (isAll()) return shotFilterAllKey();
+        return QStringLiteral("strike:%1|direction:%2|flight:%3").arg(strike, direction, flight);
+    }
+
+    const QString &choice(const QString &factor) const
+    {
+        return factor == shotFactorStrike() ? strike : factor == shotFactorDirection() ? direction : flight;
+    }
+
+    // All holds every shot, judged or not. Otherwise every chosen factor must be read and show the value.
+    bool contains(const ShotFactors &f) const
+    {
+        for (const QString &name : shotFactorNames()) {
+            const QString &want = choice(name);
+            if (want == shotFilterAny()) continue;
+            const ShotFactor &part = f.factor(name);
+            if (!part.read || !part.values.contains(want)) return false;
+        }
+        return true;
     }
 };
 
-// The scope a key names. Anything else, a miss with no id or one that isn't an id, reads as All, so a
-// stored key from an older build can never leave the tabs empty.
-inline OutcomeScope outcomeScopeFromKey(const QString &key)
+inline bool shotFilterValueOk(const QString &v)
 {
-    OutcomeScope scope;
-    if (key == outcomeScopeGoodKey()) {
-        scope.key  = key;
-        scope.good = true;
-        return scope;
-    }
-    static const QString kMiss = QStringLiteral("miss:");
-    if (!key.startsWith(kMiss)) return scope;
-    const QString id = key.mid(kMiss.size());
-    if (id.isEmpty()) return scope;
-    for (const QChar c : id)
-        if (!(c.isLetterOrNumber() || c == QLatin1Char('_'))) return scope;
-    scope.key    = outcomeScopeMissKey(id);
-    scope.missId = id;
-    return scope;
+    if (v.isEmpty()) return false;
+    for (const QChar c : v)
+        if (!(c.isLetterOrNumber() || c == QLatin1Char('_'))) return false;
+    return true;
 }
 
-// Every shot of one session judged, keyed by shotId; a shot that isn't judged is there too, as not judged.
-// The session's corrections, intents, evidence and frozen baseline are read exactly as reduceTendencies
-// reads them. No club group is asked for: the club scope has already chosen the shots.
-inline QHash<int, ShotJudgement> judgedShotOutcomes(const TendencySessionInput &s, const ShotOutcomePack &pack)
+// The filter a key names. A part may be left out (it is Any); anything malformed, a factor named twice or
+// one that isn't a factor, reads as All, so a stored key from an older build can never leave the tabs empty.
+inline ShotFilter shotFilterFromKey(const QString &key)
 {
-    QHash<int, ShotJudgement> out;
+    ShotFilter f;
+    if (key.isEmpty() || key == shotFilterAllKey()) return f;
+    QSet<QString> seen;
+    for (const QString &part : key.split(QLatin1Char('|'))) {
+        const qsizetype colon = part.indexOf(QLatin1Char(':'));
+        if (colon <= 0) return ShotFilter{};
+        const QString factor = part.left(colon), value = part.mid(colon + 1);
+        if (!shotFactorNames().contains(factor) || seen.contains(factor) || !shotFilterValueOk(value)) return ShotFilter{};
+        seen.insert(factor);
+        if (factor == shotFactorStrike())         f.strike = value;
+        else if (factor == shotFactorDirection()) f.direction = value;
+        else                                      f.flight = value;
+    }
+    return f;
+}
+
+inline QString shotFilterKey(const ShotFilter &f) { return f.key(); }
+
+// The words for a filter's shots, for a sentence that ends in "shots": "pulled, thin", "solid, straight",
+// "high". Direction first, then strike, then flight, as a golfer says it. Each value's word is its
+// adjective in shot_factors.h's table; a value the table doesn't hold takes its `labels` word, lower case,
+// else its id. "" for All.
+inline QString filterWords(const ShotFilter &f, const QHash<QString, QString> &labels = {})
+{
+    QStringList words;
+    for (const QString &name : { shotFactorDirection(), shotFactorStrike(), shotFactorFlight() }) {
+        const QString &v = f.choice(name);
+        if (v == shotFilterAny()) continue;
+        if (const ShotFactorValueInfo *info = shotFactorValueInfo(v)) words << info->adjective;
+        else words << labels.value(v, v).toLower();
+    }
+    return words.join(QStringLiteral(", "));
+}
+
+// Every shot of one session read factor by factor, keyed by shotId; a shot that isn't judged is there too,
+// with nothing read. The session's corrections, intents, evidence and frozen baseline are read exactly as
+// reduceTendencies reads them. No club group is asked for: the club scope has already chosen the shots.
+inline QHash<int, ShotFactors> judgedShotFactors(const TendencySessionInput &s, const ShotOutcomePack &pack,
+                                                 const FlightNorms &flightNorms)
+{
+    QHash<int, ShotFactors> out;
     const ShotOutcomeSessionFacts facts = tendencySessionFacts(s);
     for (const ShotRecord &shot : s.session.shots)
         out.insert(shot.shotId, judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), s.intents.value(shot.shotId),
-                                                  tendencyUsualEntry(s, shot), pack, facts));
+                                                  tendencyUsualEntry(s, shot), pack, facts, flightNorms));
     return out;
 }
 
-// The shots a scope sees, in ledger order. A shot missing from `judged` is not judged.
-inline std::vector<ShotRecord> shotsInOutcomeScope(const std::vector<ShotRecord> &shots, const QHash<int, ShotJudgement> &judged,
-                                                   const OutcomeScope &scope)
+// The shots a filter sees, in ledger order. A shot missing from `judged` has nothing read.
+inline std::vector<ShotRecord> shotsInShotFilter(const std::vector<ShotRecord> &shots, const QHash<int, ShotFactors> &judged,
+                                                 const ShotFilter &filter)
 {
-    if (scope.isAll()) return shots;
+    if (filter.isAll()) return shots;
     std::vector<ShotRecord> out;
     for (const ShotRecord &s : shots)
-        if (scope.contains(judged.value(s.shotId))) out.push_back(s);
+        if (filter.contains(judged.value(s.shotId))) out.push_back(s);
     return out;
 }
 
@@ -134,18 +177,19 @@ struct OutcomeContrast {
 };
 
 // Each condition in `conditionIds`, over `shots` (already in the club scope). The chosen shots are the
-// judged ones the scope holds, the other shots the judged ones it doesn't; a shot that isn't judged is in
-// neither. A row counts only where it was assessed, so a shot that couldn't see the condition says
-// nothing either way. Under All there is nothing to set the shots against, so it is empty.
-inline QHash<QString, OutcomeContrast> outcomeContrasts(const std::vector<ShotRecord> &shots, const QHash<int, ShotJudgement> &judged,
-                                                        const OutcomeScope &scope, const QSet<QString> &conditionIds)
+// judged ones (at least one factor read) the filter holds, the other shots the judged ones it doesn't; a
+// shot that isn't judged is in neither. A row counts only where it was assessed, so a shot that couldn't
+// see the condition says nothing either way. Under All there is nothing to set the shots against, so it is
+// empty.
+inline QHash<QString, OutcomeContrast> outcomeContrasts(const std::vector<ShotRecord> &shots, const QHash<int, ShotFactors> &judged,
+                                                        const ShotFilter &scope, const QSet<QString> &conditionIds)
 {
     QHash<QString, OutcomeContrast> out;
     if (scope.isAll()) return out;
     for (const QString &id : conditionIds) out.insert(id, OutcomeContrast{});
     for (const ShotRecord &s : shots) {
         const auto jt = judged.constFind(s.shotId);
-        if (jt == judged.constEnd() || !jt->judged) continue;
+        if (jt == judged.constEnd() || !jt->judged()) continue;
         const bool chosen = scope.contains(*jt);
         for (const ConditionRow &r : s.rows) {
             if (r.state == ShotState::NotAssessable || !conditionIds.contains(r.conditionId)) continue;
@@ -158,9 +202,9 @@ inline QHash<QString, OutcomeContrast> outcomeContrasts(const std::vector<ShotRe
     return out;
 }
 
-// The line under a fault: "On your slice shots 34 of 38 · other shots 12 of 61", then words unless the
-// fault is at least 15 points more common on the chosen shots, when the counts say it alone. `label` is
-// the choice's short label ("Slice", "Good"). Empty when no chosen shot assessed the fault.
+// The line under a fault: "On your pulled, thin shots 34 of 38 · other shots 12 of 61", then words unless
+// the fault is at least 15 points more common on the chosen shots, when the counts say it alone. `label` is
+// the choice's words (filterWords: "pulled, thin"). Empty when no chosen shot assessed the fault.
 inline QString outcomeContrastLine(const OutcomeContrast &c, const QString &label, const TendencyOptions &opt = {})
 {
     if (c.n1 <= 0) return QString();

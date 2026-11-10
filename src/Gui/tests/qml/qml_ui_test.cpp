@@ -400,6 +400,7 @@ public:
         static const struct { const char *var; const char *file; } kShipped[] = {
             { "PINPOINT_CORE_PACK",       "core.json"       },
             { "PINPOINT_CORE_NORMS",      "norms.json"      },
+            { "PINPOINT_CORE_FLIGHT_NORMS", "flight_norms.json" },
             { "PINPOINT_CORE_CONTEXTS",   "contexts.json"   },
             { "PINPOINT_CORE_SCREENS",    "screens.json"    },
             { "PINPOINT_CORE_DRILLS",     "drills.json"     },

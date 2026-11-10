@@ -23,10 +23,14 @@
 // header-only. Absent (empty) when no club has a row. A building row states no verdict: it says it is building, and how
 // far along. Every sentence is here; the page sets only the column heads.
 //
-//  tendencies: { kicker ("68 shots  ·  6 sessions  ·  Tendencies"), standfirst, foot ("" when no row is building),
-//                rows: [{ key, club ("7 iron · part swing"), distance ("147 ± 31 yd" | ""), miss, noUsualMiss, building,
-//                         seen ("Seen with …  ·  likely  ·  ↑ growing" | "Building, 5 sessions so far"),
-//                         mixLine, mixParts: [{ count, kind }] }] }
+//  tendencies: { kicker ("68 shots  ·  6 sessions  ·  Tendencies"), standfirst, foot ("" when no factor is building),
+//                rows: [{ key, club ("7 iron · part swing"), distance ("147 ± 31 yd" | ""),
+//                         strike, direction, flight: { label ("Pull", "Solid", "-"), fault, building,
+//                                 seen ("Seen with …  ·  likely  ·  ↑ growing" | "Building, 5 sessions so far" | ""),
+//                                 mixLine, mixParts: [{ count, kind }] } }] }
+//
+// W4: the three factor maps are the minimum for this to compile against the three-factor TendencyItem
+// (shot_factors.h); the page's columns and words are W4's.
 
 #include "../../Coaching/tendencies.h"
 
@@ -49,29 +53,36 @@ inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &
 
     QVariantList rows;
     bool anyBuilding = false;
-    for (const TendencyItem &it : set.items) {
-        anyBuilding = anyBuilding || it.building;
+    const auto factorMap = [&counted, &anyBuilding](const TendencyFactor &f) {   // W4:
+        anyBuilding = anyBuilding || (f.building && f.shots > 0);
         QString seen;
-        if (it.building) {
-            seen = QStringLiteral("Building, %1 so far").arg(counted(it.sessions, "session", "sessions"));
-        } else if (!it.seenWith.isEmpty()) {
-            seen = QStringLiteral("Seen with %1").arg(it.seenWith);
-            if (!it.strength.isEmpty())   seen += QStringLiteral("  ·  ") + it.strength;
-            if (!it.trendWords.isEmpty()) seen += QStringLiteral("  ·  ") + it.trendWords;
+        if (f.building && f.shots > 0) {
+            seen = QStringLiteral("Building, %1 so far").arg(counted(f.sessions, "session", "sessions"));
+        } else if (f.fault && !f.seenWith.isEmpty()) {
+            seen = QStringLiteral("Seen with %1").arg(f.seenWith);
+            if (!f.strength.isEmpty())   seen += QStringLiteral("  ·  ") + f.strength;
+            if (!f.trendWords.isEmpty()) seen += QStringLiteral("  ·  ") + f.trendWords;
         }
         QVariantList parts;
-        for (const ShotMixPart &p : it.mix.parts)
+        for (const ShotMixPart &p : f.mix.parts)
             parts.append(QVariantMap{ { QStringLiteral("count"), p.count }, { QStringLiteral("kind"), p.kind } });
+        return QVariantMap{
+            { QStringLiteral("label"),    f.label },
+            { QStringLiteral("fault"),    f.fault },
+            { QStringLiteral("building"), f.building },
+            { QStringLiteral("seen"),     seen },
+            { QStringLiteral("mixLine"),  f.mix.line },
+            { QStringLiteral("mixParts"), parts },
+        };
+    };
+    for (const TendencyItem &it : set.items) {
         rows.append(QVariantMap{
-            { QStringLiteral("key"),         it.key },
-            { QStringLiteral("club"),        it.length == QLatin1String("partial") ? it.club + QStringLiteral(" · part swing") : it.club },
-            { QStringLiteral("distance"),    tendencyUsualDistance(it.clubId, it.length, set.clubDistances) },
-            { QStringLiteral("miss"),        it.miss },
-            { QStringLiteral("noUsualMiss"), it.noUsualMiss },
-            { QStringLiteral("building"),    it.building },
-            { QStringLiteral("seen"),        seen },
-            { QStringLiteral("mixLine"),     it.mix.line },
-            { QStringLiteral("mixParts"),    parts },
+            { QStringLiteral("key"),       it.key },
+            { QStringLiteral("club"),      it.length == QLatin1String("partial") ? it.club + QStringLiteral(" · part swing") : it.club },
+            { QStringLiteral("distance"),  tendencyUsualDistance(it.clubId, it.length, set.clubDistances) },
+            { QStringLiteral("strike"),    factorMap(it.strike) },
+            { QStringLiteral("direction"), factorMap(it.direction) },
+            { QStringLiteral("flight"),    factorMap(it.flight) },
         });
     }
 

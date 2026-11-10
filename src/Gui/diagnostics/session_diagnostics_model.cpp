@@ -1196,6 +1196,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     rec.launchAngle    = measuredOrNaN(src, "m_lmLaunchAngle");
     rec.startDirection = measuredOrNaN(src, "m_lmLaunchDirection");
     rec.attackAngle    = measuredOrNaN(src, "m_attackAngle");
+    rec.descentAngle   = measuredOrNaN(src, "m_lmDescentAngle");
+    rec.peakHeight     = measuredOrNaN(src, "m_lmPeakHeight");     // feet, the monitor's unit
+    rec.spinRate       = measuredOrNaN(src, "m_spinRate");
+    rec.spinAxis       = measuredOrNaN(src, "m_spinAxis");
     rec.swingLength  = classifySwingLength(rec.shaftAngleP4, rec.lmClubSpeed, usualFor(rec.club), rec.ballSpeed);
 
     // Data-integrity exclusion. A shot whose recording is known broken — frames lost
@@ -1694,6 +1698,12 @@ QString SessionDiagnosticsModel::intentFor(int shotId) const
     return (m_intentFromShot >= 0 && shotId >= m_intentFromShot) ? m_intentFromShape : QString();
 }
 
+void SessionDiagnosticsModel::setFlightNorms(const FlightNorms &norms)
+{
+    m_flightNormsOverride = norms;
+    m_outcomesDirty = true;
+}
+
 ShotOutcomeSessionFacts SessionDiagnosticsModel::outcomeSessionFacts() const
 {
     return ShotOutcomeSessionFacts{ m_outcomeEvidence.links, m_outcomeEvidence.tiers, sessionFlightUsuals(m_shots) };
@@ -1963,48 +1973,42 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         });
     }
 
-    // ── Each club's shot mix, as the Tendencies tab counts it: every shot once, good, or under whichever of
-    // its misses is commonest with that club today (tendencyLeadMiss). Every miss a shot shows is counted
-    // first, a combined one's halves among them; no family comes first. ──
+    // ── Each club's shots by factor: strike, direction and flight (shot_factors.h), three mixes and no lead
+    // miss across them. Every value a shot shows is counted, so a shot with a toe and a weak strike is under
+    // both and a push slice under Push slice, Slice and Push: a factor's parts can add up to more than its
+    // shots, and then each percentage is its own share of the shots read. A factor not read on a shot counts
+    // it as not read. ──
     QStringList mixClubs;
-    QHash<QString, ShotMixTally> mixTallies;
-    QHash<QString, QHash<QString, int>> mixMissCount;           // club -> miss (ROW id) -> shots showing it
-    QHash<QString, QHash<QString, QString>> mixMissWords;       // club -> miss -> the golfer's short words
-    std::vector<std::pair<QString, QStringList>> mixMissed;     // (club, the shot's misses), each shot that missed
+    struct ClubFactorMix { int judged = 0; ShotFactorTally strike, direction, flight; };
+    QHash<QString, ClubFactorMix> mixByClub;
     for (size_t i = 0; i < m_composed.size() && i < m_shots.size(); ++i) {
         const ShotOutcome &o = m_composed[i];
         const QString club = pinpoint::canonicalClubId(m_shots[i].club);
         if (!o.ready || club.isEmpty()) continue;
-        if (!mixTallies.contains(club)) mixClubs << club;
-        ShotMixTally &tally = mixTallies[club];
-        const std::vector<TendencyShotMiss> misses =
-            tendencyShotMisses(tendencyMissLabels(o, m_outcomePack), m_outcomePack, m_shots[i].handedness);
-        if (o.clean) ++tally.good;
-        else if (misses.empty()) ++tally.notRead;
-        else {
-            QStringList ids;
-            for (const TendencyShotMiss &miss : misses) {
-                ids << miss.id;
-                ++mixMissCount[club][miss.id];
-                mixMissWords[club].insert(miss.id, miss.shortText);
-            }
-            mixMissed.emplace_back(club, ids);
-        }
+        if (!mixByClub.contains(club)) mixClubs << club;
+        ClubFactorMix &mix = mixByClub[club];
+        const ShotFactors f = shotFactors(m_shots[i], o, m_outcomePack, flightNorms(), facts.flightUsuals);
+        if (f.judged()) ++mix.judged;
+        const auto tally = [this](ShotFactorTally &t, const ShotFactor &part) {
+            if (!part.read) { ++t.notRead; return; }
+            ++t.read;
+            for (const QString &id : part.values) t.add(id, shotFactorValueLabel(m_outcomePack, id), part.faults.contains(id));
+        };
+        tally(mix.strike, f.strike);
+        tally(mix.direction, f.direction);
+        tally(mix.flight, f.flight);
     }
-    QHash<QString, QHash<QString, double>> mixMissWeight;       // one session: a miss weighs its shots
-    for (auto c = mixMissCount.constBegin(); c != mixMissCount.constEnd(); ++c)
-        for (auto it = c->constBegin(); it != c->constEnd(); ++it) mixMissWeight[c.key()].insert(it.key(), double(it.value()));
-    for (const auto &[club, ids] : mixMissed) {
-        const QString lead = tendencyLeadMiss(ids, mixMissWeight.value(club), mixMissCount.value(club));
-        mixTallies[club].addMiss(lead, mixMissWords.value(club).value(lead));
-    }
-    for (const QString &club : mixClubs) {
-        const ShotMixBar bar = composeShotMixBar(mixTallies.value(club));
-        if (bar.judged == 0) continue;
-        QVariantMap row = shotMixBarToJson(bar).toVariantMap();
-        row.insert(QStringLiteral("club"), clubDistanceLabel(club));
-        row.insert(QStringLiteral("clubId"), club);
-        m_clubMix.append(row);
+    for (const QString &club : std::as_const(mixClubs)) {
+        const ClubFactorMix &mix = mixByClub[club];
+        if (mix.judged == 0) continue;
+        m_clubMix.append(QVariantMap{
+            { QStringLiteral("club"),      clubDistanceLabel(club) },
+            { QStringLiteral("clubId"),    club },
+            { QStringLiteral("judged"),    mix.judged },
+            { QStringLiteral("strike"),    shotMixBarToJson(composeFactorMixBar(mix.strike)).toVariantMap() },
+            { QStringLiteral("direction"), shotMixBarToJson(composeFactorMixBar(mix.direction)).toVariantMap() },
+            { QStringLiteral("flight"),    shotMixBarToJson(composeFactorMixBar(mix.flight)).toVariantMap() },
+        });
     }
 }
 

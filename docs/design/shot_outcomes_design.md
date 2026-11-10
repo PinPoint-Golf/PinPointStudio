@@ -303,6 +303,41 @@ The usual is the same one as above: the club's median in this session over at le
 - Strike height and launch aren't mirrored, so a left-hander is judged the same way.
 - `measuredStrikeFlightAgrees` in `strike_from_flight.h`; Tendencies rule 11, outcome scope rule 3.
 
+### 3.8 Three factors per shot: strike, direction and flight
+
+*Decided with Mark, 10 November 2026.* "Tendencies have 3 factors: strike, direction and flight. It's not one
+or the other, it is all 3." A shot is no longer summed up as one miss chosen across families; it has a value
+for each factor, and none ranks above another (`shot_factors.h`).
+
+| Factor | Values | Faults | Read when |
+|---|---|---|---|
+| Strike | Solid · Thin · Fat · Top · Shank · Toe · Heel · Weak strike | all but Solid | a strike row was assessable, a smash was read, or a strike label stood |
+| Direction | Straight · Fade · Draw · Pull · Push · Slice · Hook · Push slice · Pull hook | Pull … Pull hook | there was a reading and direction was assessed |
+| Flight | Low · Mid · High · Sky | Sky only | a method below could classify the shot |
+
+- **Strike** reads the labels the composer kept, so the flight-agreement rule (§3.7) already applies: a
+  sticker-offset "thin" on a normal flight is Solid. A shot can carry two strike faults (toe and weak strike).
+- **Direction:** a compound miss brings its halves (a push slice is also a slice and a push). Fade and Draw are
+  values, not faults, and count whether or not they were intended.
+- **Flight** follows Mark's spec, `docs/design/ball-flight-classification.md`: height is relative to ball speed
+  and club, never to handicap and never launch angle alone. By club category (driver, fairway/hybrid, long, mid
+  and short irons, wedges), the first method the shot can use decides, and the shot keeps the method and the raw
+  value:
+  1. measured landing (descent) angle;
+  2. measured apex / carry, full swings only (apex arrives in feet, carry in yards);
+  3. landing angle modelled from the launch conditions with the launch monitor panel's flight model
+     (`lmIntegrateFlight`, `lm_flight_path.h`), marked "modelled": a measured value always wins;
+  4. absolute apex against the speed-matched driver reference, driver only, when there is no carry;
+  5. otherwise not read.
+  The bands are in `src/Resources/diagnostics/flight_norms.json` (provisional, to be tuned on PinPoint data).
+- **Sky** is the flight fault, for driver, fairway woods and hybrids only: a High flight, the attack at least 2°
+  steeper than the golfer's usual with that club in the session, and carry at or under 85 % of the usual. Sky
+  left the strike family; the old measured route (high strike, low point, steep attack) no longer makes Sky.
+- Spin, ball speed and short carry are results, not factors: they stay on the shot (labels, the carry
+  waterfall) and are not tendencies or filter choices.
+- Descent angle, peak height, spin and spin axis join the ledger (schema 13). Re-grading a session reads only
+  each swing's stored launch-monitor reading; it never re-runs pose, ball or shaft tracking.
+
 ---
 
 ## 4. Engine — `SessionDiagnosticsModel`
@@ -557,6 +592,41 @@ retention mechanism to wire "keep the clearest shot" into.
 ---
 
 ## 7. Home
+
+### 7.0 Three factors on Home (supersedes the single usual miss below)
+
+*10 November 2026.* §7.1, §7.2 and §7.6 were written for one usual miss per club. With three factors per shot
+(§3.8), where they disagree this section wins:
+
+- **Tendencies** (rule 13): one row per club and swing length, with a Strike, a Direction and a Flight column
+  in place of Usual miss and Your shots. Each factor's usual is its most common fault when that fault earns
+  (the §7.1 rules, per factor); otherwise its most common value (Solid, Straight, Fade, Mid…), said plainly and
+  never in a fault tone. Building is per factor. *Decided with Mark, 10 November 2026:*
+  - **Faults weighted, values counted.** Which fault is usual, and whether it earns, is still its
+    recency-weighted share: a fault is a habit forming or fading. A value is only what the shots were, so the
+    usual value is the one on the most shots by plain count, ties in the value table's order; its share and
+    frequency words are that count over the shots read. It always agrees with the factor's bar, which counts
+    plainly (a 7 iron whose bar is Mid 58 % · Low 42 % reads Mid, not a recency-weighted Low).
+  - **The building floor.** A building factor names its most common fault ("Seen so far", with its chain and
+    early note) only when that fault is on at least 25 % of the factor's read shots (`minShare`,
+    recency-weighted, as the earn rule measures share). Under it the factor shows its most common value,
+    counted as above, still building and not a fault: one fat shot in 29 with a gap wedge is a stray, so that
+    wedge reads Solid and Straight (building), not Fat and Pull.
+
+  Seen with, Also seen, the chain, Play to it, trend and work-on
+  belong to a factor's fault and show in the open row, one block per factor, each with its own shot bar. The
+  row's Work-on column says the status of its factors' work-ons. The report's Your tendencies page has the same
+  three columns.
+- **Shot bars** draw a non-fault value (Fade, Draw, Low, Mid, High) in the cool "neither praise nor fault"
+  tone (`Theme.bandTone("value")`, approved by Mark 10 Nov); Solid and Straight are good; the commonest fault
+  is the habit tone, other faults the occasional tone.
+- **One filter line** replaces the club chips and the outcome chips: Club · Strike · Direction · Flight, four
+  quiet pickers (`HmShotFilter`), each list with Any first and the count each choice would leave with the other
+  choices kept; a line under it says what is shown and on how many of those shots the swing was measured. A shot
+  matches when it matches every choice. On Tendencies only the Club picker shows. The contrast line (§7.6) names
+  the choice ("On your pulled, thin shots …").
+- **Session panel:** each club's mix is three bars, strike, direction and flight, each counting every value a
+  shot shows.
 
 ### 7.1 Tendencies — data (`WorkOnsController`)
 

@@ -63,7 +63,7 @@ set(NORM_SRC ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pac
 # binary. Every standalone test that can reach NormBandProvider is pointed at the reviewable JSON.
 function(pp_norm_env target)
     set_tests_properties(${target} PROPERTIES
-        ENVIRONMENT "PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
+        ENVIRONMENT "PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 endfunction()
 
 set(WRIST_ENGINE ${SRC}/Wrist/reference_bands.cpp
@@ -161,6 +161,10 @@ pp_add_test(tendencies_test SOURCES tendencies_test.cpp ${SRC}/LaunchMonitor/lau
 pp_add_test(club_scope_test SOURCES club_scope_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp LINK Threads::Threads)
 # Which shots Home's outcome filter holds, and each fault on them against the other shots (outcome_scope.h). Header-only.
 pp_add_test(outcome_scope_test SOURCES outcome_scope_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp LINK Threads::Threads)
+# A shot's three factors, strike, direction and flight, and the flight table they read (shot_factors.h,
+# flight_norms.json read from the source tree). Header-only.
+pp_add_test(shot_factors_test SOURCES shot_factors_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp LINK Threads::Threads
+    COMPILE_OPTIONS -DPP_FLIGHT_NORMS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json")
 
 # Swing areas (swing_areas.h) — Home's "Your swing" tab, areas rated by habit counts: the four bands
 # and their boundaries, what counts (Movement/Delivery; ball flight's Outcomes only with launch-monitor
@@ -1191,7 +1195,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
 target_compile_definitions(diagnostics_catalogue_integrity_test PRIVATE
     PP_DIAG_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../Gui/diagnosticmodel")
 set_tests_properties(diagnostics_catalogue_integrity_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json")
 
 # The ASSEMBLED-LIBRARY health checks: the ones no single validator can make, because they span the
 # pack, the norm set, the context tree and the metric catalogue at once. Run against the SHIPPED
@@ -1215,7 +1219,7 @@ pp_add_test(diagnostics_health_test
             ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(diagnostics_health_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json")
 
 # The two reference registries a characteristic points at: the physical screens behind `screenRef`
 # and the drills behind `drills`. Both joins are EXACT STRING MATCHES into a separate file, so a
@@ -1281,7 +1285,7 @@ pp_add_test(norm_pack_test
 # The shipped norm set and context tree live in Qt resources, absent from a standalone binary —
 # same seam as PINPOINT_CORE_PACK.
 set_tests_properties(norm_pack_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
 # Reading a MEASURE off a stored swing — the half of the value/norm join that nothing implemented
 # until the corridor editor needed real numbers under its histogram. The load-bearing assertions are
@@ -1329,7 +1333,7 @@ pp_add_test(live_measure_source_test
     INCLUDE ${NORM_INC}
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(live_measure_source_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
 
 # The golfer's own usual with a club is the only path from history to firing.
 pp_add_test(club_baseline_provider_test
@@ -1344,7 +1348,7 @@ pp_add_test(club_baseline_provider_test
             ${DIAG}/packs/merged_pack_provider.cpp
     INCLUDE ${NORM_INC})
 set_tests_properties(club_baseline_provider_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json")
 
 # THE ORCHESTRATION between the two tests above it: SessionDiagnosticsModel, the QML façade that
 # joins live detection to the session ledger. diagnostic_ledger_test proves the arithmetic and
@@ -1413,7 +1417,7 @@ pp_add_test(session_diagnostics_model_test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(session_diagnostics_model_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records
 # sessions which were never "ended", the fingerprint that leaves a current record alone and
@@ -1469,7 +1473,7 @@ if(MSVC)
     target_compile_options(work_ons_controller_test PRIVATE /bigobj)
 endif()
 set_tests_properties(work_ons_controller_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # regrade_ledger — re-reduce a session's diagnostics.json under the CURRENT pack, headlessly. The
 # model back-fills only shots it has never reduced (activateSession), so when the CONTENT moves the
@@ -1533,7 +1537,7 @@ pp_add_test(measure_dump_test
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(measure_dump_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
 # model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
@@ -1656,7 +1660,7 @@ pp_add_test(seed_conversion_test
             ${DIAG}/packs/merged_pack_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(seed_conversion_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
 # The launch monitor panel's corridor join, on the shipped content: club name -> context -> (metric,
 # Impact) -> measure -> norm -> Grade, which is the chain LmSessionModel::gradesFor() runs to decide
@@ -1679,7 +1683,7 @@ pp_add_test(lm_corridor_test
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(lm_corridor_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
 pp_add_test(manifest_migration_test
     SOURCES ${DIAG}/tests/manifest_migration_test.cpp
@@ -1694,7 +1698,7 @@ pp_add_test(manifest_migration_test
             ${SRC}/Metrics/metric_providers.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 set_tests_properties(manifest_migration_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
 
 # The Diagnostic Model panel's facade. QML holds no rules, so every rule it hides is asserted
@@ -1729,7 +1733,7 @@ pp_add_test(model_browser_test
 # the assembled library reports every screenRef and drill id as dangling — which would make the
 # validation-strip assertions below pass for entirely the wrong reason.
 set_tests_properties(model_browser_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/model_browser_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/model_browser_scratch")
 
 # Does the details pane REDRAW after a write? model_browser_test proves the façade answers correctly;
 # this proves the four-link chain between that answer and the screen — the command's signal, the
@@ -1757,7 +1761,7 @@ pp_add_test(inspector_refresh_test
     LINK    Qt6::Qml Qt6::Quick Qt6::Concurrent
     COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
 set_tests_properties(inspector_refresh_test PROPERTIES
-    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/inspector_refresh_scratch")
+    ENVIRONMENT "PINPOINT_CORE_PACK=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/core.json;PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json;PINPOINT_CORE_SCREENS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/screens.json;PINPOINT_CORE_DRILLS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/drills.json;PINPOINT_CORE_GATE_WORDS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/gate_words.json;PINPOINT_CORE_REFERENCES=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/references.json;XDG_DATA_HOME=${CMAKE_CURRENT_BINARY_DIR}/inspector_refresh_scratch")
 
 # The corridor picture. Pure geometry over value types, which is the whole reason the layout lives
 # in C++ — a curve computed inside delegate bindings is a curve nothing can assert. The load-bearing

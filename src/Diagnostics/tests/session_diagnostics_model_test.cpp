@@ -1544,24 +1544,36 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
               && m->shotMix().value(QStringLiteral("correctionsLine")).toString() == QStringLiteral("2 labels corrected by you"),
           "E3: two labels corrected by you");
 
-    // ── The club mix: each shot once, under its commonest miss with the club (Tendencies rule 10) ──
-    // The 7 iron shows a slice on 9 shots (3, 4, 5, 9, 10, 12, 15, 21, 23) and a fat on 5 (2, 4, 5, 8, 10).
-    // The three fat slices go under the slice, the club's commonest, not under the fat for being a strike:
-    // slice 9 and fat 2, where the strike-first rule gave slice 6 and fat 5.
+    // ── The club mix: three mixes per club, strike, direction and flight (shot_factors.h), no lead miss across them ──
+    // The 7 iron's strikes: a fat on 2, 4, 5, 8 and 10, shot 19 corrected to thin, the other 18 solid. Its
+    // directions: a slice on 9 shots (3, 4, 5, 9, 10, 12, 15, 21, 23), shot 7 corrected to an intended fade, a push
+    // on 17, a pull on 19, the other 12 straight. A fat slice is under Fat in the strike and under Slice in the
+    // direction, not filed under one of them. No shot has a landing angle or an apex: the flight isn't read.
     {
         const QVariantList mix = m->clubMix();
         const QVariantMap iron = mix.isEmpty() ? QVariantMap() : mix.first().toMap();
-        const auto partCount = [&iron](const char *key) {
-            for (const QVariant &v : iron.value(QStringLiteral("parts")).toList())
+        const QVariantMap strike = iron.value(QStringLiteral("strike")).toMap();
+        const QVariantMap direction = iron.value(QStringLiteral("direction")).toMap();
+        const QVariantMap flight = iron.value(QStringLiteral("flight")).toMap();
+        const auto partCount = [](const QVariantMap &bar, const char *key) {
+            for (const QVariant &v : bar.value(QStringLiteral("parts")).toList())
                 if (v.toMap().value(QStringLiteral("key")).toString() == QLatin1String(key)) return v.toMap().value(QStringLiteral("count")).toInt();
             return -1;
         };
-        int barShots = 0;
-        for (const QVariant &v : iron.value(QStringLiteral("parts")).toList()) barShots += v.toMap().value(QStringLiteral("count")).toInt();
-        check(mix.size() == 1 && iron.value(QStringLiteral("clubId")).toString() == QStringLiteral("7 IRON"), "club mix: the one club");
-        check(partCount("good") == 11 && partCount("slice") == 9 && partCount("chunk") == 2,
-              "club mix: a fat slice is filed under the slice, the club's commonest miss, not under its strike");
-        check(barShots == 24 && iron.value(QStringLiteral("judged")).toInt() == 24, "club mix: every shot once, adding up to the 24");
+        check(mix.size() == 1 && iron.value(QStringLiteral("clubId")).toString() == QStringLiteral("7 IRON")
+                  && iron.value(QStringLiteral("judged")).toInt() == 24, "club mix: the one club, every shot judged");
+        check(strike.value(QStringLiteral("judged")).toInt() == 24 && partCount(strike, "solid") == 18 && partCount(strike, "chunk") == 5
+                  && partCount(strike, "thin") == 1
+                  && strike.value(QStringLiteral("line")).toString() == QStringLiteral("Solid 75% · Fat 21% · Thin 4%"),
+              "club mix: the strike, Solid 18 · Fat 5 · Thin 1 (the correction counts)");
+        check(direction.value(QStringLiteral("judged")).toInt() == 24 && partCount(direction, "straight") == 12
+                  && partCount(direction, "slice") == 9 && partCount(direction, "fade") == 1 && partCount(direction, "push") == 1
+                  && partCount(direction, "pull") == 1
+                  && direction.value(QStringLiteral("line")).toString() == QStringLiteral("Straight 50% · Fade 4% · Slice 38% · Pull 4% · Push 4%"),
+              "club mix: the direction, the three fat slices among the slices too; the fade a value, not a fault");
+        check(flight.value(QStringLiteral("judged")).toInt() == 0 && flight.value(QStringLiteral("parts")).toList().isEmpty()
+                  && flight.value(QStringLiteral("line")).toString() == QStringLiteral("24 not read"),
+              "club mix: no landing angle or apex, so the flight is not read, and says so");
     }
 
     const QVariantList reasons = m->reasons();

@@ -28,4 +28,4 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Diagnostics/measures/measure_facets.cpp
     ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp)
 set(CHARTS_NORM_ENV
-    "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")
+    "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

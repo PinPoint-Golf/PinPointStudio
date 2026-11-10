@@ -21,11 +21,14 @@ import PinPointStudio
 
 // TENDENCIES — the Your tendencies page of the session report (docs/design/shot_outcomes_design.md §7.2): Home's rows on
 // paper, as they stood at this session. After the order of work; absent when the map has no `tendencies`
-// (report_tendencies.h). A row per club and swing length: club · usual distance · usual miss · your shots (the band bar
-// over its words), with what it is seen with, or that it is still building, beneath.
+// (report_tendencies.h). A row per club and swing length: club · usual distance · strike · direction · flight, each factor
+// its usual over its small band bar and the bar's words, with what each factor's fault is seen with, or that it is still
+// building, beneath (only the factors with something to say).
 // FLOWED as the Consistency page: the head starts a fresh page, each row is one atom, the column heads keep with the first
 // row. Every sentence is the map's. FOLIO LIGHT through `ro` and `cr`: nothing reads a live theme token. Colour is never
-// the only channel: the bar has its words. objectNames: reportTendencies (the head), reportTendencyRow, reportTendencyFoot.
+// the only channel: an earned fault's label is in the fault tone and named, the bar has its words. A shot-mix part's tone by
+// its kind: good → clean, value → value (neither praise nor fault), main → habit, other → occasional.
+// objectNames: reportTendencies (the head), reportTendencyRow, reportTendencyFoot.
 Column {
     id: tp
     property QtObject ro: null
@@ -42,14 +45,22 @@ Column {
     readonly property real g6: cr.g(6)
     readonly property real clubW: cr.u(92)
     readonly property real distanceW: cr.u(84)
-    readonly property real missW: cr.u(92)
-    readonly property real mixW: Math.max(0, width - clubW - distanceW - missW - 3 * gutter)
+    readonly property real factorW: Math.max(0, (width - clubW - distanceW - 4 * gutter) / 3)
     readonly property real barH: cr.u(5)
     readonly property color toneGood: cr.good
+    readonly property color toneValue: cr.cool
     readonly property color toneMain: cr.warn
     readonly property color toneOther: cr.attention
+    readonly property var factors: [{ key: "strike", label: "Strike" }, { key: "direction", label: "Direction" },
+                                    { key: "flight", label: "Flight" }]
 
-    function tone(kind) { return kind === "good" ? toneGood : kind === "main" ? toneMain : toneOther }
+    function tone(kind) { return kind === "good" ? toneGood : kind === "value" ? toneValue : kind === "main" ? toneMain : toneOther }
+    function factorOf(row, key) { return row && row[key] ? row[key] : ({}) }
+    // each factor's seen line, named, for the factors with something seen
+    function seenLines(row) {
+        return factors.map(f => ({ label: f.label, seen: String(factorOf(row, f.key).seen || "") }))
+                      .filter(x => x.seen !== "").map(x => x.label + ": " + x.seen).join("\n")
+    }
 
     PpReportSectionHead {
         objectName: "reportTendencies"
@@ -70,8 +81,10 @@ Column {
             spacing: tp.gutter
             Text { width: tp.clubW; text: "Club"; font: tp.ro.fLabel; color: tp.ro.ink3 }
             Text { width: tp.distanceW; text: "Usual distance"; font: tp.ro.fLabel; color: tp.ro.ink3 }
-            Text { width: tp.missW; text: "Usual miss"; font: tp.ro.fLabel; color: tp.ro.ink3 }
-            Text { width: tp.mixW; text: "Your shots"; font: tp.ro.fLabel; color: tp.ro.ink3 }
+            Repeater {
+                model: tp.factors
+                Text { required property var modelData; width: tp.factorW; text: modelData.label; font: tp.ro.fLabel; color: tp.ro.ink3 }
+            }
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: tp.ro.hw; color: tp.ro.hair }
     }
@@ -92,16 +105,30 @@ Column {
                 spacing: tp.gutter
                 Text { width: tp.clubW; text: rw.modelData.club || ""; font: tp.ro.fBody; color: tp.ro.ink; wrapMode: Text.WordWrap }
                 Text { width: tp.distanceW; text: rw.modelData.distance || "-"; font: tp.ro.fFig; color: rw.modelData.distance ? tp.ro.ink : tp.ro.ink3 }
-                Text { width: tp.missW; text: rw.modelData.miss || ""; font: tp.ro.fBody; color: tp.ro.ink; wrapMode: Text.WordWrap }
-                Column {
-                    width: tp.mixW
-                    spacing: tp.g3
-                    PpBandBar {
-                        width: parent.width
-                        height: tp.barH
-                        segments: (rw.modelData.mixParts || []).map(p => ({ count: p.count, tone: tp.tone(p.kind) }))
+                Repeater {
+                    model: tp.factors
+                    delegate: Column {
+                        id: cellCol
+                        required property var modelData
+                        readonly property var fx: tp.factorOf(rw.modelData, modelData.key)
+                        readonly property string label: fx.label && fx.label !== "-" ? String(fx.label) : "-"
+                        width: tp.factorW
+                        spacing: tp.g3
+                        Text {
+                            width: parent.width
+                            text: cellCol.label
+                            font: tp.ro.fBody
+                            color: cellCol.label === "-" ? tp.ro.ink3 : (cellCol.fx.fault && !cellCol.fx.building) ? tp.toneMain : tp.ro.ink
+                            wrapMode: Text.WordWrap
+                        }
+                        PpBandBar {
+                            visible: (cellCol.fx.mixParts || []).length > 0
+                            width: parent.width
+                            height: tp.barH
+                            segments: (cellCol.fx.mixParts || []).map(p => ({ count: p.count, tone: tp.tone(p.kind) }))
+                        }
+                        Text { visible: text !== ""; width: parent.width; text: cellCol.fx.mixLine || ""; font: tp.ro.fSmall; color: tp.ro.ink2; wrapMode: Text.WordWrap }
                     }
-                    Text { width: parent.width; text: rw.modelData.mixLine || ""; font: tp.ro.fSmall; color: tp.ro.ink2; wrapMode: Text.WordWrap }
                 }
             }
             Text {
@@ -109,7 +136,7 @@ Column {
                 y: line.y + line.height + (tp ? tp.g3 : 0)
                 visible: text !== ""
                 width: parent.width
-                text: rw.modelData.seen || ""
+                text: tp ? tp.seenLines(rw.modelData) : ""
                 font: tp.ro.fSmall; color: tp.ro.ink2; wrapMode: Text.WordWrap
             }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: tp.ro ? tp.ro.hw : 1; color: tp.ro ? tp.ro.hair : "transparent" }

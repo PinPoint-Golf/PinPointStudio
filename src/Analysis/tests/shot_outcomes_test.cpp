@@ -62,7 +62,7 @@ static ShotOutcomePack fixturePack()
         facts("chunk",         "strike",    "Fat",        "FAT", "the club bottomed out behind the ball", L::Ball, order++),
         facts("thin",          "strike",    "Thin",       "TH",  "the club caught it thin",              L::Ball, order++),
         facts("top",           "strike",    "Top",        "TP",  "the club hit the top of the ball",     L::Ball, order++),
-        facts("sky",           "strike",    "Sky",        "SK",  "the club went under the ball",         L::Ball, order++),
+        facts("sky",           "flight",    "Sky",        "SK",  "the club went under the ball",         L::Ball, order++),
         facts("shank",         "strike",    "Shank",      "SN",  "it came off the hosel",                L::Ball, order++),
         facts("smash_deficit", "strike",    "Poor strike", "PS", "",                                     L::Ball, order++),
         facts("pull",          "direction", "Pull",       "PL",  "started left",                         L::Ball, order++),
@@ -615,6 +615,26 @@ int main()
         check(strikeFromFlight(wedge(1, 31.0, -1.0, 0.98, -5.6, 86.0), usuals) == QStringLiteral("chunk"), "smash down and steeper: fat");
         check(strikeFromFlight(wedge(1, 31.0, -1.0, 0.94, -2.0, 90.0), usuals).isEmpty(), "smash down but shallower: a heel, not fat");
         check(strikeFromFlight(wedge(1, 50.0, -1.0, 1.0, -6.0, 60.0), usuals) == QStringLiteral("sky"), "very high, steeper, smash down: sky");
+        // Sky is a flight fault now (shot_factors.h, 10 Nov 2026), judged on a driver, wood or hybrid only: the
+        // flight's sky names no label on the shot.
+        {
+            const ShotOutcome high = composeShotOutcome(wedge(1, 50.0, -1.0, 1.0, -6.0, 60.0), {}, QString(), nullptr, pack, facts);
+            check(std::none_of(high.labels.begin(), high.labels.end(), [](const ShotOutcomeLabel &l) { return l.id == QLatin1String("sky"); }),
+                  "sky: the flight's sky is no label any more");
+            ShotRecord measuredSky = wedge(1, 30.0, -2.0, 1.09, -3.5, 100.0);
+            measuredSky.rows = { rowOf("chunk", ShotState::Clean), rowOf("thin", ShotState::Clean), rowOf("sky"),
+                                 rowOf("slice", ShotState::Clean), rowOf("hook", ShotState::Clean) };
+            const ShotOutcome m = composeShotOutcome(measuredSky, {}, QString(), nullptr, pack, facts);
+            check(std::none_of(m.labels.begin(), m.labels.end(), [](const ShotOutcomeLabel &l) { return l.id == QLatin1String("sky"); })
+                      && m.clean && measuredSky.rows[2].state == ShotState::Fired,
+                  "sky: a fired sky row (the old measured route) is no label either, and the row stays as it fired");
+            const ShotOutcome said = composeShotOutcome(measuredSky, { ShotCorrection{ QStringLiteral("flight"), QString(), QStringLiteral("sky") } },
+                                                        QString(), nullptr, pack, facts);
+            check(std::any_of(said.labels.begin(), said.labels.end(), [](const ShotOutcomeLabel &l) {
+                      return l.id == QLatin1String("sky") && l.corrected && l.family == QLatin1String("flight");
+                  }),
+                  "sky: the golfer's own correction to it stands, as a flight label");
+        }
         check(strikeFromFlight(wedge(1, 30.0, -1.0, 1.09, -3.5, 100.0), usuals).isEmpty(), "a normal shot reads as nothing");
 
         ShotRecord measured = wedge(1, 1.4, 12.6, 1.07, -6.0, 11.0);

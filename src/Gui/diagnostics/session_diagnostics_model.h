@@ -27,6 +27,7 @@
 #include "../../Diagnostics/engine/relation_resolver.h"
 #include "session_spread.h"
 
+#include <optional>
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
@@ -331,7 +332,17 @@ public:
     QVariantMap  shotMix() const { ensureOutcomes(); return m_shotMix; }
     QVariantList reasons() const { ensureOutcomes(); return m_reasons; }
     QVariantList carryToday() const { ensureOutcomes(); return m_carryToday; }
+    // clubMix: [{ club, clubId, judged (shots with at least one factor read),
+    //             strike, direction, flight: { judged (shots that factor was read on), notRead, line,
+    //                                          parts: [{ key, label, kind, count, percent }] } }]
+    // One mix per factor (shot_factors.h), no lead miss across them. A shot is counted under every value it
+    // shows, so a factor's parts can add up to more than its shots. `kind`: "good" (Solid, Straight),
+    // "value" (Fade, Draw, Low, Mid, High), "main" (the factor's commonest fault), "other".
     QVariantList clubMix() const { ensureOutcomes(); return m_clubMix; }
+
+    // The table a shot's height is judged against (shot_factors.h): the shipped flight_norms.json unless
+    // this hands another (a test). The composed outcomes are re-read on the next look.
+    void setFlightNorms(const pinpoint::analysis::FlightNorms &norms);
 
     // ── Session lifecycle ───────────────────────────────────────────────────────────
 
@@ -993,6 +1004,11 @@ private:
     mutable QVariantList m_reasons;
     mutable QVariantList m_carryToday;
     mutable QVariantList m_clubMix;
+    std::optional<pinpoint::analysis::FlightNorms> m_flightNormsOverride;   // setFlightNorms; else the shipped table
+    const pinpoint::analysis::FlightNorms &flightNorms() const
+    {
+        return m_flightNormsOverride ? *m_flightNormsOverride : pinpoint::analysis::shippedFlightNorms();
+    }
     int  m_historyMissing = 0;      // sibling sessions with swings and no ledger yet
     bool m_historyLoading = false;
     int  m_historyGen     = 0;      // a scan for a session no longer loaded is discarded on arrival

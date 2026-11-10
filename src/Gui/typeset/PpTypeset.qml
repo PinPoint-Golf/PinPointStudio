@@ -137,6 +137,9 @@ QtObject {
     // §9.5.4; Mark, 7 Nov 2026). Read like warn and attention: the fixed aesthetic's light colorGood (Folio's
     // on the session report), else the app's.
     readonly property color good: _fm ? _fm.colorGood : Theme.colorGood
+    // "neither praise nor fault": a shot-mix part that is a value (Fade, Draw, Low, Mid, High), Theme.bandTone("value")'s
+    // colour on paper. Read like good: the fixed aesthetic's light gradientCool, else the app's.
+    readonly property color cool: _fm ? _fm.gradientCool : Theme.gradientCool
     readonly property color accent: _fm ? _fm.colorAccent : Theme.colorAccent
     readonly property bool _dark: _fm ? false : Theme.dark
     readonly property color paper: isPrint ? "#FFFFFF" : (_fm ? _fm.colorBg : Theme.colorBg)

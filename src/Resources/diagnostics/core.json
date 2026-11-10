@@ -10350,7 +10350,7 @@
       ],
       "group": "ballFlight",
       "kind": "outcome",
-      "family": "strike",
+      "family": "flight",
       "prominence": "uncommon",
       "observability": "observable",
       "confirmedBy": "measured",

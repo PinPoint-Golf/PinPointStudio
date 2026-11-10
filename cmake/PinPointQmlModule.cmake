@@ -179,9 +179,9 @@ set(PP_QML_FILES
     # The athlete's swing in plain words, led by one focus (home_themes_design.md); a fault opens
     # its detail in place (HmFaultDetail), on Coaching and on Your swing.
     src/Gui/home/HmFaultDetail.qml
-    # The Tendencies tab: the usual miss per club and swing length.
-    src/Gui/home/HmClubScopeFilter.qml
-    src/Gui/home/HmOutcomeScopeFilter.qml
+    # Home's filter line (club, strike, direction, flight) and the Tendencies tab: each club's usual strike,
+    # direction and flight per swing length.
+    src/Gui/home/HmShotFilter.qml
     src/Gui/home/HmTendencies.qml
     src/Gui/home/HmTendencyRow.qml
     src/Gui/home/HmFaultRow.qml

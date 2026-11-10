@@ -38,8 +38,9 @@
 // club; a yes/no condition is ungraded; under 8 readings is grade 0; an unchanged library reads no
 // ledger, and a changed ledger is graded again. variability_grader_test proves the grade.
 //
-// And Home's club and outcome scopes (club_scope.h, outcome_scope.h): the tabs reduce from the chosen shots, each
-// choice is stored in its own file and read back, and under an outcome each fault is set against the other shots.
+// And Home's club scope and shot filter (club_scope.h, outcome_scope.h): the tabs reduce from the chosen shots, each
+// choice is stored in its own file and read back, and under a filter (strike, direction, flight) each fault is set
+// against the other shots.
 //
 // The other sessions are LEDGERS ON DISK with empty swing folders beside them: the model loads the
 // rows, finds nothing to back-fill, and no swing document is ever read — the catch-up path for
@@ -860,13 +861,55 @@ static void checkTendencies(const QString &root)
           "the catch-up ends in tendencies.json");
     {
         const QVariantMap driver = tendencyItem(c, "DRIVER|full");
-        check(!driver.value(QStringLiteral("building")).toBool()
-                  && driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Slice")
-                  && driver.value(QStringLiteral("seenWithId")).toString() == QStringLiteral("over_the_top")
-                  && driver.value(QStringLiteral("shots")).toInt() == 24,
-              "the driver earned its tendency: two sessions of twelve shots, every one counted");
+        const QVariantMap dir = driver.value(QStringLiteral("direction")).toMap();
+        const QVariantMap strike = driver.value(QStringLiteral("strike")).toMap();
+        const QVariantMap flight = driver.value(QStringLiteral("flight")).toMap();
+        check(keysAre(driver, { QStringLiteral("key"), QStringLiteral("club"), QStringLiteral("clubLine"), QStringLiteral("clubGroup"),
+                                QStringLiteral("groupLabel"), QStringLiteral("distance"), QStringLiteral("length"),
+                                QStringLiteral("handedness"), QStringLiteral("sessions"), QStringLiteral("shots"),
+                                QStringLiteral("workOnText"), QStringLiteral("strike"), QStringLiteral("direction"),
+                                QStringLiteral("flight") })
+                  && keysAre(dir, { QStringLiteral("factor"), QStringLiteral("value"), QStringLiteral("label"), QStringLiteral("fault"),
+                                    QStringLiteral("building"), QStringLiteral("share"), QStringLiteral("frequency"),
+                                    QStringLiteral("sessions"), QStringLiteral("shots"), QStringLiteral("seenWith"),
+                                    QStringLiteral("seenWithId"), QStringLiteral("strength"), QStringLiteral("trend"),
+                                    QStringLiteral("trendWords"), QStringLiteral("workOn"), QStringLiteral("workOnText"),
+                                    QStringLiteral("mix") })
+                  && keysAre(strike, dir.keys()) && keysAre(flight, dir.keys()),
+              "a Tendencies row: the club and its three factors, each the same shape");
+        check(driver.value(QStringLiteral("shots")).toInt() == 24
+                  && dir.value(QStringLiteral("factor")).toString() == QStringLiteral("direction")
+                  && !dir.value(QStringLiteral("building")).toBool() && dir.value(QStringLiteral("fault")).toBool()
+                  && dir.value(QStringLiteral("value")).toString() == QStringLiteral("slice")
+                  && dir.value(QStringLiteral("label")).toString() == QStringLiteral("Slice")
+                  && dir.value(QStringLiteral("seenWithId")).toString() == QStringLiteral("over_the_top")
+                  && dir.value(QStringLiteral("shots")).toInt() == 24,
+              "the driver earned its direction: a slice, two sessions of twelve shots, every one counted");
+        check(strike.value(QStringLiteral("label")).toString() == QStringLiteral("Solid") && !strike.value(QStringLiteral("fault")).toBool()
+                  && strike.value(QStringLiteral("seenWithId")).toString().isEmpty() && strike.value(QStringLiteral("workOn")).toString().isEmpty(),
+              "its strike is the usual value, Solid, said plainly: no fault, nothing seen with it");
+        check(flight.value(QStringLiteral("label")).toString() == QStringLiteral("-") && flight.value(QStringLiteral("shots")).toInt() == 0
+                  && !flight.value(QStringLiteral("fault")).toBool(),
+              "its flight was never read (no landing angle, apex or launch): '-'");
+        {
+            const QVariantMap mix = dir.value(QStringLiteral("mix")).toMap();
+            const QVariantList parts = mix.value(QStringLiteral("parts")).toList();
+            check(parts.size() == 1 && parts[0].toMap().value(QStringLiteral("key")).toString() == QStringLiteral("slice")
+                      && parts[0].toMap().value(QStringLiteral("kind")).toString() == QStringLiteral("main")
+                      && parts[0].toMap().value(QStringLiteral("percent")).toInt() == 100
+                      && mix.value(QStringLiteral("line")).toString() == QStringLiteral("Slice 100%"),
+                  "the direction's mix: every shot a slice, the main part");
+        }
+        const QString dirStatus = dir.value(QStringLiteral("workOn")).toString();
+        check(dirStatus == item(c, "over_the_top").value(QStringLiteral("status")).toString()
+                  && driver.value(QStringLiteral("workOnText")).toString()
+                         == (dirStatus.isEmpty() ? QString() : dirStatus.left(1).toUpper() + dirStatus.mid(1))
+                  && dir.value(QStringLiteral("workOnText")).toString() == driver.value(QStringLiteral("workOnText")).toString(),
+              "the fault's work-on status, and the row says it in words");
+        std::printf("    (driver work-on: \"%s\")\n", qPrintable(driver.value(QStringLiteral("workOnText")).toString()));
         const QVariantMap iron = tendencyItem(c, "7 IRON|full");
-        check(iron.value(QStringLiteral("building")).toBool() && iron.value(QStringLiteral("sessions")).toInt() == 1,
+        check(iron.value(QStringLiteral("direction")).toMap().value(QStringLiteral("building")).toBool()
+                  && iron.value(QStringLiteral("sessions")).toInt() == 1,
               "one short iron session is still building");
         check(c.tendencyNote() == QStringLiteral("From 31 shots over 3 sessions"),
               "the evidence line counts what was counted");
@@ -874,10 +917,30 @@ static void checkTendencies(const QString &root)
                   && c.clubDistance(QStringLiteral("DRIVER")).value(QStringLiteral("n")).toInt() == 24,
               "the per-club distance is there, by the canonical club name");
         const QVariantMap detail = c.tendencyDetail(QStringLiteral("DRIVER|full"));
-        check(!detail.value(QStringLiteral("playTo")).toString().isEmpty()
-                  && detail.value(QStringLiteral("practiseConditionId")).toString() == QStringLiteral("over_the_top")
-                  && !detail.value(QStringLiteral("chain")).toList().isEmpty(),
-              "a tendency's detail: the chain, play-to and what to practise");
+        const QVariantMap dirDetail = detail.value(QStringLiteral("direction")).toMap();
+        check(keysAre(detail, { QStringLiteral("strike"), QStringLiteral("direction"), QStringLiteral("flight") })
+                  && keysAre(dirDetail, { QStringLiteral("chain"), QStringLiteral("alsoSeen"), QStringLiteral("earlyNote"),
+                                          QStringLiteral("playTo"), QStringLiteral("practiseConditionId") }),
+              "a tendency's detail: one block per factor");
+        check(!dirDetail.value(QStringLiteral("playTo")).toString().isEmpty()
+                  && dirDetail.value(QStringLiteral("practiseConditionId")).toString() == QStringLiteral("over_the_top")
+                  && !dirDetail.value(QStringLiteral("chain")).toList().isEmpty()
+                  && !dirDetail.value(QStringLiteral("chain")).toList().first().toMap().value(QStringLiteral("text")).toString().isEmpty(),
+              "the direction's: the chain, play-to and what to practise");
+        check(detail.value(QStringLiteral("strike")).toMap().isEmpty() && detail.value(QStringLiteral("flight")).toMap().isEmpty(),
+              "a factor with nothing to say (Solid; never read) is empty");
+        check(c.tendencyDetail(QStringLiteral("PUTTER|full")).isEmpty(), "no such row: nothing");
+        const QVariantMap ironDetail = c.tendencyDetail(QStringLiteral("7 IRON|full")).value(QStringLiteral("direction")).toMap();
+        check(ironDetail.value(QStringLiteral("earlyNote")).toString().startsWith(QStringLiteral("Early days"))
+                  && ironDetail.value(QStringLiteral("playTo")).toString().isEmpty(),
+              "a building fault's block says it is early, and no play-to yet");
+        // On the ball names the row and the factor its fault is.
+        const QVariantMap onBall = c.faultDetail(QStringLiteral("over_the_top")).value(QStringLiteral("onBall")).toMap();
+        check(onBall.value(QStringLiteral("tendencyKey")).toString() == QStringLiteral("DRIVER|full")
+                  && onBall.value(QStringLiteral("factor")).toString() == QStringLiteral("direction")
+                  && onBall.value(QStringLiteral("value")).toString() == QStringLiteral("slice")
+                  && onBall.value(QStringLiteral("tendencyText")).toString() == QStringLiteral("Feeds your “Driver: slice” tendency"),
+              "over the top's On the ball: keyed on the driver row's direction fault");
     }
 
     // ── Intended shapes leave the tally; the correction re-reduces ──
@@ -905,10 +968,17 @@ static void checkTendencies(const QString &root)
         c.refresh();
         check(c.tendencyJobs() == jobs + 1, "a changed ledger re-reduces the tendencies");
         const QVariantMap driver = tendencyItem(c, "DRIVER|full");
-        check(driver.value(QStringLiteral("shots")).toInt() == 23 && !driver.value(QStringLiteral("building")).toBool(),
-              "the intended shape is excluded from the tally, the tendency still earned");
-        check(driver.value(QStringLiteral("miss")).toString() == QStringLiteral("Hook"),
-              "a correction changes the usual miss without re-deriving a session");
+        const QVariantMap dirF = driver.value(QStringLiteral("direction")).toMap();
+        std::printf("    (after the fade and the corrections: %d shots, direction %s %s, mix \"%s\")\n",
+                    driver.value(QStringLiteral("shots")).toInt(), qPrintable(dirF.value(QStringLiteral("value")).toString()),
+                    qPrintable(dirF.value(QStringLiteral("frequency")).toString()),
+                    qPrintable(dirF.value(QStringLiteral("mix")).toMap().value(QStringLiteral("line")).toString()));
+        check(driver.value(QStringLiteral("shots")).toInt() == 24 && !dirF.value(QStringLiteral("building")).toBool(),
+              "an intended shape no longer leaves the row (a shot is judged on what the ball did); the tendency still earned");
+        check(dirF.value(QStringLiteral("mix")).toMap().value(QStringLiteral("line")).toString() == QStringLiteral("Hook 50% · Slice 50%"),
+              "the direction's mix: the corrected session's hooks beside the first session's slices");
+        check(dirF.value(QStringLiteral("label")).toString() == QStringLiteral("Hook"),
+              "a correction changes the direction's usual without re-deriving a session");
     }
 
     // ── Cancelled while a session is live; the pause lifting computes it ──
@@ -1064,12 +1134,13 @@ static void checkClubScope(const QString &root)
     }
 }
 
-// ── The outcome scope (outcome_scope.h): Coaching, Your swing and Matchups on the shots that did one thing ──
+// ── The shot filter (outcome_scope.h): Coaching, Your swing and Matchups on the shots that did one thing ──
 
-// One shot of a session: whether it sliced, and whether over_the_top fired. early_extension fires on every shot,
-// so it is no more common on any choice than on the rest. A shot whose swing was not measured (a launch-monitor-only
-// shot) has its fault rows NotAssessable; its ball row still judges it.
-struct OutcomeShot { bool slice; bool overTheTop; bool measured = true; };
+// One shot of a session: whether it sliced, whether over_the_top fired, whether the swing was measured, and whether
+// it came off the toe. early_extension fires on every shot, so it is no more common on any choice than on the rest.
+// A shot whose swing was not measured (a launch-monitor-only shot) has its fault rows NotAssessable; its ball rows
+// (the slice, the toe) still judge it.
+struct OutcomeShot { bool slice; bool overTheTop; bool measured = true; bool toe = false; };
 
 static void stageOutcomeSession(const QString &athleteDir, const QString &session, qint64 t0, const QString &club,
                                 const std::vector<OutcomeShot> &plan)
@@ -1090,15 +1161,17 @@ static void stageOutcomeSession(const QString &athleteDir, const QString &sessio
         s.lmClubSpeed = 100.0;
         s.smash = 1.45;
         s.swingLength = QStringLiteral("full");
+        const OutcomeShot &p = plan[size_t(i)];
         const std::pair<const char *, bool> rows[] = {
-            { "slice", plan[size_t(i)].slice }, { "over_the_top", plan[size_t(i)].overTheTop }, { "early_extension", true },
+            { "slice", p.slice }, { "strike_toe", p.toe }, { "over_the_top", p.overTheTop }, { "early_extension", true },
         };
         for (const auto &[id, fired] : rows) {
             ConditionRow r;
             r.conditionId = QString::fromLatin1(id);
             r.drivingMeasureId = QStringLiteral("m_handPathLoop");
             r.state = fired ? ShotState::Fired : ShotState::Clean;
-            if (!plan[size_t(i)].measured && qstrcmp(id, "slice") != 0) {
+            const bool ballRow = qstrcmp(id, "slice") == 0 || qstrcmp(id, "strike_toe") == 0;
+            if (!p.measured && !ballRow) {
                 r.state = ShotState::NotAssessable;
                 s.rows.push_back(r);
                 continue;
@@ -1155,17 +1228,55 @@ static QString storedFingerprint(const QString &path)
         .value(QStringLiteral("fingerprint")).toString();
 }
 
-static void checkOutcomeScope(const QString &root)
+// One factor's options as one line, "any Any 38 · solid Solid 32 · strike_toe Toe 6", so a failure prints what it saw.
+static QString optionLine(const WorkOnsController &c, const char *factor)
 {
-    std::printf("\noutcome scope\n");
+    QStringList parts;
+    for (const QVariant &v : c.shotFilterOptions().value(QString::fromLatin1(factor)).toList()) {
+        const QVariantMap m = v.toMap();
+        parts << QStringLiteral("%1 %2 %3").arg(m.value(QStringLiteral("value")).toString(), m.value(QStringLiteral("label")).toString(),
+                                               QString::number(m.value(QStringLiteral("count")).toInt()));
+    }
+    return parts.join(QStringLiteral(" · "));
+}
+
+static bool optionsAre(const WorkOnsController &c, const char *strike, const char *direction, const char *flight)
+{
+    const bool ok = optionLine(c, "strike") == QString::fromUtf8(strike) && optionLine(c, "direction") == QString::fromUtf8(direction)
+                 && optionLine(c, "flight") == QString::fromUtf8(flight) && c.shotFilterOptions().size() == 3;
+    if (!ok)
+        std::printf("    options: strike [%s] direction [%s] flight [%s]\n", qPrintable(optionLine(c, "strike")),
+                    qPrintable(optionLine(c, "direction")), qPrintable(optionLine(c, "flight")));
+    return ok;
+}
+
+static bool lineIs(const WorkOnsController &c, const QString &want)
+{
+    if (c.shotFilterLine() == want) return true;
+    std::printf("    line: \"%s\"\n", qPrintable(c.shotFilterLine()));
+    return false;
+}
+
+static bool contrastIs(const WorkOnsController &c, const char *id, const QString &want)
+{
+    const QString have = c.faultDetail(QString::fromLatin1(id)).value(QStringLiteral("outcomeContrast")).toString();
+    if (have == want) return true;
+    std::printf("    %s contrast: \"%s\"\n", id, qPrintable(have));
+    return false;
+}
+
+static void checkShotFilter(const QString &root)
+{
+    std::printf("\nshot filter\n");
     const qint64 day = 86'400'000LL, t0 = 1'784'000'000'000LL;
     const QString golfer = root + QStringLiteral("/outcome");
     QDir().mkpath(golfer);
-    // Two driver sessions of 14: nine slices with over_the_top each, five good shots (one of them with
-    // over_the_top too, in the second); then ten good shots with a 7 iron. 18 slices, 20 good shots.
+    // Two driver sessions of 14: nine slices with over_the_top each, three of them off the toe, and five straight
+    // shots (one of them with over_the_top too, in the second); then ten straight 7 iron shots. 18 slices, 20
+    // straight; 6 toe strikes, 32 solid; no flight read (no landing angle, apex or launch).
     std::vector<OutcomeShot> first, second, iron;
-    for (int i = 0; i < 14; ++i) first.push_back({ i < 9, i < 9 });
-    for (int i = 0; i < 14; ++i) second.push_back({ i < 9, i < 9 || i == 9 });
+    for (int i = 0; i < 14; ++i) first.push_back({ i < 9, i < 9, true, i < 3 });
+    for (int i = 0; i < 14; ++i) second.push_back({ i < 9, i < 9 || i == 9, true, i < 3 });
     for (int i = 0; i < 10; ++i) iron.push_back({ false, false });
     stageOutcomeSession(golfer, QStringLiteral("2026-08-01_M_01"), t0, QStringLiteral("DRIVER"), first);
     stageOutcomeSession(golfer, QStringLiteral("2026-08-02_M_01"), t0 + day, QStringLiteral("DRIVER"), second);
@@ -1173,23 +1284,17 @@ static void checkOutcomeScope(const QString &root)
 
     WorkOnsController c;
     c.setSynchronous(true);
+    check(optionsAre(c, "any Any 0", "any Any 0", "any Any 0"), "before any tendencies: each factor's list is Any alone");
     c.setAthleteDir(golfer);
     check(c.waitForIdle() && c.tendenciesReady(), "the catch-up settles, the tendencies with it");
-    check(c.outcomeScope() == QStringLiteral("all") && c.outcomeScopeLine().isEmpty()
+    check(c.shotFilter() == QStringLiteral("all") && c.shotFilterLine().isEmpty()
               && c.summarySubtitle() == QStringLiteral("From 38 swings over 3 sessions"), "every shot to begin with, and no line");
     check(c.outcomeTooFewNote().isEmpty(), "under All there is no too-few-measured note");
 
-    // The choices: Good first, then each miss by its count; no All (QML adds it).
-    {
-        const QVariantList o = c.outcomeScopes();
-        const auto at = [&o](int i, const char *key) { return o.value(i).toMap().value(QString::fromLatin1(key)); };
-        check(o.size() == 2 && at(0, "value").toString() == QStringLiteral("good") && at(0, "label").toString() == QStringLiteral("Good shots")
-                  && at(0, "count").toInt() == 20,
-              "Good shots first, with its count");
-        check(at(1, "value").toString() == QStringLiteral("miss:slice") && at(1, "label").toString() == QStringLiteral("Slice")
-                  && at(1, "count").toInt() == 18,
-              "then the slice, by its short label and count");
-    }
+    // The options: Any first, then each value the shots show, in the table's order, each counted.
+    check(optionsAre(c, "any Any 38 · solid Solid 32 · strike_toe Toe 6", "any Any 38 · straight Straight 20 · slice Slice 18",
+                     "any Any 38"),
+          "each factor: Any first, then its values in the table's order with their counts; a factor never read has Any alone");
 
     for (const QVariant &v : faultItems(c))
         check(v.toMap().value(QStringLiteral("outcomeContrast")).toString().isEmpty(), "under All a fault item says no contrast");
@@ -1204,20 +1309,20 @@ static void checkOutcomeScope(const QString &root)
     int itemsSignals = 0;
     QObject::connect(&c, &WorkOnsController::itemsChanged, [&itemsSignals] { ++itemsSignals; });
 
-    // ── One miss ──
+    // ── One direction ──
+    const QString slice = QStringLiteral("strike:any|direction:slice|flight:any");
     const int revision = c.detailsRevision();
-    c.setOutcomeScope(QStringLiteral("miss:slice"));
-    check(c.waitForIdle() && c.outcomeScope() == QStringLiteral("miss:slice") && !c.clubScopeRefreshing() && !c.matchupsRefreshing()
-              && !c.clubScopeWorking(), "a miss settles, and the screens have caught up with it");
+    c.setShotFilter(QStringLiteral("direction:slice"));
+    check(c.waitForIdle() && c.shotFilter() == slice && !c.clubScopeRefreshing() && !c.matchupsRefreshing()
+              && !c.clubScopeWorking(), "a direction settles, read back in full, and the screens have caught up with it");
     check(c.clubScope() == QStringLiteral("all"), "the club choice is left as it was");
     check(c.summarySubtitle() == QStringLiteral("From 18 swings over 2 sessions"), "the summary reads only the slices");
     check(c.detailsRevision() > revision, "the landing moves detailsRevision, so an open fault reads its contrast again");
-    const QString ottSlice = QStringLiteral("On your slice shots 18 of 18 · other shots 1 of 20");
-    const QString eeSlice  = QStringLiteral("On your slice shots 18 of 18 · other shots 20 of 20 — just as often on your other shots");
-    check(c.faultDetail(QStringLiteral("over_the_top")).value(QStringLiteral("outcomeContrast")).toString() == ottSlice,
-          "over the top's detail: on nearly every slice, hardly ever on the rest, and the counts say it alone");
-    check(c.faultDetail(QStringLiteral("early_extension")).value(QStringLiteral("outcomeContrast")).toString() == eeSlice,
-          "early extension's: on every shot, so it says just as often on the others");
+    const QString ottSlice = QStringLiteral("On your sliced shots 18 of 18 · other shots 1 of 20");
+    const QString eeSlice  = QStringLiteral("On your sliced shots 18 of 18 · other shots 20 of 20 — just as often on your other shots");
+    check(contrastIs(c, "over_the_top", ottSlice),
+          "over the top's detail: on every slice, hardly ever on the rest, and the counts say it alone");
+    check(contrastIs(c, "early_extension", eeSlice), "early extension's: on every shot, so it says just as often on the others");
     {
         bool any = false, right = true;
         for (const QVariant &v : faultItems(c)) {
@@ -1233,17 +1338,20 @@ static void checkOutcomeScope(const QString &root)
                   && c.focusItem().value(QStringLiteral("outcomeContrast")).toString() == itemContrast(c, focusId.toLatin1().constData()),
               "and the focus says its first fault's");
     }
-    check(c.outcomeScopeLine() == QStringLiteral("Your slice shots: 18 shots over 2 sessions, against 20 other shots. Your swing was measured on all of them."),
+    check(lineIs(c, QStringLiteral("Your sliced shots: 18 over 2 sessions, against 20 others. Your swing was measured on all of them.")),
           "the line says what the choice covers, and that the swing was measured on every one of them");
     check(c.outcomeTooFewNote().isEmpty(), "18 measured shots are enough: no too-few-measured note");
-    const QString sliceFile = WorkOnsController::themesPath(golfer, ClubScope(), outcomeScopeFromKey(QStringLiteral("miss:slice")));
+    check(optionsAre(c, "any Any 18 · solid Solid 12 · strike_toe Toe 6", "any Any 38 · straight Straight 20 · slice Slice 18",
+                     "any Any 18"),
+          "the other factors' counts are the slices'; the direction's own list keeps the others' choices (Any) and so counts every shot");
+    const QString sliceFile = WorkOnsController::themesPath(golfer, ClubScope(), shotFilterFromKey(QStringLiteral("direction:slice")));
     {
         QFile f(sliceFile);
         const QJsonObject stored = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
         const QJsonObject o = stored.value(QStringLiteral("outcome")).toObject();
-        check(sliceFile.endsWith(QStringLiteral("swing_themes.all.miss_slice.json")) && !stored.isEmpty(),
+        check(sliceFile.endsWith(QStringLiteral("swing_themes.all.strike_any_direction_slice_flight_any.json")) && !stored.isEmpty(),
               "the choice is stored in a file of its own, beside the summary");
-        check(o.value(QStringLiteral("key")).toString() == QStringLiteral("miss:slice") && o.value(QStringLiteral("chosen")).toInt() == 18
+        check(o.value(QStringLiteral("key")).toString() == slice && o.value(QStringLiteral("chosen")).toInt() == 18
                   && o.value(QStringLiteral("sessions")).toInt() == 2 && o.value(QStringLiteral("others")).toInt() == 20
                   && o.value(QStringLiteral("measured")).toInt() == 18 && o.value(QStringLiteral("rule")).toInt() == kOutcomeScopeRuleVersion
                   && countsAre(o.value(QStringLiteral("contrasts")).toObject().value(QStringLiteral("over_the_top")).toArray(), { 18, 18, 1, 20 })
@@ -1253,63 +1361,81 @@ static void checkOutcomeScope(const QString &root)
     check(itemsSignals == 0 && c.items() == itemsBefore && c.lastSession() == lastBefore, "the work-on list and the last session stay every shot's");
     check(c.tendencyItems() == tendenciesBefore, "and so does the Tendencies tab");
 
-    // ── Good ──
-    c.setOutcomeScope(QStringLiteral("good"));
-    check(c.waitForIdle() && c.outcomeScope() == QStringLiteral("good") && c.summarySubtitle() == QStringLiteral("From 20 swings over 3 sessions"),
-          "good reads only the clean shots");
-    check(c.faultDetail(QStringLiteral("over_the_top")).value(QStringLiteral("outcomeContrast")).toString()
-              == QStringLiteral("On your good shots 1 of 20 · other shots 18 of 18 — less often than on your other shots"),
-          "a fault rarer on the good shots says so");
-    check(itemContrast(c, "early_extension")
-              == QStringLiteral("On your good shots 20 of 20 · other shots 18 of 18 — just as often on your other shots"),
-          "and one on every shot is just as often, on its fault item too");
-    check(c.outcomeScopeLine() == QStringLiteral("Your good shots: 20 shots over 3 sessions, against 18 other shots. Your swing was measured on all of them."), "good's line");
+    // ── Two factors at once: a shot must match both ──
+    const QString toeSlice = QStringLiteral("strike:strike_toe|direction:slice|flight:any");
+    c.setShotFilter(toeSlice);
+    check(c.waitForIdle() && c.shotFilter() == toeSlice && c.summarySubtitle() == QStringLiteral("From 6 swings over 2 sessions"),
+          "toe AND slice: only the sliced shots off the toe");
+    check(lineIs(c, QStringLiteral("Your sliced, toe shots: 6 over 2 sessions, against 32 others. Your swing was measured on all of them.")),
+          "the line names both, direction first");
+    check(contrastIs(c, "over_the_top", QStringLiteral("On your sliced, toe shots 6 of 6 · other shots 13 of 32")),
+          "the contrast is against every other judged shot, its words the filter's");
+    check(optionsAre(c, "any Any 18 · solid Solid 12 · strike_toe Toe 6", "any Any 6 · straight Straight 0 · slice Slice 6", "any Any 6"),
+          "each list keeps the other choices: under the toe, a straight shot leaves none and is still listed with 0");
+    check(c.outcomeTooFewNote() == QStringLiteral("Too few of these shots had your swing measured to say what comes with them yet."),
+          "six measured shots are under the floor of eight: the note says so");
 
-    // ── The outcome within a club choice ──
-    c.setOutcomeScope(QStringLiteral("miss:slice"));
+    // ── A part naming no option reads back Any; the request is kept ──
+    c.setShotFilter(QStringLiteral("strike:thin|direction:slice|flight:sky"));
+    check(c.waitForIdle() && c.shotFilter() == slice && c.summarySubtitle() == QStringLiteral("From 18 swings over 2 sessions"),
+          "no thin and no sky among these shots: those parts read any, the slice stands");
+    check(lineIs(c, QStringLiteral("Your sliced shots: 18 over 2 sessions, against 20 others. Your swing was measured on all of them.")),
+          "and the line is the slice's");
+
+    // ── Within a club choice ──
+    c.setShotFilter(toeSlice);
     c.setClubScope(QStringLiteral("group:driver"));
-    check(c.waitForIdle() && c.clubScope() == QStringLiteral("group:driver") && c.outcomeScope() == QStringLiteral("miss:slice"),
-          "a club choice and a miss together");
-    check(c.outcomeScopeLine() == QStringLiteral("Your slice shots with driver: 18 shots over 2 sessions, against 10 other shots. Your swing was measured on all of them."),
+    check(c.waitForIdle() && c.clubScope() == QStringLiteral("group:driver") && c.shotFilter() == toeSlice,
+          "a club choice and a filter together");
+    check(lineIs(c, QStringLiteral("Your sliced, toe driver shots: 6 over 2 sessions, against 22 others. Your swing was measured on all of them.")),
           "the line names the club choice, and the other shots are that choice's");
-    check(c.faultDetail(QStringLiteral("over_the_top")).value(QStringLiteral("outcomeContrast")).toString()
-              == QStringLiteral("On your slice shots 18 of 18 · other shots 1 of 10"),
+    check(contrastIs(c, "over_the_top", QStringLiteral("On your sliced, toe shots 6 of 6 · other shots 13 of 22")),
           "the contrast is against the club choice's other shots");
-    {
-        const QVariantList o = c.outcomeScopes();
-        check(o.size() == 2 && o[0].toMap().value(QStringLiteral("count")).toInt() == 10 && o[1].toMap().value(QStringLiteral("count")).toInt() == 18,
-              "the choices count the club choice's shots");
-    }
+    check(optionsAre(c, "any Any 18 · solid Solid 12 · strike_toe Toe 6", "any Any 6 · straight Straight 0 · slice Slice 6", "any Any 6"),
+          "the options count the club choice's shots");
 
-    // A miss the club choice has never had: All, with the request kept.
+    // A filter the club choice has never had: All, with the request kept, part by part.
     c.setClubScope(QStringLiteral("club:7 IRON"));
-    check(c.waitForIdle() && c.outcomeScope() == QStringLiteral("all") && c.outcomeScopeLine().isEmpty()
+    check(c.waitForIdle() && c.shotFilter() == QStringLiteral("all") && c.shotFilterLine().isEmpty()
               && c.summarySubtitle() == QStringLiteral("From 10 swings over 1 session"),
-          "a 7 iron never sliced here: the outcome reads all, and the summary is every 7 iron shot");
-    check(c.outcomeScopes().size() == 1 && c.outcomeScopes()[0].toMap().value(QStringLiteral("value")).toString() == QStringLiteral("good"),
-          "its only choice is its good shots");
+          "a 7 iron never sliced nor came off the toe here: the filter reads all, and the summary is every 7 iron shot");
+    check(optionsAre(c, "any Any 10 · solid Solid 10", "any Any 10 · straight Straight 10", "any Any 10"),
+          "its options are its own shots' values");
     {
         bool none = true;
         for (const QVariant &v : faultItems(c)) none = none && v.toMap().value(QStringLiteral("outcomeContrast")).toString().isEmpty();
         check(none && c.focusItem().value(QStringLiteral("outcomeContrast")).toString().isEmpty(), "and no fault says a contrast");
     }
+    c.setClubScope(QStringLiteral("group:driver"));
+    check(c.waitForIdle() && c.shotFilter() == toeSlice && c.summarySubtitle() == QStringLiteral("From 6 swings over 2 sessions"),
+          "both parts come back with the club choice that has them");
+
+    // The club's words: an iron group's hyphenated, one club its own name; one session and no others in the singular.
+    c.setShotFilter(QStringLiteral("direction:straight"));
+    c.setClubScope(QStringLiteral("group:mid_irons"));
+    check(c.waitForIdle() && lineIs(c, QStringLiteral("Your straight mid-iron shots: 10 over 1 session, and no others. Your swing was measured on all of them.")),
+          "a group's words, one session, and no other shots to set them against");
+    c.setClubScope(QStringLiteral("club:7 IRON"));
+    check(c.waitForIdle() && lineIs(c, QStringLiteral("Your straight 7 iron shots: 10 over 1 session, and no others. Your swing was measured on all of them.")),
+          "one club's words");
     c.setClubScope(QStringLiteral("all"));
-    check(c.waitForIdle() && c.outcomeScope() == QStringLiteral("miss:slice") && c.summarySubtitle() == QStringLiteral("From 18 swings over 2 sessions"),
-          "the slice comes back with the club choice that has it");
+    c.setShotFilter(slice);
+    check(c.waitForIdle() && c.shotFilter() == slice && c.summarySubtitle() == QStringLiteral("From 18 swings over 2 sessions"),
+          "back to every club's slices");
 
     // ── Back to All × All: today's file and fingerprint, untouched ──
-    c.setOutcomeScope(QStringLiteral("all"));
-    check(c.waitForIdle() && c.outcomeScope() == QStringLiteral("all") && c.outcomeScopeLine().isEmpty()
+    c.setShotFilter(QStringLiteral("all"));
+    check(c.waitForIdle() && c.shotFilter() == QStringLiteral("all") && c.shotFilterLine().isEmpty()
               && c.summarySubtitle() == QStringLiteral("From 38 swings over 3 sessions") && c.items() == itemsBefore,
           "back to every shot");
     check(storedFingerprint(allFile) == allPrint && QFileInfo(allFile).lastModified() == allStamp,
           "All × All is the same file under the same fingerprint, never rewritten");
-    check(WorkOnsController::themesPath(golfer, ClubScope(), OutcomeScope()) == allFile
+    check(WorkOnsController::themesPath(golfer, ClubScope(), ShotFilter()) == allFile
               && WorkOnsController::themesPath(golfer, resolveClubScope(QStringLiteral("group:driver"),
                                                                       clubScopeOptions({ "DRIVER" }, [](const QString &) { return QStringLiteral("driver"); })),
-                                               OutcomeScope())
+                                               ShotFilter())
                      .endsWith(QStringLiteral("swing_themes.group_driver.json")),
-          "an outcome of All keeps the club choice's own file");
+          "a filter of All keeps the club choice's own file");
 
     // ── A second look reads the stored choice, with its contrast, and reduces nothing ──
     {
@@ -1317,22 +1443,22 @@ static void checkOutcomeScope(const QString &root)
         QThread::msleep(25);
         WorkOnsController again;
         again.setSynchronous(true);
-        again.setOutcomeScope(QStringLiteral("miss:slice"));
-        check(again.outcomeScope() == QStringLiteral("all"), "asked before there are choices: all for now");
+        again.setShotFilter(QStringLiteral("direction:slice"));
+        check(again.shotFilter() == QStringLiteral("all"), "asked before there are options: all for now");
         again.setAthleteDir(golfer);
-        check(again.waitForIdle() && again.outcomeScope() == QStringLiteral("miss:slice")
+        check(again.waitForIdle() && again.shotFilter() == slice
                   && again.summarySubtitle() == QStringLiteral("From 18 swings over 2 sessions"),
               "the request resolves once the tendencies are in hand");
         check(QFileInfo(sliceFile).lastModified() == stamp, "…from the stored file, with nothing reduced");
-        check(again.faultDetail(QStringLiteral("over_the_top")).value(QStringLiteral("outcomeContrast")).toString() == ottSlice
-                  && again.outcomeScopeLine() == QStringLiteral("Your slice shots: 18 shots over 2 sessions, against 20 other shots. Your swing was measured on all of them."),
+        check(contrastIs(again, "over_the_top", ottSlice)
+                  && lineIs(again, QStringLiteral("Your sliced shots: 18 over 2 sessions, against 20 others. Your swing was measured on all of them.")),
               "the contrast and the line come back from it exactly");
     }
 
     // ── A correction, which only touches the ledger, moves the choice's fingerprint ──
     {
         const QString before = storedFingerprint(sliceFile);
-        c.setOutcomeScope(QStringLiteral("miss:slice"));
+        c.setShotFilter(QStringLiteral("direction:slice"));
         check(c.waitForIdle() && storedFingerprint(sliceFile) == before, "the slice again, from its stored file");
         QThread::msleep(25);    // a new mtime, whatever the file system's resolution
         const QString path = QDir(golfer).filePath(QStringLiteral("2026-08-02_M_01")) + QStringLiteral("/diagnostics.json");
@@ -1353,13 +1479,11 @@ static void checkOutcomeScope(const QString &root)
         check(c.waitForIdle() && !storedFingerprint(sliceFile).isEmpty() && storedFingerprint(sliceFile) != before,
               "a correction moves the fingerprint, and the choice is reduced again");
         check(c.summarySubtitle() == QStringLiteral("From 17 swings over 2 sessions")
-                  && c.outcomeScopeLine() == QStringLiteral("Your slice shots: 17 shots over 2 sessions, against 21 other shots. Your swing was measured on all of them."),
+                  && lineIs(c, QStringLiteral("Your sliced shots: 17 over 2 sessions, against 21 others. Your swing was measured on all of them.")),
               "the corrected shot has left the slices");
-        bool hook = false;
-        for (const QVariant &v : c.outcomeScopes())
-            hook = hook || (v.toMap().value(QStringLiteral("value")).toString() == QStringLiteral("miss:hook")
-                            && v.toMap().value(QStringLiteral("count")).toInt() == 1);
-        check(hook, "and is a choice of its own, as a hook");
+        check(optionsAre(c, "any Any 17 · solid Solid 12 · strike_toe Toe 5", "any Any 38 · straight Straight 20 · slice Slice 17 · hook Hook 1",
+                         "any Any 17"),
+              "and is a direction of its own, as a hook, after the slice in the table's order");
         check(storedFingerprint(allFile) == allPrint, "All × All's fingerprint does not follow a correction");
     }
 
@@ -1368,7 +1492,7 @@ static void checkOutcomeScope(const QString &root)
         const QString lmOnly = root + QStringLiteral("/outcomeMeasured");
         QDir().mkpath(lmOnly);
         // One driver session of 20: ten slices with over_the_top, the swing measured on only the first three;
-        // ten good shots, the swing measured on none of them.
+        // ten straight shots, the swing measured on none of them.
         std::vector<OutcomeShot> plan;
         for (int i = 0; i < 20; ++i) plan.push_back({ i < 10, i < 10, i < 3 });
         stageOutcomeSession(lmOnly, QStringLiteral("2026-08-05_M_01"), t0 + 4 * day, QStringLiteral("DRIVER"), plan);
@@ -1376,18 +1500,17 @@ static void checkOutcomeScope(const QString &root)
         WorkOnsController m;
         m.setSynchronous(true);
         m.setAthleteDir(lmOnly);
-        check(m.waitForIdle() && m.tendenciesReady() && m.outcomeTooFewNote().isEmpty() && m.outcomeScopeLine().isEmpty(),
+        check(m.waitForIdle() && m.tendenciesReady() && m.outcomeTooFewNote().isEmpty() && m.shotFilterLine().isEmpty(),
               "under All: no line, and no too-few-measured note");
 
         const QString tooFew = QStringLiteral("Too few of these shots had your swing measured to say what comes with them yet.");
-        m.setOutcomeScope(QStringLiteral("miss:slice"));
-        check(m.waitForIdle() && m.outcomeScope() == QStringLiteral("miss:slice")
-                  && m.outcomeScopeLine() == QStringLiteral("Your slice shots: 10 shots over 1 session, against 10 other shots. "
-                                                            "Your swing was measured on 3 of them."),
+        m.setShotFilter(QStringLiteral("direction:slice"));
+        check(m.waitForIdle() && m.shotFilter() == slice
+                  && lineIs(m, QStringLiteral("Your sliced shots: 10 over 1 session, against 10 others. Your swing was measured on 3 of them.")),
               "the line says on how many of the chosen shots the swing was measured");
         check(m.outcomeTooFewNote() == tooFew, "three measured shots are under the floor of eight: the note says so");
         {
-            QFile f(WorkOnsController::themesPath(lmOnly, ClubScope(), outcomeScopeFromKey(QStringLiteral("miss:slice"))));
+            QFile f(WorkOnsController::themesPath(lmOnly, ClubScope(), shotFilterFromKey(QStringLiteral("direction:slice"))));
             const QJsonObject o = f.open(QIODevice::ReadOnly)
                                       ? QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("outcome")).toObject()
                                       : QJsonObject();
@@ -1395,10 +1518,9 @@ static void checkOutcomeScope(const QString &root)
                   "the stored block counts the measured shots beside the chosen ones");
         }
 
-        m.setOutcomeScope(QStringLiteral("good"));
-        check(m.waitForIdle() && m.outcomeScope() == QStringLiteral("good")
-                  && m.outcomeScopeLine() == QStringLiteral("Your good shots: 10 shots over 1 session, against 10 other shots. "
-                                                            "Your swing was not measured on any of them."),
+        m.setShotFilter(QStringLiteral("direction:straight"));
+        check(m.waitForIdle() && m.shotFilter() == QStringLiteral("strike:any|direction:straight|flight:any")
+                  && lineIs(m, QStringLiteral("Your straight shots: 10 over 1 session, against 10 others. Your swing was not measured on any of them.")),
               "a choice the swing was measured on none of says so");
         check(m.outcomeTooFewNote() == tooFew, "and carries the note");
 
@@ -1406,16 +1528,16 @@ static void checkOutcomeScope(const QString &root)
         {
             WorkOnsController again;
             again.setSynchronous(true);
-            again.setOutcomeScope(QStringLiteral("miss:slice"));
+            again.setShotFilter(QStringLiteral("direction:slice"));
             again.setAthleteDir(lmOnly);
-            check(again.waitForIdle() && again.outcomeScope() == QStringLiteral("miss:slice")
-                      && again.outcomeScopeLine().endsWith(QStringLiteral("Your swing was measured on 3 of them."))
+            check(again.waitForIdle() && again.shotFilter() == slice
+                      && again.shotFilterLine().endsWith(QStringLiteral("Your swing was measured on 3 of them."))
                       && again.outcomeTooFewNote() == tooFew,
                   "the measured count and the note come back from the stored file");
         }
 
-        m.setOutcomeScope(QStringLiteral("all"));
-        check(m.waitForIdle() && m.outcomeTooFewNote().isEmpty() && m.outcomeScopeLine().isEmpty(), "back to All: the note goes");
+        m.setShotFilter(QStringLiteral("all"));
+        check(m.waitForIdle() && m.outcomeTooFewNote().isEmpty() && m.shotFilterLine().isEmpty(), "back to All: the note goes");
     }
 }
 
@@ -1861,7 +1983,7 @@ int main(int argc, char **argv)
     checkConsistencyMarks(tmp.path());
     checkTendencies(tmp.path());
     checkClubScope(tmp.path());
-    checkOutcomeScope(tmp.path());
+    checkShotFilter(tmp.path());
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

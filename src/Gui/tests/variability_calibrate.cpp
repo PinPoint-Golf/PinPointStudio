@@ -999,6 +999,7 @@ int main(int argc, char **argv)
     }
     defaultEnv("PINPOINT_CORE_PACK", "core.json");
     defaultEnv("PINPOINT_CORE_NORMS", "norms.json");
+    defaultEnv("PINPOINT_CORE_FLIGHT_NORMS", "flight_norms.json");
     defaultEnv("PINPOINT_CORE_CONTEXTS", "contexts.json");
 
     const QDir root(QString::fromLocal8Bit(argv[1]));

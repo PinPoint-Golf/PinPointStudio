@@ -1048,6 +1048,7 @@ qt_add_resources(PinPointStudio "app_diagnostics"
     FILES
         src/Resources/diagnostics/core.json
         src/Resources/diagnostics/norms.json
+        src/Resources/diagnostics/flight_norms.json
         src/Resources/diagnostics/contexts.json
         src/Resources/diagnostics/screens.json
         src/Resources/diagnostics/drills.json
@@ -3398,6 +3399,7 @@ if(PINPOINT_BUILD_TOOLS)
             FILES
                 src/Resources/diagnostics/core.json
                 src/Resources/diagnostics/norms.json
+                src/Resources/diagnostics/flight_norms.json
                 src/Resources/diagnostics/contexts.json
                 src/Resources/diagnostics/screens.json
                 src/Resources/diagnostics/drills.json

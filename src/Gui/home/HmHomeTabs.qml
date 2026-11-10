@@ -21,32 +21,29 @@
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
 //   Your swing   HmSwingAreas — how the whole swing stands, area by area
-//   Tendencies   HmTendencies — the usual miss with each club, cross-session
+//   Tendencies   HmTendencies — each club's usual strike, direction and flight, cross-session
 //   Matchups     HmGoesTogether — what travels together: today faults that move together; later
 //                also pairs that work together (Mark, 28 Oct)
 //
-// One club filter (HmClubScopeFilter) sits above the tabs: All, a group or one club, remembered per athlete.
-// It is the controller's scope (workOns.clubScope), so Coaching, Your swing and Matchups read the same properties
-// whichever is chosen, and dim while a new choice is worked out. Tendencies lists a row per club already, so it
-// shows only the top row and narrows to the group, the chosen club's group when a club is chosen.
-//
-// A second filter (HmOutcomeScopeFilter) sits under it, by how the shot came off: All shots, Good shots or one miss,
-// remembered per athlete. It is the controller's outcome scope (workOns.outcomeScope), choices for the current club
-// choice (workOns.outcomeScopes), so Coaching, Your swing and Matchups read the chosen shots and dim the same way. Under
-// it, the shots it reads in words (workOns.outcomeScopeLine), empty under All shots. It shows only on those three tabs,
-// and only when the controller knows of a choice; Tendencies ignores it.
+// One filter line (HmShotFilter) sits above the tabs: Club (All, a group or one club), Strike, Direction and Flight,
+// each a quiet picker with its counts, then Clear, then the shots it reads in words (workOns.shotFilterLine, empty
+// under all). Both halves are remembered per athlete. The club is the controller's scope (workOns.clubScope) and the
+// rest its shot filter (workOns.shotFilter, "strike:<v>|direction:<v>|flight:<v>", choices in workOns.shotFilterOptions
+// for the current club choice), so Coaching, Your swing and Matchups read the same properties whichever is chosen, and
+// dim while a new choice is worked out. Tendencies lists a row per club already, so it shows the Club picker alone,
+// with groups only, and narrows to the group, the chosen club's group when a club is chosen; it ignores the rest.
 //
 // A fault on Coaching or Your swing opens its detail in place (HmFaultDetail); there is no page
 // behind Home. The bar carries the tab's evidence line straight after the tabs (controller.tendencyNote
 // on Tendencies when there is a table to back, else controller.summarySubtitle). The tab last chosen is remembered per athlete in appSettings.homeViewByAthlete[uuid].tab
-// ("coaching" | "swing" | "tendencies" | "matchups"), the club filter's in .clubScope and the outcome filter's in
-// .outcomeScope; HmSwingAreas keeps its own keys in the same entry. Both read and
+// ("coaching" | "swing" | "tendencies" | "matchups"), the club choice in .clubScope and the strike, direction and
+// flight choices in .shotFilter; HmSwingAreas keeps its own keys in the same entry. Both read and
 // write it through hm_view_store.js.
 //
 // Signals go up to ScreenHome: Practise, and an open fault's "Review the … session →".
 //
-// objectNames: homeTabs (this), homeTabBar (the PpTabs), homeClubScope, homeOutcomeScope and homeOutcomeScopeLine
-// (the filters and the outcome's line), homeTabCoaching, homeTabSwing and homeTabMatchups (the pages),
+// objectNames: homeTabs (this), homeTabBar (the PpTabs), homeShotFilter (the filter line; its pickers keep
+// HmShotFilter's names), homeTabCoaching, homeTabSwing and homeTabMatchups (the pages),
 // homeTabTendencies (HmTendencies' card, the third page).
 
 import QtQuick
@@ -86,22 +83,24 @@ Column {
         ViewStore.write(root.settings, root.athleteUuid, "clubScope", key)
     }
 
-    // The outcome filter: the controller's outcome scope, its choices (no All: the filter adds it) and their line.
-    readonly property bool   hasOutcomeScope:  root.controller !== null && root.controller.outcomeScope !== undefined
-    readonly property string outcomeScope:     root.hasOutcomeScope ? root.controller.outcomeScope : "all"
-    readonly property var    outcomeScopes:    root.hasOutcomeScope ? (root.controller.outcomeScopes || []) : []
-    readonly property string outcomeScopeLine: root.hasOutcomeScope ? (root.controller.outcomeScopeLine || "") : ""
-    function selectOutcomeScope(key) {
+    // The shot filter: strike, direction and flight, the choices for the current club choice and their line.
+    readonly property bool   hasShotFilter:     root.controller !== null && root.controller.shotFilter !== undefined
+    readonly property string shotFilter:        root.hasShotFilter ? root.controller.shotFilter : "all"
+    readonly property var    shotFilterOptions: root.hasShotFilter && root.controller.shotFilterOptions !== undefined
+                                                ? (root.controller.shotFilterOptions || ({})) : ({})
+    readonly property string shotFilterLine:    root.hasShotFilter && root.controller.shotFilterLine !== undefined
+                                                ? (root.controller.shotFilterLine || "") : ""
+    function selectShotFilter(key) {
         key = String(key)
-        if (root.hasOutcomeScope) root.controller.outcomeScope = key
-        ViewStore.write(root.settings, root.athleteUuid, "outcomeScope", key)
+        if (root.hasShotFilter) root.controller.shotFilter = key
+        ViewStore.write(root.settings, root.athleteUuid, "shotFilter", key)
     }
 
     function _read() {
         const tab = String(ViewStore.read(root.settings, root.athleteUuid, "tab", "coaching"))
         root.current = root.tabKeys.indexOf(tab) >= 0 ? tab : "coaching"
         if (root.hasClubScope) root.controller.clubScope = String(ViewStore.read(root.settings, root.athleteUuid, "clubScope", "all"))
-        if (root.hasOutcomeScope) root.controller.outcomeScope = String(ViewStore.read(root.settings, root.athleteUuid, "outcomeScope", "all"))
+        if (root.hasShotFilter) root.controller.shotFilter = String(ViewStore.read(root.settings, root.athleteUuid, "shotFilter", "all"))
     }
     // Show a tab, and remember it for this athlete (nothing written when it is already the one).
     function select(key) {
@@ -138,40 +137,19 @@ Column {
         onTabActivated: (key) => root.select(key)
     }
 
-    HmClubScopeFilter {
-        id: scopeFilter
-        objectName: "homeClubScope"
-        visible:    hasChoice
+    HmShotFilter {
+        id: filterLine
+        objectName: "homeShotFilter"
         width:      root.width
-        groupsOnly: !root.scopedTab
+        clubOnly:   !root.scopedTab
         enabled:    !root.controller || !root.controller.paused
-        options:    root.hasClubScope ? root.controller.clubScopes : []
-        selected:   root.clubScope
-        onScopeSelected: (key) => root.selectClubScope(key)
-    }
-
-    // By outcome, on the scoped tabs only, and only once there is a choice to make.
-    Column {
-        width:   root.width
-        visible: root.scopedTab && root.outcomeScopes.length > 0
-        spacing: Theme.gap(6)
-
-        HmOutcomeScopeFilter {
-            objectName: "homeOutcomeScope"
-            width:      parent.width
-            enabled:    !root.controller || !root.controller.paused
-            options:    root.outcomeScopes
-            selected:   root.outcomeScope
-            onScopeSelected: (key) => root.selectOutcomeScope(key)
-        }
-        PpCaption {
-            objectName: "homeOutcomeScopeLine"
-            width:    parent.width
-            visible:  text !== ""
-            elide:    Text.ElideNone
-            wrapMode: Text.WordWrap
-            text:     root.outcomeScopeLine
-        }
+        clubScopes: root.hasClubScope ? (root.controller.clubScopes || []) : []
+        clubScope:  root.clubScope
+        options:    root.shotFilterOptions
+        shotFilter: root.shotFilter
+        line:       root.shotFilterLine
+        onClubScopeSelected:  (key) => root.selectClubScope(key)
+        onShotFilterSelected: (key) => root.selectShotFilter(key)
     }
 
     StackLayout {
@@ -218,7 +196,7 @@ Column {
                 width: tendenciesPage.width
                 controller:  root.controller
                 athleteUuid: root.athleteUuid
-                group:       scopeFilter.group ? scopeFilter.group.group : ""
+                group:       filterLine.group ? filterLine.group.group : ""
                 onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
             }
         }

@@ -215,7 +215,12 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // (the content stamp carries this version), which writes them.
 // 12 added the launch angle, start direction and attack angle a strike is read from when the monitor gave
 // no impact location (strike_from_flight.h). A file at 11 reads back with NaN and regrades the same way.
-inline constexpr int kDiagSchemaVersion = 12;
+// 13 added the descent angle and the peak height (in feet, as the monitor gives it) the flight's height is
+// read from (shot_factors.h, ball-flight-classification.md), and the spin rate and axis it is modelled from
+// when the monitor gave neither (lm_flight_path.h). A file at 12 reads back with NaN and regrades the same
+// way: the regrade re-reads each swing's stored readings (LiveMeasureSource) and never re-runs pose, ball
+// or shaft tracking.
+inline constexpr int kDiagSchemaVersion = 13;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -721,6 +726,10 @@ struct ShotRecord {
     double  launchAngle    = std::numeric_limits<double>::quiet_NaN();   // schema 12: what a strike is read from
     double  startDirection = std::numeric_limits<double>::quiet_NaN();   // right-positive for both hands, as offline
     double  attackAngle    = std::numeric_limits<double>::quiet_NaN();
+    double  descentAngle   = std::numeric_limits<double>::quiet_NaN();   // schema 13: how high it flew (shot_factors.h), degrees
+    double  peakHeight     = std::numeric_limits<double>::quiet_NaN();   // schema 13: the apex in FEET, the monitor's own unit
+    double  spinRate       = std::numeric_limits<double>::quiet_NaN();   // schema 13: rpm, total; what a flight is modelled from
+    double  spinAxis       = std::numeric_limits<double>::quiet_NaN();   // schema 13: degrees, + tilted right, never mirrored
     QString swingLength;              // "" = not classified, "full", "partial"
     QString handedness;                 // "", "Left", "Right"
 };
@@ -2253,6 +2262,10 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
         if (std::isfinite(s.launchAngle))    so[QStringLiteral("launchAngle")]    = s.launchAngle;
         if (std::isfinite(s.startDirection)) so[QStringLiteral("startDirection")] = s.startDirection;
         if (std::isfinite(s.attackAngle))    so[QStringLiteral("attackAngle")]    = s.attackAngle;
+        if (std::isfinite(s.descentAngle))   so[QStringLiteral("descentAngle")]   = s.descentAngle;
+        if (std::isfinite(s.peakHeight))     so[QStringLiteral("peakHeight")]     = s.peakHeight;
+        if (std::isfinite(s.spinRate))       so[QStringLiteral("spinRate")]       = s.spinRate;
+        if (std::isfinite(s.spinAxis))       so[QStringLiteral("spinAxis")]       = s.spinAxis;
         if (!s.swingLength.isEmpty())      so[QStringLiteral("swingLength")]  = s.swingLength;
         if (!s.handedness.isEmpty())       so[QStringLiteral("handedness")]   = s.handedness;
         // Schema 6 — written only when present.
@@ -2409,6 +2422,10 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         s.launchAngle    = reading("launchAngle");
         s.startDirection = reading("startDirection");
         s.attackAngle    = reading("attackAngle");
+        s.descentAngle   = reading("descentAngle");
+        s.peakHeight     = reading("peakHeight");
+        s.spinRate       = reading("spinRate");
+        s.spinAxis       = reading("spinAxis");
         s.swingLength  = so.value(QStringLiteral("swingLength")).toString();
         s.handedness   = so.value(QStringLiteral("handedness")).toString();
         for (const QJsonValue &tv : so.value(QStringLiteral("peakTimes")).toArray()) {

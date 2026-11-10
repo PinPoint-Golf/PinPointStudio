@@ -18,31 +18,35 @@
 
 #pragma once
 
-// TENDENCIES — pure, header-only. What a golfer's misses add up to across sessions
-// (docs/design/shot_outcomes_design.md §7.1). One row per (club group, swing length): the usual miss,
-// how often, what it is seen with, and which way it is going.
+// TENDENCIES — pure, header-only. What a golfer's shots add up to across sessions
+// (docs/design/shot_outcomes_design.md §7.1). One row per (club, swing length), and in it three factors,
+// the shot's STRIKE, DIRECTION and FLIGHT (shot_factors.h): each one's usual, how often, what its fault is
+// seen with, and which way it is going. A shot is all three at once, so no factor outranks another.
 //
 // Every shot is RE-COMPOSED here from its ledger row, the session's stored evidence block and the pack's
 // adjacency (composeShotOutcome, the same composer as the panel), so a correction a golfer makes takes
 // effect at the next reduction without re-deriving a session. Rows are never mirrored; the composer's
 // words are (Contract D).
 //
-// WHICH SHOTS COUNT: straight intent, assessable (a launch monitor reading,
-// and the ball's shape judged). A shot with a data warning that withheld nothing still counts: a broken
-// recording's rows are NotAssessable, so it falls out as not assessable. The rule is judgeTendencyShot,
-// which Home's outcome filter (outcome_scope.h) reads shots through too.
+// WHICH SHOTS COUNT: a shot with at least one factor read (ShotFactors::judged), an intended shape among
+// them (its Fade or Draw is a direction value). A shot with a data warning that withheld nothing still
+// counts: a broken recording's rows are NotAssessable, so it falls out as not read. The rule is
+// judgeTendencyShot, which Home's shot filter (outcome_scope.h) reads shots through too.
 //
-// THE USUAL MISS is the commonest: the miss on the biggest recency-weighted share of the key's shots,
-// whatever its family. Every miss a shot shows counts, the halves of a combined one among them (a push
-// slice is a slice and a push too), so a thin pull counts as a pull as much as a thin. No family ranks above
-// another in anything that counts or chooses; the strike-first order of a shot's labels is only the order
-// the words are said in. Where a shot can be in one place only (the Your shots bar, the session panel's
-// club mix), it goes under its own commonest miss for that club (tendencyLeadMiss).
+// EACH FACTOR'S USUAL is its most common FAULT when that fault earns (over the shots the factor was read
+// on: at least 2 sessions of 8 or more, 15 shots, and a recency-weighted share of 25 %), else its most
+// common value that is not a fault (Solid, Straight, Fade, Mid…) by plain count, as its bar counts, said
+// plainly. A building factor says what has shown up so far: its most common fault if that is on 25 % or
+// more of its shots (recency-weighted), else its most common value. Seen with, Also seen, the chain, Play to it, the trend and the work-on belong
+// to a factor's fault. Every value a shot shows counts (the halves of a combined miss among them: a push
+// slice is a slice and a push too); where a shot can be in one place only (a factor's bar) it goes under
+// whichever of its values is commonest with the key (tendencyLeadMiss).
 //
 // The JSON (<athlete>/tendencies.json) carries a rule and schema version; another version is not read.
 //
 // Unit-tested standalone in src/Analysis/tests/tendencies_test.cpp.
 
+#include "shot_factors.h"
 #include "shot_outcomes.h"
 
 #include <QDate>
@@ -63,7 +67,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 11;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees)
+inline constexpr int kTendencyRuleVersion   = 13;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -73,7 +77,6 @@ struct TendencyOptions {
     int    minShots        = 15;
     double minShare        = 0.25;  // recency-weighted
     double recency         = 0.75;  // each older session weighs this much less
-    double coOccur         = 0.5;   // another miss, any family, on this share of the usual miss's shots: "often with"
     double trendDelta      = 0.15;  // the 15-point rule
     int    trendMinJudged  = 3;
     int    recentSessions  = 5;     // what "your last ... shots" means on Home
@@ -299,6 +302,32 @@ struct TendencyChainStep {
     QString words;      // the link word to the next step; "" on the last
 };
 
+// One factor of a row: its usual, and for a fault everything that belongs to it.
+struct TendencyFactor {
+    QString factor;             // "strike", "direction", "flight"
+    QString value;              // the usual, a displayId ("pull", "solid", "mid"); "" with nothing to name
+    QString rowId;              // the ROW id of a fault (the left-hander's gloss undone), for its chain and play-to
+    QString label;              // "Pull", "Solid", "Mid"; "-" when nothing can be named
+    bool    fault = false;      // the usual is a fault: earned, or (building) the commonest so far at ≥ minShare; never a value
+    double  share = 0.0;        // 0..1 of the shots this factor was read on: a fault's recency-weighted, a value's plain count
+    QString frequency;          // "fairly often"
+    bool    building = true;    // not enough history in this factor for a verdict
+    int     sessions = 0;       // sessions with a shot this factor was read on
+    int     shots = 0;          // shots it was read on
+    QString seenWithId;         // a fault's reason, most often the headline driver of its shots
+    QString seenWith;           // golfer words
+    QString strength;           // "likely", "possible", ""
+    int     confirmedSessions = 0;
+    int     trend = 0;          // +1 growing, -1 easing, 0
+    QString trendWords;         // "→ steady", "↓ easing", "new", ""
+    QString workOn;             // the condition to practise for an earned fault (its seen-with); the controller adds its status
+    ShotMixBar mix;             // every shot this factor was read on, once, under its commonest value with the key
+    std::vector<TendencyChainStep> chain;       // the fault first, then what leads to it
+    QString alsoSeen;
+    QString earlyNote;          // a building fault: says it's early, and what would earn it
+    QString playTo;             // an earned fault's play-to line, in the golfer's hand
+};
+
 struct TendencyItem {
     QString key;            // "7 IRON|full"
     QString clubGroup;      // "mid_irons"; the row's filter
@@ -306,25 +335,18 @@ struct TendencyItem {
     QString club;           // "7 iron"
     QString length;         // "full", "partial"
     QString handedness;     // the golfer's, off the documents: "Left", "Right", ""
-    QString missId;         // the ROW id (for the left-hander's gloss, the display text below has it applied)
-    QString miss;           // "Fat, often with a slice"; "No usual miss"
-    QString missFamily;     // the usual miss's own family; it chose nothing
-    double  share = 0.0;    // 0..1, recency-weighted
-    QString frequency;      // "fairly often"
-    bool    building   = true;
-    bool    noUsualMiss = false;
     int     sessions = 0;   // sessions with a counted shot in this key
     int     shots = 0;
-    QString seenWithId;
-    QString seenWith;       // golfer words
-    QString strength;       // "likely", "possible", ""
-    int     confirmedSessions = 0;
-    int     trend = 0;      // +1 growing, -1 easing, 0
-    QString trendWords;     // "→ steady", "↓ easing", "new", ""
-    std::vector<TendencyChainStep> chain;       // the miss first, then what leads to it
-    QString alsoSeen;
-    QString earlyNote;                          // a building row: says it's early, and what would earn it
-    ShotMixBar mix;                             // every counted shot with this club once: good, or its lead miss (tendencyLeadMiss)
+    TendencyFactor strike, direction, flight;
+
+    const TendencyFactor &factor(const QString &name) const
+    {
+        return name == shotFactorStrike() ? strike : name == shotFactorDirection() ? direction : flight;
+    }
+    TendencyFactor &factor(const QString &name)
+    {
+        return name == shotFactorStrike() ? strike : name == shotFactorDirection() ? direction : flight;
+    }
 };
 
 struct TendencyProduced {
@@ -338,27 +360,26 @@ struct TendencyOnBall {
     QString text;               // "Behind 7 of your last 13 bad iron shots."
     std::vector<TendencyProduced> produced;
     QString costWords;          // "About 14 yd lost each time it happens"; "" with no carry to compare
-    QString tendencyKey;        // the earned tendency it feeds; "" for none
+    QString tendencyKey;        // the row whose earned fault it feeds (club|length); "" for none
+    QString factor;             // which of the row's factors: "strike", "direction", "flight"; "" for none
+    QString value;              // that factor's fault, a displayId ("pull"); "" for none
     QString tendencyText;
-    QString onTheBall;          // "On the ball — your slice with driver."; "" unless earned or confirmed
+    QString onTheBall;          // "On the ball — your pull with 7 iron."; "" unless earned or confirmed
 };
 
-// One miss among a club's judged shots. `id` is the label as glossed for the golfer's hand (displayId),
-// so a left-hander's count is under the slice they see.
-struct TendencyOutcomeCount {
-    QString id;
-    QString label;              // "Slice"
-    int     shots = 0;
+// One combination of factor values among a club's judged shots, and how many shots had it. Each list is
+// that factor's values (displayIds, so a left-hander's are the ones they see); empty when it wasn't read.
+struct TendencyFactorTuple {
+    QStringList strike, direction, flight;
+    int         shots = 0;
 };
 
-// Every judged shot with one club, by outcome: Home's outcome filter offers these as its choices. A shot
-// is under every miss it shows (a fat slice under both; a push slice under Push slice, Slice and Push), so
-// the misses can add up to more than the shots that missed.
+// Every judged shot with one club, by its factors: Home's shot filter counts its choices from these (a
+// choice holds a tuple when every factor it names is among that factor's values).
 struct TendencyClubOutcomes {
     QString clubId;             // canonical ("7 IRON")
     int     judged = 0;
-    int     good = 0;
-    std::vector<TendencyOutcomeCount> misses;   // most shots first, then by id
+    std::vector<TendencyFactorTuple> tuples;    // each distinct combination once; most shots first
 };
 
 struct TendencySet {
@@ -448,81 +469,11 @@ inline QJsonObject clubDistanceItemToJson(const ClubDistanceItem &it)
 
 // ── The reduction ───────────────────────────────────────────────────────────────────────────────────
 
-// The miss labels a tendency can name: what no other label on the shot accounts for (§4.1 step 2). They come
-// in the labels' word order (strike, direction, flight), which must never matter to a count or a choice:
-// every miss counts the same, and the commonest decides (tendencyLeadMiss).
-inline std::vector<const ShotOutcomeLabel *> tendencyMissLabels(const ShotOutcome &o, const ShotOutcomePack &pack)
-{
-    std::vector<const ShotOutcomeLabel *> out;
-    const auto implied = [&o, &pack](const ShotOutcomeLabel &l) {
-        for (const ShotOutcomeLabel &other : o.labels) {
-            if (other.id == l.id) continue;
-            if (pack.physics.value(other.id).contains(l.id)) return true;
-            if ((other.id == QLatin1String("pull_hook")  && (l.id == QLatin1String("pull") || l.id == QLatin1String("hook")))
-                || (other.id == QLatin1String("push_slice") && (l.id == QLatin1String("push") || l.id == QLatin1String("slice"))))
-                return true;
-        }
-        return false;
-    };
-    for (const ShotOutcomeLabel &l : o.labels)
-        if (l.miss && !implied(l)) out.push_back(&l);
-    return out;
-}
-
-// The two halves of a combined miss, as ROW ids: a push slice is a slice and a push, a pull hook a hook and a
-// pull. Any other miss has none.
-inline QStringList tendencyMissHalves(const QString &rowId)
-{
-    if (rowId == QLatin1String("push_slice")) return { QStringLiteral("slice"), QStringLiteral("push") };
-    if (rowId == QLatin1String("pull_hook"))  return { QStringLiteral("hook"), QStringLiteral("pull") };
-    return {};
-}
-
-// Two ROW ids that are the same miss seen another way: the same id, or a combined miss and one of its halves.
-// A usual slice is never "often with a push slice", nor a usual push slice "often with a slice".
-inline bool tendencySameMiss(const QString &a, const QString &b)
-{
-    return a == b || tendencyMissHalves(a).contains(b) || tendencyMissHalves(b).contains(a);
-}
-
-// One miss a shot shows.
-struct TendencyShotMiss {
-    QString id;                 // the ROW id
-    QString displayId;          // as glossed for the golfer's hand
-    QString family;             // the row's family
-    QString shortText;          // the golfer's words, glossed ("Slice")
-};
-
-// Every miss the shot shows: each label tendencyMissLabels names, each followed by the halves of a combined one,
-// once each. The halves are glossed like the label, so a left-hander's push slice row (their pull hook) brings
-// their hook and their pull. The order is only the labels' word order; every miss here counts the same.
-inline std::vector<TendencyShotMiss> tendencyShotMisses(const std::vector<const ShotOutcomeLabel *> &named,
-                                                        const ShotOutcomePack &pack, const QString &handedness)
-{
-    std::vector<TendencyShotMiss> out;
-    const auto add = [&out](TendencyShotMiss m) {
-        if (std::none_of(out.begin(), out.end(), [&m](const TendencyShotMiss &o) { return o.id == m.id; }))
-            out.push_back(std::move(m));
-    };
-    for (const ShotOutcomeLabel *l : named) {
-        add(TendencyShotMiss{ l->id, l->displayId, l->family, l->shortText });
-        for (const QString &half : tendencyMissHalves(l->id)) {
-            const QString displayId = glossedConditionId(half, handedness);
-            const ShotConditionFacts *row = outcomeFacts(pack, half);
-            const ShotConditionFacts *f = outcomeFacts(pack, displayId);
-            if (!f) f = row;
-            add(TendencyShotMiss{ half, displayId, row ? row->family : QString(),
-                                  !f ? displayId : !f->golferShort.isEmpty() ? f->golferShort : f->label });
-        }
-    }
-    return out;
-}
-
-// The one miss to file a shot under where it can be in one place only (the Your shots bar, the session
-// panel's club mix), and the usual miss of a key: of `missIds`, the one with the biggest `weight` among the
-// club's shots (Tendencies: its recency-weighted share; one session: how many shots show it), then the most
-// shots (`count`), then the id. No family ranks above another. On an exact tie a combined miss stands over its
-// own halves: the same shots, named whole (a push slice, not a push). "" for no misses.
+// The one value to file a shot under where it can be in one place only (a row's bar), and the usual of a
+// factor: of `missIds`, the one with the biggest `weight` among the key's shots (Tendencies: its
+// recency-weighted share; one session: how many shots show it), then the most shots (`count`), then the id.
+// No family ranks above another. On an exact tie a combined miss stands over its own halves: the same
+// shots, named whole (a push slice, not a push). "" for none.
 inline QString tendencyLeadMiss(const QStringList &missIds, const QHash<QString, double> &weight,
                                 const QHash<QString, int> &count)
 {
@@ -553,17 +504,6 @@ inline QString tendencyLeadMiss(const QStringList &missIds, const QHash<QString,
 
 // ── Which shots count ───────────────────────────────────────────────────────────────────────────────
 
-// One shot as the Tendencies rule judges it. Tendencies and Home's outcome filter both read a shot through
-// judgeTendencyShot, so they can never disagree about which shots count or what each one was.
-struct ShotJudgement {
-    bool        judged = false;     // straight intent, analysed, a launch monitor reading, the ball's shape judged
-    bool        good   = false;     // the shot was clean
-    QStringList missIds;            // the displayId of each miss tendencyShotMisses gives: every miss
-                                    // tendencyMissLabels names, each followed by the halves of a combined one
-                                    // (push slice: slice, push), once each; in word order, which counts for nothing
-    QStringList missLabels;         // their short words ("Slice"), in the same order
-};
-
 // The session's facts every shot of it is composed with.
 inline ShotOutcomeSessionFacts tendencySessionFacts(const TendencySessionInput &s)
 {
@@ -577,36 +517,19 @@ inline const ClubBaselineEntry *tendencyUsualEntry(const TendencySessionInput &s
     return it == s.baseline.constEnd() ? nullptr : &*it;
 }
 
-// Judges one shot: the WHICH SHOTS COUNT rule above. A shape the golfer meant to hit isn't composed at all.
-// The club group is the caller's to check: Tendencies leaves out a club with none, a filter has already
-// chosen its clubs. `outcome`, when given, receives the composed shot, and `misses` the labels the miss ids
-// came from; they point into `*outcome`, so `misses` is filled only alongside it.
-inline ShotJudgement judgeTendencyShot(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
-                                       const QString &intent, const ClubBaselineEntry *usual,
-                                       const ShotOutcomePack &pack, const ShotOutcomeSessionFacts &facts,
-                                       ShotOutcome *outcome = nullptr,
-                                       std::vector<const ShotOutcomeLabel *> *misses = nullptr)
+// One shot as the Tendencies rule judges it: composed from its row, corrections and intent, then its three
+// factors (shotFactors). A shot counts when at least one factor was read (ShotFactors::judged). Tendencies and
+// Home's shot filter both read a shot through here, so they can never disagree about a shot. The club group
+// is the caller's to check. `outcome`, when given, receives the composed shot.
+inline ShotFactors judgeTendencyShot(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
+                                     const QString &intent, const ClubBaselineEntry *usual,
+                                     const ShotOutcomePack &pack, const ShotOutcomeSessionFacts &facts,
+                                     const FlightNorms &norms, ShotOutcome *outcome = nullptr)
 {
-    ShotJudgement j;
-    if (!intent.isEmpty() && intent != QLatin1String("straight")) return j;
-
     ShotOutcome local;
     ShotOutcome &o = outcome ? *outcome : local;
     o = composeShotOutcome(shot, corrections, intent, usual, pack, facts);
-    if (!o.ready || o.noReading) return j;
-    const std::vector<const ShotOutcomeLabel *> named = tendencyMissLabels(o, pack);
-    if (!o.clean && named.empty()) return j;       // the ball's shape was not judged
-
-    j.judged = true;
-    j.good   = o.clean;
-    // A shot is under every miss it shows, so a combined label brings its two halves: a push slice is a
-    // slice and a push too (tendencyShotMisses, the one place that rule lives).
-    for (const TendencyShotMiss &m : tendencyShotMisses(named, pack, shot.handedness)) {
-        j.missIds << m.displayId;
-        j.missLabels << m.shortText;
-    }
-    if (misses && outcome) *misses = named;
-    return j;
+    return shotFactors(shot, o, pack, norms, facts.flightUsuals);
 }
 
 namespace tendency_detail {
@@ -615,9 +538,7 @@ struct JudgedShot {
     int     session = 0;
     QString key, group, clubId;
     QString handedness;
-    QStringList missIds;                // every miss it shows, ROW ids, a combined one's halves among them (tendencyShotMisses)
-    QHash<QString, QString> missShort;  // id -> the golfer's short words, glossed
-    QHash<QString, QString> missFamily; // id -> its family
+    ShotFactors factors;
     QString driverId, driverText;
     bool    confirmed = false;
     QString mixKey;
@@ -627,7 +548,7 @@ struct JudgedShot {
 
 inline double weightedShare(const std::vector<std::pair<int, int>> &perSession, double recency)
 {
-    // (misses, shots) per session, oldest first; each older session counts recency^k.
+    // (hits, shots) per session, oldest first; each older session counts recency^k.
     double num = 0.0, den = 0.0, w = 1.0;
     for (auto it = perSession.rbegin(); it != perSession.rend(); ++it) {
         num += w * double(it->first);
@@ -643,24 +564,26 @@ inline QString stripClause(QString s)
     return outcomeCapitalised(s);
 }
 
-// One judged shot added to its club's outcome counts.
-inline void tallyClubOutcomes(QHash<QString, TendencyClubOutcomes> &byClub, const QString &clubId, const ShotJudgement &j)
+// One judged shot added to its club's tuples.
+inline void tallyClubOutcomes(QHash<QString, TendencyClubOutcomes> &byClub, const QString &clubId, const ShotFactors &f)
 {
     TendencyClubOutcomes &c = byClub[clubId];
     c.clubId = clubId;
     ++c.judged;
-    if (j.good) ++c.good;
-    for (int i = 0; i < int(j.missIds.size()); ++i) {
-        auto it = std::find_if(c.misses.begin(), c.misses.end(), [&](const TendencyOutcomeCount &m) { return m.id == j.missIds.at(i); });
-        if (it == c.misses.end()) {
-            c.misses.push_back(TendencyOutcomeCount{ j.missIds.at(i), j.missLabels.value(i), 0 });
-            it = c.misses.end() - 1;
-        }
-        ++it->shots;
+    const QStringList strike    = f.strike.read ? f.strike.values : QStringList();
+    const QStringList direction = f.direction.read ? f.direction.values : QStringList();
+    const QStringList flight    = f.flight.read ? f.flight.values : QStringList();
+    auto it = std::find_if(c.tuples.begin(), c.tuples.end(), [&](const TendencyFactorTuple &t) {
+        return t.strike == strike && t.direction == direction && t.flight == flight;
+    });
+    if (it == c.tuples.end()) {
+        c.tuples.push_back(TendencyFactorTuple{ strike, direction, flight, 0 });
+        it = c.tuples.end() - 1;
     }
+    ++it->shots;
 }
 
-// The counts in the bag's order (a club the bag doesn't know goes last), each club's misses most shots first.
+// The counts in the bag's order (a club the bag doesn't know goes last), each club's tuples most shots first.
 inline std::vector<TendencyClubOutcomes> orderedClubOutcomes(const QHash<QString, TendencyClubOutcomes> &byClub)
 {
     QStringList clubs = byClub.keys();
@@ -670,11 +593,15 @@ inline std::vector<TendencyClubOutcomes> orderedClubOutcomes(const QHash<QString
         const int ra = bagRank(a), rb = bagRank(b);
         return ra != rb ? ra < rb : a < b;
     });
+    const auto tupleKey = [](const TendencyFactorTuple &t) {
+        return t.strike.join(QLatin1Char(',')) + QLatin1Char('|') + t.direction.join(QLatin1Char(',')) + QLatin1Char('|')
+             + t.flight.join(QLatin1Char(','));
+    };
     std::vector<TendencyClubOutcomes> out;
     for (const QString &club : clubs) {
         TendencyClubOutcomes c = byClub.value(club);
-        std::sort(c.misses.begin(), c.misses.end(), [](const TendencyOutcomeCount &a, const TendencyOutcomeCount &b) {
-            return a.shots != b.shots ? a.shots > b.shots : a.id < b.id;
+        std::sort(c.tuples.begin(), c.tuples.end(), [&tupleKey](const TendencyFactorTuple &a, const TendencyFactorTuple &b) {
+            return a.shots != b.shots ? a.shots > b.shots : tupleKey(a) < tupleKey(b);
         });
         out.push_back(std::move(c));
     }
@@ -684,9 +611,11 @@ inline std::vector<TendencyClubOutcomes> orderedClubOutcomes(const QHash<QString
 } // namespace tendency_detail
 
 // `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
-// putter, an undeclared club). `cancel`, polled between sessions, leaves `.cancelled` set.
+// putter, an undeclared club). `flightNorms` is the table a shot's height is judged against (shippedFlightNorms;
+// an empty one reads no shot's flight). `cancel`, polled between sessions, leaves `.cancelled` set.
 inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &input, const ShotOutcomePack &pack,
                                     const std::function<QString(const QString &)> &clubGroupOf,
+                                    const FlightNorms &flightNorms,
                                     const TendencyOptions &opt = {}, const std::atomic<bool> *cancel = nullptr)
 {
     using namespace tendency_detail;
@@ -700,7 +629,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         return a->session.day != b->session.day ? a->session.day < b->session.day : a->session.folder < b->session.folder;
     });
 
-    // Every shot that counts, composed from its row, corrections and intent; misses and clean ones alike.
+    // Every shot that counts, composed from its row, corrections and intent, and read factor by factor.
     std::vector<JudgedShot> judged;
     QSet<int> sessionsCounted;
     QHash<QString, TendencyClubOutcomes> outcomesByClub;
@@ -712,14 +641,12 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             const QString group = clubGroupOf ? clubGroupOf(shot.club) : QString();
             if (group.isEmpty()) continue;
 
-            const QString intent = s.intents.value(shot.shotId);
             const ClubBaselineEntry *usual = tendencyUsualEntry(s, shot);
             ShotOutcome o;
-            std::vector<const ShotOutcomeLabel *> misses;
-            const ShotJudgement verdict = judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), intent, usual,
-                                                            pack, facts, &o, &misses);
-            if (!verdict.judged) continue;
-            tallyClubOutcomes(outcomesByClub, canonicalClubId(shot.club), verdict);
+            const ShotFactors factors = judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), s.intents.value(shot.shotId),
+                                                          usual, pack, facts, flightNorms, &o);
+            if (!factors.judged()) continue;
+            tallyClubOutcomes(outcomesByClub, canonicalClubId(shot.club), factors);
 
             JudgedShot j;
             j.session = si;
@@ -727,12 +654,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             j.clubId  = canonicalClubId(shot.club);
             j.handedness = shot.handedness;
             j.key     = j.clubId + QLatin1Char('|') + (shot.swingLength == QLatin1String("partial") ? QStringLiteral("partial") : QStringLiteral("full"));
-            // Every miss it shows counts, whatever its family: none comes first.
-            for (const TendencyShotMiss &m : tendencyShotMisses(misses, pack, shot.handedness)) {
-                j.missIds << m.id;
-                j.missShort.insert(m.id, m.shortText);
-                j.missFamily.insert(m.id, m.family);
-            }
+            j.factors = factors;
             j.driverId   = o.driver.id;
             j.driverText = stripClause(o.driver.golfer);
             j.confirmed  = !o.driver.id.isEmpty() && s.evidence.chainConfirmed.contains(o.driver.id);
@@ -750,6 +672,63 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     out.countedShots    = int(judged.size());
     out.countedSessions = int(sessionsCounted.size());
     out.clubOutcomes    = orderedClubOutcomes(outcomesByClub);
+
+    // The reasons that were the headline driver of a fault's shots, most often first.
+    struct MissReasons {
+        QHash<QString, int>        count;
+        QHash<QString, QSet<int>>  confirmedIn;
+        QHash<QString, QString>    text;
+        int                        driven = 0;
+        QStringList                ids;
+    };
+    const auto reasonsBehind = [](const std::vector<const JudgedShot *> &missShots) {
+        MissReasons r;
+        for (const JudgedShot *j : missShots) {
+            if (j->driverId.isEmpty()) continue;
+            ++r.driven;
+            ++r.count[j->driverId];
+            r.text.insert(j->driverId, j->driverText);
+            if (j->confirmed) r.confirmedIn[j->driverId].insert(j->session);
+        }
+        r.ids = r.count.keys();
+        std::sort(r.ids.begin(), r.ids.end(), [&r](const QString &a, const QString &b) {
+            const int na = r.count.value(a), nb = r.count.value(b);
+            return na != nb ? na > nb : a < b;
+        });
+        return r;
+    };
+
+    // The chain, the fault first and up to the reason, in golfer words. The walk is over the rows; the
+    // words are the golfer's, so each step is glossed (Contract D). `settled` is false on a building
+    // factor: every link says "seen with", because nothing has earned "because" yet.
+    const auto chainTo = [&pack](const QString &miss, const QString &reasonId, const QString &reasonText,
+                                 const QString &hand, bool settled) {
+        const auto wordsFor = [&pack, &hand](const QString &id) { return outcomeFacts(pack, glossedConditionId(id, hand)); };
+        std::vector<TendencyChainStep> chain;
+        const ShotConditionFacts *missFacts = wordsFor(miss);
+        if (!reasonId.isEmpty()) {
+            const ShotDriverReach reach = walkDriverReach(reasonId, pack, QSet<QString>{ miss });
+            const std::vector<ShotReachStep> path = driverPathTo(reach, miss);
+            for (int i = int(path.size()) - 1; i >= 0; --i) {
+                const ShotReachStep &step = path[size_t(i)];
+                const ShotConditionFacts *to = wordsFor(step.to);
+                const ShotConditionFacts *from = wordsFor(step.from);
+                const QString text = to ? stripClause(to->golfer) : step.to;
+                const QString words = (settled && to && from) ? swingLinkWords(*from, *to, true) : QStringLiteral("seen with");
+                chain.push_back(TendencyChainStep{ text, words });
+            }
+            if (!path.empty()) {
+                const ShotConditionFacts *root = wordsFor(path.front().from);
+                chain.push_back(TendencyChainStep{ root ? stripClause(root->golfer) : path.front().from, QString() });
+            }
+        }
+        if (chain.empty() && missFacts) {
+            const bool nameTheReason = !settled && !reasonText.isEmpty();
+            chain.push_back(TendencyChainStep{ stripClause(missFacts->golfer), nameTheReason ? QStringLiteral("seen with") : QString() });
+            if (nameTheReason) chain.push_back(TendencyChainStep{ reasonText, QString() });
+        }
+        return chain;
+    };
 
     // ── Each key ──
     QHash<QString, std::vector<const JudgedShot *>> byKey;
@@ -770,234 +749,197 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     });
 
     for (const QString &key : keys) {
-        const std::vector<const JudgedShot *> &shots = byKey[key];
-
-        // The sessions with shots in this key, oldest first.
-        QList<int> keySessions;
-        for (const JudgedShot *j : shots) if (!keySessions.contains(j->session)) keySessions << j->session;
-        std::sort(keySessions.begin(), keySessions.end());
-        QHash<int, int> shotsIn;
-        for (const JudgedShot *j : shots) ++shotsIn[j->session];
-
-        QList<int> judgedSessions;
-        for (int si : keySessions) if (shotsIn.value(si) >= opt.minSessionShots) judgedSessions << si;
-        const bool enoughShots = int(judgedSessions.size()) >= opt.minSessions && int(shots.size()) >= opt.minShots;
-
-        // Every miss the key's shots show, each on its recency-weighted share of them. The usual miss is the
-        // commonest, whatever its family: how often the golfer hits it decides, nothing else.
-        QStringList keyMisses;
-        QHash<QString, int> missCount;
-        for (const JudgedShot *j : shots)
-            for (const QString &id : j->missIds) {
-                if (!missCount.contains(id)) keyMisses << id;
-                ++missCount[id];
-            }
-        std::sort(keyMisses.begin(), keyMisses.end());
-        QHash<QString, double> missShare;
-        for (const QString &id : keyMisses) {
-            std::vector<std::pair<int, int>> perSession;
-            for (int si : keySessions) {
-                int hit = 0;
-                for (const JudgedShot *j : shots) if (j->session == si && j->missIds.contains(id)) ++hit;
-                perSession.push_back({ hit, shotsIn.value(si) });
-            }
-            missShare.insert(id, weightedShare(perSession, opt.recency));
-        }
-        const QString missId = tendencyLeadMiss(keyMisses, missShare, missCount);
-        const double bestShare = missId.isEmpty() ? -1.0 : missShare.value(missId);
+        const std::vector<const JudgedShot *> &keyShots = byKey[key];
 
         TendencyItem item;
         item.key       = key;
-        item.clubGroup = shots.front()->group;
-        item.clubId    = shots.front()->clubId;
+        item.clubGroup = keyShots.front()->group;
+        item.clubId    = keyShots.front()->clubId;
         item.club      = clubDistanceLabel(item.clubId);
         item.length    = key.endsWith(QLatin1String("partial")) ? QStringLiteral("partial") : QStringLiteral("full");
-        item.sessions  = int(keySessions.size());
-        item.shots     = int(shots.size());
-        for (auto it = shots.rbegin(); it != shots.rend(); ++it)     // newest first: an old row may not say
+        item.shots     = int(keyShots.size());
+        {
+            QSet<int> in;
+            for (const JudgedShot *j : keyShots) in.insert(j->session);
+            item.sessions = int(in.size());
+        }
+        for (auto it = keyShots.rbegin(); it != keyShots.rend(); ++it)     // newest first: an old row may not say
             if (!(*it)->handedness.isEmpty()) { item.handedness = (*it)->handedness; break; }
-        item.missId    = missId;
-        item.share     = std::max(bestShare, 0.0);
-        item.frequency = tendencyFrequencyWords(item.share);
-        // Each shot once, so the bar adds up to the shots: good, or under whichever of its misses is
-        // commonest with this club (a fat slice under the slice when slices are the commoner).
-        ShotMixTally mixTally;
-        for (const JudgedShot *j : shots) {
-            if (j->missIds.isEmpty()) { ++mixTally.good; continue; }
-            const QString lead = tendencyLeadMiss(j->missIds, missShare, missCount);
-            mixTally.addMiss(lead, j->missShort.value(lead));
-        }
-        item.mix = composeShotMixBar(mixTally);
 
-        // The reasons that were the headline driver of a miss, most often first.
-        struct MissReasons {
-            QHash<QString, int>        count;
-            QHash<QString, QSet<int>>  confirmedIn;
-            QHash<QString, QString>    text;
-            int                        driven = 0;
-            QStringList                ids;
-        };
-        const auto reasonsBehind = [](const std::vector<const JudgedShot *> &missShots) {
-            MissReasons r;
-            for (const JudgedShot *j : missShots) {
-                if (j->driverId.isEmpty()) continue;
-                ++r.driven;
-                ++r.count[j->driverId];
-                r.text.insert(j->driverId, j->driverText);
-                if (j->confirmed) r.confirmedIn[j->driverId].insert(j->session);
+        for (const QString &name : shotFactorNames()) {
+            TendencyFactor &tf = item.factor(name);
+            tf.factor = name;
+
+            // The shots this factor was read on; the earn rule and every share are over them.
+            std::vector<const JudgedShot *> shots;
+            for (const JudgedShot *j : keyShots) if (j->factors.factor(name).read) shots.push_back(j);
+            tf.shots = int(shots.size());
+            if (shots.empty()) {
+                tf.building = false;
+                tf.label = QStringLiteral("-");
+                tf.mix = composeFactorMixBar(ShotFactorTally{ 0, int(keyShots.size()), {}, {}, {} });
+                continue;
             }
-            r.ids = r.count.keys();
-            std::sort(r.ids.begin(), r.ids.end(), [&r](const QString &a, const QString &b) {
-                const int na = r.count.value(a), nb = r.count.value(b);
-                return na != nb ? na > nb : a < b;
-            });
-            return r;
-        };
 
-        // The chain, the miss first and up to the reason, in golfer words. The walk is over the rows; the
-        // words are the golfer's, so each step is glossed (Contract D). `settled` is false on a building
-        // row: every link says "seen with", because nothing has earned "because" yet.
-        const auto chainTo = [&pack](const QString &miss, const QString &reasonId, const QString &reasonText,
-                                     const QString &hand, bool settled) {
-            const auto wordsFor = [&pack, &hand](const QString &id) { return outcomeFacts(pack, glossedConditionId(id, hand)); };
-            std::vector<TendencyChainStep> chain;
-            const ShotConditionFacts *missFacts = wordsFor(miss);
-            if (!reasonId.isEmpty()) {
-                const ShotDriverReach reach = walkDriverReach(reasonId, pack, QSet<QString>{ miss });
-                const std::vector<ShotReachStep> path = driverPathTo(reach, miss);
-                for (int i = int(path.size()) - 1; i >= 0; --i) {
-                    const ShotReachStep &step = path[size_t(i)];
-                    const ShotConditionFacts *to = wordsFor(step.to);
-                    const ShotConditionFacts *from = wordsFor(step.from);
-                    const QString text = to ? stripClause(to->golfer) : step.to;
-                    const QString words = (settled && to && from) ? swingLinkWords(*from, *to, true) : QStringLiteral("seen with");
-                    chain.push_back(TendencyChainStep{ text, words });
-                }
-                if (!path.empty()) {
-                    const ShotConditionFacts *root = wordsFor(path.front().from);
-                    chain.push_back(TendencyChainStep{ root ? stripClause(root->golfer) : path.front().from, QString() });
+            QList<int> keySessions;
+            for (const JudgedShot *j : shots) if (!keySessions.contains(j->session)) keySessions << j->session;
+            std::sort(keySessions.begin(), keySessions.end());
+            QHash<int, int> shotsIn;
+            for (const JudgedShot *j : shots) ++shotsIn[j->session];
+            tf.sessions = int(keySessions.size());
+
+            QList<int> judgedSessions;
+            for (int si : keySessions) if (shotsIn.value(si) >= opt.minSessionShots) judgedSessions << si;
+            const bool enoughShots = int(judgedSessions.size()) >= opt.minSessions && int(shots.size()) >= opt.minShots;
+
+            // Every value the factor's shots show, each on its recency-weighted share of them. A fault is
+            // what a shot carries as one (a pull, a sky); Solid, Straight, Fade, Mid… are values.
+            QStringList faultIds, valueIds;
+            QHash<QString, int> count;
+            for (const JudgedShot *j : shots) {
+                const ShotFactor &f = j->factors.factor(name);
+                for (const QString &id : f.values) {
+                    if (!count.contains(id)) (f.faults.contains(id) ? faultIds : valueIds) << id;
+                    ++count[id];
                 }
             }
-            if (chain.empty() && missFacts) {
-                const bool nameTheReason = !settled && !reasonText.isEmpty();
-                chain.push_back(TendencyChainStep{ stripClause(missFacts->golfer), nameTheReason ? QStringLiteral("seen with") : QString() });
-                if (nameTheReason) chain.push_back(TendencyChainStep{ reasonText, QString() });
+            std::sort(faultIds.begin(), faultIds.end());
+            std::sort(valueIds.begin(), valueIds.end());
+            QHash<QString, double> share;
+            for (const QString &id : faultIds + valueIds) {
+                std::vector<std::pair<int, int>> perSession;
+                for (int si : keySessions) {
+                    int hit = 0;
+                    for (const JudgedShot *j : shots) if (j->session == si && j->factors.factor(name).values.contains(id)) ++hit;
+                    perSession.push_back({ hit, shotsIn.value(si) });
+                }
+                share.insert(id, weightedShare(perSession, opt.recency));
             }
-            return chain;
-        };
+            const QString leadFault = tendencyLeadMiss(faultIds, share, count);
+            const auto labelOf = [&pack](const QString &id) { return shotFactorValueLabel(pack, id); };
 
-        // ── Not enough history for a verdict: what has shown up so far, said as that ──
-        if (!enoughShots) {
-            item.building = true;
-            if (missId.isEmpty()) {
-                item.miss = QStringLiteral("-");
-            } else {
-                std::vector<const JudgedShot *> missShots;
-                for (const JudgedShot *j : shots) if (j->missIds.contains(missId)) missShots.push_back(j);
-                item.miss = missShots.front()->missShort.value(missId);
-                item.missFamily = missShots.front()->missFamily.value(missId);
+            // The bar: each shot once, under whichever of its values is commonest with this key.
+            ShotFactorTally tally;
+            tally.read = int(shots.size());
+            tally.notRead = int(keyShots.size() - shots.size());
+            for (const JudgedShot *j : shots) {
+                const ShotFactor &f = j->factors.factor(name);
+                const QString lead = tendencyLeadMiss(f.values, share, count);
+                tally.add(lead, labelOf(lead), f.faults.contains(lead));
+            }
+            tf.mix = composeFactorMixBar(tally);
 
-                const MissReasons reasons = reasonsBehind(missShots);
+            // ── The usual: the one place a factor's value, fault and building are chosen ──
+            //
+            // FAULTS WEIGHTED, VALUES COUNTED (Mark, 10 Nov 2026). A fault is a habit forming or fading, so
+            // which fault is usual, and whether it earns, keeps the recency-weighted share above. A value
+            // (Solid, Straight, Fade, Draw, Low, Mid, High) is only what the shots were, so it is the one the
+            // most shots show, by plain count, as the bar counts: the usual never contradicts the bar beside
+            // it (a 7 iron's bar of Mid 58 % · Low 42 % reads Mid, not a recency-weighted Low). A tie goes to
+            // the table's order (shotFactorValueRank). Its share and frequency words are that same count over
+            // the shots read.
+            QString leadValue;
+            int leadValueCount = 0;
+            for (const QString &id : valueIds) {
+                const int n = count.value(id);
+                if (leadValue.isEmpty() || n > leadValueCount
+                    || (n == leadValueCount && shotFactorValueRank(id) < shotFactorValueRank(leadValue))) {
+                    leadValue = id;
+                    leadValueCount = n;
+                }
+            }
+            const auto useValue = [&](const QString &id, bool fault) {
+                tf.value = id;
+                tf.fault = fault;
+                tf.label = id.isEmpty() ? QStringLiteral("-") : labelOf(id);
+                tf.share = id.isEmpty() ? 0.0
+                         : fault        ? share.value(id)
+                                        : double(count.value(id)) / double(shots.size());
+                tf.frequency = id.isEmpty() ? QString() : tendencyFrequencyWords(tf.share);
+                tf.rowId = fault ? glossedConditionId(id, item.handedness) : QString();
+            };
+            std::vector<const JudgedShot *> faultShots;
+            if (!leadFault.isEmpty())
+                for (const JudgedShot *j : shots) if (j->factors.factor(name).faults.contains(leadFault)) faultShots.push_back(j);
+
+            // THE BUILDING FLOOR (Mark, 10 Nov 2026). Early on, one fat shot in 29 is not "what has shown up
+            // so far"; it is a stray. So a fault is shown at all only when it is on at least minShare of the
+            // factor's read shots (recency-weighted, as the earn rule measures share): an earned fault needs
+            // that and its history, a building one that alone. Under it the factor shows its most common value
+            // (counted, as above), building or not, and never in a fault tone.
+            const bool faultShows = !leadFault.isEmpty() && share.value(leadFault) >= opt.minShare;
+            tf.building = !enoughShots;
+            if (!faultShows) {
+                useValue(leadValue, false);
+                continue;
+            }
+
+            // ── Not enough history for a verdict: what has shown up so far, said as that ──
+            if (!enoughShots) {
+                useValue(leadFault, true);
+                const MissReasons reasons = reasonsBehind(faultShots);
                 const QString top = reasons.ids.isEmpty() ? QString() : reasons.ids.first();
-                item.chain = chainTo(missId, top, reasons.text.value(top), item.handedness, false);
-                item.earlyNote = QStringLiteral("%1 It becomes a tendency after %2 sessions of %3 or more shots.")
-                                     .arg(top.isEmpty() ? QStringLiteral("Early days: no reason has stood out yet.")
-                                                        : QStringLiteral("Early days: this is what has shown up so far."))
-                                     .arg(opt.minSessions).arg(opt.minSessionShots);
+                tf.chain = chainTo(tf.rowId, top, reasons.text.value(top), item.handedness, false);
+                tf.earlyNote = QStringLiteral("%1 It becomes a tendency after %2 sessions of %3 or more shots.")
+                                   .arg(top.isEmpty() ? QStringLiteral("Early days: no reason has stood out yet.")
+                                                      : QStringLiteral("Early days: this is what has shown up so far."))
+                                   .arg(opt.minSessions).arg(opt.minSessionShots);
+                continue;
             }
-            out.items.push_back(std::move(item));
-            continue;
-        }
 
-        // ── A usual miss, or the honest absence of one ──
-        item.building = false;
-        if (missId.isEmpty() || bestShare < opt.minShare) {
-            item.noUsualMiss = true;
-            item.miss = QStringLiteral("No usual miss");
-            item.missId.clear();
-            out.items.push_back(std::move(item));
-            continue;
-        }
+            // ── A usual fault, earned ──
+            useValue(leadFault, true);
 
-        // Every shot in the key that shows the usual miss, whatever else it shows.
-        std::vector<const JudgedShot *> missShots;
-        for (const JudgedShot *j : shots) if (j->missIds.contains(missId)) missShots.push_back(j);
-        const JudgedShot *first = missShots.front();
-        item.missFamily = first->missFamily.value(missId);
-        item.miss = first->missShort.value(missId);
-
-        // "Fat, often with a slice": the commonest other miss, any family, on at least half of these shots. The
-        // usual miss seen another way (its own halves, or the combined miss it is half of) is not another miss.
-        QHash<QString, int> otherCount;
-        QHash<QString, double> otherWeight;
-        QHash<QString, QString> otherShort;
-        QStringList otherIds;
-        for (const JudgedShot *j : missShots)
-            for (const QString &id : j->missIds) {
-                if (tendencySameMiss(id, missId)) continue;
-                if (!otherCount.contains(id)) otherIds << id;
-                ++otherCount[id];
-                otherWeight[id] += 1.0;
-                otherShort.insert(id, j->missShort.value(id));
+            // Seen with: the reason most often the headline driver of this fault's shots.
+            const MissReasons reasons = reasonsBehind(faultShots);
+            if (!reasons.ids.isEmpty()) {
+                tf.seenWithId = reasons.ids.first();
+                tf.seenWith   = reasons.text.value(tf.seenWithId);
+                tf.workOn     = tf.seenWithId;
+                tf.confirmedSessions = int(reasons.confirmedIn.value(tf.seenWithId).size());
+                tf.strength   = tf.confirmedSessions >= 2 ? QStringLiteral("likely") : QStringLiteral("possible");
+                if (reasons.ids.size() > 1) {
+                    const QString &second = reasons.ids.at(1);
+                    if (reasons.count.value(second) >= 2 && double(reasons.count.value(second)) >= 0.2 * double(reasons.driven))
+                        tf.alsoSeen = QStringLiteral("Also seen: %1.").arg(reasons.text.value(second).toLower());
+                }
             }
-        const QString bestOther = tendencyLeadMiss(otherIds, otherWeight, otherCount);
-        if (!bestOther.isEmpty() && double(otherCount.value(bestOther)) >= opt.coOccur * double(missShots.size())) {
-            const QString w = otherShort.value(bestOther).toLower();
-            item.miss += QStringLiteral(", often with %1 %2").arg(tendencyArticle(w), w);
-        }
 
-        // Seen with: the reason most often the headline driver of this miss.
-        const MissReasons reasons = reasonsBehind(missShots);
-        const QHash<QString, int> &driverCount = reasons.count;
-        const QHash<QString, QSet<int>> &confirmedIn = reasons.confirmedIn;
-        const QHash<QString, QString> &driverText = reasons.text;
-        const int drivenShots = reasons.driven;
-        const QStringList &driverIds = reasons.ids;
-        if (!driverIds.isEmpty()) {
-            item.seenWithId = driverIds.first();
-            item.seenWith   = driverText.value(item.seenWithId);
-            item.confirmedSessions = int(confirmedIn.value(item.seenWithId).size());
-            item.strength   = item.confirmedSessions >= 2 ? QStringLiteral("likely") : QStringLiteral("possible");
-            if (driverIds.size() > 1) {
-                const QString &second = driverIds.at(1);
-                if (driverCount.value(second) >= 2 && double(driverCount.value(second)) >= 0.2 * double(drivenShots))
-                    item.alsoSeen = QStringLiteral("Also seen: %1.").arg(driverText.value(second).toLower());
+            // The trend: the last two judged sessions against the rest; under three judged sessions there
+            // is no trend to read, only whether the fault was present throughout.
+            if (int(judgedSessions.size()) >= opt.trendMinJudged) {
+                const int split = int(judgedSessions.size()) - 2;
+                int lateHit = 0, lateAll = 0, earlyHit = 0, earlyAll = 0;
+                for (int idx = 0; idx < judgedSessions.size(); ++idx) {
+                    const int si = judgedSessions.at(idx);
+                    int hit = 0;
+                    for (const JudgedShot *j : faultShots) if (j->session == si) ++hit;
+                    if (idx >= split) { lateHit += hit; lateAll += shotsIn.value(si); }
+                    else              { earlyHit += hit; earlyAll += shotsIn.value(si); }
+                }
+                const double diff = double(lateHit) / std::max(1, lateAll) - double(earlyHit) / std::max(1, earlyAll);
+                tf.trend = diff >= opt.trendDelta ? 1 : diff <= -opt.trendDelta ? -1 : 0;
+                tf.trendWords = tf.trend > 0 ? QStringLiteral("↑ growing")
+                              : tf.trend < 0 ? QStringLiteral("↓ easing") : QStringLiteral("→ steady");
+            } else {
+                bool present = true, latestOver = false;
+                for (int si : judgedSessions) {
+                    int hit = 0;
+                    for (const JudgedShot *j : faultShots) if (j->session == si) ++hit;
+                    const bool over = double(hit) / std::max(1, shotsIn.value(si)) >= opt.minShare;
+                    if (!over) present = false;
+                    if (si == judgedSessions.last()) latestOver = over;
+                }
+                // Present throughout is steady, and only a fault that showed up in the latest session is new;
+                // one that was there and has gone from the latest session is on its way out.
+                tf.trend = (present || latestOver) ? 0 : -1;
+                tf.trendWords = present    ? QStringLiteral("→ steady")
+                              : latestOver ? QStringLiteral("new") : QStringLiteral("↓ easing");
             }
-        }
 
-        // The trend: the last two judged sessions against the rest; under three judged sessions there
-        // is no trend to read, only whether the miss was present throughout.
-        if (int(judgedSessions.size()) >= opt.trendMinJudged) {
-            const int split = int(judgedSessions.size()) - 2;
-            int lateHit = 0, lateAll = 0, earlyHit = 0, earlyAll = 0;
-            for (int idx = 0; idx < judgedSessions.size(); ++idx) {
-                const int si = judgedSessions.at(idx);
-                int hit = 0;
-                for (const JudgedShot *j : missShots) if (j->session == si) ++hit;
-                if (idx >= split) { lateHit += hit; lateAll += shotsIn.value(si); }
-                else              { earlyHit += hit; earlyAll += shotsIn.value(si); }
-            }
-            const double diff = double(lateHit) / std::max(1, lateAll) - double(earlyHit) / std::max(1, earlyAll);
-            item.trend = diff >= opt.trendDelta ? 1 : diff <= -opt.trendDelta ? -1 : 0;
-            item.trendWords = item.trend > 0 ? QStringLiteral("↑ growing")
-                            : item.trend < 0 ? QStringLiteral("↓ easing") : QStringLiteral("→ steady");
-        } else {
-            bool present = true, latestOver = false;
-            for (int si : judgedSessions) {
-                int hit = 0;
-                for (const JudgedShot *j : missShots) if (j->session == si) ++hit;
-                const bool over = double(hit) / std::max(1, shotsIn.value(si)) >= opt.minShare;
-                if (!over) present = false;
-                if (si == judgedSessions.last()) latestOver = over;
-            }
-            // Present throughout is steady, and only a miss that showed up in the latest session is new;
-            // one that was there and has gone from the latest session is on its way out.
-            item.trend = (present || latestOver) ? 0 : -1;
-            item.trendWords = present    ? QStringLiteral("→ steady")
-                            : latestOver ? QStringLiteral("new") : QStringLiteral("↓ easing");
+            tf.chain  = chainTo(tf.rowId, tf.seenWithId, tf.seenWith, item.handedness, true);
+            tf.playTo = outcomePlayTo(pack, tf.rowId, item.handedness);
         }
-
-        item.chain = chainTo(item.missId, item.seenWithId, item.seenWith, item.handedness, true);
 
         out.items.push_back(std::move(item));
     }
@@ -1016,7 +958,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     QHash<QString, int> badInGroup;
     for (const JudgedShot &j : judged) {
         if (j.session < firstRecent) continue;
-        if (!j.missIds.isEmpty()) ++badInGroup[j.group];
+        if (j.factors.anyFault()) ++badInGroup[j.group];
         for (const QString &c : j.firedConditions) ++tallies[c].firings;
         if (j.driverId.isEmpty()) continue;
         ConditionTally &t = tallies[j.driverId];
@@ -1060,18 +1002,27 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
             if (each >= 1.0) ball.costWords = QStringLiteral("About %1 lost each time it happens").arg(yardsText(each));
         }
 
-        // The tendency it feeds, and the line for Home's focus and list.
+        // The earned fault it feeds, keyed on (club, factor): the first row and factor seen with it, one
+        // confirmed in two sessions before any other, and the line for Home's focus and list.
+        const TendencyItem *fedItem = nullptr;
+        const TendencyFactor *fed = nullptr;
         for (const TendencyItem &item : out.items) {
-            if (item.building || item.noUsualMiss || item.seenWithId != id) continue;
-            ball.tendencyKey  = item.key;
-            ball.tendencyText = QStringLiteral("Feeds your “%1: %2” tendency").arg(item.club, item.miss.toLower());
-            if (item.confirmedSessions >= 2 && ball.onTheBall.isEmpty()) {
-                const QString missWord = item.miss.section(QLatin1Char(','), 0, 0).toLower();
-                ball.onTheBall = QStringLiteral("On the ball — your %1 with %2%3.")
-                                     .arg(missWord, item.club.toLower(),
-                                          item.length == QLatin1String("partial") ? QStringLiteral(" on part swings") : QString());
+            for (const QString &name : shotFactorNames()) {
+                const TendencyFactor &tf = item.factor(name);
+                if (tf.building || !tf.fault || tf.seenWithId != id) continue;
+                if (!fed || (tf.confirmedSessions >= 2 && fed->confirmedSessions < 2)) { fedItem = &item; fed = &tf; }
             }
-            break;
+            if (fed && fed->confirmedSessions >= 2) break;
+        }
+        if (fed) {
+            ball.tendencyKey  = fedItem->key;
+            ball.factor       = fed->factor;
+            ball.value        = fed->value;
+            ball.tendencyText = QStringLiteral("Feeds your “%1: %2” tendency").arg(fedItem->club, fed->label.toLower());
+            if (fed->confirmedSessions >= 2)
+                ball.onTheBall = QStringLiteral("On the ball — your %1 with %2%3.")
+                                     .arg(fed->label.toLower(), fedItem->club.toLower(),
+                                          fedItem->length == QLatin1String("partial") ? QStringLiteral(" on part swings") : QString());
         }
         // ... or, with no earned tendency confirmed, a confirmed share of this condition's own firings.
         if (ball.onTheBall.isEmpty() && t.firings > 0
@@ -1092,13 +1043,72 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
 
 // ── JSON ─────────────────────────────────────────────────────────────────────────────────────────────
 
+inline QJsonObject tendencyFactorToJson(const TendencyFactor &f)
+{
+    QJsonArray chain;
+    for (const TendencyChainStep &c : f.chain)
+        chain.append(QJsonObject{ { QStringLiteral("text"), c.text }, { QStringLiteral("words"), c.words } });
+    return QJsonObject{
+        { QStringLiteral("factor"), f.factor },
+        { QStringLiteral("value"), f.value },
+        { QStringLiteral("rowId"), f.rowId },
+        { QStringLiteral("label"), f.label },
+        { QStringLiteral("fault"), f.fault },
+        { QStringLiteral("share"), f.share },
+        { QStringLiteral("frequency"), f.frequency },
+        { QStringLiteral("building"), f.building },
+        { QStringLiteral("sessions"), f.sessions },
+        { QStringLiteral("shots"), f.shots },
+        { QStringLiteral("seenWithId"), f.seenWithId },
+        { QStringLiteral("seenWith"), f.seenWith },
+        { QStringLiteral("strength"), f.strength },
+        { QStringLiteral("confirmedSessions"), f.confirmedSessions },
+        { QStringLiteral("trend"), f.trend },
+        { QStringLiteral("trendWords"), f.trendWords },
+        { QStringLiteral("workOn"), f.workOn },
+        { QStringLiteral("mix"), shotMixBarToJson(f.mix) },
+        { QStringLiteral("chain"), chain },
+        { QStringLiteral("alsoSeen"), f.alsoSeen },
+        { QStringLiteral("earlyNote"), f.earlyNote },
+        { QStringLiteral("playTo"), f.playTo },
+    };
+}
+
+inline TendencyFactor tendencyFactorFromJson(const QJsonObject &o)
+{
+    const auto str = [&o](const char *k) { return o.value(QLatin1String(k)).toString(); };
+    TendencyFactor f;
+    f.factor     = str("factor");
+    f.value      = str("value");
+    f.rowId      = str("rowId");
+    f.label      = str("label");
+    f.fault      = o.value(QStringLiteral("fault")).toBool();
+    f.share      = o.value(QStringLiteral("share")).toDouble();
+    f.frequency  = str("frequency");
+    f.building   = o.value(QStringLiteral("building")).toBool();
+    f.sessions   = o.value(QStringLiteral("sessions")).toInt();
+    f.shots      = o.value(QStringLiteral("shots")).toInt();
+    f.seenWithId = str("seenWithId");
+    f.seenWith   = str("seenWith");
+    f.strength   = str("strength");
+    f.confirmedSessions = o.value(QStringLiteral("confirmedSessions")).toInt();
+    f.trend      = o.value(QStringLiteral("trend")).toInt();
+    f.trendWords = str("trendWords");
+    f.workOn     = str("workOn");
+    f.mix        = shotMixBarFromJson(o.value(QStringLiteral("mix")).toObject());
+    for (const QJsonValue &c : o.value(QStringLiteral("chain")).toArray())
+        f.chain.push_back(TendencyChainStep{ c.toObject().value(QStringLiteral("text")).toString(),
+                                             c.toObject().value(QStringLiteral("words")).toString() });
+    f.alsoSeen   = str("alsoSeen");
+    f.earlyNote  = str("earlyNote");
+    f.playTo     = str("playTo");
+    return f;
+}
+
 inline QJsonObject tendencySetToJson(const TendencySet &s)
 {
     QJsonArray items;
     for (const TendencyItem &it : s.items) {
-        QJsonArray chain;
-        for (const TendencyChainStep &c : it.chain)
-            chain.append(QJsonObject{ { QStringLiteral("text"), c.text }, { QStringLiteral("words"), c.words } });
         items.append(QJsonObject{
             { QStringLiteral("key"), it.key },
             { QStringLiteral("clubGroup"), it.clubGroup },
@@ -1106,25 +1116,11 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
             { QStringLiteral("club"), it.club },
             { QStringLiteral("length"), it.length },
             { QStringLiteral("handedness"), it.handedness },
-            { QStringLiteral("missId"), it.missId },
-            { QStringLiteral("miss"), it.miss },
-            { QStringLiteral("missFamily"), it.missFamily },
-            { QStringLiteral("share"), it.share },
-            { QStringLiteral("frequency"), it.frequency },
-            { QStringLiteral("building"), it.building },
-            { QStringLiteral("noUsualMiss"), it.noUsualMiss },
             { QStringLiteral("sessions"), it.sessions },
             { QStringLiteral("shots"), it.shots },
-            { QStringLiteral("seenWithId"), it.seenWithId },
-            { QStringLiteral("seenWith"), it.seenWith },
-            { QStringLiteral("strength"), it.strength },
-            { QStringLiteral("confirmedSessions"), it.confirmedSessions },
-            { QStringLiteral("trend"), it.trend },
-            { QStringLiteral("trendWords"), it.trendWords },
-            { QStringLiteral("chain"), chain },
-            { QStringLiteral("alsoSeen"), it.alsoSeen },
-            { QStringLiteral("earlyNote"), it.earlyNote },
-            { QStringLiteral("mix"), shotMixBarToJson(it.mix) },
+            { QStringLiteral("strike"), tendencyFactorToJson(it.strike) },
+            { QStringLiteral("direction"), tendencyFactorToJson(it.direction) },
+            { QStringLiteral("flight"), tendencyFactorToJson(it.flight) },
         });
     }
     QJsonArray onBall;
@@ -1138,21 +1134,24 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
             { QStringLiteral("produced"), produced },
             { QStringLiteral("costWords"), b.costWords },
             { QStringLiteral("tendencyKey"), b.tendencyKey },
+            { QStringLiteral("factor"), b.factor },
+            { QStringLiteral("value"), b.value },
             { QStringLiteral("tendencyText"), b.tendencyText },
             { QStringLiteral("onTheBall"), b.onTheBall },
         });
     }
     QJsonArray clubOutcomes;
     for (const TendencyClubOutcomes &c : s.clubOutcomes) {
-        QJsonArray misses;
-        for (const TendencyOutcomeCount &m : c.misses)
-            misses.append(QJsonObject{ { QStringLiteral("id"), m.id }, { QStringLiteral("label"), m.label },
-                                       { QStringLiteral("shots"), m.shots } });
+        QJsonArray tuples;
+        for (const TendencyFactorTuple &t : c.tuples)
+            tuples.append(QJsonObject{ { QStringLiteral("strike"), QJsonArray::fromStringList(t.strike) },
+                                       { QStringLiteral("direction"), QJsonArray::fromStringList(t.direction) },
+                                       { QStringLiteral("flight"), QJsonArray::fromStringList(t.flight) },
+                                       { QStringLiteral("shots"), t.shots } });
         clubOutcomes.append(QJsonObject{
             { QStringLiteral("clubId"), c.clubId },
             { QStringLiteral("judged"), c.judged },
-            { QStringLiteral("good"), c.good },
-            { QStringLiteral("misses"), misses },
+            { QStringLiteral("tuples"), tuples },
         });
     }
     return QJsonObject{
@@ -1212,26 +1211,11 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
         it.club       = str(o, "club");
         it.length     = str(o, "length");
         it.handedness = str(o, "handedness");
-        it.missId     = str(o, "missId");
-        it.miss       = str(o, "miss");
-        it.missFamily = str(o, "missFamily");
-        it.share      = o.value(QStringLiteral("share")).toDouble();
-        it.frequency  = str(o, "frequency");
-        it.building   = o.value(QStringLiteral("building")).toBool();
-        it.noUsualMiss = o.value(QStringLiteral("noUsualMiss")).toBool();
         it.sessions   = o.value(QStringLiteral("sessions")).toInt();
         it.shots      = o.value(QStringLiteral("shots")).toInt();
-        it.seenWithId = str(o, "seenWithId");
-        it.seenWith   = str(o, "seenWith");
-        it.strength   = str(o, "strength");
-        it.confirmedSessions = o.value(QStringLiteral("confirmedSessions")).toInt();
-        it.trend      = o.value(QStringLiteral("trend")).toInt();
-        it.trendWords = str(o, "trendWords");
-        it.alsoSeen   = str(o, "alsoSeen");
-        it.earlyNote  = str(o, "earlyNote");
-        it.mix        = shotMixBarFromJson(o.value(QStringLiteral("mix")).toObject());
-        for (const QJsonValue &c : o.value(QStringLiteral("chain")).toArray())
-            it.chain.push_back(TendencyChainStep{ str(c.toObject(), "text"), str(c.toObject(), "words") });
+        it.strike     = tendencyFactorFromJson(o.value(QStringLiteral("strike")).toObject());
+        it.direction  = tendencyFactorFromJson(o.value(QStringLiteral("direction")).toObject());
+        it.flight     = tendencyFactorFromJson(o.value(QStringLiteral("flight")).toObject());
         s.items.push_back(std::move(it));
     }
     for (const QJsonValue &v : root.value(QStringLiteral("onBall")).toArray()) {
@@ -1241,21 +1225,29 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
         b.text         = str(o, "text");
         b.costWords    = str(o, "costWords");
         b.tendencyKey  = str(o, "tendencyKey");
+        b.factor       = str(o, "factor");
+        b.value        = str(o, "value");
         b.tendencyText = str(o, "tendencyText");
         b.onTheBall    = str(o, "onTheBall");
         for (const QJsonValue &p : o.value(QStringLiteral("produced")).toArray())
             b.produced.push_back(TendencyProduced{ str(p.toObject(), "phrase"), p.toObject().value(QStringLiteral("count")).toInt() });
         s.onBall.push_back(std::move(b));
     }
+    const auto strings = [](const QJsonValue &v) {
+        QStringList out;
+        for (const QJsonValue &x : v.toArray()) out << x.toString();
+        return out;
+    };
     for (const QJsonValue &v : root.value(QStringLiteral("clubOutcomes")).toArray()) {
         const QJsonObject o = v.toObject();
         TendencyClubOutcomes c;
         c.clubId = str(o, "clubId");
         c.judged = o.value(QStringLiteral("judged")).toInt();
-        c.good   = o.value(QStringLiteral("good")).toInt();
-        for (const QJsonValue &m : o.value(QStringLiteral("misses")).toArray())
-            c.misses.push_back(TendencyOutcomeCount{ str(m.toObject(), "id"), str(m.toObject(), "label"),
-                                                     m.toObject().value(QStringLiteral("shots")).toInt() });
+        for (const QJsonValue &tv : o.value(QStringLiteral("tuples")).toArray()) {
+            const QJsonObject t = tv.toObject();
+            c.tuples.push_back(TendencyFactorTuple{ strings(t.value(QStringLiteral("strike"))), strings(t.value(QStringLiteral("direction"))),
+                                                    strings(t.value(QStringLiteral("flight"))), t.value(QStringLiteral("shots")).toInt() });
+        }
         s.clubOutcomes.push_back(std::move(c));
     }
     return s;

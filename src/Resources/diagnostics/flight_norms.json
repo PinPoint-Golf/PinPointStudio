@@ -1,0 +1,70 @@
+{
+  "schema": 2,
+  "about": "Ball-flight height bands per club category (docs/design/ball-flight-classification.md). A shot is Low below L, High above H, otherwise Mid, judged by the first method the shot can use: landing angle, then apex/carry, then absolute apex against a speed-matched reference (driver only). Height is relative to ball speed and club, never to handicap.",
+  "status": "provisional: heuristic starting values from the reference data, not an industry standard; to be tuned against PinPoint capture data (spec §4)",
+  "spec": "docs/design/ball-flight-classification.md",
+  "categories": {
+    "driver":         { "label": "Driver",           "clubs": ["DRIVER"] },
+    "fairway_hybrid": { "label": "Fairway / hybrid", "clubs": ["3 WOOD", "5 WOOD", "3 HYBRID", "4 HYBRID"] },
+    "long_irons":     { "label": "Long irons",       "clubs": ["3 IRON", "4 IRON"] },
+    "mid_irons":      { "label": "Mid irons",        "clubs": ["5 IRON", "6 IRON", "7 IRON"] },
+    "short_irons":    { "label": "Short irons",      "clubs": ["8 IRON", "9 IRON", "PITCHING WEDGE"] },
+    "wedges":         { "label": "Wedges",           "clubs": ["GAP WEDGE", "SAND WEDGE", "LOB WEDGE"] }
+  },
+  "methods": [
+    {
+      "id": "landing",
+      "label": "Landing angle",
+      "unit": "deg",
+      "preferred": true,
+      "bands": {
+        "driver":         [33, 41],
+        "fairway_hybrid": [37, 45],
+        "long_irons":     [41, 49],
+        "mid_irons":      [44, 52],
+        "short_irons":    [47, 54],
+        "wedges":         [49, 56]
+      }
+    },
+    {
+      "id": "apex_carry",
+      "label": "Apex/carry",
+      "unit": "ratio (apex and carry in the same units)",
+      "bands": {
+        "driver":         [0.10, 0.14],
+        "fairway_hybrid": [0.12, 0.16],
+        "long_irons":     [0.14, 0.18],
+        "mid_irons":      [0.16, 0.21],
+        "short_irons":    [0.18, 0.23],
+        "wedges":         [0.19, 0.25]
+      },
+      "note": "Wedge ratios are less reliable for partial shots; classify full swings only."
+    },
+    {
+      "id": "apex",
+      "label": "Apex against a speed-matched reference",
+      "unit": "apex / reference apex",
+      "lastResort": true,
+      "band": [0.85, 1.15],
+      "reference": {
+        "driver": {
+          "points": [ { "ballSpeedMph": 140, "apexYd": 25 }, { "ballSpeedMph": 167, "apexYd": 32 } ],
+          "note": "Linear between the LPGA and PGA Tour driver points (about 0.26 yd per mph). Extrapolate cautiously below 140 mph."
+        }
+      },
+      "note": "Only when neither landing angle nor carry is available, and only for the driver (the only speed-matched reference)."
+    }
+  ],
+  "sources": [
+    { "id": "trackman_tour_averages", "title": "TrackMan PGA/LPGA Tour averages", "url": "https://support.trackmangolf.com/hc/en-us/article_attachments/7349802113051", "also": "https://support.trackmangolf.com/hc/en-us/article_attachments/7349801987483" },
+    { "id": "trackman_apex", "title": "What is Apex Height?", "publisher": "TrackMan", "url": "https://www.trackman.com/blog/apex-height" },
+    { "id": "golf_monthly_2023", "title": "2023 TrackMan PGA Tour averages", "publisher": "Golf Monthly", "url": "https://www.golfmonthly.com/tour/how-far-pga-tour-players-hit-every-club-in-the-bag" },
+    { "id": "golf_com_speed", "title": "Optimal TrackMan numbers by swing speed", "publisher": "Golf.com", "url": "https://golf.com/gear/swing-speed-optimal-trackman-numbers-to-hit-your-drives-farther/" },
+    { "id": "golf_news_net", "title": "What do TrackMan numbers mean?", "publisher": "The Golf News Net", "url": "https://thegolfnewsnet.com/golfnewsnetteam/2016/10/24/what-do-trackman-numbers-mean-interpret-results-launch-monitor-100881/" }
+  ],
+  "notes": [
+    "Thresholds transcribed from ball-flight-classification.md §4 (Mark Liversedge, 10 Nov 2026).",
+    "Reference values assume flat landing, calm conditions and sea level.",
+    "The 2 iron and 7 wood in the spec's categories are not in the app's club vocabulary."
+  ]
+}

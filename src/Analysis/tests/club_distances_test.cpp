@@ -140,7 +140,7 @@ int main()
 
     std::printf("ledger schema round trip:\n");
     {
-        check(kDiagSchemaVersion == 12, "the ledger is schema 12");
+        check(kDiagSchemaVersion == 13, "the ledger is schema 13");
 
         ShotRecord s = shotWith(1, k7i, 137.8);
         s.swingLength = QStringLiteral("full");
@@ -148,6 +148,10 @@ int main()
         s.launchAngle = 18.5;
         s.startDirection = -3.1;
         s.attackAngle = -4.2;
+        s.descentAngle = 46.5;
+        s.peakHeight = 84.0;
+        s.spinRate = 6400.0;
+        s.spinAxis = -2.5;
         ConditionRow r = firedRow(QStringLiteral("chunk"), 3);
         s.rows.push_back(r);
         const QJsonObject obj = toJson({ s });
@@ -160,6 +164,9 @@ int main()
               "the LM fields survive");
         check(near(b.launchAngle, 18.5, 1e-12) && near(b.startDirection, -3.1, 1e-12) && near(b.attackAngle, -4.2, 1e-12),
               "the flight readings a strike is read from survive");
+        check(near(b.descentAngle, 46.5, 1e-12) && near(b.peakHeight, 84.0, 1e-12) && near(b.spinRate, 6400.0, 1e-12)
+                  && near(b.spinAxis, -2.5, 1e-12),
+              "schema 13: the landing angle and the apex (feet) the flight's height is read from, and the spin it is modelled from, survive");
         check(b.swingLength == QStringLiteral("full") && b.handedness == QStringLiteral("Left"),
               "swing length and handedness survive");
         check(b.rows[0].firedSignalCount == 3, "firedSignalCount survives");

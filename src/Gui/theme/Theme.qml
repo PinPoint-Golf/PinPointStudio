@@ -857,12 +857,14 @@ QtObject {
         return n > 0 ? colorGood : n < 0 ? colorWarn : colorText3
     }
     // A habit band's colour (an area's band bar, its legend): a habit is the fault coral, never the
-    // alarm red (13.2); occasional is amber; clean is the accent; unclear (and anything else — no
-    // band is never a pass) is the unlit ground.
+    // alarm red (13.2); occasional is amber; clean is the accent; value is gradientCool, a shot-mix part
+    // that is neither praise nor fault (a shape or a height: Fade, Draw, Low, Mid, High; Mark, 10 Nov
+    // 2026); unclear (and anything else — no band is never a pass) is the unlit ground.
     function bandTone(band) {
         return band === "habit"      ? colorWarn
              : band === "occasional" ? colorAttention
              : band === "clean"      ? colorGood       // the corridor ramp's in-range colour (corridorTone, strengthColor), not the accent: in an amber-accent theme the accent reads as a fault
+             : band === "value"      ? gradientCool    // a relation, neither praise nor fault (README, Colour)
              :                         colorMeterUnlit
     }
 

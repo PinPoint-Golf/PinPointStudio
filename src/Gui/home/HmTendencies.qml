@@ -16,11 +16,13 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// TENDENCIES — the usual miss with each club, the body of Home's Tendencies tab (HmHomeTabs;
+// TENDENCIES — each club's usual strike, direction and flight, the body of Home's Tendencies tab (HmHomeTabs;
 // docs/design/shot_outcomes_design.md §7.2). One table card, a row per club and swing length, optionally of one group
 // (HmTendencyRow):
 //
-//   chevron · Club · Usual distance · Usual miss · Your shots · Seen with · Trend · Work-on
+//   chevron · Club · Usual distance · Strike · Direction · Flight · Work-on
+//
+// A factor's usual is its most common fault when that fault earns, else its most common value, said plainly.
 //
 // One row open at a time. Held here and not on the row: each publish of the tendencies rebuilds them.
 //
@@ -59,12 +61,11 @@ PpCard {
     width:  parent ? parent.width : 0
     table:  true
     columns: [{ title: "",                          width: Theme.sp(14) },     // the chevron's
-              { title: caption(qsTr("Club")),           fill: 0.85 },
-              { title: caption(qsTr("Usual distance")), fill: 1.0 },
-              { title: caption(qsTr("Usual miss")),     fill: 0.9 },
-              { title: caption(qsTr("Your shots")),     fill: 1.75 },
-              { title: caption(qsTr("Seen with")),      fill: 1.5 },
-              { title: caption(qsTr("Trend")),          width: Theme.sp(84) },
+              { title: caption(qsTr("Club")),           fill: 0.9 },
+              { title: caption(qsTr("Usual distance")), fill: 0.9 },
+              { title: caption(qsTr("Strike")),         fill: 1.0 },
+              { title: caption(qsTr("Direction")),      fill: 1.0 },
+              { title: caption(qsTr("Flight")),         fill: 1.0 },
               { title: caption(qsTr("Work-on")),        width: Theme.sp(84) }]
 
     Repeater {
@@ -120,7 +121,7 @@ PpCard {
         PpCardNote {
             id: footNote
             width: footRow.cellBox.width
-            text:  qsTr("Part swings are detected from backswing length and club speed. Shots you marked as intended shapes are left out.")
+            text:  qsTr("Part swings are detected from backswing length and club speed. Flight is judged against your club's height band, by landing angle where there is one.")
         }
     }
 }

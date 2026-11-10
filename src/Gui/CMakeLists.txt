@@ -187,7 +187,7 @@ else()
     # (PP_DIAG_RESOURCES_DIR above, QmlUiTestSetup's constructor), so a direct run of qml_ui_test.exe
     # gets the shipped content too; these stay explicit, and an explicit value wins over the default.
     set_tests_properties(qml_ui PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PINPOINT_CORE_PACK=${_pp_diag}/core.json;PINPOINT_CORE_NORMS=${_pp_diag}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${_pp_diag}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${_pp_diag}/contexts.json;PINPOINT_CORE_SCREENS=${_pp_diag}/screens.json;PINPOINT_CORE_DRILLS=${_pp_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_diag}/references.json"
         RUN_SERIAL TRUE)
 
     # ⚠ OPT-IN, OUT OF THE FULL SUITE AND THE RELEASE GATE (2026-10-17). It passes on an idle

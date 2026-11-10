@@ -221,8 +221,9 @@ SessionWorkOns scopedSessionRecord(const QString &dir, const std::vector<ShotRec
 TendencySet tendencySetFromSessions(std::vector<TendencySessionInput> &sessions, const ShotOutcomePack &pack, const ContextTree &tree,
                                     const std::atomic<bool> *cancel = nullptr)
 {
+    // The flight table every shot's height is judged against; its bytes are in the tendency fingerprint.
     TendencySet set = reduceTendencies(sessions, pack, [&tree](const QString &club) { return tendencyClubGroup(tree, club); },
-                                       TendencyOptions{}, cancel);
+                                       shippedFlightNorms(), TendencyOptions{}, cancel);
     if (set.cancelled || (cancel && cancel->load())) return set;
 
     std::vector<ClubDistanceSession> clubSessions;
@@ -232,6 +233,44 @@ TendencySet tendencySetFromSessions(std::vector<TendencySessionInput> &sessions,
     for (const ClubDistanceItem &it : reduceClubDistances(clubSessions)) distances.append(clubDistanceItemToJson(it));
     set.clubDistances = distances;
     return set;
+}
+
+// The flight table's bytes, hashed once (as shippedFlightNorms reads it once): in the tendency fingerprint, so a
+// threshold tuned in flight_norms.json re-reduces. Empty when the file can't be read (no flight is read either).
+const QByteArray &flightNormsStamp()
+{
+    static const QByteArray k = [] {
+        QFile f(flightNormsPath());
+        if (!f.open(QIODevice::ReadOnly)) return QByteArray();
+        return QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha1).toHex();
+    }();
+    return k;
+}
+
+// One factor's values in a club's tuple; empty when it wasn't read.
+const QStringList &factorTupleValues(const TendencyFactorTuple &t, const QString &factor)
+{
+    return factor == shotFactorStrike() ? t.strike : factor == shotFactorDirection() ? t.direction : t.flight;
+}
+
+// Whether a tuple's shots are in `filter`, `skip`'s choice left out (counted as Any); a factor not read fails
+// any choice for it but Any, as ShotFilter::contains has it.
+bool factorTupleHolds(const TendencyFactorTuple &t, const ShotFilter &filter, const QString &skip = QString())
+{
+    for (const QString &name : shotFactorNames()) {
+        if (name == skip) continue;
+        const QString &want = filter.choice(name);
+        if (want != shotFilterAny() && !factorTupleValues(t, name).contains(want)) return false;
+    }
+    return true;
+}
+
+// "Active" before "Easing": how pressing a work-on's status is, for the Tendencies row's words.
+int workOnStatusRank(const QString &status)
+{
+    if (status == QLatin1String("active")) return 0;
+    if (status == QLatin1String("easing")) return 1;
+    return 2;
 }
 
 } // namespace
@@ -256,6 +295,7 @@ WorkOnsController::WorkOnsController(QObject *parent)
     m_themesPool.setMaxThreadCount(1);
     m_marksPool.setMaxThreadCount(1);
     m_marksPool.setThreadPriority(QThread::LowPriority);
+    m_filterOptions = shotFilterOptionsFor(m_filter);      // Any alone, until there are tendencies to count
     // The job's own thread works through the replicates too, so this plus it is every core.
     m_replicatePool.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));
     // Seconds of every core, beside a home screen being used: the screen comes first.
@@ -292,11 +332,11 @@ QString WorkOnsController::themesPath(const QString &athleteDir, const ClubScope
     return QDir(athleteDir).filePath(QStringLiteral("swing_themes.%1.json").arg(clubScopeFileKey(scope.key)));
 }
 
-QString WorkOnsController::themesPath(const QString &athleteDir, const ClubScope &scope, const OutcomeScope &outcome)
+QString WorkOnsController::themesPath(const QString &athleteDir, const ClubScope &scope, const ShotFilter &filter)
 {
-    if (outcome.isAll()) return themesPath(athleteDir, scope);
+    if (filter.isAll()) return themesPath(athleteDir, scope);
     return QDir(athleteDir).filePath(QStringLiteral("swing_themes.%1.%2.json")
-                                         .arg(clubScopeFileKey(scope.key), clubScopeFileKey(outcome.key)));
+                                         .arg(clubScopeFileKey(scope.key), clubScopeFileKey(filter.key())));
 }
 
 QString WorkOnsController::tendenciesPath(const QString &athleteDir)
@@ -354,8 +394,10 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     m_summaryScope = m_togetherScope = clubScopeAllKey();
     m_scopeWorking = false;
     // And what their shots did; the request stays, as the club's does, and resolves once their tendencies land.
-    m_outcome = OutcomeScope();
-    m_outcomeScopes.clear();
+    // The options are their tendencies' counts, so they go first: Any alone until those land.
+    clearTendencies();
+    m_filter = ShotFilter();
+    m_filterOptions = shotFilterOptionsFor(m_filter);
     m_shownOutcome = ShownOutcome();
     emit clubScopeChanged();
     emit clubScopeStateChanged();
@@ -905,25 +947,21 @@ void WorkOnsController::updateClubScope()
     m_clubScopes = list;
     m_scope = std::move(next);
 
-    // The outcome choices are the club choice's, so they follow it; then what the asked-for outcome resolves to.
-    const QVariantList outcomes = outcomeScopeOptions();
-    OutcomeScope nextOutcome = outcomeScopeFromKey(m_outcomeRequested);
-    if (!nextOutcome.isAll()
-        && std::none_of(outcomes.begin(), outcomes.end(), [&nextOutcome](const QVariant &v) {
-               return v.toMap().value(QStringLiteral("value")).toString() == nextOutcome.key;
-           }))
-        nextOutcome = OutcomeScope();
-    const bool outcomeMoved = nextOutcome.key != m_outcome.key;
-    const bool outcomeListMoved = outcomes != m_outcomeScopes;
-    if (!clubMoved && !clubListMoved && !outcomeMoved && !outcomeListMoved) return;
-    m_outcomeScopes = outcomes;
-    m_outcome = std::move(nextOutcome);
+    // The filter's options are the club choice's, so they follow it: first what the asked-for filter resolves to
+    // there, part by part, then each factor's options counted under the other two choices.
+    ShotFilter nextFilter = resolveShotFilter(shotFilterFromKey(m_filterRequested));
+    const QVariantMap options = shotFilterOptionsFor(nextFilter);
+    const bool filterMoved = nextFilter.key() != m_filter.key();
+    const bool optionsMoved = options != m_filterOptions;
+    if (!clubMoved && !clubListMoved && !filterMoved && !optionsMoved) return;
+    m_filterOptions = options;
+    m_filter = std::move(nextFilter);
     emit clubScopeChanged();
-    if (clubMoved || outcomeMoved) onClubScopeMoved(clubMoved);
+    if (clubMoved || filterMoved) onClubScopeMoved(clubMoved);
 }
 
 // A grade belongs to the shots it read, so the old scope's stop showing at once ("-" until the new ones land).
-// The marks read the club choice's shots only, so an outcome moving alone keeps them.
+// The marks read the club choice's shots only, so the shot filter moving alone keeps them.
 void WorkOnsController::onClubScopeMoved(bool clubMoved)
 {
     if (clubMoved) {
@@ -935,80 +973,121 @@ void WorkOnsController::onClubScopeMoved(bool clubMoved)
     maybeThemes();
 }
 
-void WorkOnsController::setOutcomeScope(const QString &key)
+void WorkOnsController::setShotFilter(const QString &key)
 {
-    if (key == m_outcomeRequested) return;
-    m_outcomeRequested = key;
+    if (key == m_filterRequested) return;
+    m_filterRequested = key;
     updateClubScope();
 }
 
-QString WorkOnsController::scopeKeyOf(const ClubScope &club, const OutcomeScope &outcome)
+QString WorkOnsController::scopeKeyOf(const ClubScope &club, const ShotFilter &filter)
 {
-    return outcome.isAll() ? club.key : club.key + QLatin1Char('|') + outcome.key;
+    return filter.isAll() ? club.key : club.key + QLatin1Char('|') + filter.key();
 }
 
-// Every judged shot with a club the club choice holds, by outcome: Good first, then each miss, most shots first.
-QVariantList WorkOnsController::outcomeScopeOptions() const
+// Each part the club choice's judged shots have shown is kept; any other is Any. The tuples are the tendency
+// reduction's (TendencySet::clubOutcomes), so with none in hand nothing is chosen.
+ShotFilter WorkOnsController::resolveShotFilter(const ShotFilter &asked) const
 {
-    QVariantList out;
-    if (!m_tendenciesReady) return out;
-    int good = 0;
-    QStringList ids;
-    QHash<QString, int> shots;
-    QHash<QString, QString> labels;
-    for (const TendencyClubOutcomes &c : m_tendencySet.clubOutcomes) {
-        if (!m_scope.contains(c.clubId)) continue;
-        good += c.good;
-        for (const TendencyOutcomeCount &m : c.misses) {
-            if (!shots.contains(m.id)) {
-                ids << m.id;
-                labels.insert(m.id, m.label.isEmpty() ? m.id : m.label);
-            }
-            shots[m.id] += m.shots;
+    ShotFilter out;
+    if (!m_tendenciesReady || asked.isAll()) return out;
+    for (const QString &name : shotFactorNames()) {
+        const QString &want = asked.choice(name);
+        if (want == shotFilterAny()) continue;
+        bool seen = false;
+        for (const TendencyClubOutcomes &c : m_tendencySet.clubOutcomes) {
+            if (!m_scope.contains(c.clubId)) continue;
+            seen = std::any_of(c.tuples.begin(), c.tuples.end(), [&](const TendencyFactorTuple &t) {
+                return factorTupleValues(t, name).contains(want);
+            });
+            if (seen) break;
         }
-    }
-    std::sort(ids.begin(), ids.end(), [&shots](const QString &a, const QString &b) {
-        const int na = shots.value(a), nb = shots.value(b);
-        return na != nb ? na > nb : a < b;
-    });
-    if (good > 0)
-        out.append(QVariantMap{ { QStringLiteral("value"), outcomeScopeGoodKey() }, { QStringLiteral("label"), QStringLiteral("Good shots") },
-                                { QStringLiteral("count"), good } });
-    for (const QString &id : std::as_const(ids)) {
-        if (shots.value(id) <= 0) continue;
-        out.append(QVariantMap{ { QStringLiteral("value"), outcomeScopeMissKey(id) }, { QStringLiteral("label"), labels.value(id) },
-                                { QStringLiteral("count"), shots.value(id) } });
+        if (!seen) continue;
+        if (name == shotFactorStrike())         out.strike = want;
+        else if (name == shotFactorDirection()) out.direction = want;
+        else                                    out.flight = want;
     }
     return out;
 }
 
+// Per factor: Any, then every value the club choice's judged shots show, in the table's order (shotFactorValueRank).
+// Each count is the shots that choice leaves with the other two factors' choices in `chosen` kept: Any's, the
+// shots the other two hold; a value's, those of them that show it. A shot showing two values (a toe and a weak
+// strike) is under both. A value that leaves none is still listed, with 0.
+QVariantMap WorkOnsController::shotFilterOptionsFor(const ShotFilter &chosen) const
+{
+    const ShotOutcomePack *pack = m_tendenciesReady ? &outcomePack() : nullptr;
+    QVariantMap out;
+    for (const QString &name : shotFactorNames()) {
+        int any = 0;
+        QStringList ids;
+        QHash<QString, int> count;
+        if (m_tendenciesReady)
+            for (const TendencyClubOutcomes &c : m_tendencySet.clubOutcomes) {
+                if (!m_scope.contains(c.clubId)) continue;
+                for (const TendencyFactorTuple &t : c.tuples) {
+                    const bool held = factorTupleHolds(t, chosen, name);
+                    if (held) any += t.shots;
+                    for (const QString &id : factorTupleValues(t, name)) {
+                        if (!ids.contains(id)) ids << id;
+                        if (held) count[id] += t.shots;
+                    }
+                }
+            }
+        std::sort(ids.begin(), ids.end(), [](const QString &a, const QString &b) {
+            const int ra = shotFactorValueRank(a), rb = shotFactorValueRank(b);
+            return ra != rb ? ra < rb : a < b;
+        });
+        QVariantList list{ QVariantMap{ { QStringLiteral("value"), shotFilterAny() }, { QStringLiteral("label"), QStringLiteral("Any") },
+                                        { QStringLiteral("count"), any } } };
+        for (const QString &id : std::as_const(ids))
+            list.append(QVariantMap{ { QStringLiteral("value"), id }, { QStringLiteral("label"), shotFactorValueLabel(*pack, id) },
+                                     { QStringLiteral("count"), count.value(id) } });
+        out.insert(name, list);
+    }
+    return out;
+}
+
+// The club choice as the word before "shots": a group's shot word, an iron group's hyphenated ("mid-iron"),
+// a club's own name ("7 iron", "driver").
 QString WorkOnsController::clubScopeWords() const
 {
     if (m_scope.isAll()) return QString();
     for (const ClubScopeGroupOption &g : m_scopeOptions) {
-        if (g.value == m_scope.key) return g.label.toLower();
+        if (g.value == m_scope.key) {
+            QString word = tendencyClubShotWord(g.group);
+            if (word.endsWith(QLatin1String(" iron"))) word.replace(word.size() - 5, 1, QLatin1Char('-'));
+            return word;
+        }
         for (const ClubScopeOption &c : g.clubs)
             if (c.value == m_scope.key) return c.label.toLower();
     }
     return QString();
 }
 
-QString WorkOnsController::outcomeScopeLine() const
+// "Your pulled, thin mid-iron shots: 11 over 5 sessions, against 31 others. Your swing was measured on 3 of them."
+QString WorkOnsController::shotFilterLine() const
 {
     const ShownOutcome &o = m_shownOutcome;
     if (o.scope.isAll()) return QString();
-    const QString what = o.scope.good ? QStringLiteral("good") : (o.label.isEmpty() ? o.scope.missId : o.label).toLower();
+    QString what = filterWords(o.scope);
+    if (!o.clubWords.isEmpty()) what += QLatin1Char(' ') + o.clubWords;
+    const QString against = o.others <= 0 ? QStringLiteral("and no others")
+                          : QStringLiteral("against ") + outcomeCountText(o.others, QStringLiteral("other"), QStringLiteral("others"));
+    // A choice with no shots under it (each factor's values are listed whatever the others leave) says so, and
+    // nothing about measuring them.
+    if (o.chosen <= 0) return QStringLiteral("Your %1 shots: none yet, %2.").arg(what, against);
     // The second sentence says how many of them had the swing measured: a launch-monitor-only session judges the
     // ball but assesses no fault, and an empty page must not read as "no faults".
-    const QString measured = o.measured <= 0          ? QStringLiteral("Your swing was not measured on any of them.")
-                           : o.measured >= o.chosen   ? QStringLiteral("Your swing was measured on all of them.")
+    const bool one = o.chosen == 1;
+    const QString measured = o.measured <= 0          ? (one ? QStringLiteral("Your swing was not measured on it.")
+                                                             : QStringLiteral("Your swing was not measured on any of them."))
+                           : o.measured >= o.chosen   ? (one ? QStringLiteral("Your swing was measured on it.")
+                                                             : QStringLiteral("Your swing was measured on all of them."))
                                                       : QStringLiteral("Your swing was measured on %1 of them.").arg(o.measured);
-    return QStringLiteral("Your %1 shots%2: %3 over %4, against %5. %6")
-        .arg(what, o.clubWords.isEmpty() ? QString() : QStringLiteral(" with ") + o.clubWords,
-             outcomeCountText(o.chosen, QStringLiteral("shot"), QStringLiteral("shots")),
-             outcomeCountText(o.sessions, QStringLiteral("session"), QStringLiteral("sessions")),
-             outcomeCountText(o.others, QStringLiteral("other shot"), QStringLiteral("other shots")),
-             measured);
+    return QStringLiteral("Your %1 shots: %2 over %3, %4. %5")
+        .arg(what, QString::number(o.chosen),
+             outcomeCountText(o.sessions, QStringLiteral("session"), QStringLiteral("sessions")), against, measured);
 }
 
 // The contrast's own floor for "too few other shots", applied to the chosen shots the swing was measured on.
@@ -1024,7 +1103,8 @@ QString WorkOnsController::outcomeContrastFor(const ShownOutcome &shown, const Q
     if (shown.scope.isAll()) return QString();
     const auto it = shown.contrasts.constFind(conditionId);
     if (it == shown.contrasts.constEnd()) return QString();
-    return outcomeContrastLine(*it, shown.scope.good ? QStringLiteral("Good") : (shown.label.isEmpty() ? shown.scope.missId : shown.label));
+    // The filter's words, which end where "shots" follows: "On your pulled, thin shots 8 of 11 · other shots 12 of 31".
+    return outcomeContrastLine(*it, filterWords(shown.scope));
 }
 
 // The stored block: the key it was counted for, the line's counts, and each fault's [a, n1, b, n0].
@@ -1034,7 +1114,7 @@ QJsonObject WorkOnsController::outcomeToJson(const ShownOutcome &shown)
     for (auto it = shown.contrasts.constBegin(); it != shown.contrasts.constEnd(); ++it)
         contrasts.insert(it.key(), QJsonArray{ it->a, it->n1, it->b, it->n0 });
     return QJsonObject{
-        { QStringLiteral("key"),       shown.scope.key },
+        { QStringLiteral("key"),       shown.scope.key() },
         { QStringLiteral("rule"),      kOutcomeScopeRuleVersion },
         { QStringLiteral("chosen"),    shown.chosen },
         { QStringLiteral("sessions"),  shown.sessions },
@@ -1046,7 +1126,7 @@ QJsonObject WorkOnsController::outcomeToJson(const ShownOutcome &shown)
 
 bool WorkOnsController::outcomeFromJson(const QJsonObject &o, ShownOutcome &shown)
 {
-    if (o.value(QStringLiteral("key")).toString() != shown.scope.key
+    if (o.value(QStringLiteral("key")).toString() != shown.scope.key()
         || o.value(QStringLiteral("rule")).toInt() != kOutcomeScopeRuleVersion)
         return false;
     shown.chosen   = o.value(QStringLiteral("chosen")).toInt();
@@ -1063,7 +1143,9 @@ bool WorkOnsController::outcomeFromJson(const QJsonObject &o, ShownOutcome &show
     return true;
 }
 
-// Whether a line tied to a tendency belongs to the scope on screen: the tendency's key starts with its club.
+// Whether a line tied to a tendency belongs to the club choice on screen. The tendency's key is its row,
+// "<club>|<length>" ("7 IRON|full"); the fault it feeds is the row's factor (TendencyOnBall::factor, ::value),
+// not in the key, so the club is the key's first part.
 bool WorkOnsController::onBallInScope(const QString &tendencyKey) const
 {
     return tendencyKey.isEmpty() || m_scope.contains(tendencyKey.section(QLatin1Char('|'), 0, 0));
@@ -1417,13 +1499,13 @@ QString WorkOnsController::themesFingerprint() const
         h.addData(m_scope.key.toUtf8());
         h.addData(clubs.join(QLatin1Char('\x1f')).toUtf8());
     }
-    // An outcome choice reads each shot through the Tendencies rule, off corrections and intents that only touch
-    // the ledger: the tendency fingerprint, over every ledger's size and mtime, moves with them. All's, again, is
-    // left as every stored summary was written under.
-    if (!m_outcome.isAll()) {
+    // A shot filter reads each shot through the Tendencies rule, off corrections and intents that only touch the
+    // ledger (and the flight table): the tendency fingerprint, over every ledger's size and mtime and the table's
+    // bytes, moves with them. All's, again, is left as every stored summary was written under.
+    if (!m_filter.isAll()) {
         h.addData(QByteArrayLiteral("\x1d"));
         h.addData(QByteArray::number(kOutcomeScopeRuleVersion));
-        h.addData(m_outcome.key.toUtf8());
+        h.addData(m_filter.key().toUtf8());
         h.addData(QByteArrayLiteral("\x1f"));
         h.addData(m_tendencyFingerprint.toUtf8());
     }
@@ -1466,24 +1548,20 @@ void WorkOnsController::maybeThemes()
     job.measures   = themeMeasureInfo(pack);
     job.conditions = themeConditionInfo(pack, sharedDrillSet());
     job.scope      = m_scope;
-    job.outcome    = m_outcome;
+    job.outcome    = m_filter;
     job.announce   = clubScopeRefreshing() || matchupsRefreshing();
-    if (!m_scope.isAll() || !m_outcome.isAll()) {
+    if (!m_scope.isAll() || !m_filter.isAll()) {
         job.records = m_records;
         job.pack    = std::make_shared<const CharacteristicPack>(pack);
     }
-    if (!m_outcome.isAll()) {
+    if (!m_filter.isAll()) {
         // Marshalled here, on the GUI thread, as the tendency job's are; sharedNormProvider()'s first build is not
-        // safe on a worker.
+        // safe on a worker, and the flight table is read here first so the worker only reads it.
         job.outcomePack = std::make_shared<const ShotOutcomePack>(outcomePack());
         job.norms       = sharedNormProvider();
+        (void)shippedFlightNorms();
         for (auto it = job.conditions.constBegin(); it != job.conditions.constEnd(); ++it)
             if (it->fault) job.faultIds.insert(it.key());
-        for (const QVariant &v : std::as_const(m_outcomeScopes)) {
-            const QVariantMap o = v.toMap();
-            if (o.value(QStringLiteral("value")).toString() == m_outcome.key) job.outcomeLabel = o.value(QStringLiteral("label")).toString();
-        }
-        if (m_outcome.good) job.outcomeLabel = QStringLiteral("Good");
         job.clubWords = clubScopeWords();
     }
 
@@ -1529,7 +1607,6 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
     out.athleteDir   = job.athleteDir;
     out.scope        = job.scope;
     out.outcome.scope     = job.outcome;
-    out.outcome.label     = job.outcomeLabel;
     out.outcome.clubWords = job.clubWords;
     const bool scoped = !job.scope.isAll() || !job.outcome.isAll();
     const QString combinedKey = scopeKeyOf(job.scope, job.outcome);
@@ -1592,28 +1669,28 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
         in.shots = fromJson(root.value(QStringLiteral("ledger")).toObject(), &ledgerOpt);
         if (scoped) {
             bool whole = wholeSessionInScope(in.shots, job.scope);
-            // The outcome judges every shot as the tendency reduction does, off the whole session (its flight
-            // usuals are the session's), so it takes the ledger before the club filter.
+            // The shot filter judges every shot as the tendency reduction does, factor by factor, off the whole
+            // session (its flight usuals are the session's), so it takes the ledger before the club filter.
             std::vector<ShotRecord> sessionShots;
             if (!job.outcome.isAll()) sessionShots = in.shots;
             if (!whole) in.shots = shotsInScope(in.shots, job.scope);
             if (!job.outcome.isAll() && !in.shots.empty()) {
                 TendencySessionInput tin;
                 tendencySessionFromLedger(dir, root, std::move(sessionShots), tin);
-                QHash<int, ShotJudgement> judged = judgedShotOutcomes(tin, *job.outcomePack);
+                QHash<int, ShotFactors> judged = judgedShotFactors(tin, *job.outcomePack, shippedFlightNorms());
                 // Tendencies leaves out a club with no group (a putter, an undeclared club), so its shots are
                 // judged by nothing here either: in no choice but All, and no one's other shot.
                 const ContextTree &tree = job.norms->contexts();
                 for (const ShotRecord &shot : tin.session.shots)
-                    if (tendencyClubGroup(tree, shot.club).isEmpty()) judged.insert(shot.shotId, ShotJudgement{});
+                    if (tendencyClubGroup(tree, shot.club).isEmpty()) judged.insert(shot.shotId, ShotFactors{});
 
                 const QHash<QString, OutcomeContrast> contrasts = outcomeContrasts(in.shots, judged, job.outcome, job.faultIds);
                 for (auto it = contrasts.constBegin(); it != contrasts.constEnd(); ++it) out.outcome.contrasts[it.key()] += it.value();
                 for (const ShotRecord &shot : in.shots) {
-                    const ShotJudgement j = judged.value(shot.shotId);
-                    if (j.judged && !job.outcome.contains(j)) ++out.outcome.others;
+                    const ShotFactors j = judged.value(shot.shotId);
+                    if (j.judged() && !job.outcome.contains(j)) ++out.outcome.others;
                 }
-                std::vector<ShotRecord> chosen = shotsInOutcomeScope(in.shots, judged, job.outcome);
+                std::vector<ShotRecord> chosen = shotsInShotFilter(in.shots, judged, job.outcome);
                 whole = whole && chosen.size() == in.shots.size();
                 in.shots = std::move(chosen);
                 if (!in.shots.empty()) {
@@ -1890,7 +1967,7 @@ void WorkOnsController::maybeTendencies()
         cancelTendencies();
         if (m_tendenciesReady) {
             clearTendencies();
-            updateClubScope();      // the outcome choices were these tendencies' counts
+            updateClubScope();      // the shot filter's options were these tendencies' counts
         }
         return;
     }
@@ -1914,6 +1991,11 @@ void WorkOnsController::maybeTendencies()
     seed.addData(QByteArray::number(kTendencyRuleVersion));
     seed.addData(QByteArray::number(kTendencySchemaVersion));
     seed.addData(job.contentStamp.toUtf8());
+    // The flight table every shot's height is judged against (read here first, so the worker only reads it).
+    (void)shippedFlightNorms();
+    seed.addData(QByteArrayLiteral("\x1d"));
+    seed.addData(flightNormsStamp());
+    seed.addData(QByteArrayLiteral("\x1d"));
     for (const QString &d : std::as_const(job.sessionDirs)) {
         seed.addData(QFileInfo(d).fileName().toUtf8());
         seed.addData(QByteArrayLiteral("\x1f"));
@@ -2043,15 +2125,15 @@ void WorkOnsController::applyTendencies(int generation, TendenciesOutcome out)
     m_tendencyFingerprint = out.fingerprint;
     m_tendenciesReady     = true;
     // As the marks do: the tendencies ride on faultDetail() and the focus, so a landing rebuilds both. publish()
-    // ends in updateClubScope, which rebuilds the outcome choices from these counts and resolves the request.
+    // ends in updateClubScope, which rebuilds the shot filter's options from these counts and resolves the request.
     publish();
     publishSummary();
     publishTendencies();
     emit tendenciesChanged();
     emit tendenciesLanded();
-    // An outcome choice that stayed put is still read off the tendency fingerprint (a correction, an intent):
+    // A shot filter that stayed put is still read off the tendency fingerprint (a correction, an intent):
     // cheap when that summary is current.
-    if (!m_outcome.isAll()) maybeThemes();
+    if (!m_filter.isAll()) maybeThemes();
 }
 
 void WorkOnsController::publishTendencies()
@@ -2063,32 +2145,54 @@ void WorkOnsController::publishTendencies()
             const QVariantMap m = v.toMap();
             workOnStatus.insert(m.value(QStringLiteral("id")).toString(), m.value(QStringLiteral("status")).toString());
         }
+        // One row per club and swing length, and in it each factor: its usual, how often, and for a fault what it
+        // is seen with, which way it is going and its work-on's status ("active", "easing"; "" for none).
         for (const TendencyItem &it : m_tendencySet.items) {
-            const QString workOn = workOnStatus.value(it.seenWithId);
+            QStringList rowStatuses;
+            const auto factorMap = [&workOnStatus, &rowStatuses](const TendencyFactor &f) {
+                const QString status = f.workOn.isEmpty() ? QString() : workOnStatus.value(f.workOn);
+                if (!status.isEmpty() && !rowStatuses.contains(status)) rowStatuses << status;
+                return QVariantMap{
+                    { QStringLiteral("factor"),     f.factor },
+                    { QStringLiteral("value"),      f.value },
+                    { QStringLiteral("label"),      f.label },
+                    { QStringLiteral("fault"),      f.fault },
+                    { QStringLiteral("building"),   f.building },
+                    { QStringLiteral("share"),      f.share },
+                    { QStringLiteral("frequency"),  f.frequency },
+                    { QStringLiteral("sessions"),   f.sessions },
+                    { QStringLiteral("shots"),      f.shots },
+                    { QStringLiteral("seenWith"),   f.seenWith },
+                    { QStringLiteral("seenWithId"), f.seenWithId },
+                    { QStringLiteral("strength"),   f.strength },
+                    { QStringLiteral("trend"),      f.trend },
+                    { QStringLiteral("trendWords"), f.trendWords },
+                    { QStringLiteral("workOn"),     status },
+                    { QStringLiteral("workOnText"), outcomeCapitalised(status) },
+                    { QStringLiteral("mix"),        shotMixBarToJson(f.mix).toVariantMap() },
+                };
+            };
+            const QVariantMap strike = factorMap(it.strike), direction = factorMap(it.direction), flight = factorMap(it.flight);
+            std::stable_sort(rowStatuses.begin(), rowStatuses.end(), [](const QString &a, const QString &b) {
+                return workOnStatusRank(a) < workOnStatusRank(b);
+            });
+            QStringList rowWords;
+            for (const QString &s : std::as_const(rowStatuses)) rowWords << outcomeCapitalised(s);
             items.append(QVariantMap{
                 { QStringLiteral("key"),         it.key },
                 { QStringLiteral("club"),        it.club },
                 { QStringLiteral("clubLine"),    it.length == QLatin1String("partial") ? it.club + QStringLiteral(" · part swing") : it.club },
-                { QStringLiteral("length"),      it.length },
-                { QStringLiteral("miss"),        it.miss },
-                { QStringLiteral("missFamily"),  it.missFamily },
-                { QStringLiteral("share"),       it.share },
-                { QStringLiteral("frequency"),   it.frequency },
-                { QStringLiteral("mix"),         shotMixBarToJson(it.mix).toVariantMap() },
-                { QStringLiteral("distance"),    tendencyUsualDistance(it.clubId, it.length, m_tendencySet.clubDistances) },
                 { QStringLiteral("clubGroup"),   it.clubGroup },
                 { QStringLiteral("groupLabel"),  tendencyClubLabel(it.clubGroup) },
-                { QStringLiteral("building"),    it.building },
-                { QStringLiteral("noUsualMiss"), it.noUsualMiss },
+                { QStringLiteral("distance"),    tendencyUsualDistance(it.clubId, it.length, m_tendencySet.clubDistances) },
+                { QStringLiteral("length"),      it.length },
+                { QStringLiteral("handedness"),  it.handedness },
                 { QStringLiteral("sessions"),    it.sessions },
                 { QStringLiteral("shots"),       it.shots },
-                { QStringLiteral("seenWith"),    it.seenWith },
-                { QStringLiteral("seenWithId"),  it.seenWithId },
-                { QStringLiteral("strength"),    it.strength },
-                { QStringLiteral("trend"),       it.trend },
-                { QStringLiteral("trendWords"),  it.trendWords },
-                { QStringLiteral("workOn"),      workOn },
-                { QStringLiteral("workOnText"),  outcomeCapitalised(workOn) },
+                { QStringLiteral("workOnText"),  rowWords.join(QStringLiteral(" · ")) },
+                { QStringLiteral("strike"),      strike },
+                { QStringLiteral("direction"),   direction },
+                { QStringLiteral("flight"),      flight },
             });
         }
     }
@@ -2114,22 +2218,31 @@ void WorkOnsController::clearTendencies()
     emit tendenciesChanged();
 }
 
+// One block per factor: its fault's chain, also-seen, early note, play-to and the condition to practise. A factor
+// with none of them (a value, not a fault; a factor never read) is {}.
 QVariantMap WorkOnsController::tendencyDetail(const QString &key) const
 {
     for (const TendencyItem &it : m_tendencySet.items) {
         if (it.key != key) continue;
-        QVariantList chain;
-        for (const TendencyChainStep &s : it.chain)
-            chain.append(QVariantMap{ { QStringLiteral("text"), s.text }, { QStringLiteral("words"), s.words } });
-        const ShotOutcomePack &pack = outcomePack();
-        return QVariantMap{
-            { QStringLiteral("chain"),    chain },
-            { QStringLiteral("alsoSeen"), it.alsoSeen },
-            { QStringLiteral("earlyNote"), it.earlyNote },
-            { QStringLiteral("playTo"),   it.missId.isEmpty() ? QString()
-                                              : outcomePlayTo(pack, it.missId, it.handedness) },
-            { QStringLiteral("practiseConditionId"), it.seenWithId },
-        };
+        QVariantMap out;
+        for (const QString &name : shotFactorNames()) {
+            const TendencyFactor &f = it.factor(name);
+            if (f.chain.empty() && f.alsoSeen.isEmpty() && f.earlyNote.isEmpty() && f.playTo.isEmpty() && f.workOn.isEmpty()) {
+                out.insert(name, QVariantMap());
+                continue;
+            }
+            QVariantList chain;
+            for (const TendencyChainStep &s : f.chain)
+                chain.append(QVariantMap{ { QStringLiteral("text"), s.text }, { QStringLiteral("words"), s.words } });
+            out.insert(name, QVariantMap{
+                { QStringLiteral("chain"),    chain },
+                { QStringLiteral("alsoSeen"), f.alsoSeen },
+                { QStringLiteral("earlyNote"), f.earlyNote },
+                { QStringLiteral("playTo"),   f.playTo },
+                { QStringLiteral("practiseConditionId"), f.workOn },
+            });
+        }
+        return out;
     }
     return QVariantMap();
 }
@@ -2167,6 +2280,8 @@ QVariantMap WorkOnsController::onBallFor(const QString &conditionId) const
             { QStringLiteral("produced"),     produced },
             { QStringLiteral("costWords"),    b.costWords },
             { QStringLiteral("tendencyKey"),  b.tendencyKey },
+            { QStringLiteral("factor"),       b.factor },
+            { QStringLiteral("value"),        b.value },
             { QStringLiteral("tendencyText"), b.tendencyText },
             { QStringLiteral("onTheBall"),    b.onTheBall },
         };

@@ -42,8 +42,18 @@ Column {
     readonly property var carryToday: (source && source.carryToday) || []
     readonly property var reasons: (source && source.reasons) || []
     readonly property var clubMix: (source && source.clubMix) || []
-    function mixTone(kind) { return kind === "good" ? roles.good : kind === "main" ? roles.warn : roles.attention }
+    // a shot-mix part's tone by its kind, as Theme.bandTone: good → clean, value → value (neither praise nor fault),
+    // main → habit, other → occasional
+    function mixTone(kind) { return kind === "good" ? roles.good : kind === "value" ? roles.cool : kind === "main" ? roles.warn : roles.attention }
+    readonly property var mixFactors: [{ key: "strike", label: "Strike" }, { key: "direction", label: "Direction" },
+                                       { key: "flight", label: "Flight" }]
+    // a club's factors with something to show, in order
+    function clubFactors(c) {
+        return mixFactors.filter(f => c[f.key] && ((c[f.key].parts || []).length > 0 || (c[f.key].line || "") !== ""))
+                         .map(f => ({ key: f.key, label: f.label, mix: c[f.key] }))
+    }
     readonly property real mixClubW: roles.u(70)
+    readonly property real mixFactorW: roles.u(58)
     readonly property real mixBarW: Math.min(roles.u(150), width * 0.3)
 
     visible: log.length > 0
@@ -158,39 +168,58 @@ Column {
         width: so.width; roles: so.roles; small: true; tone: 2
         text: so.roles.esc(so.mixText)
     }
-    // each club's shots: a band bar, with the words beside it because colour is never the only channel
+    // each club's shots by factor, strike, direction and flight: three short rows, each a band bar with its words
+    // beside it because colour is never the only channel; the club named on its first row
     Column {
         objectName: "sdClubMix"
         visible: so.clubMix.length > 0 && !so.noReadings
         width: so.width
-        spacing: so.roles.g(3)
+        spacing: so.roles.g(5)
         Repeater {
             model: so.clubMix
-            delegate: Row {
-                id: mixRow
+            delegate: Column {
+                id: clubBlock
                 required property var modelData
+                readonly property var factors: so.clubFactors(clubBlock.modelData)
                 width: so.width
-                spacing: so.roles.g(8)
-                Text {
-                    width: so.mixClubW
-                    anchors.verticalCenter: parent.verticalCenter
-                    elide: Text.ElideRight
-                    text: mixRow.modelData.club || ""
-                    font: so.roles.fSmall; color: so.roles.ink2
-                }
-                PpBandBar {
-                    objectName: "sdClubMixBar:" + (mixRow.modelData.clubId || "")
-                    width: so.mixBarW
-                    height: so.roles.u(6)
-                    anchors.verticalCenter: parent.verticalCenter
-                    segments: (mixRow.modelData.parts || []).map(p => ({ count: p.count, tone: so.mixTone(p.kind) }))
-                }
-                Text {
-                    width: Math.max(0, so.width - so.mixClubW - so.mixBarW - 2 * mixRow.spacing)
-                    anchors.verticalCenter: parent.verticalCenter
-                    wrapMode: Text.WordWrap
-                    text: mixRow.modelData.line || ""
-                    font: so.roles.fSmall; color: so.roles.ink2
+                spacing: so.roles.g(2)
+                Repeater {
+                    model: clubBlock.factors
+                    delegate: Row {
+                        id: mixRow
+                        required property var modelData
+                        required property int index
+                        width: so.width
+                        spacing: so.roles.g(8)
+                        Text {
+                            width: so.mixClubW
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            text: mixRow.index === 0 ? (clubBlock.modelData.club || "") : ""
+                            font: so.roles.fSmall; color: so.roles.ink2
+                        }
+                        Text {
+                            width: so.mixFactorW
+                            anchors.verticalCenter: parent.verticalCenter
+                            elide: Text.ElideRight
+                            text: mixRow.modelData.label
+                            font: so.roles.fSmall; color: so.roles.ink3
+                        }
+                        PpBandBar {
+                            objectName: "sdClubMixBar:" + (clubBlock.modelData.clubId || "") + ":" + mixRow.modelData.key
+                            width: so.mixBarW
+                            height: so.roles.u(6)
+                            anchors.verticalCenter: parent.verticalCenter
+                            segments: (mixRow.modelData.mix.parts || []).map(p => ({ count: p.count, tone: so.mixTone(p.kind) }))
+                        }
+                        Text {
+                            width: Math.max(0, so.width - so.mixClubW - so.mixFactorW - so.mixBarW - 3 * mixRow.spacing)
+                            anchors.verticalCenter: parent.verticalCenter
+                            wrapMode: Text.WordWrap
+                            text: mixRow.modelData.mix.line || ""
+                            font: so.roles.fSmall; color: so.roles.ink2
+                        }
+                    }
                 }
             }
         }
