@@ -2509,8 +2509,8 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>挥杆检测灵敏度</translation>
     </message>
     <message>
-        <source>Lower values trigger on slower movements</source>
-        <translation>数值越低，较慢的动作也会触发</translation>
+        <source>Higher values trigger on slower movements</source>
+        <translation>数值越高，较慢的动作也会触发</translation>
     </message>
     <message>
         <source>Low</source>
@@ -13365,8 +13365,8 @@ Reports sent from this computer will come from %1.</source>
         <translation>挥杆检测灵敏度</translation>
     </message>
     <message>
-        <source>Lower values trigger on slower movements</source>
-        <translation>数值越低，较慢的动作也会触发</translation>
+        <source>Higher values trigger on slower movements</source>
+        <translation>数值越高，较慢的动作也会触发</translation>
     </message>
     <message>
         <source>AI coaching on session end</source>

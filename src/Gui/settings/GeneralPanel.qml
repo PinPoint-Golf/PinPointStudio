@@ -219,7 +219,7 @@ SettingsPanelBase {
             Layout.fillWidth: true
             spacing: Theme.gap(16)
 
-            SettingsRowTitle { title: qsTr("Swing detection sensitivity"); subtitle: qsTr("Lower values trigger on slower movements") }
+            SettingsRowTitle { title: qsTr("Swing detection sensitivity"); subtitle: qsTr("Higher values trigger on slower movements") }
 
             PpChipGroup {
                 // The chip SAYS the translated word and STANDS FOR the stored one. The setting is
