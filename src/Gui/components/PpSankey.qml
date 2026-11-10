@@ -24,19 +24,23 @@
 // them and lets them be examined. The caller picks each ribbon's tone and strength, so the same component draws any
 // flow in its own colours.
 //
-//   nodes  [{ column (0, 1, 2), label, sub ("22 · 28%"), good, tone (optional; else good → colorGood, colorText), y, h }]
-//   links  [{ from, to (node indices), y0, y1, h, tone, strength (fill alpha), through: [node], line }]  draw order
+//   nodes  [{ column (0, 1, 2), label, sub ("22 · 28%"), good, tone (optional; else good → colorGood, colorText), y, h,
+//             withSub: [per node: what it says while this node is examined] }]
+//   links  [{ from, to (node indices), y0, y1, h, tone, strength (fill alpha), through: [node], bySub: [per node] }]
+//          in draw order
 //   columns [title]   legend [{ tone, strength, name, line }]
 //
 // Strike labels (column 0) sit left of their nodes, flight labels (column 2) right, the middle column's on a knock-out
 // chip right of its node. A label that would overlap the one above it in its column steps down. Below `compactWidth`
 // the node subs are left out (their counts still show on hover).
 //
-// EXAMINED, as every chart in the app (values on the plot, never a sentence): a node under the pointer or keyboard focus
-// lights every ribbon its shots pass through and dims the rest to 25 %, and labels its own ribbons with their lines at
-// their middles; a ribbon under the pointer lights alone with its line. Labels that would collide with one already
-// placed are left out. Colour is never the only channel: every node is named and counted, and the legend says each
-// tone's words and count.
+// EXAMINED, as every chart in the app (values on the plot, at their own places): a node under the pointer or keyboard
+// focus lights every ribbon its shots pass through and dims the rest to 25 %; a ribbon under the pointer lights alone.
+// NOTHING IS LAID OVER THE PLOT (Mark, 10 Nov 2026: readouts on the ribbons "covers up the plot making it almost
+// impossible to follow"): the node labels already there say the examined shots instead, each node how many of them
+// pass through it and what share ("2 · 67%"), from the node's `withSub` or the ribbon's `bySub`; a node none of them
+// reaches dims with its label. The examined node keeps its own count. Colour is never the only channel: every node is
+// named and counted, and the legend says each tone's words and count.
 //
 // Motion: the flow fades in when its data changes (Theme.durationNormal, 0 under reduced motion). Geometry never moves.
 
@@ -108,27 +112,16 @@ Item {
         }
         return out
     }
-    // The examined ribbons' lines at their middles, those colliding with one already placed left out.
-    readonly property var hoverLabels: {
-        const out = []
-        if (!root.examining) return out
-        const lineH = Theme.fontSzLabel + Theme.gap(6)
-        const want = []
-        for (let i = 0; i < root.links.length; ++i) {
-            const l = root.links[i]
-            const mine = root.hoveredLink >= 0 ? i === root.hoveredLink
-                                               : l.from === root.hoveredNode || l.to === root.hoveredNode
-            if (!mine) continue
-            const x = (root.colX(root.colOf(l.from)) + root.nodeWidth + root.colX(root.colOf(l.to))) / 2
-            want.push({ text: l.line || "", x: x, y: (l.y0 + l.y1) / 2 + l.h / 2 - lineH / 2, count: l.count })
+    // What node i's label says while something is examined: the examined shots through it ("" for none).
+    function examinedSub(i) {
+        if (root.hoveredNode >= 0) {
+            if (i === root.hoveredNode) return (root.nodes[i] || {}).sub || ""
+            return ((root.nodes[root.hoveredNode] || {}).withSub || [])[i] || ""
         }
-        want.sort((a, b) => b.count - a.count)
-        for (const w of want) {
-            if (out.some(o => Math.abs(o.x - w.x) < Theme.sp(40) && Math.abs(o.y - w.y) < lineH)) continue
-            out.push(w)
-        }
-        return out
+        if (root.hoveredLink >= 0) return ((root.links[root.hoveredLink] || {}).bySub || [])[i] || ""
+        return (root.nodes[i] || {}).sub || ""
     }
+    function reached(i) { return !root.examining || root.examinedSub(i) !== "" }
 
     onLinksChanged: fade.restart()
 
@@ -222,9 +215,7 @@ Item {
                         height: parent.height
                         radius: Theme.sp(1)
                         color: root.nodeTone(node.modelData)
-                        opacity: !root.examining || root.hoveredNode === node.index
-                                 || (root.hoveredLink >= 0 && ((root.links[root.hoveredLink] || {}).from === node.index
-                                                               || (root.links[root.hoveredLink] || {}).to === node.index)) ? 1 : 0.4
+                        opacity: root.reached(node.index) ? 1 : 0.35
                     }
                     Rectangle {     // the keyboard focus
                         visible: node.activeFocus
@@ -262,6 +253,7 @@ Item {
                              : labelCol.column === 2 ? root.colX(2) + root.nodeWidth + Theme.gap(8)
                                                      : root.colX(1) + root.nodeWidth + Theme.gap(6)
                             y: modelData.y - (labelCol.column === 1 ? Theme.gap(2) : 0)
+                            opacity: root.reached(modelData.index) ? 1 : 0.35
                             Rectangle {     // the middle column's knock-out chip
                                 visible: labelCol.column === 1
                                 anchors.fill: parent
@@ -282,12 +274,12 @@ Item {
                                 }
                                 Text {
                                     objectName: "sankeyNodeSub"
-                                    visible: !root.compact
+                                    visible: (!root.compact || root.examining) && text !== ""
                                     anchors.right: labelCol.column === 0 ? parent.right : undefined
-                                    text: place.n.sub || ""
+                                    text: root.examining ? root.examinedSub(place.modelData.index) : (place.n.sub || "")
                                     font.family:    Theme.fontData
                                     font.pixelSize: Theme.fontSzLabel
-                                    color: Theme.colorText2
+                                    color: root.examining ? Theme.colorText : Theme.colorText2
                                 }
                             }
                         }
@@ -295,27 +287,6 @@ Item {
                 }
             }
 
-            // The examined ribbons' lines, on the plot.
-            Repeater {
-                model: root.hoverLabels
-                Item {
-                    required property var modelData
-                    objectName: "sankeyHoverLabel"
-                    width: hoverText.implicitWidth + Theme.gap(8)
-                    height: hoverText.implicitHeight + Theme.gap(4)
-                    x: Math.max(0, Math.min(plot.width - width, modelData.x - width / 2))
-                    y: Math.max(0, Math.min(plot.height - height, modelData.y))
-                    Rectangle { anchors.fill: parent; radius: Theme.radius; color: Qt.alpha(Theme.colorSurface, 0.92) }
-                    Text {
-                        id: hoverText
-                        anchors.centerIn: parent
-                        text: parent.modelData.text
-                        font.family:    Theme.fontData
-                        font.pixelSize: Theme.fontSzLabel
-                        color: Theme.colorText
-                    }
-                }
-            }
         }
 
         // ── The legend: each tone's swatch, its words and its count ────────

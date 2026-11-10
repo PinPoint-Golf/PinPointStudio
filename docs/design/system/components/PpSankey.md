@@ -15,8 +15,8 @@ It works out no number. The layout (counts, folding, order, every node's and rib
 ## Props
 | name | type | default | meaning |
 |---|---|---|---|
-| nodes | var | [] | `[{ column (0, 1, 2), label, sub ("22 · 28%"), good, tone?, y, h }]`, column by column, each top to bottom. `tone` inks the bar and its label; without it a good node is `colorGood`, the rest `colorText`. |
-| links | var | [] | `[{ from, to (node indices), y0, y1, h, tone, strength (fill alpha), through: [node], line }]`, in draw order (last on top). `through` is every node the ribbon's things pass through: what a node's examination lights. `line` is what the examined ribbon says on the plot. |
+| nodes | var | [] | `[{ column (0, 1, 2), label, sub ("22 · 28%"), good, tone?, y, h, withSub }]`, column by column, each top to bottom. `tone` inks the bar and its label; without it a good node is `colorGood`, the rest `colorText`. `withSub[j]` is what node j says while this node is examined ("" for none of its shots). |
+| links | var | [] | `[{ from, to (node indices), y0, y1, h, tone, strength (fill alpha), through: [node], bySub }]`, in draw order (last on top). `through` is every node the ribbon's things pass through: what a node's examination lights. `bySub[j]` is what node j says while this ribbon is examined. |
 | columns | var | [] | Three titles, set as caps micro heads over the columns. |
 | legend | var | [] | `[{ tone, strength, name, line ("38 · 51%") }]`: a swatch, its words and its count, under the plot. |
 | plotHeight | real | sp(360) | The plot's height; the layout's units. |
@@ -25,17 +25,17 @@ It works out no number. The layout (counts, folding, order, every node's and rib
 | compactWidth | real | sp(640) | Narrower than this, the node subs are left out (their counts still show when examined). |
 | signal nodeActivated(int index) | | | A node was pressed, or Return / Enter on its focus. |
 
-Read-only: `compact`, `hoveredNode`, `hoveredLink`, `examining`, `hoverLabels`.
+Read-only: `compact`, `hoveredNode`, `hoveredLink`, `examining`; functions `examinedSub(i)`, `reached(i)`.
 
-objectNames: `sankeyPlot`, `sankeyLink`, `sankeyNode`, `sankeyNodeLabel`, `sankeyNodeSub`, `sankeyHoverLabel`, `sankeyLegend`.
+objectNames: `sankeyPlot`, `sankeyLink`, `sankeyNode`, `sankeyNodeLabel`, `sankeyNodeSub`, `sankeyLegend`.
 
 ## Tokens & values
 Ribbons: the link's `tone` at its `strength`, a `colorSurface` edge of 0.6 px between neighbours, cubic curves from the source's right edge to the target's left edge, never re-shaped by animation. Nodes: `nodeWidth` bars in their tone, radius `sp(1)`. Labels: name in `fontBody` / `fontSzBody` in the node's tone; sub in `fontData` / `fontSzLabel`, `colorText2`. Column 0's labels sit left of their nodes (right-aligned), column 2's right, column 1's on a knock-out chip (`colorSurface` at 86 %) right of its node; a label that would overlap a neighbour steps clear, inside the plot. Column heads: PpMicro caps. Legend: a `sp(14)` × `sp(8)` swatch, the name in body 12 px, the count in data 11 px `colorText2`. Focus ring: 2 px `colorAccent`, `Theme.radius`.
 
 ## States
-- **Examined node** (pointer or keyboard focus): every ribbon in its `through` lit, the rest at 25 % of their strength, the other nodes at 40 %; its own ribbons' `line`s on the plot at their middles.
-- **Examined ribbon** (pointer; where ribbons overlap, the one drawn last): it alone lit, its `line` at its middle.
-- Labels on the plot that would collide with one already placed (the bigger ribbon's first) are left out.
+- **Examined node** (pointer or keyboard focus): every ribbon in its `through` lit, the rest at 25 % of their strength. Every other node's label says how many of the examined node's shots pass through it and what share (its `withSub`, "2 · 67%"), in `colorText`; a node none reach dims to 35 % with its label. The examined node keeps its own count.
+- **Examined ribbon** (pointer; where ribbons overlap, the one drawn last): it alone lit; the node labels say its shots the same way (its `bySub`).
+- **Nothing is laid over the plot** while examining (Mark, 10 Nov 2026: readouts on the ribbons covered the plot). The counts move into the labels already there; under `compactWidth` the subs come back while examining.
 - **Data change:** the plot fades in over `Theme.durationNormal` (0 under reduced motion). Geometry never animates.
 - Colour is never the only channel: every node is named and counted, the legend names each tone with its count.
 

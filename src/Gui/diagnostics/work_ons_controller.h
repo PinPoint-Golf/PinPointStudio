@@ -377,8 +377,10 @@ public:
     //   { enough, total, excluded, idealPct, micro ("Tendencies · Mid irons · 32 shots"), headline, subtitle,
     //     emptyLine (under kTendencyFlowMinShots), excludedLine ("" with none),
     //     columns: [title], groups: [{ group (0 ideal, 1 flight off, 2 off line, 3 mis-struck), name, count, percent, line }],
-    //     nodes: [{ column, value, label, good, other, kind ("good" | "watch" | "fault" | "other"), count, percent, sub ("22 · 28%"), y, h, byGroup: [4] }],
-    //     links: [{ from, to, group, count, percent, y0, y1, h, through: [node], line ("Solid → Slice: 12 shots (15%)") }] }
+    //     nodes: [{ column, value, label, good, other, kind ("good" | "watch" | "fault" | "other"), count, percent, sub ("22 · 28%"), y, h, byGroup: [4],
+    //              withSub: [per node: this node's shots through it, "2 · 67%" | ""] }],
+    //     links: [{ from, to, group, count, percent, y0, y1, h, through: [node], bySub: [per node, as withSub],
+    //              line ("Solid → Slice: 12 shots (15%)") }] }
     // Links are in draw order, the ideal last. Read it again on tendenciesChanged.
     Q_INVOKABLE QVariantMap tendencyFlow(const QString &group, double plotHeight, double gap) const;
     Q_INVOKABLE QVariantMap clubDistance(const QString &club) const;

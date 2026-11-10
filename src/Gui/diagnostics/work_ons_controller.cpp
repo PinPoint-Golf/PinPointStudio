@@ -2295,6 +2295,14 @@ QVariantMap WorkOnsController::tendencyFlow(const QString &group, double plotHei
         groups << QVariantMap{ { QStringLiteral("group"), g }, { QStringLiteral("name"), groupNames[size_t(g)] },
                                { QStringLiteral("count"), l.groups[size_t(g)] }, { QStringLiteral("percent"), pct(l.groups[size_t(g)]) },
                                { QStringLiteral("line"), QStringLiteral("%1 · %2%").arg(l.groups[size_t(g)]).arg(pct(l.groups[size_t(g)])) } };
+    // What a node's label says while a node or ribbon is examined: how many of the examined shots pass through it, and
+    // what share of them ("2 · 67%"); "" for none, and the node dims.
+    const auto examinedSubs = [](const std::vector<int> &at, int of) {
+        QVariantList out;
+        for (int n : at)
+            out << (n > 0 && of > 0 ? QStringLiteral("%1 · %2%").arg(n).arg(int(std::lround(100.0 * double(n) / double(of)))) : QString());
+        return out;
+    };
     QVariantList nodes;
     for (const FlowNode &n : l.nodes) {
         QVariantList byGroup;
@@ -2307,7 +2315,8 @@ QVariantMap WorkOnsController::tendencyFlow(const QString &group, double plotHei
                                                       : shotFactorValueWatch(n.value) ? QStringLiteral("watch") : QStringLiteral("fault") },
                               { QStringLiteral("percent"), pct(n.count) },
                               { QStringLiteral("sub"), QStringLiteral("%1 · %2%").arg(n.count).arg(pct(n.count)) },
-                              { QStringLiteral("y"), n.y }, { QStringLiteral("h"), n.h }, { QStringLiteral("byGroup"), byGroup } };
+                              { QStringLiteral("y"), n.y }, { QStringLiteral("h"), n.h }, { QStringLiteral("byGroup"), byGroup },
+                              { QStringLiteral("withSub"), examinedSubs(n.with, n.count) } };
     }
     QVariantList links;
     for (const FlowLink &k : l.links) {
@@ -2317,6 +2326,7 @@ QVariantMap WorkOnsController::tendencyFlow(const QString &group, double plotHei
                               { QStringLiteral("count"), k.count }, { QStringLiteral("percent"), pct(k.count) },
                               { QStringLiteral("y0"), k.y0 }, { QStringLiteral("y1"), k.y1 }, { QStringLiteral("h"), k.h },
                               { QStringLiteral("through"), through },
+                              { QStringLiteral("bySub"), examinedSubs(k.byNode, k.count) },
                               { QStringLiteral("line"), QStringLiteral("%1 → %2: %3 (%4%)")
                                     .arg(labelOf(l.nodes[size_t(k.fromNode)]), labelOf(l.nodes[size_t(k.toNode)]), shots(k.count))
                                     .arg(pct(k.count)) } };

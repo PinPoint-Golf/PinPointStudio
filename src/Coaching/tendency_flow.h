@@ -75,6 +75,7 @@ struct FlowNode {
     QStringList folded;                  // the values an "other" node holds
     int     count = 0;
     std::array<int, kFlowGroups> byGroup{};
+    std::vector<int> with;               // with[j]: this node's shots that also pass through node j (with[self] = count)
     double  y = 0.0, h = 0.0;
 };
 
@@ -84,6 +85,7 @@ struct FlowLink {
     int       count = 0;
     double    y0 = 0.0, y1 = 0.0, h = 0.0;
     std::vector<int> through;            // every node the link's shots pass through, sorted: what a node's hover lights
+    std::vector<int> byNode;             // byNode[j]: this link's shots that pass through node j (its two ends = count)
 };
 
 struct FlowLayout {
@@ -191,6 +193,13 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
         }
     }
 
+    // ── Which shots pass through which nodes: what examining a node or ribbon counts ──
+    for (FlowNode &n : out.nodes) n.with.assign(out.nodes.size(), 0);
+    for (const auto &[v, shots] : folded) {
+        const std::array<int, 3> at{ nodeIndex[0].value(v[0]), nodeIndex[1].value(v[1]), nodeIndex[2].value(v[2]) };
+        for (int a : at) for (int b : at) out.nodes[size_t(a)].with[size_t(b)] += shots;
+    }
+
     // ── Geometry: one scale for every column, each stack centred (§4.3) ──
     out.k = std::max(0.0, (o.plotHeight - o.gap * double(out.nMax - 1)) / double(out.total));
     for (int col = 0; col < 3; ++col) {
@@ -208,6 +217,7 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
     // ── Links: strike → direction and direction → flight, by (from, to, group) (§4.4) ──
     struct Key { int from, to, group; bool operator<(const Key &b) const { return std::tie(from, to, group) < std::tie(b.from, b.to, b.group); } };
     std::map<Key, std::pair<int, std::set<int>>> agg;
+    std::map<Key, std::vector<int>> byNode;
     for (const auto &[v, shots] : folded) {
         const int g = int(groupOf(v, o));
         const int n0 = nodeIndex[0].value(v[0]), n1 = nodeIndex[1].value(v[1]), n2 = nodeIndex[2].value(v[2]);
@@ -215,6 +225,9 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
             auto &[count, through] = agg[key];
             count += shots;
             through.insert({ n0, n1, n2 });
+            std::vector<int> &at = byNode[key];
+            at.resize(out.nodes.size(), 0);
+            for (int n : { n0, n1, n2 }) at[size_t(n)] += shots;
         }
     }
     std::vector<FlowLink> links;
@@ -226,6 +239,7 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
         l.count    = val.first;
         l.h        = out.k * double(l.count);
         l.through.assign(val.second.begin(), val.second.end());
+        l.byNode = byNode[key];
         links.push_back(l);
     }
     // Out of each source by (target's place, group); into each target by (source's place, group). Node indices run in

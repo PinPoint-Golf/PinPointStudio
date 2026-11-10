@@ -232,6 +232,36 @@ int main()
             through = through && std::find(k.through.begin(), k.through.end(), k.fromNode) != k.through.end()
                       && std::find(k.through.begin(), k.through.end(), k.toNode) != k.through.end() && k.through.size() >= 3;
         check(through, "each ribbon knows the nodes its shots pass through, its own two and at least one beyond");
+        bool with = true;
+        for (size_t i = 0; i < l.nodes.size(); ++i) {
+            const FlowNode &n = l.nodes[i];
+            std::array<int, 3> perCol{};
+            for (size_t j = 0; j < l.nodes.size(); ++j) {
+                with = with && n.with[j] == l.nodes[j].with[i];               // symmetric
+                perCol[size_t(l.nodes[j].column)] += n.with[j];
+            }
+            with = with && n.with[i] == n.count && perCol[0] == n.count && perCol[1] == n.count && perCol[2] == n.count;
+        }
+        check(with, "a node knows where its shots went: its own count, symmetric, and every column of it sums to its count");
+        bool byNode = true;
+        for (const FlowLink &k : l.links) {
+            std::array<int, 3> perCol{};
+            for (size_t j = 0; j < l.nodes.size(); ++j) perCol[size_t(l.nodes[j].column)] += k.byNode[j];
+            byNode = byNode && k.byNode[size_t(k.fromNode)] == k.count && k.byNode[size_t(k.toNode)] == k.count
+                     && perCol[0] == k.count && perCol[1] == k.count && perCol[2] == k.count;
+        }
+        check(byNode, "a ribbon knows where its shots went: its two ends hold all of them, every column sums to its count");
+        // The 4 hybrid's question, answered by the layout: where did the toe strikes go?
+        const FlowLayout toe = layoutTendencyFlow({ combo("strike_toe", "pull", "low", 2), combo("strike_toe", "slice", "low", 1),
+                                                   combo("solid", "slice", "low", 2), combo("solid", "straight", "low", 2) });
+        int toeI = -1, pullI = -1, sliceI = -1;
+        for (int i = 0; i < int(toe.nodes.size()); ++i) {
+            if (toe.nodes[size_t(i)].value == QLatin1String("strike_toe")) toeI = i;
+            if (toe.nodes[size_t(i)].value == QLatin1String("pull")) pullI = i;
+            if (toe.nodes[size_t(i)].value == QLatin1String("slice")) sliceI = i;
+        }
+        check(toeI >= 0 && toe.nodes[size_t(toeI)].with[size_t(pullI)] == 2 && toe.nodes[size_t(toeI)].with[size_t(sliceI)] == 1,
+              "the toe strikes: 2 went to Pull, 1 to Slice");
     }
 
     std::printf("\n%s (%d)\n", g_fail ? "FAILED" : "PASSED", g_fail);
