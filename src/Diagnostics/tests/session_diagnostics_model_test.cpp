@@ -1414,6 +1414,10 @@ ShotRecord outcomeShot(int shotId, qint64 t, double carry, std::initializer_list
     s.lmClubSpeed = 84.0;
     s.smash       = 1.33;
     s.swingLength = QStringLiteral("full");
+    // A fat comes off the face slow, as §11's shot 10 does (1.19): a measured fat counts only when the flight
+    // agrees (Tendencies rule 11, measuredStrikeFlightAgrees), and the carries alone don't fall far enough.
+    if (std::any_of(fired.begin(), fired.end(), [](const char *f) { return qstrcmp(f, "chunk") == 0; }))
+        s.smash = 1.19;
     for (const char *id : kOutcomeRowIds) {
         ConditionRow r;
         r.conditionId      = QLatin1String(id);

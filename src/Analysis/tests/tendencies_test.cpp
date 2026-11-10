@@ -103,6 +103,13 @@ static ShotRecord shot(int id, std::initializer_list<const char *> fired, const 
         r.firedSignalCount = hit ? 1 : 0;
         s.rows.push_back(r);
     }
+    // Rule 11: a measured fat is a miss only when the flight agrees (measuredStrikeFlightAgrees), and every
+    // shot here carries the same 200. These fixtures are about counting the misses, not about that rule, so a
+    // fat's reading is its total and not its carry: with no carry or smash to judge it by, it stands as measured.
+    if (std::any_of(fired.begin(), fired.end(), [](const char *f) { return qstrcmp(f, "chunk") == 0; })) {
+        s.carry = std::numeric_limits<double>::quiet_NaN();
+        s.total = 210.0;
+    }
     return s;
 }
 
@@ -282,6 +289,28 @@ int main()
         }
         check(same, "the counts survive the saved file");
         check(reduceTendencies({}, pack, driverGroup).clubOutcomes.empty(), "no shots, no counts");
+    }
+    {
+        // Rule 11: a measured fat counts only when the flight agrees. Three fats among nine drivers: carrying the
+        // usual 200 they are no miss at all; carrying 160 (under 0.85 of it) they are Fat.
+        const auto fatsCarrying = [&pack](double carry) {
+            std::vector<TendencySessionInput> in{ session(1, 9, {}) };
+            for (int i = 0; i < 3; ++i) {
+                ShotRecord s = shot(i + 1, { "chunk" });
+                s.carry = carry;
+                in[0].session.shots[size_t(i)] = s;
+            }
+            return reduceTendencies(in, pack, driverGroup);
+        };
+        const TendencySet flewNormally = fatsCarrying(200.0);
+        check(flewNormally.clubOutcomes.size() == 1 && flewNormally.clubOutcomes[0].judged == 9
+                  && flewNormally.clubOutcomes[0].good == 9 && flewNormally.clubOutcomes[0].misses.empty(),
+              "rule 11: a fat the flight doesn't bear out is no miss, and the shot is good");
+        const TendencySet cameUpShort = fatsCarrying(160.0);
+        check(cameUpShort.clubOutcomes.size() == 1 && cameUpShort.clubOutcomes[0].good == 6
+                  && cameUpShort.clubOutcomes[0].misses.size() == 1 && cameUpShort.clubOutcomes[0].misses[0].id == QStringLiteral("chunk")
+                  && cameUpShort.clubOutcomes[0].misses[0].shots == 3,
+              "rule 11: a fat that came up short is Fat");
     }
     {
         // A push slice (here the golfer's correction) is counted under Push slice, Slice and Push. In the row's

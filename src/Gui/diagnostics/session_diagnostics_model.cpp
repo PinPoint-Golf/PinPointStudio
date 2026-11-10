@@ -2133,7 +2133,12 @@ QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
         { QStringLiteral("phrase"),         o.phrase },
         { QStringLiteral("story"),          o.story },
         { QStringLiteral("noReasonText"),   o.noReasonText },
-        { QStringLiteral("producedLine"),   o.producedLine },
+        // The This shot head paints producedLine under the story whatever the shot's verdict, so a measured
+        // strike the flight didn't bear out says so there too ("Low on the face (−12 mm), flight normal").
+        { QStringLiteral("producedLine"),   o.strikeFlightNote.isEmpty() ? o.producedLine
+                                            : o.producedLine.isEmpty()   ? o.strikeFlightNote
+                                                                         : o.producedLine + QStringLiteral(" · ") + o.strikeFlightNote },
+        { QStringLiteral("strikeFlightNote"), o.strikeFlightNote },
         { QStringLiteral("clean"),          o.clean },
         { QStringLiteral("labels"),         labels },
         { QStringLiteral("driver"),         driver },

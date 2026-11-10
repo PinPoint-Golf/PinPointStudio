@@ -276,6 +276,33 @@ are often wrong and the book's window for the club would misjudge a mislabelled 
   never inferred. Top and sky had no example in the library when these were set, so they're untested on
   real shots.
 
+#### A measured strike must agree with the flight
+
+A measured strike height becomes a Thin, Top or Fat only when the flight bears it out (Mark, 10 Nov 2026).
+The height comes from the club's marker stickers (Foresight's `vertimpact`), and a sticker placed a few
+millimetres off shifts every reading of the session. On 4 Aug 2026 every 7-iron strike read low (−2.6 to
+−24 mm, median about −12) on a normal flight (launch 17–22°, smash 1.31–1.39, carry 148–167 yd), so 10 of 18
+shots read Thin. A real thin looks different: 2 Nov, shot 5 launched at 1.7° against a usual of about 11°.
+The usual is the same one as above: the club's median in this session over at least 4 full shots.
+
+| Measured label | Stands only when |
+|---|---|
+| Thin | Launch at most 0.80 × usual (`kFlightThinLaunchShare`) |
+| Top | The same launch rule, on top of its own detection |
+| Fat | Smash at most 0.91 × usual (`kFlightFatSmashShare`) **or** carry at most 0.85 × usual (`kFlightFatCarryShare`) |
+
+- No usual to compare with (fewer than 4 full shots of the club this session, a part swing, or the reading
+  missing): the measured label stands as before. No evidence against it.
+- When the flight disagrees the label is not produced at all. It is not a miss, so it counts nowhere a label
+  counts: tendencies, the outcome filter, the session mix, the phrase, the story. The shot carries a plain
+  note instead, "Low on the face (−12 mm), flight normal" or "High on the face (+12 mm), flight normal", the
+  row's own reading to the whole millimetre, shown on the This shot head under the story.
+- The rows are never touched: thin, chunk and top stay as detected, so detection, corridors and tiers don't
+  change (as for inferred labels above). Surfaces that count those rows directly still do.
+- A golfer's correction to Thin, Top or Fat is honoured whatever the flight says, and drops the note.
+- Strike height and launch aren't mirrored, so a left-hander is judged the same way.
+- `measuredStrikeFlightAgrees` in `strike_from_flight.h`; Tendencies rule 11, outcome scope rule 3.
+
 ---
 
 ## 4. Engine — `SessionDiagnosticsModel`

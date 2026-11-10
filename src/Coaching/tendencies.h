@@ -63,7 +63,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 10;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family
+inline constexpr int kTendencyRuleVersion   = 11;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees)
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.

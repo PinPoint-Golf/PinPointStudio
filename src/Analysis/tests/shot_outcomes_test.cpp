@@ -640,6 +640,111 @@ int main()
         check(strikeFromFlight(ballOnlyFat, usuals).isEmpty(), "ball-only: a fat needs the smash");
     }
 
+    std::printf("a measured strike must agree with the flight (§3.7):\n");
+    {
+        const auto iron = [](int id, double launch, double smash, double carry) {
+            ShotRecord s;
+            s.shotId = id;
+            s.club = QStringLiteral("7 IRON");
+            s.swingLength = QStringLiteral("full");
+            s.carry = carry;
+            s.ballSpeed = 120.0;
+            s.lmClubSpeed = 88.0;
+            s.smash = smash;
+            s.launchAngle = launch;
+            s.rows = { rowOf("slice", ShotState::Clean), rowOf("hook", ShotState::Clean) };
+            return s;
+        };
+        const auto height = [](const char *id, double mm, int nSignals = 1) {
+            ConditionRow r = rowOf(id, ShotState::Fired, nSignals);
+            r.drivingMeasureId = QStringLiteral("m_lmStrikeHeight");
+            r.value = mm;
+            return r;
+        };
+        const auto has = [](const ShotOutcome &o, const char *id) {
+            return std::any_of(o.labels.begin(), o.labels.end(), [id](const ShotOutcomeLabel &l) { return l.id == QLatin1String(id); });
+        };
+
+        // The club's usual this session: launch 11°, smash 1.35, carry 160.
+        std::vector<ShotRecord> session;
+        for (int i = 0; i < 6; ++i) session.push_back(iron(i + 1, 11.0, 1.35, 160.0));
+        ShotOutcomeSessionFacts facts;
+        facts.flightUsuals = sessionFlightUsuals(session);
+
+        // 4 August: read low on the face, flew normally.
+        ShotRecord low = iron(20, 11.5, 1.35, 158.0);
+        low.rows.push_back(height("thin", -11.6));
+        const ShotOutcome lowO = composeShotOutcome(low, {}, QString(), nullptr, pack, facts);
+        check(!has(lowO, "thin") && lowO.labels.empty(), "−12 mm on a normal launch: no Thin");
+        check(lowO.strikeFlightNote == QStringLiteral("Low on the face (−12 mm), flight normal"), "the note, to the whole mm");
+        check(lowO.clean && lowO.phrase == QStringLiteral("Good shot") && lowO.noReasonText.isEmpty(), "and the shot is clean");
+        check(composeSessionMix({ lowO }).line == QStringLiteral("1 clean"), "so the mix counts it clean");
+        check(low.rows.back().state == ShotState::Fired, "the row stays as detected");
+
+        ShotRecord lefty = low;
+        lefty.handedness = QStringLiteral("Left");
+        check(!has(composeShotOutcome(lefty, {}, QString(), nullptr, pack, facts), "thin"), "a left-hander is judged the same");
+
+        // 2 November, shot 5: a real thin.
+        ShotRecord thin = iron(21, 1.7, 1.30, 150.0);
+        thin.rows.push_back(height("thin", -14.0));
+        const ShotOutcome thinO = composeShotOutcome(thin, {}, QString(), nullptr, pack, facts);
+        check(has(thinO, "thin") && thinO.strikeFlightNote.isEmpty() && !thinO.clean, "−14 mm at 1.7° against a usual 11°: Thin");
+        check(measuredStrikeFlightAgrees(iron(1, 8.7, 1.35, 160.0), QStringLiteral("thin"), facts.flightUsuals)
+                  && !measuredStrikeFlightAgrees(iron(1, 8.9, 1.35, 160.0), QStringLiteral("thin"), facts.flightUsuals),
+              "the line is 0.80 of the usual launch (8.8°)");
+
+        // High on the face.
+        ShotRecord high = iron(22, 11.0, 1.34, 158.0);
+        high.rows.push_back(height("chunk", 12.2));
+        const ShotOutcome highO = composeShotOutcome(high, {}, QString(), nullptr, pack, facts);
+        check(!has(highO, "chunk") && highO.strikeFlightNote == QStringLiteral("High on the face (+12 mm), flight normal"),
+              "+12 mm with smash and carry normal: no Fat, and the note");
+        ShotRecord fatSmash = high;
+        fatSmash.smash = 1.35 * 0.90;
+        const ShotOutcome fatO = composeShotOutcome(fatSmash, {}, QString(), nullptr, pack, facts);
+        check(has(fatO, "chunk") && fatO.strikeFlightNote.isEmpty(), "+12 mm with the smash 10 % down: Fat");
+        ShotRecord fatCarry = high;
+        fatCarry.carry = 130.0;
+        check(has(composeShotOutcome(fatCarry, {}, QString(), nullptr, pack, facts), "chunk"), "or with the carry under 0.85 of usual");
+
+        // No usual to compare with: the label stands.
+        std::vector<ShotRecord> three(session.begin(), session.begin() + 3);
+        ShotOutcomeSessionFacts fewFacts;
+        fewFacts.flightUsuals = sessionFlightUsuals(three);
+        const ShotOutcome fewO = composeShotOutcome(low, {}, QString(), nullptr, pack, fewFacts);
+        check(has(fewO, "thin") && fewO.strikeFlightNote.isEmpty(), "three shots of the club are no usual: Thin stands");
+        ShotRecord part = low;
+        part.swingLength = QStringLiteral("partial");
+        check(has(composeShotOutcome(part, {}, QString(), nullptr, pack, facts), "thin"), "a part swing: Thin stands");
+        ShotRecord noLaunch = low;
+        noLaunch.launchAngle = std::numeric_limits<double>::quiet_NaN();
+        check(has(composeShotOutcome(noLaunch, {}, QString(), nullptr, pack, facts), "thin"), "no launch reading: Thin stands");
+        ShotRecord noFlight = high;
+        noFlight.smash = std::numeric_limits<double>::quiet_NaN();
+        noFlight.carry = std::numeric_limits<double>::quiet_NaN();
+        check(has(composeShotOutcome(noFlight, {}, QString(), nullptr, pack, facts), "chunk"), "no smash or carry: Fat stands");
+
+        // The golfer's word wins over the flight.
+        const ShotOutcome said = composeShotOutcome(
+            low, { ShotCorrection{ QStringLiteral("strike"), QString(), QStringLiteral("thin") } }, QString(), nullptr, pack, facts);
+        check(has(said, "thin") && said.labels[0].corrected && said.strikeFlightNote.isEmpty() && !said.clean,
+              "corrected to thin on a normal flight: Thin, and no note");
+        check(!said.labels[0].evidence.empty() && said.labels[0].evidence[0].measureId == QStringLiteral("m_lmStrikeHeight"),
+              "…with the height that was measured");
+
+        // Top needs the strike AND the flight.
+        ShotRecord top = iron(23, 11.0, 1.35, 160.0);
+        top.rows.push_back(height("thin", -13.0));
+        top.rows.push_back(height("top", -13.0, 3));
+        const ShotOutcome topNormal = composeShotOutcome(top, {}, QString(), nullptr, pack, facts);
+        check(!has(topNormal, "top") && !has(topNormal, "thin") && topNormal.strikeFlightNote == QStringLiteral("Low on the face (−13 mm), flight normal"),
+              "a top that launched normally: neither Top nor Thin");
+        top.launchAngle = 1.7;
+        const ShotOutcome topLow = composeShotOutcome(top, {}, QString(), nullptr, pack, facts);
+        check(has(topLow, "top") && topLow.labels.size() == 1 && topLow.strikeFlightNote.isEmpty(), "and launched low: Top");
+    }
+
     std::printf("the words say what was judged:\n");
     {
         ShotRecord s = lmShot();

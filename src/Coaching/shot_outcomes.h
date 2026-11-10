@@ -170,6 +170,8 @@ struct ShotOutcome {
     QString story;
     QString noReasonText;       // "No reason found" for a miss with no driver
     QString producedLine;       // "From the shank: low launch, push slice"
+    QString strikeFlightNote;   // "Low on the face (−12 mm), flight normal": a measured strike the flight
+                                // didn't bear out, so no label (measuredStrikeFlightAgrees); "" otherwise
     ShotOutcomeDriver driver;
     std::vector<ShotOutcomeLink> links;
     ShotCarryBlock carry;
@@ -315,6 +317,27 @@ inline double rowExcess(const ConditionRow &r)
     if (r.value > r.corridorHi) return r.value - r.corridorHi;
     if (r.value < r.corridorLo) return r.corridorLo - r.value;
     return 0.0;
+}
+
+// The plain words for a measured thin, top or fat the flight didn't bear out: "Low on the face (−12 mm),
+// flight normal". The height is the row's own reading, to the whole millimetre; left out when no row has it.
+inline QString measuredStrikeFlightNote(const ShotRecord &shot, const ConditionRow &row)
+{
+    const QString measureId = QStringLiteral("m_lmStrikeHeight");
+    double height = std::numeric_limits<double>::quiet_NaN();
+    if (const std::optional<MeasureRow> m = rowReadingOf(row, measureId); m && std::isfinite(m->value))
+        height = m->value;
+    else
+        height = shotMeasureValue(shot, measureId);
+
+    QString note = row.conditionId == QLatin1String("chunk") ? QStringLiteral("High on the face")
+                                                             : QStringLiteral("Low on the face");
+    if (std::isfinite(height)) {
+        const long mm = std::lround(height);
+        const QString sign = mm < 0 ? QStringLiteral("−") : mm > 0 ? QStringLiteral("+") : QString();
+        note += QStringLiteral(" (") + sign + QString::number(std::labs(mm)) + QStringLiteral(" mm)");
+    }
+    return note + QStringLiteral(", flight normal");
 }
 
 // ── The walk ────────────────────────────────────────────────────────────────
@@ -548,6 +571,20 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         }
     }
 
+    // A measured thin, top or fat has to agree with the flight (§3.7): a sticker placed off shifts a whole
+    // session's strike heights. One the flight doesn't bear out is no label at all, so it is never a miss
+    // anywhere a label counts (tendencies, the outcome filter, the mix, the phrase, the story); the shot
+    // carries a plain note instead. Before the excludes, so a label that isn't there can't knock out one
+    // that is. The row stays Fired. No usual for the club means no evidence against it, and it stands.
+    // rowOf keeps the row, so a golfer's correction back to it still shows what was measured.
+    for (qsizetype i = 0; i < fired.size();) {
+        const QString id = fired.at(i);
+        const bool measuredStrike = id == QLatin1String("thin") || id == QLatin1String("top") || id == QLatin1String("chunk");
+        if (!measuredStrike || measuredStrikeFlightAgrees(shot, id, session.flightUsuals)) { ++i; continue; }
+        if (out.strikeFlightNote.isEmpty()) out.strikeFlightNote = measuredStrikeFlightNote(shot, *rowOf.value(id));
+        fired.removeAt(i);
+    }
+
     // Step 1: excludes, then corrections, then intent. No reading means no word on where the ball went.
     QStringList active = resolveOutcomeExcludes(fired, rowOf, pack);
     // A fade or draw is the playable shape short of a slice or hook, so a shot cannot be read as both. The
@@ -576,6 +613,8 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
             correctedIds.insert(c.to);
             // The golfer's word settles the family: what it excludes there goes, as the rule would have.
             const QString family = outcomeFacts(pack, c.to)->family;
+            // A strike they named wins over the flight, and the "flight normal" note no longer applies.
+            if (family == QLatin1String("strike")) out.strikeFlightNote.clear();
             for (const QString &other : pack.excludes.value(c.to))
                 if (!correctedIds.contains(other) && active.contains(other) && outcomeFacts(pack, other)->family == family)
                     active.removeAll(other);

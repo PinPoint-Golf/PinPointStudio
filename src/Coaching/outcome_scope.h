@@ -52,7 +52,9 @@ namespace pinpoint::analysis {
 
 // 2: the stored block also counts the chosen shots with the swing measured (a fault row assessed), which the
 // evidence line says and Coaching's "too few measured" note reads, so a version-1 file re-reduces.
-inline constexpr int kOutcomeScopeRuleVersion = 2;
+// 3: a measured thin, top or fat is a miss only when the flight agrees (measuredStrikeFlightAgrees), so the
+// shots a miss choice holds change.
+inline constexpr int kOutcomeScopeRuleVersion = 3;
 
 inline const QString &outcomeScopeAllKey()  { static const QString k = QStringLiteral("all");  return k; }
 inline const QString &outcomeScopeGoodKey() { static const QString k = QStringLiteral("good"); return k; }
