@@ -188,16 +188,31 @@ Column {
                 onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
             }
         }
+        // The rows, and beside them the flow of the same clubs' shots (HmTendencyFlow; Mark, 10 Nov 2026: "alongside the
+        // rows"). Narrower than sideBySide, the flow stacks above the table.
         Item {
             id: tendenciesPage
-            implicitHeight: tendencies.implicitHeight
+            readonly property bool sideBySide: width >= Theme.sp(1040)
+            readonly property real flowW: sideBySide ? Math.round(width * 0.36) : width
+            readonly property real pageGap: Theme.gap(16)
+            implicitHeight: sideBySide ? Math.max(tendencies.implicitHeight, tendencyFlow.implicitHeight)
+                                       : tendencyFlow.implicitHeight + pageGap + tendencies.implicitHeight
             HmTendencies {
                 id: tendencies
-                width: tendenciesPage.width
+                width: tendenciesPage.sideBySide ? tendenciesPage.width - tendenciesPage.flowW - tendenciesPage.pageGap
+                                                 : tendenciesPage.width
+                y: tendenciesPage.sideBySide ? 0 : tendencyFlow.implicitHeight + tendenciesPage.pageGap
                 controller:  root.controller
                 athleteUuid: root.athleteUuid
                 group:       filterLine.group ? filterLine.group.group : ""
                 onPractiseRequested: (conditionId, label) => root.practiseRequested(conditionId, label)
+            }
+            HmTendencyFlow {
+                id: tendencyFlow
+                width: tendenciesPage.flowW
+                x: tendenciesPage.sideBySide ? tendenciesPage.width - width : 0
+                controller: root.controller
+                group:      tendencies.group
             }
         }
         Item {

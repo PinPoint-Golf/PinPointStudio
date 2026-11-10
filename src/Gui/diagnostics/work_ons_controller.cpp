@@ -2157,6 +2157,7 @@ void WorkOnsController::publishTendencies()
                     { QStringLiteral("value"),      f.value },
                     { QStringLiteral("label"),      f.label },
                     { QStringLiteral("fault"),      f.fault },
+                    { QStringLiteral("watch"),      !f.fault && shotFactorValueWatch(f.value) },
                     { QStringLiteral("building"),   f.building },
                     { QStringLiteral("share"),      f.share },
                     { QStringLiteral("frequency"),  f.frequency },
@@ -2251,6 +2252,96 @@ QVariantMap WorkOnsController::tendencyDetail(const QString &key) const
         return out;
     }
     return QVariantMap();
+}
+
+QVariantMap WorkOnsController::tendencyFlow(const QString &group, double plotHeight, double gap) const
+{
+    std::vector<TendencyFlowCombo> combos;
+    for (const TendencyItem &it : m_tendencySet.items)
+        if (group.isEmpty() || it.clubGroup == group)
+            combos.insert(combos.end(), it.flow.begin(), it.flow.end());
+
+    FlowOptions opt;
+    opt.plotHeight = std::max(1.0, plotHeight);
+    opt.gap        = std::max(0.0, gap);
+    const FlowLayout l = layoutTendencyFlow(combos, opt);
+    const ShotOutcomePack &pack = outcomePack();
+    const auto pct = [&l](int n) { return l.total > 0 ? int(std::lround(100.0 * double(n) / double(l.total))) : 0; };
+    const auto shots = [](int n) { return QStringLiteral("%1 %2").arg(n).arg(n == 1 ? QStringLiteral("shot") : QStringLiteral("shots")); };
+    const auto labelOf = [&pack](const FlowNode &n) { return n.other ? QStringLiteral("Other") : shotFactorValueLabel(pack, n.value); };
+
+    // The good path in words, from the good values themselves (§3.6): "solid", "on line" (more than Straight is good),
+    // "mid or high".
+    const auto goodWords = [&pack, &opt](int col) {
+        QStringList ids = QStringList(opt.good[size_t(col)].begin(), opt.good[size_t(col)].end());
+        if (col == 1 && ids.size() > 1) return QStringLiteral("on line");
+        std::sort(ids.begin(), ids.end(), [](const QString &a, const QString &b) { return shotFactorValueRank(a) < shotFactorValueRank(b); });
+        QStringList words;
+        for (const QString &id : ids) words << shotFactorValueLabel(pack, id).toLower();
+        return words.join(QStringLiteral(" or "));
+    };
+    const QString strikeGood = goodWords(0), lineGood = goodWords(1), flightGood = goodWords(2);
+    const std::array<QString, kFlowGroups> groupNames{
+        outcomeCapitalised(QStringLiteral("%1, %2, %3").arg(strikeGood, lineGood, flightGood)),
+        QStringLiteral("On line, flight off"), QStringLiteral("Struck well, off line"), QStringLiteral("Mis-struck") };
+
+    const QString clubWords = group.isEmpty() ? QStringLiteral("All clubs") : tendencyClubLabel(group);
+    const QString noun = group.isEmpty() ? QStringLiteral("shots")
+                       : group == QLatin1String("driver") ? QStringLiteral("drives")
+                                                          : tendencyClubShotWord(group) + QStringLiteral(" shots");
+
+    QVariantList groups;
+    for (int g = 0; g < kFlowGroups; ++g)
+        groups << QVariantMap{ { QStringLiteral("group"), g }, { QStringLiteral("name"), groupNames[size_t(g)] },
+                               { QStringLiteral("count"), l.groups[size_t(g)] }, { QStringLiteral("percent"), pct(l.groups[size_t(g)]) },
+                               { QStringLiteral("line"), QStringLiteral("%1 · %2%").arg(l.groups[size_t(g)]).arg(pct(l.groups[size_t(g)])) } };
+    QVariantList nodes;
+    for (const FlowNode &n : l.nodes) {
+        QVariantList byGroup;
+        for (int c : n.byGroup) byGroup << c;
+        QString label = labelOf(n);
+        nodes << QVariantMap{ { QStringLiteral("column"), n.column }, { QStringLiteral("value"), n.value }, { QStringLiteral("label"), label },
+                              { QStringLiteral("good"), n.good }, { QStringLiteral("other"), n.other }, { QStringLiteral("count"), n.count },
+                              // its tone in the rows' scheme: good, a value to watch (Low), a fault, or a fold of several
+                              { QStringLiteral("kind"), n.good ? QStringLiteral("good") : n.other ? QStringLiteral("other")
+                                                      : shotFactorValueWatch(n.value) ? QStringLiteral("watch") : QStringLiteral("fault") },
+                              { QStringLiteral("percent"), pct(n.count) },
+                              { QStringLiteral("sub"), QStringLiteral("%1 · %2%").arg(n.count).arg(pct(n.count)) },
+                              { QStringLiteral("y"), n.y }, { QStringLiteral("h"), n.h }, { QStringLiteral("byGroup"), byGroup } };
+    }
+    QVariantList links;
+    for (const FlowLink &k : l.links) {
+        QVariantList through;
+        for (int t : k.through) through << t;
+        links << QVariantMap{ { QStringLiteral("from"), k.fromNode }, { QStringLiteral("to"), k.toNode }, { QStringLiteral("group"), int(k.group) },
+                              { QStringLiteral("count"), k.count }, { QStringLiteral("percent"), pct(k.count) },
+                              { QStringLiteral("y0"), k.y0 }, { QStringLiteral("y1"), k.y1 }, { QStringLiteral("h"), k.h },
+                              { QStringLiteral("through"), through },
+                              { QStringLiteral("line"), QStringLiteral("%1 → %2: %3 (%4%)")
+                                    .arg(labelOf(l.nodes[size_t(k.fromNode)]), labelOf(l.nodes[size_t(k.toNode)]), shots(k.count))
+                                    .arg(pct(k.count)) } };
+    }
+
+    return QVariantMap{
+        { QStringLiteral("enough"),   l.enough() },
+        { QStringLiteral("total"),    l.total },
+        { QStringLiteral("excluded"), l.excluded },
+        { QStringLiteral("idealPct"), pct(l.groups[0]) },
+        { QStringLiteral("micro"),    QStringLiteral("Tendencies · %1 · %2").arg(clubWords, shots(l.total)) },
+        { QStringLiteral("headline"), QStringLiteral("%1% of your %2 were %3, %4 and flew %5")
+                                          .arg(pct(l.groups[0])).arg(noun, strikeGood, lineGood, flightGood) },
+        { QStringLiteral("subtitle"), QStringLiteral("Read left to right: strike, then direction, then flight. Green is the path you "
+                                                     "want. Every other colour shows where a shot first left it.") },
+        { QStringLiteral("emptyLine"), QStringLiteral("Hit at least %1 shots with strike, direction and flight all read, with %2, "
+                                                      "to see how your shots flow.")
+                                           .arg(kTendencyFlowMinShots).arg(group.isEmpty() ? QStringLiteral("any club") : QStringLiteral("these clubs")) },
+        { QStringLiteral("excludedLine"), l.excluded == 0 ? QString()
+                                          : QStringLiteral("%1 not shown: strike, direction or flight wasn't read.").arg(shots(l.excluded)) },
+        { QStringLiteral("columns"), QVariantList{ QStringLiteral("Strike"), QStringLiteral("Direction"), QStringLiteral("Flight") } },
+        { QStringLiteral("groups"), groups },
+        { QStringLiteral("nodes"),  nodes },
+        { QStringLiteral("links"),  links },
+    };
 }
 
 QVariantMap WorkOnsController::clubDistance(const QString &club) const

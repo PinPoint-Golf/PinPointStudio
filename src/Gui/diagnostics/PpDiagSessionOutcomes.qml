@@ -42,9 +42,10 @@ Column {
     readonly property var carryToday: (source && source.carryToday) || []
     readonly property var reasons: (source && source.reasons) || []
     readonly property var clubMix: (source && source.clubMix) || []
-    // a shot-mix part's tone by its kind, as Theme.bandTone: good → clean, value → value (neither praise nor fault),
-    // main → habit, other → occasional
-    function mixTone(kind) { return kind === "good" ? roles.good : kind === "value" ? roles.cool : kind === "main" ? roles.warn : roles.attention }
+    // a shot-mix part's tone by its kind, as Home's Tendencies row (Mark, 10 Nov 2026: one scheme everywhere):
+    // good → good, value → cool (neither praise nor fault), watch (Low) → attention, amber, every fault
+    // (main or other) → warn, red
+    function mixTone(kind) { return kind === "good" ? roles.good : kind === "value" ? roles.cool : kind === "watch" ? roles.attention : roles.warn }
     readonly property var mixFactors: [{ key: "strike", label: "Strike" }, { key: "direction", label: "Direction" },
                                        { key: "flight", label: "Flight" }]
     // a club's factors with something to show, in order

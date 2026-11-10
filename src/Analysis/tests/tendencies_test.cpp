@@ -458,6 +458,19 @@ int main()
         check(ok && b && b->together.pairs == it->together.pairs && b->together.combos == it->together.combos
                   && b->together.moreCombos == it->together.moreCombos, "the Together lines survive the saved file");
 
+        // Rule 17: the row's shots as one value per factor (what its bars count them under), for the flow (Sankey).
+        int flowShots = 0, fatSlice = 0;
+        for (const TendencyFlowCombo &c : it->flow) {
+            flowShots += c.shots;
+            if (c.strike == QStringLiteral("chunk") && c.direction == QStringLiteral("slice") && c.flight.isEmpty()) fatSlice = c.shots;
+        }
+        check(flowShots == 16 && fatSlice == 2 && it->flow.size() == 4, "the flow: 16 shots in 4 combinations, 2 fat slices, flight unread");
+        bool sameFlow = b && b->flow.size() == it->flow.size();
+        for (size_t i = 0; sameFlow && i < it->flow.size(); ++i)
+            sameFlow = b->flow[i].strike == it->flow[i].strike && b->flow[i].direction == it->flow[i].direction
+                    && b->flow[i].flight == it->flow[i].flight && b->flow[i].shots == it->flow[i].shots;
+        check(sameFlow, "…and it survives the saved file");
+
         // One usual fault: no pair to speak of, the combinations still said.
         const TendencySet one = reduce({ session(1, 8, { "slice" }), session(2, 8, {}) });
         const TendencyItem *o = itemFor(one, "DRIVER|full");
@@ -779,12 +792,22 @@ int main()
         thirteen[QStringLiteral("rule")] = 13;
         bool thirteenOk = true;
         tendencySetFromJson(thirteen, &thirteenOk);
-        check(kTendencyRuleVersion == 15 && !thirteenOk, "rule 15: a file of rule 13 is not read");
+        check(kTendencyRuleVersion == 17 && !thirteenOk, "rule 17: a file of rule 13 is not read");
         QJsonObject fourteen = json;
         fourteen[QStringLiteral("rule")] = 14;
         bool fourteenOk = true;
         tendencySetFromJson(fourteen, &fourteenOk);
         check(!fourteenOk, "rule 15: a file of rule 14 (no Together lines) is not read");
+        QJsonObject fifteen = json;
+        fifteen[QStringLiteral("rule")] = 15;
+        bool fifteenOk = true;
+        tendencySetFromJson(fifteen, &fifteenOk);
+        check(!fifteenOk, "rule 16: a file of rule 15 (Low not yet a watch in its bars) is not read");
+        QJsonObject sixteen = json;
+        sixteen[QStringLiteral("rule")] = 16;
+        bool sixteenOk = true;
+        tendencySetFromJson(sixteen, &sixteenOk);
+        check(!sixteenOk, "rule 17: a file of rule 16 (no flow combinations) is not read");
 
         TendencySessionEvidence ev;
         ev.tiers.insert(QStringLiteral("over_the_top"), Tier::Pattern);

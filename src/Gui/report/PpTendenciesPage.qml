@@ -26,8 +26,9 @@ import PinPointStudio
 // building, beneath (only the factors with something to say).
 // FLOWED as the Consistency page: the head starts a fresh page, each row is one atom, the column heads keep with the first
 // row. Every sentence is the map's. FOLIO LIGHT through `ro` and `cr`: nothing reads a live theme token. Colour is never
-// the only channel: an earned fault's label is in the fault tone and named, the bar has its words. A shot-mix part's tone by
-// its kind: good → clean, value → value (neither praise nor fault), main → habit, other → occasional.
+// the only channel: a fault's label, building or earned, is in the fault tone and named; Low flight's, a value to watch,
+// in the watch tone; the bar has its words. A shot-mix part's tone by its kind, as Home's Tendencies row (Mark, 10 Nov
+// 2026: one scheme everywhere): good → good, value → cool, watch → attention (amber), every fault (main, other) → warn.
 // objectNames: reportTendencies (the head), reportTendencyRow, reportTendencyFoot.
 Column {
     id: tp
@@ -54,7 +55,7 @@ Column {
     readonly property var factors: [{ key: "strike", label: "Strike" }, { key: "direction", label: "Direction" },
                                     { key: "flight", label: "Flight" }]
 
-    function tone(kind) { return kind === "good" ? toneGood : kind === "value" ? toneValue : kind === "main" ? toneMain : toneOther }
+    function tone(kind) { return kind === "good" ? toneGood : kind === "value" ? toneValue : kind === "watch" ? toneOther : toneMain }
     function factorOf(row, key) { return row && row[key] ? row[key] : ({}) }
     // each factor's seen line, named, for the factors with something seen
     function seenLines(row) {
@@ -118,7 +119,7 @@ Column {
                             width: parent.width
                             text: cellCol.label
                             font: tp.ro.fBody
-                            color: cellCol.label === "-" ? tp.ro.ink3 : (cellCol.fx.fault && !cellCol.fx.building) ? tp.toneMain : tp.ro.ink
+                            color: cellCol.label === "-" ? tp.ro.ink3 : cellCol.fx.fault ? tp.toneMain : cellCol.fx.watch ? tp.toneOther : tp.ro.ink
                             wrapMode: Text.WordWrap
                         }
                         PpBandBar {

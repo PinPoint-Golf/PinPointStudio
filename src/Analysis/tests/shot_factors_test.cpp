@@ -599,6 +599,23 @@ int main()
         check(!shotFactorValueInfo(QStringLiteral("fade"))->fault && shotFactorValueInfo(QStringLiteral("sky"))->fault
                   && !shotFactorValueInfo(QStringLiteral("high"))->fault && shotFactorValueInfo(QStringLiteral("smash_deficit"))->fault,
               "Fade and High are values, Sky and Weak strike faults");
+        int watched = 0;
+        for (const ShotFactorValueInfo &v : shotFactorValueTable()) if (shotFactorValueWatch(v.id)) ++watched;
+        check(shotFactorValueWatch(QStringLiteral("low")) && !shotFactorValueInfo(QStringLiteral("low"))->fault
+                  && !shotFactorValueWatch(QStringLiteral("mid")) && !shotFactorValueWatch(QStringLiteral("high"))
+                  && !shotFactorValueWatch(QStringLiteral("sky")) && watched == 1,
+              "Low is the one value to watch (amber): not a fault; Mid and High are fine, Sky is a fault");
+        ShotFactorTally flight;
+        flight.read = 4;
+        flight.add(QStringLiteral("low"), QStringLiteral("Low"), false);
+        flight.add(QStringLiteral("low"), QStringLiteral("Low"), false);
+        flight.add(QStringLiteral("mid"), QStringLiteral("Mid"), false);
+        flight.add(QStringLiteral("sky"), QStringLiteral("Sky"), true);
+        QStringList kinds;
+        for (const ShotMixPart &p : composeFactorMixBar(flight).parts) kinds << p.key + QLatin1Char('=') + p.kind;
+        check(kinds == QStringList{ "low=watch", "mid=value", "sky=main" },
+              "a flight bar: Low is a watch (amber), Mid a value, Sky the fault");
+        if (kinds != QStringList{ "low=watch", "mid=value", "sky=main" }) std::printf("    kinds: %s\n", qPrintable(kinds.join(" ")));
     }
 
     std::printf("\na factor's mix:\n");
@@ -626,8 +643,9 @@ int main()
         h.add(QStringLiteral("mid"), QStringLiteral("Mid"), false);
         const ShotMixBar heights = composeFactorMixBar(h);
         check(heights.parts.size() == 3 && heights.parts[0].key == QStringLiteral("low") && heights.parts[1].key == QStringLiteral("mid")
-                  && heights.parts[2].key == QStringLiteral("high") && heights.parts[0].kind == QStringLiteral("value"),
-              "heights in their own order, Low, Mid, High, as plain values");
+                  && heights.parts[2].key == QStringLiteral("high") && heights.parts[0].kind == QStringLiteral("watch")
+                  && heights.parts[1].kind == QStringLiteral("value") && heights.parts[2].kind == QStringLiteral("value"),
+              "heights in their own order, Low, Mid, High: Low a value to watch, Mid and High plain values");
         check(heights.parts[0].percent + heights.parts[1].percent + heights.parts[2].percent == 100,
               "each shot once: the percentages add up to 100");
     }

@@ -870,7 +870,7 @@ static void checkTendencies(const QString &root)
                                 QStringLiteral("workOnText"), QStringLiteral("strike"), QStringLiteral("direction"),
                                 QStringLiteral("flight") })
                   && keysAre(dir, { QStringLiteral("factor"), QStringLiteral("value"), QStringLiteral("label"), QStringLiteral("fault"),
-                                    QStringLiteral("building"), QStringLiteral("share"), QStringLiteral("frequency"),
+                                    QStringLiteral("watch"), QStringLiteral("building"), QStringLiteral("share"), QStringLiteral("frequency"),
                                     QStringLiteral("sessions"), QStringLiteral("shots"), QStringLiteral("seenWith"),
                                     QStringLiteral("seenWithId"), QStringLiteral("strength"), QStringLiteral("trend"),
                                     QStringLiteral("trendWords"), QStringLiteral("workOn"), QStringLiteral("workOnText"),
@@ -933,6 +933,23 @@ static void checkTendencies(const QString &root)
         check(detail.value(QStringLiteral("strike")).toMap().isEmpty() && detail.value(QStringLiteral("flight")).toMap().isEmpty(),
               "a factor with nothing to say (Solid; never read) is empty");
         check(c.tendencyDetail(QStringLiteral("PUTTER|full")).isEmpty(), "no such row: nothing");
+        // The tendency flow (Sankey): every row of the group pooled, laid out, every word final. The fixture reads no
+        // flight, so every shot is excluded and the flow is under its minimum: the words say so.
+        const QVariantMap flow = c.tendencyFlow(QString(), 360.0, 12.0);
+        check(keysAre(flow, { QStringLiteral("enough"), QStringLiteral("total"), QStringLiteral("excluded"), QStringLiteral("idealPct"),
+                              QStringLiteral("micro"), QStringLiteral("headline"), QStringLiteral("subtitle"), QStringLiteral("emptyLine"),
+                              QStringLiteral("excludedLine"), QStringLiteral("columns"), QStringLiteral("groups"), QStringLiteral("nodes"),
+                              QStringLiteral("links") })
+                  && flow.value(QStringLiteral("groups")).toList().size() == 4,
+              "the tendency flow: its shape, four groups");
+        check(!flow.value(QStringLiteral("enough")).toBool() && flow.value(QStringLiteral("total")).toInt() == 0
+                  && flow.value(QStringLiteral("excluded")).toInt() > 0
+                  && flow.value(QStringLiteral("excludedLine")).toString().contains(QStringLiteral("not shown"))
+                  && flow.value(QStringLiteral("groups")).toList().first().toMap().value(QStringLiteral("name")).toString()
+                         == QStringLiteral("Solid, on line, mid or high"),
+              "…with no flight read every shot is excluded and said so; the ideal is named from the good values");
+        std::printf("    (flow: \"%s\" · \"%s\")\n", qPrintable(flow.value(QStringLiteral("headline")).toString()),
+                    qPrintable(flow.value(QStringLiteral("excludedLine")).toString()));
         const QVariantMap ironDetail = c.tendencyDetail(QStringLiteral("7 IRON|full")).value(QStringLiteral("direction")).toMap();
         check(ironDetail.value(QStringLiteral("earlyNote")).toString().startsWith(QStringLiteral("Early days"))
                   && ironDetail.value(QStringLiteral("playTo")).toString().isEmpty(),

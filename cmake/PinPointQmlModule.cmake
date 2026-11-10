@@ -97,6 +97,7 @@ set(PP_QML_FILES
     src/Gui/components/PpCheckRow.qml
     src/Gui/components/PpExpandRow.qml
     src/Gui/components/PpBandBar.qml
+    src/Gui/components/PpSankey.qml
     src/Gui/components/PpStageCard.qml
     src/Gui/components/PpPopoverCard.qml
     src/Gui/components/PpMenuItem.qml
@@ -184,6 +185,7 @@ set(PP_QML_FILES
     src/Gui/home/HmShotFilter.qml
     src/Gui/home/HmTendencies.qml
     src/Gui/home/HmTendencyRow.qml
+    src/Gui/home/HmTendencyFlow.qml
     src/Gui/home/HmFaultRow.qml
     src/Gui/home/HmHeadline.qml
     # Home's sentence case and pip cap (.pragma library, imported relatively by HmFocus and

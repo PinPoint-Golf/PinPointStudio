@@ -149,9 +149,20 @@ inline const QString &shotFactorFlight()    { static const QString k = QStringLi
 // id shows its pack's golferShort, shotFactorValueLabel); `adjective` is what a sentence calls the shots
 // ("your pulled, thin shots", filterWords in outcome_scope.h). The order within a factor is the order its
 // values are listed and drawn in.
+//
+// `watch` marks a value that is not a fault but not where a golfer wants to be: amber where a fault is red
+// (Mark, 10 Nov 2026: "mid and high are both acceptable, but low is not great but not a fault, if we were
+// using RAG ratings it would be Amber"). Only Low, today. A watch value is still a value: it never earns,
+// counts or filters as a fault.
+//
+// `side` is which way a direction value goes, "right" (push, slice, fade…) or "left" (pull, hook, draw…), for a
+// right-hander: a left-hander's ids are already their own words (glossed), so the slice side comes first either
+// way. "" for Straight and every other factor. The tendency flow (tendency_flow.h) orders its direction column by it.
 struct ShotFactorValueInfo {
     QString id, factor, label, adjective;
     bool    fault = false;
+    bool    watch = false;
+    QString side;
 };
 
 inline const std::vector<ShotFactorValueInfo> &shotFactorValueTable()
@@ -166,15 +177,15 @@ inline const std::vector<ShotFactorValueInfo> &shotFactorValueTable()
         { QStringLiteral("strike_heel"),   shotFactorStrike(),    QStringLiteral("Heel"),        QStringLiteral("heel"),          true },
         { QStringLiteral("smash_deficit"), shotFactorStrike(),    QStringLiteral("Weak strike"), QStringLiteral("weakly struck"), true },
         { QStringLiteral("straight"),      shotFactorDirection(), QStringLiteral("Straight"),    QStringLiteral("straight"),      false },
-        { QStringLiteral("fade"),          shotFactorDirection(), QStringLiteral("Fade"),        QStringLiteral("faded"),         false },
-        { QStringLiteral("draw"),          shotFactorDirection(), QStringLiteral("Draw"),        QStringLiteral("drawn"),         false },
-        { QStringLiteral("pull"),          shotFactorDirection(), QStringLiteral("Pull"),        QStringLiteral("pulled"),        true },
-        { QStringLiteral("push"),          shotFactorDirection(), QStringLiteral("Push"),        QStringLiteral("pushed"),        true },
-        { QStringLiteral("slice"),         shotFactorDirection(), QStringLiteral("Slice"),       QStringLiteral("sliced"),        true },
-        { QStringLiteral("hook"),          shotFactorDirection(), QStringLiteral("Hook"),        QStringLiteral("hooked"),        true },
-        { QStringLiteral("push_slice"),    shotFactorDirection(), QStringLiteral("Push slice"),  QStringLiteral("push-sliced"),   true },
-        { QStringLiteral("pull_hook"),     shotFactorDirection(), QStringLiteral("Pull hook"),   QStringLiteral("pull-hooked"),   true },
-        { QStringLiteral("low"),           shotFactorFlight(),    QStringLiteral("Low"),         QStringLiteral("low"),           false },
+        { QStringLiteral("fade"),          shotFactorDirection(), QStringLiteral("Fade"),        QStringLiteral("faded"),         false, false, QStringLiteral("right") },
+        { QStringLiteral("draw"),          shotFactorDirection(), QStringLiteral("Draw"),        QStringLiteral("drawn"),         false, false, QStringLiteral("left") },
+        { QStringLiteral("pull"),          shotFactorDirection(), QStringLiteral("Pull"),        QStringLiteral("pulled"),        true, false, QStringLiteral("left") },
+        { QStringLiteral("push"),          shotFactorDirection(), QStringLiteral("Push"),        QStringLiteral("pushed"),        true, false, QStringLiteral("right") },
+        { QStringLiteral("slice"),         shotFactorDirection(), QStringLiteral("Slice"),       QStringLiteral("sliced"),        true, false, QStringLiteral("right") },
+        { QStringLiteral("hook"),          shotFactorDirection(), QStringLiteral("Hook"),        QStringLiteral("hooked"),        true, false, QStringLiteral("left") },
+        { QStringLiteral("push_slice"),    shotFactorDirection(), QStringLiteral("Push slice"),  QStringLiteral("push-sliced"),   true, false, QStringLiteral("right") },
+        { QStringLiteral("pull_hook"),     shotFactorDirection(), QStringLiteral("Pull hook"),   QStringLiteral("pull-hooked"),   true, false, QStringLiteral("left") },
+        { QStringLiteral("low"),           shotFactorFlight(),    QStringLiteral("Low"),         QStringLiteral("low"),           false, true },
         { QStringLiteral("mid"),           shotFactorFlight(),    QStringLiteral("Mid"),         QStringLiteral("mid-height"),    false },
         { QStringLiteral("high"),          shotFactorFlight(),    QStringLiteral("High"),        QStringLiteral("high"),          false },
         { QStringLiteral("sky"),           shotFactorFlight(),    QStringLiteral("Sky"),         QStringLiteral("skied"),         true },
@@ -187,6 +198,30 @@ inline const ShotFactorValueInfo *shotFactorValueInfo(const QString &id)
     for (const ShotFactorValueInfo &v : shotFactorValueTable())
         if (v.id == id) return &v;
     return nullptr;
+}
+
+// A direction value's side, "right", "left" or "": see ShotFactorValueInfo.
+inline QString shotFactorValueSide(const QString &id)
+{
+    const ShotFactorValueInfo *v = shotFactorValueInfo(id);
+    return v ? v->side : QString();
+}
+
+// The values on a factor's good path: neither a fault nor one to watch (Solid; Straight, Fade, Draw; Mid, High).
+// The tendency flow's ideal path is the three together (Mark, 10 Nov 2026).
+inline QSet<QString> shotFactorGoodValues(const QString &factor)
+{
+    QSet<QString> out;
+    for (const ShotFactorValueInfo &v : shotFactorValueTable())
+        if (v.factor == factor && !v.fault && !v.watch) out.insert(v.id);
+    return out;
+}
+
+// A value to watch (amber), not a fault: see ShotFactorValueInfo.
+inline bool shotFactorValueWatch(const QString &id)
+{
+    const ShotFactorValueInfo *v = shotFactorValueInfo(id);
+    return v && v->watch && !v->fault;
 }
 
 // Where a value sits in its factor's list; values the table doesn't hold go last.
@@ -360,8 +395,9 @@ inline ShotMixBar composeFactorMixBar(const ShotFactorTally &t)
     });
     for (const QString &id : values) {
         const bool good = id == QLatin1String("solid") || id == QLatin1String("straight");
-        bar.parts.push_back(ShotMixPart{ id, t.label.value(id, id), good ? QStringLiteral("good") : QStringLiteral("value"),
-                                         t.count.value(id), 0 });
+        // A value to watch (Low) is its own kind, so every bar draws it amber (Mark, 10 Nov 2026).
+        const QString kind = good ? QStringLiteral("good") : shotFactorValueWatch(id) ? QStringLiteral("watch") : QStringLiteral("value");
+        bar.parts.push_back(ShotMixPart{ id, t.label.value(id, id), kind, t.count.value(id), 0 });
     }
     int otherCount = 0;
     for (int i = 0; i < int(faults.size()); ++i) {

@@ -25,7 +25,7 @@
 //
 //  tendencies: { kicker ("68 shots  ·  6 sessions  ·  Tendencies"), standfirst, foot ("" when no factor is building),
 //                rows: [{ key, club ("7 iron · part swing"), distance ("147 ± 31 yd" | ""),
-//                         strike, direction, flight: { label ("Pull", "Solid", "-"), fault, building,
+//                         strike, direction, flight: { label ("Pull", "Solid", "-"), fault, watch (Low), building,
 //                                 seen ("Seen with …  ·  likely  ·  ↑ growing" | "Building, 5 sessions so far" | ""),
 //                                 mixLine, mixParts: [{ count, kind }] } }] }
 //
@@ -69,6 +69,7 @@ inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &
         return QVariantMap{
             { QStringLiteral("label"),    f.label },
             { QStringLiteral("fault"),    f.fault },
+            { QStringLiteral("watch"),    !f.fault && shotFactorValueWatch(f.value) },
             { QStringLiteral("building"), f.building },
             { QStringLiteral("seen"),     seen },
             { QStringLiteral("mixLine"),  f.mix.line },

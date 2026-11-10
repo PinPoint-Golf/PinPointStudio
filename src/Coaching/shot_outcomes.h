@@ -973,7 +973,9 @@ inline ShotMix composeSessionMix(const std::vector<ShotOutcome> &shots)
 
 inline constexpr int kShotMixMaxMisses = 3;     // named in the bar; the rest are "Other"
 
-// One band of the bar. `kind` picks the tone: "good", "main" (the commonest miss) or "other".
+// One band of the bar. `kind` picks the tone: "good", "main" (the commonest miss) or "other"; a factor's bar
+// (composeFactorMixBar) adds "value" (neither praise nor fault) and "watch" (a value to watch, Low). Every bar
+// draws a fault red, main or other, and a watch value amber (Mark, 10 Nov 2026: one scheme everywhere).
 struct ShotMixPart {
     QString key, label, kind;
     int     count = 0, percent = 0;

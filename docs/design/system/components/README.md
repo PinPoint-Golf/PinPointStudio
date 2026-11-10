@@ -43,6 +43,7 @@ The shared Qt Quick controls in `src/Gui/components/`. Use these rather than red
 
 - [PpBadge](PpBadge.md) — A leading round mark at the head of a coaching line or table row — one shape per meaning, so colour is never the only channel.
 - [PpBandBar](PpBandBar.md) — Counts by category as one stacked horizontal bar: each category's share of the total in its tone, 1 px apart, rounded ends, square joins.
+- [PpSankey](PpSankey.md) — A flow through three columns of nodes: ribbons as thick as their counts, nodes named and counted, a legend, and the ribbons examined in place.
 - [PpMeter](PpMeter.md) — How often, as ten segments: a share of 0..1 lights round(share × 10) of them in the tone.
 - [PpPip](PpPip.md) — One session pip: a dot where a session saw something, an empty ring where it did not — or, in tick-run terms, a dot where it fired, a dash where it was clean, a ring where it could not tell.
 - [PpPips](PpPips.md) — A row of session pips (`PpPip`), oldest first.

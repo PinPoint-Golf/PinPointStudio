@@ -283,9 +283,9 @@ class WorkOnsController : public QObject
     //   length, handedness, sessions, shots, workOnText, strike: F, direction: F, flight: F }], one per club and
     //   swing length. Row workOnText is the status words of its factors' work-ons, distinct, the most active first
     //   ("Active", "Active · Easing"), "" when none. Each F:
-    //   { factor, value, label, fault, building, share, frequency, sessions, shots, seenWith, seenWithId,
+    //   { factor, value, label, fault, watch (a value to watch, amber: Low), building, share, frequency, sessions, shots, seenWith, seenWithId,
     //     strength, trend, trendWords, workOn ("active" | "easing" | ""), workOnText ("Active", ""),
-    //     mix: { line, parts: [{ key, label, kind ("good" | "value" | "main" | "other"), count, percent }] } }.
+    //     mix: { line, parts: [{ key, label, kind ("good" | "value" | "watch" | "main" | "other"), count, percent }] } }.
     //   A factor's usual is its most common fault when that earns, else its most common value said plainly
     //   (fault false); a building factor states no verdict; one never read is label "-".
     // tendencyNote: "From N shots over M sessions", or why nothing yet.
@@ -371,6 +371,16 @@ public:
     bool tendenciesReady() const { return m_tendenciesReady; }
     bool tendenciesUpdating() const { return m_tendenciesRunning; }
     Q_INVOKABLE QVariantMap tendencyDetail(const QString &key) const;
+    // tendencyFlow(group, plotHeight, gap): the tendency flow (Sankey; docs/design/tendencies_flow_design.md) of every
+    // row in `group` ("" for every club), laid out by layoutTendencyFlow (tendency_flow.h) in a plot `plotHeight` high
+    // with `gap` between nodes. Every word final, every place in plot units:
+    //   { enough, total, excluded, idealPct, micro ("Tendencies · Mid irons · 32 shots"), headline, subtitle,
+    //     emptyLine (under kTendencyFlowMinShots), excludedLine ("" with none),
+    //     columns: [title], groups: [{ group (0 ideal, 1 flight off, 2 off line, 3 mis-struck), name, count, percent, line }],
+    //     nodes: [{ column, value, label, good, other, kind ("good" | "watch" | "fault" | "other"), count, percent, sub ("22 · 28%"), y, h, byGroup: [4] }],
+    //     links: [{ from, to, group, count, percent, y0, y1, h, through: [node], line ("Solid → Slice: 12 shots (15%)") }] }
+    // Links are in draw order, the ideal last. Read it again on tendenciesChanged.
+    Q_INVOKABLE QVariantMap tendencyFlow(const QString &group, double plotHeight, double gap) const;
     Q_INVOKABLE QVariantMap clubDistance(const QString &club) const;
 
     QString clubScope() const { return m_scope.key; }

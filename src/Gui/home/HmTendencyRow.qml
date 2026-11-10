@@ -22,7 +22,9 @@
 //   header   chevron · club (with "· part swing") · usual distance (average ± spread) · strike · direction ·
 //            flight · work-on. A factor cell is its usual over its words: a fault in the fault tone with how
 //            often beneath ("Pull" / "fairly often"); a value plain and alone ("Solid", "Mid"); still building,
-//            "Building — N sessions" beside a dashed ring, and never a verdict's tone.
+//            "Building — N sessions" beside a dashed ring. A fault wears the fault tone building or earned (Mark,
+//            10 Nov 2026: where any of the three is a fault, colour highlights it). A value to watch (Low
+//            flight: not great, not a fault) wears the watch tone, amber; any other value is plain.
 //   detail   one block per factor with something to say, headed by the factor's name: every shot it was read on
 //            (a PpBandBar over its words), the trend, what leads to it (the golfer's words with the words that
 //            link them), also seen, how to play to it, Practice. Then one Together block: when two factors' usuals
@@ -39,8 +41,9 @@
 // a building factor still needs words for, and the Together block's shot counts. Colour is never the only channel: a fault has its words, the band bar
 // has its words beneath, the trend carries an arrow and a word.
 //
-// A shot-mix part's tone by its kind: good → clean, value → value (neither praise nor fault), main → habit,
-// other → occasional (Theme.bandTone). The trend's tone follows Theme.trendTone of the negated value, as
+// A shot-mix part's tone, as the row's cells: good → clean; every fault, the commonest (main) or another
+// (other), → habit, red; a value to watch (kind "watch", Low) → the watch tone, amber; any other value → value,
+// neither praise nor fault (Theme.bandTone). Mark, 10 Nov 2026: the bars match the row. The trend's tone follows Theme.trendTone of the negated value, as
 // HmAreaRow's: a fault that grows is worse.
 //
 // tendencyDetail() is read when the row is created; a publish rebuilds the row, so it stays current.
@@ -71,8 +74,12 @@ PpExpandRow {
     function factor(f) { return tendencyRow.tendency && tendencyRow.tendency[f] ? tendencyRow.tendency[f] : ({}) }
     // Building, and there is something so far (a factor never read has nothing to build).
     function building(f) { const x = tendencyRow.factor(f); return !!x.building && (x.shots === undefined || x.shots > 0) }
-    // An earned fault: the only one that wears the fault tone.
+    // An earned fault: says how often beneath it.
     function fault(f) { return !!tendencyRow.factor(f).fault && !tendencyRow.building(f) }
+    // Any fault, building or earned: wears the fault tone. A value never does.
+    function faultTone(f) { return !!tendencyRow.factor(f).fault && tendencyRow.factorLabel(f) !== "—" }
+    // A value to watch (Low flight): not a fault, not where you want to be. Amber, where a fault is red.
+    function watchTone(f) { return !tendencyRow.faultTone(f) && !!tendencyRow.factor(f).watch }
     function factorLabel(f) {
         const l = tendencyRow.factor(f).label
         return l === undefined || l === "" || l === "-" ? "—" : String(l)
@@ -84,7 +91,8 @@ PpExpandRow {
         return tendencyRow.fault(f) ? String(x.frequency || "") : ""
     }
     function mixTone(kind) {
-        return Theme.bandTone(kind === "good" ? "clean" : kind === "value" ? "value" : kind === "main" ? "habit" : "occasional")
+        return kind === "watch" ? Theme.toneColor("watch")
+             : Theme.bandTone(kind === "good" ? "clean" : kind === "value" ? "value" : "habit")
     }
 
     readonly property var tendencyDetail: tendencyRow.controller && tendencyRow.key !== ""
@@ -123,6 +131,7 @@ PpExpandRow {
         property string label:    ""
         property string words:    ""
         property bool   fault:    false
+        property bool   watch:    false
         property bool   building: false
         spacing: Theme.gap(2)
         Text {
@@ -133,7 +142,8 @@ PpExpandRow {
             font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzBody
             font.weight:    Theme.fontBodyWeight
-            color: cell.fault ? Theme.colorWarn : cell.label === "—" ? Theme.colorText3 : Theme.colorText
+            color: cell.fault ? Theme.colorWarn : cell.watch ? Theme.toneColor("watch")
+                 : cell.label === "—" ? Theme.colorText3 : Theme.colorText
         }
         Row {
             visible: cell.words !== ""
@@ -391,7 +401,8 @@ PpExpandRow {
         width:    tendencyRow.columnWidth(3)
         label:    tendencyRow.factorLabel("strike")
         words:    tendencyRow.factorWords("strike")
-        fault:    tendencyRow.fault("strike")
+        fault:    tendencyRow.faultTone("strike")
+        watch:    tendencyRow.watchTone("strike")
         building: tendencyRow.building("strike")
     }
     FactorCell {
@@ -400,7 +411,8 @@ PpExpandRow {
         width:    tendencyRow.columnWidth(4)
         label:    tendencyRow.factorLabel("direction")
         words:    tendencyRow.factorWords("direction")
-        fault:    tendencyRow.fault("direction")
+        fault:    tendencyRow.faultTone("direction")
+        watch:    tendencyRow.watchTone("direction")
         building: tendencyRow.building("direction")
     }
     FactorCell {
@@ -409,7 +421,8 @@ PpExpandRow {
         width:    tendencyRow.columnWidth(5)
         label:    tendencyRow.factorLabel("flight")
         words:    tendencyRow.factorWords("flight")
-        fault:    tendencyRow.fault("flight")
+        fault:    tendencyRow.faultTone("flight")
+        watch:    tendencyRow.watchTone("flight")
         building: tendencyRow.building("flight")
     }
 

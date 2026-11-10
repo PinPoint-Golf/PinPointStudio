@@ -645,9 +645,18 @@ retention mechanism to wire "keep the clearest shot" into.
     were struck Solid 2 · Toe 1."); then the three commonest combinations over the shots read on every factor
     the row reads (two at least), each shot under the value its bars count it under, and the rest counted.
     Counts, not percentages: the numbers are small and the golfer checks them against shots they remember.
+- **Fault and watch colours on the row** (Mark, 10 Nov 2026). A factor whose usual is a fault is drawn in the
+  fault tone (red, `colorWarn`), building or earned. Low flight is a value to watch: "not great but not a
+  fault, if we were using RAG ratings it would be Amber", so its usual is drawn in the watch tone (amber,
+  `toneColor("watch")`); Mid and High are acceptable and plain. The value table says which value is watched
+  (`ShotFactorValueInfo::watch`); a watched value is still a value, never earned, counted or filtered as a fault.
 - **Shot bars** draw a non-fault value (Fade, Draw, Low, Mid, High) in the cool "neither praise nor fault"
   tone (`Theme.bandTone("value")`, approved by Mark 10 Nov); Solid and Straight are good; the commonest fault
-  is the habit tone, other faults the occasional tone.
+  is the habit tone, other faults the occasional tone. *Superseded 10 Nov 2026 (Mark: "match the row … we
+  need to be consistent"):* on every bar (Tendencies' open row, the session panel, the report's Your
+  tendencies page) every fault is the habit tone, red, the commonest or not, and Low is the watch tone, amber
+  (its own part kind, `watch`, tendency rule 16); Fade, Draw, Mid and High keep the cool tone. The report's
+  cells follow the row's: a fault red, building or earned, and Low amber.
 - **One filter line** replaces the club chips and the outcome chips: Club · Strike · Direction · Flight, four
   quiet pickers (`HmShotFilter`), each list with Any first and the count each choice would leave with the other
   choices kept; a line under it says what is shown and on how many of those shots the swing was measured. A shot

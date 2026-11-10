@@ -157,6 +157,8 @@ pp_add_test(work_ons_test SOURCES work_ons_test.cpp)
 pp_add_test(club_distances_test SOURCES club_distances_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 pp_add_test(shot_outcomes_test SOURCES shot_outcomes_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 pp_add_test(tendencies_test SOURCES tendencies_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
+# The tendency flow (Sankey) layout: docs/design/tendencies_flow_design.md §8, the doc's golden set included.
+pp_add_test(tendency_flow_test SOURCES tendency_flow_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp)
 # Which clubs Home's Coaching, Your swing and Matchups read (club_scope.h). Header-only.
 pp_add_test(club_scope_test SOURCES club_scope_test.cpp ${SRC}/LaunchMonitor/launch_monitor_reading.cpp LINK Threads::Threads)
 # Which shots Home's outcome filter holds, and each fault on them against the other shots (outcome_scope.h). Header-only.

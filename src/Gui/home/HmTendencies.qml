@@ -62,7 +62,7 @@ PpCard {
     table:  true
     columns: [{ title: "",                          width: Theme.sp(14) },     // the chevron's
               { title: caption(qsTr("Club")),           fill: 0.9 },
-              { title: caption(qsTr("Usual distance")), fill: 0.9 },
+              { title: caption(qsTr("Usual distance")), width: Theme.sp(104) },  // "193 ± 14 yd" whole, beside the flow too
               { title: caption(qsTr("Strike")),         fill: 1.0 },
               { title: caption(qsTr("Direction")),      fill: 1.0 },
               { title: caption(qsTr("Flight")),         fill: 1.0 },

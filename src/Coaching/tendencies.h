@@ -47,6 +47,7 @@
 // Unit-tested standalone in src/Analysis/tests/tendencies_test.cpp.
 
 #include "shot_factors.h"
+#include "tendency_flow.h"
 #include "shot_outcomes.h"
 
 #include <QDate>
@@ -67,7 +68,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 15;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations
+inline constexpr int kTendencyRuleVersion   = 17;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations; 16: a factor's bar names a value to watch (Low) as kind "watch", so every bar draws it amber; 17: each row carries its shots' flow combinations (TendencyItem::flow), for the tendency flow (Sankey)
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -359,6 +360,9 @@ struct TendencyItem {
     int     shots = 0;
     TendencyFactor strike, direction, flight;
     TendencyTogether together;
+    // Every judged shot of this key as one value per factor, the value its bars count it under ("" unread), counted:
+    // the tendency flow (Sankey) pools these over the clubs shown (rule 17; tendency_flow.h).
+    std::vector<TendencyFlowCombo> flow;
 
     const TendencyFactor &factor(const QString &name) const
     {
@@ -1086,6 +1090,13 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
         }
 
         item.together = tendencyTogether(item, keyShots, leadOf, pack);
+        {
+            std::map<std::array<QString, 3>, int> flow;
+            for (const JudgedShot *j : keyShots)
+                ++flow[{ leadOf.value(shotFactorStrike()).value(j), leadOf.value(shotFactorDirection()).value(j),
+                         leadOf.value(shotFactorFlight()).value(j) }];
+            for (const auto &[v, n] : flow) item.flow.push_back(TendencyFlowCombo{ v[0], v[1], v[2], n });
+        }
         out.items.push_back(std::move(item));
     }
 
@@ -1270,6 +1281,13 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
                 { QStringLiteral("pairs"), QJsonArray::fromStringList(it.together.pairs) },
                 { QStringLiteral("combos"), QJsonArray::fromStringList(it.together.combos) },
                 { QStringLiteral("moreCombos"), it.together.moreCombos } } },
+            { QStringLiteral("flow"), [&it] {
+                QJsonArray a;
+                for (const TendencyFlowCombo &c : it.flow)
+                    a.append(QJsonObject{ { QStringLiteral("strike"), c.strike }, { QStringLiteral("direction"), c.direction },
+                                          { QStringLiteral("flight"), c.flight }, { QStringLiteral("shots"), c.shots } });
+                return a;
+            }() },
         });
     }
     QJsonArray onBall;
@@ -1370,6 +1388,11 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
             for (const QJsonValue &x : t.value(QStringLiteral("pairs")).toArray())  it.together.pairs << x.toString();
             for (const QJsonValue &x : t.value(QStringLiteral("combos")).toArray()) it.together.combos << x.toString();
             it.together.moreCombos = t.value(QStringLiteral("moreCombos")).toString();
+        }
+        for (const QJsonValue &v : o.value(QStringLiteral("flow")).toArray()) {
+            const QJsonObject c = v.toObject();
+            it.flow.push_back(TendencyFlowCombo{ str(c, "strike"), str(c, "direction"), str(c, "flight"),
+                                                 c.value(QStringLiteral("shots")).toInt() });
         }
         s.items.push_back(std::move(it));
     }
