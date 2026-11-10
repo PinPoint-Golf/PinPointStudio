@@ -676,6 +676,12 @@ private:
     // Remove one shot from every per-shot structure, keeping the focus split on the same
     // swing. True when there was a row to remove. Does not reduce or persist.
     bool dropShot(int shotId);
+    // THE ROWS CHECKED AGAINST THE FLIGHT (checkStrikesAgainstFlight, strike_from_flight.h; Mark, 10 Nov 2026):
+    // a measured thin, top or fat the session's flight contradicts, and a measured sky the flight rule doesn't
+    // call Sky, are NotAssessable and `overruled`, value kept. Re-run over every row each time m_shots changes
+    // (a row placed, regraded or dropped, the file read, the flight table replaced), so the reductions, every
+    // reader of the rows and diagnostics.json all hold the checked verdict, and a live session converges.
+    void checkRowsAgainstFlight();
 
     // The content every row is graded against — pack, norms and contexts — as one short hash.
     // The grade policy is deliberately NOT in it: setGradePolicy() does not rewrite history.

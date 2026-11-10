@@ -23,6 +23,8 @@
 
 #include "../../Coaching/shot_factors.h"
 
+#include <QDate>
+#include <QJsonArray>
 #include <QJsonDocument>
 
 #include <cstdio>
@@ -159,21 +161,25 @@ int main()
         const ShotFactors bySmash = factorsOf(unread, pack, norms);
         check(bySmash.strike.read && bySmash.strike.values == QStringList{ "solid" }, "a smash read is a strike assessed");
 
-        // A sticker placed off: every strike reads low, the flight normal (§3.7). The measured thin the flight
-        // doesn't bear out is no label, so the shot is Solid.
+        // A sticker placed off: every strike reads low, the flight normal (§3.7). The ledger overrules the
+        // measured thin the flight doesn't bear out (checkStrikesAgainstFlight), so it is no label and the shot,
+        // its strike read all the same, is Solid.
         std::vector<ShotRecord> session;
         for (int i = 0; i < 6; ++i) {
             ShotRecord s = shot(10 + i, i == 0 ? std::initializer_list<const char *>{ "thin" } : std::initializer_list<const char *>{});
             s.launchAngle = 16.0;
             session.push_back(s);
         }
+        checkStrikesAgainstFlight(session, norms);
         const QHash<QString, ClubFlightUsual> usuals = sessionFlightUsuals(session);
         const ShotFactors sticker = factorsOf(session[0], pack, norms, usuals);
         check(sticker.strike.read && sticker.strike.values == QStringList{ "solid" } && sticker.strike.faults.isEmpty(),
               "a sticker-offset low strike on a normal flight: Solid");
-        ShotRecord realThin = session[0];
-        realThin.launchAngle = 6.0;
-        check(factorsOf(realThin, pack, norms, usuals).strike.faults == QStringList{ "thin" }, "the same strike launched low: Thin");
+        std::vector<ShotRecord> realThin = session;
+        realThin[0].launchAngle = 6.0;
+        checkStrikesAgainstFlight(realThin, norms);
+        check(factorsOf(realThin[0], pack, norms, sessionFlightUsuals(realThin)).strike.faults == QStringList{ "thin" },
+              "the same strike launched low: Thin");
     }
 
     std::printf("\ndirection:\n");
@@ -396,6 +402,183 @@ int main()
         check(corrected.flight.values == QStringList{ "sky" } && corrected.flight.faults == QStringList{ "sky" }
                   && corrected.flight.method == QStringLiteral("golfer"),
               "a golfer's correction to Sky stands");
+    }
+
+    std::printf("\nthe ledger, checked against the flight (checkStrikesAgainstFlight):\n");
+    {
+        const auto has = [](const ShotOutcome &o, const char *id) {
+            return std::any_of(o.labels.begin(), o.labels.end(), [id](const ShotOutcomeLabel &l) { return l.id == QLatin1String(id); });
+        };
+        const auto row = [](const ShotRecord &s, const char *id) -> const ConditionRow & { return *rowFor(s, QLatin1String(id)); };
+        // A 7 iron with a strike height on its thin row: `mm` on the face, launching `launch`.
+        const auto iron = [](int id, double mm, double launch, double carry = 158.0) {
+            ShotRecord s = shot(id, { "thin" });
+            s.launchAngle = launch;
+            s.smash       = 1.35;
+            s.carry       = carry;
+            s.ballSpeed   = 120.0;
+            for (ConditionRow &r : s.rows)
+                if (r.conditionId == QLatin1String("thin")) {
+                    r.drivingMeasureId = QStringLiteral("m_lmStrikeHeight");
+                    r.value = mm;
+                }
+            return s;
+        };
+
+        // 4 August 2026: every 7-iron strike read low (about −12 mm) on a normal flight (launch 17–22°).
+        std::vector<ShotRecord> aug;
+        const double launches[] = { 17.0, 18.5, 19.0, 20.0, 21.0, 22.0, 18.0, 19.5 };
+        for (int i = 0; i < 8; ++i) aug.push_back(iron(i + 1, -12.0 - 0.5 * i, launches[i], 150.0 + 2.0 * i));
+        const int n = checkStrikesAgainstFlight(aug, norms);
+        const bool allOverruled = std::all_of(aug.begin(), aug.end(), [&row](const ShotRecord &s) {
+            const ConditionRow &r = row(s, "thin");
+            return r.state == ShotState::NotAssessable && r.overruled
+                && r.notAssessableReason == QStringLiteral("the strike height disagrees with the ball flight");
+        });
+        check(n == 8 && allOverruled, "sticker offset: every thin row NotAssessable, overruled, saying why");
+        check(row(aug[0], "thin").value == -12.0 && row(aug[7], "thin").value == -15.5, "…its value kept");
+        check(!strikeHeightUnread(aug[0]) && !strikeRowUnread(aug[0], "thin"), "…and read: the monitor did give a height");
+
+        QHash<QString, ClubFlightUsual> usuals = sessionFlightUsuals(aug);
+        ShotOutcomeSessionFacts facts;
+        facts.flightUsuals = usuals;
+        int thinLabels = 0, notes = 0, solid = 0;
+        for (const ShotRecord &s : aug) {
+            const ShotOutcome o = composeShotOutcome(s, {}, QString(), nullptr, pack, facts);
+            if (has(o, "thin")) ++thinLabels;
+            if (o.strikeFlightNote.startsWith(QStringLiteral("Low on the face (−"))
+                && o.strikeFlightNote.endsWith(QStringLiteral(" mm), flight normal"))) ++notes;
+            if (shotFactors(s, o, pack, norms, usuals).strike.values == QStringList{ "solid" }) ++solid;
+        }
+        check(thinLabels == 0 && notes == 8 && solid == 8, "no Thin label, the note on every shot, every strike Solid");
+        check(composeShotOutcome(aug[0], {}, QString(), nullptr, pack, facts).strikeFlightNote
+                  == QStringLiteral("Low on the face (−12 mm), flight normal"),
+              "the note is the overruled row's own reading");
+
+        ClubDistanceSession day;
+        day.folder = QStringLiteral("2026-08-04_M_01");
+        day.day    = QDate(2026, 8, 4);
+        day.shots  = aug;
+        const std::vector<ClubSessionPool> pools = poolSessionByClub(day, norms);
+        check(pools.size() == 1 && pools[0].shots.size() == 8 && pools[0].mishits.empty(),
+              "every shot counts in the usual carry: no mishit");
+
+        // An overruled thin is read, so a low launch can't be read as a thin from the flight in its place.
+        ShotRecord bothUnread = aug[0];
+        for (ConditionRow &r : bothUnread.rows)
+            if (r.conditionId == QLatin1String("chunk")) { r.state = ShotState::NotAssessable; r.notAssessableReason = QStringLiteral("no reading"); }
+        bothUnread.launchAngle = 5.0;
+        check(!strikeHeightUnread(bothUnread) && strikeFromFlight(bothUnread, usuals).isEmpty(),
+              "an overruled thin is never turned into a thin read from the flight");
+
+        // 2 November, shot 5: a real thin launches at 1.7° against a usual of about 11°.
+        std::vector<ShotRecord> nov;
+        for (int i = 0; i < 6; ++i) {
+            ShotRecord s = shot(i + 1, {});
+            s.launchAngle = 11.0;
+            s.smash = 1.35;
+            nov.push_back(s);
+        }
+        nov.push_back(iron(7, -14.0, 1.7, 120.0));
+        checkStrikesAgainstFlight(nov, norms);
+        check(row(nov.back(), "thin").state == ShotState::Fired && !row(nov.back(), "thin").overruled, "a real thin stays Fired");
+        ClubDistanceSession novDay;
+        novDay.shots = nov;
+        const std::vector<ClubSessionPool> novPools = poolSessionByClub(novDay, norms);
+        check(novPools.size() == 1 && novPools[0].mishits.size() == 1 && novPools[0].mishits[0].kind == QStringLiteral("thin")
+                  && novPools[0].shots.size() == 6,
+              "…and is a mishit, out of the usual carry");
+
+        // Sky: a measured sky row on an iron is no verdict.
+        std::vector<ShotRecord> irons;
+        for (int i = 0; i < 5; ++i) irons.push_back(shot(i + 1, i == 0 ? std::initializer_list<const char *>{ "sky" } : std::initializer_list<const char *>{}));
+        irons[0].descentAngle = 55.0;
+        irons[0].attackAngle  = -9.0;
+        irons[0].carry        = 100.0;
+        for (size_t i = 1; i < irons.size(); ++i) irons[i].attackAngle = -4.0;
+        checkStrikesAgainstFlight(irons, norms);
+        check(row(irons[0], "sky").state == ShotState::NotAssessable && row(irons[0], "sky").overruled
+                  && row(irons[0], "sky").notAssessableReason == QStringLiteral("Sky is judged from the ball flight"),
+              "a measured sky on an iron: overruled, Sky is judged from the ball flight");
+
+        // On a driver the flight rule decides: High, 2° steeper than the usual attack, carry at 74 % of the usual.
+        const auto driver = [](int id, bool skyRow, double descent, double attack, double carry) {
+            ShotRecord s = shot(id, skyRow ? std::initializer_list<const char *>{ "sky" } : std::initializer_list<const char *>{}, {}, "DRIVER");
+            s.descentAngle = descent;
+            s.attackAngle  = attack;
+            s.carry        = carry;
+            return s;
+        };
+        std::vector<ShotRecord> tee;
+        for (int i = 0; i < 5; ++i) tee.push_back(driver(i + 1, false, 37.0, -1.0, 230.0));
+        tee.push_back(driver(6, true, 44.0, -3.5, 170.0));     // the flight calls it Sky
+        tee.push_back(driver(7, true, 38.0, -1.0, 228.0));     // a sky row on a normal flight
+        checkStrikesAgainstFlight(tee, norms);
+        check(row(tee[5], "sky").state == ShotState::Fired && !row(tee[5], "sky").overruled, "a driver the flight calls Sky: the row stays Fired");
+        check(row(tee[6], "sky").state == ShotState::NotAssessable && row(tee[6], "sky").overruled, "a driver flying normally: overruled");
+        check(std::none_of(tee.begin(), tee.begin() + 5, [&row](const ShotRecord &s) { return row(s, "sky").overruled
+                                                                                            || row(s, "sky").state != ShotState::Clean; }),
+              "no sky row is made where none fired");
+        const QHash<QString, ClubFlightUsual> teeUsuals = sessionFlightUsuals(tee);
+        check(flightSaysSky(tee[5], teeUsuals, norms)
+                  && shotFactors(tee[5], composeShotOutcome(tee[5], {}, QString(), nullptr, pack, ShotOutcomeSessionFacts{}), pack,
+                                 norms, teeUsuals).flight.values == QStringList{ "sky" },
+              "the row and the flight factor agree: Sky");
+        ClubDistanceSession teeDay;
+        teeDay.shots = tee;
+        const std::vector<ClubSessionPool> teePools = poolSessionByClub(teeDay, norms);
+        check(teePools.size() == 1 && teePools[0].mishits.size() == 1 && teePools[0].mishits[0].kind == QStringLiteral("sky")
+                  && teePools[0].mishits[0].position == 5,
+              "the skied drive leaves the usual carry, the normal one with a sky row counts");
+        // A ball-only monitor has no sky row to fire: the flight's Sky still leaves the usual carry.
+        ShotRecord ballOnly = tee[5];
+        for (ConditionRow &r : ballOnly.rows)
+            if (r.conditionId == QLatin1String("sky")) { r.state = ShotState::NotAssessable; r.overruled = false; }
+        const ClubFlightUsual driverUsual = teeUsuals.value(QStringLiteral("DRIVER"));
+        check(shotMishitKind(ballOnly, {}, &driverUsual, &norms) == QStringLiteral("sky"),
+              "the flight's Sky is a mishit with no sky row (driver, woods, hybrids)");
+        ShotRecord ironHigh = irons[0];
+        const QHash<QString, ClubFlightUsual> ironUsuals = sessionFlightUsuals(irons);
+        const ClubFlightUsual ironUsual = ironUsuals.value(QStringLiteral("7 IRON"));
+        check(shotMishitKind(ironHigh, {}, &ironUsual, &norms).isEmpty(),
+              "an iron flying high and short is no sky mishit");
+        check(strikeFromFlight(ballOnly, teeUsuals).isEmpty(), "and a high launch is never a strike read from the flight");
+
+        // A live session converges as shots arrive: three 7 irons are no usual, the fourth makes one.
+        std::vector<ShotRecord> live;
+        for (int i = 0; i < 3; ++i) {
+            live.push_back(iron(i + 1, -12.0, 18.0 + i));
+            checkStrikesAgainstFlight(live, norms);
+        }
+        const auto firedThins = [&row](const std::vector<ShotRecord> &v) {
+            return int(std::count_if(v.begin(), v.end(), [&row](const ShotRecord &s) { return row(s, "thin").state == ShotState::Fired; }));
+        };
+        check(firedThins(live) == 3, "live: three shots of the club, no usual, every thin stands");
+        live.push_back(iron(4, -12.0, 19.5));
+        checkStrikesAgainstFlight(live, norms);
+        check(firedThins(live) == 0, "live: the fourth gives the club a usual, and all four are overruled");
+        live.push_back(iron(5, -14.0, 1.7, 110.0));
+        checkStrikesAgainstFlight(live, norms);
+        check(firedThins(live) == 1 && row(live.back(), "thin").state == ShotState::Fired, "live: a real thin arriving stands");
+        const std::vector<ShotRecord> once = live;
+        checkStrikesAgainstFlight(live, norms);
+        check(toJson(live) == toJson(once), "live: checking again changes nothing");
+        live.erase(live.begin() + 3, live.end());
+        checkStrikesAgainstFlight(live, norms);
+        check(firedThins(live) == 3 && std::none_of(live.begin(), live.end(), [&row](const ShotRecord &s) {
+                  return row(s, "thin").overruled || !row(s, "thin").notAssessableReason.isEmpty(); }),
+              "live: shots leaving put the rows back as detected");
+
+        // The flag survives diagnostics.json.
+        const std::vector<ShotRecord> back = fromJson(toJson(aug));
+        check(row(back[0], "thin").overruled && row(back[0], "thin").state == ShotState::NotAssessable
+                  && row(back[0], "thin").value == -12.0
+                  && row(back[0], "thin").notAssessableReason == QStringLiteral("the strike height disagrees with the ball flight")
+                  && !row(back[0], "chunk").overruled,
+              "JSON round trip: overruled, NotAssessable, value and reason");
+        const QJsonObject firstRow = toJson(aug).value(QStringLiteral("shots")).toArray().at(0).toObject()
+                                         .value(QStringLiteral("rows")).toArray().at(0).toObject();
+        check(!firstRow.contains(QStringLiteral("overruled")), "an unflagged row writes no key");
     }
 
     std::printf("\nthe values, in one table:\n");

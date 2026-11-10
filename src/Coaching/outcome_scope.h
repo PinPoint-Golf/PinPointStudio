@@ -56,7 +56,9 @@ namespace pinpoint::analysis {
 // shots a miss choice holds change.
 // 4: the filter is three factors, strike, direction and flight (shot_factors.h), keyed
 // "strike:…|direction:…|flight:…", so every stored key and count is another filter's.
-inline constexpr int kOutcomeScopeRuleVersion = 4;
+// 5: the rows are the ledger's flight-checked ones (checkStrikesAgainstFlight): an overruled thin, top or fat or
+// sky is NotAssessable, so the shots a strike choice holds and the measured counts change.
+inline constexpr int kOutcomeScopeRuleVersion = 5;
 
 inline const QString &shotFilterAllKey() { static const QString k = QStringLiteral("all"); return k; }
 inline const QString &shotFilterAny()    { static const QString k = QStringLiteral("any"); return k; }

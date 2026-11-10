@@ -110,9 +110,10 @@ static ShotRecord shot(int id, std::initializer_list<const char *> fired, const 
         r.firedSignalCount = hit ? 1 : 0;
         s.rows.push_back(r);
     }
-    // Rule 11: a measured fat is a miss only when the flight agrees (measuredStrikeFlightAgrees), and every
-    // shot here carries the same 200. These fixtures are about counting the misses, not about that rule, so a
-    // fat's reading is its total and not its carry: with no carry or smash to judge it by, it stands as measured.
+    // Rule 11: a measured fat is a miss only when the flight agrees (measuredStrikeFlightAgrees, applied to the
+    // ledger rows by checkStrikesAgainstFlight), and every shot here carries the same 200. These fixtures are about
+    // counting the misses, not about that rule, so a fat's reading is its total and not its carry: with no carry or
+    // smash to judge it by, it would stand as measured were the rows checked.
     if (std::any_of(fired.begin(), fired.end(), [](const char *f) { return qstrcmp(f, "chunk") == 0; })) {
         s.carry = std::numeric_limits<double>::quiet_NaN();
         s.total = 210.0;
@@ -430,8 +431,10 @@ int main()
         check(reduce({}).clubOutcomes.empty(), "no shots, no counts");
     }
     {
-        // Rule 11: a measured fat counts only when the flight agrees. Three fats among nine drivers: carrying the
-        // usual 200 they are no fault at all; carrying 160 (under 0.85 of it) they are Fat.
+        // Rule 11 (rule 14: decided on the ledger): a measured fat counts only when the flight agrees. Three fats
+        // among nine drivers: carrying the usual 200 they are no fault at all; carrying 160 (under 0.85 of it)
+        // they are Fat. The reduction reads the rows as diagnostics.json holds them, checked against the flight
+        // when the ledger was built (checkStrikesAgainstFlight), so the fixture is checked the same way.
         const auto fatsCarrying = [](double carry) {
             std::vector<TendencySessionInput> in{ session(1, 9, {}) };
             for (int i = 0; i < 3; ++i) {
@@ -439,6 +442,7 @@ int main()
                 s.carry = carry;
                 in[0].session.shots[size_t(i)] = s;
             }
+            checkStrikesAgainstFlight(in[0].session.shots, FlightNorms{});
             return reduce(in);
         };
         const TendencySet flewNormally = fatsCarrying(200.0);
@@ -730,11 +734,11 @@ int main()
         bool otherOk = true;
         tendencySetFromJson(other, &otherOk);
         check(!otherOk, "another rule version is not read as ours");
-        QJsonObject twelve = json;
-        twelve[QStringLiteral("rule")] = 12;
-        bool twelveOk = true;
-        tendencySetFromJson(twelve, &twelveOk);
-        check(kTendencyRuleVersion == 13 && !twelveOk, "rule 13: a file of rule 12 (weighted values, no building floor) is not read");
+        QJsonObject thirteen = json;
+        thirteen[QStringLiteral("rule")] = 13;
+        bool thirteenOk = true;
+        tendencySetFromJson(thirteen, &thirteenOk);
+        check(kTendencyRuleVersion == 14 && !thirteenOk, "rule 14: a file of rule 13 (rows not checked against the flight) is not read");
 
         TendencySessionEvidence ev;
         ev.tiers.insert(QStringLiteral("over_the_top"), Tier::Pattern);

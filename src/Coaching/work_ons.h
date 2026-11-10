@@ -87,7 +87,10 @@ inline constexpr int kWorkOnSchemaVersion = 3;
 // 4: when the session can test none of its authored links (linksTestable false), SWING ORDER
 // decides before magnitude — setup, backswing, top, transition, downswing, impact, follow-through
 // (docs/design/session_report_design.md §4.3, option A, Mark 20 Oct 2026). See WorkOnReasons.
-inline constexpr int kWorkOnRuleVersion   = 5;
+// 6: the rows are checked against the ball flight when the ledger is built (checkStrikesAgainstFlight,
+// strike_from_flight.h, Mark 10 Nov 2026): a measured thin, top or fat the flight contradicts, and a measured
+// sky the flight rule doesn't call Sky, are NotAssessable, so the fired and assessable counts move.
+inline constexpr int kWorkOnRuleVersion   = 6;
 
 // "The top 3–5". Five is a cap; three is how far Delivery conditions may fill a session that
 // measured fewer movement faults than that. Neither is a quota — a session with two patterns

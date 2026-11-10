@@ -849,6 +849,8 @@ bool SessionDiagnosticsModel::dropShot(int shotId)
         // The focus split is a row count — "the shots before this are baseline" — so a baseline
         // row leaving moves it down one, and the swing it named is still the first intervention.
         if (m_focusFromShot > at) --m_focusFromShot;
+        // The club's usual flight moved with it.
+        checkRowsAgainstFlight();
     }
     const bool held = at >= 0 || m_ingested.contains(shotId);
     m_ingested.remove(shotId);
@@ -1289,6 +1291,9 @@ void SessionDiagnosticsModel::applyIngested(const Ingested &in)
     if (present && !in.regrade) { settleBatch(); return; }   // belt and braces — and it may be the batch's last
     if (present) *pos = in.record;
     else         m_shots.insert(pos, in.record);
+    // Every row against the session's flight as it now stands: the new shot moves its club's usual, so a
+    // row judged before it may stand or fall now (checkRowsAgainstFlight).
+    checkRowsAgainstFlight();
     m_outcomesDirty = true;     // a read before the batch settles must not see the old positions
     if (in.hasLaunchMonitor) m_lmShots.insert(id);
     else if (in.regrade)     m_lmShots.remove(id);
@@ -1460,6 +1465,10 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
             m_gradedFrom.remove(id);
             it = m_swingDirs.erase(it);
         }
+
+        // A ledger written before schema 14, or by a tool, holds the rows as detected: checked here, as
+        // every change to the rows is, before anything reads them.
+        checkRowsAgainstFlight();
 
         const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();
         m_focusConditionId = intent.value(QStringLiteral("focusConditionId")).toString();
@@ -1701,6 +1710,23 @@ QString SessionDiagnosticsModel::intentFor(int shotId) const
 void SessionDiagnosticsModel::setFlightNorms(const FlightNorms &norms)
 {
     m_flightNormsOverride = norms;
+    m_outcomesDirty = true;
+    // Sky is read off the table, so the sky rows are judged again, and the reduction redone only when a row
+    // moved (not written: a test seam, not an event).
+    const auto flags = [this] {
+        std::vector<bool> out;
+        for (const ShotRecord &s : m_shots)
+            for (const ConditionRow &r : s.rows) out.push_back(r.overruled);
+        return out;
+    };
+    const std::vector<bool> before = flags();
+    checkRowsAgainstFlight();
+    if (flags() != before) rebuild();
+}
+
+void SessionDiagnosticsModel::checkRowsAgainstFlight()
+{
+    checkStrikesAgainstFlight(m_shots, flightNorms());
     m_outcomesDirty = true;
 }
 
@@ -1945,7 +1971,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     self.day    = sessionDayOfFolder(m_sessionDir);
     self.shots  = m_shots;
     self.corrections = m_corrections;
-    for (const ClubSessionPool &pool : poolSessionByClub(self)) {
+    for (const ClubSessionPool &pool : poolSessionByClub(self, flightNorms())) {
         if (pool.shots.empty()) continue;
         ClubWindowSession window;
         window.shots = pool.shots;
@@ -2504,7 +2530,7 @@ void SessionDiagnosticsModel::prepareClubBaseline()
 
     ClubBaselineSnapshot snap;
     snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    snap.clubs    = clubBaselineAsOf(earlier, day);
+    snap.clubs    = clubBaselineAsOf(earlier, day, flightNorms());
     QString why;
     if (!atomicWrite(path, QJsonDocument(clubBaselineToJson(snap)).toJson(QJsonDocument::Compact), &why)) {
         ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(why);

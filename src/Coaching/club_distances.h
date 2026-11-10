@@ -30,6 +30,9 @@
 // through lmSessionStats(), so a club's mean and SD are the same arithmetic as the launch monitor panel.
 //
 // WHICH SHOTS COUNT. A shot qualifies when it was not a part swing and has a carry. A strike miss (chunk, thin, top, sky, shank, corrections applied) is left out and counted.
+// The miss is read off the ledger's CHECKED rows (checkStrikesAgainstFlight, strike_from_flight.h): a measured
+// thin the flight contradicts (a sticker placed off) is overruled there, is not a miss, and its carry counts.
+// Sky is the flight rule's (flightSaysSky), whatever the rows say.
 // ShotRecord::dataWarning is deliberately NOT a filter: it also marks a refused club track or a broken
 // recording, and the monitor's readings on those shots stand. The monitor's own flag is the import's
 // drop list (LaunchMonitorReading::dropped), which leaves the field absent — so a refused carry is
@@ -70,7 +73,7 @@ inline constexpr double kPartialSpeedFraction       = 0.85; // D6: club speed un
 inline constexpr int    kClubTrendRecentSessions    = 3;
 inline constexpr double kClubTrendMinYards          = 3.0;
 inline constexpr double kClubTrendSpreadChange      = 0.20;
-inline constexpr int    kClubBaselineSchemaVersion  = 3;    // club_baseline.json; 2: strikes read from the flight leave the pool; 3: every shot counts
+inline constexpr int    kClubBaselineSchemaVersion  = 4;    // club_baseline.json; 2: strikes read from the flight leave the pool; 3: every shot counts; 4: misses off the flight-checked rows (a sticker-offset thin counts), Sky the flight's
 
 // A golfer's correction to one shot's labels (diagnostics.json `corrections`). `from` is what was
 // detected, `to` what it should have been ("" = none in that family).
@@ -162,11 +165,13 @@ inline bool isClubDistanceMishit(const QString &conditionId)
 
 // A shot's strike miss, or "" for none, corrections applied. A correction to a miss is the golfer's word
 // and is taken as it stands. Otherwise the fired misses resolve by the excludes keep-rule, so a topped
-// shot (which fires thin as well) counts once, as a top. With no strike measured, `flight` (the club's
-// usual flight this session) lets the flight name the strike, and a carry far under the usual goes out as
-// "short": a fat shot a ball-only monitor can't name would otherwise drag the usual down.
+// shot (which fires thin as well) counts once, as a top; the rows are the ledger's checked ones, so a fired
+// sky is already the flight's Sky and an overruled thin is no miss. With no strike measured, `flight` (the
+// club's usual flight this session) lets the flight name the strike; with `norms` too, a shot the flight rule
+// calls Sky goes out as a sky (flightSaysSky: driver, woods and hybrids only); and a carry far under the usual
+// goes out as "short": a fat shot a ball-only monitor can't name would otherwise drag the usual down.
 inline QString shotMishitKind(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
-                              const ClubFlightUsual *flight = nullptr)
+                              const ClubFlightUsual *flight = nullptr, const FlightNorms *norms = nullptr)
 {
     QString corrected;
     QStringList removed;
@@ -189,6 +194,7 @@ inline QString shotMishitKind(const ShotRecord &shot, const std::vector<ShotCorr
 
     const QString read = strikeFromFlight(shot, *flight);
     if (!read.isEmpty()) return removed.contains(read) ? QString() : read;
+    if (norms && flightSaysSky(shot, *flight, *norms)) return removed.contains(QStringLiteral("sky")) ? QString() : QStringLiteral("sky");
     // The golfer's "that strike was fine" stands against this as well.
     const bool strikeCorrected = std::any_of(corrections.begin(), corrections.end(),
                                              [](const ShotCorrection &c) { return c.family == QLatin1String("strike"); });
@@ -234,8 +240,10 @@ struct ClubSessionPool {
     std::vector<ClubPoolMishit> mishits;
 };
 
-// The session's pools, one per club, in the order the clubs were first hit.
-inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession &session)
+// The session's pools, one per club, in the order the clubs were first hit. `norms` is the flight table a
+// shot's Sky is read against (the shipped one unless a test hands another).
+inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession &session,
+                                                      const FlightNorms &norms = shippedFlightNorms())
 {
     std::vector<ClubSessionPool> pools;
     QHash<QString, int> indexOf;
@@ -260,7 +268,7 @@ inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession 
 
         const auto flightIt = flightUsuals.constFind(club);
         const QString kind = shotMishitKind(s, session.corrections.value(s.shotId),
-                                            flightIt == flightUsuals.constEnd() ? nullptr : &*flightIt);
+                                            flightIt == flightUsuals.constEnd() ? nullptr : &*flightIt, &norms);
         if (!kind.isEmpty()) {
             pool.mishits.push_back(ClubPoolMishit{ i, kind });
             continue;
@@ -342,11 +350,11 @@ inline ClubDistanceWindow clubWindow(const QString &club, const std::vector<Club
 
 // Each club's pools across the given sessions, oldest first.
 inline QHash<QString, std::vector<ClubSessionPool>>
-poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst)
+poolsByClub(const std::vector<const ClubDistanceSession *> &oldestFirst, const FlightNorms &norms = shippedFlightNorms())
 {
     QHash<QString, std::vector<ClubSessionPool>> out;
     for (const ClubDistanceSession *s : oldestFirst)
-        for (ClubSessionPool &p : poolSessionByClub(*s))
+        for (ClubSessionPool &p : poolSessionByClub(*s, norms))
             out[p.club].push_back(std::move(p));
     return out;
 }
@@ -419,7 +427,8 @@ inline ClubBaselineEntry clubBaselineEntryFromWindow(const ClubDistanceWindow &w
 // The usual numbers as of a session on `day`: strictly earlier days only, so a session and its
 // same-day neighbours never judge each other. A club with no qualifying shots has no entry.
 inline QHash<QString, ClubBaselineEntry> clubBaselineAsOf(const std::vector<ClubDistanceSession> &sessions,
-                                                          const QDate &day)
+                                                          const QDate &day,
+                                                          const FlightNorms &norms = shippedFlightNorms())
 {
     QHash<QString, ClubBaselineEntry> out;
     if (!day.isValid()) return out;
@@ -428,7 +437,7 @@ inline QHash<QString, ClubBaselineEntry> clubBaselineAsOf(const std::vector<Club
     for (const ClubDistanceSession *s : sessionsByDay(sessions))
         if (s->day < day) earlier.push_back(s);
 
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(earlier);
+    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(earlier, norms);
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {
         const ClubDistanceWindow window = clubWindow(it.key(), it.value());
         if (window.shotCount > 0) out.insert(it.key(), clubBaselineEntryFromWindow(window));
@@ -660,9 +669,10 @@ inline void applyClubGaps(std::vector<ClubDistanceItem> &items)
 // One row per club with at least one qualifying shot, in `bagOrder` (the canonical order when empty,
 // and any club not in it follows, alphabetically). A club with no carry reported has no row.
 inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
-                                                         const QStringList &bagOrder = QStringList())
+                                                         const QStringList &bagOrder = QStringList(),
+                                                         const FlightNorms &norms = shippedFlightNorms())
 {
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions));
+    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions), norms);
 
     std::vector<ClubDistanceItem> items;
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {

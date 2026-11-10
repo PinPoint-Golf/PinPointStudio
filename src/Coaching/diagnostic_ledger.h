@@ -220,7 +220,13 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // when the monitor gave neither (lm_flight_path.h). A file at 12 reads back with NaN and regrades the same
 // way: the regrade re-reads each swing's stored readings (LiveMeasureSource) and never re-runs pose, ball
 // or shaft tracking.
-inline constexpr int kDiagSchemaVersion = 13;
+// 14 added ConditionRow::overruled (shot_outcomes_design.md §3.7, Mark, 10 Nov 2026): a measured thin, top or
+// fat the session's ball flight contradicts, and a measured sky the flight rule doesn't call Sky, are written
+// NotAssessable with their value kept and this flag set (checkStrikesAgainstFlight, strike_from_flight.h), so
+// every surface that counts rows counts the checked verdict, and the row still says the monitor DID read it.
+// A file at 13 reads back with every row unflagged, and regrades the same way (the content stamp carries
+// this version): the regrade re-reads each swing's stored readings and never re-runs pose, ball or shaft.
+inline constexpr int kDiagSchemaVersion = 14;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -617,6 +623,13 @@ struct ConditionRow {
     // Schema 11: how many of the condition's signals fired — the middle rung of the excludes keep-rule
     // (keepFirstOfExcludingPair). 0 on a row written before it, and on a row that did not fire.
     int     firedSignalCount = 0;
+
+    // Schema 14: the row FIRED as detected, and the session's ball flight overruled it
+    // (checkStrikesAgainstFlight, strike_from_flight.h): a measured thin, top or fat the flight contradicts, or
+    // a measured sky the flight rule doesn't call Sky. Such a row is NotAssessable with its reason saying why,
+    // and keeps its value and evidence, so it is never mistaken for "the monitor sent no reading". Only ever
+    // true on a NotAssessable row; the check sets and clears it, nothing else does.
+    bool    overruled = false;
 };
 
 // The readings behind a row: every signal's when they were recorded, else the driving one alone
@@ -2186,6 +2199,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
             ro[QStringLiteral("material")]        = r.material;
             if (r.sharp) ro[QStringLiteral("sharp")] = true;
             ro[QStringLiteral("notAssessableReason")] = r.notAssessableReason;
+            // Schema 14 — only on a row the flight overruled, so every other row reads as before.
+            if (r.overruled) ro[QStringLiteral("overruled")] = true;
             if (!r.notJudgedGate.isEmpty()) {
                 ro[QStringLiteral("notJudgedGate")]    = r.notJudgedGate;
                 ro[QStringLiteral("notJudgedSubject")] = r.notJudgedSubject;
@@ -2368,6 +2383,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.material         = ro.value(QStringLiteral("material")).toBool(true);
             r.sharp            = ro.value(QStringLiteral("sharp")).toBool(false);
             r.notAssessableReason = ro.value(QStringLiteral("notAssessableReason")).toString();
+            r.overruled           = ro.value(QStringLiteral("overruled")).toBool(false);
             r.notJudgedGate       = ro.value(QStringLiteral("notJudgedGate")).toString();
             r.notJudgedSubject    = ro.value(QStringLiteral("notJudgedSubject")).toString();
             for (const QJsonValue &mv : ro.value(QStringLiteral("readings")).toArray()) {

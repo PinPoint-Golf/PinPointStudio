@@ -140,7 +140,7 @@ int main()
 
     std::printf("ledger schema round trip:\n");
     {
-        check(kDiagSchemaVersion == 13, "the ledger is schema 13");
+        check(kDiagSchemaVersion == 14, "the ledger is schema 14");
 
         ShotRecord s = shotWith(1, k7i, 137.8);
         s.swingLength = QStringLiteral("full");

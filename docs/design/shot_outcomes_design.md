@@ -262,7 +262,7 @@ are often wrong and the book's window for the club would misjudge a mislabelled 
 | Thin | Launch under half of usual, without the sharp start |
 | Top | The thin rule, plus smash at least 15 % below usual |
 | Fat | Smash at least 9 % below usual, launch normal, attack angle at least 1.5° steeper than usual |
-| Sky | Launch at least 1.5 × usual, attack angle steeper than usual, smash below usual |
+| Sky | Not a strike: the flight rule decides it (§3.8, `flightSaysSky`). A launch at least 1.5 × usual is read as no strike |
 
 - Measured always wins: a label is inferred only where the row that would have measured it is not assessable.
 - The label reads "(from the flight)" and carries the readings it came from. "Not right?" removes it like any
@@ -293,15 +293,30 @@ The usual is the same one as above: the club's median in this session over at le
 
 - No usual to compare with (fewer than 4 full shots of the club this session, a part swing, or the reading
   missing): the measured label stands as before. No evidence against it.
-- When the flight disagrees the label is not produced at all. It is not a miss, so it counts nowhere a label
-  counts: tendencies, the outcome filter, the session mix, the phrase, the story. The shot carries a plain
-  note instead, "Low on the face (−12 mm), flight normal" or "High on the face (+12 mm), flight normal", the
-  row's own reading to the whole millimetre, shown on the This shot head under the story.
-- The rows are never touched: thin, chunk and top stay as detected, so detection, corridors and tiers don't
-  change (as for inferred labels above). Surfaces that count those rows directly still do.
+- **Checked once, on the ledger rows** (Mark, 10 Nov 2026: keep every shot, but a bad reading is not a bad
+  shot). `checkStrikesAgainstFlight` in `strike_from_flight.h` runs over the whole session each time its rows
+  change: a shot arrives, is regraded or leaves, or diagnostics.json is read. A fired thin, top or chunk the
+  flight contradicts becomes not assessable, "the strike height disagrees with the ball flight", with its
+  value and evidence kept and the row flagged `overruled` (ledger schema 14). A fired sky row stands only
+  where the flight rule calls the shot Sky (§3.8); otherwise it is overruled the same way, "Sky is judged
+  from the ball flight". No row is ever made where none was detected. Each pass first puts back what the last
+  one overruled and judges again against the usuals over all the session's shots as they are now, so a live
+  session settles as shots arrive: the first three 7 irons' thins stand, the fourth gives the club a usual.
+- **Every surface follows**, because each reads the rows: the composer's labels (so tendencies, the outcome
+  filter, the session mix, the phrase and the story), the pattern cards and Watching, This shot's chips and
+  its "X of Y fired", the OUT/IN grid and the print appendix, the cause graph, the fault profile, the report,
+  Your swing's ball-flight area (work_ons.json), Charts and the tuning log. An overruled thin is not a mishit,
+  so its carry counts in the usual carry, "carry today", club_baseline.json and Your distances.
+- Nothing is deleted or hidden: the shot stays in every list and the row stays in diagnostics.json, value and
+  all. The shot carries a plain note instead of the label, "Low on the face (−12 mm), flight normal" or "High
+  on the face (+12 mm), flight normal", the overruled row's own reading to the whole millimetre, shown on the
+  This shot head under the story. The OUT/IN grid shows the row as not judged, with that reason.
+- An overruled row was read, so it never counts as "the monitor sent no strike height": no strike is then
+  read from the flight in its place, and no "far short" is inferred for want of a height.
 - A golfer's correction to Thin, Top or Fat is honoured whatever the flight says, and drops the note.
 - Strike height and launch aren't mirrored, so a left-hander is judged the same way.
-- `measuredStrikeFlightAgrees` in `strike_from_flight.h`; Tendencies rule 11, outcome scope rule 3.
+- `measuredStrikeFlightAgrees` and `checkStrikesAgainstFlight` in `strike_from_flight.h`; ledger schema 14,
+  work-on rule 6, Tendencies rule 14, outcome scope rule 5, club baseline schema 4.
 
 ### 3.8 Three factors per shot: strike, direction and flight
 
@@ -331,8 +346,12 @@ for each factor, and none ranks above another (`shot_factors.h`).
   5. otherwise not read.
   The bands are in `src/Resources/diagnostics/flight_norms.json` (provisional, to be tuned on PinPoint data).
 - **Sky** is the flight fault, for driver, fairway woods and hybrids only: a High flight, the attack at least 2°
-  steeper than the golfer's usual with that club in the session, and carry at or under 85 % of the usual. Sky
-  left the strike family; the old measured route (high strike, low point, steep attack) no longer makes Sky.
+  steeper than the golfer's usual with that club in the session, and carry at or under 85 % of the usual
+  (`flightSaysSky`, `strike_from_flight.h`). Sky left the strike family; the old measured route (high strike,
+  low point, steep attack) no longer makes Sky. The ledger keeps a measured sky row fired only where this rule
+  holds and overrules it otherwise (§3.7), so the cards, counts and work-ons agree with the factor. The usual
+  carry leaves out a shot this rule calls Sky, with or without a sky row; the old flight-inferred sky (high
+  launch, steeper, smash down, any club) is gone.
 - Spin, ball speed and short carry are results, not factors: they stay on the shot (labels, the carry
   waterfall) and are not tendencies or filter choices.
 - Descent angle, peak height, spin and spin axis join the ledger (schema 13). Re-grading a session reads only

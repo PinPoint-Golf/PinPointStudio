@@ -261,7 +261,7 @@ int main()
         v3[QStringLiteral("ruleVersion")]   = 3;
         v3[QStringLiteral("schemaVersion")] = 1;
         sessionWorkOnsFromJson(v3, &ok);
-        check(kWorkOnRuleVersion == 5 && !ok, "a rule-3 record is stale under rule 5");
+        check(kWorkOnRuleVersion == 6 && !ok, "a rule-3 record is stale under rule 6");
 
         // Reasons and linksTestable round-trip, the 2x2 included.
         const QHash<QString, WorkOnClass> cls2{ { "cause", M }, { "symptom", M }, { "other", M } };
@@ -294,8 +294,8 @@ int main()
 
     // ── Schema 3: the evidence carries its measure and the typical over EVERY assessed reading ──
     {
-        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 5,
-              "schema 3 (evidence typical) under rule 5: a schema bump, not a rule bump");
+        check(kWorkOnSchemaVersion == 3 && kWorkOnRuleVersion == 6,
+              "schema 3 (evidence typical) under rule 6 (flight-checked rows): a schema bump, not a rule bump");
         const QHash<QString, WorkOnClass> cls{ { "a", M } };
         // `a` fires on six of nine (a pattern) reading 6..11, and is clean on three reading 0, 1, 2.
         std::vector<ShotRecord> shots = sessionOf({ plan("a", { 1,1,1,1,1,1,0,0,0 }), plan("quiet", rep(0, 8)),

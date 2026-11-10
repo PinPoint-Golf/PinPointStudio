@@ -171,7 +171,8 @@ struct ShotOutcome {
     QString noReasonText;       // "No reason found" for a miss with no driver
     QString producedLine;       // "From the shank: low launch, push slice"
     QString strikeFlightNote;   // "Low on the face (−12 mm), flight normal": a measured strike the flight
-                                // didn't bear out, so no label (measuredStrikeFlightAgrees); "" otherwise
+                                // didn't bear out, its row overruled on the ledger (checkStrikesAgainstFlight),
+                                // so no label; "" otherwise
     ShotOutcomeDriver driver;
     std::vector<ShotOutcomeLink> links;
     ShotCarryBlock carry;
@@ -557,6 +558,12 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
     const bool hasLm = shotHasLmReading(shot);
     out.noReading = !hasLm;
 
+    // A measured thin, top or fat has to agree with the flight (§3.7): a sticker placed off shifts a whole
+    // session's strike heights. That is decided ONCE, on the ledger rows (checkStrikesAgainstFlight,
+    // strike_from_flight.h): one the flight doesn't bear out is NotAssessable and `overruled`, so it is not
+    // fired here and is never a miss anywhere a label counts (tendencies, the outcome filter, the mix, the
+    // phrase, the story). The shot carries a plain note instead, from the overruled row's own reading. rowOf
+    // keeps that row too, so a golfer's correction back to it still shows what was measured.
     QStringList fired;
     QHash<QString, const ConditionRow *> rowOf;
     bool directionAssessed = false;
@@ -568,26 +575,18 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
         if (r.state == ShotState::Fired) {
             fired << r.conditionId;
             rowOf.insert(r.conditionId, &r);
+        } else if (r.overruled) {
+            rowOf.insert(r.conditionId, &r);
+            const bool measuredStrike = r.conditionId == QLatin1String("thin") || r.conditionId == QLatin1String("top")
+                                     || r.conditionId == QLatin1String("chunk");
+            if (measuredStrike && out.strikeFlightNote.isEmpty()) out.strikeFlightNote = measuredStrikeFlightNote(shot, r);
         }
     }
 
-    // A measured thin, top or fat has to agree with the flight (§3.7): a sticker placed off shifts a whole
-    // session's strike heights. One the flight doesn't bear out is no label at all, so it is never a miss
-    // anywhere a label counts (tendencies, the outcome filter, the mix, the phrase, the story); the shot
-    // carries a plain note instead. Before the excludes, so a label that isn't there can't knock out one
-    // that is. The row stays Fired. No usual for the club means no evidence against it, and it stands.
-    // rowOf keeps the row, so a golfer's correction back to it still shows what was measured.
-    for (qsizetype i = 0; i < fired.size();) {
-        const QString id = fired.at(i);
-        const bool measuredStrike = id == QLatin1String("thin") || id == QLatin1String("top") || id == QLatin1String("chunk");
-        if (!measuredStrike || measuredStrikeFlightAgrees(shot, id, session.flightUsuals)) { ++i; continue; }
-        if (out.strikeFlightNote.isEmpty()) out.strikeFlightNote = measuredStrikeFlightNote(shot, *rowOf.value(id));
-        fired.removeAt(i);
-    }
-    // Sky is a FLIGHT fault (shot_factors.h, 10 Nov 2026): a high launch, an attack steeper than the club's usual
-    // and a carry well short, on a driver, wood or hybrid, judged against the golfer's handicap averages. The old
-    // measured route (a high strike, a low point ahead, a steep attack) no longer names it: the row stays as it
-    // fired and is not a label. A golfer's own correction to Sky still stands.
+    // Sky is a FLIGHT fault (shot_factors.h, 10 Nov 2026): a High flight, an attack steeper than the club's usual
+    // and a carry well short, on a driver, wood or hybrid (flightSaysSky). The ledger keeps a measured sky row
+    // fired only where that rule holds, and the three factors name it (shotFactors), so it is no label here: the
+    // phrase and the strike stay the strike's. A golfer's own correction to Sky still stands.
     fired.removeAll(QStringLiteral("sky"));
 
     // Step 1: excludes, then corrections, then intent. No reading means no word on where the ball went.
@@ -606,9 +605,8 @@ inline ShotOutcome composeShotOutcome(const ShotRecord &shot, const std::vector<
 
     // A strike the monitor couldn't measure, read from the flight. Ahead of the corrections, so "Not right?"
     // takes it off the same way as any other label.
-    // Sky is not a strike any more, so the flight's sky is no label here either (shot_factors.h names it).
-    QString flightStrike = hasLm ? strikeFromFlight(shot, session.flightUsuals) : QString();
-    if (flightStrike == QLatin1String("sky")) flightStrike.clear();
+    // Sky is not a strike any more: strikeFromFlight never names it (flightSaysSky does, for the flight factor).
+    const QString flightStrike = hasLm ? strikeFromFlight(shot, session.flightUsuals) : QString();
     if (!flightStrike.isEmpty() && outcomeFacts(pack, flightStrike) && !active.contains(flightStrike))
         active << flightStrike;
 

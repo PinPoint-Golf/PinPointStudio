@@ -1415,7 +1415,8 @@ ShotRecord outcomeShot(int shotId, qint64 t, double carry, std::initializer_list
     s.smash       = 1.33;
     s.swingLength = QStringLiteral("full");
     // A fat comes off the face slow, as §11's shot 10 does (1.19): a measured fat counts only when the flight
-    // agrees (Tendencies rule 11, measuredStrikeFlightAgrees), and the carries alone don't fall far enough.
+    // agrees (measuredStrikeFlightAgrees, checked on the ledger rows by checkStrikesAgainstFlight), and the
+    // carries alone don't fall far enough.
     if (std::any_of(fired.begin(), fired.end(), [](const char *f) { return qstrcmp(f, "chunk") == 0; }))
         s.smash = 1.19;
     for (const char *id : kOutcomeRowIds) {
@@ -1750,6 +1751,101 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
         check(corrections.size() == 1 && corrections.first().toObject().value(QStringLiteral("to")).toString() == QStringLiteral("push"),
               "a left-hander's correction is stored as the row's id");
     }
+}
+
+// A bad reading is not a bad shot (shot_outcomes_design.md §3.7, Mark, 10 Nov 2026): the rows are checked against
+// the session's ball flight where the ledger is built (checkStrikesAgainstFlight), so every surface reads one
+// verdict. 4 August 2026: every 7-iron strike read about −12 mm low on a normal flight, a sticker placed off.
+static void flightCheckedStrikesSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nstrikes checked against the flight, where the ledger is built\n");
+    const qint64 t0 = kStageEpochMs + 86400000LL * 301;
+    const QString dir = makeSession(tmp, "athlete_sticker", "2026-08-04_M_01");
+
+    const double launches[] = { 17.0, 18.5, 19.0, 20.0, 21.0, 22.0, 18.0, 19.5 };
+    std::vector<ShotRecord> shots;
+    const auto strikeLow = [](ShotRecord &s, double mm) {
+        for (ConditionRow &r : s.rows)
+            if (r.conditionId == QLatin1String("thin")) {
+                r.drivingMeasureId = QStringLiteral("m_lmStrikeHeight");
+                r.value = mm;
+            }
+    };
+    for (int i = 0; i < 8; ++i) {
+        ShotRecord s = outcomeShot(i + 1, t0 + qint64(i) * 60000, 150.0 + 2.0 * i, { "thin" });
+        s.launchAngle = launches[i];
+        strikeLow(s, -12.0 - 0.5 * i);
+        shots.push_back(s);
+    }
+    // 2 November's shot 5: a real thin, 1.7° against a usual of about 19.
+    ShotRecord real = outcomeShot(9, t0 + 9 * 60000, 120.0, { "thin" });
+    real.launchAngle = 1.7;
+    strikeLow(real, -14.0);
+    shots.push_back(real);
+    check(writeOutcomeSession(dir, shots) && writeUsual7Iron(dir), "the sticker-offset session on disk, rows as detected");
+
+    auto m = freshModel();
+    m->activateSession(dir);
+    check(m->shotCount() == 9, "every shot kept: nothing deleted or hidden");
+
+    int thinLabels = 0, notes = 0;
+    for (int id = 1; id <= 8; ++id) {
+        const QVariantMap o = m->shotOutcome(id);
+        for (const QVariant &l : o.value(QStringLiteral("labels")).toList())
+            if (l.toMap().value(QStringLiteral("id")).toString() == QStringLiteral("thin")) ++thinLabels;
+        if (o.value(QStringLiteral("strikeFlightNote")).toString().endsWith(QStringLiteral(" mm), flight normal"))) ++notes;
+    }
+    check(thinLabels == 0 && notes == 8, "no Thin on any sticker-offset shot, the note on every one");
+    check(m->shotOutcome(1).value(QStringLiteral("strikeFlightNote")).toString() == QStringLiteral("Low on the face (−12 mm), flight normal"),
+          "the note is the row's own reading");
+    bool realThin = false;
+    for (const QVariant &l : m->shotOutcome(9).value(QStringLiteral("labels")).toList())
+        realThin = realThin || l.toMap().value(QStringLiteral("id")).toString() == QStringLiteral("thin");
+    check(realThin && m->shotOutcome(9).value(QStringLiteral("strikeFlightNote")).toString().isEmpty(), "the real thin is a Thin");
+
+    QString thinCell;
+    for (const QVariant &c : m->shotReadout(1).value(QStringLiteral("conditions")).toList())
+        if (c.toMap().value(QStringLiteral("id")).toString() == QStringLiteral("thin")) thinCell = c.toMap().value(QStringLiteral("state")).toString();
+    check(thinCell == QStringLiteral("—") && m->firedCountFor(1) == 0, "This shot: the overruled thin is no OUT, and nothing fired on shot 1");
+    check(m->firedCountFor(9) == 1, "…the real thin is");
+
+    bool thinCard = false;
+    for (const QVariant &c : m->cards()) thinCard = thinCard || c.toMap().value(QStringLiteral("id")).toString() == QStringLiteral("thin");
+    check(!thinCard, "no Thin pattern card");
+    const SessionWorkOns rec = m->sessionWorkOns();
+    const WorkOnEvidence *thinEv = rec.evidenceFor(QStringLiteral("thin"));
+    check(thinEv && thinEv->fired == 1 && thinEv->assessable == 1, "work_ons.json: thin fired 1 of 1 judged, the eight overruled not judged");
+    check(m->shotMix().value(QStringLiteral("line")).toString().count(QStringLiteral("thin")) == 1, "the session mix holds one thin");
+
+    const QVariantList today = m->carryToday();
+    check(today.size() == 1 && today.first().toMap().value(QStringLiteral("n")).toInt() == 8,
+          "carry today counts all eight sticker-offset shots, the real thin out");
+
+    // The rows the model holds are what it writes: one shot leaving persists the checked ledger.
+    m->forgetShot(QDir(dir).filePath(QStringLiteral("swing_0008")));
+    const std::vector<ShotRecord> stored = fromJson(diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject());
+    int overruled = 0, keptValue = 0;
+    for (const ShotRecord &s : stored)
+        if (const ConditionRow *r = rowFor(s, QStringLiteral("thin")); r && r->overruled && r->state == ShotState::NotAssessable) {
+            ++overruled;
+            if (r->value <= -12.0 && r->notAssessableReason == QStringLiteral("the strike height disagrees with the ball flight")) ++keptValue;
+        }
+    check(stored.size() == 8 && overruled == 7 && keptValue == 7, "diagnostics.json holds the checked rows, values kept");
+
+    // Converges as the session changes: down to three 7 irons and the real thin, the club's usual launch is
+    // the median of four again; down to three shots there's no usual and the thins stand as detected.
+    for (int id : { 7, 6, 5, 4 }) m->forgetShot(QDir(dir).filePath(QStringLiteral("swing_%1").arg(id, 4, 10, QLatin1Char('0'))));
+    const std::vector<ShotRecord> four = fromJson(diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject());
+    int firedNow = 0;
+    for (const ShotRecord &s : four)
+        if (const ConditionRow *r = rowFor(s, QStringLiteral("thin")); r && r->state == ShotState::Fired) ++firedNow;
+    check(four.size() == 4 && firedNow == 1, "four shots left: the usual still overrules the three sticker thins");
+    m->forgetShot(QDir(dir).filePath(QStringLiteral("swing_0003")));
+    const std::vector<ShotRecord> three = fromJson(diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject());
+    bool allStand = three.size() == 3;
+    for (const ShotRecord &s : three)
+        if (const ConditionRow *r = rowFor(s, QStringLiteral("thin")); !r || r->state != ShotState::Fired || r->overruled) allStand = false;
+    check(allStand, "three shots: no usual, every thin back as detected");
 }
 
 // Contract A: who writes the sidecar, and the provisional stamp's one regrade. Staged swings, because
@@ -3922,6 +4018,7 @@ int main(int argc, char **argv)
     compositePresentationSuite(tmp);
     variabilityMarksSuite(tmp);
     shotOutcomesSuite(tmp);
+    flightCheckedStrikesSuite(tmp);
     baselineAuthoritySuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
