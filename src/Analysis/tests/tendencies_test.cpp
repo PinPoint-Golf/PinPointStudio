@@ -18,7 +18,8 @@
 
 // tendencies.h — the cross-session reduction (docs/design/shot_outcomes_design.md §7.1): which shots
 // count, the earn rule, the usual miss and its "often with", seen-with and its strength, the trend, the
-// word bands under a half, and the JSON. Header-only: `shot_outcomes_test` proves the composer it calls.
+// word bands under a half, each club's outcome counts, and the JSON. Header-only: `shot_outcomes_test` proves the
+// composer it calls.
 
 #include "../../Coaching/tendencies.h"
 #include "../../Gui/report/report_tendencies.h"
@@ -70,6 +71,9 @@ static ShotOutcomePack fixturePack()
         facts("over_the_top",    "", "Over the top",    "", L::Swing, order++, "your hands come over the top"),
         facts("out_to_in_path",  "", "Out-to-in path",  "", L::Club, order++, "the club comes across the ball"),
         facts("in_to_out_path",  "", "In-to-out path",  "", L::Club, order++, "the club comes from the inside"),
+        facts("push_slice",    "direction", "Push slice", "PS", L::Ball, order++),     // last, so no other pack order moves
+        facts("pull",          "direction", "Pull",       "PL", L::Ball, order++),
+        facts("pull_hook",     "direction", "Pull hook",  "PH", L::Ball, order++),
     };
     for (const ShotConditionFacts &f : list) p.conditions.insert(f.id, f);
     const auto cause = [&p](const char *from, const char *to) { p.causes[QString::fromLatin1(from)] << QString::fromLatin1(to); };
@@ -240,6 +244,79 @@ int main()
         check(it && it->miss == QStringLiteral("Hook"), "a correction replaces the detected label, newest session first");
     }
 
+    std::printf("\neach club's outcomes, Home's outcome filter's choices:\n");
+    {
+        // Driver: 5 fat slices and 4 slices, then 7 good shots counted (an intended fade and a shot with no
+        // reading are not). A 7 iron hook; a putter, with no group, not counted.
+        std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }), session(2, 9, {}) };
+        for (int i = 0; i < 5; ++i) in[0].session.shots[size_t(i)] = shot(i + 1, { "chunk", "slice" });
+        in[1].intents.insert(1, QStringLiteral("fade"));
+        in[1].session.shots[1].carry = std::numeric_limits<double>::quiet_NaN();
+        in[1].session.shots.push_back(shot(10, { "hook" }, "7 IRON"));
+        in[1].session.shots.push_back(shot(11, { "slice" }, "PUTTER"));
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        check(set.clubOutcomes.size() == 2 && set.clubOutcomes[0].clubId == QStringLiteral("DRIVER")
+                  && set.clubOutcomes[1].clubId == QStringLiteral("7 IRON"), "each club with a group, in the bag's order");
+        const TendencyClubOutcomes &driver = set.clubOutcomes[0];
+        check(driver.judged == 16 && driver.good == 7, "the judged shots and the good ones, the fade and the unread shot left out");
+        check(driver.misses.size() == 2 && driver.misses[0].id == QStringLiteral("slice") && driver.misses[0].shots == 9
+                  && driver.misses[0].label == QStringLiteral("Slice"), "the slice on 9, most shots first");
+        check(driver.misses.size() == 2 && driver.misses[1].id == QStringLiteral("chunk") && driver.misses[1].shots == 5
+                  && driver.misses[1].label == QStringLiteral("Fat"), "a fat slice counts under Fat as well");
+        check(set.clubOutcomes[1].judged == 1 && set.clubOutcomes[1].good == 0 && set.clubOutcomes[1].misses.size() == 1
+                  && set.clubOutcomes[1].misses[0].id == QStringLiteral("hook"), "the 7 iron's hook");
+        check(set.countedShots == driver.judged + set.clubOutcomes[1].judged, "the same shots Tendencies counts");
+        int missShots = 0;
+        for (const TendencyOutcomeCount &m : driver.misses) missShots += m.shots;
+        check(missShots == 14 && driver.judged - driver.good == 9, "14 misses counted on 9 bad shots: a fat slice is in two");
+
+        bool ok = false;
+        const TendencySet back = tendencySetFromJson(tendencySetToJson(set), &ok);
+        bool same = ok && back.clubOutcomes.size() == set.clubOutcomes.size();
+        for (size_t c = 0; same && c < set.clubOutcomes.size(); ++c) {
+            const TendencyClubOutcomes &a = set.clubOutcomes[c], &b = back.clubOutcomes[c];
+            same = a.clubId == b.clubId && a.judged == b.judged && a.good == b.good && a.misses.size() == b.misses.size();
+            for (size_t m = 0; same && m < a.misses.size(); ++m)
+                same = a.misses[m].id == b.misses[m].id && a.misses[m].label == b.misses[m].label && a.misses[m].shots == b.misses[m].shots;
+        }
+        check(same, "the counts survive the saved file");
+        check(reduceTendencies({}, pack, driverGroup).clubOutcomes.empty(), "no shots, no counts");
+    }
+    {
+        // A push slice (here the golfer's correction) is counted under Push slice, Slice and Push, while its
+        // row in Tendencies still has the one primary miss, the push slice.
+        std::vector<TendencySessionInput> in{ session(1, 9, { "slice" }) };
+        in[0].session.corrections[1].push_back(ShotCorrection{ QStringLiteral("direction"), QStringLiteral("slice"), QStringLiteral("push_slice") });
+        const TendencySet set = reduceTendencies(in, pack, driverGroup);
+        const auto countOf = [&set](const char *id) {
+            if (set.clubOutcomes.empty()) return -1;
+            for (const TendencyOutcomeCount &m : set.clubOutcomes[0].misses) if (m.id == QLatin1String(id)) return m.shots;
+            return 0;
+        };
+        check(set.clubOutcomes.size() == 1 && set.clubOutcomes[0].judged == 9 && set.clubOutcomes[0].good == 0,
+              "nine judged shots, none good");
+        check(countOf("slice") == 9 && countOf("push_slice") == 1 && countOf("push") == 1,
+              "the push slice is under Push slice, Slice and Push");
+        check(set.clubOutcomes[0].misses.size() == 3 && set.clubOutcomes[0].misses[0].id == QStringLiteral("slice")
+                  && set.clubOutcomes[0].misses[1].id == QStringLiteral("push") && set.clubOutcomes[0].misses[1].label == QStringLiteral("Push")
+                  && set.clubOutcomes[0].misses[2].id == QStringLiteral("push_slice"), "most shots first, then by id");
+        const TendencyItem *it = itemFor(set, "DRIVER|full");
+        check(it && it->mix.judged == 9 && it->mix.parts.size() == 2 && it->mix.parts[0].key == QStringLiteral("slice")
+                  && it->mix.parts[0].count == 8 && it->mix.parts[1].key == QStringLiteral("push_slice") && it->mix.parts[1].count == 1,
+              "the row's mix still counts each shot once, under its primary miss");
+
+        for (TendencySessionInput &s : in)
+            for (ShotRecord &r : s.session.shots) r.handedness = QStringLiteral("Left");
+        const TendencySet left = reduceTendencies(in, pack, driverGroup);
+        const auto leftCount = [&left](const char *id) {
+            if (left.clubOutcomes.empty()) return -1;
+            for (const TendencyOutcomeCount &m : left.clubOutcomes[0].misses) if (m.id == QLatin1String(id)) return m.shots;
+            return 0;
+        };
+        check(leftCount("hook") == 9 && leftCount("pull_hook") == 1 && leftCount("pull") == 1 && leftCount("slice") == 0,
+              "a left-hander's are their pull hook, hook and pull");
+    }
+
     std::printf("\nthe usual miss, and what it runs with:\n");
     {
         // Fat on every shot, a slice on 9 of the 18 (the second family at the 50% line).
@@ -274,6 +351,9 @@ int main()
                   && it->chain[1].text == QStringLiteral("The club comes from the inside")
                   && it->chain[2].text == QStringLiteral("Your hands come over the top"),
               "the chain reads in the golfer's words, each step glossed");
+        check(set.clubOutcomes.size() == 1 && set.clubOutcomes[0].misses.size() == 1
+                  && set.clubOutcomes[0].misses[0].id == QStringLiteral("slice") && set.clubOutcomes[0].misses[0].label == QStringLiteral("Slice"),
+              "a left-hander's outcome counts are under the slice they see");
         bool ok = false;
         const TendencySet back = tendencySetFromJson(tendencySetToJson(set), &ok);
         const TendencyItem *b = itemFor(back, "DRIVER|full");

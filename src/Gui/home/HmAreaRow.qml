@@ -28,7 +28,8 @@
 //            ungraded), and an action — Practise on an active or easing work-on, a "New" tag on a
 //            newly listed one, nothing otherwise. The badge sits beside the work-on's status (R10).
 //            Every item opens in place (HmFaultRow: HmFaultDetail, its chevron at the right), one at a
-//            time.
+//            time. Under one outcome the opened detail heads with the contrast line (showOutcomeContrast),
+//            which the item row itself does not carry.
 //
 // The badges are the golfer layer (docs/design/system/variability.md): a Dispersion Icon, dense, the
 // word with its line as the tooltip, no figures. Each is a `variabilityResult` from the controller
@@ -311,6 +312,8 @@ PpExpandRow {
                     controller:  areaRow.controller
                     conditionId: itemRow.modelData.conditionId || ""
                     openId:      areaRow.openItem
+                    // The item row carries no contrast line of its own, so its opened detail says it.
+                    showOutcomeContrast: true
                     onOpenRequested: (next) => areaRow.openItemRequested(next)
                     onReviewSessionRequested: (dir) => areaRow.reviewSessionRequested(dir)
 

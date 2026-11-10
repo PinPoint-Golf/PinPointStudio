@@ -20,7 +20,8 @@
 // §2.5 visual language (docs/design/ux_refactor_away_from_4_modes/03_home_coaching.png):
 //
 //   header      focus mark · YOUR FOCUS · the drill's title · the short reason · Practise;
-//               beneath them, only when a shot has shown it, "On the ball — …" (onTheBall)
+//               beneath them, only when a shot has shown it, "On the ball — …" (onTheBall); and under one
+//               outcome (HmHomeTabs' outcome filter), how often on those shots against the others (outcomeContrast)
 //   captions    Aim for            | Right now      How often                     Sessions
 //   rows        ✓ the ideal        | the fault      meter · frequency words + trend   pips
 //   expand row  ▸ Why it matters · how to practise   (closed: the two paragraphs inside)
@@ -32,7 +33,7 @@
 // Every string is WorkOnsController's (swingSummaryView's focus, docs/design/home_themes_design.md):
 //   focusItem { present, title, aimFor [string], rightNow [{ text, share, frequency, trend,
 //               sessions: [bool…] }], why, practiseLabel, practise, reason, reasonShort,
-//               focusConditionId, onTheBall }
+//               focusConditionId, onTheBall, outcomeContrast }
 // The title is the drill's label (for a fault with no drill, its ideal); practiseLabel repeats it
 // and is not drawn twice. Not drawn when present is false — nothing on the list yet. Positions and
 // paints only; Practise is passed up (practiseRequested) for the screen to open the wizard with.
@@ -65,6 +66,8 @@ Item {
     readonly property string conditionId: focusItem ? (focusItem.focusConditionId || "") : ""
     readonly property string reasonShort: focusItem ? (focusItem.reasonShort || focusItem.reason || "") : ""
     readonly property string onTheBallText: focusItem ? (focusItem.onTheBall || "") : ""
+    // Empty under All shots, and then not drawn.
+    readonly property string outcomeContrastText: focusItem ? (focusItem.outcomeContrast || "") : ""
     readonly property bool hasWhyHow: focusItem !== null
                                       && ((focusItem.why || "") !== "" || (focusItem.practise || "") !== "")
 
@@ -112,11 +115,11 @@ Item {
                                        ? focusTable.gridLayout[1].x - focusTable.columnGap / 2 : 0)
 
         // ── The header: mark · YOUR FOCUS · title · reason · Practise ─────────
-        // One baseline row, and "On the ball" under it when there is one.
+        // One baseline row, and "On the ball" and the outcome contrast under it when there are any.
         Item {
             id: header
             width:  focusTable.width
-            height: titleRow.height + (onTheBall.visible ? onTheBall.height + Theme.gap(4) : 0)
+            height: titleRow.height + (headerNotes.height > 0 ? headerNotes.height + Theme.gap(4) : 0)
 
             readonly property int pad: focusTable.rowPad
             readonly property int gapS: Theme.gap(12)
@@ -185,16 +188,30 @@ Item {
                 }
             }
 
-            PpCaption {
-                id: onTheBall
-                objectName: "homeOnTheBall"
+            Column {
+                id: headerNotes
                 x: label.x
                 y: titleRow.height - Theme.gap(10)
                 width: Math.max(0, header.width - x - header.pad)
-                visible:  text !== ""
-                elide:    Text.ElideNone
-                wrapMode: Text.WordWrap
-                text:     root.onTheBallText
+                spacing: Theme.gap(2)
+
+                PpCaption {
+                    id: onTheBall
+                    objectName: "homeOnTheBall"
+                    width:    parent.width
+                    visible:  text !== ""
+                    elide:    Text.ElideNone
+                    wrapMode: Text.WordWrap
+                    text:     root.onTheBallText
+                }
+                PpCaption {
+                    objectName: "homeOutcomeContrast"
+                    width:    parent.width
+                    visible:  text !== ""
+                    elide:    Text.ElideNone
+                    wrapMode: Text.WordWrap
+                    text:     root.outcomeContrastText
+                }
             }
         }
 

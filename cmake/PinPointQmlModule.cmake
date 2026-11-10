@@ -181,6 +181,7 @@ set(PP_QML_FILES
     src/Gui/home/HmFaultDetail.qml
     # The Tendencies tab: the usual miss per club and swing length.
     src/Gui/home/HmClubScopeFilter.qml
+    src/Gui/home/HmOutcomeScopeFilter.qml
     src/Gui/home/HmTendencies.qml
     src/Gui/home/HmTendencyRow.qml
     src/Gui/home/HmFaultRow.qml

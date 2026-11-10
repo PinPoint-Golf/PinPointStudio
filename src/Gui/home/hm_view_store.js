@@ -22,6 +22,7 @@
 // own keys in the one entry —
 //   tab            "coaching" | "swing" | "tendencies" | "matchups"    HmHomeTabs
 //   clubScope      "all" | "group:mid_irons" | "club:7 IRON"           HmHomeTabs
+//   outcomeScope   "all" | "good" | "miss:slice"                       HmHomeTabs
 //   expanded       [group…]                             HmSwingAreas
 //   expandedSeen   bool                                 HmSwingAreas
 //

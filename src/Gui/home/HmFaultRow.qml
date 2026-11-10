@@ -27,6 +27,9 @@
 //                  "" to close it — and the host sets its openId, so one row is open at a time
 //   faultDetail    the condition's detail, or null when no session measured it (no detail: the row
 //                  does not open — no chevron, no press, no hand cursor)
+//   showOutcomeContrast  passed to HmFaultDetail: draw the outcome filter's contrast line at the top of the
+//                  opened detail. False by default, because Coaching's rows (focus "Right now", Next on your
+//                  list) carry the line themselves; only Your swing's area items (HmAreaRow) set it true
 //
 // The press area is "faultPress" (for a probe to find and click). The detail sits under the words
 // column (columnX(1)), which a host with its own template can move with detailIndent.
@@ -40,6 +43,7 @@ PpExpandRow {
     property var    controller:  null
     property string conditionId: ""
     property string openId:      ""
+    property bool   showOutcomeContrast: false
 
     signal openRequested(string nextOpenId)
     // The open fault's "Review the … session →".
@@ -69,6 +73,7 @@ PpExpandRow {
     readonly property Component _detailComponent: Component {
         HmFaultDetail {
             item: faultRow.faultDetail
+            showOutcomeContrast: faultRow.showOutcomeContrast
             onReviewSessionRequested: (dir) => faultRow.reviewSessionRequested(dir)
         }
     }

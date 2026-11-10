@@ -174,6 +174,8 @@ Column {
                                         id: faultRow
                                         objectName: "togetherFault"
                                         required property var modelData
+                                        // Matchups' rows carry no contrast line, so the opened detail does.
+                                        showOutcomeContrast: true
                                         readonly property int gap:    togetherCard.columnGap
                                         readonly property int chevW:  Theme.sp(10)
                                         readonly property int freqW:  Math.min(Theme.sp(240), Math.floor(faultRow.width * 0.4))

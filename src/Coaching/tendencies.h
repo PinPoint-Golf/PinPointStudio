@@ -29,7 +29,8 @@
 //
 // WHICH SHOTS COUNT: straight intent, assessable (a launch monitor reading,
 // and the ball's shape judged). A shot with a data warning that withheld nothing still counts: a broken
-// recording's rows are NotAssessable, so it falls out as not assessable.
+// recording's rows are NotAssessable, so it falls out as not assessable. The rule is judgeTendencyShot,
+// which Home's outcome filter (outcome_scope.h) reads shots through too.
 //
 // The JSON (<athlete>/tendencies.json) carries a rule and schema version; another version is not read.
 //
@@ -55,7 +56,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 8;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix
+inline constexpr int kTendencyRuleVersion   = 9;    // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -335,11 +336,30 @@ struct TendencyOnBall {
     QString onTheBall;          // "On the ball — your slice with driver."; "" unless earned or confirmed
 };
 
+// One miss among a club's judged shots. `id` is the label as glossed for the golfer's hand (displayId),
+// so a left-hander's count is under the slice they see.
+struct TendencyOutcomeCount {
+    QString id;
+    QString label;              // "Slice"
+    int     shots = 0;
+};
+
+// Every judged shot with one club, by outcome: Home's outcome filter offers these as its choices. A shot
+// is under every miss it shows (a fat slice under both; a push slice under Push slice, Slice and Push), so
+// the misses can add up to more than the shots that missed.
+struct TendencyClubOutcomes {
+    QString clubId;             // canonical ("7 IRON")
+    int     judged = 0;
+    int     good = 0;
+    std::vector<TendencyOutcomeCount> misses;   // most shots first, then by id
+};
+
 struct TendencySet {
     int rule   = kTendencyRuleVersion;
     int schema = kTendencySchemaVersion;
     std::vector<TendencyItem>   items;
     std::vector<TendencyOnBall> onBall;
+    std::vector<TendencyClubOutcomes> clubOutcomes;     // the bag's order
     int     countedShots = 0;
     int     countedSessions = 0;
     QJsonArray clubDistances;       // the "Your distances" rows, already in their stored shape
@@ -440,6 +460,79 @@ inline std::vector<const ShotOutcomeLabel *> tendencyMissLabels(const ShotOutcom
     return out;
 }
 
+// ── Which shots count ───────────────────────────────────────────────────────────────────────────────
+
+// One shot as the Tendencies rule judges it. Tendencies and Home's outcome filter both read a shot through
+// judgeTendencyShot, so they can never disagree about which shots count or what each one was.
+struct ShotJudgement {
+    bool        judged = false;     // straight intent, analysed, a launch monitor reading, the ball's shape judged
+    bool        good   = false;     // the shot was clean
+    QStringList missIds;            // the displayId of each miss tendencyMissLabels names, each followed by the
+                                    // halves of a combined one (push slice: slice, push); primary first, once each
+    QStringList missLabels;         // their short words ("Slice"), in the same order
+};
+
+// The session's facts every shot of it is composed with.
+inline ShotOutcomeSessionFacts tendencySessionFacts(const TendencySessionInput &s)
+{
+    return ShotOutcomeSessionFacts{ s.evidence.links, s.evidence.tiers, sessionFlightUsuals(s.session.shots) };
+}
+
+// The session's frozen usual for the shot's club, null when the club has none.
+inline const ClubBaselineEntry *tendencyUsualEntry(const TendencySessionInput &s, const ShotRecord &shot)
+{
+    const auto it = s.baseline.constFind(canonicalClubId(shot.club));
+    return it == s.baseline.constEnd() ? nullptr : &*it;
+}
+
+// Judges one shot: the WHICH SHOTS COUNT rule above. A shape the golfer meant to hit isn't composed at all.
+// The club group is the caller's to check: Tendencies leaves out a club with none, a filter has already
+// chosen its clubs. `outcome`, when given, receives the composed shot, and `misses` the labels the miss ids
+// came from; they point into `*outcome`, so `misses` is filled only alongside it.
+inline ShotJudgement judgeTendencyShot(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
+                                       const QString &intent, const ClubBaselineEntry *usual,
+                                       const ShotOutcomePack &pack, const ShotOutcomeSessionFacts &facts,
+                                       ShotOutcome *outcome = nullptr,
+                                       std::vector<const ShotOutcomeLabel *> *misses = nullptr)
+{
+    ShotJudgement j;
+    if (!intent.isEmpty() && intent != QLatin1String("straight")) return j;
+
+    ShotOutcome local;
+    ShotOutcome &o = outcome ? *outcome : local;
+    o = composeShotOutcome(shot, corrections, intent, usual, pack, facts);
+    if (!o.ready || o.noReading) return j;
+    const std::vector<const ShotOutcomeLabel *> named = tendencyMissLabels(o, pack);
+    if (!o.clean && named.empty()) return j;       // the ball's shape was not judged
+
+    j.judged = true;
+    j.good   = o.clean;
+    const auto add = [&j](const QString &id, const QString &label) {
+        if (j.missIds.contains(id)) return;
+        j.missIds << id;
+        j.missLabels << label;
+    };
+    // A shot is under every miss it shows, so a combined label brings its two halves: a push slice is a
+    // slice and a push too. The halves are glossed like the label, so a left-hander's push slice row
+    // (their pull hook) brings their hook and their pull. Only these lists see the halves; Tendencies'
+    // primary miss and shot mix still read `named`.
+    const auto halvesOf = [](const QString &rowId) -> QStringList {
+        if (rowId == QLatin1String("push_slice")) return { QStringLiteral("slice"), QStringLiteral("push") };
+        if (rowId == QLatin1String("pull_hook"))  return { QStringLiteral("hook"), QStringLiteral("pull") };
+        return {};
+    };
+    for (const ShotOutcomeLabel *m : named) {
+        add(m->displayId, m->shortText);
+        for (const QString &half : halvesOf(m->id)) {
+            const QString displayId = glossedConditionId(half, shot.handedness);
+            const ShotConditionFacts *f = outcomeFacts(pack, displayId);
+            add(displayId, !f ? displayId : !f->golferShort.isEmpty() ? f->golferShort : f->label);
+        }
+    }
+    if (misses && outcome) *misses = named;
+    return j;
+}
+
 namespace tendency_detail {
 
 struct JudgedShot {
@@ -473,6 +566,44 @@ inline QString stripClause(QString s)
     return outcomeCapitalised(s);
 }
 
+// One judged shot added to its club's outcome counts.
+inline void tallyClubOutcomes(QHash<QString, TendencyClubOutcomes> &byClub, const QString &clubId, const ShotJudgement &j)
+{
+    TendencyClubOutcomes &c = byClub[clubId];
+    c.clubId = clubId;
+    ++c.judged;
+    if (j.good) ++c.good;
+    for (int i = 0; i < int(j.missIds.size()); ++i) {
+        auto it = std::find_if(c.misses.begin(), c.misses.end(), [&](const TendencyOutcomeCount &m) { return m.id == j.missIds.at(i); });
+        if (it == c.misses.end()) {
+            c.misses.push_back(TendencyOutcomeCount{ j.missIds.at(i), j.missLabels.value(i), 0 });
+            it = c.misses.end() - 1;
+        }
+        ++it->shots;
+    }
+}
+
+// The counts in the bag's order (a club the bag doesn't know goes last), each club's misses most shots first.
+inline std::vector<TendencyClubOutcomes> orderedClubOutcomes(const QHash<QString, TendencyClubOutcomes> &byClub)
+{
+    QStringList clubs = byClub.keys();
+    const QStringList &bag = clubVocabulary();
+    const auto bagRank = [&bag](const QString &c) { const int i = int(bag.indexOf(c)); return i < 0 ? int(bag.size()) : i; };
+    std::sort(clubs.begin(), clubs.end(), [&bagRank](const QString &a, const QString &b) {
+        const int ra = bagRank(a), rb = bagRank(b);
+        return ra != rb ? ra < rb : a < b;
+    });
+    std::vector<TendencyClubOutcomes> out;
+    for (const QString &club : clubs) {
+        TendencyClubOutcomes c = byClub.value(club);
+        std::sort(c.misses.begin(), c.misses.end(), [](const TendencyOutcomeCount &a, const TendencyOutcomeCount &b) {
+            return a.shots != b.shots ? a.shots > b.shots : a.id < b.id;
+        });
+        out.push_back(std::move(c));
+    }
+    return out;
+}
+
 } // namespace tendency_detail
 
 // `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
@@ -495,22 +626,23 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     // Every shot that counts, composed from its row, corrections and intent; misses and clean ones alike.
     std::vector<JudgedShot> judged;
     QSet<int> sessionsCounted;
+    QHash<QString, TendencyClubOutcomes> outcomesByClub;
     for (int si = 0; si < int(sessions.size()); ++si) {
         if (cancel && cancel->load()) { out.cancelled = true; return out; }
         const TendencySessionInput &s = *sessions[size_t(si)];
-        const ShotOutcomeSessionFacts facts{ s.evidence.links, s.evidence.tiers, sessionFlightUsuals(s.session.shots) };
+        const ShotOutcomeSessionFacts facts = tendencySessionFacts(s);
         for (const ShotRecord &shot : s.session.shots) {
-            const QString intent = s.intents.value(shot.shotId);
-            if (!intent.isEmpty() && intent != QLatin1String("straight")) continue;
             const QString group = clubGroupOf ? clubGroupOf(shot.club) : QString();
             if (group.isEmpty()) continue;
 
-            const auto baselineIt = s.baseline.constFind(canonicalClubId(shot.club));
-            const ClubBaselineEntry *usual = baselineIt == s.baseline.constEnd() ? nullptr : &*baselineIt;
-            const ShotOutcome o = composeShotOutcome(shot, s.session.corrections.value(shot.shotId), intent, usual, pack, facts);
-            if (!o.ready || o.noReading) continue;
-            const std::vector<const ShotOutcomeLabel *> misses = tendencyMissLabels(o, pack);
-            if (!o.clean && misses.empty()) continue;      // the ball's shape was not judged
+            const QString intent = s.intents.value(shot.shotId);
+            const ClubBaselineEntry *usual = tendencyUsualEntry(s, shot);
+            ShotOutcome o;
+            std::vector<const ShotOutcomeLabel *> misses;
+            const ShotJudgement verdict = judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), intent, usual,
+                                                            pack, facts, &o, &misses);
+            if (!verdict.judged) continue;
+            tallyClubOutcomes(outcomesByClub, canonicalClubId(shot.club), verdict);
 
             JudgedShot j;
             j.session = si;
@@ -543,6 +675,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     }
     out.countedShots    = int(judged.size());
     out.countedSessions = int(sessionsCounted.size());
+    out.clubOutcomes    = orderedClubOutcomes(outcomesByClub);
 
     // ── Each key ──
     QHash<QString, std::vector<const JudgedShot *>> byKey;
@@ -928,6 +1061,19 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
             { QStringLiteral("onTheBall"), b.onTheBall },
         });
     }
+    QJsonArray clubOutcomes;
+    for (const TendencyClubOutcomes &c : s.clubOutcomes) {
+        QJsonArray misses;
+        for (const TendencyOutcomeCount &m : c.misses)
+            misses.append(QJsonObject{ { QStringLiteral("id"), m.id }, { QStringLiteral("label"), m.label },
+                                       { QStringLiteral("shots"), m.shots } });
+        clubOutcomes.append(QJsonObject{
+            { QStringLiteral("clubId"), c.clubId },
+            { QStringLiteral("judged"), c.judged },
+            { QStringLiteral("good"), c.good },
+            { QStringLiteral("misses"), misses },
+        });
+    }
     return QJsonObject{
         { QStringLiteral("rule"), s.rule },
         { QStringLiteral("schema"), s.schema },
@@ -935,6 +1081,7 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
         { QStringLiteral("countedSessions"), s.countedSessions },
         { QStringLiteral("tendencies"), items },
         { QStringLiteral("onBall"), onBall },
+        { QStringLiteral("clubOutcomes"), clubOutcomes },
         { QStringLiteral("clubDistances"), s.clubDistances },
     };
 }
@@ -1018,6 +1165,17 @@ inline TendencySet tendencySetFromJson(const QJsonObject &root, bool *ok = nullp
         for (const QJsonValue &p : o.value(QStringLiteral("produced")).toArray())
             b.produced.push_back(TendencyProduced{ str(p.toObject(), "phrase"), p.toObject().value(QStringLiteral("count")).toInt() });
         s.onBall.push_back(std::move(b));
+    }
+    for (const QJsonValue &v : root.value(QStringLiteral("clubOutcomes")).toArray()) {
+        const QJsonObject o = v.toObject();
+        TendencyClubOutcomes c;
+        c.clubId = str(o, "clubId");
+        c.judged = o.value(QStringLiteral("judged")).toInt();
+        c.good   = o.value(QStringLiteral("good")).toInt();
+        for (const QJsonValue &m : o.value(QStringLiteral("misses")).toArray())
+            c.misses.push_back(TendencyOutcomeCount{ str(m.toObject(), "id"), str(m.toObject(), "label"),
+                                                     m.toObject().value(QStringLiteral("shots")).toInt() });
+        s.clubOutcomes.push_back(std::move(c));
     }
     return s;
 }

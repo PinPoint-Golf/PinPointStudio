@@ -19,6 +19,10 @@
 // A FAULT, OPENED — the detail under a fault row on Home, in place (Mark, 28 Oct: a fault opens where
 // it is, never on another page). Used by Coaching's focus ("Right now") and "Next on your list", and
 // by an open area's items on Your swing:
+//   the contrast    first, only under one outcome (HmHomeTabs' outcome filter; item.outcomeContrast): how often
+//                   on those shots against the golfer's other shots. Only where the host asks for it
+//                   (showOutcomeContrast, through HmFaultRow): Your swing's area items. Coaching's rows (focus,
+//                   Next on your list) already carry the line, so a fault opened there does not repeat it
 //   what it does to your shots   only where a shot has shown it (item.onBall): what it produced, what
 //                   it costs in carry, the tendency it feeds, "See these shots →"
 //   what it costs   the pack's consequence
@@ -42,6 +46,8 @@ Column {
     objectName: "faultDetail"
 
     property var item: ({})
+    // Draw item.outcomeContrast at the top: true only where the row above does not already carry it (Your swing).
+    property bool showOutcomeContrast: false
 
     signal reviewSessionRequested(string sessionDir)
 
@@ -74,6 +80,15 @@ Column {
     FontMetrics { id: body2Metrics; font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody2 }
 
     Item { width: 1; height: Theme.gap(2) }
+
+    PpCaption {
+        objectName: "faultOutcomeContrast"
+        visible:  root.showOutcomeContrast && text !== ""
+        width:    Math.min(parent.width, Theme.sp(720))
+        elide:    Text.ElideNone
+        wrapMode: Text.WordWrap
+        text:     root.str("outcomeContrast")
+    }
 
     Column {
         objectName: "homeFaultOnBall"

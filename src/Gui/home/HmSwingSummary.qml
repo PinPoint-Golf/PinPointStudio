@@ -40,7 +40,13 @@
 //   summaryReady, summaryUpdating, updating, athleteDir
 //   focusItem      see HmFocus.qml
 //   doWellItems    [{ text, caption, share 0..1, sessions: [bool…] }]
-//   nextItems      [{ text, share 0..1, frequency, trend -1|0|1, sessions: [bool…], onTheBall }]
+//   nextItems      [{ text, share 0..1, frequency, trend -1|0|1, sessions: [bool…], onTheBall, outcomeContrast }]
+//                  outcomeContrast: under one outcome (HmHomeTabs' outcome filter), how often on those shots
+//                  against the golfer's other shots; empty under All shots, and then not drawn. A fault opened
+//                  here does not repeat it (HmFaultRow's showOutcomeContrast stays false)
+//   outcomeTooFewNote  under one outcome, when too few of its shots had the swing measured: shown in place of
+//                  both cards' empty words ("Nothing stands out here yet." / "Nothing else shows up on most of
+//                  your swings."), never in place of a listed item; "" otherwise
 // This file positions and paints. Before the first summary lands it says it is reading, and with
 // no session to read it says "Nothing yet".
 //
@@ -72,6 +78,11 @@ Column {
     readonly property bool   updating:  controller ? controller.summaryUpdating : false
     // The work-ons catch-up comes first; the summary is read off what it leaves current.
     readonly property bool   catchingUp: controller ? controller.updating       : false
+    // Under one outcome, when too few of its shots had the swing measured: said in place of both cards' empty
+    // words, so an empty card never reads as "no faults" when it means "not measured". "" otherwise (and for a
+    // controller or mock without the property).
+    readonly property string tooFewNote: controller && controller.outcomeTooFewNote !== undefined
+                                         ? (controller.outcomeTooFewNote || "") : ""
 
     // Two cards side by side down to this width; below it they stack.
     readonly property bool stacked: width < Theme.sp(640)
@@ -242,11 +253,16 @@ Column {
                     id: wellEmptyRow
                     visible: root.doWell.length === 0
                     hoverEnabled: false
+                    // The too-few note can wrap; the row grows with it, never below the table row.
+                    height: Math.max(Theme.sp(Theme.rowH), wellEmpty.implicitHeight + Theme.gap(18))
                     Item { width: 1; height: 1 }
                     PpCaption {
+                        id: wellEmpty
                         objectName: "doWellEmpty"
-                        width: wellCard.contentWidth - root.markW - wellCard.columnGap
-                        text:  qsTr("Nothing stands out here yet.")
+                        width:    wellCard.contentWidth - root.markW - wellCard.columnGap
+                        elide:    Text.ElideNone
+                        wrapMode: Text.WordWrap
+                        text:     root.tooFewNote !== "" ? root.tooFewNote : qsTr("Nothing stands out here yet.")
                     }
                 }
             }
@@ -340,6 +356,15 @@ Column {
                                 wrapMode: Text.WordWrap
                                 text:     workItem.modelData.onTheBall || ""
                             }
+                            // Under one outcome: how often on those shots against the others, only then.
+                            PpCaption {
+                                objectName: "homeOutcomeContrast"
+                                visible:  text !== ""
+                                width:    parent.width
+                                elide:    Text.ElideNone
+                                wrapMode: Text.WordWrap
+                                text:     workItem.modelData.outcomeContrast || ""
+                            }
                         }
                         PpMeter {
                             share: workItem.modelData.share
@@ -357,11 +382,15 @@ Column {
                     id: workEmptyRow
                     visible: root.needsWork.length === 0
                     hoverEnabled: false
+                    height: Math.max(Theme.sp(Theme.rowH), workEmpty.implicitHeight + Theme.gap(18))
                     Item { width: 1; height: 1 }
                     PpCaption {
+                        id: workEmpty
                         objectName: "needsWorkEmpty"
-                        width: workCard.contentWidth - root.markW - workCard.columnGap
-                        text:  qsTr("Nothing else shows up on most of your swings.")
+                        width:    workCard.contentWidth - root.markW - workCard.columnGap
+                        elide:    Text.ElideNone
+                        wrapMode: Text.WordWrap
+                        text:     root.tooFewNote !== "" ? root.tooFewNote : qsTr("Nothing else shows up on most of your swings.")
                     }
                 }
             }

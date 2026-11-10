@@ -19,6 +19,7 @@
 #pragma once
 
 #include "../../Coaching/club_scope.h"
+#include "../../Coaching/outcome_scope.h"
 #include "../../Coaching/swing_themes.h"
 #include "../../Coaching/tendencies.h"
 #include "../../Coaching/work_ons.h"
@@ -26,6 +27,7 @@
 
 #include <QDate>
 #include <QHash>
+#include <QJsonObject>
 #include <QObject>
 #include <QSet>
 #include <QString>
@@ -126,6 +128,45 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 //   - ONLY THESE THREE TABS ARE SCOPED. m_records, `items`, `lastSession`, Tendencies' work-on column and the
 //     report list stay every club's, and a scoped landing emits no itemsChanged.
 //
+// OUTCOME SCOPE — which shots of the club choice Coaching, Your swing and Matchups read by what the ball did
+// (outcome_scope.h, docs/design/shot_outcomes_design.md §7.6): every shot, the good ones, or the ones carrying
+// one miss. It sits beside the club scope and goes through the same job, so the same properties carry it.
+//
+//   - WHICH SHOTS: the ones the Tendencies rule judges (judgeTendencyShot, the helper Tendencies reads through):
+//     straight intent, a launch-monitor reading, the ball's shape judged, the session's corrections applied, and
+//     a club with a tendency group. Good is a clean shot; a miss is any shot carrying it (a fat slice is under
+//     both). A shot that isn't judged is in no choice but All. The choices are the tendency reduction's per-club
+//     counts (TendencySet::clubOutcomes) over the clubs the club choice holds, so there are none, and the scope
+//     reads All, until the tendencies are in hand.
+//   - THE KEY is the combined one, the club's when the outcome is All (so All × All is still "all", and every
+//     "is anything scoped" test is one comparison), else club|outcome. m_summaryScope and m_togetherScope hold
+//     it, so busy is still compared, not flagged. The request is kept as asked (m_outcomeRequested): a miss the
+//     club choice has never had reads back "all", and comes back when the club choice does.
+//   - THE CONTRAST: a filter alone would make a fault on every shot look like a cause. So the job also counts,
+//     per fault, how often it fired on the chosen shots against the golfer's other judged shots in the club
+//     choice, and each fault on Coaching (focus, Next on your list) and in faultDetail() carries the line:
+//     "On your slice shots 34 of 38 · other shots 12 of 61", with "— just as often on your other shots",
+//     "— less often than on your other shots" or "— too few other shots to compare" after it unless it is
+//     15 points more often. The words never re-rank or hide anything. outcomeScopeLine says what the choice
+//     covers, from the same pass.
+//   - MEASURED: most misses can come from launch-monitor-only sessions, where no swing fault was assessed, so an
+//     empty Coaching page under a choice would read as "no faults" when it means "not measured". The same pass
+//     counts the chosen shots with at least one fault row assessed (`measured`), and outcomeScopeLine says it in
+//     a second sentence: "Your thin shots: 14 shots over 3 sessions, against 65 other shots. Your swing was
+//     measured on 3 of them." ("… on all of them." / "… was not measured on any of them."). Under the contrast's
+//     own floor (TendencyOptions::minSessionShots, 8) outcomeTooFewNote says "Too few of these shots had your
+//     swing measured to say what comes with them yet.", and Coaching shows it in place of the empty "What you
+//     do well" and "Next on your list"; a listed item is never hidden.
+//   - WHERE THE LINE SHOWS: Coaching's rows (focus, Next on your list) carry it, so a fault opened there does
+//     not repeat it; only Your swing's opened items (HmAreaRow → HmFaultRow { showOutcomeContrast }) show
+//     faultDetail()'s outcomeContrast.
+//   - STORED in swing_themes.<club>.<outcome>.json with its records, its contrast counts and the line's counts,
+//     and read back when nothing has moved. Its fingerprint adds the outcome key, kOutcomeScopeRuleVersion and
+//     the tendency fingerprint, so a correction or an intent, which only touch the ledger, count. All × All is
+//     today's file and fingerprint, untouched.
+//   - WHAT DOES NOT FOLLOW IT: the work-on list, `lastSession`, the report, the Tendencies tab and `tendencyItems`,
+//     "On the ball" (which follows the club choice only) and the consistency marks (the club choice's shots).
+//
 // The job runs once the catch-up settles (where the swing summary is started), one at a time on its
 // own single-thread, low-priority pool, never while a session is live, and is cancelled by the athlete
 // changing or a session going live. It first stats every session's ledger: the job's fingerprint is the
@@ -187,7 +228,8 @@ class WorkOnsController : public QObject
     // Every string final (swingSummaryView); HmSwingSummary.qml, HmFocus.qml and (Home's Matchups
     // tab) HmGoesTogether.qml position and paint. A fault item, wherever it appears, is
     // {text, share (0..1), frequency, trend (+1 growing, −1 easing, 0), sessions [bool, one per
-    // judged session], conditionId (what its row opens with faultDetail())}.
+    // judged session], conditionId (what its row opens with faultDetail()), onTheBall, outcomeContrast (the
+    // OUTCOME SCOPE's line, "" under All)}. focusItem carries both for its first "right now" fault too.
     // "From N swings over M sessions" — every shot in the ledgers, every session holding one.
     Q_PROPERTY(QString summarySubtitle READ summarySubtitle NOTIFY summaryChanged)
     // "Your focus": {present, title, aimFor [string], rightNow [fault item], why, practiseLabel,
@@ -248,6 +290,21 @@ class WorkOnsController : public QObject
     // A new scope is being reduced. False for one whose stored result is current, so that never dims a page.
     Q_PROPERTY(bool clubScopeWorking READ clubScopeWorking NOTIFY clubScopeStateChanged)
 
+    // ── Outcome scope (OUTCOME SCOPE, above) ──
+    // "all", "good" or "miss:slice". Reads back "all" while the key names none of outcomeScopes.
+    Q_PROPERTY(QString outcomeScope READ outcomeScope WRITE setOutcomeScope NOTIFY clubScopeChanged)
+    // The choices within the club choice, without All: [{ value, label, count }], Good first when there are good
+    // shots, then each miss by its count. Empty until the tendencies are in hand.
+    Q_PROPERTY(QVariantList outcomeScopes READ outcomeScopes NOTIFY clubScopeChanged)
+    // What the shown choice covers, and on how many of its shots the swing was measured: "Your slice shots with mid
+    // irons: 38 shots over 6 sessions, against 61 other shots. Your swing was measured on 31 of them." ("… on all
+    // of them." / "Your swing was not measured on any of them."). Empty under All.
+    Q_PROPERTY(QString outcomeScopeLine READ outcomeScopeLine NOTIFY clubScopeStateChanged)
+    // Under one outcome, when fewer than TendencyOptions::minSessionShots (8) of the chosen shots had a swing fault
+    // assessed: "Too few of these shots had your swing measured to say what comes with them yet." Coaching shows
+    // it in place of its empty-card words. Empty otherwise, and under All.
+    Q_PROPERTY(QString outcomeTooFewNote READ outcomeTooFewNote NOTIFY clubScopeStateChanged)
+
 public:
     explicit WorkOnsController(QObject *parent = nullptr);
     ~WorkOnsController() override;
@@ -262,7 +319,8 @@ public:
     QVariantList items() const { return m_items; }
     int  detailsRevision() const { return m_detailsRevision; }
     // ONE condition's detail, as Home opens it in place (HmFaultDetail) — for EVERY condition any
-    // session assessed, not only the listed work-ons: a listed one's is its `items` entry exactly;
+    // session assessed, not only the listed work-ons: a listed one's is its `items` entry exactly, plus
+    // `outcomeContrast` (OUTCOME SCOPE, above; "" under All), which the list never carries;
     // any other's has the same keys, its "Latest" from the newest session that assessed it.
     // Empty when no session assessed it. One map, not a map of them all: a QVariantMap property
     // read is a deep copy, and every fault row on Home asks. `consistency` is the condition's
@@ -297,9 +355,16 @@ public:
     QString clubScope() const { return m_scope.key; }
     void    setClubScope(const QString &key);
     QVariantList clubScopes() const { return m_clubScopes; }
-    bool clubScopeRefreshing() const { return m_summaryScope != m_scope.key; }
-    bool matchupsRefreshing() const { return m_togetherScope != m_scope.key; }
+    // Against the combined key (OUTCOME SCOPE), so an outcome still being reduced counts as refreshing.
+    bool clubScopeRefreshing() const { return m_summaryScope != scopeKey(); }
+    bool matchupsRefreshing() const { return m_togetherScope != scopeKey(); }
     bool clubScopeWorking() const { return m_scopeWorking; }
+
+    QString outcomeScope() const { return m_outcome.key; }
+    void    setOutcomeScope(const QString &key);
+    QVariantList outcomeScopes() const { return m_outcomeScopes; }
+    QString outcomeScopeLine() const;
+    QString outcomeTooFewNote() const;
 
     // Rescan the athlete's sessions and re-derive whatever is stale. Cheap when nothing is.
     Q_INVOKABLE void refresh();
@@ -321,6 +386,9 @@ public:
                                                           const pinpoint::analysis::INormProvider &norms);
     static QString themesPath(const QString &athleteDir);
     static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope);
+    // A club × outcome choice's: swing_themes.<club>.<outcome>.json; the club scope's own file under All.
+    static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope,
+                              const pinpoint::analysis::OutcomeScope &outcome);
     static QString tendenciesPath(const QString &athleteDir);
     // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).
     int  tendencyJobs() const { return m_tendencyJobs; }
@@ -360,12 +428,38 @@ private:
     void publish();
     const QHash<QString, pinpoint::analysis::SessionWorkOns> &shownRecords() const;
     void updateClubScope();
-    void onClubScopeMoved();
+    // `clubMoved`: the club choice moved, not only the outcome; the consistency marks read the club choice only.
+    void onClubScopeMoved(bool clubMoved = true);
     void setScopeWorking(bool on);
+    // The combined key (OUTCOME SCOPE): the club's under All, else club|outcome. "all" for All × All.
+    static QString scopeKeyOf(const pinpoint::analysis::ClubScope &club, const pinpoint::analysis::OutcomeScope &outcome);
+    QString scopeKey() const { return scopeKeyOf(m_scope, m_outcome); }
+    // The outcome choices for the club choice, from the tendencies in hand (outcomeScopes' shape).
+    QVariantList outcomeScopeOptions() const;
+    // "mid irons", "7 iron": the club choice's label for the outcome's line; "" for every club.
+    QString clubScopeWords() const;
     bool onBallInScope(const QString &tendencyKey) const;
     void publishAreas(const pinpoint::analysis::CharacteristicPack &pack,
                       const std::vector<pinpoint::analysis::SessionWorkOns> &sessions);
     SessionDiagnosticsModel *model();
+
+    // ── Outcome scope ──
+    // One outcome choice as the screens show it: what the job counted for it, and the words to say it with.
+    struct ShownOutcome {
+        pinpoint::analysis::OutcomeScope scope;     // All: nothing below is said
+        QString label;              // "Slice", "Good": the contrast line's word
+        QString clubWords;          // "mid irons"; "" for every club
+        int     chosen = 0;         // judged shots in the choice
+        int     sessions = 0;       // sessions holding one of them
+        int     others = 0;         // the other judged shots in the club choice
+        int     measured = 0;       // chosen shots with at least one fault row assessed (not NotAssessable)
+        QHash<QString, pinpoint::analysis::OutcomeContrast> contrasts;   // fault condition id -> its counts
+    };
+    // The line under one fault: outcomeContrastLine over its counts, "" under All or with none.
+    static QString outcomeContrastFor(const ShownOutcome &shown, const QString &conditionId);
+    static QJsonObject outcomeToJson(const ShownOutcome &shown);
+    // Fills `shown`'s counts from a stored file's block; false when it is not this choice's.
+    static bool outcomeFromJson(const QJsonObject &o, ShownOutcome &shown);
 
     // ── Your swing ──
     struct ThemesJob {
@@ -380,6 +474,14 @@ private:
         bool    announce = false;   // a screen is showing another scope: land Layer 1 early and say so
         QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only: session dir -> its stored record
         std::shared_ptr<const pinpoint::analysis::CharacteristicPack> pack;   // scoped only
+        // An outcome choice only: what judges each shot (the tendency reduction's pack, and the context tree its
+        // club groups come from), the fault conditions the contrast counts, and the words the screens say it with.
+        pinpoint::analysis::OutcomeScope outcome;
+        QString outcomeLabel;
+        QString clubWords;
+        std::shared_ptr<const pinpoint::analysis::ShotOutcomePack> outcomePack;
+        std::shared_ptr<const pinpoint::analysis::INormProvider>   norms;
+        QSet<QString> faultIds;
     };
     struct ThemesOutcome {
         bool    fromDisk = false;   // the stored summary was current; nothing was reduced
@@ -391,6 +493,7 @@ private:
         qint64  wallMs = 0;
         pinpoint::analysis::ClubScope scope;
         QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only
+        ShownOutcome outcome;       // the job's choice, with its counts once reduced or read
     };
     QString themesFingerprint() const;
     void maybeThemes();
@@ -399,7 +502,7 @@ private:
     void applyThemes(int generation, ThemesOutcome out);
     void applyScopeSummary(int generation, const QString &scopeKey,
                            QHash<QString, pinpoint::analysis::SessionWorkOns> records,
-                           pinpoint::analysis::SwingThemes layerOne);
+                           pinpoint::analysis::SwingThemes layerOne, ShownOutcome outcome);
     void applyScopeWorking(int generation);
     void publishSummary();
     void clearSummary();
@@ -439,7 +542,10 @@ private:
         QHash<QString, MarksRequest> markRequests;
         int cleared = 0;
     };
-    DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionWorkOns> &records);
+    // `outcome`, when given, is the choice the records are of: each detail (never an item) carries its
+    // outcomeContrast line.
+    DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionWorkOns> &records,
+                                     const ShownOutcome *outcome = nullptr);
     // What the three scoped tabs read: details and areas, from the records of the scope they show.
     // `known` is that scope's description when the caller already has it.
     void publishScreens(const DescribedWorkOns *known = nullptr);
@@ -535,6 +641,12 @@ private:
     QVariantList m_clubScopes;
     QHash<QString, pinpoint::analysis::SessionWorkOns> m_scopedRecords;       // valid while m_summaryScope is not all
     bool         m_scopeWorking = false;
+
+    // ── Outcome scope ──
+    QString      m_outcomeRequested = pinpoint::analysis::outcomeScopeAllKey();   // as asked; may name no option yet
+    pinpoint::analysis::OutcomeScope m_outcome;                                   // what it resolves to
+    QVariantList m_outcomeScopes;
+    ShownOutcome m_shownOutcome;        // the outcome m_summaryScope is of, with its counts
 
     // ── Tendencies ──
     pinpoint::analysis::TendencySet m_tendencySet;      // valid when m_tendenciesReady

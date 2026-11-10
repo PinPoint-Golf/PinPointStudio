@@ -705,6 +705,63 @@ fewShotsText, gapsText, shortBelowText }` in bag order, strings final.
 - This shot: the "24 yd short" label's evidence reads "138 yd · your usual 162 ± 7 yd · club speed 79
   mph (usual 84)".
 
+### 7.6 Outcome filter — the swing faults behind a miss
+
+*Decided with Mark, 10 November 2026.* A second filter sits under Home's club filter: **All shots · Good
+shots · each miss the golfer has had** within the club choice, most common first (`HmOutcomeScopeFilter`,
+`workOns.outcomeScope`, `src/Coaching/outcome_scope.h`). It answers "what am I doing on the shots that
+slice?". Coaching, Your swing and Matchups use it. Tendencies does not show it and ignores it, because
+Tendencies is already the table of outcomes and stays as it is.
+
+**Which shots.**
+- A shot is in a choice when it is *judged* by the Tendencies rule (§7.1), unchanged and shared in code
+  (one judging helper in `tendencies.h`): straight intent, a launch-monitor reading, the ball's shape judged,
+  corrections applied.
+- **Good** is a clean shot.
+- A **miss** is any shot carrying that miss. A fat slice is under Fat and under Slice. A miss another label
+  implies folds in as `tendencyMissLabels` folds it (a push slice is a slice).
+- The key is the label as glossed for the golfer's hand (`displayId`), so a left-hander's "Slice" is the
+  slice they see.
+- A shot that isn't judged is in no choice but All.
+
+**What the tabs show.**
+- The tabs reduce from the chosen shots, as they do under a club choice. The club and outcome choices
+  combine.
+- A filter alone would make a fault that is on every shot look like a cause. So each fault on Coaching
+  (focus and Next on your list) and in Your swing's opened fault detail carries one more line comparing the
+  chosen shots with the golfer's other judged shots under the same club choice (it shows once: a fault
+  opened from Coaching does not repeat the line its row already carries):
+  - *"On your slice shots 34 of 38 · other shots 12 of 61"*: at least 15 points more often (Tendencies'
+    15-point rule, `TendencyOptions::trendDelta`);
+  - *"… — just as often on your other shots"*: within 15 points;
+  - *"… — less often than on your other shots"*: 15 points or more less often;
+  - *"… — too few other shots to compare"*: fewer than 8 other shots assessed it.
+- The line adds words only. It never re-ranks or hides a fault (show with a warning, never hide). The
+  counts are rows that fired of rows that assessed the condition.
+- An evidence line under the filter says what the choice covers, and on how many of the chosen shots the
+  swing was measured (at least one swing fault assessed): *"Your slice shots with mid irons: 38 shots over 6
+  sessions, against 61 other shots. Your swing was measured on 31 of them."* ("… measured on all of them.",
+  "… was not measured on any of them."). Many misses come from launch-monitor-only sessions, which judge the
+  ball and assess no fault, so an empty page must not read as "no faults" when it means "not measured".
+- When fewer than 8 of the chosen shots had the swing measured (`TendencyOptions::minSessionShots`, the
+  contrast's own floor), Coaching says *"Too few of these shots had your swing measured to say what comes
+  with them yet."* in place of the empty "What you do well" and "Next on your list" words. Only the empty
+  words change; a listed item is never hidden. The measured count is stored in the choice's file
+  (`kOutcomeScopeRuleVersion` 2).
+
+**What does not follow the filter.** The work-on list, the last session, the report and every Tendencies
+figure, including Coaching's "On the ball" line and the report's Your tendencies page, which keep
+following the club choice only, as now.
+
+**Storage.**
+- Each club × outcome choice is stored as `swing_themes.<club>.<outcome>.json`, with its contrast counts,
+  until something moves.
+- Its fingerprint adds the outcome key, `kOutcomeScopeRuleVersion` and the tendency fingerprint, so a
+  correction or an intent change counts.
+- The choices come from the tendency reduction's per-club outcome counts (`TendencySet::clubOutcomes`,
+  rule 9).
+- All × All is today's `swing_themes.json`, untouched.
+
 ---
 
 ## 8. Wording checklist (for review of every string)
