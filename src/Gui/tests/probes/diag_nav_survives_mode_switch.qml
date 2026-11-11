@@ -30,8 +30,9 @@
 // TYPESET REGISTERS (11 Oct): the body hosts a register — PpDiagReplay in Replay, PpDiagAnalyse in
 // Analyse (`sdRegister`, `register`). An open detail is read in PpDiagAnalyse in either mode, so the
 // detail (`sdDetailBody`) is drawn on both sides of the flip, with the stage still in Replay on the way
-// back; closing it there returns to PpDiagReplay, whose card list `sdCardsFlick` must come back where
-// it was. The checks below assert both, beside the place.
+// back; closing it there returns to PpDiagReplay. The checks below assert the register beside the
+// place. Where the Replay card list sits after the detail closes is NOT checked (retired 11 Nov 2026,
+// #129: not a behaviour that matters, and Replay and Analyse may be merged).
 //
 // Writes the View layout — run on a COPY of the settings (XDG_CONFIG_HOME):
 //   build/run-me/verify-diag-nav.sh [session dir] [ordinal]
@@ -112,14 +113,6 @@ Item {
         check(anyShown(b, "sdDetailBody"), what + ": the open detail is drawn")
         before = b
     }
-    // Checked after closing the detail the way a reader would: in Analyse the card list sits behind the
-    // open detail (and is built only on first show), so the Replay list is the one that must come back.
-    function expectScroll(what) {
-        const b = theBody()
-        const f = b ? flick(b, "sdCardsFlick") : null
-        check(!!f && f.visible && Math.abs(f.contentY - want.scroll) < 1,
-              what + ": card list scroll " + (f ? f.contentY : "-") + " (want " + want.scroll + ") contentHeight " + (f ? f.contentHeight + " height " + f.height : "-"))
-    }
 
     Timer {
         interval: 2500; repeat: true; running: true
@@ -183,7 +176,6 @@ Item {
                 probe.check(SessionMode.mode === SessionMode.replay, "Analyse → Replay: the stage stays in Replay under the detail")
                 probe.theBody()._closeDetail()
             } else if (s === 8) {
-                probe.expectScroll("Analyse → Replay, detail closed")
                 // A place saved in another session is not this one's: take the panel down,
                 // re-stamp the save with another folder, then bring a panel up.
                 probe.before = probe.theBody()

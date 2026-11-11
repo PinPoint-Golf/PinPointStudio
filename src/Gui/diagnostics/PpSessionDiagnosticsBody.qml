@@ -401,6 +401,10 @@ Item {
     readonly property string register: _baseRegister === "Replay" && (detailOpen || consistencyOverGlance || shotWhyOverGlance) && forceRegister === ""
                                        && surface !== "cast" ? "Analyse" : _baseRegister
     readonly property Item registerItem: register === "Analyse" ? analyseLoader.item : replayLoader.item
+    // Where the reader's place for the register on show is kept (PpReaderPlace.scope): the register itself, or
+    // "Replay>Analyse" for the Analyse register read OVER the Replay glance (a detail, a Consistency cell, the Why
+    // of a shot) — its lists start at their own tops there, and a scroll there leaves Analyse's place alone (#129).
+    readonly property string placeScope: register === _baseRegister ? register : _baseRegister + ">" + register
 
     Loader {
         id: replayLoader

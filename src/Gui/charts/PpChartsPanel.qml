@@ -49,7 +49,9 @@
 //     A saved "Custom" from today's panel restores as its base preset with its switched-off series.
 //   • THE READER'S PLACE (transient, per session) is SessionMode.chartsNav: { sessionDir, openId, scroll }.
 //     The stage rebuilds its panels on every Capture↔Replay flip, so the place is saved as it changes and put
-//     back on build, stamped with the session folder (a different session starts at the defaults).
+//     back on build, stamped with the session folder (a different session starts at the defaults). Each list's
+//     scroll is kept per register ("Analyse/chSessionFlick"), and only the reader's own scroll moves it: a shot
+//     whose list is shorter shows the list's end, and the full place comes back with a long-enough list (#129).
 //     chartsNav arrives with app build 2: every read and write goes through _nav()/_setNav(), which do nothing
 //     while SessionMode has no such property. The save/restore machinery is PpReaderPlace (shared with the
 //     diagnostics panel); the fields are this file's.
@@ -298,7 +300,8 @@ Item {
     function _setNav(v) { if (SessionMode.chartsNav !== undefined) SessionMode.chartsNav = v }
     PpReaderPlace {
         id: place
-        content: body
+        content: body.registerItem
+        scope: body.register
         flickNames: ["chShotFlick", "chSessionFlick", "chRelationsFlick", "chKindsFlick"]
         active: root.remembersNav
         model: seriesModel
@@ -320,8 +323,7 @@ Item {
         function onSectionToggled(name, collapsed) { root._persistFold(name, collapsed) }
         function onNavChanged() { root._saveNav() }
         function onDemoReset() { root._restorePrefs(true); root._restoreFolds() }   // a render keeps the view it is on
-        function onRegisterItemChanged() { if (root.remembersNav) Qt.callLater(place.watch) }
-        function onViewChanged() { if (root.remembersNav) Qt.callLater(place.watch) }
+        function onViewChanged() { if (root.remembersNav) place.watch() }   // the register swap it watches itself
     }
     Connections {
         target: seriesModel
@@ -333,7 +335,7 @@ Item {
         _restorePrefs(); _restoreFolds()
         _pointAtSession()
         _syncPick()
-        if (remembersNav) { _restoreNav(); Qt.callLater(place.watch) }
+        if (remembersNav) { _restoreNav(); place.watch() }
         place.ready = remembersNav
     }
 

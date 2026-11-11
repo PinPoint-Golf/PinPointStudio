@@ -2877,12 +2877,16 @@ Item {
             useRegister("Replay")
             setReview(outcomeSource(), newestReadout())
             showTab("shot")
+            compare(body.placeScope, "Replay", "the glance keeps its own reader's place")
             press(oneShown(oneShown(viewOf("shot"), "sdOutcomeHead"), "sdOutcomeWhy"))
             compare(body.register, "Analyse", "read in Analyse")
+            // #129: Analyse read OVER the glance keeps its lists' places apart from Analyse's own
+            compare(body.placeScope, "Replay>Analyse", "over the glance, a place of its own")
             compare(SessionMode.mode, SessionMode.replay, "the stage has not moved")
             oneShown(body, "sdOutcomeLead")
             press(oneShown(body, "sdShotWhyBack"))
             compare(body.register, "Replay", "and the chip is the way back")
+            compare(body.placeScope, "Replay")
         }
 
         // §6.2: where the yards went, Analyse only, each part in causal order and the estimate said in words.

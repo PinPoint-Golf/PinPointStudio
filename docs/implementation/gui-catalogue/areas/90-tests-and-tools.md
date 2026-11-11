@@ -20,6 +20,8 @@ QML that is not part of the shipped module: offscreen UI tests (`tst_*.qml`, pro
 | `src/Gui/tests/probes/ledger_live_states.qml` | test | 153 |
 | `src/Gui/tests/probes/lm_board_after_reload.qml` | test | 161 |
 | `src/Gui/tests/probes/metric_colours.qml` | test | 245 |
+| `src/Gui/tests/probes/reader_place_over_glance.qml` | test | 135 |
+| `src/Gui/tests/probes/reader_place_survives_shot_switch.qml` | test | 238 |
 | `src/Gui/tests/probes/ready_forecast.qml` | test | 83 |
 | `src/Gui/tests/probes/report_delivery.qml` | test | 203 |
 | `src/Gui/tests/probes/report_posture.qml` | test | 201 |

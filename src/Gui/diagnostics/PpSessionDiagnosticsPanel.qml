@@ -262,12 +262,17 @@ Item {
     // THE MACHINERY IS PpReaderPlace, shared with the Charts panel: the stamp, each list's scroll and
     // its restore (a list's content arrives over the next few frames, and a list hidden behind an open
     // detail is not laid out at all, so it waits, uncounted, until the detail closes), the flick
-    // watching and the cache it reads them through. What the place IS here — tab, filter, Watching
+    // watching and the cache it reads them through. The scroll is kept PER REGISTER — the Replay glance's
+    // sdCardsFlick and the Analyse one are different lists — and only the reader's own scroll moves it,
+    // never a clamp to a shorter list, a restore or a rebuild (#129). What the place IS here — tab, filter, Watching
     // fold, open characteristic and its measure — is this file's, below.
     PpReaderPlace {
         id: place
-        content: body
+        content: body.registerItem
+        scope: body.placeScope
         flickNames: ["sdShotCardsFlick", "sdCardsFlick", "sdConsistencyFlick", "sdWatchingFlick", "sdDetailFlick"]
+        // the one detail list shows one condition at a time: each condition keeps its own place
+        flickKeys: ({ sdDetailFlick: diagModel.detailConditionId || "" })
         active: root.remembersNav
         model: diagModel
         onSaveRequested: root._saveNav()
@@ -298,9 +303,10 @@ Item {
         place.restore(nav)
     }
 
-    // The saves, on change (a scroll is saved by PpReaderPlace a moment after it settles; the
-    // restore's own writes do not count, because a list is only written while it is still pending).
-    // The body swapping its REGISTER (Replay ⇄ Analyse) swaps the named Flickables: watch the new ones.
+    // The saves, on change. A scroll is saved by PpReaderPlace a moment after the READER's scroll settles;
+    // its own writes (a restore, a list following its place as its content changes) and a clamp to a shorter
+    // list never count. The body swapping its REGISTER (Replay ⇄ Analyse, or Analyse over the glance) swaps
+    // the named Flickables: PpReaderPlace follows `content` and `scope` itself, and gives a new list its place.
     Connections {
         target: body
         function onTabChanged()              { root._saveNav(); place.resume() }
@@ -308,7 +314,6 @@ Item {
         function onWatchingExpandedChanged() { root._saveNav(); place.resume() }
         function onConsistencyCellChanged()  { root._saveNav() }
         function onDetailOpenChanged()       { place.resume() }
-        function onRegisterItemChanged()     { if (root.remembersNav) { place.watch(); place.resume() } }
     }
     Connections {
         target: diagModel

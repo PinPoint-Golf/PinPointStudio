@@ -56,14 +56,15 @@ QtObject {
     // Where the reader was in the stage's session diagnostics panel — tab, card filter,
     // Watching fold, open characteristic, and each list's scroll — kept HERE because the panel
     // does not survive a mode switch: PpModeStage rebuilds its panels on every Capture↔Replay
-    // flip, i.e. twice per auto-replayed shot. The panel saves it on teardown and puts it back
+    // flip, i.e. twice per auto-replayed shot. The panel saves it as it changes and puts it back
     // on build (PpSessionDiagnosticsPanel). Stamped with the session folder it was read in, so
     // a different session starts from the defaults. Not persisted. null = nothing saved.
     property var    diagnosticsNav: null
 
     // Where the reader was in the stage's Charts panel — the open profile row and each view's scroll — kept
     // HERE for the same reason as diagnosticsNav: PpModeStage rebuilds its panels on every Capture↔Replay
-    // flip. PpChartsPanel saves it as it changes and puts it back on build: { sessionDir, openId, scroll }.
+    // flip. PpChartsPanel saves it as it changes and puts it back on build: { sessionDir, openId, scroll }, where
+    // scroll is { "<register>/<list objectName>": contentY } (PpReaderPlace: per register, the reader's own scroll).
     // Stamped with the session folder (a different session starts at the defaults). Not persisted: the
     // reader's CHOICES (view, preset, window, against, facet …) persist in AppSettings chartPrefs instead.
     property var    chartsNav: null

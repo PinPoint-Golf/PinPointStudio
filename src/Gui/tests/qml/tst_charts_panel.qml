@@ -476,6 +476,63 @@ Item {
             hn.review.liveSessionDir = chartsFixture.sessionDir()
         }
 
+        // ── the reader's place (#129): only the reader moves it; a shorter list shows its end, a long one the place ──
+        // This shot's list is longer on shot 8 than on shot 15 in this fixture, which is the shorter-shot case the
+        // clamp bug lived in: the list clamped to shot 15's end and that clamp was SAVED as the place. The reader's
+        // scrolls are made with the wheel, the real input path, never by writing contentY.
+        function shotFlick() { return oneShown("chShotFlick") }
+        function mostOf(f) { return Math.max(0, f.contentHeight - f.height) }
+        function placeOf() { const n = SessionMode.chartsNav; return n && n.scroll ? n.scroll["Analyse/chShotFlick"] : undefined }
+        function wheelUntil(f, down, done) {
+            for (let i = 0; i < 80 && !done(); ++i) {
+                mouseWheel(f, f.width / 2, f.height / 2, 0, down ? -120 : 120)
+                wait(20)
+            }
+            tryVerify(function () { return !f.moving }, 5000, "the list has settled")
+            wait(400)                                          // past the 300 ms save
+            settle()
+        }
+        function test_15b_a_shorter_shot_shows_its_end_and_the_place_comes_back() {
+            compare(hn.body.tab, "shot")
+            const most8 = mostOf(shotFlick())
+            hn.pick(15); settle()
+            const most15 = mostOf(shotFlick())
+            verify(most8 - most15 > 150 && most15 > 300, "shot 15's list is shorter: " + most15 + " < " + most8)
+            hn.pick(8); settle()
+            // the reader scrolls shot 8's list deeper than shot 15's can hold
+            let f = shotFlick()
+            wheelUntil(f, true, function () { return f.contentY > most15 + 100 })
+            const deep = f.contentY
+            verify(deep > most15 + 100 && deep <= most8, "scrolled to " + deep)
+            fuzzyCompare(placeOf(), deep, 1, "the reader's scroll is the place")
+            // the shorter shot: the list shows its end, and the place is NOT cut to it
+            hn.pick(15); settle()
+            f = shotFlick()
+            fuzzyCompare(f.contentY, mostOf(f), 1, "the shorter list shows its end")
+            fuzzyCompare(placeOf(), deep, 1, "the clamp is not saved")
+            // back on the long shot: the full place
+            hn.pick(8); settle()
+            fuzzyCompare(shotFlick().contentY, deep, 1, "the full place comes back")
+            // the reader scrolls UP on the shorter list: that is a new place
+            hn.pick(15); settle()
+            f = shotFlick()
+            wheelUntil(f, false, function () { return f.contentY < mostOf(f) - 150 })
+            const mine = f.contentY
+            verify(mine > 0 && mine < mostOf(f) - 150, "scrolled up to " + mine)
+            fuzzyCompare(placeOf(), mine, 1, "a scroll on the short list moves the place")
+            hn.pick(8); settle()
+            fuzzyCompare(shotFlick().contentY, mine, 1, "and it is the place on the long shot")
+            // through the glance (the Replay register, a different list of the same name) and back: Analyse's
+            // place stands (where the glance's own list sits is not part of the promise)
+            useMode("Replay")
+            fuzzyCompare(placeOf(), mine, 1, "Analyse's place is untouched by the glance")
+            useMode("Analyse")
+            fuzzyCompare(shotFlick().contentY, mine, 1, "back in Analyse: its place")
+            // and a rebuild puts it back
+            fresh({}, 8)
+            fuzzyCompare(shotFlick().contentY, mine, 1, "a rebuilt panel gives the list its place")
+        }
+
         // ── the cast: the auto-closing surface takes no clicks ───────────────
         function test_16_the_noninteractive_cast_takes_no_clicks() {
             hn.body.surface = "cast"
