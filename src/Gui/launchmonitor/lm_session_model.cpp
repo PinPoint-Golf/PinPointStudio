@@ -1004,7 +1004,10 @@ void LmSessionModel::rebuild()
     QHash<QString, QVariantMap> diskDetail;       // becomes m_diskDetail: the rows used, no more
     for (int r = 0; r < nrows; ++r) {
         const QModelIndex ix = m_shots->index(r);
-        QVariantMap detail = m_shots->data(ix, ShotListModel::AnalysisDetailRole).toMap();
+        // The map, not data(AnalysisDetailRole): that is the row's JavaScript object, and reading
+        // it here built every shot's whole detail in the QML heap and copied it back — the
+        // minutes-long freeze on entering Analyse (#173). shot_list_model.h analysisDetailMap.
+        QVariantMap detail = m_shots->analysisDetailMap(r);
         // A cheap-loaded row (loadSessionDir) has no detail. Only one a device measured is read:
         // a shot with no monitor has no readings to find, and the reload must stay cheap for it.
         if (detail.isEmpty()) {

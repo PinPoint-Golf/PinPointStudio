@@ -31,7 +31,10 @@
 #include <QDateTime>
 #include <QDir>
 #include <algorithm>
-#include <QThreadPool>
+#include <atomic>
+#include <cstdio>
+#include <cstdlib>
+#include <thread>
 #include <QTimer>
 #include <QLocale>
 #include <QQmlContext>
@@ -110,6 +113,39 @@
 #  include <windows.h>
 #endif
 
+namespace {
+
+// True while the launch warm-up's own thread is inside PoseRunner::warmUp() (#20, #173).
+std::atomic<bool> g_poseWarmUpInFlight{false};
+
+// QUITTING DURING THE POSE WARM-UP ABANDONS IT; IT IS NEVER WAITED FOR (#20).
+// The warm-up is one ORT CreateSession call — 20 s from the CoreML compiled cache, ~97 s cold —
+// and nothing can cancel it part-way. It used to run on the global thread pool, and
+// ~QCoreApplication waits for that pool (QThreadPool::waitForDone), so a quit in the first
+// 20–97 s after launch froze the closed window until the load finished: measured 14.4 s on a
+// warm cache. It now runs on its own detached thread (below), so the Qt teardown no longer waits.
+// What is left is static destruction: ORT's statics and the app log (PpMessageLog, a
+// function-local static) would be torn down under a thread still inside ORT, which logs when it
+// returns — a crash on the way out. So this guard is declared BEFORE `app` and destroyed AFTER
+// it: every local of main(), QGuiApplication and the global pool have been shut down in order by
+// then, and only if the warm-up is still building does it end the process there, skipping the
+// static destructors (none of them persists anything: the PPCP statics are stopped on
+// aboutToQuit). A normal quit, once the warm-up is done, returns from main() as before.
+struct AbandonPoseWarmUpAtExit {
+    const int &exitCode;
+    ~AbandonPoseWarmUpAtExit()
+    {
+        if (!g_poseWarmUpInFlight.load())
+            return;
+        std::fprintf(stderr, "[PoseRunner] warm-up still building at quit — abandoned, not waited for\n");
+        std::fflush(stdout);
+        std::fflush(stderr);
+        std::_Exit(exitCode);
+    }
+};
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
 #ifdef Q_OS_WIN
@@ -160,6 +196,9 @@ int main(int argc, char *argv[])
     }
 #endif
 
+    // Before `app`, so destroyed after it: see AbandonPoseWarmUpAtExit above.
+    int exitCode = 0;
+    const AbandonPoseWarmUpAtExit abandonPoseWarmUp{ exitCode };
     QGuiApplication app(argc, argv);
 
     // Force the Basic Qt Quick Controls style on all platforms. Without this, files
@@ -1317,15 +1356,24 @@ int main(int argc, char *argv[])
     // Warm the pose session off the main thread once the UI is up, so the first shot does not
     // pay the model load: on the Mac the CoreML MLProgram costs 20 s from its compiled cache and
     // 97 s the first time; on CUDA 0.3 s. The cached session is the one PoseRunner::run() keys for
-    // the current quality tier (pose_inference_performance_plan.md step 1). The thread is the
-    // global pool's: nothing joins it, and the cache is never torn down (pose_runner.cpp).
+    // the current quality tier (pose_inference_performance_plan.md step 1). Its OWN detached
+    // thread, not the global pool: ~QCoreApplication waits for the pool, and a quit during the
+    // load must not wait for it (#20) — AbandonPoseWarmUpAtExit above. Nothing joins it, and the
+    // cache is never torn down (pose_runner.cpp). Nothing on the GUI thread waits for it either:
+    // the first run() that needs the session takes it from the cache, waiting there if the
+    // warm-up is still building it.
     QTimer::singleShot(1500, &app, [&appSettings]() {
         const QString quality = appSettings.motionCaptureQuality();
-        QThreadPool::globalInstance()->start([quality]() {
-            pinpoint::osmetrics::ThreadScope _tscope("Pose.WarmUp");
-            PoseRunner::warmUp(quality);
-        });
+        g_poseWarmUpInFlight.store(true);
+        std::thread([quality]() {
+            {
+                pinpoint::osmetrics::ThreadScope _tscope("Pose.WarmUp");
+                PoseRunner::warmUp(quality);
+            }
+            g_poseWarmUpInFlight.store(false);
+        }).detach();
     });
 
-    return QCoreApplication::exec();
+    exitCode = QCoreApplication::exec();
+    return exitCode;
 }

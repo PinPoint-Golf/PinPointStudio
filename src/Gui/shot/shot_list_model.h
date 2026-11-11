@@ -88,6 +88,16 @@ public:
 
     int activeCount()   const;
 
+    // ⚠ C++ READERS OF A ROW'S analysisDetail USE THIS, NEVER data(AnalysisDetailRole).
+    // The role is QML-facing: it answers the row's JavaScript object (qml_payload.h), so a C++
+    // `data(ix, AnalysisDetailRole).toMap()` first builds the whole detail in the QML engine's
+    // heap (~650k nodes a swing, kept for the life of the row) and then copies it all back into
+    // a QVariantMap — on the GUI thread, every call. The launch monitor board did that for every
+    // row of a 32-shot session on entering Analyse: a 2–2.5 minute freeze and a 2+ GB JS heap
+    // (#173, #20). This is the map itself, implicitly shared: free to copy. Empty for an
+    // out-of-range row or a cheap-loaded one (loadSessionDir).
+    QVariantMap analysisDetailMap(int row) const;
+
     // The standard golf bag, driver → putter — the shared canonical club
     // vocabulary (club_vocabulary.h), also used by the Markup Lab picker.
     // Backs the swing-edit popover's club combo.

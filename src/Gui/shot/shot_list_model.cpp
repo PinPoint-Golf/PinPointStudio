@@ -59,7 +59,9 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case RatingRole:          return s.rating;
     case NoteRole:            return s.note;
     case MetricsRole:         return s.metrics;
-    case AnalysisDetailRole:  return QVariant::fromValue(s.analysisDetail.js());   // by reference — qml_payload.h
+    // QML only. By reference — qml_payload.h. C++ reads analysisDetailMap(): this converts the
+    // whole detail into the JS heap (#173).
+    case AnalysisDetailRole:  return QVariant::fromValue(s.analysisDetail.js());
     case SwingDirRole:        return s.swingDir;
     case DataWarningRole:     return s.dataWarning;
     case DataWarningDetailRole: return s.dataWarningDetail;
@@ -97,6 +99,13 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
 int ShotListModel::activeCount() const
 {
     return m_shots.size();
+}
+
+QVariantMap ShotListModel::analysisDetailMap(int row) const
+{
+    if (row < 0 || row >= m_shots.size())
+        return {};
+    return m_shots.at(row).analysisDetail.map();
 }
 
 int ShotListModel::rowForId(int id) const

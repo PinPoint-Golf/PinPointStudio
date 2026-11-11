@@ -155,8 +155,8 @@ public:
     static pinpoint::pose::PoseTiming lastTiming();
 
     // Build the session the next run() would use for this quality, into the process-wide
-    // cache, and let it go — call from a worker at app launch so the first shot does not
-    // pay it. The Mac's CoreML MLProgram costs 20 s to load from its compiled cache and 97 s
+    // cache, and let it go — call from a thread of its own at app launch so the first shot does
+    // not pay it (main.cpp: not the global pool, which a quit waits for — #20). The Mac's CoreML MLProgram costs 20 s to load from its compiled cache and 97 s
     // cold (pose_performance_20261006.md §3); CUDA 0.3 s. A no-op when the cache is off or
     // the model is missing. Returns the load's wall time in ms (0 when nothing was built).
     static double warmUp(const QString &motionCaptureQuality);

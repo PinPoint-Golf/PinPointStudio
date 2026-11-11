@@ -461,6 +461,12 @@ replay graph scrubs with zero conversion. The identical map shape is stored as
 the `ShotListModel` `analysisDetail` role and reconstructed from `swing.json`
 on reload — live and persisted shots are indistinguishable to the UI.
 
+The role is for QML: it answers the row's JavaScript object (`QmlPayload`, converted once
+per row). C++ code reads `ShotListModel::analysisDetailMap(row)` — the map itself, free to
+copy — and never `data(ix, AnalysisDetailRole).toMap()`, which builds the whole detail in
+the QML heap and copies it back. The launch monitor board did that for every row on
+entering Analyse and froze the app for two minutes (#173).
+
 ---
 
 ## 9. Persistence — the Unified swing.json

@@ -81,7 +81,11 @@ bool lmIsClubDelivery(const QString &key);
 // statistic, it would be a wrong one printed confidently. AnalysisDetailRole's `series`
 // carries the raw doubles the writer put there, and it is populated by the same code
 // path for a live shot (updateLaunchMonitor → refreshShot) and a reloaded one
-// (readSwingJson), so there is one source here and not two.
+// (readSwingJson), so there is one source here and not two. It is read as the C++ map
+// (ShotListModel::analysisDetailMap), NEVER through data(AnalysisDetailRole): the role is the
+// row's JavaScript object for QML, and going through it built every shot's whole detail in the
+// QML heap and copied it back on each rebuild — a 2–2.5 minute freeze on entering Analyse with a
+// 32-shot session open (#173).
 //
 // EXCEPT THAT A CHEAP-LOADED ROW HAS NO analysisDetail. ShotListModel::loadSessionDir — End
 // Session, app start, an athlete change, entering the Wrist screen — seeds rows from the

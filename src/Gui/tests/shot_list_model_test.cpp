@@ -21,10 +21,12 @@
 // field; an unknown / -1 id returns { valid:false } (present, false, bindable);
 // a row that would be filtered out of a proxy still resolves (summary is
 // model-scoped); and an IMU-only shot (no video, empty swingDir) reports the
-// right flags without crashing.
+// right flags without crashing. And analysisDetailMap (#173): the C++ read of a row's
+// detail, which never goes through the QML engine.
 
 #include "shot/shot_list_model.h"
 
+#include <QJSValue>
 #include <QVariantMap>
 #include <QUrl>
 #include <cstdio>
@@ -130,6 +132,34 @@ int main()
         checkBool("hasVideo == false", s.value(QStringLiteral("hasVideo")).toBool(), false);
         checkStr ("swingDir empty",   s.value(QStringLiteral("swingDir")).toString(), QString());
         checkInt ("score",            s.value(QStringLiteral("score")).toInt(), 18);
+    }
+
+    // #173: C++ reads a row's analysisDetail as the map, with no QML engine involved. The role
+    // is QML's (the row's JavaScript object, qml_payload.h): with no engine registered — as here
+    // — it is undefined, and a C++ reader that went through it would see nothing.
+    std::printf("\n-- analysisDetailMap: the C++ read of a row's detail, no QML engine --\n");
+    {
+        const QVariantMap detail{ { QStringLiteral("tier"), QStringLiteral("wrist") },
+                                  { QStringLiteral("overall"), 61 } };
+        const int idD = model.addShot(QStringLiteral("/swings/swing_0010"), QStringLiteral("13:52"),
+                                      QStringLiteral("7-iron"), /*hasVideo*/ true, QUrl(), {},
+                                      /*score*/ 61, {}, detail);
+        auto rowOf = [&model](int id) {
+            for (int r = 0; r < model.rowCount(); ++r)
+                if (model.data(model.index(r), ShotListModel::ShotIdRole).toInt() == id)
+                    return r;
+            return -1;
+        };
+        const int row = rowOf(idD);
+        const QVariantMap got = model.analysisDetailMap(row);
+        checkStr ("detail.tier",            got.value(QStringLiteral("tier")).toString(), QStringLiteral("wrist"));
+        checkInt ("detail.overall",         got.value(QStringLiteral("overall")).toInt(), 61);
+        checkBool("a row with none: empty", model.analysisDetailMap(rowOf(id1)).isEmpty(), true);
+        checkBool("row -1: empty",          model.analysisDetailMap(-1).isEmpty(), true);
+        checkBool("row past the end: empty", model.analysisDetailMap(model.rowCount()).isEmpty(), true);
+        checkBool("the role is QML's: undefined with no engine",
+                  model.data(model.index(row), ShotListModel::AnalysisDetailRole)
+                      .value<QJSValue>().isUndefined(), true);
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
