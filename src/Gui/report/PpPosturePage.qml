@@ -338,12 +338,14 @@ Column {
         Column {
             property bool atom: true
             property bool keepPrev: picBlock.groups.length > 0
-            visible: legendText.visible || picBlock.whyLines.length > 0
+            // test the words, not legendText.visible: a child's visible follows this Column's, so reading it here loops
+            readonly property string legendLine: picBlock.pic ? (picBlock.pic.legend || "") : ""
+            visible: legendLine !== "" || picBlock.whyLines.length > 0
             width: pp.width
             Item { visible: picBlock.groups.length === 0; width: 1; height: 18 }
             Text { visible: picBlock.groups.length === 0; width: parent.width; text: picBlock.title; font: pp.ro.fH3; color: pp.ro.ink; wrapMode: Text.WordWrap }
             Item { visible: picBlock.groups.length === 0; width: 1; height: 3 }
-            Text { id: legendText; width: parent.width; visible: text !== ""; text: picBlock.pic ? (picBlock.pic.legend || "") : ""; font: pp.ro.fSmall; color: pp.ro.ink2; wrapMode: Text.WordWrap }
+            Text { id: legendText; width: parent.width; visible: text !== ""; text: parent.legendLine; font: pp.ro.fSmall; color: pp.ro.ink2; wrapMode: Text.WordWrap }
             Repeater {
                 model: picBlock.whyLines
                 delegate: Text { required property var modelData; width: pp.width; topPadding: 2; text: String(modelData); font: pp.ro.fSmall; color: pp.ro.ink3; wrapMode: Text.WordWrap }

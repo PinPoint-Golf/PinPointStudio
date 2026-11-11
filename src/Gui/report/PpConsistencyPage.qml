@@ -134,11 +134,13 @@ Column {
         objectName: "reportConsistencyKey"
         property bool atom: true
         property bool keepPrev: true
-        visible: cp.on && (keyText.visible || cp.notes.length > 0)
+        // test the words, not keyText.visible: a child's visible follows this Column's, so reading it here loops
+        readonly property string keyLine: cp._fill(cp.m.key)
+        visible: cp.on && (keyLine !== "" || cp.notes.length > 0)
         width: cp.width
         spacing: cr.g(3)
         Item { width: 1; height: cr.g(3) }
-        Text { id: keyText; width: parent.width; visible: text !== ""; text: cp._fill(cp.m.key)
+        Text { id: keyText; width: parent.width; visible: text !== ""; text: parent.keyLine
                font: cp.ro.fMicro; color: cp.ro.ink3; wrapMode: Text.WordWrap; lineHeight: 1.2 }
         Repeater {
             model: cp.notes
