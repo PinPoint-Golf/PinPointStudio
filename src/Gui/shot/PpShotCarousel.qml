@@ -173,7 +173,8 @@ Item {
     // shot hides the bar cleanly rather than leaving a stale identity.
     readonly property bool _barShown: (_focusSummary.valid === true) || filterProxy.filterActive
                                       || root.markedIds.length > 0
-    readonly property real _barBandHeight: Theme.sp(36)
+    // One band (sp 36), or two when the bar stacks its actions under it on a narrow window.
+    readonly property real _barBandHeight: actionBar.implicitHeight
 
     // Grow for the transport band (chips overlay) AND the action-bar band — same
     // mechanism, summed. The bar band adds its height plus the railCol spacing it
