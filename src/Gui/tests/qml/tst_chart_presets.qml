@@ -453,6 +453,11 @@ Item {
             const tr = oneShown("chTrace:clubAngularSpeed")
             const seek = oneShown("chSeek", tr)
             intoView(seek)
+            // the pointer comes from the row above, in ONE move: the club row's hover outlives the lead arm row's exit
+            // (Qt delivers the new row's move before the old row's exit — issue #166)
+            const above = oneShown("chSeek", oneShown("chTrace:leadArmAngularSpeed"))
+            mouseMove(above, above.width * 0.55, above.height / 2)
+            settle()
             mouseMove(seek, seek.width * 0.55, seek.height / 2)
             settle()
             verify(oneShown("chCrosshair"), "the crosshair")
