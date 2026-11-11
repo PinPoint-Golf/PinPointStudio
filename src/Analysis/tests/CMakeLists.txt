@@ -28,6 +28,8 @@ if(MSVC)
     # injects (cl error D8016). Drop /RTC1 for this test suite. (_USE_MATH_DEFINES
     # is provided globally by tests/cmake/PinPointTests.cmake.)
     string(REPLACE "/RTC1" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    # As in the app: the diagnostics sources pass the Debug section limit (C1128).
+    add_compile_options(/bigobj)
 endif()
 
 # --- Pure angle math (header-only) -------------------------------------------
@@ -1470,10 +1472,6 @@ pp_add_test(work_ons_controller_test
     LINK    Qt6::Qml
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
-if(MSVC)
-    # As in the app: work_ons_controller.cpp passes the Debug section limit (C1128).
-    target_compile_options(work_ons_controller_test PRIVATE /bigobj)
-endif()
 set_tests_properties(work_ons_controller_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
