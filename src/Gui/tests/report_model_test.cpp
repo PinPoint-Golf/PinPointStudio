@@ -873,7 +873,7 @@ int main(int argc, char **argv)
         const QVariantMap payload{
             { QStringLiteral("available"), true }, { QStringLiteral("n"), 8 }, { QStringLiteral("shots"), 8 },
             { QStringLiteral("planeShots"), 8 }, { QStringLiteral("monitorShots"), 7 }, { QStringLiteral("small"), true },
-            { QStringLiteral("kicker"), QStringLiteral("8 swings  ·  7-iron  ·  Club delivery") },
+            { QStringLiteral("kicker"), QStringLiteral("8 swings  ·  7 iron  ·  Club delivery") },
             { QStringLiteral("headText"), QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.5° further left (9 swings on 20 Oct, 2 sessions).") },
             { QStringLiteral("band"), QVariantMap{ { QStringLiteral("shown"), true }, { QStringLiteral("n"), 8 }, { QStringLiteral("positions"), positions } } },
             { QStringLiteral("varies"), QVariantMap{ { QStringLiteral("has"), true }, { QStringLiteral("words"), QStringLiteral("Steadiest at P1 (middle half ±0.8°), loosest at P6 (±0.8°).") } } },
@@ -905,7 +905,7 @@ int main(int argc, char **argv)
         check(QStringList(b.keys()) == QStringList({ QStringLiteral("band"), QStringLiteral("flight"), QStringLiteral("head"), QStringLiteral("kicker"),
                                                      QStringLiteral("shape"), QStringLiteral("trust"), QStringLiteral("trustMore"), QStringLiteral("usual") }),
               "the block's keys, and no more");
-        eq(b.value(QStringLiteral("kicker")).toString(), QStringLiteral("8 swings  ·  7-iron  ·  Club delivery"), "the kicker is the presenter's");
+        eq(b.value(QStringLiteral("kicker")).toString(), QStringLiteral("8 swings  ·  7 iron  ·  Club delivery"), "the kicker is the presenter's");
         eq(b.value(QStringLiteral("head")).toString(), payload.value(QStringLiteral("headText")).toString(), "the head is the presenter's, verbatim");
 
         const QVariantMap band = b.value(QStringLiteral("band")).toMap();

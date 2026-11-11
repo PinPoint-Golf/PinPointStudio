@@ -41,7 +41,7 @@
 //   · caps the trust lines and words the "N more".
 //
 //  delivery: {
-//    kicker ("10 swings  ·  7-iron  ·  Club delivery"), head (the session's head line),
+//    kicker ("10 swings  ·  7 iron  ·  Club delivery"), head (the session's head line),
 //    band: { shown (≥ 5 swings with the curve), n, sub ("10 swings with the swing plane curve. …" | why there is no band),
 //            positions: [{ tag, name, box: BOX, values: [per shot], medianText ("59°" | "-"), halfText ("±1.5°" | "-") }] (7),
 //            lo, hi (the boxes' one scale), varies ("" none) },

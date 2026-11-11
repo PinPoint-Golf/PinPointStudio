@@ -146,7 +146,7 @@ QString deliveryPositionTag(int pos);    // "P1" … "P7"
 QString deliveryPositionWhen(int pos);   // "address", "P2", "P3", "the top", "P5", "P6", "impact"
 // The club's factory loft (decision 11), NaN when the club is not known: "7 IRON" → 34.
 double  deliveryNominalLoft(const QString &club);
-// The club as words: "7 IRON" → "7-iron", "GAP WEDGE" → "gap wedge", "" → "club".
+// The club as words, as the Posture and Wrist sections say it: "7 IRON" → "7 iron", "GAP WEDGE" → "gap wedge", "" → "club".
 QString deliveryClubWords(const QString &club);
 // Every series deliveryInputFromShot reads (a reader of a shot from its detail keeps these).
 const QStringList &deliveryMetricKeys();

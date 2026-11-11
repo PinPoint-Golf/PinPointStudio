@@ -477,7 +477,7 @@ private slots:
             if (r.golfer.startsWith(QLatin1String("Nick")) && r.session.endsWith(QLatin1String("_02")) && r.swing == QLatin1String("swing_0001")) nick = r.in;
         QVERIFY(std::isfinite(nick.lmLie));
         const std::vector<DeliveryImpactLine> ln = deliveryImpactLines(nick);
-        QCOMPARE(linesText(ln, QStringLiteral("lie")), QStringLiteral("Toe 3.2° down at impact → face about 1.7° right on this 7-iron."));
+        QCOMPARE(linesText(ln, QStringLiteral("lie")), QStringLiteral("Toe 3.2° down at impact → face about 1.7° right on this 7 iron."));
         const DeliveryImpactLine *lie = lineOf(ln, QStringLiteral("lie"));
         QCOMPARE(lie->source, QStringLiteral("monitor"));
         QCOMPARE(lie->loftSource, QStringLiteral("monitor"));

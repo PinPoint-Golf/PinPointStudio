@@ -157,10 +157,9 @@ double deliveryNominalLoft(const QString &club)
 
 QString deliveryClubWords(const QString &club)
 {
-    QString k = club.trimmed().toLower();
-    if (k.isEmpty()) return QStringLiteral("club");
-    k.replace(QRegularExpression(QStringLiteral("^(\\d) (iron|wood|hybrid)$")), QStringLiteral("\\1-\\2"));
-    return k;
+    // the club as the Posture and Wrist sections (and so every page of the report) name it: "7 iron", never "7-iron"
+    const QString k = club.simplified().toLower();
+    return k.isEmpty() ? QStringLiteral("club") : k;
 }
 
 const QStringList &deliveryMetricKeys()

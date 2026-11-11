@@ -24,7 +24,10 @@ import PinPointStudio
 // cover then draws nothing here: empty means absent).
 //   · one club: up to 8 figures, four to a row (the mock's look);
 //   · several clubs: medians across clubs mean nothing, so the block becomes a small table, one row per club
-//     (4 at most; the map words "N more clubs") and its first four figures, the full set being in the numbers.
+//     (4 at most; the map words "N more clubs") and its first four figures, the full set being in the numbers. The
+//     columns are the readings any club has, in the map's order (the model writes each club's tiles in one fixed order
+//     and leaves out a reading it has none of, so clubs can differ); a club without that reading — or with no launch
+//     monitor reading at all, a club the map lists with no tiles — says "-" in that cell: shown, never left out.
 // Widths are shares of the text width; a club column is sized from the widest club name.
 Column {
     id: bt
@@ -32,8 +35,30 @@ Column {
     property var ball: null
     readonly property var groups: ((ball || {}).groups || []).slice(0, 4)
     readonly property bool multi: groups.length > 1
-    readonly property var tiles: groups.length ? (groups[0].tiles || []).slice(0, 8) : []
-    readonly property var heads: groups.length ? (groups[0].tiles || []).slice(0, 4) : []
+    // one club: its own tiles (the first club that has any)
+    readonly property var tiles: {
+        for (const g of groups) if ((g.tiles || []).length > 0) return g.tiles.slice(0, 8)
+        return []
+    }
+    // the readings across the clubs, each where it first comes in the map's order, the first four of them
+    readonly property var heads: {
+        const out = []
+        for (const g of groups) {
+            let at = 0
+            for (const t of (g.tiles || [])) {
+                const i = out.findIndex(h => h.label === t.label)
+                if (i >= 0) { at = i + 1; continue }
+                out.splice(at, 0, t)
+                at += 1
+            }
+        }
+        return out.slice(0, 4)
+    }
+    // a club's cells under the heads: its tile for each, or "-"
+    function cellsOf(g) {
+        const ts = (g && g.tiles) || []
+        return heads.map(h => ts.find(t => t.label === h.label) || { label: h.label, value: "-", unit: "", range: "" })
+    }
     spacing: 10
     width: 600
 
@@ -97,14 +122,17 @@ Column {
                 readonly property real cellW: multiCol.cellW
                 Text { width: grow.clubW - 8; text: grow.modelData.club || ""; font: bt.ro.fBodyM; color: bt.ro.ink; wrapMode: Text.WordWrap; topPadding: 6 }
                 Repeater {
-                    model: (grow.modelData.tiles || []).slice(0, 4)
+                    model: bt.cellsOf(grow.modelData)
                     delegate: Column {
                         id: cell
+                        objectName: "reportBallCell"
+                        readonly property string club: grow.modelData.club || ""
+                        readonly property string text: cell.modelData.value || "-"
                         required property var modelData
                         width: grow.cellW; spacing: 0
                         Row {
                             spacing: 4
-                            Text { id: cvv; text: cell.modelData.value || "-"; font.family: bt.ro.figs; font.pixelSize: 19; color: bt.ro.ink }
+                            Text { id: cvv; text: cell.text; font.family: bt.ro.figs; font.pixelSize: 19; color: cell.text !== "-" ? bt.ro.ink : bt.ro.ink3 }
                             Text { anchors.baseline: cvv.baseline; text: cell.modelData.unit || ""; font: bt.ro.fMicro; color: bt.ro.ink2 }
                         }
                         Text { width: parent.width - 8; text: cell.modelData.range || ""; font: bt.ro.fMicro; color: bt.ro.ink3; wrapMode: Text.WordWrap }

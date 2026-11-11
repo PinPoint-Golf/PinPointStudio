@@ -262,7 +262,7 @@ Physics, not grading. Each line appears only when its inputs exist; the monitor'
 
 - **Lie → face.** `lm.lieAngle` if present, else the change in `shaftLie` from P1 to P7. Turned into face
   direction with the club's loft (`lm.dynamicLoft`, else the club's nominal loft from the club record):
-  Δface ≈ Δlie × sin(loft). "Toe 2° up at impact → face about 1° left on this 7-iron." On a driver the sentence
+  Δface ≈ Δlie × sin(loft). "Toe 2° up at impact → face about 1° left on this 7 iron." On a driver the sentence
   says the lie barely matters.
 - **Lean → loft.** `impactShaftLean` beside `lm.dynamicLoft`: "Hands 6° ahead; the monitor saw 27° of loft."
 - **Attack and low point.** `lm.attackAngle` (else ours) and `lowPointAhead`, one line.

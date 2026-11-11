@@ -179,7 +179,7 @@ private slots:
         hasKeys(t, { "available", "empty", "ordinal", "shotId", "swingDir", "inSession", "kicker", "mode", "hasPlane", "hasMonitor",
                      "head", "headText", "headRule", "story", "slot", "flight", "impact", "shape", "trust", "replay", "standfirsts" }, "thisShot");
         QVERIFY(t.value(QStringLiteral("available")).toBool());
-        QCOMPARE(t.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 14 of 14  ·  7-iron  ·  Club delivery"));
+        QCOMPARE(t.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 14 of 14  ·  7 iron  ·  Club delivery"));
         QCOMPARE(t.value(QStringLiteral("mode")).toString(), QStringLiteral("full"));
         QCOMPARE(t.value(QStringLiteral("headRule")).toInt(), 1);
         QCOMPARE(t.value(QStringLiteral("headText")).toString(),
@@ -220,7 +220,7 @@ private slots:
         const QVariantList impact = t.value(QStringLiteral("impact")).toMap().value(QStringLiteral("lines")).toList();
         QCOMPARE(impact.size(), 3);   // lie (the monitor's), the monitor's loft (no shaft lean on these shots) and attack
         QCOMPARE(impact[0].toMap().value(QStringLiteral("text")).toString(),
-                 QStringLiteral("Toe 2.0° up at impact → face about 1.0° left on this 7-iron."));
+                 QStringLiteral("Toe 2.0° up at impact → face about 1.0° left on this 7 iron."));
         QCOMPARE(impact[1].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("The monitor saw 30.0° of loft."));
         QCOMPARE(impact[2].toMap().value(QStringLiteral("source")).toString(), QStringLiteral("monitor"));
         const QVariantMap shape = t.value(QStringLiteral("shape")).toMap();
@@ -297,7 +297,7 @@ private slots:
                      "usual", "flight", "shapes", "trust" }, "session");
         QCOMPARE(s.value(QStringLiteral("n")).toInt(), 14);
         QCOMPARE(s.value(QStringLiteral("monitorShots")).toInt(), 14);
-        QCOMPARE(s.value(QStringLiteral("kicker")).toString(), QStringLiteral("14 shots  ·  7-iron  ·  Club delivery"));
+        QCOMPARE(s.value(QStringLiteral("kicker")).toString(), QStringLiteral("14 shots  ·  7 iron  ·  Club delivery"));
         QCOMPARE(s.value(QStringLiteral("headText")).toString(),
                  QStringLiteral("Your path follows your plane: steeper at P6 by a degree, 0.9° further left (14 shots)."));
         const QVariantMap band = s.value(QStringLiteral("band")).toMap();
@@ -324,7 +324,7 @@ private slots:
         // the report's page: the same shape, no picked shot, its own noun
         const QVariantMap r = deliverySessionReportPayload(*makeSession(14), QStringLiteral("swings"));
         QCOMPARE(r.keys(), s.keys());
-        QCOMPARE(r.value(QStringLiteral("kicker")).toString(), QStringLiteral("14 swings  ·  7-iron  ·  Club delivery"));
+        QCOMPARE(r.value(QStringLiteral("kicker")).toString(), QStringLiteral("14 swings  ·  7 iron  ·  Club delivery"));
         QVERIFY(r.value(QStringLiteral("band")).toMap().value(QStringLiteral("positions")).toList()[5].toMap().value(QStringLiteral("picked")).isNull());
     }
 
