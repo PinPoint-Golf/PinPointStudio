@@ -23,6 +23,8 @@
 #include <QJsonObject>
 #include <QVariantMap>
 
+#include "qml_map_ref.h"   // QmlMapRef — QmlPayload::ref()
+
 // ⚠ READ THIS BEFORE PUBLISHING A BIG QVariantMap TO QML. It is the end-of-shot freeze.
 //
 // Qt hands a QVariantMap / QVariantList property to QML BY VALUE: every read of the property
@@ -66,6 +68,8 @@ public:
 
     // C++ readers: the map, as before. Implicitly shared, so copying it out is free.
     const QVariantMap &map() const { return m_map; }
+    // For QML to pass on to C++ without looking inside (QmlMapRef above). Free: the same map.
+    QVariant ref() const { return qmlMapRef(m_map); }
     bool isEmpty() const { return m_map.isEmpty(); }
 
     // QML readers: the JavaScript object, built on first read and reused until set() is called.

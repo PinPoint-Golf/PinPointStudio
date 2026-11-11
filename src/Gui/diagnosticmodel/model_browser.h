@@ -896,6 +896,19 @@ private:
     int                  m_stackIndex = -1;   // index of the last APPLIED command
     int                  m_savedIndex = -1;   // stack position the file on disk corresponds to
 
+    // types() — the rail, with a row count per type, built by asking every type's row list — is
+    // kept until the next modelChanged, which is the only thing its readers re-read it on. Without
+    // it every QML read recomputed all twelve lists: `types.length` and `types[i]` in a loop are a
+    // read each, and following the focused swing (setCurrentSwingDir → modelChanged) on every shot
+    // change, session open and return to Capture spent 1–3 s here, with this screen not even shown
+    // (#173 follow-up: 561 of 642 main-thread samples in types()). Cleared in the constructor's first
+    // connection to modelChanged, so it is gone before any reader hears the signal — except on a
+    // change to the focused swing alone (emitSwingModelChanged), which moves no count.
+    mutable QVariantList m_typesCache;
+    mutable bool         m_typesValid = false;
+    bool                 m_swingOnlyChange = false;   // set across emitSwingModelChanged()
+    void emitSwingModelChanged();
+
     // Recomputed lazily; both are cleared by invalidateDerived() on every mutation.
     mutable QSet<QString> m_dirtyIds;
     mutable bool          m_dirtyIdsValid = false;

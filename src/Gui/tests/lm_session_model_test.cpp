@@ -158,8 +158,8 @@ int main(int argc, char **argv)
     QCoreApplication app(argc, argv);
     // NO QML engine, on purpose (#173). The shot model's AnalysisDetailRole is the row's JavaScript
     // object (qml_payload.h) and with no engine registered it is undefined — so a board that read
-    // its numbers through the role would see no readings and every case below would fail. The
-    // board reads the C++ map (ShotListModel::analysisDetailMap) and never touches the engine;
+    // its numbers through the role would see no readings, and every case that needs one would fail.
+    // The board reads the C++ map (ShotListModel::analysisDetailMap) and never touches the engine;
     // reading through the role is what froze the app for minutes on entering Analyse.
     QmlPayload::setEngine(nullptr);
     std::printf("lm_session_model_test — the launch monitor board's empty lines (#57)\n");

@@ -817,6 +817,15 @@ ModelBrowser::ModelBrowser(QObject *parent)
     , m_swingWatcher(new QFutureWatcher<SwingPhaseGrid>(this))
     , m_gateWatcher(new QFutureWatcher<ModelGateCounts>(this))
 {
+    // FIRST, before anything else connects: every reader of `types` re-reads it on modelChanged, and
+    // the cached rail must be gone by then (m_typesCache) — unless the change is the focused swing's
+    // alone (emitSwingModelChanged), which moves cells and never a count. The other change signals
+    // clear it too: nothing re-reads `types` on them, but a read after one (totalObjects, a new
+    // panel) must not get a rail from before it.
+    connect(this, &ModelBrowser::modelChanged, this, [this]() { if (!m_swingOnlyChange) m_typesValid = false; });
+    for (auto sig : { &ModelBrowser::libraryChanged, &ModelBrowser::gateCountsChanged,
+                      &ModelBrowser::corridorSamplesChanged })
+        connect(this, sig, this, [this]() { m_typesValid = false; });
     connect(m_corridorWatcher, &QFutureWatcher<QVariantList>::finished,
             this, &ModelBrowser::onCorridorScanFinished);
     connect(m_swingWatcher, &QFutureWatcher<SwingPhaseGrid>::finished,
@@ -1193,6 +1202,7 @@ QString ModelBrowser::gateWordsSourceOf(const QString &id) const
 
 QVariantList ModelBrowser::types() const
 {
+    if (m_typesValid) return m_typesCache;   // until the next modelChanged (model_browser.h)
     struct T { QString key; QString label; QString hint; };
     static const std::vector<T> defs = {
         { kCharacteristics, tr("Characteristics"), tr("named states of the swing") },
@@ -1224,6 +1234,8 @@ QVariantList ModelBrowser::types() const
         m.insert(QStringLiteral("count"), rawRows(t.key).size());
         out.append(m);
     }
+    m_typesCache = out;
+    m_typesValid = true;
     return out;
 }
 
@@ -8517,7 +8529,7 @@ void ModelBrowser::setCurrentSwingDir(const QString &dir)
 
     if (m_swingDir.isEmpty()) {
         emit currentSwingChanged();
-        emit modelChanged();          // the column goes away; see onSwingGridLoaded for both signals
+        emitSwingModelChanged();      // the column goes away; see onSwingGridLoaded for both signals
         return;
     }
 
@@ -8538,7 +8550,7 @@ void ModelBrowser::setCurrentSwingDir(const QString &dir)
     // PREVIOUS swing's numbers for however long the parse takes, while the header above it has
     // already changed to name the new one. Stale-and-labelled-as-current is the one state this is
     // not allowed to be in, and it is the state a reader has no way to detect.
-    emit modelChanged();
+    emitSwingModelChanged();
 
     m_swingWatcher->setFuture(QtConcurrent::run([dirCopy]() -> SwingPhaseGrid {
         return readPhaseGrid(dirCopy, /*writeSidecar*/ true);
@@ -8566,7 +8578,17 @@ void ModelBrowser::onSwingGridLoaded()
     // modelChanged bumps. Emitting one without the other leaves the table's column list and its
     // cell arrays built from different answers to showSwingColumn() — positional arrays that
     // disagree, which is the failure the developer guide calls invisible to any check that counts.
+    emitSwingModelChanged();
+}
+
+void ModelBrowser::emitSwingModelChanged()
+{
+    // modelChanged for a change to the focused swing ALONE: its readings and the measures table's
+    // swing column. Every reader still hears it; only the type rail is kept, because a swing moves
+    // cells and never a row count (rawRows includes a row by the draft, never by the swing).
+    m_swingOnlyChange = true;
     emit modelChanged();
+    m_swingOnlyChange = false;
 }
 
 void ModelBrowser::setAthleteDob(const QString &iso)

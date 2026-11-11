@@ -55,6 +55,9 @@ Item {
         property int shotId: -1
         property string swingDir: ""
         property var analysisDetail: ({})
+        // The app's analysisDetailRef is the same detail, opaque to QML (qml_map_ref.h); the presenters' pickedDetailRef
+        // takes a plain map too, so the fake hands on the fixture's own.
+        readonly property var analysisDetailRef: analysisDetail
         property real startUs: 0
         property real endUs: 0
         property real positionUs: -1

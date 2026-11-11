@@ -72,6 +72,10 @@ class ShotReplayController : public QObject
     // one is, read by every replay tile, chart and panel. Converted once per start(), shared by
     // reference after that — as a QVariantMap it was copied on every read. See qml_payload.h.
     Q_PROPERTY(QJSValue     analysisDetail READ analysisDetailJs NOTIFY activeChanged)
+    // The same detail for QML to PASS ON to a C++ object (a presenter's pickedDetailRef): opaque
+    // to QML, so it is never converted — see QmlMapRef in qml_payload.h. Reading analysisDetail
+    // and writing it to a C++ QVariantMap property instead copies all ~650k nodes back (#173).
+    Q_PROPERTY(QVariant     analysisDetailRef READ analysisDetailRef NOTIFY activeChanged)
 
 public:
     // appSettings supplies the global replay-trim flag (replayTrimToSwing), read at
@@ -91,6 +95,7 @@ public:
     qint64       impactUs()       const { return m_source->impactUs(); }
     QVariantMap  analysisDetail()   const { return m_source->analysisDetail(); }   // C++ readers
     QJSValue     analysisDetailJs() const { return m_analysisDetail.js(); }    // the QML property
+    QVariant     analysisDetailRef() const { return m_analysisDetail.ref(); }  // QML → C++, opaque
     double       speed()          const { return m_source->speed(); }
 
     // Start replaying the shot at `swingDir` for carousel row `shotId`. `speed`

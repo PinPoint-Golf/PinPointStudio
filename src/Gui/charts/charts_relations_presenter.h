@@ -32,7 +32,7 @@
 // "key@phase"; "" = the defaults: clubhead speed at P7 up, its strongest partner that is not the same
 // quantity across), `facetId` ("" none, "half", "club", "shape", or a condition id), `openId` (the
 // profile row opened in place), `playheadUs` (shotReplay.positionUs, the picked shot's window-relative
-// clock) and `pickedDetail` (the picked shot's analysisDetail, used ONLY while that shot is not yet in
+// clock) and `pickedDetailRef` (the picked shot's analysisDetail, opaque to QML, used ONLY while that shot is not yet in
 // the snapshot — a live shot arriving: it is added to the session for this presenter so This shot still
 // speaks for it). The choices are persisted by the QML body, never here.
 //
@@ -241,6 +241,7 @@
 //
 // Unit-tested in src/Gui/tests/charts_relations_presenter_test.cpp.
 
+#include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_consistency.h"
 #include "session_curves.h"
 #include "session_series_types.h"
@@ -249,7 +250,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QThreadPool>
+#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -282,7 +283,10 @@ class ChartsRelationsPresenter : public QObject
     // the Diagnostics grade policy's name (AppSettings.diagnosticsGradePolicy): where a fired reading is past its fault line
     Q_PROPERTY(QString gradePolicy READ gradePolicy WRITE setGradePolicy NOTIFY gradePolicyChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadUsChanged)
-    Q_PROPERTY(QVariantMap pickedDetail READ pickedDetail WRITE setPickedDetail NOTIFY pickedDetailChanged)
+    // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
+    // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
+    // ~650k nodes back on every shot change (#173). C++ (and the tests) use setPickedDetail().
+    Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY pickedDetailChanged)
 
     // ── outputs ──
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
@@ -323,6 +327,8 @@ public:
     void     setPlayheadUs(qint64 us);
     QVariantMap pickedDetail() const { return m_pickedDetail; }
     void     setPickedDetail(const QVariantMap &d);
+    QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
+    void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
 
     bool busy() const { return m_running; }
     bool ready() const;
@@ -421,7 +427,7 @@ private:
     QVariantMap m_playheadMap;
 
     // the worker
-    QThreadPool m_pool;
+    PresenterPool m_pool{ this };
     std::shared_ptr<Cache> m_cache;        // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_consistencyEnv;       // taken on the GUI thread; a job holds a copy
     bool m_synchronous = false;

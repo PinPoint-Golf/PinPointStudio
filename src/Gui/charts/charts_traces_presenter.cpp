@@ -3557,14 +3557,12 @@ ChartsTracesPresenter::ChartsTracesPresenter(QObject *parent)
 {
     // the scale provider is made HERE, on the GUI thread (variability_env.h), before any job can read it
     m_worker->scales = makeVariabilityScaleProvider();
-    m_pool.setMaxThreadCount(1);
-    m_pool.setObjectName(QStringLiteral("ChartsTracesPresenter"));
     schedule();
 }
 
 ChartsTracesPresenter::~ChartsTracesPresenter()
 {
-    m_pool.waitForDone();
+    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
 }
 
 QObject *ChartsTracesPresenter::model() const { return m_model.data(); }
@@ -3662,9 +3660,10 @@ void ChartsTracesPresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    m_pool.start([this, w, in]() {
+    auto post = m_pool.poster();
+    m_pool.start([post, this, w, in]() {
         auto r = computeAll(*w, in);
-        QMetaObject::invokeMethod(this, [this, r]() { apply(r); }, Qt::QueuedConnection);
+        post([this, r]() { apply(r); });
     });
 }
 

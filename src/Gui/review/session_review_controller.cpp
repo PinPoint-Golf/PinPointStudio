@@ -27,6 +27,7 @@
 #include <QTime>
 #include <QTimer>
 #include <QUrl>
+#include <QtConcurrent/QtConcurrentMap>
 
 #include "app_settings.h"
 #include "athlete_controller.h"
@@ -228,15 +229,29 @@ void SessionReviewController::loadSession(const QString &sessionId)
     const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
     m_reviewModel.clear();
 
+    // The full parse is unavoidable here: analysisDetail carries the pose2d keypoint
+    // track the replay overlays read. Since the document is in hand anyway, index it —
+    // the sidecar costs one small write and is what keeps the picker cheap from now on.
+    //
+    // ⚠ IN PARALLEL, one swing per pool thread, and still before this returns (#173 follow-up).
+    // One after another on the GUI thread the parse was ~1.5 s of a 3.2 s freeze on opening a
+    // 32-shot session — past the 3 s a connected phone waits for a heartbeat. Each swing is its
+    // own document and its own sidecar, and SwingStore's reader already runs on analysis and
+    // charts workers, so nothing is shared between them. The rows are added here, in folder
+    // order, exactly as before; callers still find the session loaded when this returns.
+    const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionId);
+    const QList<pinpoint::PersistedShot> parsed = QtConcurrent::blockingMapped(
+        swingDirs, [](const QString &sd) {
+            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
+            if (ps.ok)
+                pinpoint::SwingDocReader::writeSwingSummary(ps);
+            return ps;
+        });
+
     QVector<pinpoint::ShotSummaryInput> ins;
-    for (const QString &sd : pinpoint::SwingDocReader::findSwingDirs(sessionId)) {
-        // The full parse is unavoidable here: analysisDetail carries the pose2d keypoint
-        // track the replay overlays read. Since the document is in hand anyway, index it —
-        // the sidecar costs one small write and is what keeps the picker cheap from now on.
-        const pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
+    for (const pinpoint::PersistedShot &ps : parsed) {
         if (!ps.ok)
             continue;
-        pinpoint::SwingDocReader::writeSwingSummary(ps);
         m_reviewModel.addPersistedShot(
             ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
             ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),

@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_series_types.h"
 #include "session_traces.h"
 #include "session_warp.h"
@@ -26,7 +27,7 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
-#include <QThreadPool>
+#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -50,8 +51,8 @@ class TimelineLabels;
 // calls only the invokables below.
 //
 // ── WHAT IT IS GIVEN ─────────────────────────────────────────────────────────────────────────
-// `model` (a SessionSeriesModel), the reviewed shot (`pickedSwingDir` + `pickedDetail` =
-// shotReplay.analysisDetail, so This shot works when the shot is not in the snapshot: a live shot
+// `model` (a SessionSeriesModel), the reviewed shot (`pickedSwingDir` + `pickedDetailRef` =
+// shotReplay.analysisDetailRef, so This shot works when the shot is not in the snapshot: a live shot
 // arriving, another session, n < 3), `register`, and the reader's choices (persisted by the QML body
 // in AppSettings, as today — NOT here): preset + metricsOff ("Custom"), window, band, facet, against,
 // difference, view. `playheadUs` is the playhead on the picked shot's window-relative clock
@@ -215,7 +216,10 @@ class ChartsTracesPresenter : public QObject
     // ── inputs ──
     Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
-    Q_PROPERTY(QVariantMap pickedDetail READ pickedDetail WRITE setPickedDetail NOTIFY inputsChanged)
+    // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
+    // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
+    // ~650k nodes back on every shot change (#173). C++ (and the tests) use setPickedDetail().
+    Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)
     Q_PROPERTY(QString register READ registerName WRITE setRegisterName NOTIFY inputsChanged)
     Q_PROPERTY(QString view READ view WRITE setView NOTIFY inputsChanged)           // "shot" | "session" | "" (both)
     Q_PROPERTY(QString preset READ preset WRITE setPreset NOTIFY inputsChanged)     // "" = the register's default
@@ -257,6 +261,8 @@ public:
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_in.pickedDetail; }
     void setPickedDetail(const QVariantMap &d);
+    QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
+    void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
     QString registerName() const { return m_in.reg; }
     void setRegisterName(const QString &r);
     QString view() const { return m_in.view; }
@@ -374,7 +380,7 @@ private:
     QVariantMap m_timings;
 
     std::shared_ptr<Worker> m_worker;   // the worker's caches; touched only by jobs
-    QThreadPool m_pool;
+    PresenterPool m_pool{ this };
 };
 
 } // namespace pinpoint::charts

@@ -102,6 +102,13 @@ pp_add_test(swing_series_model_test
     INCLUDE ${GUI} ${GUI}/review ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
+# PresenterPool (charts/presenter_pool.h) — the chart presenters' jobs on a pool they do not own, so
+# destroying a presenter (every mode switch rebuilds the panels) never waits for its job (#173).
+pp_add_test(presenter_pool_test
+    SOURCES presenter_pool_test.cpp
+    INCLUDE ${GUI} ${GUI}/charts
+    LINK    Qt6::Core)
+
 # ShotListModel::shotSummary — focused-shot metadata map for PpShotActionBar.
 # Links the model + the swing.json writer it references + the application log
 # (pp_log_stream.cpp + PpMessageLog.cpp — the primitive no longer arrives with

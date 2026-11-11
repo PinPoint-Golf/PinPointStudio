@@ -95,7 +95,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QThreadPool>
+#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -203,7 +203,7 @@ private:
     std::shared_ptr<const Output> m_out;
 
     // the worker
-    QThreadPool m_pool;
+    PresenterPool m_pool{ this };
     std::shared_ptr<Cache> m_cache;     // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_env;               // taken on the GUI thread; a job holds a copy
     std::shared_ptr<const IVariabilityScaleProvider> m_scales;   // made on the GUI thread; a job holds a reference

@@ -648,6 +648,28 @@ int main(int argc, char **argv)
               "health rows are findings, not objects, and are left out of the total");
     }
 
+    // #173 follow-up: the rail is built once per change, not once per read — every QML read of
+    // `types` (a loop reads it per element) used to rebuild all twelve row lists. It must still move
+    // with the model: a created object counts at once, and its undo takes it away again.
+    std::printf("=== the rail is kept until the model changes, and follows it ===\n");
+    {
+        const QVariantList a = m.types();
+        const QVariantList b = m.types();
+        check(a.constData() == b.constData(), "a second read is the same rail, not a rebuilt one");
+        const int drills = typeCount(a, QStringLiteral("drills"));
+        const QVariantMap made = m.createObject(QStringLiteral("drills"), QStringLiteral("Rail count drill"));
+        check(made.value(QStringLiteral("ok")).toBool(), "a drill can be created");
+        check(typeCount(m.types(), QStringLiteral("drills")) == drills + 1, "the rail counts it at once");
+        // A swing moves cells, never a count: following one keeps the rail (it is what every shot
+        // change, session open and return to Capture did, with the Model screen not even shown).
+        const QVariantList withDrill = m.types();
+        m.setCurrentSwingDir(QStringLiteral("/nonexistent/swing_0001"));
+        check(m.types().constData() == withDrill.constData(), "following another swing keeps the rail");
+        m.setCurrentSwingDir(QString());
+        m.undoTo(-1);
+        check(typeCount(m.types(), QStringLiteral("drills")) == drills, "and undoing it takes it off again");
+    }
+
     std::printf("=== rows carry a cell per column, in order ===\n");
     {
         for (const QString &type : { QStringLiteral("characteristics"), QStringLiteral("causes"),

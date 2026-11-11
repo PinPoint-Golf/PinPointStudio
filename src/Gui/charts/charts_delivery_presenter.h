@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include "session_series_types.h"
 
 #include <QObject>
@@ -25,7 +26,7 @@
 #include <QPointer>
 #include <QSet>
 #include <QString>
-#include <QThreadPool>
+#include "presenter_pool.h"   // the jobs' shared pool: destroying a presenter never waits (#173)
 #include <QVariantList>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -40,7 +41,7 @@
 // only places what it is given.
 //
 // ── INPUTS ───────────────────────────────────────────────────────────────────────────────────
-// model (SessionSeriesModel), pickedSwingDir + pickedDetail (shotReplay.analysisDetail: a shot not yet in the
+// model (SessionSeriesModel), pickedSwingDir + pickedDetailRef (shotReplay.analysisDetailRef: a shot not yet in the
 // snapshot still reads), register ("analyse" | "replay"), playheadUs (the picked shot's window-relative clock),
 // scope ("shot" | "session", following body.shownView).
 //
@@ -146,7 +147,10 @@ class ChartsDeliveryPresenter : public QObject
     // ── inputs ──
     Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
-    Q_PROPERTY(QVariantMap pickedDetail READ pickedDetail WRITE setPickedDetail NOTIFY inputsChanged)
+    // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
+    // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
+    // ~650k nodes back on every shot change (#173). C++ (and the tests) use setPickedDetail().
+    Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)
     Q_PROPERTY(QString register READ registerName WRITE setRegisterName NOTIFY inputsChanged)
     Q_PROPERTY(qint64 playheadUs READ playheadUs WRITE setPlayheadUs NOTIFY playheadChanged)
     Q_PROPERTY(QString scope READ scope WRITE setScope NOTIFY inputsChanged)
@@ -171,6 +175,8 @@ public:
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_in.pickedDetail; }
     void setPickedDetail(const QVariantMap &d);
+    QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
+    void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
     QString registerName() const { return m_in.reg; }
     void setRegisterName(const QString &r);
     qint64 playheadUs() const { return m_playheadUs; }
@@ -247,7 +253,7 @@ private:
     std::shared_ptr<Worker> m_worker;
     bool m_stillsBusy = false;
     QSet<QString> m_stillsAsked;                       // outPaths handed to the maker (once each)
-    QThreadPool m_pool;
+    PresenterPool m_pool{ this };
 };
 
 } // namespace pinpoint::charts

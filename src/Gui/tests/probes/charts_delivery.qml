@@ -168,7 +168,7 @@ Item {
                     probe.dp = ownC.createObject(probe, {
                         model: b.tracesP.model,
                         pickedSwingDir: Qt.binding(function () { return shotReplay.active ? shotReplay.swingDir : "" }),
-                        pickedDetail: Qt.binding(function () { return shotReplay.active && shotReplay.analysisDetail ? shotReplay.analysisDetail : ({}) }),
+                        pickedDetailRef: Qt.binding(function () { return shotReplay.active ? shotReplay.analysisDetailRef : ({}) }),
                         register: b.register === "Analyse" ? "analyse" : "replay",
                         scope: probe.tab === "session" ? "session" : "shot" })
                 }

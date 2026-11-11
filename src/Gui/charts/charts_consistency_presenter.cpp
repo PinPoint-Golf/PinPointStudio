@@ -779,14 +779,13 @@ QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
 ChartsConsistencyPresenter::ChartsConsistencyPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
-    m_pool.setMaxThreadCount(1);
     m_env = consistencyEnvFromPacks();      // on the GUI thread, for the worker to hold by value
     m_scales = makeVariabilityScaleProvider();     // on the GUI thread too; then safe on any thread (variability_env.h)
 }
 
 ChartsConsistencyPresenter::~ChartsConsistencyPresenter()
 {
-    m_pool.waitForDone();
+    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
 }
 
 #define PP_SET(member, value, sig) \
@@ -871,13 +870,14 @@ void ChartsConsistencyPresenter::start()
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, scales, cache]() {
+    auto post = m_pool.poster();
+    m_pool.start([post, this, snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, scales, cache]() {
         auto out = computeConsistency(snap, picked, ordinal, open, screen, loading, env, faultZ, policy, norms, *scales, *cache);
-        QMetaObject::invokeMethod(this, [this, out]() {
+        post([this, out]() {
             m_running = false;
             deliver(out);
             if (m_dirty) start(); else emit busyChanged();
-        }, Qt::QueuedConnection);
+        });
     });
 }
 

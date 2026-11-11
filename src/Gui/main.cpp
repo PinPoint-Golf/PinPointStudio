@@ -124,22 +124,33 @@ std::atomic<bool> g_poseWarmUpInFlight{false};
 // ~QCoreApplication waits for that pool (QThreadPool::waitForDone), so a quit in the first
 // 20–97 s after launch froze the closed window until the load finished: measured 14.4 s on a
 // warm cache. It now runs on its own detached thread (below), so the Qt teardown no longer waits.
-// What is left is static destruction: ORT's statics and the app log (PpMessageLog, a
-// function-local static) would be torn down under a thread still inside ORT, which logs when it
-// returns — a crash on the way out. So this guard is declared BEFORE `app` and destroyed AFTER
-// it: every local of main(), QGuiApplication and the global pool have been shut down in order by
-// then, and only if the warm-up is still building does it end the process there, skipping the
-// static destructors (none of them persists anything: the PPCP statics are stopped on
-// aboutToQuit). A normal quit, once the warm-up is done, returns from main() as before.
+// What is left is static destruction. ORT's statics and the app log (PpMessageLog, a
+// function-local static) would be torn down while that thread is still inside ORT, and it logs
+// when it returns. That is a crash risk inferred from those lifetimes; no such crash has been
+// observed. So this guard is declared BEFORE `app` and destroyed AFTER it: every local of main(),
+// QGuiApplication and the global pool have been shut down in order by then, and only if the
+// warm-up is still building does it end the process there, skipping the static destructors (none
+// of them persists anything: the PPCP statics are stopped on aboutToQuit). A normal quit, once the
+// warm-up is done, returns from main() as before.
+//
+// ⚠ WINDOWS: std::_Exit there still runs every DLL's DLL_PROCESS_DETACH (the CRT ends the process
+// with ExitProcess, which first kills the other threads — the warm-up's among them, possibly holding
+// a loader or ORT lock — and then detaches the DLLs, ORT and the CUDA runtime included). So Windows
+// ends with TerminateProcess, which runs no detach at all. NOT TESTED: written on the Mac (11 Nov
+// 2026); check a quit during the warm-up on the cabin PC.
 struct AbandonPoseWarmUpAtExit {
     const int &exitCode;
     ~AbandonPoseWarmUpAtExit()
     {
         if (!g_poseWarmUpInFlight.load())
             return;
-        std::fprintf(stderr, "[PoseRunner] warm-up still building at quit — abandoned, not waited for\n");
+        // The app log is still alive here (a function-local static, gone only after main()).
+        ppInfo() << "[PoseRunner] warm-up still building at quit — abandoned, not waited for";
         std::fflush(stdout);
         std::fflush(stderr);
+#ifdef Q_OS_WIN
+        ::TerminateProcess(::GetCurrentProcess(), UINT(exitCode));
+#endif
         std::_Exit(exitCode);
     }
 };

@@ -1690,14 +1690,12 @@ QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int pat
 ChartsPosturePresenter::ChartsPosturePresenter(QObject *parent)
     : QObject(parent), m_worker(std::make_shared<Worker>())
 {
-    m_pool.setMaxThreadCount(1);
-    m_pool.setObjectName(QStringLiteral("ChartsPosturePresenter"));
     schedule();
 }
 
 ChartsPosturePresenter::~ChartsPosturePresenter()
 {
-    m_pool.waitForDone();
+    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
 }
 
 QObject *ChartsPosturePresenter::model() const { return m_model.data(); }
@@ -1804,9 +1802,10 @@ void ChartsPosturePresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    m_pool.start([this, w, in]() {
+    auto post = m_pool.poster();
+    m_pool.start([post, this, w, in]() {
         auto r = computePosture(*w, in);
-        QMetaObject::invokeMethod(this, [this, r]() { apply(r); }, Qt::QueuedConnection);
+        post([this, r]() { apply(r); });
     });
 }
 

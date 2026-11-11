@@ -28,6 +28,7 @@
 //
 // Synchronous on the GUI thread: records are a few dozen small maps per shot, already in the snapshot.
 
+#include "../shot/qml_map_ref.h"   // pickedDetailRef
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -45,7 +46,10 @@ class TrustPresenter : public QObject
 
     Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)
     Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)
-    Q_PROPERTY(QVariantMap pickedDetail READ pickedDetail WRITE setPickedDetail NOTIFY inputsChanged)
+    // The picked shot's detail, as QML passes it on: shotReplay.analysisDetailRef, OPAQUE to QML
+    // (qml_map_ref.h). Never a QVariantMap property: writing the JS detail to one copied all
+    // ~650k nodes back on every shot change (#173). C++ (and the tests) use setPickedDetail().
+    Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)
     Q_PROPERTY(QVariantMap shot READ shot NOTIFY resultsChanged)
     Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)
 
@@ -58,6 +62,8 @@ public:
     void setPickedSwingDir(const QString &d);
     QVariantMap pickedDetail() const { return m_pickedDetail; }
     void setPickedDetail(const QVariantMap &d);
+    QVariant pickedDetailRef() const { return qmlMapRef(pickedDetail()); }
+    void     setPickedDetailRef(const QVariant &v) { setPickedDetail(qmlMapRefValue(v)); }
     QVariantMap shot() const { return m_shot; }
     QVariantMap session() const { return m_session; }
 

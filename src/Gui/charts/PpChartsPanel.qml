@@ -103,13 +103,16 @@ Item {
 
     // what the presenters are told of the replay: copied only while this screen is the visible one
     property string _swingDir: ""
-    property var _detail: ({})
+    // The picked shot's detail as an OPAQUE ref (shotReplay.analysisDetailRef, qml_map_ref.h): passed on to the
+    // presenters, never looked inside here. The JS detail written to their QVariantMap property was copied back
+    // whole on every shot change — 1–2 s on entering Analyse (#173).
+    property var _detailRef: ({})
     property real _spanUs: -1
     property real _playUs: -1
     function _syncPick() {
         if (!_screenActive) return
         _swingDir = shotReplay.active ? shotReplay.swingDir : ""
-        _detail = shotReplay.active && shotReplay.analysisDetail ? shotReplay.analysisDetail : ({})
+        _detailRef = shotReplay.active ? shotReplay.analysisDetailRef : ({})
         _spanUs = shotReplay.active ? shotReplay.endUs - shotReplay.startUs : -1
         _playUs = shotReplay.active ? shotReplay.positionUs : -1
     }
@@ -126,7 +129,7 @@ Item {
         id: tracesPresenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
         register: root._register
         view: body.shownView === "session" ? "session" : "shot"
         preset: body.preset
@@ -148,7 +151,7 @@ Item {
         id: relationsPresenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
         register: root._register
         family: body.preset
         upId: body.upId
@@ -165,7 +168,7 @@ Item {
         id: wristPresenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
         register: root._register
         playheadUs: root._playUs
         scope: body.shownView === "session" ? "session" : "shot"
@@ -181,7 +184,7 @@ Item {
         id: posturePresenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
         register: root._register
         playheadUs: root._playUs
         scope: body.shownView === "session" ? "session" : "shot"
@@ -196,7 +199,7 @@ Item {
         id: deliveryPresenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
         register: root._register
         playheadUs: root._playUs
         scope: body.shownView === "session" ? "session" : "shot"

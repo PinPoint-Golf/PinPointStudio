@@ -2048,14 +2048,12 @@ QVariantMap wristSessionReportPayload(const SessionSnapshot &snapshot, int arche
 ChartsWristPresenter::ChartsWristPresenter(QObject *parent)
     : QObject(parent), m_worker(std::make_shared<Worker>())
 {
-    m_pool.setMaxThreadCount(1);
-    m_pool.setObjectName(QStringLiteral("ChartsWristPresenter"));
     schedule();
 }
 
 ChartsWristPresenter::~ChartsWristPresenter()
 {
-    m_pool.waitForDone();
+    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
 }
 
 QObject *ChartsWristPresenter::model() const { return m_model.data(); }
@@ -2169,9 +2167,10 @@ void ChartsWristPresenter::startJob()
     m_running = true;
     emit busyChanged();
     auto w = m_worker;
-    m_pool.start([this, w, in]() {
+    auto post = m_pool.poster();
+    m_pool.start([post, this, w, in]() {
         auto r = computeWrist(*w, in);
-        QMetaObject::invokeMethod(this, [this, r]() { apply(r); }, Qt::QueuedConnection);
+        post([this, r]() { apply(r); });
     });
 }
 

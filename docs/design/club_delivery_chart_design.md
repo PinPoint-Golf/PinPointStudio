@@ -474,11 +474,14 @@ Q1 decided: the trail shoulder (§8.1).
      `deliveryHead(...)` (§4.3), `deliveryTrust(...)` (§4.9).
    - The §6.1 thresholds as named constants at the top, each with its reason.
 2. `Gui/charts/charts_delivery_presenter.{h,cpp}`: `ChartsDeliveryPresenter`, the `ChartsPosturePresenter` shape:
-   inputs `model`, `pickedSwingDir`, `pickedDetail`, `register`, `playheadUs`, `scope`; outputs `available`,
+   inputs `model`, `pickedSwingDir`, `pickedDetailRef`, `register`, `playheadUs`, `scope`; outputs `available`,
    `busy`, `choices` (with `onShowKeys` = the plane and `lm.` delivery keys), `thisShot`, `session`, `standfirst`,
    and `plotLayers` (per row key: the address and shoulder `hline`s, the slot `band`, the hands-carry `span`s,
-   with their labels). One coalesced job on the single-thread pool; `setSnapshot`/`setSynchronous`/`waitForIdle`
-   test seams; `deliverySessionReportPayload(snap, …)` for print.
+   with their labels). One coalesced job at a time, on the presenters' shared pool (`presenter_pool.h`: destroying
+   the presenter never waits for its job); `setSnapshot`/`setSynchronous`/`waitForIdle` test seams;
+   `deliverySessionReportPayload(snap, …)` for print. `pickedDetailRef` is `shotReplay.analysisDetailRef`, the
+   detail opaque to QML (`qml_map_ref.h`) — never the JS detail, which a `QVariantMap` property copied back whole on
+   every shot change (#173).
 3. `cmake/PinPointQmlModule.cmake`: register both sources.
 4. Tests, `Gui/tests/charts_delivery_tests.cmake` (included OPTIONAL from `Gui/tests/CMakeLists.txt` beside the
    posture one), sources from `charts_wrist_sources.cmake`:

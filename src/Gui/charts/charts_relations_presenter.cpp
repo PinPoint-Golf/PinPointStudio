@@ -2654,13 +2654,12 @@ QString ConsistencyReadingRows::guardNote()
 ChartsRelationsPresenter::ChartsRelationsPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
-    m_pool.setMaxThreadCount(1);
     m_consistencyEnv = consistencyEnvFromPacks();     // on the GUI thread, for the worker to hold by value
 }
 
 ChartsRelationsPresenter::~ChartsRelationsPresenter()
 {
-    m_pool.waitForDone();
+    // No wait: a job still running finishes into nothing (presenter_pool.h, #173).
 }
 
 #define PP_SET(member, value, sig, recompute) \
@@ -2748,13 +2747,14 @@ void ChartsRelationsPresenter::start()
     }
     m_running = true;
     emit busyChanged();
-    m_pool.start([this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() {
+    auto post = m_pool.poster();
+    m_pool.start([post, this, snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, cache]() {
         auto out = computeRelations(snap, picked, detail, reg, family, up, across, facet, open, readAt, gen, faultZ, gp, norms, env, *cache);
-        QMetaObject::invokeMethod(this, [this, out]() {
+        post([this, out]() {
             m_running = false;
             deliver(out);
             if (m_dirty) start(); else emit busyChanged();
-        }, Qt::QueuedConnection);
+        });
     });
 }
 

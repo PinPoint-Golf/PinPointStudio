@@ -48,11 +48,14 @@ Item {
     SessionSeriesModel { id: seriesModel }
 
     property string _swingDir: ""
-    property var _detail: ({})
+    // The picked shot's detail as an OPAQUE ref (shotReplay.analysisDetailRef, qml_map_ref.h): passed on to the
+    // presenters, never looked inside here. The JS detail written to their QVariantMap property was copied back
+    // whole on every shot change — 1–2 s on entering Analyse (#173).
+    property var _detailRef: ({})
     function _syncPick() {
         if (!_screenActive) return
         _swingDir = shotReplay.active ? shotReplay.swingDir : ""
-        _detail = shotReplay.active && shotReplay.analysisDetail ? shotReplay.analysisDetail : ({})
+        _detailRef = shotReplay.active ? shotReplay.analysisDetailRef : ({})
     }
     on_ScreenActiveChanged: _syncPick()
     Connections { target: shotReplay; function onActiveChanged() { root._syncPick() } }
@@ -61,7 +64,7 @@ Item {
         id: presenter
         model: seriesModel
         pickedSwingDir: root._swingDir
-        pickedDetail: root._detail
+        pickedDetailRef: root._detailRef
     }
     readonly property var shot: presenter.shot
     readonly property var session: presenter.session
