@@ -609,25 +609,31 @@ QVariantMap trustSession(const charts::SessionSnapshot &session)
     for (const auto &sh : session.shots) {
         if (!sh || sh->gatesVersion <= 0) continue;
         ++recorded;
-        QHash<QString, QSet<QString>> seen;   // gate → subjects on this shot
+        // gate → subjects on this shot, both in record order (the shot's gate list): a QHash/QSet walk would
+        // hand the rows, and the readings inside a row, a new order on every launch (#127)
+        QList<QPair<QString, QStringList>> seen;
         QHash<QString, bool> acted;
         for (const QVariant &rv : sh->gates) {
             const QVariantMap r = rv.toMap();
             const QString g = r.value(QStringLiteral("gate")).toString();
-            seen[g].insert(r.value(QStringLiteral("subject")).toString());
+            const QString s = r.value(QStringLiteral("subject")).toString();
+            auto it = std::find_if(seen.begin(), seen.end(), [&](const auto &x) { return x.first == g; });
+            if (it == seen.end()) seen.append({ g, { s } }); else if (!it->second.contains(s)) it->second << s;
             if (r.value(QStringLiteral("effect")).toString() != QLatin1String("masked")) acted[g] = true;
         }
-        for (auto it = seen.cbegin(); it != seen.cend(); ++it) {
-            auto row = std::find_if(rows.begin(), rows.end(), [&](const Row &x) { return x.gate == it.key(); });
-            if (row == rows.end()) { rows.append(Row{ it.key(), {}, {}, 0, false }); row = rows.end() - 1; }
+        for (const auto &here : std::as_const(seen)) {
+            const QString &gate = here.first;
+            auto row = std::find_if(rows.begin(), rows.end(), [&](const Row &x) { return x.gate == gate; });
+            if (row == rows.end()) { rows.append(Row{ gate, {}, {}, 0, false }); row = rows.end() - 1; }
             row->shots += 1;
-            row->acted = row->acted || acted.value(it.key());
-            for (const QString &s : it.value()) {
+            row->acted = row->acted || acted.value(gate);
+            for (const QString &s : here.second) {
                 if (!row->subjects.contains(s)) row->subjects << s;
                 row->bySubject[s] += 1;
             }
         }
     }
+    // most shots first; a tie keeps first-seen (record) order, as the summary's groups do
     std::stable_sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.shots > b.shots; });
     QVariantList out;
     for (const Row &r : rows) {

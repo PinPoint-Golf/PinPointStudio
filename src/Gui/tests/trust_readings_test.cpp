@@ -24,6 +24,7 @@
 #include "../trust/trust_readings.h"
 #include "../charts/session_series_types.h"
 
+#include <QHashSeed>
 #include <QJsonArray>
 #include <QJsonDocument>
 
@@ -191,6 +192,89 @@ int main()
         check(texts.value(1).startsWith(QStringLiteral("Pelvis peak and chest peak out of sight on 3 of 3 shots.")), "session: the gate's count over recorded shots");
         check(texts.last() == QStringLiteral("One shot was analysed before the reasons were recorded and is not counted; re-analyse to include it."),
               "the old shot is named, not counted");
+    }
+
+    // ── #127: the session's gate rows, and the readings in a row, are in one order on every launch ──
+    // Qt 6 seeds every QHash/QSet's order afresh per process. Most shots first; a tie keeps first-seen order —
+    // the gates as the first shot that carries them lists them, a gate first seen on a later shot after them —
+    // and inside a row the sequence readings in segment order, any other reading in record order.
+    {
+        const auto shotWith = [&](const char *records) { charts::ShotSeries x = sh; x.gates = json(records); return x; };
+        const charts::ShotSeries a = shotWith(R"([
+            {"gate":"club.followThrough","subject":"track.club","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"trunkRise","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"shoulderPlaneAngle","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"trailElbowHeight","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"elbowAlignment","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"spineSideBend","effect":"masked"},
+            {"gate":"body.rotation","subject":"thoraxRotation","effect":"refused"},
+            {"gate":"body.rotation","subject":"pelvisRotation","effect":"refused"},
+            {"gate":"club.headConfidence","subject":"shaftAngleVsHorizontal","effect":"masked"},
+            {"gate":"club.attackFallback","subject":"attackAngle","effect":"downgraded"},
+            {"gate":"skeleton.refused","subject":"track.skeleton3d","effect":"refused"},
+            {"gate":"sequence.maxPlaceSigma","subject":"ks.leadArm","effect":"refused"},
+            {"gate":"sequence.maxPlaceSigma","subject":"ks.pelvis","effect":"refused"},
+            {"gate":"sequence.sightedBand","subject":"ks.thorax","effect":"bounded"},
+            {"gate":"sequence.clubWithheld","subject":"ks.club","effect":"withheld"}])");
+        // the second shot lists its records in another order, adds a gate the first did not have, and lacks one
+        const charts::ShotSeries b = shotWith(R"([
+            {"gate":"sequence.clubWithheld","subject":"ks.club","effect":"withheld"},
+            {"gate":"sequence.sightedBand","subject":"ks.thorax","effect":"bounded"},
+            {"gate":"sequence.gapBridged","subject":"ks.thorax","effect":"downgraded"},
+            {"gate":"sequence.maxPlaceSigma","subject":"ks.pelvis","effect":"refused"},
+            {"gate":"skeleton.refused","subject":"track.skeleton3d","effect":"refused"},
+            {"gate":"club.headConfidence","subject":"shaftAngleVsHorizontal","effect":"masked"},
+            {"gate":"body.rotation","subject":"pelvisRotation","effect":"refused"},
+            {"gate":"body.rotation","subject":"thoraxRotation","effect":"refused"},
+            {"gate":"body.shoulderLine","subject":"spineSideBend","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"trailElbowHeight","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"trunkRise","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"shoulderPlaneAngle","effect":"masked"},
+            {"gate":"body.shoulderLine","subject":"elbowAlignment","effect":"masked"},
+            {"gate":"club.followThrough","subject":"track.club","effect":"masked"}])");
+        charts::SessionSnapshot s;
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(a));
+        s.shots.push_back(std::make_shared<charts::ShotSeries>(b));
+        const QString wantRows = QStringLiteral(
+            "club.followThrough body.shoulderLine body.rotation club.headConfidence skeleton.refused sequence.maxPlaceSigma "
+            "sequence.sightedBand sequence.clubWithheld club.attackFallback sequence.gapBridged");
+        const QString wantShoulder = QStringLiteral("trunkRise shoulderPlaneAngle trailElbowHeight elbowAlignment spineSideBend");
+        const QString wantRotation = QStringLiteral("thoraxRotation pelvisRotation");
+        const QString wantSigma = QStringLiteral("ks.pelvis ks.leadArm");
+        const auto orderOf = [](const QVariantMap &t, QString &shoulder, QString &rotation, QString &sigma) {
+            QStringList rows;
+            for (const QVariant &gv : t.value(QStringLiteral("gates")).toList()) {
+                const QVariantMap g = gv.toMap();
+                QStringList subs;
+                for (const QVariant &sv : g.value(QStringLiteral("subjects")).toList()) subs << sv.toMap().value(QStringLiteral("subject")).toString();
+                const QString gate = g.value(QStringLiteral("gate")).toString();
+                if (gate == QLatin1String("body.shoulderLine")) shoulder = subs.join(QLatin1Char(' '));
+                if (gate == QLatin1String("body.rotation")) rotation = subs.join(QLatin1Char(' '));
+                if (gate == QLatin1String("sequence.maxPlaceSigma")) sigma = subs.join(QLatin1Char(' '));
+                rows << gate;
+            }
+            return rows.join(QLatin1Char(' '));
+        };
+        // seed 0, then fresh random seeds: the same order under every one (before #127 a seed reshuffled the ties)
+        int rowsOk = 0, subsOk = 0;
+        const int runs = 25;
+        QString firstBad;
+        QStringList orders;   // the distinct row orders the seeds gave
+        for (int i = 0; i < runs; ++i) {
+            if (i == 0) QHashSeed::setDeterministicGlobalSeed(); else QHashSeed::resetRandomGlobalSeed();
+            QString shoulder, rotation, sigma;
+            const QString rows = orderOf(trust::trustSession(s), shoulder, rotation, sigma);
+            if (!orders.contains(rows)) orders << rows;
+            if (rows == wantRows) ++rowsOk; else if (firstBad.isEmpty()) firstBad = rows;
+            if (shoulder == wantShoulder && rotation == wantRotation && sigma == wantSigma) ++subsOk;
+            if (i == 0) std::printf("    rows: %s\n    shoulder line: %s · rotation: %s · σ: %s\n",
+                                    qPrintable(rows), qPrintable(shoulder), qPrintable(rotation), qPrintable(sigma));
+        }
+        std::printf("    rows in the chosen order on %d of %d seeds; readings on %d of %d; %d distinct row order(s)\n",
+                    rowsOk, runs, subsOk, runs, int(orders.size()));
+        if (!firstBad.isEmpty()) std::printf("    first other order: %s\n", qPrintable(firstBad));
+        check(rowsOk == runs, "session rows: most shots first, ties in first-seen record order, under every hash seed");
+        check(subsOk == runs, "a row's readings: segment order, then record order, under every hash seed");
     }
 
     // ── the routes line: each route with the readings it timed, and on how many shots when not all ──
