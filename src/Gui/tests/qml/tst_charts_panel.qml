@@ -714,9 +714,10 @@ Item {
         }
 
         // ── the Posture section (docs/design/posture_chart_design.md §5, stage 3a) ──
-        // `posture: true` feeds the Posture presenter the fixture's six posture series, read at address, the top
+        // `posture: true` feeds the Posture presenter the fixture's posture series, read at address, the top
         // and impact (P1, P4, P7): every other cell is "-", and the top's trunk bend and hip depth carry the ⚠ the
-        // capture always carries at P3–P5. The words and numbers are charts_posture_presenter_test's; these pin
+        // capture always carries at P3–P5. The profile has seven rows, one per posture reading: side bend joined
+        // the six on 8 Nov 2026 (9e6c3257; posture_chart_design.md §1, §8), read at impact alone. The words and numbers are charts_posture_presenter_test's; these pin
         // WHERE the panel surfaces them: a "Posture" section on This shot and Session when a posture reading AND a
         // posture metric is among the curves on show (the Posture preset).
         readonly property string posturePreset: "Posture"
@@ -744,7 +745,8 @@ Item {
             verify(textOf(oneShown("chPosturePattern", sec)).indexOf("Pattern") === 0, "the pattern line")
             verify(oneShown("chPostureControls", sec))
             const prof = oneShown("chPostureProfile", sec)
-            compare(shownAll("chPostureRow", prof).length, 6, "six rows")
+            compare(shownAll("chPostureRow", prof).length, 7, "seven rows: the six and side bend")
+            verify(shownAll("chPostureRow", prof).some(function (r) { return r.key === "sideBend" }), "side bend is one of them")
             compare(shownAll("chPostureCol", prof).length, 8, "P1…P8")
             // a cell with no reading is a plain "-"; the top's trunk bend and hip depth keep their figure under a ⚠
             compare(postureCell(prof, "head", "P2").text, "-")
@@ -820,7 +822,7 @@ Item {
             compare(hn.body.postureSessionShown, true)
             verify(oneShown("chPostureSessionSlot"))
             const ses = oneShown("chPostureSession")
-            compare(shownAll("chPostureRow", oneShown("chPostureProfile", ses)).length, 6)
+            compare(shownAll("chPostureRow", oneShown("chPostureProfile", ses)).length, 7, "Session: the same seven rows")
             compare(shownAll("chPostureAltValue", oneShown("chPostureProfile", ses)).length, 3, "Session: the second reading under trunk bend at P3–P5")
             verify(shownAll("chPostureMark", oneShown("chPostureStrip", ses)).length >= 1, "a mark per shot")
             verify(oneShown("chPostureDepartures", ses))

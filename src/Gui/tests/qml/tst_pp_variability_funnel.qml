@@ -69,8 +69,10 @@ Item {
         return Math.abs(a.r - b.r) < 0.004 && Math.abs(a.g - b.g) < 0.004 && Math.abs(a.b - b.b) < 0.004 && Math.abs(a.a - b.a) < 0.004
     }
     function themeName() { return Theme.aesthetic + (Theme.dark ? " dark" : " light") }
-    // A wash's alpha on screen in the current theme (§3): × variabilityWashAlpha, clamped to 1.
-    function wash(a) { return Math.min(1, a * Theme.variabilityWashAlpha) }
+    // The band fill's alpha on screen in the current theme (§3): × variabilityWashAlpha, then held at or
+    // under variabilityBandFillMax (R35, Mark 7 Nov 2026, 10709b0d: at ×3 the dark 16 % fill reached 48 %
+    // and the 55 % edge barely showed, so dark themes draw it at 32 %; light themes' 16 % never reach it).
+    function wash(a) { return Math.min(1, Theme.variabilityBandFillMax, a * Theme.variabilityWashAlpha) }
 
     TestCase {
         name: "PpVariabilityFunnel"
@@ -127,8 +129,8 @@ Item {
             three.destroy(); br.destroy()
         }
 
-        // §6.1: the band is the CURRENT grade's tone at 16 % (× variabilityWashAlpha on screen, §3), its
-        // edge at 55 %, 1 px; every band, old runs included. Every theme.
+        // §6.1: the band is the CURRENT grade's tone at 16 % (× variabilityWashAlpha on screen, at most
+        // variabilityBandFillMax, §3 and R35), its edge at 55 %, 1 px; every band, old runs included. Every theme.
         function test_bandWearsTheCurrentTone() {
             for (let t = 0; t < Theme.themeCount; ++t) {
                 Theme.themeIndex = t
@@ -252,7 +254,8 @@ Item {
         }
 
         // §3, §10 (Mark, 7 Nov 2026): on screen the band FILL is a wash, × variabilityWashAlpha (1 light,
-        // 3 dark), clamped to 1. The band's edge and the markers are not; print with roles never reads it.
+        // 3 dark), then held at or under variabilityBandFillMax (R35, 10709b0d: 32 %, so a dark band's fill
+        // stays below its 55 % edge). The band's edge and the markers are not; print with roles never reads it.
         function test_washAlphaByTheme() {
             const ts = tsComp.createObject(probe), kp = Theme.variabilityPrintAlphaScale
             for (let t = 0; t < Theme.themeCount; t += 2) {
@@ -270,7 +273,9 @@ Item {
                         fuzzyCompare(a.fill, 0.16, 0.005, probe.themeName() + ": light fill at the spec's 16 %")
                         light = a
                     } else {
-                        fuzzyCompare(a.fill, Math.min(1, 3 * light.fill), 0.005, probe.themeName() + ": fill × 3")
+                        fuzzyCompare(a.fill, Math.min(1, Theme.variabilityBandFillMax, 3 * light.fill), 0.005,
+                                     probe.themeName() + ": fill × 3, at most variabilityBandFillMax")
+                        verify(a.fill < a.edge, probe.themeName() + ": the fill stays below the band's edge (R35)")
                         fuzzyCompare(a.edge, light.edge, 0.005, probe.themeName() + ": the edge is a stroke")
                         fuzzyCompare(a.current, light.current, 0.005, probe.themeName() + ": the current marker is a dot")
                         fuzzyCompare(a.marker, light.marker, 0.005, probe.themeName() + ": a past marker is a dot")
@@ -288,7 +293,10 @@ Item {
         }
 
         // §9.5.4 with roles: the page's sizes, spaces, type and inks; the fill uplift is the print scale,
-        // never roles.tintK. On screen (roles on screen) the funnel reads Theme.
+        // never roles.tintK. With roles on screen (R17; PpVariabilityFunnel.md "Typeset hosts") the sizes are
+        // roles.u(), which on screen IS Theme.sp(), and the inks and type stay the host's: a fixed-aesthetic
+        // typeset (Folio here) keeps Folio light's whatever the app shows. That end is checked under a theme
+        // pinned away from Folio light, so it does not depend on the theme an earlier test file left behind.
         function test_printWithRoles() {
             const ts = tsComp.createObject(probe), k = Theme.variabilityPrintAlphaScale
             const f = probe.fn({ sessions: probe.run([3, 3, 4, 4, 4], 2), trend: "tightening", roles: ts,
@@ -328,12 +336,16 @@ Item {
             const after = probe.findNamed(f, "funnelTrendAfter3")
             verify(Qt.colorEqual(after.color, ts.ink3), "'Trend after 3 sessions' in roles.ink3")
             compare(probe.findNamed(f, "funnelBadge").roles, ts, "the badge gets the roles")
+            Theme.themeIndex = 1   // instrument dark: its good and body face are not Folio light's (cleanup restores)
+            verify(!Qt.colorEqual(Theme.colorGood, ts.good) && Theme.fontBody !== ts.fBody.family,
+                   "the pinned theme tells Theme's inks and type from the host's")
             ts.medium = "screen"
             compare(f.medium, "screen")
-            compare(g.width, Theme.sp(120), "roles on screen: Theme sizes")
+            compare(g.width, Theme.sp(120), "roles on screen: Theme sizes (roles.u() on screen)")
+            compare(lbl.x - (g.x + g.width), Theme.gap(10), "roles on screen: Theme spaces (roles.g() on screen)")
             f.sessions = probe.run([4, 4, 4])
-            verify(Qt.colorEqual(f.tone, Theme.colorGood), "roles on screen: Theme inks")
-            compare(word.font.family, Theme.fontBody, "roles on screen: Theme type")
+            verify(Qt.colorEqual(f.tone, ts.good), "roles on screen: the host's inks, not Theme's")
+            compare(word.font.family, ts.fBody.family, "roles on screen: the host's type, not Theme's")
             f.destroy(); ts.destroy()
         }
 

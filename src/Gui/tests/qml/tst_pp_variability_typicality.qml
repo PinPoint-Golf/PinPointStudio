@@ -495,10 +495,17 @@ Item {
             const p = probe.mk({ variant: probe.typ, form: probe.cell, medium: "print", values: probe.typValues(0, "usual") })
             verify(probe.sameColor(probe.one(p, "variabilityZoneInner").fillColor, probe.withAlpha(Theme.colorText, Math.min(1, 0.07 * k))))
             verify(probe.sameColor(probe.one(p, "variabilityRing").fillColor, Theme.colorSurface))
-            // Roles on screen: Theme again.
+            // Roles on screen (R17; PpVariabilityMark.md "Typeset hosts"): the host's inks stay, so the tone is
+            // roles.accent; what belongs to the medium goes back to the screen, so the ring's knock-out is
+            // colorSurface again. Checked under a theme pinned away from Folio light (cleanup restores), so it
+            // does not depend on the theme an earlier test file left behind.
+            Theme.themeIndex = 1   // instrument dark
+            verify(!Qt.colorEqual(Theme.colorAccent, ts.accent) && !probe.sameColor(Theme.colorSurface, ts.paper),
+                   "the pinned theme tells Theme's accent and surface from the host's")
             ts.medium = "screen"
-            verify(Qt.colorEqual(m.tone, Theme.colorAccent))
-            verify(probe.sameColor(probe.one(m, "variabilityRing").fillColor, Theme.colorSurface))
+            verify(Qt.colorEqual(m.tone, ts.accent), "roles on screen: the host's accent, not Theme's")
+            verify(probe.sameColor(probe.one(m, "variabilityRing").fillColor, Theme.colorSurface),
+                   "roles on screen: the knock-out is the screen's colorSurface, not roles.paper")
             m.destroy(); tr.destroy(); b.destroy(); p.destroy(); ts.destroy()
         }
     }

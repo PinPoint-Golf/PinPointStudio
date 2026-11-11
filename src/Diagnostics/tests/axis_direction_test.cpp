@@ -372,6 +372,17 @@ static const Expect kExpected[] = {
     { "sig_leadKneeFoldsBackswing", Direction::High,
       "leadKneeFlexion: 'Higher means more bend'; m_leadKneeFlex_p4 highMeans 'the lead knee gained "
       "bend between address and the top, folding in going back', so folding is the high end" },
+    // Side bend at impact (8 Nov 2026, 9e6c3257): the CHANGE from address, P7 minus P1, of the
+    // shoulder line against the hip line. The producer takes hipTilt − shoulderTilt with each tilt
+    // positive when its trail end sits higher, so the trail shoulder working down and under raises
+    // it. One measure, both tails, on axis side_bend_impact.
+    { "sig_sideBendGainLow",        Direction::Low,
+      "spineSideBend: 'POSITIVE IS SIDE BEND TOWARD THE TRAIL SIDE'; m_spineSideBendChangeImpact "
+      "highMeans 'more side bend toward the trail side at impact than at address … the LOW side is "
+      "the upper body staying level, gaining little or none' — not enough side bend is the low end" },
+    { "sig_sideBendGainHigh",       Direction::High,
+      "…and the trail shoulder dropping too far under is MORE of that gain, the high end, where "
+      "sig_sideBendGainLow takes the low" },
     { "sig_poorSetupPosture",       Direction::High,
       "m_setupPosture is a ceiling distance: higher is further from a good setup in any direction" },
     // The same tail as sig_leadKneeDriftIn on the same metric, read at impact instead of the top.

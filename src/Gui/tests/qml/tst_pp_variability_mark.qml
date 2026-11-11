@@ -380,7 +380,10 @@ Item {
         }
 
         // §9.5.4 with roles: the page's sizes, inks and furniture; the fill uplift is the print scale,
-        // never roles.tintK. On screen (no roles, or roles on screen) the mark reads Theme.
+        // never roles.tintK. With roles on screen (R17; PpVariabilityMark.md "Typeset hosts") the size is
+        // roles.u(), which on screen IS Theme.sp(), and the inks stay the host's: a fixed-aesthetic typeset
+        // (Folio here) keeps Folio light's whatever the app shows. That end is checked under a theme pinned
+        // away from Folio light, so it does not depend on the theme an earlier test file left behind.
         function test_printWithRoles() {
             const ts = tsComp.createObject(probe), k = Theme.variabilityPrintAlphaScale
             verify(Qt.colorEqual(ts.good, Theme._themes.folio.light.colorGood), "good = Folio light colorGood")
@@ -401,10 +404,15 @@ Item {
                    "target line in the page's grid ink")
             const typ = probe.mk({ variant: PpVariabilityMark.Typicality, roles: ts })
             verify(Qt.colorEqual(typ.tone, ts.accent), "typicality in roles.accent")
+            Theme.themeIndex = 1   // instrument dark: its good and accent are not Folio light's (cleanup restores)
+            verify(!Qt.colorEqual(Theme.colorGood, ts.good) && !Qt.colorEqual(Theme.colorAccent, ts.accent),
+                   "the pinned theme tells Theme's inks from the host's")
             ts.medium = "screen"
             compare(m.medium, "screen")
-            compare(m.size, Theme.sp(Theme.variabilityIconSize), "roles on screen: Theme sizes")
-            verify(Qt.colorEqual(m.tone, Theme.colorGood), "roles on screen: Theme inks")
+            compare(m.size, Theme.sp(Theme.variabilityIconSize), "roles on screen: Theme sizes (roles.u() on screen)")
+            m.grade = 4
+            verify(Qt.colorEqual(m.tone, ts.good), "roles on screen: the host's inks, not Theme's")
+            verify(Qt.colorEqual(typ.tone, ts.accent), "roles on screen: typicality in roles.accent, not Theme's")
             m.destroy(); cell.destroy(); typ.destroy(); ts.destroy()
         }
     }
