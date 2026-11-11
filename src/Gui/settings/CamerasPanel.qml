@@ -50,6 +50,21 @@ SettingsPanelBase {
         }
     }
 
+    // The width a positioner's shown children need on one line: their implicit
+    // widths plus the spacing between them (a Repeater, which has no width,
+    // is skipped, as the positioner skips it). A wrapping chip Flow is given
+    // min(this, the row's width): one line when it fits, wrapped when not, and
+    // never wider than the card. Read from implicit widths only, so it never
+    // depends on the width it sets.
+    function oneLineWidth(positioner) {
+        var w = 0, n = 0
+        for (var i = 0; i < positioner.children.length; ++i) {
+            var c = positioner.children[i]
+            if (c.visible && c.implicitWidth > 0) { w += c.implicitWidth; n++ }
+        }
+        return n > 0 ? Math.ceil(w + (n - 1) * positioner.spacing) : 0
+    }
+
     // ── Impact camera mode (impact_camera_design.md §10.2) ───────────────────
     //
     // A mode is a crop SIZE plus a rate; the crop's position is placed in the
@@ -416,279 +431,309 @@ SettingsPanelBase {
         }
 
         // ── Body row (visible when enabled) ──────────────────────────────────
-        RowLayout {
+        // The camera's controls (View, Image, Frame rate, Trigger, Fixed in
+        // place) wrap in a Flow, and the action buttons (Set crop, Ball
+        // detection) sit at the right of it. On a card too narrow for even
+        // the widest column beside the buttons (the first-launch 1120 px window
+        // at a large font scale and Spacious), the buttons stack on a row of
+        // their own under the controls, still right-aligned (`stacked`). Every
+        // column stays whole and on the card; nothing is dropped or hidden for
+        // width. `stacked` compares the columns' and buttons' implicit widths
+        // with the row's own (anchored) width, so it never feeds back into
+        // itself.
+        GridLayout {
             id: bodyRow
             anchors.top:    camRow.headerRow.bottom
             anchors.left:   parent.left
             anchors.right:  parent.right
             anchors.leftMargin:   Theme.gap(14)
             anchors.rightMargin:  Theme.gap(14)
-            anchors.bottomMargin: Theme.gap(28)
-            height: camRow.camData.enabled ? implicitHeight + Theme.gap(28) : 0
+            // The bottom padding: under the one row it is part of the row (the
+            // buttons centre in it, as they always did); when stacked it is the
+            // buttons' bottom margin, so the two rows sit at their own heights.
+            height: camRow.camData.enabled ? implicitHeight + (stacked ? 0 : Theme.gap(28)) : 0
             visible: camRow.camData.enabled
-            spacing: Theme.gap(16)
+            columns: stacked ? 1 : 2
+            columnSpacing: Theme.gap(16)
+            rowSpacing:    Theme.gap(16)
             clip: true
 
-            // View selector ──────────────────────────────────────────────────
-            ColumnLayout {
-                spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-
-                PpMicro {
-                    kind: "caps"
-                    text: qsTr("View")
+            // The widest shown column, and the whole controls group on one line.
+            readonly property real widestColumn: {
+                var w = 0
+                for (var i = 0; i < controlsFlow.children.length; ++i) {
+                    var c = controlsFlow.children[i]
+                    if (c.visible) w = Math.max(w, c.implicitWidth)
                 }
+                return w
+            }
+            readonly property real controlsOneLine: root.oneLineWidth(controlsFlow)
+            readonly property bool stacked: width > 0
+                && width - columnSpacing - actionButtons.implicitWidth < widestColumn
 
-                PpComboBox {
-                    id: viewCombo
-                    implicitWidth: Theme.sp(168)
+            Flow {
+                id: controlsFlow
+                spacing: Theme.gap(16)
+                Layout.fillWidth: true
+                Layout.preferredWidth: bodyRow.controlsOneLine
+                Layout.alignment: Qt.AlignTop | Qt.AlignLeft
 
-                    // Any number of cameras may share a perspective (e.g. two
-                    // face-on cameras in one session) — except Club/Ball
-                    // Impact, which exactly one camera holds (assignPerspective
-                    // clears it elsewhere) and which is only offered to a
-                    // camera that reaches 420 fps at some crop
-                    // (impact_camera_design.md §2). A phone over PPCP never
-                    // does: ≤ 240 fps and a rolling shutter.
-                    readonly property var viewOptions: {
-                        var opts = [
-                            { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
-                            { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
-                            { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine }
-                        ]
-                        if (camRow.camData.impactCapable || camRow.camData.perspective === CameraInstance.Impact)
-                            opts.push({ label: qsTr("Club/Ball Impact"), perspective: CameraInstance.Impact })
-                        opts.push({ label: qsTr("Other"), perspective: CameraInstance.Other })
-                        return opts
+                // View selector ──────────────────────────────────────────────────
+                ColumnLayout {
+                    spacing: Theme.gap(4)
+
+                    PpMicro {
+                        kind: "caps"
+                        text: qsTr("View")
                     }
 
-                    model: viewOptions.map(function(o) { return o.label })
+                    PpComboBox {
+                        id: viewCombo
+                        implicitWidth: Theme.sp(168)
 
-                    Component.onCompleted: {
-                        var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
-                        for (var i = 0; i < viewOptions.length; i++) {
-                            if (viewOptions[i].perspective === p) { currentIndex = i; break }
+                        // Any number of cameras may share a perspective (e.g. two
+                        // face-on cameras in one session) — except Club/Ball
+                        // Impact, which exactly one camera holds (assignPerspective
+                        // clears it elsewhere) and which is only offered to a
+                        // camera that reaches 420 fps at some crop
+                        // (impact_camera_design.md §2). A phone over PPCP never
+                        // does: ≤ 240 fps and a rolling shutter.
+                        readonly property var viewOptions: {
+                            var opts = [
+                                { label: qsTr("— Unassigned —"), perspective: CameraInstance.None },
+                                { label: qsTr("Face-on"),         perspective: CameraInstance.FaceOn },
+                                { label: qsTr("Down-the-line"),   perspective: CameraInstance.DownTheLine }
+                            ]
+                            if (camRow.camData.impactCapable || camRow.camData.perspective === CameraInstance.Impact)
+                                opts.push({ label: qsTr("Club/Ball Impact"), perspective: CameraInstance.Impact })
+                            opts.push({ label: qsTr("Other"), perspective: CameraInstance.Other })
+                            return opts
+                        }
+
+                        model: viewOptions.map(function(o) { return o.label })
+
+                        Component.onCompleted: {
+                            var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
+                            for (var i = 0; i < viewOptions.length; i++) {
+                                if (viewOptions[i].perspective === p) { currentIndex = i; break }
+                            }
+                        }
+
+                        Connections {
+                            target: appSettings
+                            function onCameraPerspectiveChanged() {
+                                var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
+                                for (var i = 0; i < viewCombo.viewOptions.length; i++) {
+                                    if (viewCombo.viewOptions[i].perspective === p) {
+                                        viewCombo.currentIndex = i; break
+                                    }
+                                }
+                            }
+                        }
+
+                        onActivated: (idx) => {
+                            var p = viewOptions[idx].perspective
+                            // Both assignPerspective and applyImpactMode rebuild
+                            // the rows synchronously (cameraListChanged) — read
+                            // everything into locals FIRST, write after.
+                            var panelRoot = root
+                            var mgr       = cameraManager
+                            var key       = camRow.camData.cameraKey
+                            var camIndex  = camRow.camData.index
+                            var maxW      = camRow.camData.maxWidth
+                            var maxH      = camRow.camData.maxHeight
+                            var modes     = camRow.impactModes
+                            var inst      = camRow.realInstance
+                            var storedFps = appSettings.cameraTargetFps[key]
+                            var expUnset  = appSettings.cameraExposureUs[key] === undefined
+                            // No impact strip of its own yet (camera_roi.h) — including a camera
+                            // whose strip used to live in the shared crop: seed the mode.
+                            var stripUnset = appSettings.cameraRoi[key + "#impact"] === undefined
+                            if (p === CameraInstance.Impact) {
+                                // First assignment seeds the recommended mode and
+                                // exposure, so the camera is usable with no
+                                // further click (impact_camera_design.md §10.2).
+                                if (expUnset)
+                                    panelRoot.setImpactExposure(key, panelRoot.impactDefaultExposureUs)
+                                if ((!(storedFps >= 420) || stripUnset) && modes.length > 0)
+                                    panelRoot.applyImpactMode(key, camIndex, maxW, maxH, modes[0], inst)
+                            }
+                            mgr.assignPerspective(key, p)
                         }
                     }
+                }
 
-                    Connections {
-                        target: appSettings
-                        function onCameraPerspectiveChanged() {
-                            var p = appSettings.cameraPerspective[camRow.camData.cameraKey] || 0
-                            for (var i = 0; i < viewCombo.viewOptions.length; i++) {
-                                if (viewCombo.viewOptions[i].perspective === p) {
-                                    viewCombo.currentIndex = i; break
+                // Mirrored toggle ─────────────────────────────────────────────────
+                ColumnLayout {
+                    spacing: Theme.gap(4)
+
+                    PpMicro {
+                        kind: "caps"
+                        text: qsTr("Image")
+                    }
+
+                    PpChoiceChip {
+                        id: mirrorChip
+                        readonly property bool isMirrored: (appSettings.cameraIsMirrored[camRow.camData.cameraKey] === true)
+
+                        style:    "solid"
+                        label:    qsTr("Mirrored")
+                        selected: isMirrored
+                        onClicked: {
+                            var map = appSettings.cameraIsMirrored
+                            if (mirrorChip.isMirrored)
+                                delete map[camRow.camData.cameraKey]
+                            else
+                                map[camRow.camData.cameraKey] = true
+                            appSettings.cameraIsMirrored = map
+                            if (camRow.realInstance)
+                                cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
+                        }
+                    }
+                }
+
+                // Frame rate chips (every camera but the impact camera, whose rate
+                // is part of its mode below) ─────────────────────────────────────
+                ColumnLayout {
+                    visible: !camRow.isImpact
+                    spacing: Theme.gap(4)
+
+                    PpMicro {
+                        kind: "caps"
+                        text: qsTr("Frame rate")
+                    }
+
+                    Row {
+                        spacing: Theme.gap(4)
+
+                        readonly property var fpsOptions: {
+                            var opts = []
+                            var max = camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60
+                            if (max >= 30) opts.push(30)
+                            if (max >= 60 && max > 30) opts.push(60)
+                            if (max >= 120 && max > 60) opts.push(120)
+                            if (max > 0 && opts.indexOf(max) < 0) opts.push(max)
+                            return opts
+                        }
+
+                        readonly property double selectedFps: {
+                            var v = appSettings.cameraTargetFps[camRow.camData.cameraKey]
+                            return (v !== undefined && v > 0) ? v : (camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60)
+                        }
+
+                        Repeater {
+                            model: parent.fpsOptions
+
+                            delegate: PpChoiceChip {
+                                style: "mono"; moves: false
+                                required property var modelData
+                                label:    (Math.round(modelData * 10) / 10) + qsTr(" fps")
+                                selected: Math.abs(parent.selectedFps - modelData) < 0.5
+                                onClicked: {
+                                    var map = appSettings.cameraTargetFps
+                                    map[camRow.camData.cameraKey] = modelData
+                                    appSettings.cameraTargetFps = map
+                                    cameraManager.setTargetFps(camRow.camData.index, modelData)
                                 }
                             }
                         }
                     }
-
-                    onActivated: (idx) => {
-                        var p = viewOptions[idx].perspective
-                        // Both assignPerspective and applyImpactMode rebuild
-                        // the rows synchronously (cameraListChanged) — read
-                        // everything into locals FIRST, write after.
-                        var panelRoot = root
-                        var mgr       = cameraManager
-                        var key       = camRow.camData.cameraKey
-                        var camIndex  = camRow.camData.index
-                        var maxW      = camRow.camData.maxWidth
-                        var maxH      = camRow.camData.maxHeight
-                        var modes     = camRow.impactModes
-                        var inst      = camRow.realInstance
-                        var storedFps = appSettings.cameraTargetFps[key]
-                        var expUnset  = appSettings.cameraExposureUs[key] === undefined
-                        // No impact strip of its own yet (camera_roi.h) — including a camera
-                        // whose strip used to live in the shared crop: seed the mode.
-                        var stripUnset = appSettings.cameraRoi[key + "#impact"] === undefined
-                        if (p === CameraInstance.Impact) {
-                            // First assignment seeds the recommended mode and
-                            // exposure, so the camera is usable with no
-                            // further click (impact_camera_design.md §10.2).
-                            if (expUnset)
-                                panelRoot.setImpactExposure(key, panelRoot.impactDefaultExposureUs)
-                            if ((!(storedFps >= 420) || stripUnset) && modes.length > 0)
-                                panelRoot.applyImpactMode(key, camIndex, maxW, maxH, modes[0], inst)
-                        }
-                        mgr.assignPerspective(key, p)
-                    }
-                }
-            }
-
-            // Mirrored toggle ─────────────────────────────────────────────────
-            ColumnLayout {
-                spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-
-                PpMicro {
-                    kind: "caps"
-                    text: qsTr("Image")
                 }
 
-                PpChoiceChip {
-                    id: mirrorChip
-                    readonly property bool isMirrored: (appSettings.cameraIsMirrored[camRow.camData.cameraKey] === true)
-
-                    style:    "solid"
-                    label:    qsTr("Mirrored")
-                    selected: isMirrored
-                    onClicked: {
-                        var map = appSettings.cameraIsMirrored
-                        if (mirrorChip.isMirrored)
-                            delete map[camRow.camData.cameraKey]
-                        else
-                            map[camRow.camData.cameraKey] = true
-                        appSettings.cameraIsMirrored = map
-                        if (camRow.realInstance)
-                            cameraManager.setIsMirrored(camRow.realInstance, !mirrorChip.isMirrored)
-                    }
-                }
-            }
-
-            // Frame rate chips (every camera but the impact camera, whose rate
-            // is part of its mode below) ─────────────────────────────────────
-            ColumnLayout {
-                visible: !camRow.isImpact
-                spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-
-                PpMicro {
-                    kind: "caps"
-                    text: qsTr("Frame rate")
-                }
-
-                Row {
+                // Trigger chips ───────────────────────────────────────────────────
+                ColumnLayout {
                     spacing: Theme.gap(4)
 
-                    readonly property var fpsOptions: {
-                        var opts = []
-                        var max = camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60
-                        if (max >= 30) opts.push(30)
-                        if (max >= 60 && max > 30) opts.push(60)
-                        if (max >= 120 && max > 60) opts.push(120)
-                        if (max > 0 && opts.indexOf(max) < 0) opts.push(max)
-                        return opts
+                    PpMicro {
+                        kind: "caps"
+                        text: qsTr("Trigger")
                     }
 
-                    readonly property double selectedFps: {
-                        var v = appSettings.cameraTargetFps[camRow.camData.cameraKey]
-                        return (v !== undefined && v > 0) ? v : (camRow.camData.maxFps > 0 ? camRow.camData.maxFps : 60)
-                    }
+                    Row {
+                        spacing: Theme.gap(4)
 
-                    Repeater {
-                        model: parent.fpsOptions
+                        readonly property string selectedMode: {
+                            var v = appSettings.cameraTriggerMode[camRow.camData.cameraKey]
+                            return v !== undefined ? v : "freerun"
+                        }
 
-                        delegate: PpChoiceChip {
-                            style: "mono"; moves: false
-                            required property var modelData
-                            label:    (Math.round(modelData * 10) / 10) + qsTr(" fps")
-                            selected: Math.abs(parent.selectedFps - modelData) < 0.5
-                            onClicked: {
-                                var map = appSettings.cameraTargetFps
-                                map[camRow.camData.cameraKey] = modelData
-                                appSettings.cameraTargetFps = map
-                                cameraManager.setTargetFps(camRow.camData.index, modelData)
+                        Repeater {
+                            model: camRow.camData.hwTrigger
+                                    ? [{ label: qsTr("Free-run"), mode: "freerun" },
+                                       { label: qsTr("HW sync"),  mode: "hwsync"  }]
+                                    : [{ label: qsTr("Free-run"), mode: "freerun" }]
+
+                            delegate: PpChoiceChip {
+                                style: "mono"; moves: false
+                                required property var modelData
+                                label:    modelData.label
+                                selected: parent.selectedMode === modelData.mode
+                                onClicked: {
+                                    var map = appSettings.cameraTriggerMode
+                                    map[camRow.camData.cameraKey] = modelData.mode
+                                    appSettings.cameraTriggerMode = map
+                                    cameraManager.setTriggerMode(camRow.camData.index, modelData.mode)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Trigger chips ───────────────────────────────────────────────────
-            ColumnLayout {
-                spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-
-                PpMicro {
-                    kind: "caps"
-                    text: qsTr("Trigger")
-                }
-
-                Row {
+                // ── Fixed in place toggle ────────────────────────────────────────
+                ColumnLayout {
                     spacing: Theme.gap(4)
 
-                    readonly property string selectedMode: {
-                        var v = appSettings.cameraTriggerMode[camRow.camData.cameraKey]
-                        return v !== undefined ? v : "freerun"
+                    PpMicro {
+                        kind: "caps"
+                        text: qsTr("Fixed in place")
                     }
 
-                    Repeater {
-                        model: camRow.camData.hwTrigger
-                                ? [{ label: qsTr("Free-run"), mode: "freerun" },
-                                   { label: qsTr("HW sync"),  mode: "hwsync"  }]
-                                : [{ label: qsTr("Free-run"), mode: "freerun" }]
+                    RowLayout {
+                        spacing: Theme.gap(6)
 
-                        delegate: PpChoiceChip {
-                            style: "mono"; moves: false
-                            required property var modelData
-                            label:    modelData.label
-                            selected: parent.selectedMode === modelData.mode
-                            onClicked: {
-                                var map = appSettings.cameraTriggerMode
-                                map[camRow.camData.cameraKey] = modelData.mode
-                                appSettings.cameraTriggerMode = map
-                                cameraManager.setTriggerMode(camRow.camData.index, modelData.mode)
+                        PpSwitch {
+                            readonly property bool fixedVal: {
+                                var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
+                                return v !== undefined ? !!v : false
+                            }
+                            checked: fixedVal
+                            onToggled: (v) => {
+                                var map = appSettings.cameraFixedInPlace
+                                map[camRow.camData.cameraKey] = v
+                                appSettings.cameraFixedInPlace = map
                             }
                         }
-                    }
-                }
-            }
 
-            // ── Fixed in place toggle ────────────────────────────────────────
-            ColumnLayout {
-                spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-
-                PpMicro {
-                    kind: "caps"
-                    text: qsTr("Fixed in place")
-                }
-
-                RowLayout {
-                    spacing: Theme.gap(6)
-
-                    PpSwitch {
-                        readonly property bool fixedVal: {
-                            var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
-                            return v !== undefined ? !!v : false
-                        }
-                        checked: fixedVal
-                        onToggled: (v) => {
-                            var map = appSettings.cameraFixedInPlace
-                            map[camRow.camData.cameraKey] = v
-                            appSettings.cameraFixedInPlace = map
+                        Text {
+                            text: {
+                                var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
+                                return (v !== undefined && !!v) ? qsTr("Yes") : qsTr("No")
+                            }
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorText2
+                            Layout.alignment: Qt.AlignVCenter
                         }
                     }
 
                     Text {
-                        text: {
-                            var v = appSettings.cameraFixedInPlace[camRow.camData.cameraKey]
-                            return (v !== undefined && !!v) ? qsTr("Yes") : qsTr("No")
-                        }
+                        text:           qsTr("Camera is attached to the wall or immovable.")
                         font.family:    Theme.fontData
                         font.pixelSize: Theme.fontSzMicro
-                        color:          Theme.colorText2
-                        Layout.alignment: Qt.AlignVCenter
+                        font.italic:    true
+                        color:          Theme.colorText3
+                        wrapMode:       Text.WordWrap
+                        Layout.preferredWidth: Theme.sp(160)
                     }
-                }
-
-                Text {
-                    text:           qsTr("Camera is attached to the wall or immovable.")
-                    font.family:    Theme.fontData
-                    font.pixelSize: Theme.fontSzMicro
-                    font.italic:    true
-                    color:          Theme.colorText3
-                    wrapMode:       Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(160)
                 }
             }
 
-            Item { Layout.fillWidth: true }
-
             // Action buttons ─────────────────────────────────────────────────
             Row {
+                id: actionButtons
                 spacing:  Theme.gap(6)
-                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                Layout.alignment: bodyRow.stacked ? (Qt.AlignTop | Qt.AlignRight) : (Qt.AlignVCenter | Qt.AlignRight)
+                Layout.bottomMargin: bodyRow.stacked ? Theme.gap(28) : 0
 
                 // Set crop — always available (setRoi() is a software crop on every camera)
                 PpButton {
@@ -777,12 +822,13 @@ SettingsPanelBase {
             }
         }
 
-        // ── Impact row — the impact camera's mode and exposure ───────────────
-        // Its own row beneath the body row: two chip groups with their notes
-        // would push the body row's action buttons (Set crop, which is how
-        // the strip is positioned over the ball) off the clipped right edge.
         // ── Exposure and gain, every role but Impact (flir_image_clarity.md §6.4)
-        // Collapsed to one line: the toggle and what the camera runs at now.
+        // Collapsed to one line: the toggle and what the camera runs at now
+        // (the words wrap beside the toggle rather than run off the card).
+        // Opened, its two groups wrap like the body row: each group sits whole
+        // on a line, the captions are no wider than the card, and the gain
+        // chips (to the sensor's maximum: ten of them on a 48 dB Blackfly)
+        // wrap inside the card (root.oneLineWidth).
         ColumnLayout {
             id: wideTuneRow
             readonly property bool shown: camRow.camData.enabled && !camRow.isImpact && camRow.camData.tuningLockable === true
@@ -796,10 +842,11 @@ SettingsPanelBase {
             anchors.rightMargin: Theme.gap(14)
             height: shown ? implicitHeight + Theme.gap(20) : 0
             visible: shown
-            spacing: Theme.gap(14)
+            spacing: Theme.gap(24)   // between rows: wider than a row's own wrapped lines (gap 16), so a wrapped group reads as part of its row
             clip: true
 
             RowLayout {
+                Layout.fillWidth: true
                 spacing: Theme.gap(12)
                 PpButton {
                     id: wideToggle
@@ -827,18 +874,19 @@ SettingsPanelBase {
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzMicro
                     color:          Theme.colorText3
+                    Layout.fillWidth: true
+                    wrapMode:       Text.WordWrap
                 }
             }
 
-            RowLayout {
+            Flow {
                 visible: camRow.tuningOpen
                 Layout.fillWidth: true
-                spacing: Theme.gap(24)
+                spacing: Theme.gap(16)   // between groups, and between a row's wrapped lines
 
                 // Exposure: auto, or locked to cut motion blur.
                 ColumnLayout {
                     spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignTop
                     PpMicro { kind: "caps"; text: Theme.caps(qsTr("Exposure")) }
                     Row {
                         spacing: Theme.gap(4)
@@ -883,18 +931,18 @@ SettingsPanelBase {
                               + qsTr("Keep it that long: the club's blur is how the shaft tracker times the club. If you add light, choose Full frame so the exposure stays long and the gain drops instead. Changes apply at once while the camera is streaming.")
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                         color: Theme.colorText3; wrapMode: Text.WordWrap
-                        Layout.preferredWidth: Theme.sp(420)
+                        Layout.preferredWidth: Math.min(Theme.sp(420), wideTuneRow.width)
                     }
                 }
 
                 // Gain: auto, or locked to the sensor's own range.
                 ColumnLayout {
                     spacing: Theme.gap(4)
-                    Layout.alignment: Qt.AlignTop
                     PpMicro { kind: "caps"; text: Theme.caps(qsTr("Gain")) }
-                    Row {
+                    Flow {
                         id: wideGainRow
                         spacing: Theme.gap(4)
+                        Layout.preferredWidth: Math.min(root.oneLineWidth(wideGainRow), wideTuneRow.width)
                         readonly property double maxDb: camRow.camData.gainMaxDb > 0 ? camRow.camData.gainMaxDb : 24
                         PpChoiceChip {
                             style: "mono"; moves: false
@@ -921,11 +969,10 @@ SettingsPanelBase {
                         }
                         font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                         color: Theme.colorText3; wrapMode: Text.WordWrap
-                        Layout.preferredWidth: Theme.sp(260)
+                        Layout.preferredWidth: Math.min(Theme.sp(260), wideTuneRow.width)
                     }
                 }
 
-                Item { Layout.fillWidth: true }
             }
         }
 
@@ -938,21 +985,29 @@ SettingsPanelBase {
             anchors.rightMargin: Theme.gap(14)
             height: (camRow.camData.enabled && camRow.isImpact) ? implicitHeight + Theme.gap(24) : 0
             visible: camRow.camData.enabled && camRow.isImpact
-            spacing: Theme.gap(14)
+            spacing: Theme.gap(24)   // between rows: wider than a row's own wrapped lines (gap 16), so a wrapped group reads as part of its row
             clip: true
 
-          // Row 1: the mode and the exposure — what makes the camera an impact
-          // camera at all. Row 2: the tuning that makes the club visible in it.
-          RowLayout {
+          // ── Impact row — the impact camera's mode and its tuning ───────────
+          // Its own block beneath the body row. It moved there when the body
+          // row was one unwrapped line, where its chip groups and notes pushed
+          // the action buttons (Set crop, which is how the strip is positioned
+          // over the ball) off the clipped right edge.
+          // Row 1: the mode — what makes the camera an impact camera at all —
+          // and the TUNING disclosure. Then the tuning that makes the club
+          // visible in it. Every row is a Flow, as the body row is: its groups
+          // wrap onto more lines when the card is narrow, each caption and the
+          // mode and gain chips are sized to at most the row's width, and
+          // nothing is dropped or hidden for width.
+          Flow {
             Layout.fillWidth: true
-            spacing: Theme.gap(24)
+            spacing: Theme.gap(16)   // between groups, and between a row's wrapped lines
 
             // Impact mode chips — crop size × rate, as the camera reported them
             // at enumeration (impact_camera_design.md §3.1, §10.2) ───────────
             ColumnLayout {
                 visible: camRow.isImpact
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
 
                 PpMicro {
                     kind: "caps"
@@ -962,7 +1017,7 @@ SettingsPanelBase {
                 Flow {
                     id: modeFlow
                     spacing: Theme.gap(4)
-                    Layout.preferredWidth: Theme.sp(520)
+                    Layout.preferredWidth: Math.min(Theme.sp(520), impactRow.width)
 
                     // The impact strip, stored apart from the camera's other-role crop (camera_roi.h).
                     readonly property var    storedRoi: appSettings.cameraRoi[camRow.camData.cameraKey + "#impact"]
@@ -1014,7 +1069,7 @@ SettingsPanelBase {
                     font.italic:    true
                     color:          Theme.colorText3
                     wrapMode:       Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(520)
+                    Layout.preferredWidth: Math.min(Theme.sp(520), impactRow.width)
                 }
             }
 
@@ -1025,7 +1080,6 @@ SettingsPanelBase {
             // rate and resolution (the mode chips above, and Set crop) stay.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Tuning")) }
                 PpButton {
                     id: tuningToggle
@@ -1042,11 +1096,10 @@ SettingsPanelBase {
                     text: qsTr("Defaults suit the studio; open this to tune to a room.")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(200)
+                    Layout.preferredWidth: Math.min(Theme.sp(200), impactRow.width)
                 }
             }
 
-            Item { Layout.fillWidth: true }
           }
 
           // ── The tuning section (collapsed by default) ─────────────────────
@@ -1054,17 +1107,16 @@ SettingsPanelBase {
             id: tuningSection
             visible: camRow.tuningOpen
             Layout.fillWidth: true
-            spacing: Theme.gap(14)
+            spacing: Theme.gap(24)   // between rows: wider than a row's own wrapped lines (gap 16), so a wrapped group reads as part of its row
 
-          RowLayout {
+          Flow {
             Layout.fillWidth: true
-            spacing: Theme.gap(24)
+            spacing: Theme.gap(16)   // between groups, and between a row's wrapped lines
 
             // Exposure chips — the impact camera's locked exposure ────────────
             ColumnLayout {
                 visible: camRow.isImpact
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
 
                 PpMicro {
                     kind: "caps"
@@ -1121,30 +1173,29 @@ SettingsPanelBase {
                     font.italic:    true
                     color:          Theme.colorText3
                     wrapMode:       Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(260)
+                    Layout.preferredWidth: Math.min(Theme.sp(260), impactRow.width)
                 }
             }
 
 
-            Item { Layout.fillWidth: true }
           }
 
           // ── Row 2: gain, view gain, strobe — tuning to the room ──────────
           // (impact_camera_design.md §10.3). Gain writes to the
           // camera the moment they are clicked when it streams; the tile's
           // level readout (bg / peak / clip) is what to watch.
-          RowLayout {
+          Flow {
             Layout.fillWidth: true
-            spacing: Theme.gap(24)
+            spacing: Theme.gap(16)   // between groups, and between a row's wrapped lines
 
             // Sensor gain — before the ADC, so it lifts the club above the
             // 8-bit floor. Chips to the camera's own maximum.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Gain")) }
-                Row {
+                Flow {
                     id: gainRow
+                    Layout.preferredWidth: Math.min(root.oneLineWidth(gainRow), impactRow.width)
                     spacing: Theme.gap(4)
                     readonly property double selected:
                         root.impactTuning(camRow.camData.cameraKey, "gainDb", root.impactDefaultGainDb)
@@ -1168,7 +1219,7 @@ SettingsPanelBase {
                     }
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(300)
+                    Layout.preferredWidth: Math.min(Theme.sp(300), impactRow.width)
                 }
             }
 
@@ -1176,7 +1227,6 @@ SettingsPanelBase {
             // are never touched; the level readout ignores it.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("View")) }
                 Row {
                     id: viewRow
@@ -1198,14 +1248,13 @@ SettingsPanelBase {
                     text: qsTr("Display stretch only — for aiming a dark tile. Stamped into the clip and used on replay.")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(200)
+                    Layout.preferredWidth: Math.min(Theme.sp(200), impactRow.width)
                 }
             }
 
             // Strobe — Line1 carries ExposureActive for an LED strobe driver.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Strobe")) }
                 PpSwitch {
                     checked: root.impactTuning(camRow.camData.cameraKey, "strobe", false)
@@ -1215,23 +1264,21 @@ SettingsPanelBase {
                     text: qsTr("Line1 = exposure active. Next connect.")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(150)
+                    Layout.preferredWidth: Math.min(Theme.sp(150), impactRow.width)
                 }
             }
 
-            Item { Layout.fillWidth: true }
           }
 
           // ── Row 3: the live levels and the note ──────────────────────────
-          RowLayout {
+          Flow {
             Layout.fillWidth: true
-            spacing: Theme.gap(24)
+            spacing: Theme.gap(16)   // between groups, and between a row's wrapped lines
 
             // What the raw frame measures right now, if the camera streams:
             // the number that turns tuning from guessing into a procedure.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Levels")) }
                 Text {
                     readonly property var inst: camRow.realInstance
@@ -1249,15 +1296,14 @@ SettingsPanelBase {
                     text: qsTr("Aim for the mat under 40 and the peak near 250 with almost nothing clipped; the club body then sits around 100.")
                     font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; font.italic: true
                     color: Theme.colorText3; wrapMode: Text.WordWrap
-                    Layout.preferredWidth: Theme.sp(300)
+                    Layout.preferredWidth: Math.min(Theme.sp(300), impactRow.width)
                 }
             }
 
             // Free text stamped into every clip: what the camera cannot read.
             ColumnLayout {
                 spacing: Theme.gap(4)
-                Layout.alignment: Qt.AlignTop
-                Layout.fillWidth: true
+                width: Math.min(Theme.sp(520), impactRow.width)   // in a Flow: sized from the row, the field fills it
                 PpMicro { kind: "caps"; text: Theme.caps(qsTr("Note")) }
                 PpTextField {
                     id: noteField
