@@ -2458,8 +2458,11 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
             // A sidecar from before `devices` cannot say what recorded the swing — stale.
             && root.contains(QStringLiteral("devices"))
             && root.contains(QStringLiteral("handedness"))
-            && qint64(srcObj[QStringLiteral("size")].toDouble())     == src.size()
-            && qint64(srcObj[QStringLiteral("mtime_ms")].toDouble()) == src.lastModified().toMSecsSinceEpoch();
+            // The one stamp rule (SwingStore::sameDocumentStamp): a copy that kept the document's
+            // mtime to the whole second is the same document.
+            && SwingStore::sameDocumentStamp(qint64(srcObj[QStringLiteral("size")].toDouble()),
+                                             qint64(srcObj[QStringLiteral("mtime_ms")].toDouble()),
+                                             src.size(), src.lastModified().toMSecsSinceEpoch());
         if (fresh) {
             summaryFromJson(root, swingDir, s);
             return s;

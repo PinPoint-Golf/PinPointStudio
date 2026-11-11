@@ -884,8 +884,14 @@ DeliveryTrust deliveryTrust(const std::vector<DeliveryShotInput> &shots, const D
     if (!pool.isEmpty())
         t.lines << QStringLiteral("The fits pool your day, %1: one camera set-up, so its offset cancels; the other sessions' "
                                   "%2 are read from their cached readings.").arg(pool, noun)
-                       + (day->staleGrids > 0 ? QStringLiteral(" %1 of them were cached before their swing was last analysed.")
-                                                    .arg(day->staleGrids) : QString());
+                       // What it counts (charts_delivery_presenter.cpp readDay): cached readings whose swing document has been
+                       // rewritten since — a re-analysis, or a rating, note or monitor edit — so "changed", not "analysed".
+                       + (day->staleGrids > 0 ? QStringLiteral(" %1 of them %2 cached before %3 %4 last changed.")
+                                                    .arg(W::cap1(W::word(day->staleGrids)),
+                                                         W::plural(day->staleGrids, QStringLiteral("was"), QStringLiteral("were")),
+                                                         W::plural(day->staleGrids, QStringLiteral("its"), QStringLiteral("their")),
+                                                         W::plural(day->staleGrids, QStringLiteral("swing was"), QStringLiteral("swings were")))
+                                              : QString());
     const auto fitLine = [&](const DeliveryFit &f, const QString &what) {
         if (f.n == 0) return;
         QString state = f.holds ? QStringLiteral("shown") : QStringLiteral("not shown: ") + f.why;

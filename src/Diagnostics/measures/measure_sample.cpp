@@ -632,9 +632,12 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     if (root.value(QStringLiteral("schema")).toInt() != kPhaseGridSchemaVersion)
         return grid;
 
+    // THE one stamp rule (SwingStore::sameDocumentStamp): a copy that kept the document's mtime to the
+    // whole second is the same document; anything else that moved is a rewrite.
     const QJsonObject src = root.value(QStringLiteral("source")).toObject();
-    if (src.value(QStringLiteral("size")).toVariant().toLongLong() != sourceSize
-        || src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong() != sourceMtimeMs)
+    if (!SwingStore::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),
+                                       src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong(),
+                                       sourceSize, sourceMtimeMs))
         return grid;                                   // stale: rebuild, never trust
 
     // Built under a different reduction: the numbers are internally consistent and answer a question

@@ -314,6 +314,12 @@ In the fold under the plot, once:
 - where the hands carry the curve, and why (the shaft points along the target line);
 - each fit's n, r and that it is this golfer's own;
 - the monitor's role (primary) and which readings it lacked on this session (5 Oct: no face, no lie);
+- the pool's source: the day's other sessions are read from their cached readings (`swing_phasegrid.json`), and
+  how many of those were cached before their swing was last changed ("One of them was cached before its swing was
+  last changed."). That count uses the grid reader's own stamp rule (`SwingStore::sameDocumentStamp`: same size,
+  same mtime — to the whole second when the document's mtime has no milliseconds), so a copied or restored day
+  whose swings are unchanged counts none. The presenter's cached day is stamped by every sibling swing's grid and
+  document as well as the session folders, so a grid a regrade rebuilds is re-read and stops counting (issue #174);
 - the literature line of §3, briefly.
 
 Nothing in the body repeats it.

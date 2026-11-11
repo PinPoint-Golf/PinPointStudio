@@ -15,7 +15,8 @@
 //      cannot carry a `sense`, and every anchored Extremum in the shipped pack means the signed
 //      reading.
 //   4. The sidecar round-trips exactly AND refuses a stale guard. A cache that answered from a
-//      superseded swing.json would be wrong in a way nothing on screen could reveal.
+//      superseded swing.json would be wrong in a way nothing on screen could reveal. A copy that kept
+//      the document's mtime only to the whole second is NOT stale (issue #174).
 //   5. A span extreme is the extreme of the WINDOWED MEAN, so one wild sample cannot be a peak
 //      (schema 3, design §5.2) — and the engine's answer is the SAME NUMBER series_reduce.h gives
 //      the review chart, checked here by calling reduceExtremum directly on the same fixture. The
@@ -31,12 +32,15 @@
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/line_angle.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QTimeZone>
 
 #include <algorithm>
 #include <cmath>
@@ -857,6 +861,31 @@ int main()
         const SwingPhaseGrid s2 = loadPhaseGrid(doc, size, mtime + 1, &stale);
         check(!stale && s2.isEmpty(), "a changed MTIME invalidates the cache");
 
+        // A COPY KEEPS WHOLE SECONDS (issue #174). macOS's rsync -a (openrsync) brought 1794051638750 back as
+        // 1794051638000: the same document, so the same grid. Only the document's side is relaxed, and only
+        // within its second; a different second, or a document that still has its milliseconds, is a rewrite.
+        {
+            const qint64 stamped = mtime + 750;                       // the grid was built at …000750
+            const QJsonObject atMs = savePhaseGrid(src, size, stamped);
+            stale = false;
+            const SwingPhaseGrid c1 = loadPhaseGrid(atMs, size, mtime, &stale);
+            check(stale && !c1.isEmpty(), "a document copied to the whole second still matches its grid");
+            stale = true;
+            const SwingPhaseGrid c2 = loadPhaseGrid(atMs, size, mtime + 1000, &stale);
+            check(!stale && c2.isEmpty(), "...but the NEXT whole second is a rewrite");
+            stale = true;
+            const SwingPhaseGrid c3 = loadPhaseGrid(atMs, size, mtime + 751, &stale);
+            check(!stale && c3.isEmpty(), "...and so is a document that kept its milliseconds and moved by one");
+            stale = true;
+            const SwingPhaseGrid c4 = loadPhaseGrid(atMs, size + 1, mtime, &stale);
+            check(!stale && c4.isEmpty(), "...and a copy of another size is another document");
+            check(pinpoint::SwingStore::sameDocumentStamp(size, mtime, size, mtime)
+                      && !pinpoint::SwingStore::sameDocumentStamp(size, mtime, size, mtime + 1)
+                      && !pinpoint::SwingStore::sameDocumentStamp(size, mtime + 1000, size, mtime)
+                      && pinpoint::SwingStore::sameDocumentStamp(size, mtime + 999, size, mtime),
+                  "the stamp rule: exact, or the document's whole second; never the stamp's side relaxed");
+        }
+
         QJsonObject future = doc;
         future.insert(QStringLiteral("schema"), kPhaseGridSchemaVersion + 1);
         stale = true;
@@ -1132,6 +1161,32 @@ int main()
         const SwingPhaseGrid fresh = readPhaseGrid(m);
         check(fresh.ordinal == 104 && QFile::exists(phaseGridPath(m)),
               "the next read builds from the new document and indexes that");
+
+        // (e) a copied or restored swing (issue #174): its document comes back with the mtime to the whole
+        // second. The grid is served from the sidecar — no rebuild, nothing rewritten — until the document is
+        // genuinely rewritten.
+        const QString cp = mkSwing("swing_0006");
+        check(pinpoint::SwingStore::save(cp, swingDoc), "copy: written");
+        const QDateTime at = QDateTime::fromMSecsSinceEpoch(1794051638750LL, QTimeZone::UTC);
+        const auto setMtime = [](const QString &path, const QDateTime &t) {
+            QFile f(path);
+            return f.open(QIODevice::ReadWrite) && f.setFileTime(t, QFileDevice::FileModificationTime);
+        };
+        check(setMtime(pinpoint::SwingStore::ppswPath(cp), at)
+                  && pinpoint::SwingStore::info(cp).mtimeMs == 1794051638750LL, "copy: the document at …638750");
+        check(!readPhaseGrid(cp).isEmpty() && QFile::exists(phaseGridPath(cp)), "copy: graded and indexed at …638750");
+        const QDateTime gridAt = QFileInfo(phaseGridPath(cp)).lastModified();
+        check(setMtime(pinpoint::SwingStore::ppswPath(cp), at.addMSecs(-750))
+                  && pinpoint::SwingStore::info(cp).mtimeMs == 1794051638000LL, "copy: the document comes back at …638000");
+        const SwingPhaseGrid copied = readPhaseGrid(cp, /*writeSidecar=*/false);
+        check(!copied.isEmpty() && copied.ordinal == 4, "copy: the grid is served from the sidecar, never fat-parsed");
+        check(QFileInfo(phaseGridPath(cp)).lastModified() == gridAt, "copy: ...and the sidecar is not rewritten");
+        QJsonObject reanalysed = swingDoc;
+        reanalysed.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 106 },
+                                                                { QStringLiteral("padding"), QStringLiteral("re-analysed") } });
+        check(pinpoint::SwingStore::save(cp, reanalysed), "copy: then re-analysed");
+        check(readPhaseGrid(cp, /*writeSidecar=*/false).isEmpty(), "copy: the re-analysed swing's old grid is stale");
+        check(readPhaseGrid(cp).ordinal == 106, "copy: ...and rebuilt from the new document");
     }
 
     // A curve that is already a fit is read at the phase's instant; any other curve keeps its window.

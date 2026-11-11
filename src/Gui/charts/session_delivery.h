@@ -105,7 +105,9 @@
 //      swing_phasegrid.json alone (deliveryInputFromPhaseGrid; the presenter never opens a sibling swing document). The
 //      sentences say the pool ("On your 16 shots with the monitor on 20 Oct (3 sessions), …"); a day of one session
 //      keeps the session's wording. The shot's place (decision 8) is over the same pool; the usual, the band, the slot
-//      and the shapes stay the session's.
+//      and the shapes stay the session's. The trust note counts the cached readings whose swing document has changed
+//      since they were cached (DeliveryDay::staleGrids, judged by SwingStore::sameDocumentStamp — the grid reader's own
+//      rule, so a copied or restored day whose swings kept their mtimes to the second counts none; issue #174).
 
 #include "session_series_types.h"
 #include "../typeset/box_stats.h"
@@ -208,7 +210,7 @@ struct DeliveryDay {
     QString date;                                     // "2026-10-20"; "" unknown
     int     sessions = 1;                             // session folders in the pool with a reading, this one included
     std::vector<DeliveryShotInput> others;            // the day's other sessions' shots (thisSession false)
-    int     staleGrids = 0;                           // of `others`: sidecars older than their swing document
+    int     staleGrids = 0;                           // of `others`: sidecars stamped from an older swing document (SwingStore::sameDocumentStamp)
 };
 // The fit's pool: the session's shots, then the day's others.
 std::vector<DeliveryShotInput> deliveryPool(const std::vector<DeliveryShotInput> &shots, const DeliveryDay *day);

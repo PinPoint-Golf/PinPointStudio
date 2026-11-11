@@ -58,7 +58,8 @@ struct CacheEntry {
 };
 
 // The golfer's day beyond this session (session_delivery.h decision 13): its other sessions' shots, read off their
-// swing_phasegrid.json files, keyed by the session folder and stamped by the day's sibling folders and their mtimes.
+// swing_phasegrid.json files, keyed by the session folder and stamped by the day's sibling folders and the stats of their
+// swings' grids and documents (dayStamp).
 struct DayEntry {
     QString stamp;
     DeliveryDay day;           // `sessions` counts the OTHER sessions with a reading; the job adds this one
@@ -207,15 +208,32 @@ QStringList daySiblings(const QString &sessionDir, QString *date)
     return out;
 }
 
+// What the day's reading was made from: each sibling folder, and in each of its swing folders the phase grid and the
+// swing document (size and mtime, a stat each — never a read). A folder's own mtime moves only when a swing folder comes
+// or goes; a grid rebuilt by a regrade, or a swing re-analysed, changes only the files inside a swing folder, so those
+// are stamped too (issue #174: the day used to keep a count of stale grids the regrade had since rebuilt).
 QString dayStamp(const QStringList &siblings)
 {
     QStringList parts;
-    for (const QString &s : siblings) parts << QStringLiteral("%1@%2").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch());
+    const auto stat = [](const QFileInfo &f) { return f.exists() ? QStringLiteral("%1:%2").arg(f.size()).arg(f.lastModified().toMSecsSinceEpoch())
+                                                                 : QStringLiteral("-"); };
+    for (const QString &s : siblings) {
+        parts << QStringLiteral("%1@%2").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch());
+        const QDir dir(s);
+        for (const QString &sw : dir.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QString swingDir = dir.filePath(sw);
+            const SwingStore::DocInfo doc = SwingStore::info(swingDir);
+            parts << QStringLiteral("%1 %2 %3:%4").arg(sw, stat(QFileInfo(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")))))
+                                                  .arg(doc.size).arg(doc.mtimeMs);
+        }
+    }
     return parts.join(QLatin1Char('|'));
 }
 
 // Read the siblings' sidecars — never a swing document (a 28 MB parse froze the GUI once): each swing's
-// swing_phasegrid.json, its staleness judged by a stat of the document beside it.
+// swing_phasegrid.json, its staleness judged by a stat of the document beside it, by THE stamp rule the grid's own
+// reader uses (SwingStore::sameDocumentStamp), so a grid the reader would serve is never counted as stale and a grid
+// it would rebuild always is.
 DeliveryDay readDay(const QStringList &siblings, const QString &date)
 {
     DeliveryDay day;
@@ -242,14 +260,11 @@ DeliveryDay readDay(const QStringList &siblings, const QString &date)
             if (in.ordinal <= 0) in.ordinal = SessionSeriesModel::folderShotId(swingDir);
             in.shotId = SessionSeriesModel::folderShotId(swingDir);
             const QJsonObject src = root.value(QStringLiteral("source")).toObject();
-            for (const QString &doc : { QStringLiteral("swing.ppsw"), QStringLiteral("swing.json") }) {
-                const QFileInfo di(QDir(swingDir).filePath(doc));
-                if (!di.exists()) continue;
-                if (di.size() != src.value(QStringLiteral("size")).toVariant().toLongLong()
-                    || di.lastModified().toMSecsSinceEpoch() != src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong())
-                    ++day.staleGrids;
-                break;
-            }
+            const SwingStore::DocInfo doc = SwingStore::info(swingDir);   // swing.ppsw, else swing.json; none: nothing to be stale against
+            if (doc.exists()
+                && !SwingStore::sameDocumentStamp(src.value(QStringLiteral("size")).toVariant().toLongLong(),
+                                                  src.value(QStringLiteral("mtime_ms")).toVariant().toLongLong(), doc.size, doc.mtimeMs))
+                ++day.staleGrids;
             day.others.push_back(std::move(in));
             any = true;
         }
@@ -261,7 +276,8 @@ DeliveryDay readDay(const QStringList &siblings, const QString &date)
     return day;
 }
 
-// The day, through the worker's cache: re-read only when the day's sibling folders change.
+// The day, through the worker's cache: re-read only when the day's sibling folders, or a grid or swing document in one
+// of their swing folders, change (dayStamp).
 DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
 {
     QString date;
@@ -269,8 +285,8 @@ DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
     DeliveryDay day;
     day.sessions = 0;   // the other sessions with a reading; this one is added below
     if (!siblings.isEmpty()) {
-        const QString stamp = dayStamp(siblings);
         if (w) {
+            const QString stamp = dayStamp(siblings);   // only a cached day pays the stats; the report reads afresh
             auto it = w->days.find(sessionDir);
             if (it == w->days.end() || it->stamp != stamp) {
                 if (w->days.size() > 8) w->days.clear();

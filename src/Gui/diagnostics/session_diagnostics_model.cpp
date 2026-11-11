@@ -962,8 +962,9 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // it too. clock.wallclock is the capture instant and survives all of that.
     //
     // writeSidecar TRUE, and load-bearing rather than copied from the phase grid above: the summary
-    // sidecar's guard is the source document's size AND mtime, so a copied directory invalidates
-    // it — the very case this fixes is the case that misses the cache. Passing false would take the
+    // sidecar's guard is the source document's size AND mtime, so a copy that reset the mtimes
+    // invalidates it — the very case this fixes is the case that misses the cache. (A copy that kept
+    // them to the whole second still matches: SwingStore::sameDocumentStamp, issue #174.) Passing false would take the
     // miss and fall straight back to the mtime that is wrong. One lean parse per swing, once, and
     // it re-seats the stale sidecar on the way through.
     //
@@ -1556,10 +1557,12 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         const auto it = m_gradedFrom.constFind(id);
         const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
         if (!doc.exists()) continue;
+        // The document half is THE stamp rule every sidecar reader uses (SwingStore::sameDocumentStamp): a
+        // session copied or restored with its mtimes kept to the whole second (macOS openrsync) is the same
+        // documents, and does not regrade every row on its first open (issue #174).
         const bool stale = it == m_gradedFrom.constEnd()
                         || it->content != rowContentStamp()
-                        || it->docSize != doc.size
-                        || it->docMtimeMs != doc.mtimeMs;
+                        || !pinpoint::SwingStore::sameDocumentStamp(it->docSize, it->docMtimeMs, doc.size, doc.mtimeMs);
         if (stale) {
             m_swingDirs.insert(id, swingDir);
             queueDetect(id, swingDir, true);

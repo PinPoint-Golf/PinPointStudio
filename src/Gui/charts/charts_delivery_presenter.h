@@ -90,11 +90,12 @@
 //             fit: FIT (the stronger path fit, decision 7), attack: FIT, fits: { pathP6: FIT, pathSteep: FIT, attackP6: FIT },
 //             place: { known, third (−1|0|1), words }, scatter: SCATTER,
 //             pool: { date ("2026-10-20" | ""), sessions (this one included), shots, otherShots, words ("on 20 Oct (3 sessions)" |
-//                     "" for a day of one session), staleGrids (other sessions' sidecars older than their swing) } }
+//                     "" for a day of one session), staleGrids (other sessions' sidecars stamped from an older swing document) } }
 //           The fits, the place and the scatter are over THE GOLFER'S DAY (session_delivery.h decision 13): this session's
 //           shots and the golfer's other sessions on the same date — sibling folders under the golfer folder whose names
 //           start with the same yyyy-MM-dd — read from each swing's swing_phasegrid.json on the worker (never a sibling's
-//           swing document), cached per session folder until the day's folders change.
+//           swing document), cached per session folder until the day's folders, or a grid or swing document in one of
+//           their swing folders, change.
 //  FIT    = { key ("path~planeP6" | "path~steepening" | "attack~planeP6"), x ("planeP6"|"steepening"), y ("path"|"attack"),
 //             xLabel ("Swing plane at P6" | "Hand plane steepening"), yLabel ("Club path (monitor)" | "Attack angle (monitor)"),
 //             n, slope, intercept, r, sd (| null), slopeText ("−0.92"), rText ("−0.80"), sdText ("±1.4°" | ""), holds,

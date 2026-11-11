@@ -20,6 +20,7 @@
 QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
 #include <cmath>
+#include <QDateTime>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -27,6 +28,7 @@ QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTemporaryDir>
+#include <QTimeZone>
 #include <QJsonObject>
 #include <cstdio>
 
@@ -1165,6 +1167,22 @@ int main()
         patchSidecar("mtime_ms", QJsonValue(1.0));
         check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "wrong source.mtime_ms → stale");
         check(SwingDocReader::readSwingSummary(dirJ).fromSidecar,  "…and is rewritten correctly");
+
+        // A copy keeps whole seconds (issue #174): the document back at …638000 against a sidecar stamped
+        // at …638750 is the same document (pinpoint::SwingStore::sameDocumentStamp); the next second is not.
+        {
+            QFile d(pinpoint::SwingStore::jsonPath(dirJ));
+            const bool timed = d.open(QIODevice::ReadWrite)
+                && d.setFileTime(QDateTime::fromMSecsSinceEpoch(1794051638000LL, QTimeZone::UTC), QFileDevice::FileModificationTime);
+            d.close();
+            check(timed && QFileInfo(pinpoint::SwingStore::jsonPath(dirJ)).lastModified().toMSecsSinceEpoch() == 1794051638000LL,
+                  "the copied document comes back at the whole second");
+            patchSidecar("mtime_ms", QJsonValue(1794051638750.0));
+            check(SwingDocReader::readSwingSummary(dirJ).fromSidecar, "a copy to the whole second → still fresh");
+            patchSidecar("mtime_ms", QJsonValue(1794051639750.0));
+            check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "…but a stamp in another second → stale");
+            check(SwingDocReader::readSwingSummary(dirJ).fromSidecar,  "…and is rewritten correctly");
+        }
 
         patchSidecar("schema", QJsonValue(QStringLiteral("pinpoint.swingsummary/99")));
         check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "unknown schema → miss, not error");

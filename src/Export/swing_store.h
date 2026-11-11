@@ -59,6 +59,30 @@ QString legacySummaryPath(const QString &swingDir); // <dir>/swing_summary.json 
 DocInfo info(const QString &swingDir);
 bool    hasDocument(const QString &swingDir);
 
+// IS THIS STILL THE DOCUMENT A SIDECAR WAS STAMPED FROM? Every cache written to disk beside a swing
+// (swing_phasegrid.json, a JSON-era swing_summary.json) records the document's size and mtime when it
+// was built, and every reader of such a stamp asks HERE, so they all agree on what "stale" means
+// (issue #174: the Club delivery note counted copied grids as stale while the grid reader rebuilt them).
+//
+// Same size, and the same mtime — at the resolution the document's clock still has. A copy or restore
+// can carry a document's mtime to the whole second only: macOS's openrsync (rsync 2.6.9 compatible)
+// truncates mtimes when it copies with -a, so 1794051638750 came back as 1794051638000 on 11 Nov 2026
+// (the share itself, smbfs onto NTFS, keeps 100 ns; other old copy tools truncate too). So when the
+// document's mtime NOW has no
+// milliseconds, the stamp matches within that second. Safe because the other direction is never
+// relaxed (a stamp of …000 against a document at …001 is a rewrite), and a false match needs a rewrite
+// of the very same byte size inside the same second — a re-analysis takes far longer than that, and a
+// filesystem that only ever keeps whole seconds already had that blind spot with an exact compare.
+// A copy that resets the mtime (plain cp) is a different file to any stat, and still reads stale.
+//
+// In-process comparisons of two stats of the same file (LazyDocument::stillCurrent) stay exact.
+inline bool sameDocumentStamp(qint64 stampSize, qint64 stampMtimeMs, qint64 size, qint64 mtimeMs)
+{
+    if (stampSize != size) return false;
+    if (stampMtimeMs == mtimeMs) return true;
+    return mtimeMs > 0 && stampMtimeMs > 0 && mtimeMs % 1000 == 0 && stampMtimeMs / 1000 == mtimeMs / 1000;
+}
+
 // The whole document. Empty on no document or any read/parse failure; *error says which.
 QJsonObject load(const QString &swingDir, QString *error = nullptr);
 

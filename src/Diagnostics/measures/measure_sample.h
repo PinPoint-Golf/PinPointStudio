@@ -329,7 +329,9 @@ std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, con
 //
 // <swingDir>/swing_phasegrid.json — a few KB beside a 32 MB swing.json. Guarded on the source
 // file's size and mtime exactly as swing_summary.json is: a stale guard means rebuild, never a
-// silently wrong number. Always safe to delete.
+// silently wrong number. Always safe to delete. The comparison is SwingStore::sameDocumentStamp's,
+// the one rule every reader of the stamp uses: a copied or restored swing whose document kept its
+// mtime only to the whole second is the same document, so its grid stays current (issue #174).
 //
 // The guard also carries the REDUCTION the grid was built under (both windows and the sample floor),
 // because size and mtime cannot see it: sweep `extremumWindowUs` and every sidecar in the library

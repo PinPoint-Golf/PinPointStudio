@@ -1052,7 +1052,9 @@ real captured frames — and are validated by hand (see
   emitting `pinpoint.swing/2` (export-succeeded-but-analysis-failed degrades cleanly).
 
 - **Summary sidecar** — `swing_summary.json` is written on a full read, reused on
-  the next one, and **invalidated by the source document's size/mtime**. The test
+  the next one, and **invalidated by the source document's size/mtime**
+  (`SwingStore::sameDocumentStamp`: a copy that kept the mtime to the whole second still
+  matches, issue #174). The test
   also asserts the cheap path was genuinely taken (`SwingSummary::fromSidecar`)
   and that an orphaned sidecar copied into a directory with no `swing.json` is
   rejected rather than trusted.

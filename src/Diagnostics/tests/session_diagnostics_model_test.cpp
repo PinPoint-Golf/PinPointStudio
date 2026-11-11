@@ -2517,6 +2517,46 @@ int main(int argc, char **argv)
         check(g.readAll() == whole, "an unchanged document is not regraded — the file is untouched");
         g.close();
 
+        // A COPIED SESSION IS CURRENT (issue #174). macOS's rsync -a (openrsync) keeps a document's mtime to the
+        // whole second: graded at …750 ms, the copy comes back at …000. The same document, by the one stamp rule
+        // the sidecars use (SwingStore::sameDocumentStamp), so the ledger is not regraded — down to the byte.
+        {
+            const QString doc = QDir(swingDirFor(dir, 1)).filePath(QStringLiteral("swing.json"));
+            const qint64 whole0 = QFileInfo(doc).lastModified().toMSecsSinceEpoch() / 1000 * 1000;
+            const auto setMtime = [&](qint64 ms) {
+                QFile d(doc);
+                const bool ok = d.open(QIODevice::ReadWrite)
+                    && d.setFileTime(QDateTime::fromMSecsSinceEpoch(ms, QTimeZone::UTC), QFileDevice::FileModificationTime);
+                d.close();
+                return ok && QFileInfo(doc).lastModified().toMSecsSinceEpoch() == ms;
+            };
+            check(setMtime(whole0 + 750), "copy: the document at …750 ms");
+            auto graded = freshModel();
+            graded->activateSession(dir);
+            const auto stampOf = [&]() {
+                return qint64(diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject()
+                                  .value(QStringLiteral("gradedFrom")).toObject().value(QStringLiteral("1")).toObject()
+                                  .value(QStringLiteral("mtimeMs")).toDouble());
+            };
+            check(stampOf() == whole0 + 750, "copy: …graded and stamped at …750 ms");
+            QFile c1(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+            c1.open(QIODevice::ReadOnly);
+            const QByteArray atMs = c1.readAll();
+            c1.close();
+            check(setMtime(whole0), "copy: the copied document comes back at the whole second");
+            auto copied = freshModel();
+            copied->activateSession(dir);
+            QFile c2(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+            c2.open(QIODevice::ReadOnly);
+            check(c2.readAll() == atMs && stampOf() == whole0 + 750,
+                  "copy: the copied session's ledger is current — no row regraded, the file untouched");
+            c2.close();
+            check(setMtime(whole0 + 1000), "copy: then the document moves to the next second");
+            auto later = freshModel();
+            later->activateSession(dir);
+            check(stampOf() == whole0 + 1000, "copy: …which is a rewrite: the row is regraded and re-stamped");
+        }
+
         // A ledger written before rows carried a stamp regrades once and is stamped.
         QJsonObject root = diagnosticsJsonOf(dir);
         QJsonObject session = root.value(QStringLiteral("session")).toObject();
