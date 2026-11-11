@@ -890,6 +890,18 @@ int main()
         check(block.value(QStringLiteral("foot")).toString().contains(QStringLiteral("2 sessions of 8 or more shots")), "and the foot says what earns it");
         set.items = { earned };
         check(pinpoint::report::tendenciesReportBlock(set).value(QStringLiteral("foot")).toString().isEmpty(), "no building factor, no foot");
+
+        // The flow on the report: absent without a pack to name its nodes; with one, the map Home's flow reads, laid out in
+        // the report's own units (layoutHeight) for the page to scale.
+        check(!block.value(QStringLiteral("flow")).isValid() || block.value(QStringLiteral("flow")).isNull(), "no pack, no flow");
+        earned.flow = { TendencyFlowCombo{ QStringLiteral("solid"), QStringLiteral("straight"), QStringLiteral("mid"), 8 },
+                        TendencyFlowCombo{ QStringLiteral("thin"), QStringLiteral("slice"), QStringLiteral("low"), 4 } };
+        set.items = { earned };
+        const QVariantMap flow = pinpoint::report::tendenciesReportBlock(set, &fixturePackOnce()).value(QStringLiteral("flow")).toMap();
+        check(flow.value(QStringLiteral("total")).toInt() == 12 && flow.value(QStringLiteral("enough")).toBool()
+                  && flow.value(QStringLiteral("layoutHeight")).toDouble() == pinpoint::report::kReportFlowLayoutHeight
+                  && flow.value(QStringLiteral("nodes")).toList().size() == 6 && flow.value(QStringLiteral("idealPct")).toInt() == 67,
+              "with a pack, the report carries the flow: 12 shots, 67% ideal, six nodes, in its own units");
     }
 
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

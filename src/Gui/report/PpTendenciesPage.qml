@@ -154,6 +154,67 @@ Column {
         Text { id: footText; y: tp.g6; width: parent.width; text: tp.m.foot || ""; font: tp.ro.fSmall; color: tp.ro.ink3; wrapMode: Text.WordWrap }
     }
 
+    // THE FLOW (tendencies_flow_design.md §6.1): every club on the page, strike → direction → flight, one atom under the
+    // table, the map Home's flow reads (report_tendencies.h `flow`). Folio light through `cr`, as the rest of the page; each
+    // ribbon group carries a greyscale-safe pattern over its colour (ideal plain, flight off dotted, off line hatched,
+    // mis-struck cross-hatched) and the legend shows the same, so a mono print still reads. Under the minimum, one line.
+    readonly property var flow: tp.m.flow || null
+    function flowTone(g)    { return g === 0 ? cr.good : g === 1 ? cr.attention : cr.warn }
+    function flowStrength(g) { return g === 0 ? 0.62 : g === 1 ? 0.6 : g === 2 ? 0.42 : 0.78 }
+    function flowPattern(g) { return g === 0 ? "" : g === 1 ? "dots" : g === 2 ? "hatch" : "cross" }
+    function flowNodeTone(kind) { return kind === "good" ? cr.good : kind === "watch" ? cr.attention : kind === "fault" ? cr.warn : tp.ro.ink }
+    Item {
+        id: flowBlock
+        objectName: "reportTendencyFlow"
+        property bool atom: true
+        visible: tp.on && !!tp.flow && (tp.flow.total || 0) + (tp.flow.excluded || 0) > 0
+        width: tp.width
+        height: flowCol.y + flowCol.height + tp.g6
+        Column {
+            id: flowCol
+            y: cr.g(14)
+            width: parent.width
+            spacing: tp.g5
+            Text { width: parent.width; text: tp.flow ? (tp.flow.micro || "").toUpperCase() : ""; font: tp.ro.fLabel; color: tp.ro.ink3 }
+            Text {
+                visible: !!tp.flow && !!tp.flow.enough
+                width: parent.width
+                text: tp.flow ? tp.flow.headline || "" : ""
+                font: tp.ro.fBodyM; color: tp.ro.ink; wrapMode: Text.WordWrap
+            }
+            Text {
+                visible: !!tp.flow && !!tp.flow.enough
+                width: parent.width
+                text: tp.flow ? tp.flow.subtitle || "" : ""
+                font: tp.ro.fSmall; color: tp.ro.ink2; wrapMode: Text.WordWrap
+            }
+            PpSankey {
+                objectName: "reportTendencyFlowSankey"
+                visible: !!tp.flow && !!tp.flow.enough
+                width: parent.width
+                roles: cr
+                patterns: true
+                plotHeight: cr.u(250)
+                layoutHeight: tp.flow ? tp.flow.layoutHeight || 300 : 300
+                nodeWidth: cr.u(8)
+                labelGutter: cr.u(108)
+                columns: tp.flow ? tp.flow.columns || [] : []
+                nodes: tp.flow ? (tp.flow.nodes || []).map(n => Object.assign({}, n, { tone: tp.flowNodeTone(n.kind) })) : []
+                links: tp.flow ? (tp.flow.links || []).map(l => Object.assign({}, l, { tone: tp.flowTone(l.group), strength: tp.flowStrength(l.group),
+                                                                                     pattern: tp.flowPattern(l.group) })) : []
+                legend: tp.flow ? (tp.flow.groups || []).filter(g => g.count > 0)
+                                      .map(g => ({ tone: tp.flowTone(g.group), strength: tp.flowStrength(g.group), pattern: tp.flowPattern(g.group),
+                                                   name: g.name, line: g.line })) : []
+            }
+            Text {
+                visible: text !== ""
+                width: parent.width
+                text: !tp.flow ? "" : !tp.flow.enough ? (tp.flow.emptyLine || "") : (tp.flow.excludedLine || "")
+                font: tp.ro.fSmall; color: tp.ro.ink3; wrapMode: Text.WordWrap
+            }
+        }
+    }
+
     // the Charts print roles in Folio light: this page's units and tones. LAST in the Column: children are destroyed
     // first-declared first, so everything above goes before its roles (see PpPosturePage).
     PpChRoles { id: cr; medium: "print"; fixedAesthetic: "folio" }

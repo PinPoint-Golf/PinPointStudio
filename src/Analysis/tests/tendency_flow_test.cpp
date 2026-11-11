@@ -52,9 +52,11 @@ static std::vector<TendencyFlowCombo> golden()
              combo("chunk", "pull", "low", 1), combo("chunk", "pull_hook", "low", 1) };
 }
 
+// The doc's columns (strike, direction, flight) and its illustrative good path (Solid, Straight, High).
 static FlowOptions docGood()
 {
     FlowOptions o;
+    o.columns = { shotFactorStrike(), shotFactorDirection(), shotFactorFlight() };
     o.good = { QSet<QString>{ "solid" }, QSet<QString>{ "straight" }, QSet<QString>{ "high" } };
     return o;
 }
@@ -156,6 +158,16 @@ int main()
         const FlowLayout fd = layoutTendencyFlow({ combo("solid", "fade", "mid", 5), combo("solid", "draw", "high", 5),
                                                   combo("solid", "straight", "low", 2) });
         check(fd.groups[0] == 10 && fd.groups[1] == 2, "Fade and Draw are on the good path; Low is flight off");
+        // Mark, 11 Nov 2026: "a slice needs to be red". Precedence is strike, direction, flight whatever the columns: with
+        // direction moved last on the page, a solid low slice is still off line, not flight off.
+        FlowOptions moved;
+        moved.columns = { shotFactorStrike(), shotFactorFlight(), shotFactorDirection() };
+        const FlowLayout ls = layoutTendencyFlow({ combo("solid", "slice", "low", 3), combo("solid", "straight", "low", 2) }, moved);
+        QStringList cols;
+        for (const FlowNode &n : ls.nodes) if (!cols.contains(QString::number(n.column) + n.value)) cols << QString::number(n.column) + n.value;
+        check(ls.groups[size_t(FlowGroup::OffLine)] == 3 && ls.groups[size_t(FlowGroup::FlightOff)] == 2,
+              "columns strike, flight, direction: a solid low slice is off line (red); a solid low straight one is flight off (amber)");
+        check(cols.contains(QStringLiteral("1low")) && cols.contains(QStringLiteral("2slice")), "flight in the middle, direction last");
     }
 
     std::printf("\nthe first-failure rule:\n");

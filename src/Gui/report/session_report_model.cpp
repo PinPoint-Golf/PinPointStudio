@@ -137,7 +137,7 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
              { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
              { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
-             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms)) } };
+             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms), &outcomePack) } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)

@@ -27,12 +27,14 @@
 //                rows: [{ key, club ("7 iron · part swing"), distance ("147 ± 31 yd" | ""),
 //                         strike, direction, flight: { label ("Pull", "Solid", "-"), fault, watch (Low), building,
 //                                 seen ("Seen with …  ·  likely  ·  ↑ growing" | "Building, 5 sessions so far" | ""),
-//                                 mixLine, mixParts: [{ count, kind }] } }] }
+//                                 mixLine, mixParts: [{ count, kind }] } }],
+//                flow: tendencyFlowMap's map for every club, plus layoutHeight (absent without a pack) }
 //
 // W4: the three factor maps are the minimum for this to compile against the three-factor TendencyItem
 // (shot_factors.h); the page's columns and words are W4's.
 
 #include "../../Coaching/tendencies.h"
+#include "../../Coaching/tendency_flow_map.h"
 
 #include <QString>
 #include <QVariant>
@@ -41,7 +43,13 @@
 
 namespace pinpoint::report {
 
-inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &set)
+// The flow is laid out this high in its own units (with this gap); the page scales it to the height it draws.
+inline constexpr double kReportFlowLayoutHeight = 300.0;
+inline constexpr double kReportFlowLayoutGap    = 10.0;
+
+// `pack` names the flow's nodes; without one there is no flow (`flow` absent).
+inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &set,
+                                         const pinpoint::analysis::ShotOutcomePack *pack = nullptr)
 {
     using namespace pinpoint::analysis;
     if (set.items.empty()) return {};
@@ -95,6 +103,13 @@ inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &
                                                     .arg(counted(opt.minSessions, "session", "sessions")).arg(opt.minSessionShots)
                                               : QString() },
         { QStringLiteral("rows"), rows },
+        // Every club on the page, strike → direction → flight (tendencies_flow_design.md; the map Home's flow reads), laid
+        // out kReportFlowLayoutHeight high: the page scales it. `layoutHeight` says the units.
+        { QStringLiteral("flow"), pack ? [&] {
+              QVariantMap f = tendencyFlowMap(set, QString(), *pack, kReportFlowLayoutHeight, kReportFlowLayoutGap);
+              f.insert(QStringLiteral("layoutHeight"), kReportFlowLayoutHeight);
+              return QVariant(f);
+          }() : QVariant() },
     };
 }
 

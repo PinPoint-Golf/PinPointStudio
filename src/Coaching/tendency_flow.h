@@ -18,15 +18,20 @@
 #pragma once
 
 // THE TENDENCY FLOW LAYOUT — the Sankey of docs/design/tendencies_flow_design.md §4: every shot flowing left to right,
-// strike → direction → flight, its ribbon in the colour of the family where it first left the good path. Pure: no Qt
+// strike → direction → flight (FlowOptions::columns), its ribbon in the colour of the family where it first left the good
+// path. Mark tried strike → flight → direction on 11 Nov 2026 and went back: a tangled direction column is itself the
+// finding ("I am inconsistent … the confusing chart is an indicator too"). Pure: no Qt
 // Quick, no theme, no words. It counts, folds, orders and places; a renderer scales and paints (PpSankey on screen).
 //
 // THE GOOD PATH (Mark, 10 Nov 2026, deciding the doc's §11.1): each factor's good values are the ones that are neither
 // a fault nor a value to watch (shotFactorGoodValues): Solid; Straight, Fade or Draw (shapes, never a miss); Mid or
 // High (Low is amber). The doc's illustrative "High only, Straight only" is a FlowOptions choice the golden test makes.
 //
-// Groups, by the first family at which a shot left the good path (§3.6). Stacking order inside a node is the enum's
-// (ideal on top); `links` come out in DRAW order, the ideal last so it sits on top (§4.4).
+// Groups, by the first family, in PRECEDENCE order, at which a shot left the good path (§3.6). Precedence is not the
+// columns' order (Mark, 11 Nov 2026: "the coloring is important — a slice needs to be red"): strike, then direction, then
+// flight, so a fault outranks a flight that is only to watch, wherever the columns put them. A group is named for the
+// family it failed (MisStruck strike, OffLine direction, FlightOff flight). Inside a node the ideal stacks on top, then the
+// group that failed last in precedence, down to the first (`rank`); `links` come out in DRAW order, the ideal last on top.
 //
 // Values are the factor's displayIds (the left-hander's own words); "other" is a folded node (§4.1). A shot with any
 // family unread ("" in a combo) is not drawn and is counted in `excluded` (§3.2).
@@ -64,12 +69,26 @@ struct FlowOptions {
     double gap        = 12.0;            // between nodes in a column
     double foldPct    = 0.03;            // a value under max(foldMin, foldPct × total) shots folds into "other"
     int    foldMin    = 2;
-    std::array<QSet<QString>, 3> good{ shotFactorGoodValues(shotFactorStrike()), shotFactorGoodValues(shotFactorDirection()),
-                                       shotFactorGoodValues(shotFactorFlight()) };
+    // The factor in each column, left to right: the design doc's order.
+    std::array<QString, 3> columns{ shotFactorStrike(), shotFactorDirection(), shotFactorFlight() };
+    // Which family's failure names a shot's group first: a slice is off line (red) even when it also flew low (amber).
+    std::array<QString, 3> precedence{ shotFactorStrike(), shotFactorDirection(), shotFactorFlight() };
+    // Each column's good values, in `columns`' order; an empty set takes the value table's (shotFactorGoodValues).
+    std::array<QSet<QString>, 3> good{};
+
+    QSet<QString> goodIn(int col) const
+    {
+        return good[size_t(col)].isEmpty() ? shotFactorGoodValues(columns[size_t(col)]) : good[size_t(col)];
+    }
+    int columnOf(const QString &factor) const
+    {
+        for (int c = 0; c < 3; ++c) if (columns[size_t(c)] == factor) return c;
+        return -1;
+    }
 };
 
 struct FlowNode {
-    int     column = 0;                  // 0 strike, 1 direction, 2 flight
+    int     column = 0;                  // its place in FlowOptions::columns, 0 left
     QString value;                       // a displayId, or "other"
     bool    good = false, other = false;
     QStringList folded;                  // the values an "other" node holds
@@ -99,22 +118,40 @@ struct FlowLayout {
 
 namespace tendency_flow_detail {
 
-inline FlowGroup groupOf(const std::array<QString, 3> &v, const FlowOptions &o)
+// The group a family's failure puts a shot in.
+inline FlowGroup groupFor(const QString &factor)
 {
-    if (!o.good[0].contains(v[0])) return FlowGroup::MisStruck;
-    if (!o.good[1].contains(v[1])) return FlowGroup::OffLine;
-    if (!o.good[2].contains(v[2])) return FlowGroup::FlightOff;
+    return factor == shotFactorStrike() ? FlowGroup::MisStruck : factor == shotFactorFlight() ? FlowGroup::FlightOff : FlowGroup::OffLine;
+}
+
+// `v` in the columns' order: the first family, in precedence order, whose value is off the good path names the group.
+inline FlowGroup groupOf(const std::array<QString, 3> &v, const FlowOptions &o, const std::array<QSet<QString>, 3> &good)
+{
+    for (const QString &f : o.precedence) {
+        const int c = o.columnOf(f);
+        if (c >= 0 && !good[size_t(c)].contains(v[size_t(c)])) return groupFor(f);
+    }
     return FlowGroup::Ideal;
+}
+
+// Stacking rank, top down: the ideal 0, then the group last in precedence, … the first's 3.
+inline std::array<int, kFlowGroups> groupRanks(const FlowOptions &o)
+{
+    std::array<int, kFlowGroups> r{};
+    r[size_t(FlowGroup::Ideal)] = 0;
+    for (int p = 0; p < 3; ++p) r[size_t(groupFor(o.precedence[size_t(p)]))] = 3 - p;
+    return r;
 }
 
 // A column's order, top to bottom (§4.2): the good values first, then (direction) the right side then the left, then
 // the vocabulary's order; "other" last.
-inline bool before(int column, const QString &a, const QString &b, const FlowOptions &o)
+inline bool before(int column, const QString &a, const QString &b, const FlowOptions &o, const QSet<QString> &goodHere)
 {
-    const auto key = [column, &o](const QString &v) {
+    const bool direction = o.columns[size_t(column)] == shotFactorDirection();
+    const auto key = [direction, &goodHere](const QString &v) {
         const bool other = v == QLatin1String("other");
-        const bool good  = o.good[size_t(column)].contains(v);
-        const QString side = column == 1 ? shotFactorValueSide(v) : QString();
+        const bool good  = goodHere.contains(v);
+        const QString side = direction ? shotFactorValueSide(v) : QString();
         const int sideRank = side.isEmpty() ? 0 : side == QLatin1String("right") ? 1 : 2;
         return std::array<int, 4>{ other ? 1 : 0, good ? 0 : 1, sideRank, shotFactorValueRank(v) };
     };
@@ -128,13 +165,18 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
 {
     using namespace tendency_flow_detail;
     FlowLayout out;
+    const std::array<QSet<QString>, 3> good{ o.goodIn(0), o.goodIn(1), o.goodIn(2) };
+    const std::array<int, kFlowGroups> rank = groupRanks(o);
+    const auto valueOf = [](const TendencyFlowCombo &c, const QString &factor) {
+        return factor == shotFactorStrike() ? c.strike : factor == shotFactorDirection() ? c.direction : c.flight;
+    };
 
     // ── Aggregate: the drawn shots by full combination, the rest excluded ──
     std::map<std::array<QString, 3>, int> combos;   // ordered, so the result never depends on the input's order
     for (const TendencyFlowCombo &c : input) {
         if (c.shots <= 0) continue;
         if (c.strike.isEmpty() || c.direction.isEmpty() || c.flight.isEmpty()) { out.excluded += c.shots; continue; }
-        combos[{ c.strike, c.direction, c.flight }] += c.shots;
+        combos[{ valueOf(c, o.columns[0]), valueOf(c, o.columns[1]), valueOf(c, o.columns[2]) }] += c.shots;
         out.total += c.shots;
     }
     if (out.total == 0) return out;
@@ -148,9 +190,9 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
         for (const auto &[v, shots] : combos) n[v[size_t(col)]] += shots;
         QStringList small;
         for (auto it = n.constBegin(); it != n.constEnd(); ++it)
-            if (!o.good[size_t(col)].contains(it.key()) && double(it.value()) < threshold) small << it.key();
+            if (!good[size_t(col)].contains(it.key()) && double(it.value()) < threshold) small << it.key();
         if (small.size() < 2) continue;                         // never an "other" of one value
-        std::sort(small.begin(), small.end(), [col, &o](const QString &a, const QString &b) { return before(col, a, b, o); });
+        std::sort(small.begin(), small.end(), [col, &o, &good](const QString &a, const QString &b) { return before(col, a, b, o, good[size_t(col)]); });
         for (const QString &v : small) foldTo[size_t(col)].insert(v, QStringLiteral("other"));
         foldedOf[size_t(col)] = small;
     }
@@ -167,7 +209,7 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
     {
         std::array<QHash<QString, FlowNode>, 3> byValue;
         for (const auto &[v, shots] : folded) {
-            const FlowGroup g = groupOf(v, o);
+            const FlowGroup g = groupOf(v, o, good);
             out.groups[size_t(g)] += shots;
             for (int col = 0; col < 3; ++col) {
                 FlowNode &n = byValue[size_t(col)][v[size_t(col)]];
@@ -179,12 +221,12 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
         }
         for (int col = 0; col < 3; ++col) {
             QStringList values = byValue[size_t(col)].keys();
-            std::sort(values.begin(), values.end(), [col, &o](const QString &a, const QString &b) { return before(col, a, b, o); });
+            std::sort(values.begin(), values.end(), [col, &o, &good](const QString &a, const QString &b) { return before(col, a, b, o, good[size_t(col)]); });
             order[size_t(col)] = values;
             out.nMax = std::max(out.nMax, int(values.size()));
             for (const QString &v : values) {
                 FlowNode n = byValue[size_t(col)].value(v);
-                n.good  = o.good[size_t(col)].contains(v);
+                n.good  = good[size_t(col)].contains(v);
                 n.other = v == QLatin1String("other");
                 if (n.other) n.folded = foldedOf[size_t(col)];
                 nodeIndex[size_t(col)].insert(v, int(out.nodes.size()));
@@ -219,7 +261,7 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
     std::map<Key, std::pair<int, std::set<int>>> agg;
     std::map<Key, std::vector<int>> byNode;
     for (const auto &[v, shots] : folded) {
-        const int g = int(groupOf(v, o));
+        const int g = int(groupOf(v, o, good));
         const int n0 = nodeIndex[0].value(v[0]), n1 = nodeIndex[1].value(v[1]), n2 = nodeIndex[2].value(v[2]);
         for (const Key &key : { Key{ n0, n1, g }, Key{ n1, n2, g } }) {
             auto &[count, through] = agg[key];
@@ -246,22 +288,24 @@ inline FlowLayout layoutTendencyFlow(const std::vector<TendencyFlowCombo> &input
     // column order, top to bottom, so an index is a place.
     std::vector<int> byOut(links.size()), byIn(links.size());
     for (size_t i = 0; i < links.size(); ++i) byOut[i] = byIn[i] = int(i);
-    std::sort(byOut.begin(), byOut.end(), [&links](int a, int b) {
+    std::sort(byOut.begin(), byOut.end(), [&links, &rank](int a, int b) {
         const FlowLink &x = links[size_t(a)], &y = links[size_t(b)];
-        return std::tie(x.fromNode, x.toNode, x.group) < std::tie(y.fromNode, y.toNode, y.group);
+        const int rx = rank[size_t(x.group)], ry = rank[size_t(y.group)];
+        return std::tie(x.fromNode, x.toNode, rx) < std::tie(y.fromNode, y.toNode, ry);
     });
-    std::sort(byIn.begin(), byIn.end(), [&links](int a, int b) {
+    std::sort(byIn.begin(), byIn.end(), [&links, &rank](int a, int b) {
         const FlowLink &x = links[size_t(a)], &y = links[size_t(b)];
-        return std::tie(x.toNode, x.fromNode, x.group) < std::tie(y.toNode, y.fromNode, y.group);
+        const int rx = rank[size_t(x.group)], ry = rank[size_t(y.group)];
+        return std::tie(x.toNode, x.fromNode, rx) < std::tie(y.toNode, y.fromNode, ry);
     });
     std::vector<double> outCursor(out.nodes.size()), inCursor(out.nodes.size());
     for (size_t i = 0; i < out.nodes.size(); ++i) outCursor[i] = inCursor[i] = out.nodes[i].y;
     for (int i : byOut) { FlowLink &l = links[size_t(i)]; l.y0 = outCursor[size_t(l.fromNode)]; outCursor[size_t(l.fromNode)] += l.h; }
     for (int i : byIn)  { FlowLink &l = links[size_t(i)]; l.y1 = inCursor[size_t(l.toNode)];    inCursor[size_t(l.toNode)]    += l.h; }
 
-    // Draw order: mis-struck, off line, flight off, the ideal last (on top); within a group, left to right, top down.
-    std::stable_sort(links.begin(), links.end(), [](const FlowLink &a, const FlowLink &b) {
-        const int ga = kFlowGroups - 1 - int(a.group), gb = kFlowGroups - 1 - int(b.group);
+    // Draw order: the group that failed first, …, the ideal last (on top); within a group, left to right, top down.
+    std::stable_sort(links.begin(), links.end(), [&rank](const FlowLink &a, const FlowLink &b) {
+        const int ga = kFlowGroups - 1 - rank[size_t(a.group)], gb = kFlowGroups - 1 - rank[size_t(b.group)];
         return std::tie(ga, a.fromNode, a.toNode) < std::tie(gb, b.fromNode, b.toNode);
     });
     out.links = std::move(links);
