@@ -87,29 +87,36 @@ TestCase {
     // 19 estimated" (U = 0, E 5 → 6).
     // pelvisRotationSigned's pelvis-IMU rung went live, so with trunk sensors both signed twins are
     // measured and "Recorded, 1 of 18 estimated" (the two-camera estimate) becomes "Measured".
+    // 11 Nov 2026 (issue #124): Setup … of 26 → of 27, Club … of 22 → of 27. The 29 Oct club-delivery and
+    // ball-reach commits added six down-the-line readings, every one read from the down-the-line camera by
+    // its producer: ballReachExcess (Feet & stance; DtlPosture, the down-the-line pose and ball, fe068e4e)
+    // and swingPlaneCurve, handPlaneCurve, handPlaneSteepening, shoulderPlane, swingPlaneAngle (Swing
+    // plane; ShaftFusion, which needs the face-on AND the down-the-line shaft tracks; ee8e5d06, a412aed3, e6fdf257,
+    // 747f1bc1). One face-on camera reaches none of them (Setup 18 of 27, Club 9 of 27); two cameras reach
+    // all six (Setup Measured, Club 12 → 17 of 27; "Recorded, 2 of 27 estimated" with a launch monitor).
     readonly property var expected: ({
         "1 face-on only": [
             "Wrist — Partly, 1 of 11 · no wrist sensor",
             "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "2 face-on + wG3": [
             "Wrist — Partly, 9 of 11 · no upper-arm sensor",
             "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "3 face-on + two Witmotions": [
             "Wrist — Partly, 6 of 11 · no upper-arm sensor",
             "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-            "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+            "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
             "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-            "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+            "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "4 two cameras + trunk": [
@@ -117,7 +124,7 @@ TestCase {
             "Body turn and posture — Measured",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 9 of 19 estimated · no wrist sensor",
-            "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
+            "Club — Partly, 17 of 27 · no launch monitor · estimated from the cameras",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "5 everything + launch monitor": [
@@ -125,7 +132,7 @@ TestCase {
             "Body turn and posture — Measured",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 5 of 19 estimated",
-            "Club — Recorded, 2 of 22 estimated",
+            "Club — Recorded, 2 of 27 estimated",
             "Ball and strike — Measured by the launch monitor"
         ],
         "6 nothing": [
@@ -141,7 +148,7 @@ TestCase {
             "Body turn and posture — Recorded, 6 of 19 estimated · no trunk sensors",
             "Setup and stance — Measured",
             "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-            "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
+            "Club — Partly, 17 of 27 · no launch monitor · estimated from the cameras",
             "Ball and strike — Not recorded · no launch monitor"
         ],
         "8 face-on assigned, not connected": [

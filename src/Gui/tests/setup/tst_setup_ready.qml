@@ -86,6 +86,11 @@ Item {
         // 26 Oct 2026: Body … of 18 → of 19. thoraxRotationSigned joined Body rotation with an IMU rung
         // and a two-camera rung: face-on rows have neither, 9 of 18 → 9 of 19; the two-camera rows (C03,
         // C09, C12) estimate it, "Recorded, 5 of 18 estimated" → "Recorded, 6 of 19 estimated" (U = 0).
+        // 11 Nov 2026 (issue #124): Setup … of 26 → of 27, Club … of 22 → of 27 — six down-the-line
+        // readings from 29 Oct (ballReachExcess; swingPlaneCurve, handPlaneCurve, handPlaneSteepening,
+        // shoulderPlane, swingPlaneAngle), each needing the down-the-line camera: face-on rows reach none
+        // (18 of 27, 9 of 27), the two-camera rows (C03, C09, C12) all six (Measured, 12 → 17 of 27).
+        // tst_setup_capability.qml says which producer reads each one.
         readonly property var golden: ({
             // No arm steps: no arm sensor is in the session (§4.12). Continue on Cameras with no camera: Ready names the missing face-on view.
             "C01": {
@@ -123,9 +128,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 6 of 11 · no upper-arm sensor",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -150,7 +155,7 @@ Item {
                     "Body turn and posture — Recorded, 6 of 19 estimated · no trunk sensors",
                     "Setup and stance — Measured",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · wrist sensor not calibrated · no trunk sensors",
-                    "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
+                    "Club — Partly, 17 of 27 · no launch monitor · estimated from the cameras",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -192,9 +197,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 1 of 11 · wrist sensor not calibrated",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · wrist sensor not calibrated · no trunk sensors",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -211,9 +216,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 9 of 11 · no upper-arm sensor",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 14 of 19 estimated · no trunk sensors · no down-the-line camera",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -234,9 +239,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 1 of 11 · wrist sensor not calibrated",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · wrist sensor not calibrated · no trunk sensors",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -258,9 +263,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 1 of 11 · wrist sensor not calibrated",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · wrist sensor not calibrated · no trunk sensors",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -285,7 +290,7 @@ Item {
                     "Body turn and posture — Recorded, 6 of 19 estimated · no trunk sensors",
                     "Setup and stance — Measured",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-                    "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
+                    "Club — Partly, 17 of 27 · no launch monitor · estimated from the cameras",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -305,9 +310,9 @@ Item {
                 capability: [
                     "Wrist — Partly, 1 of 11 · no wrist sensor",
                     "Body turn and posture — Partly, 9 of 19 · no trunk sensors · no down-the-line camera",
-                    "Setup and stance — Partly, 18 of 26 · no down-the-line camera",
+                    "Setup and stance — Partly, 18 of 27 · no down-the-line camera",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · no wrist sensor · no trunk sensors",
-                    "Club — Partly, 9 of 22 · no launch monitor · no down-the-line camera · estimated from the camera",
+                    "Club — Partly, 9 of 27 · no launch monitor · no down-the-line camera · estimated from the camera",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             },
@@ -351,7 +356,7 @@ Item {
                     "Body turn and posture — Recorded, 6 of 19 estimated · no trunk sensors",
                     "Setup and stance — Measured",
                     "Sequence and tempo — Recorded, 17 of 19 estimated · wrist sensor not calibrated · no trunk sensors",
-                    "Club — Partly, 12 of 22 · no launch monitor · estimated from the cameras",
+                    "Club — Partly, 17 of 27 · no launch monitor · estimated from the cameras",
                     "Ball and strike — Not recorded · no launch monitor"
                 ]
             }

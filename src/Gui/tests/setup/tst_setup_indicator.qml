@@ -262,7 +262,7 @@ Item {
             compare(d.pip("cameras").tip, "FO1 not connected — press Connect in the cameras step")
             var tip = d.hoverPip("cameras")
             tryVerify(function() { return tip.visible }, 2000, "hover did not show the issue")
-            compare(d.find(tip, function(o) { return d.typeName(o) === "QQuickText" }).text,
+            compare(d.find(tip, d._isText).text,
                     "FO1 not connected — press Connect in the cameras step")
             // The current step's hover is its footer hint.
             compare(d.pip("ball").tip, d.hint())

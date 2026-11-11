@@ -400,7 +400,11 @@ Item {
     }
     function find(item, pred) { var a = findAll(item, pred); return a.length > 0 ? a[0] : null }
     function typeName(o) { return String(o).split("(")[0].split("_QML")[0] }
-    function _isText(o) { return typeName(o) === "QQuickText" }
+    // Any Text, by the class chain rather than a type name: a plain Text, every Pp type built on one
+    // (PpMicro, the setup pages' eyebrow since 74829de6, 1 Nov) and a Controls Label all answer true;
+    // TextInput, TextEdit, TextField and a button (whose `text` is a property, not a Text) do not.
+    // Matching the name "QQuickText" missed every QML subtype, so each new Pp text type broke it.
+    function _isText(o) { return o instanceof Text }
     function _isButton(o) { return o.label !== undefined && o.primary !== undefined && o.clicked !== undefined
                                    && o.destructive !== undefined }
     function _named(name) { return find(wizard, function(o) { return o.objectName === name }) }
