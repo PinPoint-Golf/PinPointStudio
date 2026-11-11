@@ -996,12 +996,14 @@ inline QString camerasWords(const QStringList &aliases)
     if (w.isEmpty()) return QString();
     return cap1(andList(w)) + (w.size() == 1 ? QStringLiteral(" camera") : QStringLiteral(" cameras"));
 }
-inline QString devicesWords(const QStringList &aliases, const QString &lmDevice)
+// `hasLm` with no `lmDevice` is a launch monitor the app could not identify: it is still listed.
+inline QString devicesWords(const QStringList &aliases, const QString &lmDevice, bool hasLm = false)
 {
     QStringList parts;
     const QString cams = camerasWords(aliases);
     if (!cams.isEmpty()) parts << cams;
-    if (!lmDevice.isEmpty()) parts << lmDevice + QStringLiteral(" launch monitor");
+    if (!lmDevice.isEmpty())  parts << lmDevice + QStringLiteral(" launch monitor");
+    else if (hasLm)           parts << QStringLiteral("Launch monitor");
     return parts.join(QStringLiteral(" · "));
 }
 // "10 swings with a 7 iron, filmed down-the-line and face-on at high frame rate, with every ball measured
@@ -1017,9 +1019,12 @@ inline QString aboutMeasured(int swings, const QString &clubs, const QStringList
         c.chop(c.endsWith(QLatin1String("cameras")) ? 8 : 7);
         s += QStringLiteral(", filmed ") + c + QStringLiteral(" at high frame rate");
     }
-    if (!lmDevice.isEmpty() && lmSwings > 0)
-        s += lmSwings >= swings ? QStringLiteral(", with every ball measured by %1 %2").arg(article(lmDevice), lmDevice)
-                                : QStringLiteral(", with %1 of the balls measured by %2 %3").arg(numberWord(lmSwings), article(lmDevice), lmDevice);
+    // A device the app could not identify is still said: "by the launch monitor".
+    const QString by = lmDevice.isEmpty() ? QStringLiteral("the launch monitor")
+                                          : article(lmDevice) + QLatin1Char(' ') + lmDevice;
+    if (lmSwings > 0)
+        s += lmSwings >= swings ? QStringLiteral(", with every ball measured by %1").arg(by)
+                                : QStringLiteral(", with %1 of the balls measured by %2").arg(numberWord(lmSwings), by);
     s += QLatin1Char('.');
     if (!cams.isEmpty())
         s += QStringLiteral(" Your body positions are read from the video by pose tracking")

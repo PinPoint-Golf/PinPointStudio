@@ -63,7 +63,7 @@ QVariant ShotListModel::data(const QModelIndex &index, int role) const
     case SwingDirRole:        return s.swingDir;
     case DataWarningRole:     return s.dataWarning;
     case DataWarningDetailRole: return s.dataWarningDetail;
-    case LmDeviceKindRole:    return s.lmDeviceKind;
+    case LmDeviceRole:    return s.lmDevice;
     case LmExcludedRole:      return s.lmExcluded;
     case LmClubOverrideRole:  return s.lmClubOverride;
     default:                  return {};
@@ -87,7 +87,7 @@ QHash<int, QByteArray> ShotListModel::roleNames() const
         { AnalysisDetailRole,  "analysisDetail"  },
         { SwingDirRole,        "swingDir"        },
         { DataWarningRole,     "dataWarning"     },
-        { LmDeviceKindRole,    "lmDeviceKind"    },
+        { LmDeviceRole,    "lmDevice"        },
         { DataWarningDetailRole, "dataWarningDetail" },
         { LmExcludedRole,      "lmExcluded"      },
         { LmClubOverrideRole,  "lmClubOverride"  },
@@ -176,7 +176,7 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
                                      bool hasVideo, const QUrl &thumbnailSource, int score,
                                      int rating, const QString &note,
                                      const QVariantMap &metrics, const QVariantMap &analysisDetail,
-                                     bool dataWarning, const QString &lmDeviceKind,
+                                     bool dataWarning, const QString &lmDevice,
                                      const QVariantMap &dataWarningDetail,
                                      bool lmExcluded, const QString &lmClubOverride)
 {
@@ -200,7 +200,7 @@ void ShotListModel::addPersistedShot(const QString &swingDir, int ordinal,
     shot.analysisDetail  = analysisDetail;
     shot.dataWarning     = dataWarning;
     shot.dataWarningDetail = dataWarningDetail;
-    shot.lmDeviceKind    = lmDeviceKind;
+    shot.lmDevice        = lmDevice;
     shot.lmExcluded      = lmExcluded;       // the launch monitor board's annotations
     shot.lmClubOverride  = lmClubOverride;
 
@@ -233,7 +233,7 @@ void ShotListModel::loadSessionDir(const QString &dir)
                          s.thumbnailPath.isEmpty() ? QUrl()
                                                    : QUrl::fromLocalFile(s.thumbnailPath),
                          s.score, s.rating, s.note, s.metrics, QVariantMap{},
-                         s.dataWarning, s.lmDeviceKind, s.dataWarningDetail,
+                         s.dataWarning, s.lmDevice, s.dataWarningDetail,
                          s.excluded, s.clubOverride);
     }
 }
@@ -261,7 +261,7 @@ void ShotListModel::refreshShot(const QString &swingDir)
     s.analysisDetail = p.analysisDetail;
     // Re-read alongside the readings it belongs to: this is the path a live row takes when
     // a monitor's numbers are folded in, so it is where the row learns which device sent them.
-    s.lmDeviceKind   = p.lmDeviceKind;
+    s.lmDevice       = p.lmDevice;
     // A re-analysis re-reaches (or withdraws) the integrity verdicts, so the ⚠ must
     // follow the document here — before this it survived on screen until reload.
     s.dataWarning       = p.dataWarning;
@@ -275,7 +275,7 @@ void ShotListModel::refreshShot(const QString &swingDir)
     if (!p.club.isEmpty())
         s.club = p.club;
     emit dataChanged(index(row), index(row),
-                     { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceKindRole,
+                     { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceRole,
                        DataWarningRole, DataWarningDetailRole,
                        LmExcludedRole, LmClubOverrideRole, ClubRole });
 }
@@ -309,14 +309,14 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     s.analysisDetail = p.analysisDetail;
     s.club           = p.club;
     s.timestampLabel = p.timestampLabel;
-    s.lmDeviceKind   = p.lmDeviceKind;
+    s.lmDevice       = p.lmDevice;
     s.dataWarning       = p.dataWarning;
     s.dataWarningDetail = p.dataWarningDetail;
     s.lmExcluded        = p.excluded;
     s.lmClubOverride    = p.clubOverride;
     emit dataChanged(index(row), index(row),
                      { SwingDirRole, ScoreRole, MetricsRole, AnalysisDetailRole,
-                       ClubRole, TimestampLabelRole, LmDeviceKindRole,
+                       ClubRole, TimestampLabelRole, LmDeviceRole,
                        DataWarningRole, DataWarningDetailRole,
                        LmExcludedRole, LmClubOverrideRole });
 }

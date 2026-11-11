@@ -67,6 +67,12 @@ struct LaunchMonitorReading {
     // connector itself. Recorded rather than assumed at the point of writing, so a
     // second connector does not silently label its readings as the first one's.
     QString deviceKind;
+    // What the client called itself (GSPro Open Connect's DeviceID), for the connectors whose
+    // clients name themselves; empty for the rest. ⚠ NEVER WRITTEN: it is free text a user can
+    // type and one device puts its serial in (GsProMonitor::lastDeviceId, design §9.2). The
+    // writer records only the DEVICE it identifies (lm_device.h resolveDeviceKey →
+    // launchMonitor.device), so a swing can be shared without carrying the identifier.
+    QString reportedDevice;
     QString sourcePath;         // the file this came from
     qint64  readAtMs = 0;       // wall clock when we read it (epoch ms)
     // The device's own estimate of ball contact (epoch ms, UTC), when it states one. Foresight

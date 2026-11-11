@@ -39,6 +39,7 @@
 #include "../charts/session_wrist.h"
 #include "../diagnostics/session_diagnostics_model.h"
 #include "../launchmonitor/lm_session_model.h"
+#include "../../LaunchMonitor/lm_device.h"         // the device of a launchMonitor block
 #include "../shot/shot_list_model.h"
 #include "../variability/variability_facade.h"
 #include "../variability/variability_ledger.h"         // ledgerConsistencyGrade (R10, R14)
@@ -1194,10 +1195,12 @@ void SessionReportModel::build()
         if (std::isfinite(lmValue(d.lm, "carryDistance")) || std::isfinite(lmValue(d.lm, "ballSpeed"))) {
             ++x.lmSwings;
             if (x.lmDevice.isEmpty()) {
-                const QString k = d.lm.value(QStringLiteral("kind")).toString();
-                // The DEVICE: a GC Quad is a GC Quad whether FSX2020 or Premier was holding it.
-                x.lmDevice = (k == QLatin1String("gcquad") || k == QLatin1String("premier")) ? QStringLiteral("GC Quad")
-                           : k == QLatin1String("nova") ? QStringLiteral("Nova") : k;
+                // The DEVICE, never the connector that carried it (lm_device.h). One the table cannot
+                // name stays empty, and the words say "the launch monitor" rather than "a Launch
+                // monitor (GSPro)".
+                const QString key = pinpoint::lm::deviceKeyOfBlock(d.lm);
+                if (pinpoint::lm::isIdentifiedDevice(key))
+                    x.lmDevice = pinpoint::lm::deviceName(key);
             }
         }
         for (const QString &a : d.videoAliases) if (!x.cameraAliases.contains(a)) x.cameraAliases << a;
@@ -1328,7 +1331,7 @@ void SessionReportModel::build()
             { QStringLiteral("emailSubject"), subject },
             { QStringLiteral("club"), clubWords }, { QStringLiteral("swings"), x.N }, { QStringLiteral("sessionOfDay"), ofDay },
             { QStringLiteral("hand"), x.leftHanded ? QStringLiteral("left-handed") : QStringLiteral("right-handed") },
-            { QStringLiteral("devices"), W::devicesWords(x.cameraAliases, x.hasLm ? x.lmDevice : QString()) },
+            { QStringLiteral("devices"), W::devicesWords(x.cameraAliases, x.hasLm ? x.lmDevice : QString(), x.hasLm) },
             { QStringLiteral("mastheadDate"), W::mastheadDate(x.preparedDate) }, { QStringLiteral("folioDate"), W::folioDate(x.preparedDate) },
             { QStringLiteral("kicker"), W::kicker(x.sessionDate, clubWords, x.N, ofDay) },
             { QStringLiteral("runningHead"), W::runningHead(x.name, x.sessionDate, clubWords) } };

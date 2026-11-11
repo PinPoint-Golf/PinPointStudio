@@ -28,6 +28,7 @@
 #include "../../Export/swing_doc.h"
 
 #include "gspro_monitor.h"
+#include "lm_device.h"
 #include "premier_club.h"
 #include "premier_monitor.h"
 
@@ -215,7 +216,9 @@ QVariantList LaunchMonitorController::devices() const
         // and the row's right-hand cell shows the shot count instead.
         m[QStringLiteral("dataRateHz")] = 0.0;
         m[QStringLiteral("hasWarning")] = false;
-        m[QStringLiteral("model")]      = deviceName();
+        // The DEVICE this client says it is (lm_device.h), not the connector it speaks through.
+        const QString dev = resolveDeviceKey(kindKey(m_monitor->kind()), c.deviceId);
+        m[QStringLiteral("model")]      = dev.isEmpty() ? deviceName() : pinpoint::lm::deviceName(dev);
         m[QStringLiteral("backend")]    = QStringLiteral("GSPro Open Connect");
         out.append(m);
     }
@@ -329,7 +332,16 @@ QString LaunchMonitorController::premierDefaultFolder() const
 
 QString LaunchMonitorController::deviceName() const
 {
-    return m_monitor ? kindShortLabel(m_monitor->kind()) : QString();
+    if (!m_monitor)
+        return {};
+    // A connector whose clients name themselves says the device the last one named, when the
+    // table knows it; otherwise the device the connector implies (lm_device.h).
+    if (const auto *gs = qobject_cast<GsProMonitor *>(m_monitor)) {
+        const QString dev = resolveDeviceKey(kindKey(gs->kind()), gs->lastDeviceId());
+        if (!dev.isEmpty())
+            return pinpoint::lm::deviceName(dev);
+    }
+    return kindShortLabel(m_monitor->kind());
 }
 
 void LaunchMonitorController::onShotDetected(qint64 impactUtcMs)

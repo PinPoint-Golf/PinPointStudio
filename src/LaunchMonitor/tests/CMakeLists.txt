@@ -91,6 +91,14 @@ pp_add_test(gspro_link_test
     NO_QT
     GTEST)
 
+# --- Connector vs device: lm_device.h ------------------------------------------------
+# Header-only and pure: the table that maps each connector (FSX2020, Premier, GSPro) and each
+# GSPro client's own name onto the device that measured the shot.
+pp_add_test(lm_device_test
+    SOURCES lm_device_test.cpp
+    INCLUDE ${LM}
+    GTEST)
+
 # --- gsp_message → LaunchMonitorReading ------------------------------------------
 # The pure half of the GSPro connector, the same split as the CSV parser above: no
 # socket, no settings, no clock, so every client quirk is covered against a JSON

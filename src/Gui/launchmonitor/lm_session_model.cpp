@@ -19,6 +19,7 @@
 
 #include "../../LaunchMonitor/launch_monitor_base.h"
 #include "../../LaunchMonitor/launch_monitor_factory.h"
+#include "../../LaunchMonitor/lm_device.h"
 
 #include "../../LaunchMonitor/lm_club_evidence.h"
 #include "../../LaunchMonitor/lm_enclosing_ellipse.h"
@@ -269,7 +270,7 @@ struct LmShotRow {
     QString               recorded;       // the club the shot was recorded under (ClubRole)
     QString               clubOverride;   // the golfer's own choice on the panel, or ""
     bool                  excluded = false;
-    QString               kind;           // launchMonitor.kind, "" when no device measured it
+    QString               kind;           // the DEVICE (lm_device.h key), "" when no device measured it
     LmShotValues          values;         // the raw readings
     std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
     // The gate behind each reading the shot lacks (lmGateMap), keyed by metric key: {} on a shot
@@ -661,20 +662,16 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
             if (it.value() > best || (it.value() == best && it.key() < kind)) { best = it.value(); kind = it.key(); }
             // (ties go to the alphabetically first kind, so QHash order never picks the caption)
     }
-    QString name = pinpoint::lm::kindShortLabel(pinpoint::lm::kindFromKey(kind));
+    // Live with nothing on the shots yet, the controller's name is all there is; the table reads
+    // its own names back, so the maker and sticker layout still come from the one place.
+    if (kind.isEmpty() && !reviewing)
+        kind = pinpoint::lm::deviceKeyFromReported(liveDeviceName);
+    QString name = pinpoint::lm::deviceName(kind);
     if (name.isEmpty() && !reviewing)
         name = liveDeviceName;
-    // Foresight's club-marker layouts: four dots on the GC Quad, QuadMAX, Falcon and GCHawk;
-    // one on the GC3 and an HMT on its own. Anything else carries none.
-    static const QRegularExpression reFour(QStringLiteral("quad|falcon|hawk"),
-                                           QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reOne(QStringLiteral("gc\\s*3|hmt"),
-                                          QRegularExpression::CaseInsensitiveOption);
-    const QString markers = reFour.match(name).hasMatch() ? QStringLiteral("four")
-                          : reOne.match(name).hasMatch()  ? QStringLiteral("one")
-                                                          : QString();
-    const QString maker = (kind == QLatin1String("gcquad") || !markers.isEmpty())
-                              ? QStringLiteral("Foresight") : QString();
+    // Foresight's club-marker layouts and the maker come from the device table (lm_device.h).
+    const QString markers = pinpoint::lm::deviceMarkers(kind);
+    const QString maker   = pinpoint::lm::deviceMaker(kind);
     g.insert(QStringLiteral("device"), QVariantMap{
         { QStringLiteral("name"),    name },
         { QStringLiteral("maker"),   maker },
@@ -753,7 +750,7 @@ void LmSessionModel::connectShotModel()
                 // A reading folded in (refreshShot) or a re-analysis: the cached slice is stale.
                 if (roles.isEmpty()
                     || roles.contains(int(ShotListModel::AnalysisDetailRole))
-                    || roles.contains(int(ShotListModel::LmDeviceKindRole)))
+                    || roles.contains(int(ShotListModel::LmDeviceRole)))
                     for (int r = topLeft.row(); r <= bottomRight.row(); ++r)
                         m_diskDetail.remove(m_shots->data(m_shots->index(r),
                                                           ShotListModel::SwingDirRole).toString());
@@ -763,7 +760,7 @@ void LmSessionModel::connectShotModel()
                     || roles.contains(int(ShotListModel::AnalysisDetailRole))
                     || roles.contains(int(ShotListModel::MetricsRole))
                     || roles.contains(int(ShotListModel::ClubRole))
-                    || roles.contains(int(ShotListModel::LmDeviceKindRole))
+                    || roles.contains(int(ShotListModel::LmDeviceRole))
                     || roles.contains(int(ShotListModel::LmExcludedRole))
                     || roles.contains(int(ShotListModel::LmClubOverrideRole)))
                     rebuild();
@@ -1013,7 +1010,7 @@ void LmSessionModel::rebuild()
         if (detail.isEmpty()) {
             const QString dir = m_shots->data(ix, ShotListModel::SwingDirRole).toString();
             if (!dir.isEmpty()
-                && !m_shots->data(ix, ShotListModel::LmDeviceKindRole).toString().isEmpty()) {
+                && !m_shots->data(ix, ShotListModel::LmDeviceRole).toString().isEmpty()) {
                 const auto hit = m_diskDetail.constFind(dir);
                 detail = hit != m_diskDetail.constEnd()
                              ? *hit : pinpoint::SwingDocReader::readLaunchMonitorDetail(dir);
@@ -1027,7 +1024,7 @@ void LmSessionModel::rebuild()
         row.recorded     = m_shots->data(ix, ShotListModel::ClubRole).toString().trimmed();
         row.clubOverride = m_shots->data(ix, ShotListModel::LmClubOverrideRole).toString().trimmed();
         row.excluded     = m_shots->data(ix, ShotListModel::LmExcludedRole).toBool();
-        row.kind         = m_shots->data(ix, ShotListModel::LmDeviceKindRole).toString();
+        row.kind         = m_shots->data(ix, ShotListModel::LmDeviceRole).toString();
         row.values       = readingsFor(detail);
         row.optical      = opticalLowPointFor(detail);
         row.gates        = lmGateMap(detail.value(QStringLiteral("gates")).toList());
@@ -1093,7 +1090,7 @@ void LmSessionModel::rebuild()
         // Only a shot that produced readings names a device: an unmeasured swing sitting
         // in the same session says nothing about what measured the ones beside it.
         if (!row.values.isEmpty()) {
-            const QString label = pinpoint::lm::kindShortLabel(pinpoint::lm::kindFromKey(row.kind));
+            const QString label = pinpoint::lm::deviceName(row.kind);
             if (!label.isEmpty() && !devices.contains(label))
                 devices << label;
         }

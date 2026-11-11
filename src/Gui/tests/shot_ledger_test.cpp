@@ -582,11 +582,11 @@ static void testLmReadingsAfterCheapReload()
     checkInt(QStringLiteral("R2 both swings reloaded"), m.rowCount(), 2);
     const QModelIndex lmRow = m.index(0), plainRow = m.index(1);   // newest first
     checkStr(QStringLiteral("R3 the cheap row knows its device"),
-             m.data(lmRow, ShotListModel::LmDeviceKindRole).toString(), QStringLiteral("gcquad"));
+             m.data(lmRow, ShotListModel::LmDeviceRole).toString(), QStringLiteral("gcquad"));
     check(QStringLiteral("R4 …and carries no analysisDetail (the summary read)"),
           m.data(lmRow, ShotListModel::AnalysisDetailRole).toMap().isEmpty());
     checkStr(QStringLiteral("R5 the shot no device measured has no device"),
-             m.data(plainRow, ShotListModel::LmDeviceKindRole).toString(), QString());
+             m.data(plainRow, ShotListModel::LmDeviceRole).toString(), QString());
 
     // The slice against the full read the sessions drawer does.
     const QVariantMap slice = SwingDocReader::readLaunchMonitorDetail(withLm);

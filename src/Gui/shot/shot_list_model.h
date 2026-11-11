@@ -71,7 +71,7 @@ public:
         AnalysisDetailRole,
         SwingDirRole,
         DataWarningRole,   // an integrity block warns (IMU re-fusion, or frames lost in capture)
-        LmDeviceKindRole,  // launchMonitor.kind ("gcquad"); empty for a shot no device measured
+        LmDeviceRole,      // the DEVICE that measured it (lm_device.h key, "gcquad" whichever connector); empty for none
         DataWarningDetailRole,  // the facts behind dataWarning (swing_doc.h dataWarningDetailFrom)
         // The launch monitor board's per-shot annotations (review.excluded / review.clubOverride,
         // PersistedShot::excluded). Read by LmSessionModel; written through setLmExcluded /
@@ -110,7 +110,7 @@ public:
                           const QString &club, bool hasVideo, const QUrl &thumbnailSource,
                           int score, int rating, const QString &note,
                           const QVariantMap &metrics, const QVariantMap &analysisDetail,
-                          bool dataWarning = false, const QString &lmDeviceKind = {},
+                          bool dataWarning = false, const QString &lmDevice = {},
                           const QVariantMap &dataWarningDetail = {},
                           bool lmExcluded = false, const QString &lmClubOverride = {});
 
@@ -253,7 +253,7 @@ private:
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }
-        QString      lmDeviceKind;    // which device measured it; only reloaded shots carry it
+        QString      lmDevice;        // which device measured it (lm_device.h key); only reloaded shots carry it
         bool         lmExcluded = false;   // the launch monitor board's annotations (review block)
         QString      lmClubOverride;
     };

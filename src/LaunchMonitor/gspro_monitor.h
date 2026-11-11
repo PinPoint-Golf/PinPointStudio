@@ -218,6 +218,7 @@ private:
     bool         m_playerSet  = false;
     bool         m_sessionActive = false;
     QString      m_lastDeviceId;
+    bool         m_toldUnknownDevice = false;   // the log says "not in lm_device.h" once
 };
 
 } // namespace pinpoint::lm

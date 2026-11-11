@@ -143,6 +143,24 @@ int main()
         check(summarizeSession({}, now).devices.isEmpty(), "no shots → no devices");
     }
 
+    // 8. The launch monitor by its DEVICE, not its connector (lm_device.h): an FSX2020 shot, a
+    //    Premier shot from a summary written before launchMonitor.device existed, and a GC Quad
+    //    relayed by GSPro are one tag; a GSPro client nobody identified stays its own.
+    {
+        QVector<ShotSummaryInput> shots = {
+            { 70, true, ms(2026, 6, 9, 14, 0), QStringLiteral("7i"), QString(), { QStringLiteral("lm:gcquad") } },
+            { 70, true, ms(2026, 6, 9, 14, 1), QStringLiteral("7i"), QString(), { QStringLiteral("lm:premier") } },
+            { 70, true, ms(2026, 6, 9, 14, 2), QStringLiteral("7i"), QString(), { QStringLiteral("lm:gspro") } },
+        };
+        const SessionSummary s = summarizeSession(shots, now);
+        checkEq(s.devices.join(QLatin1Char(',')), QStringLiteral("lm:gcquad,lm:gspro"),
+                "devices: one GC Quad whichever connector read it");
+        checkEq(deviceLabel(QStringLiteral("lm:premier")), QStringLiteral("GC Quad"), "deviceLabel premier → GC Quad");
+        checkEq(deviceLabel(QStringLiteral("lm:r10")), QStringLiteral("Approach R10"), "deviceLabel r10");
+        checkEq(deviceLabel(QStringLiteral("lm:gspro")), QStringLiteral("Launch monitor (GSPro)"),
+                "deviceLabel unidentified GSPro client");
+    }
+
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES" : "ALL PASS", g_fail);
     return g_fail ? 1 : 0;
 }

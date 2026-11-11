@@ -988,6 +988,7 @@ int main()
         check(lean.rating == fat.rating,                       "parity rating");
         check(lean.note == fat.note,                           "parity note");
         check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
+        check(lean.lmDevice == fat.lmDevice,                   "parity lmDevice");
         check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
         check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
         check(lean.devices == fat.devices,                     "parity devices");
@@ -1118,6 +1119,7 @@ int main()
         check(lean.rating == fat.rating,                       "parity rating");
         check(lean.note == fat.note,                           "parity note");
         check(lean.lmDeviceKind == fat.lmDeviceKind,           "parity lmDeviceKind");
+        check(lean.lmDevice == fat.lmDevice,                   "parity lmDevice");
         check(lean.dataWarning == fat.dataWarning,             "parity dataWarning");
         check(lean.dataWarningDetail == fat.dataWarningDetail, "parity dataWarningDetail");
         check(lean.devices == fat.devices,                     "parity devices");
@@ -1178,6 +1180,7 @@ int main()
             && a.wallclockMs == b.wallclockMs && a.club == b.club && a.hasVideo == b.hasVideo
             && a.thumbnailPath == b.thumbnailPath && a.score == b.score && a.metrics == b.metrics
             && a.rating == b.rating && a.note == b.note && a.lmDeviceKind == b.lmDeviceKind
+            && a.lmDevice == b.lmDevice
             && a.dataWarning == b.dataWarning && a.dataWarningDetail == b.dataWarningDetail
             && a.devices == b.devices && a.fromSidecar == b.fromSidecar;
     };
@@ -1702,10 +1705,54 @@ int main()
         // WHICH DEVICE MEASURED IT, surviving the round trip. The session board captions a
         // reviewed session from this and nothing else — the connector attached today says
         // nothing about a session hit last week, and may not be attached at all.
-        check(ps.lmDeviceKind == QStringLiteral("gcquad"), "…and the device that measured it");
+        check(ps.lmDeviceKind == QStringLiteral("gcquad"), "…and the connector that carried it");
+        check(ps.lmDevice == QStringLiteral("gcquad"), "…and the device that measured it");
+        check(root[QStringLiteral("launchMonitor")].toObject()[QStringLiteral("device")].toString()
+                  == QStringLiteral("gcquad"), "launchMonitor.device records the device");
+        check(ps.devices.contains(QStringLiteral("lm:gcquad")), "…and it tags the swing by device");
 
         const SwingSummary sum = SwingDocReader::readSwingSummary(d5);
         check(sum.ok && sum.fromSidecar, "the picker sidecar was written at the same time");
+        check(sum.lmDevice == QStringLiteral("gcquad"), "…and names the device");
+
+        // CONNECTOR APART FROM DEVICE (lm_device.h). The same reading through Premier is the same
+        // GC Quad; through GSPro, the client's own name decides — and is never written, because a
+        // client may put a serial there (design §9.2).
+        {
+            const QString d6 = QStringLiteral("/tmp/swingdoc_test_lm_devices");
+            const auto deviceOf = [&](const QString &connector, const QString &reported,
+                                      QJsonObject *block) {
+                QDir(d6).removeRecursively();
+                QDir().mkpath(d6);
+                auto r = *reading;
+                r.deviceKind     = connector;
+                r.reportedDevice = reported;
+                QString e;
+                SwingDocWriter::writeDeviceOnlySwing(d6, r, meta, &e);
+                *block = SwingStore::load(d6)[QStringLiteral("launchMonitor")].toObject();
+                return SwingDocReader::readSwingJson(d6);
+            };
+            QJsonObject b;
+            const PersistedShot viaPremier = deviceOf(QStringLiteral("premier"), QString(), &b);
+            check(viaPremier.lmDevice == QStringLiteral("gcquad")
+                      && viaPremier.devices.contains(QStringLiteral("lm:gcquad"))
+                      && viaPremier.lmDeviceKind == QStringLiteral("premier"),
+                  "Premier: a GC Quad, still carried by Premier");
+            const PersistedShot quadViaGsPro = deviceOf(QStringLiteral("gspro"), QStringLiteral("GSPro GCQuad 4.1"), &b);
+            check(quadViaGsPro.lmDevice == QStringLiteral("gcquad")
+                      && quadViaGsPro.devices.contains(QStringLiteral("lm:gcquad")),
+                  "GSPro relaying a GC Quad: the same GC Quad");
+            const PersistedShot r10 = deviceOf(QStringLiteral("gspro"), QStringLiteral("Garmin R10 SN-0042"), &b);
+            check(r10.lmDevice == QStringLiteral("r10") && b[QStringLiteral("device")].toString() == QStringLiteral("r10"),
+                  "GSPro relaying an R10: recorded as the R10");
+            check(!QJsonDocument(b).toJson().contains("SN-0042"),
+                  "…and the client's own words (its serial) are nowhere in the block");
+            const PersistedShot unknown = deviceOf(QStringLiteral("gspro"), QStringLiteral("HomeBrew 9000"), &b);
+            check(unknown.lmDevice == QStringLiteral("gspro") && !b.contains(QStringLiteral("device"))
+                      && unknown.devices.contains(QStringLiteral("lm:gspro")),
+                  "GSPro relaying a device nobody knows: some device, via GSPro — nothing guessed");
+            QDir(d6).removeRecursively();
+        }
         check(!sum.hasVideo, "…and it agrees there is no video");
 
         // ── Its rows rebuilt from the reading it holds (refreshLaunchMonitorRows) ──

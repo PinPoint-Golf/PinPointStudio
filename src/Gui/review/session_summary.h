@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "../../LaunchMonitor/lm_device.h"
+
 #include <QDate>
 #include <QDateTime>
 #include <QString>
@@ -51,7 +53,7 @@ struct SessionSummary {
     QString     dayLabel;         // "Today" / "Yesterday" / "Mon 8 Jun"
     QString     timeLabel;        // "hh:mm" of the earliest shot
     QStringList previewThumbs;    // up to maxThumbs absolute thumbnail paths
-    QStringList devices;          // every device any shot used, in sortDeviceTokens order
+    QStringList devices;          // every device any shot used, canonical (lm_device.h), in sortDeviceTokens order
 };
 
 // The fixed order device tokens are shown in: cameras, then the wrist and body sensors, then the
@@ -81,10 +83,8 @@ inline QString deviceLabel(const QString &token)
     if (token == QLatin1String("camera"))     return QStringLiteral("Camera");
     if (token == QLatin1String("hackmotion")) return QStringLiteral("HackMotion");
     if (token == QLatin1String("imu"))        return QStringLiteral("Motion sensor");
-    if (token == QLatin1String("lm:gcquad"))  return QStringLiteral("GC Quad");
-    if (token == QLatin1String("lm:premier")) return QStringLiteral("GC Quad");   // the device, read through Premier
-    if (token == QLatin1String("lm:gspro"))   return QStringLiteral("GSPro");
-    if (token.startsWith(QLatin1String("lm:"))) return QStringLiteral("Launch monitor");
+    // The launch monitor by its DEVICE, never its connector (lm_device.h).
+    if (token.startsWith(QLatin1String("lm:"))) return lm::deviceName(token.mid(3));
     return token;
 }
 
@@ -150,8 +150,10 @@ inline SessionSummary summarizeSession(const QVector<ShotSummaryInput> &shots,
             clubs.append(c);
         if (!in.thumbnailPath.isEmpty() && s.previewThumbs.size() < maxThumbs)
             s.previewThumbs.append(in.thumbnailPath);
-        for (const QString &d : in.devices)
-            if (!s.devices.contains(d))
+        // Canonical here, where every session list gathers its shots: a summary written before
+        // `launchMonitor.device` existed still says "lm:premier", and it is the same GC Quad.
+        for (const QString &raw : in.devices)
+            if (const QString d = lm::canonicalDeviceToken(raw); !s.devices.contains(d))
                 s.devices.append(d);
     }
     sortDeviceTokens(s.devices);

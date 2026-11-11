@@ -18,6 +18,7 @@
 #include "gspro_monitor.h"
 
 #include "gspro_reading.h"
+#include "lm_device.h"
 
 #include "pp_debug.h"
 
@@ -25,6 +26,8 @@
 #include <QElapsedTimer>
 #include <QTcpServer>
 #include <QTcpSocket>
+
+#include <utility>
 
 namespace pinpoint::lm {
 
@@ -400,6 +403,13 @@ void GsProMonitor::pump()
                     break;
                 }
                 reading->deviceKind = kindKey(kind());
+                // The client names the device on every message; the writer keeps only the device
+                // it identifies (lm_device.h), never these words (design §9.2).
+                reading->reportedDevice = QString::fromUtf8(e.u.message.device_id);
+                if (resolveDeviceKey(reading->deviceKind, reading->reportedDevice).isEmpty()
+                    && !std::exchange(m_toldUnknownDevice, true))
+                    ppInfo() << "LaunchMonitor: GSPro client's device is not in lm_device.h —"
+                                " recorded as an unidentified launch monitor (Settings shows its name)";
                 reading->sourcePath = sourceDescription();
                 reading->readAtMs   = QDateTime::currentMSecsSinceEpoch();
                 setState(State::Ready, QString());

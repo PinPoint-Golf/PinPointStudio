@@ -38,6 +38,7 @@
 #include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
 #include "../LaunchMonitor/lm_inferred_reads.h"
 #include "../LaunchMonitor/lm_gates.h"              // the import's dropped fields → analysis.gates
+#include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
 #include "../Analysis/swing_analysis.h"
 #include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
@@ -938,6 +939,13 @@ QJsonObject lmRawBlock(const lm::LaunchMonitorReading &reading)
     // other connector and every swing written before it existed.
     if (reading.contactAtMs)
         raw.insert(QStringLiteral("contactAtMs"), double(*reading.contactAtMs));
+    // WHICH DEVICE, apart from which connector (lm_device.h): what the client said it is, when
+    // the table recognises it, else what the connector always reads. Absent when neither says —
+    // the reader then keys it by its connector ("some device, via GSPro"). The client's own words
+    // are never written (LaunchMonitorReading::reportedDevice).
+    if (const QString device = lm::resolveDeviceKey(reading.deviceKind, reading.reportedDevice);
+        !device.isEmpty())
+        raw.insert(QStringLiteral("device"), device);
     for (const lm::FieldDef &f : lm::fieldDefs())
         if (const auto &v = reading.*(f.member))
             raw.insert(QString::fromLatin1(f.rawName), *v);
@@ -1174,9 +1182,10 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
         s.excluded     = rv[QStringLiteral("excluded")].toBool(false);
         s.clubOverride = rv[QStringLiteral("clubOverride")].toString();
     }
-    // Which device measured it, for the row's caption.
+    // Which connector carried it, and which device measured it (lm_device.h), for the row's caption.
     s.lmDeviceKind = root[QStringLiteral("launchMonitor")].toObject()
                          [QStringLiteral("kind")].toString();
+    s.lmDevice     = lm::deviceKeyOfBlock(root[QStringLiteral("launchMonitor")].toObject());
     s.devices      = swingDeviceTokens(root);
     s.handedness   = root[QStringLiteral("athlete")].toObject()
                          [QStringLiteral("handedness")].toString();
@@ -1233,6 +1242,7 @@ SwingSummary summaryFromShot(const PersistedShot &ps)
     s.rating            = ps.rating;
     s.note              = ps.note;
     s.lmDeviceKind      = ps.lmDeviceKind;
+    s.lmDevice          = ps.lmDevice;
     s.devices           = ps.devices;
     s.handedness        = ps.handedness;
     s.dataWarningDetail = ps.dataWarningDetail;
@@ -1300,6 +1310,10 @@ QJsonObject summaryJson(const SwingSummary &s)
         { QStringLiteral("rating"),           s.rating },
         { QStringLiteral("note"),             s.note },
         { QStringLiteral("lmDeviceKind"),     s.lmDeviceKind },
+        // The DEVICE beside the connector (lm_device.h). Additive to /4: an older summary lacking it
+        // is right as it stands, because the reader derives it from lmDeviceKind exactly as the
+        // document would — no device was recorded before this key existed.
+        { QStringLiteral("lmDevice"),         s.lmDevice },
         { QStringLiteral("dataWarningDetail"),QJsonObject::fromVariantMap(s.dataWarningDetail) },
         // The launch monitor board's annotations — additive to /4, read with defaults (see
         // SwingSummary::excluded for why this is not a schema bump).
@@ -1339,6 +1353,9 @@ void summaryFromJson(const QJsonObject &root, const QString &swingDir, SwingSumm
     s.rating            = std::clamp(root[QStringLiteral("rating")].toInt(), 0, 5);
     s.note              = root[QStringLiteral("note")].toString();
     s.lmDeviceKind      = root[QStringLiteral("lmDeviceKind")].toString();
+    s.lmDevice          = lm::canonicalDeviceKey(root.contains(QStringLiteral("lmDevice"))
+                                                     ? root[QStringLiteral("lmDevice")].toString()
+                                                     : s.lmDeviceKind);
     s.dataWarningDetail = root[QStringLiteral("dataWarningDetail")].toObject().toVariantMap();
     // Additive to /4: a summary written before these existed lacks them, and is right to.
     s.excluded          = root[QStringLiteral("excluded")].toBool(false);
@@ -2215,6 +2232,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
     // provenance for tooling and has no reader here — the readings are already in the metrics.
     ps.lmDeviceKind   = root[QStringLiteral("launchMonitor")].toObject()
                             .value(QStringLiteral("kind")).toString();
+    ps.lmDevice       = lm::deviceKeyOfBlock(root[QStringLiteral("launchMonitor")].toObject());
     ps.devices        = swingDeviceTokens(root);
 
     // Only video presence is reconstructed here. imu / pose streams and the raw
@@ -2373,10 +2391,11 @@ QStringList swingDeviceTokens(const QJsonObject &root)
     if (camera)     out << QStringLiteral("camera");
     if (hackmotion) out << QStringLiteral("hackmotion");
     if (imu)        out << QStringLiteral("imu");
-    const QString lm = root[QStringLiteral("launchMonitor")].toObject()
-                           [QStringLiteral("kind")].toString();
-    if (!lm.isEmpty())
-        out << QStringLiteral("lm:") + lm;
+    // The DEVICE, not the connector: a GC Quad read through FSX2020 and one read through Premier
+    // are one tag and one filter chip (lm_device.h).
+    const QString lmDevice = lm::deviceKeyOfBlock(root[QStringLiteral("launchMonitor")].toObject());
+    if (!lmDevice.isEmpty())
+        out << QStringLiteral("lm:") + lmDevice;
     return out;
 }
 

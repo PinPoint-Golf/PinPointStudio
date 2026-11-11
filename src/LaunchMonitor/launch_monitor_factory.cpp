@@ -16,6 +16,7 @@
  */
 
 #include "launch_monitor_factory.h"
+#include "lm_device.h"
 
 #include "gcquad_monitor.h"
 #include "gspro_monitor.h"
@@ -69,17 +70,10 @@ QString kindLabel(Kind kind)
 
 QString kindShortLabel(Kind kind)
 {
-    switch (kind) {
-    case Kind::None:
-        return QString();
-    case Kind::GcQuad:
-    case Kind::Premier:
-        // The DEVICE, not the program: panels name what measured the shot.
-        return QCoreApplication::translate("LaunchMonitor", "GC Quad");
-    case Kind::GsPro:
-        return QCoreApplication::translate("LaunchMonitor", "GSPro");
-    }
-    return QString();
+    // The DEVICE, not the program: panels name what measured the shot, and lm_device.h is the one
+    // place a connector is mapped onto the device it reads ("premier" → GC Quad; "gspro", whose
+    // clients name themselves, → "Launch monitor (GSPro)" until one does).
+    return kind == Kind::None ? QString() : deviceName(kindKey(kind));
 }
 
 } // namespace pinpoint::lm
