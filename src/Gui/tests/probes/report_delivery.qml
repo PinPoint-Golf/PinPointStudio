@@ -43,7 +43,8 @@
 //   --probe-out    the PNG folder: <tag>_delivery_p<N>.png (N = the page in the report), <tag>_before_p<N>.png
 //   --probe-theme  the APP's theme while it lays out (12 Folio light, 7 Vector dark): the pages must not change
 //   --probe-before 0 skips the before grabs; --probe-pdf prints every page of the (after) report to that PDF
-//   --probe-dump 1 logs the map as REPORTMAP[i/n]:… chunks (the whole map: a tst_session_report fixture is a map)
+//   --probe-dump 1 logs the map as REPORTMAP[i/n]:… chunks, to look at (the tst_session_report fixtures are made by
+//                  tools/session-report-mock/fixtures.sh)
 // "PROBE:" lines carry the findings, "PROBE: PASS|FAIL …" the checks. Exit 0 = every check passed; 3 = the model
 // refused; 4 = the watchdog.
 

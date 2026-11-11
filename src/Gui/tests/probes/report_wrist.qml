@@ -49,7 +49,8 @@
 //                  <tag>_postureA_p<N>.png / <tag>_postureB_p<N>.png (the Posture pages with / without the wrist block:
 //                  build/run-me/report_wrist.sh diffs them)
 //   --probe-theme  the APP's theme while it lays out (12 Folio light, 7 Vector dark): the pages must not change
-//   --probe-dump 1 logs the map's `wrist` block as WRISTMAP[i/n]:… chunks, for a fixture (run-me reassembles them)
+//   --probe-dump 1 logs the map's `wrist` block as WRISTMAP[i/n]:… chunks, to look at (the tst_session_report
+//                  fixtures are made by tools/session-report-mock/fixtures.sh, not from this dump)
 // "PROBE:" lines carry the findings, "PROBE: PASS|FAIL …" the checks. Exit 0 = every check passed; 3 = the model
 // refused; 4 = the watchdog.
 

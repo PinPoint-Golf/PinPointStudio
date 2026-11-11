@@ -1,125 +1,119 @@
 {
- "kind": "note",
- "brand": {
-  "studio": "Northfield Golf Studio",
-  "monogram": "NG",
-  "logo": "",
-  "accent": "#1F5A4C",
-  "coach": "Alex Morgan",
-  "coachTitle": "Head coach",
-  "coachLine": "Alex Morgan  ·  Head coach",
-  "contact": "alex@northfieldgolf.example  ·  01234 567890",
-  "web": "northfieldgolf.example",
-  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
-  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
-  "coachPhoto": ""
- },
- "meta": {
-  "golfer": "Nick Henn",
-  "first": "Nick",
-  "date": "Tuesday 20 October 2026",
-  "dateShort": "20 Oct 2026",
-  "prepared": "20 October 2026",
-  "preparedShort": "20 Oct 2026",
-  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
-  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
-  "emailSubject": "Your session report — 20 October 2026",
-  "club": "7 iron",
-  "swings": 2,
-  "sessionOfDay": "",
-  "hand": "right-handed",
-  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
-  "mastheadDate": "Prepared 20 October 2026",
-  "folioDate": "Prepared 20 Oct 2026",
-  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  2 swings",
-  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron"
- },
- "headline": "Two swings is too few to call a habit, so this is a short note rather than a full report: here is what the ball did.",
- "coachNote": "",
- "photos": {
-  "included": true,
-  "reason": ""
- },
- "held": [],
+ "about": null,
  "appendix": false,
- "strengths": [],
- "found": [],
- "watching": [],
- "workOnsBrief": [],
  "ball": {
-  "device": "GC Quad",
   "byline": "measured on every swing by GC Quad",
-  "note": "Middle of your two swings in large type; the lower and higher beneath.",
+  "device": "GC Quad",
   "groups": [
    {
     "club": "",
     "tiles": [
      {
       "label": "Carry",
-      "value": "140",
+      "range": "133–147",
       "unit": "yd",
-      "range": "133–147"
+      "value": "140"
      },
      {
       "label": "Ball speed",
-      "value": "102",
+      "range": "99–104",
       "unit": "mph",
-      "range": "99–104"
+      "value": "102"
      },
      {
       "label": "Club speed",
-      "value": "77",
+      "range": "76–78",
       "unit": "mph",
-      "range": "76–78"
+      "value": "77"
      },
      {
       "label": "Smash",
-      "value": "1.32",
+      "range": "1.29–1.34",
       "unit": "",
-      "range": "1.29–1.34"
+      "value": "1.31"
      },
      {
       "label": "Launch",
-      "value": "21°",
+      "range": "19–23",
       "unit": "",
-      "range": "19–23"
+      "value": "21°"
      },
      {
       "label": "Spin",
-      "value": "5,259",
+      "range": "4,894–5,624",
       "unit": "rpm",
-      "range": "4,894–5,624"
+      "value": "5,259"
      },
      {
       "label": "Club path",
-      "value": "2°",
+      "range": "−0.2 to +3.7",
       "unit": "in-to-out",
-      "range": "−0.2 to +3.7"
+      "value": "2°"
      },
      {
       "label": "Offline",
-      "value": "2",
+      "range": "widest, either side",
       "unit": "yd",
-      "range": "widest, either side"
+      "value": "2"
      }
     ]
    }
   ],
-  "more": ""
+  "more": "",
+  "note": "Middle of your two swings in large type; the lower and higher beneath."
  },
- "grid": null,
- "today": null,
- "order": null,
+ "brand": {
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "coachPhoto": "",
+  "coachTitle": "Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "logo": "",
+  "monogram": "NG",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "stamp": "",
+  "studio": "Northfield Golf Studio",
+  "web": "northfieldgolf.example"
+ },
  "checks": [],
- "workOns": [],
- "practice": null,
+ "coachNote": "",
+ "consistency": null,
+ "delivery": null,
+ "found": [],
+ "grid": null,
+ "headline": "Two swings is too few to call a habit, so this is a short note rather than a full report: here is what the ball did.",
+ "held": [],
+ "kind": "note",
+ "lmAppendix": null,
+ "meta": {
+  "club": "7 iron",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "devices": "Down-the-line and face-on cameras · GC Quad launch monitor",
+  "emailSubject": "Your session report — 20 October 2026",
+  "fileName": "2026-10-20_Nick-Henn_session-report.pdf",
+  "first": "Nick",
+  "folioDate": "Prepared 20 Oct 2026",
+  "golfer": "Nick Henn",
+  "hand": "right-handed",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron  ·  2 swings  ·  Session 3 of 3 that day",
+  "mastheadDate": "Prepared 20 October 2026",
+  "pdfTitle": "Session report — Nick Henn — session of 20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "runningHead": "Nick Henn  ·  session of 20 Oct 2026  ·  7 iron",
+  "sessionOfDay": "Session 3 of 3 that day",
+  "swings": 2
+ },
  "numbers": {
   "cols": [
    "Swing",
    "Carry",
    "Total",
-   "Ball",
-   "Club",
+   "Ball speed",
+   "Club speed",
    "Smash",
    "Launch",
    "Spin",
@@ -129,21 +123,8 @@
    "Attack",
    "Offline"
   ],
-  "units": [
-   "",
-   "yd",
-   "yd",
-   "mph",
-   "mph",
-   "",
-   "°",
-   "rpm",
-   "°",
-   "°",
-   "°",
-   "°",
-   "yd"
-  ],
+  "habitsHead": "",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer).",
   "rows": [
    {
     "cells": [
@@ -155,11 +136,11 @@
      "1.29",
      "19",
      "5,624",
-     "-0.2",
-     "-1.1",
-     "-0.8",
-     "-3.1",
-     "-2"
+     "−0.2",
+     "−1.1",
+     "−0.8",
+     "−3.1",
+     "−2"
     ]
    },
    {
@@ -174,15 +155,41 @@
      "4,894",
      "3.7",
      "0.6",
-     "-3.1",
-     "-0.7",
-     "-2"
+     "−3.1",
+     "−0.7",
+     "−2"
     ]
    }
   ],
   "typical": [],
-  "habitsHead": "",
-  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer)."
+  "units": [
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ]
  },
- "about": null
+ "order": null,
+ "photos": {
+  "included": true,
+  "reason": "No date of birth — photos included"
+ },
+ "posture": null,
+ "practice": null,
+ "strengths": [],
+ "tendencies": null,
+ "today": null,
+ "watching": [],
+ "workOns": [],
+ "workOnsBrief": [],
+ "wrist": null
 }

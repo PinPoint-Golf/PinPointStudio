@@ -237,7 +237,7 @@ fresh page, for the coach's own file or for a golfer who wants everything.
 | Fewer than 3 swings | A one-page **note**, not a report: the swings, the ball numbers, and "too few swings to call a habit" (the panel's Cold rule). |
 | No habits (a clean session) | Headline: *"Nothing repeated often enough to call a habit."* Page 1 gives strengths and the watch list. No work-on pages. Page 2 and the numbers stay. |
 | A work-on easing during the session (`resolving`) | Its page leads with the change ("it stopped after swing 6"). Rule 1 on page 3 says that it moved this item down. |
-| Several clubs | The kicker lists the clubs. The ball block is split per club, because medians across clubs mean nothing. "Typical" values are stated only under the one-corridor rule `work_ons.h` already applies. |
+| Several clubs | The kicker lists the clubs. The ball block is split per club, because medians across clubs mean nothing: a row per club under the readings any club has, and a club with no launch monitor reading still has its row, "-" in each cell (`PpBallTiles.qml`). "Typical" values are stated only under the one-corridor rule `work_ons.h` already applies. |
 | A declared focus (focus contract) | The page for the focused habit gets a *before / after the focus* split. The Moved-together grade, when earned, is the one place a report may say "when this improved, that followed". |
 
 ### 3.2 Strengths: what "Going well" picks
@@ -747,17 +747,29 @@ text is clipped, or any page is less than a quarter full, except a section's las
 
 | Case | Built from |
 |---|---|
-| Nick, 20 Oct, session 3 (the mock) | library |
-| Mark, 7 Oct: 50 swings, 5 work-ons, long cause lists | library |
-| Jess, 20 Oct, session 3: 7 swings, a setup habit, a P8 habit, a session-level habit, almost no authored content | library (**run 20 Oct**, §9.3) |
-| A three-swing session (the one-page note) | library |
-| A clean session: no habits | fixture |
+| Nick, 20 Oct, session 3: 10 swings, five work-ons, launch monitor, earlier sessions that day (`nick`) | library |
+| Jess, 20 Oct, session 3: 7 swings, two "Linked, not proven" links, a held habit (`jess`) | library |
+| Mark, 7 Oct: 50 swings, 5 work-ons, no launch monitor — the longest library session (`long-session`; its cause lists are short today, so the caps stay a fixture) | library |
+| Mark, 9 Sep: cameras only, no launch monitor, no earlier session (`no-launch-monitor`) | library |
+| Nick, 13 Oct: the one-swing note (`note-one-swing`) | library |
+| A two-swing session (the one-page note) | fixture |
+| A clean session: no habits, a watch list | fixture |
 | One work-on only | fixture |
 | Five work-ons, each with the longest goal, cue and drill text in the pack | fixture |
 | Every cause group at its cap, with the longest condition names | fixture |
 | 60 swings, three clubs | fixture |
 | A junior without photo approval (no stills anywhere) | fixture |
 | The longest studio name, golfer name and coach's note allowed | fixture |
+| The later pages, each on one session's own map: the launch monitor appendix, Posture, Consistency (with flagged swings) and Your tendencies on Nick's; Posture + Wrist on Mark's 18 Aug; Posture + Wrist + Club delivery on Jess's 20 Oct, session 1; Consistency with mixed clubs on Mark's 20 Oct | library |
+
+"Library" is the current `SessionReportModel`'s own map for that session, every page in it from that one session;
+"fixture" is a stress transform of Nick's map that changes only what the case stresses and
+rebuilds every sentence it changes with the model's own templates (`report_words.h`). `tools/session-report-mock/fixtures.sh`
+makes all of them (a fresh scratch copy of each session, the model run on it, then `build_fixtures.py`; its header names
+every session). The brand is a fictional studio, the prepared date is the session's and every still is a neutral
+placeholder, so a re-run is byte-identical while the source sessions in the library are unchanged. After a regenerate,
+the page count recorded for each case (`expectedPages` in `test_01`) must be re-recorded and the change looked at: a count
+that moves is a layout change, not just new data.
 
 The overflow check already used on the mock (`tools/session-report-mock/overflow_check.py`)
 becomes the probe's first test. The visual review for Mark uses annotated sheets of the stress

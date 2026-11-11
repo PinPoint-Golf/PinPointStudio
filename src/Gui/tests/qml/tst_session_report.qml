@@ -23,9 +23,10 @@ import "data/session_report/fixtures.js" as Fx
 
 // THE SESSION REPORT'S LAYOUT CONTRACT (docs/design/session_report_design.md §9), proved on the stress set (§9.2).
 //
-// Every fixture is a report map in the final schema (build/report-build/REPORT_MAP.md), cut by
-// build/report-build/register/build_fixtures.py from the two real mock maps, so the words and numbers are real and only
-// what a case stresses is changed. The .json files beside fixtures.js are the canonical copies; this suite reads the JS
+// Every fixture is a report map as SessionReportModel writes it (session_report_model.cpp and the report_*.h blocks), made by
+// tools/session-report-mock/fixtures.sh (build_fixtures.py; its header says where each case comes from): every case is
+// the CURRENT SessionReportModel's map of a library session (nick, jess, no-launch-monitor, and each later page's block)
+// or a stress transform of Nick's map that changes only what the case stresses, so the words and numbers are real. The .json files beside fixtures.js are the canonical copies; this suite reads the JS
 // library because QuickTest cannot read a local file with XMLHttpRequest.
 //
 // For each fixture the register is laid out on an A4 sheet (794 × 1123 logical) and every page is stepped. It FAILS if:
@@ -39,8 +40,8 @@ import "data/session_report/fixtures.js" as Fx
 // It also proves the report ignores the app's theme (§7.1): the same fixture in Folio light and Vector dark draws every
 // Text in the same family, size and colour, and every Rectangle in the same colour.
 //
-// Stills point at the mock's JPEGs on the share; without the share they are empty frames of the same size, so nothing
-// here depends on them except the photo-page assertion, which only runs on a still that loaded. Silent, no window.
+// Every still is one of two neutral placeholder JPEGs in data/session_report/stills/ (loadMap resolves them), so the
+// photo-page assertion always has a still that loaded; it still skips if none did. Silent, no window.
 Item {
     id: probe
     width: 794; height: 1123
@@ -52,16 +53,22 @@ Item {
         name: "SessionReport"
         when: windowShown
 
-        // pages per fixture, recorded from the print_report.qml renders of 20 Oct (build/report-build/register); no appendix
+        // pages per fixture (no appendix), recorded on 11 Nov 2026 when the fixtures moved onto the model's own maps
+        // (tools/session-report-mock/build_fixtures.py: nick = Nick Henn 20 Oct session 3, jess = Jess Ratcliffe 20 Oct
+        // session 3, no-launch-monitor = Mark Liversedge 9 Sep; the transforms are of nick; a page case is one session's own map)
         readonly property var expectedPages: ({
-            "nick": 11, "jess": 10, "clean": 4, "one-work-on": 6, "five-work-ons-longest-text": 16,
-            "causes-at-caps": 13, "sixty-swings-three-clubs": 14, "junior-no-photos": 11,
-            "longest-names-and-note": 11, "note": 1, "no-launch-monitor": 10,
-            "launch-monitor-appendix": 15,      // nick + the launch monitor appendix (Nick Henn's 20 Oct session 3 readings)
-            "posture": 15,                      // nick + the Posture page (Nick Henn's 20 Oct session 3 posture readings; + its picture strip, stage 5)
-            "wrist": 17,                        // posture + the Wrist page (Mark Liversedge's 18 Aug Wrist_02 wrist block: report_wrist.sh rich)
-            "delivery": 18                      // wrist + the Club delivery page (Jess Ratcliffe's 20 Oct Wrist_01 delivery block, its fit over her
-                                                // day: report_delivery.sh jess — ONE page, the trust note in two columns under the scatter)
+            "nick": 13, "jess": 13, "clean": 4, "one-work-on": 6, "five-work-ons-longest-text": 16,
+            "causes-at-caps": 15, "sixty-swings-three-clubs": 16, "junior-no-photos": 12,
+            "longest-names-and-note": 14, "note": 1, "note-one-swing": 1, "no-launch-monitor": 11,
+            "launch-monitor-appendix": 17,      // nick + the launch monitor appendix (Nick's readings)
+            "posture": 17,                      // nick + the Posture page (Nick's posture readings, with its picture strip)
+            "wrist": 15,                        // Mark Liversedge's 18 Aug Wrist_02: its own map + its Posture and Wrist pages (fixtures.sh rich)
+            "delivery": 18,                     // Jess Ratcliffe's 20 Oct Wrist_01: its own map + its Posture, Wrist and Club delivery pages
+                                                // (the fit over her day: fixtures.sh jess — Club delivery ONE page, the trust note in two columns)
+            "consistency": 15,                  // nick + the Consistency page (Nick's: two flagged swings)
+            "consistency-mixed-clubs": 10,      // Mark Liversedge's 20 Oct Wrist_01: its own map + its mixed-club Consistency page
+            "long-session": 13,                 // Mark Liversedge's 7 Oct: 50 swings, five work-ons, no launch monitor
+            "tendencies": 14                    // nick + the Your tendencies page (Nick's)
         })
 
         // The app theme the ignores-the-app-theme tests switch, put back after each of them —
@@ -151,41 +158,74 @@ Item {
         }
 
         // rule 6, empty means absent: a block with nothing to say is not drawn, nor its heading
+        // a block is drawn exactly when the map has something for it — the cover, every work-on's blocks, the order page,
+        // the back page — read off the fixture, so a model dump that gains or loses a block keeps the check honest
+        function checkBlocksFollowTheMap(name) {
+            const m = Fx.maps[name]
+            const has = a => (a || []).length > 0
+            compare(shown("reportCoverBall"), !!m.ball, name + ": the ball on the cover only with the ball")
+            compare(shown("reportCover_workOns"), has(m.workOnsBrief), name + ": the work-ons on the cover")
+            compare(shown("reportCover_found"), has(m.found), name + ": what we found")
+            compare(shown("reportCover_strengths"), has(m.strengths), name + ": what went well")
+            compare(shown("reportCover_watching"), has(m.watching), name + ": the watch list")
+            compare(shown("reportBallMoved"), !!(m.ball && m.ball.more), name + ": the ball leaves the cover only past its caps")
+            for (const w of m.workOns) {
+                const k = w.rank, rows = (w.causes && w.causes.rows) || []
+                for (const kind of ["seen", "possible", "ruledOut"])
+                    compare(shown("reportCause_" + k + "_" + kind), rows.some(r => r.kind === kind && has(r.items)), name + " work-on " + k + ": " + kind + " only with its items")
+                compare(shown("reportCameWith" + k), !!w.cameWith, name + " work-on " + k + ": What came with it only with its words")
+                compare(shown("reportFeel" + k), !!w.cue, name + " work-on " + k + ": The feel only with a cue")
+                compare(shown("reportCheck" + k), !!w.check, name + " work-on " + k + ": Check it yourself only with a check")
+                compare(shown("reportToDo" + k), !!w.cue || has(w.drills) || !!w.check, name + " work-on " + k + ": What to do only with something to do")
+            }
+            if (m.order) {
+                compare(shown("reportOrder_links"), has(m.order.links), name + ": Linked, not proven only with a link")
+                compare(shown("reportOrder_notListed"), has(m.order.notListed), name + ": Not on the list")
+            }
+            compare(shown("reportOrder_checks"), has(m.checks), name + ": Worth checking next time")
+            compare(shown("reportHeld"), has(m.held), name + ": a held habit named on the back page")
+        }
         function test_02_emptyMeansAbsent() {
+            // the two model bases between them draw every block one way or the other (the fixture facts first, so a
+            // re-generated base that loses one fails here rather than quietly testing less)
+            const nk = Fx.maps["nick"], js = Fx.maps["jess"]
+            verify(nk.order.links.length === 0 && js.order.links.length > 0, "jess's map has order links, nick's none")
+            verify(nk.held.length === 0 && js.held.length > 0, "jess's map holds a habit, nick's none")
+            verify(nk.workOns.some(w => !w.cameWith) && nk.workOns.some(w => !!w.cameWith), "nick: a work-on with and one without What came with it")
+            verify(nk.workOns.some(w => !w.causes.rows.some(r => r.kind === "seen")) && nk.workOns.some(w => w.causes.rows.some(r => r.kind === "seen")),
+                   "nick: a work-on with and one without What we spotted")
             load("nick")
-            verify(shown("reportCoverBall"), "nick: the ball on the cover")
-            verify(shown("reportCover_workOns") && shown("reportCover_found") && shown("reportCover_strengths"))
-            verify(!shown("reportCover_watching"), "nick has habits: no watch list on the cover")
-            verify(!shown("reportCause_1_seen"), "work-on 1: nothing spotted, so no What we spotted")
-            verify(shown("reportCause_1_ruledOut"))
-            verify(!shown("reportCameWith2"), "work-on 2: nothing came with it, so no What came with it")
-            verify(shown("reportCameWith1"))
-            verify(!shown("reportBallMoved"), "within the caps the ball never leaves the cover")
-            verify(shown("reportOrder_links") && shown("reportOrder_notListed") && shown("reportOrder_checks"))
-            verify(!shown("reportHeld"), "nothing held")
-
+            checkBlocksFollowTheMap("nick")
             load("jess")
-            verify(!shown("reportOrder_links"), "jess: no links, so no Linked, not proven")
-            verify(!shown("reportFeel1"), "jess work-on 1 has no feel: no The feel line")
-            verify(!shown("reportCheck1"), "jess work-on 1 has no self-check")
-            verify(!shown("reportToDo1"), "jess work-on 1 has nothing to do yet: no What to do heading")
+            checkBlocksFollowTheMap("jess")
+            const links = findAll(reg, "reportOrder_links", []).filter(it => it.visible)
+            const said = texts(links[0], [], false).map(t => t.text).join(" ")
+            for (const l of js.order.links)
+                verify(said.indexOf(l.from) >= 0 && said.indexOf(l.to) >= 0, "Linked, not proven names " + l.from + " and " + l.to + " (" + said.slice(0, 200) + ")")
+            // a work-on with nothing authored to do: no feel, no self-check, no What to do heading
+            loadMap(editedMap("jess", "workOns", x => { x[0].cue = ""; x[0].check = ""; x[0].drills = [] }))
+            verify(!shown("reportFeel1") && !shown("reportCheck1") && !shown("reportToDo1"), "jess work-on 1 with nothing to do: no What to do")
 
             load("clean")
+            checkBlocksFollowTheMap("clean")
             verify(!shown("reportWorkOn1") && !shown("reportOrder"), "clean: no work-on pages, no order page")
-            verify(!shown("reportCover_workOns") && !shown("reportCover_found"))
-            verify(shown("reportCover_watching") && shown("reportCover_strengths"))
+            verify(Fx.maps["clean"].watching.length > 0, "the clean case carries a watch list")
             verify(shown("reportGrid") && shown("reportNumbers"))
             verify(!shown("reportPractice"), "clean: no practice steps for a session with nothing to practise")
 
             load("no-launch-monitor")
+            checkBlocksFollowTheMap("no-launch-monitor")
+            verify(!Fx.maps["no-launch-monitor"].ball && !Fx.maps["no-launch-monitor"].numbers && !Fx.maps["no-launch-monitor"].today,
+                   "the no-launch-monitor case is a session with no monitor and no earlier session that day")
             verify(!shown("reportCoverBall") && !shown("reportNumbers"), "no launch monitor: no ball, no numbers")
             verify(shown("reportPractice"))
             verify(!shown("reportEarlierToday"), "no earlier sessions: no Earlier today")
+            load("nick")
+            verify(shown("reportEarlierToday") && shown("reportReferenceSwing"), "nick: Earlier today and the reference swing")
 
             load("junior-no-photos")
             compare(stills(galley(), []).length, 0, "no approval: no still anywhere")
             verify(!shown("reportReferenceSwing"), "no approval: no reference swing")
-            verify(shown("reportHeld"), "a held habit is named on the back page")
             for (let p = 0; p < reg.printPageCount; ++p) { reg.printPage = p; verify(!reg.printPageHasPhoto, "junior p" + (p + 1) + " has no photograph") }
 
             load("nick")
@@ -317,6 +357,205 @@ Item {
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "posture page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
             }
         }
+        // ── consistency on the Posture and Wrist pages (Mark's rulings R7, R9, R11, R20; report_posture.h, report_wrist.h) ──
+        // a copy of a fixture's map with one block changed by `edit`
+        function editedMap(name, key, edit) {
+            const m = JSON.parse(JSON.stringify(Fx.maps[name]))
+            if (edit) edit(m[key], m)
+            return m
+        }
+        // the variability badges drawn inside an item (a badge is a PpVariabilityBadge: its grade and its word)
+        function badgesIn(item, out) {
+            const kids = item.children || []
+            for (let i = 0; i < kids.length; ++i) {
+                const c = kids[i]
+                if (!c || !c.visible) continue
+                if (c.grade !== undefined && c.word !== undefined && c.contentLayer !== undefined) out.push(c)
+                else badgesIn(c, out)
+            }
+            return out
+        }
+        // ROW.rowGrades beside each reading's name: one golfer-layer badge per club the row is graded for, in the map's
+        // order and with the map's grade, each saying its word (colour is never the only channel); none for an ungraded club
+        function checkRowGrades(prefix, rows, what) {
+            const drawn = visibleAll(prefix + "Row")
+            compare(drawn.length, rows.length, what + ": a row per reading")
+            for (const r of rows) {
+                const row = drawn.find(d => d.key === r.key)
+                verify(!!row, what + ": the row " + r.key + " is drawn")
+                const want = (r.rowGrades || []).filter(g => g.result && g.result.graded === true)
+                const got = findAll(row, prefix + "Grade", []).filter(b => b.visible)
+                compare(got.length, want.length, what + " " + r.key + ": a badge per graded club")
+                compare(got.map(b => b.grade).join(","), want.map(g => g.result.grade).join(","), what + " " + r.key + ": the map's grades")
+                verify(got.every(b => b.word !== ""), what + " " + r.key + ": every badge says its word")
+                compare(findAll(row, prefix + "Grades", []).filter(f => f.visible).map(f => f.club).join(","), want.map(g => g.club).join(","),
+                        what + " " + r.key + ": the clubs graded")
+            }
+        }
+        function test_13_thePostureRowsCarryTheirConsistency() {
+            const p = Fx.maps["posture"].posture
+            verify(p.profile.rows.length > 0 && p.profile.rows.every(r => (r.rowGrades || []).some(g => g.result && g.result.graded)),
+                   "the posture fixture grades every row (report_posture.h ROW.rowGrades)")
+            load("posture")
+            checkRowGrades("reportPosture", p.profile.rows, "posture")
+            compare(findAll(reg, "reportPostureGrade", []).filter(b => b.visible).length,
+                    p.profile.rows.reduce((a, r) => a + r.rowGrades.filter(g => g.result && g.result.graded).length, 0), "no badge the map has not")
+            // an ungraded club draws no badge; a mixed session draws one per club, each named
+            loadMap(editedMap("posture", "posture", x => {
+                x.profile.rows[0].rowGrades[0].result.graded = false
+                const g = JSON.parse(JSON.stringify(x.profile.rows[1].rowGrades[0]))
+                x.profile.rows[1].rowGrades = [Object.assign({}, g, { club: "7 IRON", named: true }),
+                                               Object.assign({}, g, { club: "DRIVER", named: true, result: Object.assign({}, g.result, { grade: 2 }) })]
+            }))
+            const r0 = visibleAll("reportPostureRow").find(d => d.key === p.profile.rows[0].key)
+            compare(findAll(r0, "reportPostureGrade", []).filter(b => b.visible).length, 0, "an ungraded row: no badge")
+            const r1 = visibleAll("reportPostureRow").find(d => d.key === p.profile.rows[1].key)
+            compare(findAll(r1, "reportPostureGrades", []).filter(f => f.visible).map(f => f.club).join(","), "7 IRON,DRIVER", "a badge per club, in order")
+            compare(findAll(r1, "reportPostureGrade", []).filter(b => b.visible).map(b => b.grade).join(","),
+                    p.profile.rows[1].rowGrades[0].result.grade + ",2", "each club its own grade")
+        }
+        // "Consistency" on the Posture page: per club, the most and the least consistent position, each with its badge;
+        // a club too few to grade says so once; no line, no block
+        function test_14_thePosturePageConsistency() {
+            const c = Fx.maps["posture"].posture.consistency || []
+            verify(c.length > 0 && c.some(l => l.tooFew !== true && l.most && l.least), "the posture fixture carries a graded Consistency line")
+            load("posture")
+            verify(shown("reportPostureRepeat"), "the Consistency block on the Posture page")
+            const lines = visibleAll("reportPostureRepeatLine")
+            compare(lines.length, c.length, "a line per club")
+            compare(lines.map(l => l.club).join(","), c.map(l => l.club).join(","), "the map's clubs, in order")
+            for (let i = 0; i < c.length; ++i) {
+                const said = texts(lines[i], [], false).map(t => t.text).join(" ")
+                const b = badgesIn(lines[i], [])
+                if (c[i].tooFew === true) {
+                    compare(b.map(x => x.grade).join(","), String(c[i].result.grade), c[i].club + ": too few, one badge")
+                } else {
+                    verify(said.indexOf(c[i].mostText) >= 0 && said.indexOf(c[i].leastText) >= 0, c[i].club + ": says " + c[i].mostText + " and " + c[i].leastText + " (" + said + ")")
+                    compare(b.map(x => x.grade).join(","), c[i].most.grade + "," + c[i].least.grade, c[i].club + ": Most, then Least, with the map's grades")
+                }
+                verify(b.every(x => x.word !== ""), c[i].club + ": every badge says its word")
+                compare(said.indexOf(ClubFormat.display(c[i].club)) >= 0, c[i].named === true, c[i].club + ": named only in a mixed session")
+            }
+            // a club too few to grade: the one badge and no Most / Least
+            loadMap(editedMap("posture", "posture", x => {
+                x.consistency = [{ club: "7 IRON", named: false, tooFew: true, mostText: "", leastText: "", most: null, least: null,
+                                   result: { graded: true, grade: 0, measurementLimited: false, basis: "scalar", basisText: "", domain: "consistency", ungradedReason: "tooFewSwings" } }]
+            }))
+            const tl = visibleAll("reportPostureRepeatLine")
+            compare(tl.length, 1)
+            compare(badgesIn(tl[0], []).map(x => x.grade).join(","), "0", "too few: one badge")
+            verify(texts(tl[0], [], false).every(t => t.text.indexOf("Most") < 0 && t.text.indexOf("Least") < 0), "too few: no Most or Least")
+            // nothing to say: no block, no heading
+            loadMap(editedMap("posture", "posture", x => { x.consistency = [] }))
+            verify(!shown("reportPostureRepeat"), "no consistency line: no Consistency block")
+        }
+
+        // a work-on's consistency over the session (R10): beside What we saw, the word "Consistency" and one golfer-layer badge
+        // with the map's grade and its word; nothing for an ungraded work-on
+        function test_15_theWorkOnConsistencyBadge() {
+            const m = Fx.maps["nick"]
+            const graded = w => !!w.consistency && w.consistency.graded === true
+            verify(m.workOns.some(graded) && m.workOns.some(w => !graded(w)), "nick has a graded work-on and an ungraded one")
+            load("nick")
+            for (const w of m.workOns) {
+                const rows = findAll(reg, "reportWorkOnConsistency" + w.rank, []).filter(it => it.visible)
+                compare(rows.length, graded(w) ? 1 : 0, "work-on " + w.rank + ": a badge only when graded")
+                if (!graded(w)) continue
+                const b = badgesIn(rows[0], [])
+                compare(b.length, 1, "work-on " + w.rank + ": one badge")
+                compare(b[0].grade, w.consistency.grade, "work-on " + w.rank + ": the map's grade")
+                verify(b[0].word !== "", "work-on " + w.rank + ": the badge says its word")
+                verify(texts(rows[0], [], false).some(t => t.text === "Consistency"), "work-on " + w.rank + ": labelled Consistency")
+            }
+        }
+        // the Consistency page's flagged swings: one block per swing the map lists (its title, launch monitor line and
+        // sentence), its readings row by row with the map's values; the heading only with a flagged swing
+        function test_16_theConsistencyPageFlaggedSwings() {
+            const c = Fx.maps["consistency"].consistency
+            verify(c.flagged.length > 0, "the consistency fixture carries flagged swings (Nick's)")
+            load("consistency")
+            verify(shown("reportConsistency") && shown("reportConsistencyTable"), "the Consistency page and its table")
+            verify(shown("reportConsistencyFlagged"), "the flagged swings' heading")
+            const sw = visibleAll("reportConsistencySwing")
+            compare(sw.map(s => s.swing).join(","), c.flagged.map(f => f.swing).join(","), "a block per flagged swing, in the map's order")
+            for (let i = 0; i < sw.length; ++i) {
+                const f = c.flagged[i]
+                const said = texts(sw[i], [], false).map(t => t.text)
+                verify(said.indexOf(f.title) >= 0 && said.indexOf(f.sentence) >= 0, "swing " + f.swing + ": its title and sentence")
+                if (f.lm) verify(said.indexOf(f.lm) >= 0, "swing " + f.swing + ": its launch monitor line")
+                const want = f.groups.slice(0, 3).reduce((a, g) => a.concat(g.rows.slice(0, 8)), [])
+                const rows = findAll(sw[i], "reportConsistencyRow", []).filter(r => r.visible)
+                compare(rows.map(r => r.rowKey + "=" + r.value).join(","), want.map(r => r.key + "=" + (r.value || "-")).join(","),
+                        "swing " + f.swing + ": its readings and values, verbatim")
+            }
+            // the mixed-club page: the table and its notes, no flagged swing, no heading over nothing
+            const mc = Fx.maps["consistency-mixed-clubs"].consistency
+            load("consistency-mixed-clubs")
+            verify(shown("reportConsistencyTable"), "mixed clubs: the table")
+            compare(shown("reportConsistencyFlagged"), mc.flagged.length > 0, "the flagged heading only with a flagged swing")
+            compare(visibleAll("reportConsistencySwing").length, mc.flagged.length)
+            compare(visibleAll("reportConsistencyNote").length, mc.notes.length, "a line per note")
+        }
+        // Your tendencies (after the order of work): a row per club and swing length with its usual distance and each factor's
+        // word and mix line, the flow under the table when the map has one; no `tendencies`, no page
+        function test_17_theTendenciesPage() {
+            const t = Fx.maps["tendencies"].tendencies
+            verify(t.rows.length > 0, "the tendencies fixture carries rows (Nick's)")
+            load("nick")
+            verify(!shown("reportTendencies"), "no tendencies in the map: no page")
+            load("tendencies")
+            verify(shown("reportTendencies"), "the Your tendencies page")
+            const rows = visibleAll("reportTendencyRow")
+            compare(rows.map(r => r.rowKey).join(","), t.rows.map(r => r.key).join(","), "a row per club and length, in the map's order")
+            for (let i = 0; i < rows.length; ++i) {
+                const r = t.rows[i], said = texts(rows[i], [], false).map(x => x.text)
+                verify(said.indexOf(r.club) >= 0 && said.indexOf(r.distance || "-") >= 0, r.key + ": club and usual distance")
+                for (const k of ["strike", "direction", "flight"]) {
+                    const f = r[k] || {}
+                    verify(said.indexOf(f.label && f.label !== "-" ? f.label : "-") >= 0, r.key + " " + k + ": its word " + f.label)
+                    if (f.mixLine) verify(said.indexOf(f.mixLine) >= 0, r.key + " " + k + ": its mix line")
+                }
+            }
+            const fl = t.flow
+            compare(shown("reportTendencyFlow"), !!fl && (fl.total || 0) + (fl.excluded || 0) > 0, "the flow only with shots")
+            compare(shown("reportTendencyFlowSankey"), !!fl && !!fl.enough, "the Sankey only with enough shots")
+            compare(shown("reportTendencyFoot"), !!t.foot, "the foot only with words")
+            const pg = reg.sectionPage("reportTendencies")
+            verify(pg > reg.sectionPage("reportOrder") && pg < reg.sectionPage("reportWorkOn1"), "after the order of work, before the work-on pages")
+        }
+
+        // the cover's ball with several clubs: a row per club under the readings any club has; a club with no launch monitor
+        // reading still has its row, "-" in every cell (shown, never left out), and every cell stays inside the text width
+        function test_18_theCoverBallShowsAClubWithNoReading() {
+            const b = Fx.maps["consistency-mixed-clubs"].ball
+            const none = b.groups.filter(g => (g.tiles || []).length === 0)
+            verify(b.groups.length > 1 && none.length > 0 && b.groups.some(g => g.tiles.length > 0),
+                   "the mixed-club case has a club with readings and one without (Mark's 20 Oct 7 iron)")
+            load("consistency-mixed-clubs")
+            verify(shown("reportCoverBall"), "the ball on the cover")
+            // the cells of the ball block the cover draws (the cover's other ball blocks — the note's, the one moved to page 2
+            // — are not shown here)
+            const blocks = findAll(galley(), "reportCoverBall", []).filter(it => it.visible && it.height > 0)
+            compare(blocks.length, 1, "one ball block on the cover")
+            const cells = findAll(blocks[0], "reportBallCell", []).filter(it => it.visible && it.height > 0)
+            const heads = []
+            for (const g of b.groups) for (const t of g.tiles) if (heads.indexOf(t.label) < 0) heads.push(t.label)
+            const n = Math.min(4, heads.length)
+            compare(cells.length, n * b.groups.length, "a cell per reading for every club, the club with none included")
+            for (const g of b.groups) {
+                const mine = cells.filter(c => c.club === g.club)
+                compare(mine.length, n, g.club + ": its row")
+                const want = heads.slice(0, n).map(h => { const t = g.tiles.find(x => x.label === h); return t ? t.value : "-" })
+                compare(mine.map(c => c.text).join(","), want.join(","), g.club + ": its figures, or \"-\" where it has none")
+            }
+            for (const g of none) verify(cells.filter(c => c.club === g.club).every(c => c.text === "-"), g.club + ": no reading, \"-\" in every cell")
+            const gal = galley(), textW = reg.galleyPager.textW
+            for (const c of cells) {   // every cell of the block, the club with no reading included
+                const x = c.mapToItem(gal, 0, 0).x
+                verify(x >= -1.5 && x + c.width <= textW + 1.5, c.club + " " + c.text + ": inside the text width (" + Math.round(x + c.width) + " > " + Math.round(textW) + ")")
+            }
+        }
+
         // ── the Wrist page (session_report_design.md "The Wrist page"; report_wrist.h) ──
         function visibleAll(name) { return findAll(reg, name, []).filter(it => it.visible && it.height > 0) }
         // a copy of the wrist fixture's map with its `wrist` block changed by `edit`
@@ -329,11 +568,19 @@ Item {
         // the galley last changed) and a squeeze's tightening re-lays a section after its own one-shot, so a slow build
         // (a Debug build on Windows) could hold the OLD pages still for 300 ms while a cut was pending: the test then read
         // a transient — 21 pages and stale section pages for the 18-page delivery fixture.
+        // a fixture's stills are "stills/still.jpg" / "stills/frame.jpg" (neutral placeholders beside the fixtures, so no
+        // photograph is in the repo): resolved against the fixture folder here, on a copy
+        function withStills(v) {
+            if (typeof v === "string") return v.indexOf("stills/") === 0 ? String(Qt.resolvedUrl("data/session_report/" + v)) : v
+            if (Array.isArray(v)) return v.map(withStills)
+            if (v && typeof v === "object") { const o = {}; for (const k in v) o[k] = withStills(v[k]); return o }
+            return v
+        }
         function loadMap(m, name) {
             reg.report = null
             reg.printPage = 0
             wait(30)
-            reg.report = m
+            reg.report = withStills(m)
             let last = "", same = 0
             for (let i = 0; i < 80 && same < 3; ++i) {
                 wait(100)
@@ -376,6 +623,9 @@ Item {
             compare(visibleAll("reportWristFinding").length, w.recurring.length, "a finding per recurring condition")
             compare(visibleAll("reportWristMark").filter(k => k.fired).length, w.recurring.reduce((a, f) => a + f.marks.filter(k => k.fired).length, 0), "filled where it fired")
             compare(visibleAll("reportWristRepeatLine").length, w.consistency.length, "Consistency: a line per club")
+            // each DOF's consistency beside its name (ROW.rowGrades, R20): a badge per graded club, the map's grade, its word
+            verify(w.profile.rows.every(r => (r.rowGrades || []).length > 0), "the wrist fixture carries every row's grades")
+            checkRowGrades("reportWrist", w.profile.rows, "wrist")
             compare(visibleAll("reportWristMovesRow").length, w.movesWith.rows.length, "what moves with: a row per reading")
             compare(visibleAll("reportWristTrustLine").map(t => t.text).join("\n"), w.trust.join("\n"), "the trust lines, open and verbatim")
             verify(shown("reportWristScoreLine"), "the score line in the head")

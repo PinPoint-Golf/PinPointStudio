@@ -1,0 +1,2853 @@
+{
+ "about": {
+  "dates": "This report covers your session on Tuesday 20 October 2026 and was prepared on 20 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio.",
+  "measured": "19 swings with a 7 iron and gap wedge, filmed face-on at high frame rate, with seven of the balls measured by a GC Quad. Your body positions are read from the video by pose tracking; the club and ball numbers come from the launch monitor.",
+  "notChecked": "Some things could not be checked on every swing. How fast the club was moving at its peak: our cameras could see it, but not well enough to judge (19 of 19 swings). Hip turn at the top: a single face-on camera cannot measure how far you turn; a down-the-line camera or a body sensor can (19 of 19 swings). Chest turn at the finish: a single face-on camera cannot measure how far you turn; a down-the-line camera or a body sensor can (19 of 19 swings). When your hips turned fastest: the face-on camera cannot time a turn while you are square to it; a down-the-line camera or a body sensor can (18 of 19 swings). Two more are listed in the technical appendix. Where that touches one of your work-ons, its page says so.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points. “Ruled out” on a work-on page means measured, and fine, on these swings with these cameras — not gone for good.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practice your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ]
+ },
+ "appendix": true,
+ "ball": {
+  "byline": "measured on 7 of 19 swings by GC Quad",
+  "device": "GC Quad",
+  "groups": [
+   {
+    "club": "7 iron",
+    "tiles": []
+   },
+   {
+    "club": "Gap wedge",
+    "tiles": [
+     {
+      "label": "Carry",
+      "range": "95–102",
+      "unit": "yd",
+      "value": "97"
+     },
+     {
+      "label": "Ball speed",
+      "range": "79–84",
+      "unit": "mph",
+      "value": "81"
+     },
+     {
+      "label": "Club speed",
+      "range": "75–77",
+      "unit": "mph",
+      "value": "76"
+     },
+     {
+      "label": "Smash",
+      "range": "1.04–1.10",
+      "unit": "",
+      "value": "1.06"
+     },
+     {
+      "label": "Launch",
+      "range": "27–31",
+      "unit": "",
+      "value": "29°"
+     },
+     {
+      "label": "Spin",
+      "range": "8,279–9,449",
+      "unit": "rpm",
+      "value": "8,989"
+     },
+     {
+      "label": "Club path",
+      "range": "−5.3 to −1.6",
+      "unit": "out-to-in",
+      "value": "3°"
+     },
+     {
+      "label": "Offline",
+      "range": "widest, either side",
+      "unit": "yd",
+      "value": "5"
+     }
+    ]
+   }
+  ],
+  "more": "",
+  "note": "Each club's typical value (the middle of its swings), with its range from lowest to highest."
+ },
+ "brand": {
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "coachPhoto": "",
+  "coachTitle": "Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "logo": "",
+  "monogram": "NG",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "stamp": "",
+  "studio": "Northfield Golf Studio",
+  "web": "northfieldgolf.example"
+ },
+ "checks": [
+  {
+   "body": "Upper-back mobility (1, 2) · Trail-hip mobility (1) · Core stability (1) · Balance on one leg (3)",
+   "title": "A quick physical test would tell:"
+  },
+  {
+   "body": "Your lower back arches too much at address (1) · Your lower back is too flat at address (1)",
+   "title": "Your coach can look; the cameras can't see these yet:"
+  },
+  {
+   "body": "Your shoulders start down before your hips (2)",
+   "title": "Hidden on today's swings; worth another look next time:"
+  }
+ ],
+ "coachNote": "",
+ "consistency": {
+  "ball": "Your ball with the gap wedge: carry 97 yd, middle half 95 to 100 yd. It finishes on line, middle half 3 yd left to 1 yd right.",
+  "empty": "",
+  "flagged": [],
+  "flaggedMore": "",
+  "head": "Your backswing is %1, your downswing %2; your wrists move most.",
+  "headFallback": "Your wrists move most.",
+  "headGrades": [
+   {
+    "grade": 4,
+    "measurementLimited": false
+   },
+   {
+    "grade": 1,
+    "measurementLimited": false
+   }
+  ],
+  "headKind": "halves",
+  "key": "A cell takes the grade of the third of its readings that move most: %1, %2, %3, %4 or %5, from least movement to most. %6: fewer than eight swings to grade it. %7: it moves no more than the reading's own measurement error. \"-\": nothing here has a range to judge it against. P7-P8 is after the ball has gone. It is read over the same 100 ms after impact on every shot, and is shown lighter. A blank does not apply to that area.",
+  "keyMarks": "5 %1   4 %2   3 %3   2 %4   1 %5   0 %6   ⚠ %7",
+  "kicker": "Consistency  ·  19 swings  ·  mixed clubs",
+  "note": "",
+  "notes": [],
+  "table": {
+   "columns": [
+    {
+     "short": "P1",
+     "text": "P1"
+    },
+    {
+     "short": "1-2",
+     "text": "P1-P2"
+    },
+    {
+     "short": "2-3",
+     "text": "P2-P3"
+    },
+    {
+     "short": "3-4",
+     "text": "P3-P4"
+    },
+    {
+     "short": "4-5",
+     "text": "P4-P5"
+    },
+    {
+     "short": "5-6",
+     "text": "P5-P6"
+    },
+    {
+     "short": "6-7",
+     "text": "P6-P7"
+    },
+    {
+     "short": "7-8",
+     "text": "P7-P8"
+    }
+   ],
+   "rows": [
+    {
+     "cells": [
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 2,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.8860046520527326,
+        "ungradedReason": ""
+       },
+       "short": "2",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      }
+     ],
+     "id": "setup",
+     "name": "Setup"
+    },
+    {
+     "cells": [
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.1530198958630595,
+        "ungradedReason": ""
+       },
+       "short": "5",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 4,
+        "rho": 0.2709011351803061,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.42183771798103165,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.48669452108014494,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.35020955119106434,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.3708254457306042,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 4,
+        "rho": 0.3414167443946268,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.219459288534296,
+        "ungradedReason": ""
+       },
+       "short": "5",
+       "soft": true,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      }
+     ],
+     "id": "posture",
+     "name": "Posture"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.3400010131940945,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.5817306368207592,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.6305772009540066,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.709007465057764,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.5271019764544473,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 2,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 8,
+        "rho": 0.8401116685414618,
+        "ungradedReason": ""
+       },
+       "short": "2",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.37971959543552136,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      }
+     ],
+     "id": "lateral",
+     "name": "Lateral & balance"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 1,
+        "rho": 0.23254053317091367,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 1,
+        "rho": 0.2007151460008027,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 2,
+        "rho": 0.3812899919225564,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 1.0150925750324507,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 1.0119063497357403,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 1.5638693295279742,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 0,
+        "graded": false,
+        "hasRho": false,
+        "measurementLimited": false,
+        "n": 0,
+        "rho": null,
+        "ungradedReason": ""
+       },
+       "short": "-",
+       "soft": true,
+       "strong": false,
+       "tap": false,
+       "text": "-"
+      }
+     ],
+     "id": "rotation",
+     "name": "Turn & sequence"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 4,
+        "rho": 0.11889106133773515,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.18552939789519757,
+        "ungradedReason": ""
+       },
+       "short": "5",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.5042090241238348,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.685653569744928,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.21617599676720736,
+        "ungradedReason": ""
+       },
+       "short": "5",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 4,
+        "rho": 0.10927287047365708,
+        "ungradedReason": ""
+       },
+       "short": "5",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 4,
+        "rho": 0.1661310737072351,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": true,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      }
+     ],
+     "id": "arms",
+     "name": "Arms"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 2,
+        "rho": 0.17091473103258997,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 0.37657389264723645,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 1,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 3,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 0.5529413611161745,
+        "ungradedReason": ""
+       },
+       "short": "3",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 3.7175045041395425,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 1.2479654607230846,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 5,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 2,
+        "rho": 0.19263671073746533,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 2,
+        "rho": 1.153575228744407,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": true,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      }
+     ],
+     "id": "wrists",
+     "name": "Wrists & release"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.3017601569951364,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.3920688831227415,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.36339105744880396,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.3431835257647627,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 4,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 0.4043372844256776,
+        "ungradedReason": ""
+       },
+       "short": "4",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 2.116292943603545,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": false,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "heat": 2,
+       "heavy": true,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": false,
+        "n": 1,
+        "rho": 2.236182691597573,
+        "ungradedReason": ""
+       },
+       "short": "1",
+       "soft": true,
+       "strong": true,
+       "tap": false,
+       "text": ""
+      }
+     ],
+     "id": "planePath",
+     "name": "Plane & path"
+    },
+    {
+     "cells": [
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      },
+      {
+       "heat": 0,
+       "heavy": false,
+       "mark": "",
+       "on": false,
+       "result": {
+        "basis": "scalar",
+        "basisText": "",
+        "domain": "consistency",
+        "grade": 1,
+        "graded": true,
+        "hasRho": true,
+        "measurementLimited": true,
+        "n": 2,
+        "rho": 1.1060450701862896,
+        "ungradedReason": ""
+       },
+       "short": "⚠",
+       "soft": false,
+       "strong": false,
+       "tap": false,
+       "text": ""
+      },
+      {
+       "short": "",
+       "text": ""
+      }
+     ],
+     "id": "delivery",
+     "name": "Delivery"
+    }
+   ]
+  }
+ },
+ "delivery": null,
+ "found": [
+  {
+   "count": "19 of 19 swings",
+   "golfer": "You lean toward the target at the top",
+   "name": "Reverse spine angle at P4"
+  },
+  {
+   "count": "18 of 18 swings",
+   "golfer": "Your arms race ahead of your chest coming down",
+   "name": "Arms outrun the chest"
+  },
+  {
+   "count": "10 of 19 swings",
+   "golfer": "You can't hold your finish",
+   "name": "Cannot hold the finish"
+  }
+ ],
+ "grid": {
+  "best": 9,
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "bestStills": [
+   "stills/still.jpg",
+   "stills/still.jpg",
+   "stills/still.jpg",
+   "stills/still.jpg"
+  ],
+  "bestText": "Swing 9 came closest to your targets. No swing was inside every target range; this one missed by least.",
+  "carry": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   95,
+   95,
+   97,
+   95,
+   102,
+   99,
+   101
+  ],
+  "carryLabel": "Carry, yards",
+  "groups": [
+   {
+    "key": "habit",
+    "title": "Your habits — the three work-ons"
+   },
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {
+   "seen": "and one more seen on fewer swings"
+  },
+  "rows": [
+   {
+    "count": "19 of 19",
+    "group": "habit",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Reverse spine angle at P4"
+   },
+   {
+    "count": "18 of 18",
+    "group": "habit",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Arms outrun the chest"
+   },
+   {
+    "count": "10 of 19",
+    "group": "habit",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean"
+    ],
+    "name": "Cannot hold the finish"
+   },
+   {
+    "count": "8 of 19",
+    "group": "seen",
+    "marks": [
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Sway"
+   },
+   {
+    "count": "4 of 19",
+    "group": "seen",
+    "marks": [
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean"
+    ],
+    "name": "Chest peaks after impact"
+   },
+   {
+    "count": "4 of 19",
+    "group": "seen",
+    "marks": [
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Trail elbow behind the body"
+   },
+   {
+    "count": "3 of 19",
+    "group": "seen",
+    "marks": [
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Flying trail elbow"
+   },
+   {
+    "count": "4 of 7",
+    "group": "ball",
+    "marks": [
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired"
+    ],
+    "name": "Path too far out-to-in"
+   },
+   {
+    "count": "4 of 7",
+    "group": "ball",
+    "marks": [
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Fade"
+   },
+   {
+    "count": "3 of 7",
+    "group": "ball",
+    "marks": [
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Face open to the path"
+   },
+   {
+    "count": "3 of 7",
+    "group": "ball",
+    "marks": [
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Thin"
+   }
+  ],
+  "sessionNote": "",
+  "standfirst": "Each row is one thing we measured; each column is one of your nineteen swings, in the order you hit them. A filled dot means it showed on that swing. A short stub means it could not be measured on that swing.",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19
+  ],
+  "title": "Your habits, swing by swing"
+ },
+ "headline": "Three habits showed on most swings. We start with your backswing: lean slightly away from the target at the top.",
+ "held": [],
+ "kind": "report",
+ "lmAppendix": null,
+ "meta": {
+  "club": "7 iron and gap wedge",
+  "date": "Tuesday 20 October 2026",
+  "dateShort": "20 Oct 2026",
+  "devices": "Face-on camera · GC Quad launch monitor",
+  "emailSubject": "Your session report — 20 October 2026",
+  "fileName": "2026-10-20_Mark-Liversedge_session-report.pdf",
+  "first": "Mark",
+  "folioDate": "Prepared 20 Oct 2026",
+  "golfer": "Mark Liversedge",
+  "hand": "right-handed",
+  "kicker": "Session of Tuesday 20 October 2026  ·  7 iron and gap wedge  ·  19 swings",
+  "mastheadDate": "Prepared 20 October 2026",
+  "pdfTitle": "Session report — Mark Liversedge — session of 20 Oct 2026",
+  "prepared": "20 October 2026",
+  "preparedShort": "20 Oct 2026",
+  "runningHead": "Mark Liversedge  ·  session of 20 Oct 2026  ·  7 iron and gap wedge",
+  "sessionOfDay": "",
+  "swings": 19
+ },
+ "numbers": {
+  "cols": [
+   "Swing",
+   "Club",
+   "Carry",
+   "Total",
+   "Ball speed",
+   "Club speed",
+   "Smash",
+   "Launch",
+   "Spin",
+   "Path",
+   "Face",
+   "Face to path",
+   "Attack",
+   "Offline"
+  ],
+  "habitsHead": "Habits",
+  "note": "Path, face and offline: positive is right of target, negative left (right-handed golfer). Habits: how many of your three work-ons showed on that swing. Typical: the middle value of each club's swings.",
+  "rows": [
+   {
+    "cells": [
+     "1",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "2",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "3",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "4",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "1 of 3"
+   },
+   {
+    "cells": [
+     "5",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "6",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "7",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "8",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "9",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "10",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "11",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "12",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "13",
+     "gap wedge",
+     "95",
+     "100",
+     "79",
+     "75",
+     "1.05",
+     "27",
+     "9,449",
+     "−1.9",
+     "1.2",
+     "3.1",
+     "−4.9",
+     "2"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "14",
+     "gap wedge",
+     "95",
+     "100",
+     "79",
+     "76",
+     "1.04",
+     "27",
+     "8,979",
+     "−2.4",
+     "0.1",
+     "2.5",
+     "−5.4",
+     "0"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "15",
+     "gap wedge",
+     "97",
+     "102",
+     "81",
+     "75",
+     "1.07",
+     "28",
+     "9,114",
+     "−2.9",
+     "0.6",
+     "3.6",
+     "−5.6",
+     "1"
+    ],
+    "habitsText": "2 of 3"
+   },
+   {
+    "cells": [
+     "16",
+     "gap wedge",
+     "95",
+     "100",
+     "80",
+     "76",
+     "1.06",
+     "30",
+     "9,349",
+     "−5.3",
+     "0.7",
+     "6.0",
+     "−5.4",
+     "1"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "17",
+     "gap wedge",
+     "102",
+     "107",
+     "83",
+     "76",
+     "1.10",
+     "29",
+     "8,364",
+     "−1.6",
+     "−2.8",
+     "−1.2",
+     "−4.2",
+     "−5"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "18",
+     "gap wedge",
+     "99",
+     "104",
+     "82",
+     "77",
+     "1.06",
+     "31",
+     "8,279",
+     "−3.3",
+     "−3.0",
+     "0.3",
+     "−4.1",
+     "−1"
+    ],
+    "habitsText": "3 of 3"
+   },
+   {
+    "cells": [
+     "19",
+     "gap wedge",
+     "101",
+     "106",
+     "84",
+     "77",
+     "1.09",
+     "30",
+     "8,989",
+     "−4.8",
+     "−2.7",
+     "2.1",
+     "−4.5",
+     "−5"
+    ],
+    "habitsText": "2 of 3"
+   }
+  ],
+  "typical": [
+   {
+    "cells": [
+     "Typical",
+     "7 iron",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-",
+     "-"
+    ]
+   },
+   {
+    "cells": [
+     "Typical",
+     "gap wedge",
+     "97",
+     "102",
+     "81",
+     "76",
+     "1.06",
+     "29",
+     "8,989",
+     "−2.9",
+     "0.1",
+     "2.5",
+     "−4.9",
+     "0"
+    ]
+   }
+  ],
+  "units": [
+   "",
+   "",
+   "yd",
+   "yd",
+   "mph",
+   "mph",
+   "",
+   "°",
+   "rpm",
+   "°",
+   "°",
+   "°",
+   "°",
+   "yd"
+  ]
+ },
+ "order": {
+  "barsNote": "Bar: how far outside its target range each habit went, compared with the range’s own width. Today the order of your swing set the list, so the longest bar is not necessarily first.",
+  "intro": "Your list is ordered by four rules, applied in turn. Here is each rule and what it did today.",
+  "items": [
+   {
+    "count": "19 of 19 swings",
+    "goal": "Lean slightly away from the target at the top",
+    "name": "Reverse spine angle at P4",
+    "phase": "P4",
+    "rank": 1,
+    "share": 1
+   },
+   {
+    "count": "18 of 18 swings",
+    "goal": "Turn your chest and let your arms follow",
+    "name": "Arms outrun the chest",
+    "phase": "P7",
+    "rank": 2,
+    "share": 0
+   },
+   {
+    "count": "10 of 19 swings",
+    "goal": "Finish balanced over your lead foot",
+    "name": "Cannot hold the finish",
+    "phase": "P10",
+    "rank": 3,
+    "share": 0.71
+   }
+  ],
+  "links": [],
+  "notListed": [
+   {
+    "name": "Path too far out-to-in (4 of 7)",
+    "why": "Something the ball did, not a movement to practice. It is on the watch list until it repeats often enough to call a habit."
+   },
+   {
+    "name": "Fade (4 of 7)",
+    "why": "Something the ball did, not a movement to practice. It is on the watch list until it repeats often enough to call a habit."
+   }
+  ],
+  "rules": [
+   {
+    "body": "A habit you started fixing during the session goes to the back of the list.",
+    "title": "What is still happening comes first",
+    "today": "None of the three eased during the session, so this rule changed nothing today."
+   },
+   {
+    "body": "When one habit sets up another, working on the first often fixes the second for free. We only put one behind another when your swings show it: the second goes away on the swings where the first does.",
+    "title": "Causes before the things they cause",
+    "today": "None of today's habits is linked to another in the coaching model, so this rule had nothing to do."
+   },
+   {
+    "body": "When your swings cannot show which habit sets up which, the one that comes earliest in the swing goes first: what happens early tends to shape what follows.",
+    "title": "Then the order of your swing",
+    "today": "This is what set today's order: from the earliest point in the swing to the latest."
+   },
+   {
+    "body": "Each habit is measured against a target range. The one that missed by most, for its range, comes first.",
+    "title": "Then the biggest miss first",
+    "today": "No two of today's habits sit at the same point in the swing, so this rule changed nothing."
+   }
+  ],
+  "timeline": [
+   {
+    "pos": 2,
+    "rank": 1
+   },
+   {
+    "pos": 4,
+    "rank": 2
+   },
+   {
+    "pos": 5,
+    "rank": 3
+   }
+  ],
+  "timelineNote": "Your first work-on is also the earliest in the swing. Habits early in the swing tend to set up the ones after them, which is one more reason to start there.",
+  "title": "One thing first, and why it is that one"
+ },
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "posture": null,
+ "practice": {
+  "steps": [
+   {
+    "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned.",
+    "head": "Rehearse without a ball"
+   },
+   {
+    "body": "Half swings at half speed. Keep the feel; ignore where the ball goes.",
+    "head": "Small swings with a ball"
+   },
+   {
+    "body": "Full swings: one with the feel, then two normal ones. Film every fifth swing.",
+    "head": "Mix it in"
+   },
+   {
+    "body": "Stay with work-on 1 until your next session. The rest of the list waits.",
+    "head": "One thing at a time"
+   }
+  ],
+  "title": "How to practice a change"
+ },
+ "strengths": [
+  {
+   "count": "all 19 swings",
+   "text": "You keep the wrist angle starting down."
+  },
+  {
+   "count": "all 19 swings",
+   "text": "Your chest stays behind the ball starting down."
+  },
+  {
+   "count": "all 19 swings",
+   "text": "Your upper body tilts slightly away from the target."
+  }
+ ],
+ "tendencies": null,
+ "today": null,
+ "watching": [],
+ "workOns": [
+  {
+   "also": "“leaning left at the top”, “forward spine angle at the top”",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>Your coach can look:</i> Your lower back arches too much at address · Your lower back is too flat at address<br><i>A quick physical test would tell:</i> Upper-back mobility · Trail-hip mobility · Core stability"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your upper body leans toward the target at address"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on. At the top your head and chest should sit a little behind the ball, never toward the target.",
+   "coachTerm": "Coaches call the habit <i>Reverse spine angle at P4</i>, or “leaning left at the top”, “forward spine angle at the top”.",
+   "consistency": {
+    "basis": "scalar",
+    "basisText": "σ 8.5° · 1.42 of corridor · n 19",
+    "domain": "consistency",
+    "grade": 1,
+    "graded": true,
+    "hasRho": true,
+    "measurementLimited": false,
+    "n": 19,
+    "rho": 1.421786084096375,
+    "ungradedReason": ""
+   },
+   "count": "19 of 19 swings",
+   "cue": "At the top, feel your breastbone stay over your trail thigh.",
+   "drills": [
+    {
+     "equipment": "a mirror, or a phone on a stand",
+     "instruction": "Without a ball, hold a club across your chest. Turn to the top and check in a mirror, or on a phone face-on, that your head and chest sit a little behind the ball, with your upper body tilted slightly away from the target. Make ten slow turns.",
+     "label": "Club across the chest",
+     "note": "A short turn often hides inside this one: if the shoulders cannot turn further, the body tips instead, and a physical check of your upper back comes first.",
+     "targets": "To feel your upper body staying behind the ball as it turns, rather than tipping toward the target or hanging too far back."
+    }
+   ],
+   "figure": {
+    "bands": [
+     {
+      "grade": "action",
+      "hi": -6,
+      "lo": -35.1416281398319
+     },
+     {
+      "grade": "watch",
+      "hi": 0,
+      "lo": -6
+     },
+     {
+      "grade": "good",
+      "hi": 6,
+      "lo": 0
+     },
+     {
+      "grade": "ideal",
+      "hi": 12,
+      "lo": 6
+     },
+     {
+      "grade": "open",
+      "hi": 13.81313954383969,
+      "lo": 12
+     }
+    ],
+    "decimals": 0,
+    "medianText": "−12°",
+    "points": [
+     {
+      "state": "fired",
+      "swing": 1,
+      "text": "−7°",
+      "value": -7.49283022650271
+     },
+     {
+      "state": "fired",
+      "swing": 2,
+      "text": "−12°",
+      "value": -11.999516497505944
+     },
+     {
+      "state": "fired",
+      "swing": 3,
+      "text": "−17°",
+      "value": -16.52246894167373
+     },
+     {
+      "state": "fired",
+      "swing": 4,
+      "text": "−11°",
+      "value": -10.559053463481614
+     },
+     {
+      "state": "fired",
+      "swing": 5,
+      "text": "−11°",
+      "value": -11.138751818151293
+     },
+     {
+      "state": "fired",
+      "swing": 6,
+      "text": "−11°",
+      "value": -10.618794011121963
+     },
+     {
+      "state": "fired",
+      "swing": 7,
+      "text": "−33°",
+      "value": -33.32848859599221
+     },
+     {
+      "state": "fired",
+      "swing": 8,
+      "text": "−24°",
+      "value": -24.409017295245643
+     },
+     {
+      "state": "fired",
+      "swing": 9,
+      "text": "0°",
+      "value": -0.15642636881892846
+     },
+     {
+      "state": "fired",
+      "swing": 10,
+      "text": "−15°",
+      "value": -14.640896740895798
+     },
+     {
+      "state": "fired",
+      "swing": 11,
+      "text": "−16°",
+      "value": -15.709608981521823
+     },
+     {
+      "state": "fired",
+      "swing": 12,
+      "text": "−24°",
+      "value": -24.27599794606256
+     },
+     {
+      "state": "fired",
+      "swing": 13,
+      "text": "−12°",
+      "value": -11.602719870916133
+     },
+     {
+      "state": "fired",
+      "swing": 14,
+      "text": "−11°",
+      "value": -10.834687102169784
+     },
+     {
+      "state": "fired",
+      "swing": 15,
+      "text": "−34°",
+      "value": -34.12739942549763
+     },
+     {
+      "state": "fired",
+      "swing": 16,
+      "text": "−12°",
+      "value": -12.157000590589238
+     },
+     {
+      "state": "fired",
+      "swing": 17,
+      "text": "−12°",
+      "value": -11.572278795936176
+     },
+     {
+      "state": "fired",
+      "swing": 18,
+      "text": "−10°",
+      "value": -9.570353260962534
+     },
+     {
+      "state": "fired",
+      "swing": 19,
+      "text": "−12°",
+      "value": -12.305242781009454
+     }
+    ],
+    "unit": "°"
+   },
+   "figureLabel": "Each dot is one swing: lean away from the target at the top, in degrees.",
+   "goal": "Lean slightly away from the target at the top",
+   "id": "reverse_spine_p4",
+   "kicker": "Work-on 1 of 3  ·  P4, at the top  ·  19 of 19 swings",
+   "name": "Reverse spine angle at P4",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "rank": 1,
+   "saw": "You lean toward the target at the top — on all 19 swings, no change from first swing to last. Typical lean away from the target at the top: 12° the other way (you lean more toward the target at the top), against a target of 0° or more; this is a clear miss: well past the range on 18 of 19 swings.",
+   "stills": [
+    {
+     "caption": "Closest, swing 9",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "0°"
+    },
+    {
+     "caption": "Furthest, swing 15",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "−34°"
+    }
+   ],
+   "target": "Lean away from the target at the top: 0° or more, on most swings. Today: 12° the other way (you lean more toward the target at the top).",
+   "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly."
+  },
+  {
+   "also": "“arms first”, “arms take over”",
+   "cameWith": "The coaching model says it can bring other habits with it. Not today — on every swing, you keep the wrist angle starting down.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>A quick physical test would tell:</i> Upper-back mobility<br><i>Hidden on today's swings:</i> Your shoulders start down before your hips"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "You rush from the top",
+       "Your lead arm leaves your chest going back"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on. Halfway down, your hands should still be in front of the middle of your chest, with your chest already turning toward the ball.",
+   "coachTerm": "Coaches call the habit <i>Arms outrun the chest</i>, or “arms first”, “arms take over”.",
+   "consistency": null,
+   "count": "18 of 18 swings",
+   "cue": "Feel your arms and the club stay in front of your chest as it turns, as if your chest were carrying them down.",
+   "drills": [
+    {
+     "equipment": "a small towel",
+     "instruction": "Tuck a small towel under your lead upper arm and make three-quarter swings without dropping it.",
+     "label": "Towel under the lead arm",
+     "note": "Easy to overdo. The arm should stay connected, not pinned — a swing with no separation at all is its own fault.",
+     "targets": "To feel the lead arm and the chest moving as one unit through the backswing."
+    },
+    {
+     "equipment": "",
+     "instruction": "Make swings with a one-second pause at the top. From the pause, start down with your lower body, letting your weight move toward your lead foot while your chest stays behind the ball for a moment. Start with half swings and short irons.",
+     "label": "Pause at the top",
+     "note": "The pause is a rehearsal, not a new swing. Once the order feels natural, let the pause shrink until it has gone.",
+     "targets": "To give your lower body time to start the downswing, so your upper body is not rushed toward the ball."
+    }
+   ],
+   "figure": null,
+   "figureLabel": "",
+   "goal": "Turn your chest and let your arms follow",
+   "id": "arms_before_chest",
+   "kicker": "Work-on 2 of 3  ·  P7, at impact  ·  18 of 18 swings",
+   "name": "Arms outrun the chest",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "rank": 2,
+   "saw": "Your arms race ahead of your chest coming down — on all 18 swings, no change from first swing to last. It could not be measured on 1 of 19 swings: we could not pin down its timing closely enough to compare it with the rest.",
+   "stills": [],
+   "target": "",
+   "why": "When your arms take over before your chest has turned, the speed your body made is left behind and your arms have to make it alone."
+  },
+  {
+   "also": "“falling over”, “stepping through”",
+   "cameWith": "The coaching model says it can bring other habits with it. Not today — on every swing we could see, your strikes stay near the middle of the face.",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>A quick physical test would tell:</i> Balance on one leg"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your feet are too close together",
+       "Your chest lunges toward the target coming down",
+       "You hang back on your trail side through impact"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on and hold the finish until the ball lands. Your hips should be stacked over your lead foot, and you should be able to stand there without stepping.",
+   "coachTerm": "Coaches call the habit <i>Cannot hold the finish</i>, or “falling over”, “stepping through”.",
+   "consistency": {
+    "basis": "scalar",
+    "basisText": "σ 13% stance width · 1.29 of corridor · n 19",
+    "domain": "consistency",
+    "grade": 1,
+    "graded": true,
+    "hasRho": true,
+    "measurementLimited": false,
+    "n": 19,
+    "rho": 1.287105166067917,
+    "ungradedReason": ""
+   },
+   "count": "10 of 19 swings",
+   "cue": "Feel yourself swing to a tall finish with your weight on your lead heel and your trail toe just resting on the ground.",
+   "drills": [
+    {
+     "equipment": "",
+     "instruction": "Hit the shot and hold your finish, balanced on the lead foot, until the ball lands. If you cannot hold it, take 20 yards off the swing and try again.",
+     "label": "Hold the finish",
+     "note": "The most diagnostic drill in this list: where you fall tells you what happened earlier.",
+     "targets": "To make balance the constraint the swing is built inside, rather than something checked afterwards."
+    },
+    {
+     "equipment": "a low tee, optional",
+     "instruction": "Stand with your feet together and hit easy half to three-quarter shots off a low tee. Let your arms swing and your body turn only as fast as you can stay balanced, and hold the finish each time.",
+     "label": "Feet-together swings",
+     "note": "Short shots only. If you cannot stay balanced even at half speed, balance on one leg is worth checking before anything else.",
+     "targets": "To feel the arms, body and club working together at a speed your balance can support, rather than the body lunging or the arms going on their own."
+    }
+   ],
+   "figure": {
+    "bands": [
+     {
+      "grade": "open",
+      "hi": 15,
+      "lo": -1.0424287437031012
+     },
+     {
+      "grade": "ideal",
+      "hi": 25,
+      "lo": 15
+     },
+     {
+      "grade": "good",
+      "hi": 35,
+      "lo": 25
+     },
+     {
+      "grade": "watch",
+      "hi": 45,
+      "lo": 35
+     },
+     {
+      "grade": "action",
+      "hi": 54.55932418245012,
+      "lo": 45
+     }
+    ],
+    "decimals": 0,
+    "medianText": "38% stance width",
+    "points": [
+     {
+      "state": "clean",
+      "swing": 1,
+      "text": "1% stance width",
+      "value": 1.016895438747018
+     },
+     {
+      "state": "fired",
+      "swing": 2,
+      "text": "44% stance width",
+      "value": 43.973280401014584
+     },
+     {
+      "state": "fired",
+      "swing": 3,
+      "text": "38% stance width",
+      "value": 37.999893469005954
+     },
+     {
+      "state": "clean",
+      "swing": 4,
+      "text": "29% stance width",
+      "value": 28.777703085145788
+     },
+     {
+      "state": "fired",
+      "swing": 5,
+      "text": "38% stance width",
+      "value": 37.93743133283411
+     },
+     {
+      "state": "fired",
+      "swing": 6,
+      "text": "45% stance width",
+      "value": 44.922768498259025
+     },
+     {
+      "state": "fired",
+      "swing": 7,
+      "text": "49% stance width",
+      "value": 49.37365383322294
+     },
+     {
+      "state": "clean",
+      "swing": 8,
+      "text": "13% stance width",
+      "value": 12.751446226571126
+     },
+     {
+      "state": "fired",
+      "swing": 9,
+      "text": "46% stance width",
+      "value": 46.279600658592415
+     },
+     {
+      "state": "clean",
+      "swing": 10,
+      "text": "29% stance width",
+      "value": 29.117448148607714
+     },
+     {
+      "state": "fired",
+      "swing": 11,
+      "text": "41% stance width",
+      "value": 41.182934658280104
+     },
+     {
+      "state": "clean",
+      "swing": 12,
+      "text": "31% stance width",
+      "value": 30.973774657628994
+     },
+     {
+      "state": "clean",
+      "swing": 13,
+      "text": "33% stance width",
+      "value": 33.42181348144131
+     },
+     {
+      "state": "clean",
+      "swing": 14,
+      "text": "29% stance width",
+      "value": 28.53202431316347
+     },
+     {
+      "state": "clean",
+      "swing": 15,
+      "text": "18% stance width",
+      "value": 18.2929953817768
+     },
+     {
+      "state": "fired",
+      "swing": 16,
+      "text": "41% stance width",
+      "value": 41.25075677000788
+     },
+     {
+      "state": "fired",
+      "swing": 17,
+      "text": "46% stance width",
+      "value": 46.010944758701896
+     },
+     {
+      "state": "fired",
+      "swing": 18,
+      "text": "43% stance width",
+      "value": 42.796244403151114
+     },
+     {
+      "state": "clean",
+      "swing": 19,
+      "text": "28% stance width",
+      "value": 27.800517996026517
+     }
+    ],
+    "unit": "% stance width"
+   },
+   "figureLabel": "Each dot is one swing: how far your hips finish from over your lead foot, in percent of stance width.",
+   "goal": "Finish balanced over your lead foot",
+   "id": "off_balance_finish",
+   "kicker": "Work-on 3 of 3  ·  P10, at the finish  ·  10 of 19 swings",
+   "name": "Cannot hold the finish",
+   "phase": "P10",
+   "phaseWords": "at the finish",
+   "rank": 3,
+   "saw": "You can't hold your finish — on 10 of 19 swings, no change from first swing to last. Typical how far your hips finish from over your lead foot: 38% stance width, against a target of 35% stance width or less; this is mostly a small miss, but well past the range on 3 of 19 swings.",
+   "stills": [
+    {
+     "caption": "Closest, swing 1",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "1% stance width"
+    },
+    {
+     "caption": "Furthest, swing 7",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "49% stance width"
+    }
+   ],
+   "target": "How far your hips finish from over your lead foot: 35% stance width or less, on most swings. Today: 38% stance width.",
+   "why": "A finish you can't hold shows your swing was off balance earlier, so your shots are hard to repeat."
+  }
+ ],
+ "workOnsBrief": [
+  {
+   "drill": "Club across the chest",
+   "goal": "Lean slightly away from the target at the top",
+   "rank": 1
+  },
+  {
+   "drill": "Towel under the lead arm",
+   "goal": "Turn your chest and let your arms follow",
+   "rank": 2
+  },
+  {
+   "drill": "Hold the finish",
+   "goal": "Finish balanced over your lead foot",
+   "rank": 3
+  }
+ ],
+ "wrist": null
+}

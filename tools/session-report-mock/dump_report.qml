@@ -18,17 +18,17 @@
 
 import QtQuick
 
-// DUMP THE REPORT MAP — the one map SessionReportModel builds for a session (build/report-build/REPORT_MAP.md),
+// DUMP THE REPORT MAP — the one map SessionReportModel builds for a session (session_report_model.cpp, report_*.h),
 // without printing it. The C++ model's own output, so it can be diffed against the mock's report.json.
 //
 //   PinPointStudio --probe-qml dump_report.qml --probe-session <session dir>
 //                  [--probe-note "coach's note"] [--probe-stills 0]
 //
-// ⛔ Run it ONLY against a scratch library (build/report-build: $SP/safe_probe.sh), never the live share:
+// ⛔ Run it ONLY against a scratch library (fixtures.sh beside this file sets one up), never the live share:
 // the app's work-ons catch-up rewrites every session record of the library it is pointed at.
 //
 // The map is printed to the log in chunks ("REPORTMAP[i/n]:…", newlines escaped); reassemble it with
-// build/report-build/model-I/extract.py <log> <map.json>. (A file:// PUT from QML writes nothing here.)
+// the few lines of Python in fixtures.sh beside this file (its dump step). (A file:// PUT from QML writes nothing here.)
 // Exit 0 when the map was made, 3 when the model refused, 4 on the watchdog.
 Item {
     id: probe

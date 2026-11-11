@@ -11,6 +11,13 @@ tooling for the build:
   `print_mock.qml` through the app's own `PpPdfPrinter`. The build replaces it with `PpSessionReport` on
   `PpPager` under the design's §9 layout contract.
 - `overlay.py` makes the stills: the frame at a swing position, with the measured body line drawn on it.
+- `fixtures.sh` + `build_fixtures.py` make the report's QML test data (`src/Gui/tests/qml/data/session_report/`, read by
+  `tst_session_report.qml`): every case is the current `SessionReportModel`'s map of a named library session (a fresh
+  scratch copy, dumped by `dump_report.qml`; every page of a case from one session) or a documented stress transform of
+  Nick's; every still is a placeholder in
+  `stills/`. `zsh tools/session-report-mock/fixtures.sh`; the headers say which session feeds which case. A re-run is
+  byte-identical while the source sessions are unchanged. After a regenerate, re-record `expectedPages` in
+  `tst_session_report.qml` (`test_01`) and look at every count that moved: it is a layout change.
 
 ## Run it
 

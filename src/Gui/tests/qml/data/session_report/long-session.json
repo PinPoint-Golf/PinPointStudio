@@ -1,0 +1,2054 @@
+{
+ "about": {
+  "dates": "This report covers your session on Wednesday 7 October 2026 and was prepared on 7 October 2026. If a session is re-analysed, the report is prepared again and carries the new date.",
+  "footnote": "Measured and prepared with PinPoint Studio. Swing images show only the golfer; video stays in the studio.",
+  "measured": "50 swings with a 7 iron, filmed down-the-line and face-on at high frame rate. Your body positions are read from the video by pose tracking.",
+  "notChecked": "Some things could not be checked on every swing. How fast the club was moving at its peak: our cameras could see it, but not well enough to judge (50 of 50 swings). When your hips turned fastest: the face-on camera cannot time a turn while you are square to it; a down-the-line camera or a body sensor can (31 of 50 swings). When your chest turned fastest: the face-on camera cannot time a turn while you are square to it; a down-the-line camera or a body sensor can (10 of 50 swings). When your hips turned fastest: it was still speeding up when the part of the swing we time had ended (6 of 50 swings). Two more are listed in the technical appendix. Where that touches one of your work-ons, its page says so.",
+  "ranges": "Each habit is judged against a target range. Most ranges are coaching judgement, set from what good ball-strikers do; a few come from published measurements. They are not fitted to you. A swing outside the range is not a mistake in itself — it is where the evidence points. “Ruled out” on a work-on page means measured, and fine, on these swings with these cameras — not gone for good.",
+  "words": [
+   [
+    "Habit",
+    "something that showed on most swings — at least 3, and often enough that it is not chance"
+   ],
+   [
+    "Target range",
+    "where a good ball-striker's swing usually is at that point"
+   ],
+   [
+    "Work-on",
+    "a habit you can practice your way out of, in the order to work on it"
+   ],
+   [
+    "P1 … P10",
+    "the ten positions of the swing, from address (P1) through the top (P4) and impact (P7) to the finish (P10)"
+   ]
+  ]
+ },
+ "appendix": true,
+ "ball": null,
+ "brand": {
+  "accent": "#1F5A4C",
+  "coach": "Alex Morgan",
+  "coachLine": "Alex Morgan  ·  Head coach",
+  "coachPhoto": "",
+  "coachTitle": "Head coach",
+  "contact": "alex@northfieldgolf.example  ·  01234 567890",
+  "footLine": "Alex Morgan, Northfield Golf Studio  ·  alex@northfieldgolf.example  ·  01234 567890",
+  "logo": "",
+  "monogram": "NG",
+  "signoff": "Book your next session at northfieldgolf.example or reply to this email.",
+  "stamp": "",
+  "studio": "Northfield Golf Studio",
+  "web": "northfieldgolf.example"
+ },
+ "checks": [
+  {
+   "body": "Upper-back mobility (1, 4, 5) · Lead-hip mobility (2, 4) · Core stability (4, 5) · Trail-hip mobility (5) · Balance on one leg (3)",
+   "title": "A quick physical test would tell:"
+  },
+  {
+   "body": "Your lower back arches too much at address (5) · Your lower back is too flat at address (5)",
+   "title": "Your coach can look; the cameras can't see these yet:"
+  },
+  {
+   "body": "Your shoulders start down before your hips (2)",
+   "title": "Hidden on today's swings; worth another look next time:"
+  }
+ ],
+ "coachNote": "",
+ "consistency": null,
+ "delivery": null,
+ "found": [
+  {
+   "count": "24 of 50 swings",
+   "golfer": "Your chest is still speeding up after the ball",
+   "name": "Chest peaks after impact"
+  },
+  {
+   "count": "8 of 13 swings",
+   "golfer": "Your hips are still speeding up after the ball",
+   "name": "Hips peak after impact"
+  },
+  {
+   "count": "45 of 50 swings",
+   "golfer": "You can't hold your finish",
+   "name": "Cannot hold the finish"
+  },
+  {
+   "count": "49 of 50 swings",
+   "golfer": "You stand up out of your posture through impact",
+   "name": "Loss of posture"
+  },
+  {
+   "count": "50 of 50 swings",
+   "golfer": "You lean toward the target at the top",
+   "name": "Reverse spine angle at P4"
+  }
+ ],
+ "grid": {
+  "best": 21,
+  "bestLabels": [
+   "Address",
+   "Top",
+   "Impact",
+   "Finish"
+  ],
+  "bestStills": [
+   "stills/still.jpg",
+   "stills/still.jpg",
+   "stills/still.jpg",
+   "stills/still.jpg"
+  ],
+  "bestText": "Swing 21 came closest to your targets. It was inside the target range for one of the two work-ons we could measure on it.",
+  "carry": [],
+  "carryLabel": "",
+  "groups": [
+   {
+    "key": "habit",
+    "title": "Your habits — the five work-ons"
+   },
+   {
+    "key": "seen",
+    "title": "Seen, not yet habits"
+   },
+   {
+    "key": "ball",
+    "title": "What the ball did"
+   }
+  ],
+  "more": {
+   "habit": "and seven more habits, not on the list today",
+   "seen": "and six more seen on fewer swings"
+  },
+  "rows": [
+   {
+    "count": "24 of 50",
+    "group": "habit",
+    "marks": [
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Chest peaks after impact"
+   },
+   {
+    "count": "8 of 13",
+    "group": "habit",
+    "marks": [
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "clean",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "clean",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "clean",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "fired",
+     "fired",
+     "notAssessable",
+     "clean",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "notAssessable",
+     "fired",
+     "notAssessable",
+     "clean"
+    ],
+    "name": "Hips peak after impact"
+   },
+   {
+    "count": "45 of 50",
+    "group": "habit",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Cannot hold the finish"
+   },
+   {
+    "count": "49 of 50",
+    "group": "habit",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Loss of posture"
+   },
+   {
+    "count": "50 of 50",
+    "group": "habit",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired"
+    ],
+    "name": "Reverse spine angle at P4"
+   },
+   {
+    "count": "19 of 47",
+    "group": "seen",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "notAssessable",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "notAssessable",
+     "clean",
+     "clean",
+     "fired",
+     "notAssessable",
+     "clean",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Backswing plane too upright"
+   },
+   {
+    "count": "17 of 50",
+    "group": "seen",
+    "marks": [
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "name": "Turning past control"
+   },
+   {
+    "count": "12 of 50",
+    "group": "seen",
+    "marks": [
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean"
+    ],
+    "name": "Weight on the toes at address"
+   },
+   {
+    "count": "10 of 50",
+    "group": "seen",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired"
+    ],
+    "name": "Slide"
+   },
+   {
+    "count": "36 of 50",
+    "group": "ball",
+    "marks": [
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "fired",
+     "clean",
+     "fired"
+    ],
+    "name": "Returns flat"
+   },
+   {
+    "count": "14 of 47",
+    "group": "ball",
+    "marks": [
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "notAssessable",
+     "clean",
+     "notAssessable",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "clean",
+     "notAssessable",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "clean",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired",
+     "clean",
+     "fired",
+     "fired",
+     "fired",
+     "clean",
+     "clean",
+     "fired"
+    ],
+    "name": "Low point too far ahead of the ball"
+   }
+  ],
+  "sessionNote": "",
+  "standfirst": "Each row is one thing we measured; each column is one of your 50 swings, in the order you hit them. A filled dot means it showed on that swing. A short stub means it could not be measured on that swing.",
+  "swings": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21,
+   22,
+   23,
+   24,
+   25,
+   26,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39,
+   40,
+   41,
+   42,
+   43,
+   44,
+   45,
+   46,
+   47,
+   48,
+   49,
+   50
+  ],
+  "title": "Your habits, swing by swing"
+ },
+ "headline": "Five habits showed on many of your swings. We start with impact: let your chest reach full speed before the ball.",
+ "held": [],
+ "kind": "report",
+ "lmAppendix": null,
+ "meta": {
+  "club": "7 iron",
+  "date": "Wednesday 7 October 2026",
+  "dateShort": "7 Oct 2026",
+  "devices": "Down-the-line and face-on cameras",
+  "emailSubject": "Your session report — 7 October 2026",
+  "fileName": "2026-10-07_Mark-Liversedge_session-report.pdf",
+  "first": "Mark",
+  "folioDate": "Prepared 7 Oct 2026",
+  "golfer": "Mark Liversedge",
+  "hand": "right-handed",
+  "kicker": "Session of Wednesday 7 October 2026  ·  7 iron  ·  50 swings",
+  "mastheadDate": "Prepared 7 October 2026",
+  "pdfTitle": "Session report — Mark Liversedge — session of 7 Oct 2026",
+  "prepared": "7 October 2026",
+  "preparedShort": "7 Oct 2026",
+  "runningHead": "Mark Liversedge  ·  session of 7 Oct 2026  ·  7 iron",
+  "sessionOfDay": "",
+  "swings": 50
+ },
+ "numbers": null,
+ "order": {
+  "barsNote": "Bar: how far outside its target range each habit went, compared with the range’s own width. The longest bar goes first.",
+  "intro": "Your list is ordered by three rules, applied in turn. Here is each rule and what it did today.",
+  "items": [
+   {
+    "count": "24 of 50 swings",
+    "goal": "Let your chest reach full speed before the ball",
+    "name": "Chest peaks after impact",
+    "phase": "P7",
+    "rank": 1,
+    "share": 1
+   },
+   {
+    "count": "8 of 13 swings",
+    "goal": "Let your hips reach full speed well before the ball",
+    "name": "Hips peak after impact",
+    "phase": "P7",
+    "rank": 2,
+    "share": 1
+   },
+   {
+    "count": "45 of 50 swings",
+    "goal": "Finish balanced over your lead foot",
+    "name": "Cannot hold the finish",
+    "phase": "P10",
+    "rank": 3,
+    "share": 0.004
+   },
+   {
+    "count": "49 of 50 swings",
+    "goal": "Keep your address posture through the ball",
+    "name": "Loss of posture",
+    "phase": "P7",
+    "rank": 4,
+    "share": 0.004
+   },
+   {
+    "count": "50 of 50 swings",
+    "goal": "Lean slightly away from the target at the top",
+    "name": "Reverse spine angle at P4",
+    "phase": "P4",
+    "rank": 5,
+    "share": 0.004
+   }
+  ],
+  "links": [
+   {
+    "from": "Hips peak after impact",
+    "to": "Chest peaks after impact",
+    "words": "Linked in the coaching model, but your swings did not show it: chest peaks after impact did not go away on the swings where hips peak after impact did."
+   }
+  ],
+  "notListed": [
+   {
+    "name": "Returns flat (36 of 50)",
+    "why": "A result, not a movement to practice. It is what the club or ball did, and it changes when the movements behind it do."
+   },
+   {
+    "name": "Early extension (50 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Sway (34 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Over the top (42 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Arms outrun the chest (49 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Trail knee straightens (50 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Hips under-rotated at impact (49 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Pelvis moves toward the ball in the backswing (36 of 50)",
+    "why": "A habit too, but the list stops at five. It moves up when one of these clears."
+   },
+   {
+    "name": "Low point too far ahead of the ball (14 of 47)",
+    "why": "Something the ball did, not a movement to practice. It is on the watch list until it repeats often enough to call a habit."
+   }
+  ],
+  "rules": [
+   {
+    "body": "A habit you started fixing during the session goes to the back of the list.",
+    "title": "What is still happening comes first",
+    "today": "None of the five eased during the session, so this rule changed nothing today."
+   },
+   {
+    "body": "When one habit sets up another, working on the first often fixes the second for free. We only put one behind another when your swings show it: the second goes away on the swings where the first does.",
+    "title": "Causes before the things they cause",
+    "today": "Your swings could test it, and no habit went away on the swings where another did, so this rule changed nothing today."
+   },
+   {
+    "body": "Each habit is measured against a target range. The one that missed by most, for its range, comes first.",
+    "title": "Then the biggest miss first",
+    "today": "This is what set today's order. The bars below show how far each one missed."
+   }
+  ],
+  "timeline": [
+   {
+    "pos": 4,
+    "rank": 1
+   },
+   {
+    "pos": 4,
+    "rank": 2
+   },
+   {
+    "pos": 5,
+    "rank": 3
+   },
+   {
+    "pos": 4,
+    "rank": 4
+   },
+   {
+    "pos": 2,
+    "rank": 5
+   }
+  ],
+  "timelineNote": "Your first work-on is not the earliest in the swing; it leads because it missed by most. Your coach may still choose to start earlier in the swing.",
+  "title": "One thing first, and why it is that one"
+ },
+ "photos": {
+  "included": true,
+  "reason": ""
+ },
+ "posture": null,
+ "practice": {
+  "steps": [
+   {
+    "body": "Slow swings, ten at a time, feeling the change. This is where the new move is learned.",
+    "head": "Rehearse without a ball"
+   },
+   {
+    "body": "Half swings at half speed. Keep the feel; ignore where the ball goes.",
+    "head": "Small swings with a ball"
+   },
+   {
+    "body": "Full swings: one with the feel, then two normal ones. Film every fifth swing.",
+    "head": "Mix it in"
+   },
+   {
+    "body": "Stay with work-on 1 until your next session. The rest of the list waits.",
+    "head": "One thing at a time"
+   }
+  ],
+  "title": "How to practice a change"
+ },
+ "strengths": [
+  {
+   "count": "all 50 swings",
+   "text": "Your chest stays behind the ball starting down."
+  },
+  {
+   "count": "all 50 swings",
+   "text": "Your hips start turning on time coming down."
+  },
+  {
+   "count": "all 50 swings",
+   "text": "Your upper body tilts slightly away from the target."
+  }
+ ],
+ "tendencies": null,
+ "today": null,
+ "watching": [],
+ "workOns": [
+  {
+   "also": "",
+   "cameWith": "",
+   "causes": {
+    "lead": "One possible cause showed up on the same swings. Showing up together is not proof that one drives the other — so here is what we spotted, what we couldn't check and what we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "Your hips are still speeding up after the ball — on 8 of 13 swings, work-on 2"
+      ],
+      "kind": "seen",
+      "more": "",
+      "note": "it fits, but isn't proof",
+      "title": "What we spotted"
+     },
+     {
+      "items": [
+       "<i>A quick physical test would tell:</i> Upper-back mobility"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your hips are slow to start turning coming down",
+       "You hang back on your trail side through impact"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on. At impact your chest should be roughly square to the ball and still turning, with your hips already a little more open than your chest.",
+   "coachTerm": "Coaches call the habit <i>Chest peaks after impact</i>.",
+   "consistency": null,
+   "count": "24 of 50 swings",
+   "cue": "Feel your chest turn hard toward the ball as you come down, rather than saving the turn for after it.",
+   "drills": [
+    {
+     "equipment": "",
+     "instruction": "Make swings with a one-second pause at the top. From the pause, start down with your lower body, letting your weight move toward your lead foot while your chest stays behind the ball for a moment. Start with half swings and short irons.",
+     "label": "Pause at the top",
+     "note": "The pause is a rehearsal, not a new swing. Once the order feels natural, let the pause shrink until it has gone.",
+     "targets": "To give your lower body time to start the downswing, so your upper body is not rushed toward the ball."
+    }
+   ],
+   "figure": null,
+   "figureLabel": "",
+   "goal": "Let your chest reach full speed before the ball",
+   "id": "chest_peak_after_impact",
+   "kicker": "Work-on 1 of 5  ·  P7, at impact  ·  24 of 50 swings",
+   "name": "Chest peaks after impact",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "rank": 1,
+   "saw": "Your chest is still speeding up after the ball — on 24 of 50 swings, no change from first swing to last. Typical when your chest reached full speed: at impact.",
+   "stills": [],
+   "target": "",
+   "why": "A chest still speeding up after the ball has not passed its speed on to your arms and the club in time for the strike."
+  },
+  {
+   "also": "",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>Hidden on today's swings:</i> Your shoulders start down before your hips<br><i>A quick physical test would tell:</i> Lead-hip mobility"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your hips are slow to start turning coming down",
+       "You hang back on your trail side through impact"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on. At impact your belt buckle should already face between the ball and the target, a sign your hips got going early.",
+   "coachTerm": "Coaches call the habit <i>Hips peak after impact</i>.",
+   "consistency": null,
+   "count": "8 of 13 swings",
+   "cue": "Start the downswing with your lower body, so your hips are already turning hard by the time your hands reach your trail thigh.",
+   "drills": [
+    {
+     "equipment": "",
+     "instruction": "Start with your feet together, make a backswing, and step toward the target with the lead foot as you start down. Small shots first.",
+     "label": "Step-through",
+     "note": "It exaggerates on purpose. The aim is the sequence, not the step.",
+     "targets": "To feel the weight arriving on the lead side before the club does."
+    },
+    {
+     "equipment": "",
+     "instruction": "Make swings with a one-second pause at the top. From the pause, start down with your lower body, letting your weight move toward your lead foot while your chest stays behind the ball for a moment. Start with half swings and short irons.",
+     "label": "Pause at the top",
+     "note": "The pause is a rehearsal, not a new swing. Once the order feels natural, let the pause shrink until it has gone.",
+     "targets": "To give your lower body time to start the downswing, so your upper body is not rushed toward the ball."
+    }
+   ],
+   "figure": null,
+   "figureLabel": "",
+   "goal": "Let your hips reach full speed well before the ball",
+   "id": "hips_peak_after_impact",
+   "kicker": "Work-on 2 of 5  ·  P7, at impact  ·  8 of 13 swings",
+   "name": "Hips peak after impact",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "rank": 2,
+   "saw": "Your hips are still speeding up after the ball — on 8 of 13 swings, no change from first swing to last. Typical when your hips reached full speed: 7 ms after impact. It could not be measured on 37 of 50 swings: the face-on camera cannot time a turn while you are square to it; a down-the-line camera or a body sensor can.",
+   "stills": [],
+   "target": "",
+   "why": "Hips that are still speeding up after the ball have not handed their speed on to your chest, arms and club in time for the strike."
+  },
+  {
+   "also": "“falling over”, “stepping through”",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>A quick physical test would tell:</i> Balance on one leg"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your feet are too close together",
+       "Your chest lunges toward the target coming down",
+       "You hang back on your trail side through impact"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on and hold the finish until the ball lands. Your hips should be stacked over your lead foot, and you should be able to stand there without stepping.",
+   "coachTerm": "Coaches call the habit <i>Cannot hold the finish</i>, or “falling over”, “stepping through”.",
+   "consistency": {
+    "basis": "scalar",
+    "basisText": "σ 12% stance width · 1.19 of corridor · n 50",
+    "domain": "consistency",
+    "grade": 1,
+    "graded": true,
+    "hasRho": true,
+    "measurementLimited": false,
+    "n": 50,
+    "rho": 1.186811339005438,
+    "ungradedReason": ""
+   },
+   "count": "45 of 50 swings",
+   "cue": "Feel yourself swing to a tall finish with your weight on your lead heel and your trail toe just resting on the ground.",
+   "drills": [
+    {
+     "equipment": "",
+     "instruction": "Hit the shot and hold your finish, balanced on the lead foot, until the ball lands. If you cannot hold it, take 20 yards off the swing and try again.",
+     "label": "Hold the finish",
+     "note": "The most diagnostic drill in this list: where you fall tells you what happened earlier.",
+     "targets": "To make balance the constraint the swing is built inside, rather than something checked afterwards."
+    },
+    {
+     "equipment": "a low tee, optional",
+     "instruction": "Stand with your feet together and hit easy half to three-quarter shots off a low tee. Let your arms swing and your body turn only as fast as you can stay balanced, and hold the finish each time.",
+     "label": "Feet-together swings",
+     "note": "Short shots only. If you cannot stay balanced even at half speed, balance on one leg is worth checking before anything else.",
+     "targets": "To feel the arms, body and club working together at a speed your balance can support, rather than the body lunging or the arms going on their own."
+    }
+   ],
+   "figure": {
+    "bands": [
+     {
+      "grade": "open",
+      "hi": 15,
+      "lo": 12.653042214565236
+     },
+     {
+      "grade": "ideal",
+      "hi": 25,
+      "lo": 15
+     },
+     {
+      "grade": "good",
+      "hi": 35,
+      "lo": 25
+     },
+     {
+      "grade": "watch",
+      "hi": 45,
+      "lo": 35
+     },
+     {
+      "grade": "action",
+      "hi": 76.02090242130384,
+      "lo": 45
+     }
+    ],
+    "decimals": 0,
+    "medianText": "55% stance width",
+    "points": [
+     {
+      "state": "clean",
+      "swing": 1,
+      "text": "30% stance width",
+      "value": 29.70998814482308
+     },
+     {
+      "state": "fired",
+      "swing": 2,
+      "text": "62% stance width",
+      "value": 61.635922789652525
+     },
+     {
+      "state": "clean",
+      "swing": 3,
+      "text": "34% stance width",
+      "value": 34.06770956120518
+     },
+     {
+      "state": "fired",
+      "swing": 4,
+      "text": "48% stance width",
+      "value": 47.550596298077046
+     },
+     {
+      "state": "fired",
+      "swing": 5,
+      "text": "49% stance width",
+      "value": 48.841392284180756
+     },
+     {
+      "state": "fired",
+      "swing": 6,
+      "text": "65% stance width",
+      "value": 64.98934996173602
+     },
+     {
+      "state": "fired",
+      "swing": 7,
+      "text": "64% stance width",
+      "value": 63.56319355175007
+     },
+     {
+      "state": "fired",
+      "swing": 8,
+      "text": "60% stance width",
+      "value": 59.69685814558455
+     },
+     {
+      "state": "fired",
+      "swing": 9,
+      "text": "46% stance width",
+      "value": 46.0809593968608
+     },
+     {
+      "state": "fired",
+      "swing": 10,
+      "text": "59% stance width",
+      "value": 58.53188549805727
+     },
+     {
+      "state": "fired",
+      "swing": 11,
+      "text": "43% stance width",
+      "value": 42.95942003302943
+     },
+     {
+      "state": "fired",
+      "swing": 12,
+      "text": "60% stance width",
+      "value": 60.001144488260095
+     },
+     {
+      "state": "fired",
+      "swing": 13,
+      "text": "45% stance width",
+      "value": 44.95636209983403
+     },
+     {
+      "state": "clean",
+      "swing": 14,
+      "text": "20% stance width",
+      "value": 19.608129830167933
+     },
+     {
+      "state": "fired",
+      "swing": 15,
+      "text": "42% stance width",
+      "value": 42.17131703722069
+     },
+     {
+      "state": "fired",
+      "swing": 16,
+      "text": "67% stance width",
+      "value": 66.63538003012074
+     },
+     {
+      "state": "fired",
+      "swing": 17,
+      "text": "71% stance width",
+      "value": 70.95372638555253
+     },
+     {
+      "state": "fired",
+      "swing": 18,
+      "text": "58% stance width",
+      "value": 58.44264423681533
+     },
+     {
+      "state": "fired",
+      "swing": 19,
+      "text": "51% stance width",
+      "value": 51.005483817967345
+     },
+     {
+      "state": "fired",
+      "swing": 20,
+      "text": "44% stance width",
+      "value": 44.45236915968131
+     },
+     {
+      "state": "clean",
+      "swing": 21,
+      "text": "28% stance width",
+      "value": 27.99381369354164
+     },
+     {
+      "state": "fired",
+      "swing": 22,
+      "text": "43% stance width",
+      "value": 43.079574794873636
+     },
+     {
+      "state": "fired",
+      "swing": 23,
+      "text": "51% stance width",
+      "value": 51.06993941147342
+     },
+     {
+      "state": "fired",
+      "swing": 24,
+      "text": "68% stance width",
+      "value": 68.2656385792403
+     },
+     {
+      "state": "fired",
+      "swing": 25,
+      "text": "61% stance width",
+      "value": 60.64074913070998
+     },
+     {
+      "state": "fired",
+      "swing": 26,
+      "text": "52% stance width",
+      "value": 52.030480332003926
+     },
+     {
+      "state": "fired",
+      "swing": 27,
+      "text": "58% stance width",
+      "value": 58.044925082527385
+     },
+     {
+      "state": "fired",
+      "swing": 28,
+      "text": "51% stance width",
+      "value": 51.41069448486496
+     },
+     {
+      "state": "fired",
+      "swing": 29,
+      "text": "64% stance width",
+      "value": 64.21761011486035
+     },
+     {
+      "state": "fired",
+      "swing": 30,
+      "text": "62% stance width",
+      "value": 61.51348283836481
+     },
+     {
+      "state": "fired",
+      "swing": 31,
+      "text": "47% stance width",
+      "value": 47.04529117769938
+     },
+     {
+      "state": "fired",
+      "swing": 32,
+      "text": "56% stance width",
+      "value": 55.606974998772074
+     },
+     {
+      "state": "fired",
+      "swing": 33,
+      "text": "43% stance width",
+      "value": 42.859092046842505
+     },
+     {
+      "state": "fired",
+      "swing": 34,
+      "text": "54% stance width",
+      "value": 54.39588405375481
+     },
+     {
+      "state": "fired",
+      "swing": 35,
+      "text": "58% stance width",
+      "value": 58.3400191772985
+     },
+     {
+      "state": "fired",
+      "swing": 36,
+      "text": "58% stance width",
+      "value": 57.535673555224285
+     },
+     {
+      "state": "fired",
+      "swing": 37,
+      "text": "55% stance width",
+      "value": 55.067145038878
+     },
+     {
+      "state": "clean",
+      "swing": 38,
+      "text": "23% stance width",
+      "value": 23.2068761734391
+     },
+     {
+      "state": "fired",
+      "swing": 39,
+      "text": "57% stance width",
+      "value": 56.896257163514434
+     },
+     {
+      "state": "fired",
+      "swing": 40,
+      "text": "52% stance width",
+      "value": 52.27031570229262
+     },
+     {
+      "state": "fired",
+      "swing": 41,
+      "text": "49% stance width",
+      "value": 48.537216662137475
+     },
+     {
+      "state": "fired",
+      "swing": 42,
+      "text": "45% stance width",
+      "value": 44.867310366601686
+     },
+     {
+      "state": "fired",
+      "swing": 43,
+      "text": "46% stance width",
+      "value": 46.437983882549
+     },
+     {
+      "state": "fired",
+      "swing": 44,
+      "text": "66% stance width",
+      "value": 65.77950299099999
+     },
+     {
+      "state": "fired",
+      "swing": 45,
+      "text": "60% stance width",
+      "value": 59.81558741179091
+     },
+     {
+      "state": "fired",
+      "swing": 46,
+      "text": "74% stance width",
+      "value": 73.67394463586908
+     },
+     {
+      "state": "fired",
+      "swing": 47,
+      "text": "65% stance width",
+      "value": 65.22321976125924
+     },
+     {
+      "state": "fired",
+      "swing": 48,
+      "text": "59% stance width",
+      "value": 59.12446949127212
+     },
+     {
+      "state": "fired",
+      "swing": 49,
+      "text": "60% stance width",
+      "value": 60.31719961786872
+     },
+     {
+      "state": "fired",
+      "swing": 50,
+      "text": "62% stance width",
+      "value": 62.12474970652975
+     }
+    ],
+    "unit": "% stance width"
+   },
+   "figureLabel": "Each dot is one swing: how far your hips finish from over your lead foot, in percent of stance width.",
+   "goal": "Finish balanced over your lead foot",
+   "id": "off_balance_finish",
+   "kicker": "Work-on 3 of 5  ·  P10, at the finish  ·  45 of 50 swings",
+   "name": "Cannot hold the finish",
+   "phase": "P10",
+   "phaseWords": "at the finish",
+   "rank": 3,
+   "saw": "You can't hold your finish — on 45 of 50 swings, no change from first swing to last. Typical how far your hips finish from over your lead foot: 55% stance width, against a target of 35% stance width or less; this is a clear miss: well past the range on 38 of 50 swings.",
+   "stills": [
+    {
+     "caption": "Closest, swing 1",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "30% stance width"
+    },
+    {
+     "caption": "Furthest, swing 46",
+     "note": "",
+     "src": "stills/still.jpg",
+     "value": "74% stance width"
+    }
+   ],
+   "target": "How far your hips finish from over your lead foot: 35% stance width or less, on most swings. Today: 55% stance width.",
+   "why": "A finish you can't hold shows your swing was off balance earlier, so your shots are hard to repeat."
+  },
+  {
+   "also": "“loss of posture”, “losing your posture”",
+   "cameWith": "The coaching model says it can bring other habits with it. Not today — on every swing we could see, you get the ball up in the air.",
+   "causes": {
+    "lead": "One possible cause showed up on the same swings. Because both happened on every swing, we can't prove one drives the other — so here is what we spotted, what we couldn't check and what we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "You stand up through the ball — on 50 of 50 swings"
+      ],
+      "kind": "seen",
+      "more": "",
+      "note": "it fits, but isn't proof",
+      "title": "What we spotted"
+     },
+     {
+      "items": [
+       "<i>A quick physical test would tell:</i> Core stability · Upper-back mobility · Lead-hip mobility"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "You stand up out of your posture going back",
+       "You sink lower going back",
+       "Your posture at address is hard to swing from"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film from down the line. At impact your back and hips should still sit on the lines you drew at address.",
+   "coachTerm": "Coaches call the habit <i>Loss of posture</i>, or “loss of posture”, “losing your posture”.",
+   "consistency": null,
+   "count": "49 of 50 swings",
+   "cue": "Feel your chest stay over the ball and your seat stay back until the ball has gone.",
+   "drills": [
+    {
+     "equipment": "a wall, or the back of a chair",
+     "instruction": "Stand with your back to a wall and set up so that your backside just touches it, with a club held across your chest. Turn slowly to the top and back down to where impact would be. Your trail back pocket should stay on the wall going back, and your lead back pocket should find it as you turn through, without pushing hard into it or coming away from it.",
+     "label": "Backside on the wall",
+     "note": "If your hips can only turn by moving toward the ball, the limit may be in how far your hips can turn, and a physical check comes before more practice.",
+     "targets": "To feel your hips turn while keeping their distance from the ball, so your arms keep the room they had at address."
+    },
+    {
+     "equipment": "an alignment stick",
+     "instruction": "Hold an alignment stick along your spine, touching the back of your head, your upper back and your tailbone. Rehearse your address position and your backswing turn keeping all three in contact.",
+     "label": "Rod along the spine",
+     "note": "A fixed upper-back curve will stop all three touching. That is information, not a failure.",
+     "targets": "To feel the spine angle you set at address being kept through the turn."
+    }
+   ],
+   "figure": null,
+   "figureLabel": "",
+   "goal": "Keep your address posture through the ball",
+   "id": "loss_of_posture",
+   "kicker": "Work-on 4 of 5  ·  P7, at impact  ·  49 of 50 swings",
+   "name": "Loss of posture",
+   "phase": "P7",
+   "phaseWords": "at impact",
+   "rank": 4,
+   "saw": "You stand up out of your posture through impact — on 49 of 50 swings, no change from first swing to last.",
+   "stills": [],
+   "target": "",
+   "why": "Standing up lifts the bottom of your swing, so contact gets thin and harder to repeat."
+  },
+  {
+   "also": "“leaning left at the top”, “forward spine angle at the top”",
+   "cameWith": "",
+   "causes": {
+    "lead": "We couldn't pin down what drives this one today. Here are the possible causes: the ones we couldn't check, and the ones we've ruled out.",
+    "rows": [
+     {
+      "items": [
+       "<i>Your coach can look:</i> Your lower back arches too much at address · Your lower back is too flat at address<br><i>A quick physical test would tell:</i> Upper-back mobility · Trail-hip mobility · Core stability"
+      ],
+      "kind": "possible",
+      "more": "",
+      "note": "",
+      "title": "Could be behind it — we couldn't check"
+     },
+     {
+      "items": [
+       "Your upper body leans toward the target at address"
+      ],
+      "kind": "ruledOut",
+      "more": "",
+      "note": "",
+      "title": "Ruled out — measured, and fine"
+     }
+    ]
+   },
+   "check": "Film face-on. At the top your head and chest should sit a little behind the ball, never toward the target.",
+   "coachTerm": "Coaches call the habit <i>Reverse spine angle at P4</i>, or “leaning left at the top”, “forward spine angle at the top”.",
+   "consistency": {
+    "basis": "scalar",
+    "basisText": "σ 2.9° · 0.49 of corridor · n 50",
+    "domain": "consistency",
+    "grade": 4,
+    "graded": true,
+    "hasRho": true,
+    "measurementLimited": false,
+    "n": 50,
+    "rho": 0.4866855497320972,
+    "ungradedReason": ""
+   },
+   "count": "50 of 50 swings",
+   "cue": "At the top, feel your breastbone stay over your trail thigh.",
+   "drills": [
+    {
+     "equipment": "a mirror, or a phone on a stand",
+     "instruction": "Without a ball, hold a club across your chest. Turn to the top and check in a mirror, or on a phone face-on, that your head and chest sit a little behind the ball, with your upper body tilted slightly away from the target. Make ten slow turns.",
+     "label": "Club across the chest",
+     "note": "A short turn often hides inside this one: if the shoulders cannot turn further, the body tips instead, and a physical check of your upper back comes first.",
+     "targets": "To feel your upper body staying behind the ball as it turns, rather than tipping toward the target or hanging too far back."
+    }
+   ],
+   "figure": {
+    "bands": [
+     {
+      "grade": "action",
+      "hi": -6,
+      "lo": -15.99208980360643
+     },
+     {
+      "grade": "watch",
+      "hi": 0,
+      "lo": -6
+     },
+     {
+      "grade": "good",
+      "hi": 6,
+      "lo": 0
+     },
+     {
+      "grade": "ideal",
+      "hi": 12,
+      "lo": 6
+     },
+     {
+      "grade": "open",
+      "hi": 13.076618838600247,
+      "lo": 12
+     }
+    ],
+    "decimals": 0,
+    "medianText": "−9°",
+    "points": [
+     {
+      "state": "fired",
+      "swing": 1,
+      "text": "−10°",
+      "value": -9.718353921416943
+     },
+     {
+      "state": "fired",
+      "swing": 2,
+      "text": "−6°",
+      "value": -6.406105274833814
+     },
+     {
+      "state": "fired",
+      "swing": 3,
+      "text": "−11°",
+      "value": -11.226746808651415
+     },
+     {
+      "state": "fired",
+      "swing": 4,
+      "text": "−9°",
+      "value": -8.756287387256627
+     },
+     {
+      "state": "fired",
+      "swing": 5,
+      "text": "−15°",
+      "value": -14.915470965006183
+     },
+     {
+      "state": "fired",
+      "swing": 6,
+      "text": "−11°",
+      "value": -10.562267841255899
+     },
+     {
+      "state": "fired",
+      "swing": 7,
+      "text": "−14°",
+      "value": -14.029154849779934
+     },
+     {
+      "state": "fired",
+      "swing": 8,
+      "text": "−10°",
+      "value": -9.633490984111269
+     },
+     {
+      "state": "fired",
+      "swing": 9,
+      "text": "−11°",
+      "value": -11.074232831784842
+     },
+     {
+      "state": "fired",
+      "swing": 10,
+      "text": "−10°",
+      "value": -10.0501451349825
+     },
+     {
+      "state": "fired",
+      "swing": 11,
+      "text": "−13°",
+      "value": -12.83074961658049
+     },
+     {
+      "state": "fired",
+      "swing": 12,
+      "text": "−10°",
+      "value": -9.632015202102963
+     },
+     {
+      "state": "fired",
+      "swing": 13,
+      "text": "−10°",
+      "value": -9.621143589693173
+     },
+     {
+      "state": "fired",
+      "swing": 14,
+      "text": "−8°",
+      "value": -8.271971178559365
+     },
+     {
+      "state": "fired",
+      "swing": 15,
+      "text": "−10°",
+      "value": -10.184813862088367
+     },
+     {
+      "state": "fired",
+      "swing": 16,
+      "text": "−5°",
+      "value": -4.605084594284044
+     },
+     {
+      "state": "fired",
+      "swing": 17,
+      "text": "−8°",
+      "value": -8.044139636379102
+     },
+     {
+      "state": "fired",
+      "swing": 18,
+      "text": "−11°",
+      "value": -10.53016512465484
+     },
+     {
+      "state": "fired",
+      "swing": 19,
+      "text": "−8°",
+      "value": -7.797285142419606
+     },
+     {
+      "state": "fired",
+      "swing": 20,
+      "text": "−7°",
+      "value": -7.1611829680233585
+     },
+     {
+      "state": "fired",
+      "swing": 21,
+      "text": "−4°",
+      "value": -4.400037694248782
+     },
+     {
+      "state": "fired",
+      "swing": 22,
+      "text": "−12°",
+      "value": -12.059636840932162
+     },
+     {
+      "state": "fired",
+      "swing": 23,
+      "text": "−5°",
+      "value": -5.381922502906437
+     },
+     {
+      "state": "fired",
+      "swing": 24,
+      "text": "−7°",
+      "value": -7.449939055194207
+     },
+     {
+      "state": "fired",
+      "swing": 25,
+      "text": "−9°",
+      "value": -9.381153980260372
+     },
+     {
+      "state": "fired",
+      "swing": 26,
+      "text": "−11°",
+      "value": -11.09445353889902
+     },
+     {
+      "state": "fired",
+      "swing": 27,
+      "text": "−2°",
+      "value": -2.4808765144980525
+     },
+     {
+      "state": "fired",
+      "swing": 28,
+      "text": "−6°",
+      "value": -6.105232166110893
+     },
+     {
+      "state": "fired",
+      "swing": 29,
+      "text": "−13°",
+      "value": -12.714089954859176
+     },
+     {
+      "state": "fired",
+      "swing": 30,
+      "text": "−9°",
+      "value": -9.23456182929082
+     },
+     {
+      "state": "fired",
+      "swing": 31,
+      "text": "−13°",
+      "value": -13.483917149691187
+     },
+     {
+      "state": "fired",
+      "swing": 32,
+      "text": "−9°",
+      "value": -8.795620729151903
+     },
+     {
+      "state": "fired",
+      "swing": 33,
+      "text": "−9°",
+      "value": -9.370637533631639
+     },
+     {
+      "state": "fired",
+      "swing": 34,
+      "text": "−10°",
+      "value": -9.920848348095758
+     },
+     {
+      "state": "fired",
+      "swing": 35,
+      "text": "−9°",
+      "value": -9.097995205287907
+     },
+     {
+      "state": "fired",
+      "swing": 36,
+      "text": "−8°",
+      "value": -7.541030044557202
+     },
+     {
+      "state": "fired",
+      "swing": 37,
+      "text": "−11°",
+      "value": -11.057419297637322
+     },
+     {
+      "state": "fired",
+      "swing": 38,
+      "text": "−12°",
+      "value": -11.598861522874321
+     },
+     {
+      "state": "fired",
+      "swing": 39,
+      "text": "−5°",
+      "value": -5.028846779884921
+     },
+     {
+      "state": "fired",
+      "swing": 40,
+      "text": "−9°",
+      "value": -9.379925101418193
+     },
+     {
+      "state": "fired",
+      "swing": 41,
+      "text": "−11°",
+      "value": -11.20527222212786
+     },
+     {
+      "state": "fired",
+      "swing": 42,
+      "text": "−7°",
+      "value": -7.069918489074187
+     },
+     {
+      "state": "fired",
+      "swing": 43,
+      "text": "−10°",
+      "value": -10.369151772717327
+     },
+     {
+      "state": "fired",
+      "swing": 44,
+      "text": "−7°",
+      "value": -7.1012784718016375
+     },
+     {
+      "state": "fired",
+      "swing": 45,
+      "text": "−5°",
+      "value": -5.3902497653058035
+     },
+     {
+      "state": "fired",
+      "swing": 46,
+      "text": "−7°",
+      "value": -6.809927636004639
+     },
+     {
+      "state": "fired",
+      "swing": 47,
+      "text": "0°",
+      "value": -0.11148907531750096
+     },
+     {
+      "state": "fired",
+      "swing": 48,
+      "text": "−9°",
+      "value": -8.664934587770997
+     },
+     {
+      "state": "fired",
+      "swing": 49,
+      "text": "−12°",
+      "value": -12.361623585251852
+     },
+     {
+      "state": "fired",
+      "swing": 50,
+      "text": "−7°",
+      "value": -6.827615806297696
+     }
+    ],
+    "unit": "°"
+   },
+   "figureLabel": "Each dot is one swing: lean away from the target at the top, in degrees.",
+   "goal": "Lean slightly away from the target at the top",
+   "id": "reverse_spine_p4",
+   "kicker": "Work-on 5 of 5  ·  P4, at the top  ·  50 of 50 swings",
+   "name": "Reverse spine angle at P4",
+   "phase": "P4",
+   "phaseWords": "at the top",
+   "rank": 5,
+   "saw": "You lean toward the target at the top — on all 50 swings, easing as the session went on. Typical lean away from the target at the top: 9° the other way (you lean more toward the target at the top), against a target of 0° or more; this is a clear miss: well past the range on 43 of 50 swings.",
+   "stills": [],
+   "target": "Lean away from the target at the top: 0° or more, on most swings. Today: 9° the other way (you lean more toward the target at the top).",
+   "why": "Leaning toward the target at the top strains your lower back and makes it hard to start down smoothly."
+  }
+ ],
+ "workOnsBrief": [
+  {
+   "drill": "Pause at the top",
+   "goal": "Let your chest reach full speed before the ball",
+   "rank": 1
+  },
+  {
+   "drill": "Step-through",
+   "goal": "Let your hips reach full speed well before the ball",
+   "rank": 2
+  },
+  {
+   "drill": "Hold the finish",
+   "goal": "Finish balanced over your lead foot",
+   "rank": 3
+  },
+  {
+   "drill": "Backside on the wall",
+   "goal": "Keep your address posture through the ball",
+   "rank": 4
+  },
+  {
+   "drill": "Club across the chest",
+   "goal": "Lean slightly away from the target at the top",
+   "rank": 5
+  }
+ ],
+ "wrist": null
+}
