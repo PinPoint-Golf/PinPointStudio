@@ -372,6 +372,7 @@ Item {
             compare(visibleAll("reportWristStyleCell").filter(c => c.graded).length, w.styles.columns.length, "one style in bold per swing")
             compare(visibleAll("reportWristFinding").length, w.recurring.length, "a finding per recurring condition")
             compare(visibleAll("reportWristMark").filter(k => k.fired).length, w.recurring.reduce((a, f) => a + f.marks.filter(k => k.fired).length, 0), "filled where it fired")
+            compare(visibleAll("reportWristRepeatLine").length, w.consistency.length, "Consistency: a line per club")
             compare(visibleAll("reportWristMovesRow").length, w.movesWith.rows.length, "what moves with: a row per reading")
             compare(visibleAll("reportWristTrustLine").map(t => t.text).join("\n"), w.trust.join("\n"), "the trust lines, open and verbatim")
             verify(shown("reportWristScoreLine"), "the score line in the head")

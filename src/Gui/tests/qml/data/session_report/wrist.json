@@ -6912,6 +6912,29 @@
   "pictureWhy": []
  },
  "wrist": {
+  "consistency": [
+   {
+    "club": "7 IRON",
+    "least": null,
+    "leastText": "",
+    "most": null,
+    "mostText": "",
+    "named": false,
+    "result": {
+     "basis": "scalar",
+     "basisText": "",
+     "domain": "consistency",
+     "grade": 0,
+     "graded": true,
+     "hasRho": false,
+     "measurementLimited": false,
+     "n": 6,
+     "rho": null,
+     "ungradedReason": "tooFewSwings"
+    },
+    "tooFew": true
+   }
+  ],
   "head": "Graded Cupped on 5 of 6 swings, Neutral on 1",
   "kicker": "6 swings  ·  7 iron  ·  Wrist",
   "movesWith": {
