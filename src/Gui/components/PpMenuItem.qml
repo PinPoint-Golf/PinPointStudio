@@ -30,7 +30,9 @@
 //       }
 //   }
 //
-// A menu that sizes itself to its lines reads `contentImplicitWidth` (glyph + words, no margins).
+// A menu that sizes itself to its lines reads `contentImplicitWidth`: the glyph and the gap after it, the
+// words, and the count `tail` with the same gap before it, so a menu sized to its widest line never runs
+// words into a count. No margins. The default style only; the compact row is sized by its layout.
 //
 // style "compact" is the model editor's ⋯ drawer row (ModelTools): 30 px and square-cornered, the
 // smaller words cut short rather than wrapped, `tail` in the data face after them, the hover wash
@@ -59,6 +61,7 @@ Rectangle {
 
     readonly property real contentImplicitWidth: (lead.visible ? lead.implicitWidth + line.spacing : 0)
                                                  + words.implicitWidth
+                                                 + (it.tail !== "" && !it._compact ? countTail.implicitWidth + line.spacing : 0)
 
     width: parent ? parent.width : 0
     height: it._compact ? Theme.sp(30) : Math.max(Theme.sp(34), words.implicitHeight + Theme.sp(14))
@@ -88,6 +91,7 @@ Rectangle {
             id: words
             anchors.verticalCenter: parent.verticalCenter
             width: it.width - 2 * Theme.gap(10) -(lead.visible ? lead.width + line.spacing : 0)
+                   - (countTail.visible ? countTail.implicitWidth + line.spacing : 0)
             wrapMode: Text.WordWrap
             textFormat: Text.StyledText
             readonly property color ink: it.warn ? (it.active ? Theme.colorWarn : Qt.alpha(Theme.colorWarn, 0.5))
@@ -101,6 +105,7 @@ Rectangle {
         }
     }
     PpMicro {   // count tail
+        id: countTail
         visible: it.tail !== "" && !it._compact
         anchors { right: parent.right; rightMargin: Theme.gap(10); verticalCenter: parent.verticalCenter }
         text: it.tail

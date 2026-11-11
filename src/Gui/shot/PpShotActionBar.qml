@@ -321,7 +321,10 @@ Item {
             label: qsTr("all %1 shown").arg(root.visibleCount)
             onClicked: allMenu.opened ? allMenu.close() : allMenu.open()
 
-            // Opens UPWARD over the stage (dock convention), right-aligned to the control.
+            // Opens UPWARD over the stage (dock convention), right-aligned to the control, so it
+            // grows leftward. As wide as its widest line (words and count, PpMenuItem's
+            // contentImplicitWidth), never wider than the window less its margins; `margins` keeps
+            // it inside the window when the control sits near an edge.
             Popup {
                 id: allMenu
                 objectName: "allMenu"
@@ -329,14 +332,25 @@ Item {
                 y: -height - Theme.gap(4)
                 x: allCtl.width - width
                 padding: Theme.gap(5)
+                margins: Theme.gap(8)
                 closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-                contentWidth: Math.max(allExportItem.contentImplicitWidth, allTrashItem.contentImplicitWidth)
-                              + Theme.sp(28)
+                readonly property real _widestLine: {
+                    let w = 0
+                    for (let i = 0; i < allLines.children.length; ++i) {
+                        const line = allLines.children[i]
+                        if (line.contentImplicitWidth !== undefined) w = Math.max(w, line.contentImplicitWidth)
+                    }
+                    return w
+                }
+                readonly property real _maxContentWidth: allCtl.Window.width > 0
+                    ? allCtl.Window.width - 2 * margins - leftPadding - rightPadding : Infinity
+                // a line is its content plus the row's own margins (PpMenuItem: gap(10) each side) and a little air
+                contentWidth: Math.max(0, Math.min(_widestLine + 2 * Theme.gap(10) + Theme.sp(8), _maxContentWidth))
                 background: PpPopoverCard {}
 
                 contentItem: Column {
+                    id: allLines
                     PpMenuItem {   // Export all shown
-                        id: allExportItem
                         glyph: "⤓"
                         text: qsTr("Export all shown")
                         tail: qsTr("%1 shots").arg(root.visibleCount)
@@ -355,7 +369,6 @@ Item {
                     PpMenuRule {}   // destructive action in its own group
 
                     PpMenuItem {   // Move all shown to trash (soft, recoverable)
-                        id: allTrashItem
                         glyph: "🗑"
                         text: qsTr("Move all shown to trash")
                         tail: qsTr("%1 shots").arg(root.visibleCount)
