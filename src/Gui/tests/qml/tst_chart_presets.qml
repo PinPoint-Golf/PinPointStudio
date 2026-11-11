@@ -134,7 +134,13 @@ Item {
             return d
         }
 
+        // The theme and the settings this file sets, put back when it ends (issue #171): Theme and
+        // appSettings outlive one test, and a file that leaves them changed hands the next file a
+        // theme it never chose. init() sets the theme every test here is written against.
+        property var was: ({})
         function initTestCase() {
+            was = { themeIndex: Theme.themeIndex, fontScale: Theme.fontScale,
+                    chartPrefs: appSettings.chartPrefs, sectionCollapse: appSettings.sectionCollapse }
             verify(chartsFixture.count() === 15, "the 4 July fixture loads (15 shots)")
             hn.install()
         }
@@ -156,8 +162,10 @@ Item {
         }
         function cleanupTestCase() {
             SessionMode.mode = SessionMode.capture
-            appSettings.chartPrefs = ({})
-            appSettings.sectionCollapse = ({})
+            appSettings.chartPrefs = was.chartPrefs
+            appSettings.sectionCollapse = was.sectionCollapse
+            Theme.themeIndex = was.themeIndex
+            Theme.fontScale = was.fontScale
         }
 
         function test_001_each_register_opens_on_its_own_default() {

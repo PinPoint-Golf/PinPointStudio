@@ -425,10 +425,28 @@ public slots:
         // through ppSettings(), and QSettings::setPath only affects instances made after it. A test
         // that quietly rewrote ui/themeIndex in the developer's own ini would be a poor trade for
         // the convenience of using the real class.
-        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_scratch.path());
+        //
+        // ⚠ A FRESH, EMPTY STORE FOR EVERY FILE, NOT ONE PER RUN (issue #171). Qt Quick Test calls
+        // this once per tst_*.qml, each with its own engine, so every QML singleton — Theme included
+        // — starts over with each file. The settings store did not: one ini for the whole run meant
+        // that whatever a file wrote (Theme writes themeIndex, density, reduceMotion… straight back
+        // to appSettings, and components under test write their own keys when pressed) was read
+        // back by the next file's AppSettings and handed to its Theme. A file then passed in the
+        // full run on a theme it never set and failed on its own — tst_charts_panel left Folio light
+        // behind, and the variability tests' stale print checks passed on it. A new sub-directory
+        // per file gives every file the defaults compiled into AppSettings, which is what a file run
+        // on its own (qmltest.sh) has always seen, so the full run and a lone run now agree.
+        // The scratch root still goes with the process. An invalid root is fatal: filePath() on it
+        // would quietly give a relative "fileN" under the working directory instead.
+        if (!m_scratch.isValid())
+            qFatal("qml_ui_test: no scratch directory for the settings (%s) — refusing to run on a "
+                   "settings path under the working directory.", qPrintable(m_scratch.errorString()));
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                           m_scratch.filePath(QStringLiteral("file%1").arg(++m_fileCount)));
 
-        m_settings = new AppSettings(this);
-        engine->rootContext()->setContextProperty(QStringLiteral("appSettings"), m_settings);
+        // Owned by the engine, so it goes with the file it served.
+        auto *settings = new AppSettings(engine);
+        engine->rootContext()->setContextProperty(QStringLiteral("appSettings"), settings);
 
         // The Charts fixture feeder — a new name, so no other suite's lookups change.
         engine->rootContext()->setContextProperty(QStringLiteral("chartsFixture"), new ChartsFixture(engine, engine));
@@ -446,10 +464,10 @@ public slots:
     }
 
 private:
-    // Cleaned up with the process. Nothing here is meant to survive a run: the point is that each
-    // one starts from the defaults compiled into AppSettings.
+    // Cleaned up with the process. Nothing here is meant to survive a FILE: the point is that each
+    // one starts from the defaults compiled into AppSettings (one sub-directory per file, above).
     QTemporaryDir m_scratch;
-    AppSettings  *m_settings = nullptr;
+    int           m_fileCount = 0;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(qml_ui, QmlUiTestSetup)

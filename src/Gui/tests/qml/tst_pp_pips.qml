@@ -43,6 +43,7 @@ Item {
         property int was: 0
         function initTestCase() { was = Theme.themeIndex }
         function cleanupTestCase() { Theme.themeIndex = was }
+        function cleanup() { Theme.themeIndex = was }   // a theme-cycling test never hands its last theme to the next (issue #171)
         function init() { pips.marks = []; pips.ticks = []; pips.maxPips = 0 }
 
         function test_allByDefault() {

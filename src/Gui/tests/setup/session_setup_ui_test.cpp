@@ -468,7 +468,20 @@ public slots:
 
         // Scratch QSettings BEFORE the first AppSettings — see qml_ui_test.cpp. The fakes write
         // appSettings.imuRoles, so this matters more here than it does there.
-        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_scratch.path());
+        //
+        // ⚠ A FRESH, EMPTY STORE FOR EVERY FILE, NOT ONE PER RUN (issue #171, as qml_ui_test.cpp).
+        // Each tst_setup_*.qml has its own engine and its own AppSettings, but one ini behind them
+        // all handed whatever a file wrote — a theme, imuRoles, cameraFixedInPlace, imuExcluded —
+        // to every file after it, so a file could pass in the full run on state it never set and
+        // fail on its own. A sub-directory per file gives each the defaults compiled into
+        // AppSettings, as a lone run always had. An invalid scratch root is fatal: filePath() on it
+        // would quietly give a relative "fileN" under the working directory instead.
+        if (!m_scratch.isValid())
+            qFatal("session_setup_ui_test: no scratch directory for the settings (%s) — refusing to "
+                   "run on a settings path under the working directory.",
+                   qPrintable(m_scratch.errorString()));
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
+                           m_scratch.filePath(QStringLiteral("file%1").arg(++m_fileCount)));
 
         // One engine per tst_*.qml file; each gets its own objects.
         auto *settings = new AppSettings(engine);
@@ -481,7 +494,8 @@ public slots:
     }
 
 private:
-    QTemporaryDir m_scratch;
+    QTemporaryDir m_scratch;       // the run's root; one sub-directory per file, gone with the process
+    int           m_fileCount = 0;
 };
 
 QUICK_TEST_MAIN_WITH_SETUP(session_setup_ui, SessionSetupUiTestSetup)

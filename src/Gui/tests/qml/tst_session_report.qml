@@ -64,6 +64,13 @@ Item {
                                                 // day: report_delivery.sh jess — ONE page, the trust note in two columns under the scatter)
         })
 
+        // The app theme the ignores-the-app-theme tests switch, put back after each of them —
+        // in cleanup(), so a failed check part-way still restores it (issue #171). Every other test
+        // here draws the report's own fixed aesthetic and needs no app theme.
+        property int themeWas: 0
+        function initTestCase() { themeWas = Theme.themeIndex }
+        function cleanup() { Theme.themeIndex = themeWas }
+
         function signature() { return JSON.stringify(reg.pageInfo().map(p => [Math.round(p.from), Math.round(p.to)])) }
         // lay a fixture out and wait for the pager (and any one-shot tightening) to settle
         function load(name) { loadMap(Fx.maps[name], name) }
@@ -282,7 +289,6 @@ Item {
             return out
         }
         function test_04_theReportIgnoresTheAppTheme() {
-            const start = Theme.themeIndex
             Theme.themeIndex = 12                       // Folio light
             load("nick")
             reg.printPage = 5; wait(50)
@@ -290,7 +296,6 @@ Item {
             Theme.themeIndex = 7                        // Vector dark
             wait(300)
             const b = appearance()
-            Theme.themeIndex = start
             verify(a.length > 100, "the walk found the page")
             compare(b.length, a.length)
             for (let i = 0; i < a.length; ++i) compare(b[i], a[i], "item " + i + " changed with the app theme")
@@ -298,7 +303,6 @@ Item {
         // the Posture page: its own type and inks (the report's), the metric colours in Folio light, the box plot through
         // the Charts print roles in the same fixed aesthetic — on every page of the section
         function test_06_thePosturePageIgnoresTheAppTheme() {
-            const start = Theme.themeIndex
             Theme.themeIndex = 12                       // Folio light
             load("posture")
             const pages = reg.pageInfo().map((p, i) => p.section === "Posture" ? i : -1).filter(i => i >= 0)
@@ -308,7 +312,6 @@ Item {
             Theme.themeIndex = 7                        // Vector dark
             wait(300)
             for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
-            Theme.themeIndex = start
             for (let k = 0; k < a.length; ++k) {
                 compare(b[k].length, a[k].length, "posture page " + (pages[k] + 1) + ": items")
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "posture page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
@@ -437,7 +440,6 @@ Item {
         }
         // the Wrist page in its own inks whatever the app's theme, as the Posture page
         function test_10_theWristPageIgnoresTheAppTheme() {
-            const start = Theme.themeIndex
             Theme.themeIndex = 12                       // Folio light
             load("wrist")
             const pages = reg.pageInfo().map((p, i) => p.section === "Wrist" ? i : -1).filter(i => i >= 0)
@@ -447,7 +449,6 @@ Item {
             Theme.themeIndex = 7                        // Vector dark
             wait(300)
             for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
-            Theme.themeIndex = start
             for (let k = 0; k < a.length; ++k) {
                 compare(b[k].length, a[k].length, "wrist page " + (pages[k] + 1) + ": items")
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "wrist page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
@@ -507,7 +508,6 @@ Item {
         }
         // the Club delivery page in its own inks whatever the app's theme, as the Posture and Wrist pages
         function test_12_theDeliveryPageIgnoresTheAppTheme() {
-            const start = Theme.themeIndex
             Theme.themeIndex = 12                       // Folio light
             load("delivery")
             const pages = reg.pageInfo().map((p, i) => p.section === "Club delivery" ? i : -1).filter(i => i >= 0)
@@ -517,7 +517,6 @@ Item {
             Theme.themeIndex = 7                        // Vector dark
             wait(300)
             for (const p of pages) { reg.printPage = p; wait(30); b.push(appearance()) }
-            Theme.themeIndex = start
             for (let k = 0; k < a.length; ++k) {
                 compare(b[k].length, a[k].length, "delivery page " + (pages[k] + 1) + ": items")
                 for (let i = 0; i < a[k].length; ++i) compare(b[k][i], a[k][i], "delivery page " + (pages[k] + 1) + " item " + i + " changed with the app theme")
@@ -526,7 +525,6 @@ Item {
         // the appendix too: its tables (Folio light from the register) and the launch monitor panel's own figures,
         // embedded with their fixed aesthetic, on every appendix page
         function test_05_theLaunchMonitorAppendixIgnoresTheAppTheme() {
-            const start = Theme.themeIndex
             Theme.themeIndex = 12                       // Folio light
             load("launch-monitor-appendix")
             const first = reg.sectionPage("reportLaunchMonitor") - 1
@@ -536,7 +534,6 @@ Item {
             Theme.themeIndex = 7                        // Vector dark
             wait(300)
             for (let p = first; p < reg.clientPageCount; ++p) { reg.printPage = p; wait(30); b.push(appearance()) }
-            Theme.themeIndex = start
             compare(b.length, a.length)
             for (let p = 0; p < a.length; ++p) {
                 compare(b[p].length, a[p].length, "appendix page " + (first + p + 1) + ": items")

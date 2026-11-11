@@ -946,11 +946,18 @@ Item {
             fakeController.splitWrites = 0
             laidOut()
         }
+        // The theme this file sets, put back as it found it when it ends (issue #171): Theme
+        // outlives one test, and a file that leaves it changed hands the next file a theme it never
+        // chose. init() sets the theme every test here is written against (studio dark).
+        property var was: ({})
+        function initTestCase() {
+            was = { themeIndex: Theme.themeIndex, fontScale: Theme.fontScale, reduceMotion: Theme.reduceMotion }
+        }
         function cleanupTestCase() {
             SessionMode.mode = SessionMode.capture
-            Theme.themeIndex = 5
-            Theme.fontScale = 1.0
-            Theme.reduceMotion = false
+            Theme.themeIndex = was.themeIndex
+            Theme.fontScale = was.fontScale
+            Theme.reduceMotion = was.reduceMotion
         }
 
         // ═══════════════════════════ Cold (S2-S4, F41-F42) ═══════════════════════════

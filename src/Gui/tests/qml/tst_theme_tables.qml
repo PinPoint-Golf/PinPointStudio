@@ -39,6 +39,7 @@ TestCase {
     property int was: 0
     function initTestCase() { was = Theme.themeIndex }
     function cleanupTestCase() { Theme.themeIndex = was }
+    function cleanup() { Theme.themeIndex = was }   // a theme-cycling test never hands its last theme to the next (issue #171)
     function same(a, b) { return Qt.colorEqual(a, b) }
 
     readonly property var colours: [

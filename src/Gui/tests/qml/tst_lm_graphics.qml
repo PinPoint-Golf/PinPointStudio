@@ -156,7 +156,16 @@ Item {
         function chips(text) { return walk(body, c => c.objectName === "lmChip" && visibleNow(c) && String(c.text).indexOf(text) === 0) }
         function picker(src) { const ps = walk(body, c => c.objectName === "lmPicker" && c.src === src && visibleNow(c)); return ps.length ? ps[0] : null }
 
+        // The theme and text size these tests measure in. Containment is a font measurement and the
+        // faces are the aesthetic's, so every test states its own theme rather than inheriting one,
+        // and the file puts back what it found when it ends (issue #171).
+        property var was: ({})
+        function initTestCase() { was = { themeIndex: Theme.themeIndex, fontScale: Theme.fontScale } }
+        function cleanupTestCase() { Theme.themeIndex = was.themeIndex; Theme.fontScale = was.fontScale }
+
         function init() {
+            Theme.themeIndex = 0            // Instrument light, the app's default
+            Theme.fontScale = 1.0
             probe.width = 1600; probe.height = 900
             body.g = probe.fixture
             body.tab = "shot"
@@ -208,14 +217,14 @@ Item {
 
         function test_02_annotationsStayInTheirFigures() {
             checkContainment("design size")
-            const was = Theme.fontScale
             Theme.fontScale = 1.25
             wait(0)
             checkContainment("fontScale 1.25")
-            Theme.fontScale = was
-            const wasTheme = appSettings.themeIndex
-            for (let t = 0; t < 2; ++t) { appSettings.themeIndex = t; wait(0); checkContainment("theme " + t) }
-            appSettings.themeIndex = wasTheme
+            Theme.fontScale = 1.0
+            // Theme.themeIndex, not appSettings.themeIndex: Theme reads the setting once, at start,
+            // so writing the setting never re-themed the board and these two checks measured the
+            // one theme they began in. Every theme, since each aesthetic brings its own faces.
+            for (let t = 0; t < Theme.themeCount; ++t) { Theme.themeIndex = t; wait(0); checkContainment("theme " + t) }
             wait(0)
         }
 

@@ -42,6 +42,7 @@ Item {
         property int was: 0
         function initTestCase() { was = Theme.themeIndex }
         function cleanupTestCase() { Theme.themeIndex = was }
+        function cleanup() { Theme.themeIndex = was }   // a theme-cycling test never hands its last theme to the next (issue #171)
 
         function test_trendWordsAndTones() {
             for (let t = 0; t < Theme.themeCount; ++t) {
@@ -76,7 +77,11 @@ Item {
                 const l = tc.findChild(c, "chipText")
                 compare(l.font.family, Theme.fontData)
                 compare(l.font.pixelSize, Theme.fontSzMicro)
-                compare(l.font.letterSpacing, Theme.trackingData)
+                // A font holds its letter spacing in 1/64 px steps (QFont stores it as QFixed, and
+                // QFixed::fromReal truncates toward zero), so the token's 0.3 comes back as 19/64 =
+                // 0.296875: compare with the step the font can hold. It only passed exactly in the
+                // full run while an earlier file left Folio (tracking 0) behind (issue #171).
+                compare(l.font.letterSpacing, Math.trunc(Theme.trackingData * 64) / 64)
                 compare(c.height, Theme.sp(18))
                 compare(c.border.width, 1)
             }

@@ -111,7 +111,15 @@ Item {
             settle()
         }
 
+        // The theme and the settings this file sets, put back when it ends (issue #171): Theme and
+        // appSettings outlive one test, and a file that leaves them changed hands the next file a
+        // theme it never chose. init() sets the theme every test here is written against.
+        property var was: ({})
         function initTestCase() {
+            was = { themeIndex: Theme.themeIndex, fontScale: Theme.fontScale,
+                    chartPrefs: appSettings.chartPrefs, sectionCollapse: appSettings.sectionCollapse,
+                    wristReferenceSwingDir: appSettings.wristReferenceSwingDir,
+                    viewLayoutByMode: appSettings.viewLayoutByMode }
             verify(chartsFixture.count() === 15, "the 4 July fixture loads (15 shots)")
             hn.install()
         }
@@ -140,9 +148,12 @@ Item {
             SessionMode.mode = SessionMode.capture
             SessionMode.autoReturnToCapture = false
             SessionMode.chartsNav = null
-            appSettings.chartPrefs = ({})
-            appSettings.sectionCollapse = ({})
-            appSettings.wristReferenceSwingDir = ""
+            appSettings.chartPrefs = was.chartPrefs
+            appSettings.sectionCollapse = was.sectionCollapse
+            appSettings.wristReferenceSwingDir = was.wristReferenceSwingDir
+            appSettings.viewLayoutByMode = was.viewLayoutByMode
+            Theme.themeIndex = was.themeIndex
+            Theme.fontScale = was.fontScale
         }
 
         // ── the four views (D1) ──────────────────────────────────────────────

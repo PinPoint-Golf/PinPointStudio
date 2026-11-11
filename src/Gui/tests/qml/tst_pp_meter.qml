@@ -42,6 +42,7 @@ Item {
         property int was: 0
         function initTestCase() { was = Theme.themeIndex }
         function cleanupTestCase() { Theme.themeIndex = was }
+        function cleanup() { Theme.themeIndex = was }   // a theme-cycling test never hands its last theme to the next (issue #171)
         function init() { meter.share = 0.5; meter.tone = "#123456" }
 
         function test_tenSegmentsLitByShare() {

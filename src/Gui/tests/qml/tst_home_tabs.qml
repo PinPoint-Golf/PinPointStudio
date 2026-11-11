@@ -119,7 +119,7 @@ Item {
                        fault: true, building: false, share: 0.3, frequency: "sometimes", sessions: 4, shots: 50,
                        seenWith: "you stand up through the ball", seenWithId: "early_extension", strength: "possible",
                        trend: 0, trendWords: "→ steady",
-                       mix: { line: "Straight 31% · Pull 41% · Draw 16% · Push 6% · Other 6% · and a good many more words than the column can hold",
+                       mix: { line: "Straight 31% · Pull 41% · Draw 16% · Push 6% · Other 6% · and a good many more words than the column can hold, in every theme's face and at the width the open block is given here",
                               parts: [{ key: "straight", kind: "good", count: 10 }, { key: "draw", kind: "value", count: 5 },
                                       { key: "pull", kind: "main", count: 13 }, { key: "other", kind: "other", count: 9 }] } },
           flight:    { factor: "flight", value: "mid", label: "Mid", fault: false, building: false, sessions: 4, shots: 50 } },
