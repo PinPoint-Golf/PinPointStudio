@@ -138,7 +138,15 @@ Item {
     // — an overlay over the chips row (so it centers on the full dock width, not the space
     // left of the chips). The chips row reserves _stripBandHeight so the filmstrip clears it;
     // the dock grows to fit. Nothing showing (e.g. Capture) → the base height, unchanged.
+    // When the transport does not fit between the chips and the collapse toggle (a narrow
+    // window at a large font scale), it stacks onto a band of its own under the chips row,
+    // centred on the dock, and the dock grows by that band instead: nothing overlaps, and no
+    // control is dropped. The test reads only widths (the chips', the transport's, the dock's),
+    // never a height, so the switch cannot feed back into itself.
     readonly property bool _transportShown: root.transport !== null && root.transportActive
+    readonly property real _chipsRight: railCol.x + chipsRow.x + chipsRow.width   // in the dock's coordinates
+    readonly property bool _transportFits: _chipsRight + Theme.gap(12) + transportLoader.width
+                                           <= collapseChip.x - Theme.gap(12)
     readonly property real _stripTopMargin:    Theme.gap(3.5)   // halved top/bottom padding
     readonly property real _stripBottomMargin: Theme.gap(4)
     readonly property real _stripBandHeight:   Theme.sp(40)    // header band height when the transport shows
@@ -183,7 +191,7 @@ Item {
     // stay in step); the bands are unaffected — that is the point of collapsing.
     implicitHeight: Theme.carouselHeight
                     - (expanded ? 0 : _stripHeight + railCol.spacing)
-                    + (_transportShown ? Theme.sp(20) : 0)
+                    + (_transportShown ? (_transportFits ? Theme.sp(20) : _stripBandHeight + railCol.spacing) : 0)
                     + (_barShown ? _barBandHeight + railCol.spacing : 0)
     Behavior on implicitHeight {
         NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
@@ -347,11 +355,12 @@ Item {
 
         // ── Session chip + filter combo. The transport overlays this row, centered
         //    (the Loader below railCol); reserve the band height so the filmstrip
-        //    clears it when the transport shows. ──
+        //    clears it when the transport shows — or, when it does not fit beside
+        //    the chips, the band below (transportBand) takes it. ──
         RowLayout {
             id: chipsRow
             Layout.alignment: Qt.AlignLeft
-            Layout.minimumHeight: root._transportShown ? root._stripBandHeight : 0
+            Layout.minimumHeight: root._transportShown && root._transportFits ? root._stripBandHeight : 0
             spacing: Theme.gap(4)
 
             // The dock's two choosers are capsules (the chip's shape) that show their outline
@@ -471,6 +480,14 @@ Item {
             }
         }
 
+        // ── The transport's own band, when it does not fit beside the chips ───
+        Item {
+            id: transportBand
+            visible: root._transportShown && !root._transportFits
+            Layout.fillWidth: true
+            Layout.preferredHeight: root._stripBandHeight
+        }
+
         // ── Film strip ───────────────────────────────────────────────────────
         ListView {
             id: strip
@@ -549,20 +566,20 @@ Item {
     // buttons land on the dock's horizontal centre.
     Loader {
         id: transportLoader
-        // Centred across the dock, but clamped so it never rides over the chips on the left
-        // or the collapse toggle on the right: true-centre on a wide dock; tucked just right
-        // of the chips on a narrow one.
-        // When the action bar shows, the chips row shifts down by the bar band (+ the
-        // railCol spacing it introduces) — the transport follows so it stays centred on
-        // the chips row, not the bar. (x clamp keys off chipsRow.x, unchanged horizontally.)
-        y: root._stripTopMargin
-           + (root._barShown ? root._barBandHeight + railCol.spacing : 0)
-           + (root._stripBandHeight - height) / 2
+        // On the chips row when it fits (_transportFits): centred across the dock, but kept
+        // right of the chips and left of the collapse toggle — true-centre on a wide dock,
+        // tucked just right of the chips on a narrower one. When it does not fit, it sits
+        // centred on its own band under the chips row (transportBand). Either way it tracks
+        // its band's y through railCol, so it follows the action bar as it comes, goes or
+        // stacks.
+        readonly property Item _band: root._transportFits ? chipsRow : transportBand
+        y: railCol.y + _band.y + (_band.height - height) / 2
         x: {
             var centreX = root.width / 2 - width / 2
-            var minX    = chipsRow.x + chipsRow.width + Theme.gap(12)
+            if (!root._transportFits) return centreX
+            var minX    = root._chipsRight + Theme.gap(12)
             var maxX    = collapseChip.x - Theme.gap(12) - width
-            return Math.min(Math.max(centreX, minX), maxX)
+            return Math.max(Math.min(centreX, maxX), minX)
         }
         active:  root._transportShown
         visible: active

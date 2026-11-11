@@ -22,7 +22,8 @@
 // Close button — exit via the toolbar mode switch / Capture / Esc.
 //
 // Content-sized (implicitWidth follows the button row) so the host can right-align it in
-// the carousel strip; it does not stretch to fill.
+// the carousel strip; it does not stretch to fill. Its width holds still through playback
+// (the time readout is sized to the clip's duration), so the host's layout never jumps.
 
 import QtQuick
 import QtQuick.Layouts
@@ -34,6 +35,8 @@ Item {
     implicitHeight: Theme.sp(40)
 
     function _fmt(us) { return (Math.max(0, us) / 1e6).toFixed(2) + "s" }
+    property string _posText: _fmt(shotReplay.positionUs - shotReplay.startUs)
+    property string _durText: _fmt(shotReplay.endUs - shotReplay.startUs)
 
     RowLayout {
         id: bar
@@ -62,11 +65,26 @@ Item {
             onActivated: (value) => shotReplay.setSpeed(parseFloat(value))
         }
 
+        // Position / duration. Sized to the duration's text in both halves, so the readout (and
+        // the whole transport) keeps one width through playback: the position never has more
+        // digits than the duration, and the data face's digits are fixed-width in every theme
+        // (monospaced, or tabular in Folio). Without this a clip of 10 s or more widened by a
+        // digit as the playhead passed 10 s, and the carousel's fit test could move the transport
+        // between its rows mid-replay.
         PpMicro {
+            id: readout
+            objectName: "transportTime"
             Layout.leftMargin: Theme.gap(8)
-            text: root._fmt(shotReplay.positionUs - shotReplay.startUs)
-                  + " / " + root._fmt(shotReplay.endUs - shotReplay.startUs)
+            Layout.preferredWidth: Math.max(implicitWidth, readoutSizer.implicitWidth)
+            horizontalAlignment: Text.AlignRight   // the duration stays still as the position gains a digit
+            text: root._posText + " / " + root._durText
             font.letterSpacing: Theme.trackingData
         }
+    }
+    PpMicro {   // measures the readout at its widest; never drawn
+        id: readoutSizer
+        visible: false
+        text: root._durText + " / " + root._durText
+        font.letterSpacing: Theme.trackingData
     }
 }
