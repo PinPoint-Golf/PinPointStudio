@@ -705,6 +705,45 @@ int main()
               "versions.shaftDtl.code");
         check(!an.contains(QStringLiteral("dtlRuler")) && !vv.contains(QStringLiteral("dtlPosture")),
               "DtlPosture did not run ⇒ no dtlRuler block, no versions.dtlPosture");
+        check(!vv.contains(QStringLiteral("shaftDirection")),
+              "ShaftDirection did not run ⇒ no versions.shaftDirection");
+        // versions.shaftDirection (2026-11-12): stamped only when ShaftDirectionStage ran; series only.
+        {
+            SwingAnalysis aS = aD;
+            aS.versions.shaftDirection = kShaftDirectionStageVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "shaftDirection version write ok");
+            const QJsonObject vS = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vS[QStringLiteral("shaftDirection")].toObject()[QStringLiteral("code")].toInt()
+                      == kShaftDirectionStageVersion && kShaftDirectionStageVersion == 1,
+                  "versions.shaftDirection.code == kShaftDirectionStageVersion (1)");
+        }
+        check(!vv.contains(QStringLiteral("skeleton3dBody")),
+              "Skeleton3dBody did not run ⇒ no versions.skeleton3dBody");
+        // versions.skeleton3dBody (2026-11-12): stamped only when Skeleton3dBodyStage ran; series only.
+        {
+            SwingAnalysis aB = aD;
+            aB.versions.skeleton3dBody = kSkeleton3dBodyStageVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aB, &derr), "skeleton3dBody version write ok");
+            const QJsonObject vB = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vB[QStringLiteral("skeleton3dBody")].toObject()[QStringLiteral("code")].toInt()
+                      == kSkeleton3dBodyStageVersion && kSkeleton3dBodyStageVersion == 1,
+                  "versions.skeleton3dBody.code == kSkeleton3dBodyStageVersion (1)");
+        }
+        check(!vv.contains(QStringLiteral("hipInternalRotation")),
+              "HipInternalRotation did not run ⇒ no versions.hipInternalRotation");
+        // versions.hipInternalRotation (2026-11-12): stamped only when HipInternalRotationStage ran; series only.
+        {
+            SwingAnalysis aH = aD;
+            aH.versions.hipInternalRotation = kHipInternalRotationStageVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aH, &derr), "hipInternalRotation version write ok");
+            const QJsonObject vH = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vH[QStringLiteral("hipInternalRotation")].toObject()[QStringLiteral("code")].toInt()
+                      == kHipInternalRotationStageVersion && kHipInternalRotationStageVersion == 1,
+                  "versions.hipInternalRotation.code == kHipInternalRotationStageVersion (1)");
+        }
 
         // posture_chart_design.md §10 stage 4a: the DTL ruler persisted (analysis.dtlRuler) and the
         // DTL P-frames in addressMarks schema /2; a /1 record still reads.

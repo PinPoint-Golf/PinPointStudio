@@ -21,6 +21,7 @@
 #include "../charts/charts_words.h"
 #include "../charts/session_sequence.h"
 #include "../../Metrics/gate_catalogue.h"
+#include "../../Analysis/route_substitution.h"   // substitutedGapGate (substitutedGapFor)
 
 #include <QHash>
 #include <QJsonArray>
@@ -132,6 +133,24 @@ QVariantMap gateFor(const QVariantList &gateList, const QString &key)
                                                          : gates::subjectLabel(r->subject).toLower() + QLatin1Char(' ') + gates::claimWords(*e) },
              { QStringLiteral("title"), e->title },
              { QStringLiteral("sentence"), gates::evidenceText(*e, r->evidence) } };
+}
+
+QVariantMap substitutedGapFor(const QVariantList &gateList, const QString &key)
+{
+    if (key.isEmpty() || gateList.isEmpty()) return {};
+    const std::vector<analysis::GateRecord> recs = analysis::gateRecordsFromJson(QJsonArray::fromVariantList(gateList));
+    const QString id = analysis::substitutedGapGate(recs, key);
+    const gates::GateEntry *e = id.isEmpty() ? nullptr : gates::gateEntry(id);
+    if (!e) return {};
+    const QString eff = e->effects.empty() ? QStringLiteral("refused")
+                                           : QString::fromLatin1(analysis::gateEffectKey(e->effects.front()));
+    return { { QStringLiteral("subject"), key },
+             { QStringLiteral("gate"), id },
+             { QStringLiteral("effect"), eff },
+             { QStringLiteral("words"), gates::claimWords(*e) },
+             { QStringLiteral("title"), e->title },
+             { QStringLiteral("sentence"), QString() },
+             { QStringLiteral("substituted"), true } };
 }
 
 namespace {

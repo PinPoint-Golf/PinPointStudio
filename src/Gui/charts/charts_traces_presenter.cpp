@@ -843,7 +843,12 @@ QVariantMap gateOf(const ShotSeries *shot, const QString &key, bool refusing)
     if (g.isEmpty() || g.value(QStringLiteral("words")).toString().isEmpty()) return {};
     if (refusing) {
         const QString eff = g.value(QStringLiteral("effect")).toString();
-        if (eff != QLatin1String("refused") && eff != QLatin1String("bounded")) return {};
+        if (eff != QLatin1String("refused") && eff != QLatin1String("bounded")) {
+            // a reading another route supplied, with nothing here: the failed route's record is still
+            // the reason (route_substitution.h; trust_readings.h substitutedGapFor)
+            const QVariantMap sub = trust::substitutedGapFor(shot->gates, key);
+            return sub.value(QStringLiteral("words")).toString().isEmpty() ? QVariantMap{} : sub;
+        }
     }
     return g;
 }

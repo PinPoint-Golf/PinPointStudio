@@ -189,6 +189,37 @@ inline void appendClubGates(std::vector<GateEntry> &c)
         { GateEffect::Masked }, pipeProd, fusionDoc)
         .tuning = { tune("shaft.fusion.minCond", 0.26, "") };
 
+    // ── Where the shaft points (shaft_direction_series.h, for ShaftDirectionStage) ───────────────
+    // DOWNGRADED, never refused: both readings are shown and judged, a step lower in trust, with the
+    // warning. The camera record lifts when a measured calibration reaches the job.
+    const char *sdProd = "src/Club/shaft_direction_series.h";
+    add(c, "club3d.cameraAssumed", club, "Camera direction assumed", "camera direction assumed",
+        QStringLiteral("Where the shaft points is read against the target line, and the down-the-line camera is "
+                       "what tells the two cameras which way that line runs. Until the camera has been calibrated "
+                       "with the alignment sticks, its direction is assumed to be straight down the line — and a "
+                       "camera turned a few degrees turns every reading of where the shaft points by the same few "
+                       "degrees. So the reading is kept and judged, a step lower in trust, and carries that "
+                       "much more uncertainty. Calibrating the camera removes this warning."),
+        "The down-the-line camera's direction is assumed, so where the shaft points carries ±{sigmaYawDeg:deg}.",
+        { GateEffect::Downgraded }, sdProd, fusionDoc);
+    {
+        GateEntry &e = add(c, "club3d.shaftDirectionFromFit", club, "Read from the 3-D fit", "from the 3-D fit",
+            QStringLiteral("Where the shaft points is normally read where the two cameras' tracks of the shaft cross. "
+                           "When, at a position, the two tracks could not fix the shaft's direction — their views "
+                           "met too nearly edge-on (halfway back the shaft points almost straight at the "
+                           "down-the-line camera), they disagreed about which way along the shaft the head was, "
+                           "or the face-on camera did not measure the club there — the reading comes from the 3-D "
+                           "fit of the golfer and club instead, which holds the club in the hands and on its swing "
+                           "plane. It is kept and judged, a step lower in trust, with this warning."),
+            "{code:code} came from the 3-D fit rather than the two shaft tracks[ ({fitFrames} of {ofFrames} frames of "
+            "the curve did)].",
+            { GateEffect::Downgraded }, sdProd, fusionDoc);
+        e.codes = {
+            { QStringLiteral("p2"),    QStringLiteral("The reading halfway back") },
+            { QStringLiteral("top"),   QStringLiteral("The reading at the top") },
+            { QStringLiteral("both"),  QStringLiteral("The readings halfway back and at the top") } };
+    }
+
     // ── The down-the-line club track (dtl_shaft_post.cpp dtlShaftGates) ──────────────────────────
     add(c, "clubDtl.topOutOfView", club, "Top out of the picture", "top out of the picture",
         QStringLiteral("At the top of the backswing the club rises above the hands. When the hands are less than a "

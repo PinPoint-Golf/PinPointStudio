@@ -1055,6 +1055,36 @@ inline constexpr double       kTriMinBaselineM = 0.08;
 // +30–45° (chest), so a face-in sensor reads −15° to −45°; −5° keeps ten degrees of margin. A design
 // value: no worn session has measured it yet.
 inline constexpr double       kFaceInBendDeg = -5.0;    // bodyRotation.faceInBendDeg
+// THE TRUNK SENSORS' σ BUDGET (trunk_imu_sequence_grf_design.md §8.2), per sample, in quadrature, for
+// the readings the IMU tier computes with a σ: spineForwardBend and spineSideBend from the trunk
+// sensors, and the pelvis turn inside trailHipInternalRotation / leadHipInternalRotation
+// (trunk_sensor_series.h; planned-metrics promotion, 12 Nov 2026). No worn session exists to seat
+// any of them; each says where it came from.
+//  · Garment / soft tissue, per segment: §8.2's PLACEHOLDERS (3° chest, 2° hips), to be replaced by
+//    the §13 truth session's measurement.
+inline constexpr double       kImuTissueSigmaThoraxDeg = 3.0;
+inline constexpr double       kImuTissueSigmaPelvisDeg = 2.0;
+//  · Gyro scale: §8.2's 1.5 % of the excursion from address (of the turn; taken the same way for a
+//    bend's change from address).
+inline constexpr double       kImuGyroScaleFrac = 0.015;
+//  · Bias drift: residual gyro bias × time from address. §8.2 names the term without a number; the
+//    stand-tall health gate refuses a sensor whose still bias reaches calib::kTrunkStillGyroMaxDps
+//    (0.5 °/s), so that bound is taken as the 1σ. PROVISIONAL — the worn session measures it.
+inline constexpr double       kImuResidualBiasDps = double(calib::kTrunkStillGyroMaxDps);
+//  · Mount yaw δ, first order for side bend and obliquity only (§6.2: asin(sin θ·sin δ)): the δ0
+//    tier's σ, calib::kTrunkMountYawSigmaDeg (10°, §6.5), until a swing-refined δ reaches the job.
+//  · Not in the budget, and why: the ceremony's axis residuals and a slip flag (§6.8) do not reach
+//    the analysis (FusedStreams carries neither), and δ's effect on a TURN is "near zero" (§6.2).
+// HIP INTERNAL ROTATION'S THIGH, ASSUMED FIXED (trunk_sensor_series.h): where the two-camera fit did
+// not read a thigh's own turn, the hip's rotation is the pelvis turn alone, and the thigh's turn is
+// carried as this 1σ with the body.thighTurnAssumed record. PROVISIONAL, 6° (was a starting 10°): seated
+// on the one-swing check, 2026-07-04 Mark-Liversedge swing 8 (scratch copy, swinglab_run --write-back,
+// recorded pose reused; planned_metrics_promotion.md). The fit's thigh turn from address read lead
+// −2.3° at the top and +1.5° at impact, trail −1.9° at impact; the trail thigh was unmeasured at the
+// top (trail knee 1.7° bent, below body3d::kThighTurnMinKneeFlexDeg 12°). The measured thigh-turn σ
+// was 3.5–6°, so the thigh's own turn on that swing was within what the fit can resolve, and 6° covers
+// that resolution. One swing, one golfer: a worn session (pelvis sensor) with the 3-D fit seats it.
+inline constexpr double       kHipIrThighFixedSigmaDeg = 6.0;
 } // namespace bodyRotation
 
 // --- Kinematic sequence (src/Kinematics/segment_rates.h) -----------------------
@@ -1842,5 +1872,72 @@ inline constexpr bool kFb        = true;   // shaft.parallel.fb   — face-on U5
 inline constexpr bool kDtlMedian = true;   // shaft.dtl.parallel.medians — the ball/shadow medians by row
 inline constexpr bool kDtlPost   = true;   // shaft.dtl.parallel.post — the snap + run loop per frame
 } // namespace shaftParallel
+
+// --- The down-the-line camera's direction (planned-metrics promotion, 12 Nov 2026) --------------
+// Every BEARING read in the two-camera frame (a heading in the ground plane: where the shaft points,
+// where the shoulders aim) moves one-for-one with the down-the-line camera's yaw, which nothing
+// measures until a calibration reaches the job (job.dtlCameraCalib.calibrated). Tilts and
+// inclinations do not carry it (≤ 1° over ±15° of yaw, shaft_fusion.h). Added in quadrature to the
+// reading's own σ, with the camera-assumed trust record (club3d.cameraAssumed).
+namespace dtlCamera {
+// Uncalibrated: the 4 July stick probe found the down-the-line camera turned 4.4–8.7° toward the
+// golfer, by its distance (tools/shaftlab/dtl_yaw_probe.py; dtl_posture_design.md §4), so 5° is
+// that range's lower end taken as one σ. A design value, not a calibration.
+inline constexpr double kDtlYawSigmaUncalDeg = 5.0;
+// Calibrated (camera_pose_sticks.h on the protocol's stick clips): a stated 1°. Provisional — no
+// calibrated session has been graded against a second yaw measurement yet.
+inline constexpr double kDtlYawSigmaCalDeg   = 1.0;
+} // namespace dtlCamera
+
+// --- Shaft direction (src/Club/shaft_direction.h; ShaftDirectionStage) --------------------------
+// The bearing of the shaft against the target line at P2 and the top. The fused 3-D shaft is the
+// first source; the 3-D skeleton's shaft is the fallback where fusion has no clean frame near the
+// position (at P2 the shaft points almost straight at the down-the-line camera, so the two views'
+// planes coincide and fusion flags the frames ill-conditioned).
+namespace shaftDirection {
+// A fused frame is read at a position only within this of its instant — the plan's ±25 ms (about
+// three down-the-line frames at 120 fps). The skeleton fallback uses the same window.
+inline constexpr std::int64_t kFusionWindowUs  = 25000;
+// A fused frame with any of these flags is not a direction to read a bearing from:
+// SignDisagree 0x01 | IllConditioned 0x02 | Reflected 0x10 (shaft_fusion.h SampleFlag; pinned by a
+// static_assert in shaft_direction.h). OffPlane and DtlAnchored are not in the set: an off-plane
+// frame is still a measured direction, and an anchored frame is face-on BRIDGED, which the
+// Measured rule already refuses.
+inline constexpr std::uint8_t  kFusionRejectFlags = 0x13;
+// The skeleton fallback reads only frames whose shaft one camera or both saw (FitResult::shaftTier
+// 2 = one view, 3 = both views); tier 1 is the model alone.
+inline constexpr int    kSkeletonMinShaftTier = 2;
+// The skeleton shaft's direction σ — the fit publishes none for the shaft. PROVISIONAL, seated on
+// the one-swing check (planned_metrics_promotion.md):
+//  · both views (tier 3): the fit's two shaft-angle observation σs, 3° face-on and 4° down the
+//    line (skeleton3d_fit.h FitConfig::shaftSigmaDegFo / shaftSigmaDegDtl), in quadrature;
+//  · one view (tier 2): the swing-plane term's σ_plane, 15° (skeleton3d_shaft_branch_design.md
+//    §3.1) — with one camera the shaft's depth, which IS its bearing at P2, is held only by it.
+inline constexpr double kShaftDirSkeletonSigmaDeg        = 5.0;
+inline constexpr double kShaftDirSkeletonOneViewSigmaDeg = 15.0;
+// A shaft this close to vertical has no bearing worth reading: its horizontal projection is under
+// sin 10° of its length, so the bearing's σ is more than 5.8× the direction's — wider than either
+// position's whole corridor (norms σLo 5° at P2, 8° at the top). Such frames are bridged in the
+// curve and never read at a position. A design value.
+inline constexpr double kMinHorizontalFrac = 0.1736;   // sin 10°
+} // namespace shaftDirection
+
+// --- Readings from the 3-D body (src/Body/skeleton3d_body_metrics.h; Skeleton3dBodyStage) ---------
+// shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion and spineSideBend, and the
+// research-only thigh turns, off the two-camera skeleton fit. Every other number they use is shared
+// with the two-camera turn (tuned::bodyRotation: kTriMinBaselineM, kAddrWindowUs, kTriAddrMaxGapUs,
+// kTriScaleFrac), the grader (tuned::sampler::kWindowHalfUs) and the camera yaw (tuned::dtlCamera).
+namespace body3d {
+// A thigh's axial turn is the heading of the normal to its hip–knee–ankle plane, and a leg nearly
+// straight has no plane: the normal's direction σ grows as 1/sin(knee flexion), so at 12° it is
+// ~5× the joints' own angular σ. Frames with less knee bend than this are UNMEASURED (bridged in the
+// curve). PROVISIONAL — the plan's starting value, to be seated on the one-swing check
+// (planned_metrics_promotion.md) against the knee bend the fit reads at address and the top.
+inline constexpr double kThighTurnMinKneeFlexDeg = 12.0;
+// The hip–knee–ankle plane of a standing leg is near vertical, so its normal is near horizontal.
+// A normal whose ground projection is under half its length (the plane tipped more than 60° from
+// vertical) has a heading that is mostly noise, and is not read. A design value: no swing reaches it.
+inline constexpr double kThighTurnMinNormalHorizFrac = 0.5;
+} // namespace body3d
 
 } // namespace pinpoint::tuned

@@ -427,7 +427,7 @@ Notation: `R_seg` = a segment's right-handed anatomical frame (built per the arc
 | `thoraxRotation` | Axial thorax turn vs address: `turn(e_ml_thorax)`. | fused / IMU thorax | Top, Impact | deg | Top ~90 (shoulders) (PMC9227529) |
 | `xFactor` | Thorax-minus-pelvis axial separation: `turn(e_ml_thorax) − turn(e_ml_pelvis)`, or `twist(q_pelvis⁻¹·q_thorax, pelvis_up)`. Label the method (acromion ≈2× spine). | fused / IMU | Top | deg | Top ~40–42 (TPI); ~48–60 shoulder-vs-pelvis (PMC9227529) |
 | `xFactorStretch` | `max(xFactor over early downswing) − xFactor(Top)`. The stretch-shorten power signal — better speed predictor than static X-factor. | fused / IMU | Transition→early downswing | deg | ~5; skilled +19% vs +13% (Cheetham X-Factor Stretch) |
-| `hipInternalRotation` | True hip-joint rotation: thigh axial vs pelvis, `twist(q_pelvis⁻¹·q_thigh, thigh_long)`, per side. | fused 3D | Top, Impact | deg | lead ~50 / trail ~40 amplitude (PMC9227529) |
+| `trailHipInternalRotation` / `leadHipInternalRotation` (was `hipInternalRotation`, split per side 12 Nov 2026) | True hip-joint rotation: thigh axial vs pelvis, per side. As built: the pelvis sensor's signed turn less that thigh's own turn off the two-camera fit, the thigh assumed fixed without it (`body_rotation_estimation.md` §7.4); no thigh sensor. | IMU pelvis + fused 3D thigh | Top, Impact | deg | lead ~50 / trail ~40 amplitude (PMC9227529) |
 | `leadWristFlexExt` | Lead hand flexion(+)/extension(−) vs forearm: Cardan component 1 of `q_forearm⁻¹·q_hand` about hand medio-lateral axis. Measured **relative to Address**. | **IMU (lead wrist/hand)** | Top, Impact | deg | Impact 15–30 more flexed than address; cupping at top a fault (HackMotion) |
 | `leadWristRadUln` | Radial(+)/ulnar(−) deviation: Cardan component 2 of `q_forearm⁻¹·q_hand` about dorsal-palmar axis. | **IMU (lead wrist/hand)** | Top, Impact | deg | sets/holds lag; large ulnar at top normal (HackMotion) |
 | `forearmPronation` | Lead-forearm pronation(+)/supination(−): `twist(q_upperarm⁻¹·q_forearm, elbow→wrist)`. | **IMU / fused** | Top→Impact | deg | rolls toward square through impact (PMC9227529) |
@@ -472,7 +472,7 @@ the common **1 face-on camera + sparse IMU** owner. Three groups fall out:
 | `thoraxRotation` | good | **IMU** thorax axial turn vs address | low-conf cross-check only | 0 |
 | `xFactor` | **full** | **IMU pair** `twist(q_pelvis⁻¹·q_thorax, up)` | nothing | 0 |
 | `xFactorStretch` | **full** | **IMU pair** time series (vision is *worse* here) | nothing | 0 |
-| `hipInternalRotation` | limited² | **IMU** thigh-vs-pelvis twist (needs thigh IMU) | not recovered by camera count | 0 |
+| `trailHipInternalRotation` / `leadHipInternalRotation` | limited² | **IMU** pelvis turn − the two-camera fit's thigh turn (12 Nov 2026; the thigh assumed fixed without the fit — no thigh IMU is placed) | the thigh's turn needs both cameras | 0 |
 | `leadWristFlexExt` | **full** | **IMU** Cardan-1 of `q_forearm⁻¹·q_hand` | ~nothing (no hand kpts in COCO-17) | 0 |
 | `leadWristRadUln` | **full** | **IMU** Cardan-2 of `q_forearm⁻¹·q_hand` | ~nothing | 0 |
 | `forearmPronation` | full³ | **IMU** `twist(q_upper⁻¹·q_fore, elbow→wrist)` | nothing (axial roll, not visual) | 0 |

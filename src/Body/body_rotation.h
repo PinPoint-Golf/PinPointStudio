@@ -34,7 +34,10 @@
 //     plane, referenced to its own address direction (trunk design D13, trunk_angles::turnFromRad).
 //     This is the quantity the descriptor names, measured rather than inferred, and it is what the
 //     metric resolves as `Measured`. The same difference, kept signed and made lead-relative, is
-//     pelvisRotationSigned / thoraxRotationSigned (trunk design defect 2).
+//     pelvisRotationSigned / thoraxRotationSigned (trunk design defect 2). The same sensors also give
+//     the trunk's BENDS (12 Nov 2026): spineForwardBend from the chest sensor and spineSideBend from
+//     the pair, each with its §8.2 σ — see BodyRotationResult::forwardBend. Every IMU-tier series
+//     carries its route (pelvisImu / thoraxImu / trunkImus, Direct).
 //
 //   Tier FORESHORTENING (`RotationTier::Foreshortening`) — a face-on camera only. As a body line
 //     turns away from the camera its image width collapses by the cosine of the turn, so
@@ -122,6 +125,9 @@ struct BodyRotationConfig {
     // itself leans back — the sagittal sense points backward AND the whole inclination (side bend
     // included, D13) exceeds 5° — which is not an address.
     double  faceInBendDeg   = tuned::bodyRotation::kFaceInBendDeg;     // bodyRotation.faceInBendDeg
+    // Write the trunk sensors' bend σ (uncertainty.enabled). Not a bodyRotation.* key: the stage sets
+    // it from UncertaintyConfig, as every producer that honours the switch does.
+    bool    withSigma       = true;
 
     static BodyRotationConfig fromOverrides(const QVariantMap &ov)
     {
@@ -178,6 +184,26 @@ struct BodyRotationResult {
     // What the face-in cue (body.pelvisFaceIn / body.thoraxFaceIn) compared.
     double pelvisAddressBendDeg = std::numeric_limits<double>::quiet_NaN();
     double thoraxAddressBendDeg = std::numeric_limits<double>::quiet_NaN();
+    // THE TRUNK SENSORS' BENDS (planned-metrics promotion W3, 12 Nov 2026; trunk design §3.2 / §8.8,
+    // D13): the catalogue's `trunkImus` rungs, Direct, on the STREAM grid (the sensors' own samples),
+    // each with its §8.2 σ per sample (trunk_sensor_series.h). Absolute — the stand-tall solve zeroes
+    // both at standing tall — like the camera readings they outrank.
+    //   forwardBend  spineForwardBend: the chest sensor's forward bend, its long axis in the vertical
+    //                plane through the ball (trunk_sensor_series.h ballPlaneBendDeg, + toward the ball;
+    //                sign-stable through the turn, unlike D13's forwardBendRad). The chest alone.
+    //   sideBend     spineSideBend: the chest's frontal tilt against the hips', both from
+    //                trunk_angles::obliquityRad, + toward the TRAIL side (the chest's lead side up
+    //                against the hips'): s·(obliquity_pelvis − obliquity_thorax), s = +1 for a
+    //                right-hander, −1 for a left-hander (the raw obliquity is + with the golfer's RIGHT
+    //                side up). Both sensors. First-order sensitive to each mount yaw δ through that
+    //                segment's forward bend (§6.2), which its σ carries.
+    MetricChannel forwardBend, sideBend;
+    std::vector<double> forwardBendSigma, sideBendSigma;   // parallel to the channels
+    bool bendSigma = true;                                  // cfg.withSigma when the bends were read
+    // Each sensor's ball-plane forward bend at address (°; NaN without one) — the θ of the side bend's
+    // mount-yaw record (body.trunkMountYawAssumed).
+    double thoraxAddressBallBendDeg = std::numeric_limits<double>::quiet_NaN();
+    double pelvisAddressBallBendDeg = std::numeric_limits<double>::quiet_NaN();
     bool   valid = false;                      // at least one segment produced a turn curve
 
     // Trust stage 6: the gates this route decided. trackBodyRotationTriangulated records its own
@@ -202,7 +228,10 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
                                      const BodyRotationConfig &cfg = {});
 
 // Emit pelvisRotation / thoraxRotation / pelvisRotationSigned / thoraxRotationSigned / xFactor /
-// xFactorStretch. A channel that could not be produced is simply absent — never a curve of zeros.
+// xFactorStretch, and the trunk sensors' spineForwardBend / spineSideBend (their phase readings the
+// graded ones, trunk_sensor_series.h stampGradedPhases). A channel that could not be produced is
+// simply absent — never a curve of zeros. The bends are published BESIDE any camera reading of the
+// same key; applyTrunkSensorPrecedence (trunk_sensor_series.h, after every stage) makes them the answer.
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                                   const std::vector<PhaseEvent> &phases);
 

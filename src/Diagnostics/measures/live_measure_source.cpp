@@ -19,6 +19,7 @@
 #include "live_measure_source.h"
 #include "../../Core/club_vocabulary.h"     // baseline keys are canonical club ids
 #include "../../Metrics/gate_catalogue.h"   // the gate behind an absent measure (gateCause)
+#include "../../Analysis/route_substitution.h"   // substitutedGapGate (gateCause's fallback)
 
 #include "../norms/context_tree.h"
 
@@ -274,6 +275,13 @@ LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measure
         const QString subject = ks.isEmpty() ? key : ks;
         if (const GateRecord *r = gates::primaryRecord(m_grid.gates, subject))
             return { r->gate, r->subject, gates::notJudgedClause(r->subject, r->gate) };
+    }
+    // A reading a second route supplied (route_substitution.h) whose curve has nothing where this
+    // measure reads: the failed route's record was moved off the reading onto the substitute's
+    // `replacedRecords`, and it is still the true reason for the gap — never "phase not segmented".
+    for (const QString &key : keys) {
+        const QString id = substitutedGapGate(m_grid.gates, key);
+        if (!id.isEmpty()) return { id, key, gates::notJudgedClause(key, id) };
     }
     return {};
 }

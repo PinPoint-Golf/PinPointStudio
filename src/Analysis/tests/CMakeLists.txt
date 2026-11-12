@@ -921,6 +921,18 @@ pp_add_test(dtl_posture_test SOURCES dtl_posture_test.cpp)
 # unmeasured frames are bridged and flagged. Qt-only, no fixture.
 pp_add_test(dtl_shaft_lie_test SOURCES dtl_shaft_lie_test.cpp)
 
+# shaftDirection's per-shot assembly (shaft_direction_series.h, ShaftDirectionStage): route, σ, the
+# camera-assumed and from-the-fit records, and the graded value (series_reduce.h reduceAt, as
+# measure_sample.cpp grades) agreeing with the stamped phase reading and its source. Qt-only.
+pp_add_test(shaft_direction_test SOURCES shaft_direction_test.cpp)
+
+# The readings from the 3-D body (skeleton3d_body_metrics.h / skeleton3d_body_series.h,
+# Skeleton3dBodyStage): the shoulder line's inclination and aim, the knee bend, the side bend and the
+# thigh turns on synthetic joint sets — values, signs (a left-hander mirrored), σ against Monte
+# Carlo, tier gating — the camera-assumed record, the graded value (series_reduce.h reduceAt)
+# agreeing with every stamped phase reading, and the precedence rules. Qt-only, no fixture.
+pp_add_test(skeleton3d_body_metrics_test SOURCES skeleton3d_body_metrics_test.cpp)
+
 # GOLDEN CROSS-CHECK for shaft_plane.h against the corpus reference the research
 # note published (transition_plane_corpus.csv, from `plane_probe.py corpus`).
 # Reads the EXISTING result.json at each swing dir — no pipeline re-run, no

@@ -77,6 +77,16 @@ QVariantMap trustSummary(const charts::SessionSnapshot &session);
 //     claim: "out of sight", "drawn, not judged"), title, sentence (the evidence, filled) }
 QVariantMap gateFor(const QVariantList &gates, const QString &key);
 
+// THE GAP IN A READING ANOTHER ROUTE SUPPLIED (route_substitution.h). The supplying route's substitute
+// record (body3d.fromFit) speaks for the reading, and the failed route's refusal was moved off it onto
+// the substitute's `replacedRecords`. Where the supplied series has NO value — the fit read the lead knee
+// near address but not through impact — that failed route's record is still the true reason for the "-".
+// gateFor's shape, built from the first of `replacedRecords`: { subject (the key), gate, effect (the
+// entry's first), words (its claim words), title, sentence (empty: the record's own evidence was not
+// kept), substituted: true }. Empty when the key has no substitute or it replaced nothing. Ask it only
+// for a reading with no value: on a value the substitute's own record (gateFor) is the answer.
+QVariantMap substitutedGapFor(const QVariantList &gates, const QString &key);
+
 // A subject as the reader names the reading ("ks.pelvis" → "Pelvis peak").
 QString subjectLabel(const QString &subject);
 

@@ -121,13 +121,14 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "noProducer",
+      "status": "live",
       "label": "Shoulder line aim, at P1",
       "unit": "°",
-      "highMeans": "the shoulder line aimed further right of the target — closed; open is negative and closed positive, the club-path convention",
+      "golferHigh": "your shoulders are set more closed at address",
+      "golferLow": "your shoulders are set more open at address",
+      "highMeans": "the shoulder line aimed further closed — right of the target for a right-hander; open is negative and closed positive, the club-path convention",
       "golferSign": 1,
-      "golferName": "shoulder aim at address, minus meaning open",
-      "gapReason": "Aim is rotation about the body's vertical axis, and this measure read shoulderPlaneAngle at P1 instead — the shoulder line's TILT in the face-on image. The two are not the same quantity: a right-hander's trail hand sits lower on the grip, so the trail shoulder sits ~8-12 deg below the lead one at address on every square setup, and a corridor of 0 +/- 4 deg on that tilt fired alignment_open on 7 of 7 shots of the 9 Sep 2026 session (values -9 to -11 deg) while the video shows the shoulders square. The perspective effect the sign-conventions doc relies on — the shoulder further from the camera imaging higher — is real but an order of magnitude smaller than the grip tilt it is buried under, so the tilt cannot be corrected into an aim. Rotation about the vertical axis is not measurable from one camera (8524467); this waits on the triangulated pair, which reads the shoulder line's bearing as geometry. shoulderPlaneAngle at P1 remains a fine reading of the tilt itself, which is not this fault."
+      "golferName": "shoulder aim at address, minus meaning open"
     },
     {
       "id": "m_spineBendAtAddress",
@@ -749,14 +750,15 @@
         "kind": "at",
         "anchor": "p4"
       },
-      "status": "noProducer",
+      "status": "live",
       "label": "",
       "metricKey": "shoulderPlaneAngle3d",
       "highMeans": "a steeper, more vertical shoulder turn",
+      "golferHigh": "your shoulders turn more steeply at the top",
+      "golferLow": "your shoulders turn flatter at the top",
       "golferSign": 1,
       "golferName": "steepness of your shoulder turn at the top",
-      "unit": "°",
-      "gapReason": "shoulderPlaneAngle at P4 is the shoulder line's angle in the face-on IMAGE, and by the top the thorax has turned 70-90°, so the two shoulder joints foreshorten toward one column: on the seven 9 Sep 2026 swings their separation collapsed from 131 px at address to 19-79 px at confidence 0.40-0.54, and the \"plane \"angle\" read 5.7, 28.7, 4.6, 26.8, 8.2, 13.2 and 30.4° on swings of one shape. atan(dy/dx) with dx near zero is the camera, not the golfer — the same class as the rotation family retired in 8524467, an image-plane angle whose meaning is destroyed by the turn exactly where the condition reads it. The series stays honest at address and impact; the P4 reading waits on the triangulated pair, which measures the line as geometry."
+      "unit": "°"
     },
     {
       "id": "m_ballBodyGap",
@@ -822,8 +824,7 @@
         ],
         "sense": "max"
       },
-      "status": "held",
-      "gapReason": "Produced from the down-the-line view, but the lead leg is occluded by the trail leg there, so it is not trusted to grade.",
+      "status": "live",
       "shape": "ceiling",
       "label": "Lead knee flexion, peak P7 to P8",
       "metricKey": "leadKneeFlexion",
@@ -2270,10 +2271,12 @@
         "kind": "at",
         "anchor": "p2"
       },
-      "status": "planned",
+      "status": "live",
       "label": "Shaft direction, at P2",
       "unit": "°",
-      "highMeans": "the shaft pointing further right of the target — outside the line",
+      "golferHigh": "the club goes back more outside the line",
+      "golferLow": "the club goes back more inside the line",
+      "highMeans": "the shaft pointing further outside the line, away from the golfer — right of the target for a right-hander",
       "golferSign": 1,
       "golferName": "club direction halfway back, minus meaning inside the line",
       "viewNeeded": "downTheLine"
@@ -2286,10 +2289,12 @@
         "kind": "at",
         "anchor": "p4"
       },
-      "status": "planned",
+      "status": "live",
       "label": "Shaft direction, at the top",
       "unit": "°",
-      "highMeans": "the club pointing further right of the target — across the line",
+      "golferHigh": "the club points more across the line at the top",
+      "golferLow": "the club is more laid off at the top",
+      "highMeans": "the club pointing further across the line, away from the golfer — right of the target for a right-hander",
       "golferSign": 1,
       "golferName": "club pointing across the line at the top",
       "viewNeeded": "downTheLine"

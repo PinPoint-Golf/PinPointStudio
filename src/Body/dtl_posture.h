@@ -41,7 +41,9 @@
 //   spineForwardBend  °    hip-midpoint → shoulder-midpoint against the vertical, + over the ball.
 //   leadKneeFlexion   °    180° − (hip, knee, ankle), by side. The trail leg is nearer the camera
 //   trailKneeFlexion  °    and occludes the lead one through much of the swing; both are emitted
-//                          and the confidence gate is what speaks for the lead knee.
+//                          and the confidence gate is what speaks for the lead knee. On a two-camera
+//                          shot the 3-D fit's lead knee replaces this one where the fit reads through
+//                          impact (Skeleton3dBodyStage, skeleton3d_body_series.h).
 //   ballBodyDistance  cm   ball to the toe line at address, with the CLUB as the ruler: the ball
 //                          sits one club length from the hands, so cm/px = club length / the
 //                          wrist→ball distance in the picture (ball_reach_by_club.md §2).

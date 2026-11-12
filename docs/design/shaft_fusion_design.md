@@ -72,7 +72,8 @@ finding.
   the disagreement list.
 - **Not claimed:** the plane's heading (swing direction). It is written, with
   `camera.calibrated: false`, and it is only as good as `shaft.fusion.dtlYawDeg`. The
-  pair route measured the two cameras at 75–84°, not 90°.
+  pair route measured the two cameras at 75–84°, not 90°. (Since 12 Nov 2026 one heading IS
+  published — where the shaft points, `shaftDirection` — with the yaw's σ and a warning: §7.)
 - **Not done:** a full 3-D *track*. DTL is end-on at P2, the top and P6, so fused frames
   come in bands (9–19 in the downswing). The continuous product is the face-on angle
   de-projected through the fused plane — which is exactly what the sequence now does.
@@ -127,3 +128,38 @@ rule and was left alone.
   toward the golfer depending on its distance, and shows it was MOVED between s3 and s4 —
   `dtl_posture_design.md` §4.
 
+
+## 7. The heading, published with its camera σ: `shaftDirection` (12 Nov 2026)
+
+§2 left the heading unclaimed because it moves one-for-one with the down-the-line camera's yaw. It
+is now published for one reading — **where the shaft points against the target line**, at P2 and at
+the top — with that dependence stated as uncertainty and as a warning rather than by withholding
+(the planned-metrics promotion; Mark: show with a warning, never hide).
+
+- **Value** (`src/Club/shaft_direction.h`): `atan2(−u_y, |u_x|)` of the fused `Sample3D.u`, the
+  angle of its ground projection to the target *line*. **+ = the head end points across the line,
+  away from the golfer** (−Y in this frame for both hands): across the line at the top, outside in
+  the takeaway. One rule serves both positions and is continuous through the end-on case and through
+  `u_x = 0`; a left-hander is mirrored in X, which leaves the number and its meaning unchanged.
+- **Source, per position:** the nearest fused frame within ±25 ms that is face-on Measured and not
+  `SignDisagree`, `IllConditioned` or `Reflected`; else the 3-D skeleton's `shaftDir` (tier ≥ one
+  view) at the nearest frame in the same window — at P2 the shaft points almost straight at the
+  down-the-line camera and the two view planes coincide; else no reading. A shaft within 10° of
+  vertical has no bearing and is never read.
+- **σ** = √((σ_dir / |h|)² + σ_yaw²): the frame's direction σ (`sigmaDeg`, or the provisional
+  skeleton σ, 5° both views / 15° one view) moved onto the ground, ⊕ σ_yaw = 5° uncalibrated (the
+  4 July stick probe, 4.4–8.7°) or 1° calibrated. `sigmaKind = Propagated`.
+- **The curve agrees with the readings.** The diagnostics grade a position off the curve (the median
+  of its valid frames within ±15 ms) and stamp the phase reading's σ, so inside each position's ±15 ms
+  only the chosen source's frames are valid (the other source's are bridged), and the reading's value
+  is that same median, its σ the median of those frames' σs; with no valid frame there it is the
+  nearest chosen frame within ±25 ms, which is what the grader falls back to (`shaft_direction_test`).
+- **Trust:** `club3d.cameraAssumed` (Downgraded) whenever the camera is uncalibrated, and
+  `club3d.shaftDirectionFromFit` (Downgraded) when a graded position (P2, the top or both) was read
+  from the fit. Skeleton frames elsewhere on the curve do not fire it.
+- **Where:** `ShaftDirectionStage`, after `Skeleton3D` (for the fallback), its per-shot assembly in
+  `src/Club/shaft_direction_series.h`; route `faceOn+dtl`,
+  Estimated; claimed by `ShaftFusionProvider`; `versions.shaftDirection` = 1.
+
+The plane headings (`PlaneFit.azimDeg`) stay unclaimed: nothing reads them, and the reading that
+needed a heading now carries its own σ.

@@ -27,6 +27,13 @@ knee that straightens completely at the top, the shaft delivered a few degrees a
 plane it was set up on. That agreement is the strongest evidence available, because
 **there is no truth for any of these numbers**.
 
+**With a chest sensor worn (12 November 2026), `spineForwardBend` comes from the sensor instead.** The
+sensor's forward bend (route `trunkImus`) is the ladder's top rung, and where it reads it is the only
+`spineForwardBend` on the swing: this stage's series and the key's place in its records
+(`posture.address`) are taken off after the run (`applyTrunkSensorPrecedence`,
+`body_rotation_estimation.md` §7.4), whatever order the stages ran in. The sensor reads the upper
+back's inclination, not the hip-to-shoulder line; no worn session has compared the two yet.
+
 Parity against a `dtlPosture.enabled=false` control: nothing but the six posture series
 differs, 24/24. Single-camera swings cannot reach the stage.
 
@@ -73,6 +80,12 @@ and `posture_too_upright`, `ball_too_close`, `ball_too_far`, `excessive_knee_fle
 with no authored cause. That is content, not code: author the causes and the norm, flip the
 status. `m_leadKneeFlex` is held deliberately as well — the lead leg is behind the trail leg
 from this camera.
+
+**12 November 2026.** `m_leadKneeFlex` is `live`. On a two-camera shot with a valid 3-D fit it reads
+the fit's lead knee, which **replaces** this series wherever the fit reads the knee through
+Impact → P8 (`Skeleton3dBodyStage`, `body_rotation_estimation.md` §7.3). Elsewhere it reads this
+series, as `late_buckle` already did in practice (the plain signal path did not honour `held`).
+The catalogue's `dtl` rung for the lead knee is Estimated, below the fit's `faceOn+dtl` rung.
 
 With the heuristic norms as they stand, this golfer's 8.6 cm of thrust is ~2σ
 (`early_extension`) and +6° of delivery plane ~1.5σ.

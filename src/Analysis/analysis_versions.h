@@ -141,6 +141,33 @@ constexpr int kSkeleton3DStageVersion = 17;  // 17: its Witmotion IMU tracks are
                                              // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28); 4: the pelvis yaw's own acceleration σ (2026-10-02); 5: the shod-foot marker lift (2026-10-02)
                                              // 3: the lean spine + spline trajectories; session camera pool at re-analysis (2026-09-28)
 
+// shaftDirection — kShaftDirectionStageVersion: the shaft's bearing against the target line at P2
+//           and the top (ShaftDirectionStage, shaft_direction.h): the fused 3-D shaft first, the
+//           3-D skeleton's shaft where fusion has no clean frame. Series only; stamped for the
+//           record (provenance), never reused — microseconds on two products already in hand.
+//           Bump when shaft_direction.h or the stage changes its output.
+constexpr int kShaftDirectionStageVersion = 1;   // 1: first version — fusion first, the skeleton fallback,
+                                                 //    σ ⊕ the DTL camera's yaw σ (planned-metrics promotion, 2026-11-12)
+
+// skeleton3dBody — kSkeleton3dBodyStageVersion: the readings from the 3-D body (Skeleton3dBodyStage,
+//           skeleton3d_body_series.h): shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion
+//           and spineSideBend, and the research-only thigh turns, off the two-camera fit's joints.
+//           Series only; stamped for the record (provenance), never reused — it reads the fit already
+//           in hand. Bump when skeleton3d_body_metrics.h / _series.h or the stage changes its output.
+constexpr int kSkeleton3dBodyStageVersion = 1;   // 1: first version — tier ≥ constrained joints, σ from the fit's
+                                                 //    per-joint σ, the aim ⊕ σ_yaw (planned-metrics promotion, 2026-11-12)
+
+// hipInternalRotation — kHipInternalRotationStageVersion: trailHipInternalRotation /
+//           leadHipInternalRotation (HipInternalRotationStage, trunk_sensor_series.h): the pelvis sensor's
+//           signed turn less each thigh's own turn off the two-camera fit, the thigh assumed fixed where
+//           the fit did not read it. Series only; stamped for the record (provenance), never reused — it
+//           reads the pelvis series and the fit already in hand. Bump when trunk_sensor_series.h's hip
+//           rotation or the stage changes its output. (BodyRotationStage, whose output gained the trunk
+//           sensors' bends the same day, has no version constant: it always recomputes.)
+constexpr int kHipInternalRotationStageVersion = 1;   // 1: first version — pelvis sensor − 3-D thigh, the thigh
+                                                       //    fixed with σ kHipIrThighFixedSigmaDeg where unread
+                                                       //    (planned-metrics promotion, 2026-11-12)
+
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
     int     ball  = 0;
@@ -152,6 +179,9 @@ struct AnalysisVersions {
     int     skeleton3d = 0;     // 0 = the skeleton3d stage did not run
     int     addressMarks = 0;   // 0 = the address-marks stage did not run (address_marks.h)
     int     dtlPosture = 0;     // 0 = the DTL posture stage did not run (or predates its version)
+    int     shaftDirection = 0; // 0 = the shaft-direction stage did not run (or predates its version)
+    int     skeleton3dBody = 0; // 0 = the 3-D body readings stage did not run (or predates its version)
+    int     hipInternalRotation = 0; // 0 = the hip internal rotation stage did not run (or predates its version)
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

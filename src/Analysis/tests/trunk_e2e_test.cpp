@@ -54,6 +54,14 @@
 //   §i  design §6.3 / W2.1d, the face-in cue: a sensor worn label-in reads its address bend backward,
 //       and body_rotation puts a DOWNGRADED record (body.pelvisFaceIn / body.thoraxFaceIn) on that
 //       sensor's readings only — kept and shown, never refused — on every swing's own address.
+//   §j  the trunk sensors' readings beyond the turn (planned-metrics promotion W3, 12 Nov 2026), on a
+//       body with a frontal tilt: spineForwardBend = the true chest inclination and spineSideBend = the
+//       true chest-against-hips frontal tilt (+ toward the trail side) at every sample, their stamped
+//       phase readings the graded ones, the §8.2 σ, a chest mount yaw's documented side-bend error
+//       inside that σ, the left-hander, the face-in covers; hip internal rotation with the thigh fixed
+//       (−pelvis turn trail, +pelvis turn lead, the thigh-assumed record) and with a 3-D thigh; and the
+//       precedence rule that makes the sensors' bends the answer whatever the stage order. NO WORN
+//       RECORDING EXISTS: this is the only check these readings have.
 //
 // Own main()/CHECK, no fixture. The skeleton3d term is evaluated in the test, in its own types
 // (skeleton3d_rig.h), exactly as skeleton3d_fit.cpp writes it — the fit itself needs cameras.
@@ -63,6 +71,7 @@
 #include "../../IMU/imu_vision_fuser.h"
 #include "../../IMU/hm_frame.h"
 #include "../../Body/body_rotation.h"
+#include "../../Body/trunk_sensor_series.h"
 #include "../../Kinematics/segment_rates.h"
 #include "../../Timeline/phase_segmenter.h"
 #include "../../Timeline/phase_signals.h"
@@ -158,6 +167,13 @@ struct TrunkMotion {
     double openDeg;       // the downswing's tanh opening, total
     double peakS;         // its rate peaks here
     double widthS;        // tanh width
+    // A FRONTAL TILT (§j, 12 Nov 2026), + the TRAIL side down, about the stance frame's anterior axis
+    // (world, applied after the bend and the turn): reached with the bend at address, then eased to
+    // its top value through the backswing and its impact value through the downswing. Zero in every
+    // section before §j, so their truth is unchanged.
+    double sideDeg       = 0.0;
+    double sideTopDeg    = 0.0;
+    double sideImpactDeg = 0.0;
 
     double psiDeg(double t) const
     {
@@ -179,6 +195,13 @@ struct TrunkMotion {
         if (t < kStandEndS) return 0.0;
         if (t < kAddressS) return bendDeg * smooth((t - kStandEndS) / (kBendEndS - kStandEndS));
         return bendDeg + (bendTopDeg - bendDeg) * smooth((t - kAddressS) / (kTopS - kAddressS));
+    }
+    double sideAt(double t) const
+    {
+        if (t < kStandEndS) return 0.0;
+        if (t < kAddressS) return sideDeg * smooth((t - kStandEndS) / (kBendEndS - kStandEndS));
+        if (t < kTopS) return sideDeg + (sideTopDeg - sideDeg) * smooth((t - kAddressS) / (kTopS - kAddressS));
+        return sideTopDeg + (sideImpactDeg - sideTopDeg) * smooth((t - kTopS) / (kImpactS - kTopS));
     }
 };
 
@@ -213,9 +236,14 @@ struct Rig {
 
 SQ trueOrientation(const Rig &rig, const TrunkMotion &m, double t)
 {
-    const double psi = (rig.leftHanded ? -1.0 : 1.0) * m.psiDeg(t);
-    return rig.axis == TurnAxis::Spine ? (rx(-m.bendAt(t)) * rz(psi)).normalized()
-                                       : (rz(psi) * rx(-m.bendAt(t))).normalized();
+    const double hand = rig.leftHanded ? -1.0 : 1.0;
+    const double psi = hand * m.psiDeg(t);
+    const SQ q = rig.axis == TurnAxis::Spine ? (rx(-m.bendAt(t)) * rz(psi)).normalized()
+                                             : (rz(psi) * rx(-m.bendAt(t))).normalized();
+    // The frontal tilt: Ry(+β) lowers the +X side, the golfer's right — a right-hander's trail side;
+    // mirrored for a left-hander as the turn is. Identity when the motion has none.
+    const double side = m.sideAt(t);
+    return side == 0.0 ? q : (ry(hand * side) * q).normalized();
 }
 
 // Body-frame rate (°/s) by a central difference of the analytic orientation.
@@ -1153,6 +1181,625 @@ int main()
         const BodyRotationResult rna = rotation(noAddr);
         CHECK("i: no Address on the ladder: no bend read, no record (face-in chest)",
               std::isnan(rna.thoraxAddressBendDeg) && faceIn(rna).empty());
+    }
+
+    // ── §j the trunk sensors' bends and hip internal rotation (planned-metrics promotion W3) ──────
+    // spineForwardBend and spineSideBend from the sensors (the trunkImus rungs), and the lead / trail
+    // hip internal rotation from the hip sensor's turn, on the chain-built q_anat. NO WORN RECORDING
+    // EXISTS: this synthetic body is the only check these readings have had.
+    std::printf("-- j. the trunk sensors' bends and hip internal rotation --\n");
+    {
+        namespace ts = pinpoint::analysis::trunk_sensor;
+        const auto findS = [](const std::vector<MetricSeries> &all, const char *key) -> const MetricSeries * {
+            for (const MetricSeries &m : all)
+                if (m.key == QLatin1String(key)) return &m;
+            return nullptr;
+        };
+        const auto phaseOf = [](const MetricSeries *m, Phase p) -> const PhaseSample * {
+            if (m)
+                for (const PhaseSample &s : m->phaseSamples)
+                    if (s.phase == p) return &s;
+            return nullptr;
+        };
+        // What the grader reads (measure_sample.cpp → series_reduce.h reduceAt) at a phase sample's
+        // instant, against what was stamped: the largest difference over the series' samples.
+        const auto gradedVsStamped = [](const MetricSeries *m) {
+            if (!m || m->phaseSamples.empty()) return 99.0;
+            SeriesView v;
+            v.t = m->t_us.data(); v.v = m->value.data(); v.n = m->t_us.size();
+            v.valid = m->valid.size() == m->t_us.size() ? m->valid.data() : nullptr;
+            double worst = 0.0;
+            for (const PhaseSample &ps : m->phaseSamples) {
+                const Reduced r = reduceAt(v, ps.t_us, ReduceConfig{});
+                worst = std::max(worst, r.ok ? std::fabs(r.value - ps.value) : 99.0);
+            }
+            return worst;
+        };
+        // INDEPENDENT ANALYTIC TRUTHS, from the motion's own parameters (not D13 applied to qTrue). The
+        // body is q = Ry(h·γ)·Rx(−θ)·Rz(h·ψ) (turn about the spine, h = −1 for a left-hander), so:
+        //   long axis  s = Ry(h·γ)·(0, sin θ, cos θ) — the turn about the spine does not move it — and the
+        //              address front is +Y (the ML axis there is Ry(h·γ)·x̂, with no ground heading), so
+        //              the ball-plane bend is atan2(sin θ, cos θ·cos γ), for either hand;
+        //   ML axis    z = −cos ψ'·sin g − sin ψ'·sin θ·cos g (ψ' = h·ψ, g = h·γ), raw obliquity asin(z),
+        //              and side bend = h·(obliquity_hips − obliquity_chest), + toward the trail side.
+        const auto bendTruth = [](const TrunkMotion &m, double t) {
+            const double th = m.bendAt(t) * kD2R, g = m.sideAt(t) * kD2R;
+            return std::atan2(std::sin(th), std::cos(th) * std::cos(g)) * kR2D;
+        };
+        const auto oblTruth = [](const TrunkMotion &m, double t, bool lh) {
+            const double h = lh ? -1.0 : 1.0;
+            const double th = m.bendAt(t) * kD2R, g = h * m.sideAt(t) * kD2R, ps = h * m.psiDeg(t) * kD2R;
+            return std::asin(std::clamp(-std::cos(ps) * std::sin(g) - std::sin(ps) * std::sin(th) * std::cos(g), -1.0, 1.0)) * kR2D;
+        };
+        const auto sideTruth = [&](const Rig &rig, double t) {
+            return (rig.leftHanded ? -1.0 : 1.0) * (oblTruth(rig.pel, t, rig.leftHanded) - oblTruth(rig.thx, t, rig.leftHanded));
+        };
+
+        // A body with a frontal tilt: the chest 8° toward the trail side at address against the hips' 2°,
+        // the chest's trail side up at the top (−12° against −4°), and well down at impact (25 / 10).
+        Rig sb = base;
+        sb.thx.sideDeg = 8.0;  sb.thx.sideTopDeg = -12.0; sb.thx.sideImpactDeg = 25.0;
+        sb.pel.sideDeg = 2.0;  sb.pel.sideTopDeg = -4.0;  sb.pel.sideImpactDeg = 10.0;
+        const Run S = build(sb);
+        const BodyRotationResult rs = rotation(S);
+        const std::vector<MetricSeries> ss = buildBodyRotationSeries(rs, S.phases);
+        const MetricSeries *fb = findS(ss, "spineForwardBend"), *sd = findS(ss, "spineSideBend");
+        CHECK("j: both bends emitted from the sensors (routeId trunkImus, Direct, σ Propagated)",
+              fb && sd && fb->routeId == QStringLiteral("trunkImus") && sd->routeId == QStringLiteral("trunkImus")
+                  && fb->routeDirect && sd->routeDirect && fb->sigmaKind == uint8_t(SigmaKind::Propagated)
+                  && sd->sigmaKind == uint8_t(SigmaKind::Propagated) && fb->sigma && sd->sigma);
+        CHECK("j: …on the sensors' own samples, every one a measurement (no mask)",
+              fb && sd && fb->t_us == S.grid && sd->t_us == S.grid && fb->valid.empty() && sd->valid.empty());
+        CHECK("j: …stamped at every phase on the ladder",
+              fb && sd && fb->phaseSamples.size() == S.phases.size() && sd->phaseSamples.size() == S.phases.size());
+        double fbErr = 0, sdErr = 0;
+        for (size_t i = 0; fb && sd && i < S.grid.size(); ++i) {
+            const double t = double(S.grid[i]) * 1e-6;
+            fbErr = std::max(fbErr, std::fabs(fb->value[i] - bendTruth(sb.thx, t)));
+            sdErr = std::max(sdErr, std::fabs(sd->value[i] - sideTruth(sb, t)));
+        }
+        CHECK_NEAR("j: forward bend = the analytic ball-plane bend atan2(sin θ, cos θ cos γ), every sample (max deg)",
+                   fbErr, 0.0, 0.02);
+        CHECK_NEAR("j: side bend = the analytic chest-against-hips obliquity, every sample (max deg)", sdErr, 0.0, 0.02);
+        const PhaseSample *fbA = phaseOf(fb, Phase::Address), *sdA = phaseOf(sd, Phase::Address);
+        CHECK_NEAR("j: forward bend at address: the ball-plane bend, atan2(sin 40°, cos 40° cos 8°) (deg)",
+                   fbA ? fbA->value : 0.0, std::atan2(std::sin(40 * kD2R), std::cos(40 * kD2R) * std::cos(8 * kD2R)) * kR2D, 0.02);
+        CHECK_NEAR("j: side bend at address: chest 8° less hips 2°, + toward the trail side (deg)",
+                   sdA ? sdA->value : 0.0, 6.0, 0.05);
+        // The frontal tilt is really there: the same swing with no tilt reads 6° less at address, and at
+        // impact the injected 15° (chest 25° against hips 10°) less, within the reading's σ (the turned,
+        // bent chest projects a world-frontal tilt by less than one-for-one).
+        {
+            const std::vector<MetricSeries> s0 = buildBodyRotationSeries(rot, R.phases);
+            const MetricSeries *sd0 = findS(s0, "spineSideBend");
+            const PhaseSample *a0 = phaseOf(sd0, Phase::Address), *i0 = phaseOf(sd0, Phase::Impact);
+            const PhaseSample *i1 = phaseOf(sd, Phase::Impact);
+            const double dA = sdA && a0 ? sdA->value - a0->value : 0.0, dI = i1 && i0 ? i1->value - i0->value : 0.0;
+            std::printf("    side bend with − without the tilt: address %.3f° (injected 6), impact %.3f° (injected 15, σ %.2f°)\n",
+                        dA, dI, i1 && i1->sigma ? *i1->sigma : std::nan(""));
+            CHECK_NEAR("j: tilted − untilted side bend at address = the injected 6° (deg)", dA, 6.0, 0.05);
+            CHECK("j: tilted − untilted side bend at impact = the injected 15°, within the reading's σ",
+                  i1 && i1->sigma && std::fabs(dI - 15.0) <= *i1->sigma && dI > 5.0);
+            CHECK_NEAR("j: …the untilted swing's side bend at address is 0 (deg)", a0 ? a0->value : 99.0, 0.0, 0.05);
+        }
+        // THE SIGN HOLDS THROUGH THE SWING (W3 review): a chest bent 35°, open 45° at impact with a 30° side
+        // tilt there. The down-the-line camera reads +39° at impact; D13's forwardBendRad, whose sign is the
+        // chest's own anterior axis, turns negative where the chest turns away.
+        {
+            Rig ob = base;
+            ob.thx = thoraxMotion(35.0);
+            ob.thx.sideImpactDeg = 30.0;
+            const Run O = build(ob);
+            const std::vector<MetricSeries> so = buildBodyRotationSeries(rotation(O), O.phases);
+            const MetricSeries *ofb = findS(so, "spineForwardBend");
+            double minFb = 1e9, oErr = 0, d13Min = 1e9;
+            for (size_t i = idxAt(kAddressS); ofb && i <= idxAt(kFollowEndS); ++i) {
+                const double t = double(O.grid[i]) * 1e-6;
+                minFb = std::min(minFb, ofb->value[i]);
+                oErr = std::max(oErr, std::fabs(ofb->value[i] - bendTruth(ob.thx, t)));
+                d13Min = std::min(d13Min, trunk_angles::forwardBendRad(O.thx.stream.qAnat[i]) * kR2D);
+            }
+            std::printf("    35° chest, 45° open, 30° tilt at impact: ball-plane bend min %.2f° over P1→finish; "
+                        "D13 forwardBendRad min %.2f°; thorax turn at impact %.1f°\n", minFb, d13Min, ob.thx.psiDeg(kImpactS));
+            CHECK("j: forward bend > 0 at every sample from address to the finish", ofb && minFb > 0.0);
+            CHECK_NEAR("j: …= the analytic bend over the whole swing (max deg)", oErr, 0.0, 0.02);
+            for (Phase ph : { Phase::Address, Phase::Top, Phase::Impact, Phase::Finish }) {
+                const PhaseSample *x = phaseOf(ofb, ph);
+                double ts_ = kAddressS;
+                for (const PhaseEvent &e : O.phases) if (e.phase == ph) ts_ = double(e.t_us) * 1e-6;
+                char lbl[96];
+                std::snprintf(lbl, sizeof lbl, "j: …graded at phase %d = the analytic bend (deg)", int(ph));
+                CHECK_NEAR(lbl, x ? x->value : 0.0, bendTruth(ob.thx, ts_), 0.05);
+            }
+            CHECK_NEAR("j: …at impact it is +39° (atan2(sin 35°, cos 35° cos 30°))",
+                       phaseOf(ofb, Phase::Impact) ? phaseOf(ofb, Phase::Impact)->value : 0.0, 38.96, 0.05);
+
+            // A 10° CHEST MOUNT YAW on the same body (W3 re-review): the address front turns by
+            // ε ≈ atan(tan δ·cos θ), and with the 30° side tilt at impact the bend moves at first order in
+            // ε. The error against the analytic truth must lie inside the published σ, whose mount-yaw term
+            // is exactly that.
+            Rig od = ob;
+            od.thxMount.yawDeg = 10.0;
+            const Run OD = build(od);
+            const std::vector<MetricSeries> sod = buildBodyRotationSeries(rotation(OD), OD.phases);
+            const MetricSeries *dfb = findS(sod, "spineForwardBend");
+            const PhaseSample *dI = phaseOf(dfb, Phase::Impact), *dA = phaseOf(dfb, Phase::Address);
+            const double errI = dI ? dI->value - bendTruth(od.thx, kImpactS) : 99.0;
+            const double errA = dA ? dA->value - bendTruth(od.thx, kAddressS) : 99.0;
+            const PhaseSample *nI = phaseOf(ofb, Phase::Impact);   // the same body, no mount yaw
+            std::printf("    δ 10° on the chest, 30° tilt at impact: error at impact %.3f° (σ %.3f°; the δ-free body's σ there %.3f°); "
+                        "at address %.3f°\n",
+                        errI, dI && dI->sigma ? *dI->sigma : std::nan(""), nI && nI->sigma ? *nI->sigma : std::nan(""), errA);
+            CHECK("j: δ 10° + 30° tilt: the impact error is real (> 1°) and inside the published σ",
+                  dI && dI->sigma && std::fabs(errI) > 1.0 && std::fabs(errI) <= *dI->sigma);
+            CHECK("j: …that σ carries the mount-yaw term (> 4°; garment, drift and gyro scale alone are ≈ 3.05°)",
+                  dI && dI->sigma && *dI->sigma > 4.0);
+            {
+                // Second order at address: the long axis sits ε off the address front, so the bend reads
+                // atan(tan θ·cos ε), ε = atan(tan δ·cos θ).
+                const double th = 35.0 * kD2R, eps = std::atan(std::tan(10.0 * kD2R) * std::cos(th));
+                CHECK_NEAR("j: …at address, with no tilt out of the ball plane, δ moves the bend at second order: atan(tan θ·cos ε) − θ (deg)",
+                           errA, (std::atan(std::tan(th) * std::cos(eps)) - th) * kR2D, 0.02);
+            }
+        }
+        CHECK_NEAR("j: forward bend: what is stamped is what is graded (max deg)", gradedVsStamped(fb), 0.0, 1e-9);
+        CHECK_NEAR("j: side bend: what is stamped is what is graded (max deg)", gradedVsStamped(sd), 0.0, 1e-9);
+        CHECK("j: every phase reading carries its own σ, Propagated",
+              fb && sd && std::all_of(fb->phaseSamples.begin(), fb->phaseSamples.end(), [](const PhaseSample &p) {
+                  return p.sigma && p.sigmaKind == uint8_t(SigmaKind::Propagated); })
+                  && std::all_of(sd->phaseSamples.begin(), sd->phaseSamples.end(), [](const PhaseSample &p) {
+                  return p.sigma && p.sigmaKind == uint8_t(SigmaKind::Propagated); }));
+        // σ at address (design §8.2): the forward bend is the chest's garment term alone (no change from
+        // address, ~no drift); the side bend adds the hips' garment and both mount-yaw terms at their bends
+        // (the turn-leak terms are 0 there: no turn yet).
+        {
+            // The chest leans 8° out of the ball plane at address, so the mount yaw's term is not 0 there:
+            // ε·s_z·(s·X̂)/((s·Ŷ)² + s_z²), ε = atan(tan 10°·cos θ_addr), on the analytic long axis.
+            const double th = bendTruth(sb.thx, kAddressS) * kD2R, g = 8.0 * kD2R;
+            const double sx = std::cos(40 * kD2R) * std::sin(g), sy = std::sin(40 * kD2R), sz = std::cos(40 * kD2R) * std::cos(g);
+            const double eps = std::atan(std::tan(10 * kD2R) * std::cos(th));
+            const double dy = std::fabs(eps * sz * sx / (sy * sy + sz * sz)) * kR2D;
+            std::printf("    forward bend σ at address: garment 3° ⊕ mount-yaw term %.3f°\n", dy);
+            CHECK_NEAR("j: forward bend σ at address = the chest's garment 3° ⊕ the mount-yaw term (deg)",
+                       fbA && fbA->sigma ? *fbA->sigma : 0.0, std::hypot(3.0, dy), 0.01);
+        }
+        {
+            const double th = fbA ? fbA->value : 40.0, pb = bendTruth(sb.pel, kAddressS);
+            const double want = std::sqrt(9.0 + 4.0 + std::pow(ts::mountYawObliquityDeg(th), 2)
+                                          + std::pow(ts::mountYawObliquityDeg(pb), 2));
+            CHECK_NEAR("j: side bend σ at address = √(3² + 2² + δ_chest² + δ_hips²) (deg)",
+                       sdA && sdA->sigma ? *sdA->sigma : 0.0, want, 0.02);
+        }
+        CHECK_NEAR("j: the δ term at a 40° bend: asin(sin 40° sin 10°) = 6.41° (design §6.2's 6.4°)",
+                   ts::mountYawObliquityDeg(40.0), 6.409, 0.005);
+        CHECK_NEAR("j: …and at 25°: 4.21° (design §6.2's 4°)", ts::mountYawObliquityDeg(25.0), 4.208, 0.005);
+
+        // A mount yaw on the chest only (δ = 10°): the forward bend does not move; the side bend at
+        // address is off by the chest's obliquity error asin(sin θ·sin δ), and the σ's δ term covers it.
+        {
+            Rig dl = base;
+            dl.thxMount.yawDeg = 10.0;
+            const Run D = build(dl);
+            const std::vector<MetricSeries> sdl = buildBodyRotationSeries(rotation(D), D.phases);
+            const PhaseSample *a = phaseOf(findS(sdl, "spineSideBend"), Phase::Address);
+            const PhaseSample *f = phaseOf(findS(sdl, "spineForwardBend"), Phase::Address);
+            const double want = std::asin(std::sin(40 * kD2R) * std::sin(10 * kD2R)) * kR2D;
+            std::printf("    δ = 10° on the chest: side bend at address reads %.3f° (truth 0; asin(sin 40° sin 10°) = %.3f°), σ %.3f°\n",
+                        a ? a->value : std::nan(""), want, a && a->sigma ? *a->sigma : std::nan(""));
+            CHECK_NEAR("j: δ = 10°: forward bend at address unmoved (deg)", f ? f->value : 0.0, 40.0, 0.5);
+            CHECK_NEAR("j: δ = 10°: side bend error at address = asin(sin θ·sin δ) (|deg|)",
+                       a ? std::fabs(a->value) : 0.0, want, 0.3);
+            CHECK("j: …within that reading's own σ", a && a->sigma && std::fabs(a->value) <= *a->sigma);
+        }
+
+        // A left-hander's mirrored body: the same readings, sign for sign.
+        {
+            Rig sl = sb;
+            sl.leftHanded = true;
+            const Run L = build(sl);
+            const std::vector<MetricSeries> sll = buildBodyRotationSeries(rotation(L), L.phases);
+            const MetricSeries *lfb = findS(sll, "spineForwardBend"), *lsd = findS(sll, "spineSideBend");
+            double dF = 99, dS = 99;
+            if (lfb && lsd && fb && sd && lfb->value.size() == fb->value.size()) {
+                dF = dS = 0;
+                for (size_t i = 0; i < fb->value.size(); ++i) {
+                    dF = std::max(dF, std::fabs(lfb->value[i] - fb->value[i]));
+                    dS = std::max(dS, std::fabs(lsd->value[i] - sd->value[i]));
+                }
+            }
+            CHECK_NEAR("j: left-hander: forward bend curve = the right-hander's (max deg)", dF, 0.0, 0.05);
+            CHECK_NEAR("j: left-hander: side bend curve = the right-hander's, + still toward the trail side (max deg)",
+                       dS, 0.0, 0.02);
+            CHECK_NEAR("j: left-hander: side bend at address (deg)",
+                       phaseOf(lsd, Phase::Address) ? phaseOf(lsd, Phase::Address)->value : 0.0, 6.0, 0.05);
+        }
+
+        // The chest sensor alone: the forward bend (it reads the chest only), no side bend.
+        {
+            Run T = S;
+            T.fs.segments.erase(std::remove_if(T.fs.segments.begin(), T.fs.segments.end(),
+                                               [](const SegmentStream &s) { return s.role == SegmentRole::Pelvis; }),
+                                T.fs.segments.end());
+            const BodyRotationResult rt = rotation(T);
+            const std::vector<MetricSeries> st = buildBodyRotationSeries(rt, T.phases);
+            CHECK("j: chest sensor alone: spineForwardBend, and no spineSideBend",
+                  findS(st, "spineForwardBend") && !findS(st, "spineSideBend"));
+            int site = 0, yaw = 0;
+            for (const GateRecord &g : rt.gates) {
+                site += g.gate == QLatin1String("body.chestBendSite");
+                yaw  += g.gate == QLatin1String("body.trunkMountYawAssumed");
+            }
+            const GateRecord *y = nullptr;
+            for (const GateRecord &g : rt.gates) if (g.gate == QLatin1String("body.trunkMountYawAssumed")) y = &g;
+            CHECK("j: …the chest-site record, and the mount-yaw record on the forward bend alone (no side-bend terms)",
+                  site == 1 && yaw == 1 && y && y->covers == QStringList({ QStringLiteral("spineForwardBend") })
+                      && !y->evidence.contains(QStringLiteral("pelvisAddrDeg")));
+        }
+
+        // The two assumptions, each a Downgraded record on the one reading it is true of.
+        {
+            const GateRecord *site = nullptr, *yaw = nullptr;
+            for (const GateRecord &g : rs.gates) {
+                if (g.gate == QLatin1String("body.chestBendSite")) site = &g;
+                if (g.gate == QLatin1String("body.trunkMountYawAssumed")) yaw = &g;
+            }
+            CHECK("j: body.chestBendSite: Downgraded, on spineForwardBend alone",
+                  site && site->effect == GateEffect::Downgraded && site->subject == QLatin1String("spineForwardBend")
+                      && site->covers == QStringList({ QStringLiteral("spineForwardBend") }));
+            CHECK("j: body.trunkMountYawAssumed: Downgraded, on both bends, tier δ0, σ_δ 10°",
+                  yaw && yaw->effect == GateEffect::Downgraded && yaw->subject == QLatin1String("spineForwardBend")
+                      && yaw->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") })
+                      && yaw->evidence.value(QStringLiteral("deltaTier")).toString() == QStringLiteral("δ0")
+                      && yaw->evidence.value(QStringLiteral("sigmaDeltaDeg")).toDouble() == 10.0);
+            CHECK_NEAR("j: …its chest term at this address = asin(sin θ·sin 10°) at the chest's 40.3° (deg)",
+                       yaw ? yaw->evidence.value(QStringLiteral("thoraxAddrDeg")).toDouble() : 0.0,
+                       ts::mountYawObliquityDeg(bendTruth(sb.thx, kAddressS)), 0.02);
+            CHECK_NEAR("j: …and its hips term at the hips' 20° (deg)",
+                       yaw ? yaw->evidence.value(QStringLiteral("pelvisAddrDeg")).toDouble() : 0.0,
+                       ts::mountYawObliquityDeg(bendTruth(sb.pel, kAddressS)), 0.02);
+        }
+
+        // Face-in: the bends a sensor worn label-in reads backward join its record's covers.
+        {
+            const auto faceIn = [](const BodyRotationResult &res, const char *gate) -> const GateRecord * {
+                for (const GateRecord &g : res.gates)
+                    if (g.gate == QLatin1String(gate)) return &g;
+                return nullptr;
+            };
+            Rig fc = sb;
+            fc.thxMount.extra = rz(180);
+            const Run Fc = build(fc);
+            const BodyRotationResult rfc = rotation(Fc);
+            const GateRecord *g = faceIn(rfc, "body.thoraxFaceIn");
+            CHECK("j: face-in chest: its record covers spineForwardBend and spineSideBend, Downgraded",
+                  g && g->effect == GateEffect::Downgraded && g->covers.contains(QStringLiteral("spineForwardBend"))
+                      && g->covers.contains(QStringLiteral("spineSideBend")));
+            CHECK("j: …not the hip rotations (the chest sensor does not make them)",
+                  g && !g->covers.contains(QStringLiteral("trailHipInternalRotation"))
+                      && !g->covers.contains(QStringLiteral("leadHipInternalRotation")));
+            const std::vector<MetricSeries> sfc = buildBodyRotationSeries(rfc, Fc.phases);
+            const PhaseSample *a = phaseOf(findS(sfc, "spineForwardBend"), Phase::Address);
+            CHECK("j: …and the backward reading is still shown, never hidden (address bend < 0)",
+                  a && a->value < -30.0 && findS(sfc, "spineSideBend"));
+            Rig fp = sb;
+            fp.pelMount.extra = rz(180);
+            const BodyRotationResult rfp = rotation(build(fp));
+            const GateRecord *gp = faceIn(rfp, "body.pelvisFaceIn");
+            CHECK("j: face-in hips: covers spineSideBend and both hip rotations, not spineForwardBend",
+                  gp && gp->covers.contains(QStringLiteral("spineSideBend"))
+                      && gp->covers.contains(QStringLiteral("trailHipInternalRotation"))
+                      && gp->covers.contains(QStringLiteral("leadHipInternalRotation"))
+                      && !gp->covers.contains(QStringLiteral("spineForwardBend")));
+        }
+
+        // ── Hip internal rotation ──────────────────────────────────────────────────────────────
+        const MetricSeries *pS = findS(ss, "pelvisRotationSigned");
+        CHECK("j: the pelvis sensor's signed turn says its route (pelvisImu)",
+              pS && pS->routeId == ts::pelvisRouteId());
+        // Truth: the pelvis's lead-relative turn from address (a right-hander's opening is +Z).
+        const auto pelvisTruth = [&](const Run &r, double s) {
+            return (r.rig.leftHanded ? -1.0 : 1.0) * turnFromAddrDeg(r.pel.qTrue[idxAt(s)], r.pel.qTrue[iAddr]);
+        };
+        // No two-camera fit: the thigh is assumed fixed.
+        {
+            HipInternalRotationInput hin;
+            hin.pelvisSigned = pS;
+            hin.phases = S.phases;
+            const HipInternalRotationOutput h = buildHipInternalRotation(hin);
+            const MetricSeries *tr = h.trail.series ? &*h.trail.series : nullptr;
+            const MetricSeries *ld = h.lead.series ? &*h.lead.series : nullptr;
+            CHECK("j: hip IR, no fit: both sides emitted, on the pelvis curve's grid",
+                  tr && ld && pS && tr->t_us == pS->t_us && ld->t_us == pS->t_us);
+            const PhaseSample *trTop = phaseOf(tr, Phase::Top), *ldTop = phaseOf(ld, Phase::Top);
+            const PhaseSample *trImp = phaseOf(tr, Phase::Impact), *ldImp = phaseOf(ld, Phase::Impact);
+            CHECK("j: …read at the top and at impact only",
+                  tr && ld && tr->phaseSamples.size() == 2 && ld->phaseSamples.size() == 2 && trTop && trImp && ldTop && ldImp);
+            std::printf("    thigh fixed: trail IR top %.2f° impact %.2f°; lead IR top %.2f° impact %.2f° (pelvis turn top %.2f°, impact %.2f°)\n",
+                        trTop ? trTop->value : 0.0, trImp ? trImp->value : 0.0, ldTop ? ldTop->value : 0.0,
+                        ldImp ? ldImp->value : 0.0, pelvisTruth(S, kTopS), pelvisTruth(S, kImpactS));
+            CHECK_NEAR("j: trail hip IR at the top = −(pelvis turn) — the pelvis closing over the trail leg (deg)",
+                       trTop ? trTop->value : 0.0, -pelvisTruth(S, kTopS), 0.5);
+            CHECK("j: …positive: the backswing loads the trail hip into internal rotation", trTop && trTop->value > 20.0);
+            CHECK_NEAR("j: lead hip IR at impact = the pelvis turn (deg)", ldImp ? ldImp->value : 0.0,
+                       pelvisTruth(S, kImpactS), 0.5);
+            CHECK("j: …positive: the downswing turns the pelvis over the lead hip", ldImp && ldImp->value > 0.0);
+            CHECK("j: …and the lead hip at the top is external (−)", ldTop && ldTop->value < 0.0);
+            CHECK_NEAR("j: hip IR: stamped = graded, trail (max deg)", gradedVsStamped(tr), 0.0, 1e-9);
+            CHECK_NEAR("j: hip IR: stamped = graded, lead (max deg)", gradedVsStamped(ld), 0.0, 1e-9);
+            {
+                const double sp = ts::pelvisTurnSigmaDeg(trTop ? -trTop->value : 0.0, us(kTopS), us(kAddressS));
+                CHECK_NEAR("j: σ at the top = the pelvis sensor's budget ⊕ the fixed thigh's σ (deg)",
+                           trTop && trTop->sigma ? *trTop->sigma : 0.0,
+                           std::hypot(sp, pinpoint::tuned::bodyRotation::kHipIrThighFixedSigmaDeg), 0.05);
+            }
+            CHECK("j: …route pelvisImu (no fit read), Estimated (routeDirect false)",
+                  tr && ld && tr->routeId == QStringLiteral("pelvisImu") && ld->routeId == QStringLiteral("pelvisImu")
+                      && !tr->routeDirect && !ld->routeDirect);
+            const GateRecord *g = h.gates.size() == 1 ? &h.gates.front() : nullptr;
+            CHECK("j: one record, body.thighTurnAssumed, Downgraded, covering both sides, code noFit, σ kHipIrThighFixedSigmaDeg",
+                  g && g->gate == QLatin1String("body.thighTurnAssumed") && g->effect == GateEffect::Downgraded
+                      && g->covers == QStringList({ QStringLiteral("trailHipInternalRotation"), QStringLiteral("leadHipInternalRotation") })
+                      && g->subject == QLatin1String("trailHipInternalRotation")
+                      && g->evidence.value(QStringLiteral("code")).toString() == QStringLiteral("noFit")
+                      && g->evidence.value(QStringLiteral("sigmaDeg")).toDouble() == pinpoint::tuned::bodyRotation::kHipIrThighFixedSigmaDeg);
+
+            // A left-hander's mirrored swing reads the same hip rotations.
+            Rig hl = sb;
+            hl.leftHanded = true;
+            const Run HL = build(hl);
+            const std::vector<MetricSeries> shl = buildBodyRotationSeries(rotation(HL), HL.phases);
+            HipInternalRotationInput lin = hin;
+            lin.pelvisSigned = findS(shl, "pelvisRotationSigned");
+            lin.phases = HL.phases;
+            const HipInternalRotationOutput hlo = buildHipInternalRotation(lin);
+            CHECK_NEAR("j: left-hander: trail hip IR at the top = the right-hander's (deg)",
+                       hlo.trail.series && phaseOf(&*hlo.trail.series, Phase::Top) ? phaseOf(&*hlo.trail.series, Phase::Top)->value : 0.0,
+                       trTop ? trTop->value : 99.0, 0.05);
+            CHECK_NEAR("j: left-hander: lead hip IR at impact = the right-hander's (deg)",
+                       hlo.lead.series && phaseOf(&*hlo.lead.series, Phase::Impact) ? phaseOf(&*hlo.lead.series, Phase::Impact)->value : 0.0,
+                       ldImp ? ldImp->value : 99.0, 0.05);
+        }
+        // The fit's thighs (a synthetic 150 fps track): the trail thigh turning 6° inward by the top, the
+        // lead thigh turning 8° in the − sense by impact — its front toward the midline, i.e. the lead femur
+        // rotating INTERNALLY (which the lead hip's reading, pelvis − thigh, then shows as +8° more relative
+        // rotation). Each side's reading is the pelvis
+        // turn less that thigh's, the route the fused rung's, and no record.
+        {
+            HipIrThigh lead, trail;
+            for (int64_t t = us(kAddressS - 0.5); t <= us(kFollowEndS); t += 6667) {
+                const double s = double(t) * 1e-6;
+                lead.t_us.push_back(t);  trail.t_us.push_back(t);
+                trail.turnDeg.push_back(6.0 * smooth((s - kAddressS) / (kTopS - kAddressS)));
+                lead.turnDeg.push_back(-8.0 * smooth((s - kTopS) / (kImpactS - kTopS)));
+                trail.sigmaDeg.push_back(4.0);
+                lead.sigmaDeg.push_back(5.0);
+            }
+            HipInternalRotationInput hin;
+            hin.pelvisSigned = pS;
+            hin.phases = S.phases;
+            hin.fitUsed = true;
+            hin.leadThigh = lead;
+            hin.trailThigh = trail;
+            const HipInternalRotationOutput h = buildHipInternalRotation(hin);
+            const PhaseSample *trTop = h.trail.series ? phaseOf(&*h.trail.series, Phase::Top) : nullptr;
+            const PhaseSample *ldImp = h.lead.series ? phaseOf(&*h.lead.series, Phase::Impact) : nullptr;
+            CHECK_NEAR("j: with the fit: trail hip IR at the top = trail thigh 6° − pelvis turn (deg)",
+                       trTop ? trTop->value : 0.0, 6.0 - pelvisTruth(S, kTopS), 0.5);
+            CHECK_NEAR("j: with the fit: lead hip IR at impact = pelvis turn − lead thigh (−8°) (deg)",
+                       ldImp ? ldImp->value : 0.0, pelvisTruth(S, kImpactS) + 8.0, 0.5);
+            {
+                const double sp = ts::pelvisTurnSigmaDeg(6.0 - (trTop ? trTop->value : 0.0), us(kTopS), us(kAddressS));
+                CHECK_NEAR("j: …σ = the pelvis sensor's budget ⊕ the fit's thigh σ (4°) (deg)",
+                           trTop && trTop->sigma ? *trTop->sigma : 0.0, std::hypot(sp, 4.0), 0.05);
+            }
+            CHECK("j: …both sides on the fused rung (pelvisImu+faceOn+dtl), no thigh-assumed record",
+                  h.trail.series && h.lead.series && h.trail.series->routeId == QStringLiteral("pelvisImu+faceOn+dtl")
+                      && h.lead.series->routeId == QStringLiteral("pelvisImu+faceOn+dtl") && h.gates.empty());
+            CHECK_NEAR("j: …stamped = graded (max deg)",
+                       std::max(gradedVsStamped(h.trail.series ? &*h.trail.series : nullptr),
+                                gradedVsStamped(h.lead.series ? &*h.lead.series : nullptr)), 0.0, 1e-9);
+
+            // The fit loses the trail thigh after 4.0 s (the leg hidden through impact): the trail top is
+            // still the fit's, the trail impact assumes the thigh fixed, and the record covers the trail
+            // hip only — it is true of that reading and of no other.
+            HipIrThigh cut = trail;
+            for (size_t i = 0; i < cut.t_us.size(); ++i)
+                if (cut.t_us[i] > us(4.0)) cut.turnDeg[i] = std::nan("");
+            hin.trailThigh = cut;
+            const HipInternalRotationOutput hc = buildHipInternalRotation(hin);
+            CHECK("j: trail thigh lost before impact: top read from the fit, impact assumed",
+                  hc.trail.measuredAtTop && !hc.trail.assumedAtTop && hc.trail.assumedAtImpact && !hc.trail.measuredAtImpact);
+            const GateRecord *g = hc.gates.size() == 1 ? &hc.gates.front() : nullptr;
+            CHECK("j: …one record, covering the trail hip only, code thighUnread (there WAS a fit)",
+                  g && g->gate == QLatin1String("body.thighTurnAssumed")
+                      && g->covers == QStringList({ QStringLiteral("trailHipInternalRotation") })
+                      && g->evidence.value(QStringLiteral("code")).toString() == QStringLiteral("thighUnread"));
+            // A fit that read neither thigh (no reference at address): still thighUnread, never noFit.
+            HipInternalRotationInput none = hin;
+            none.leadThigh.reset();
+            none.trailThigh.reset();
+            const HipInternalRotationOutput hn = buildHipInternalRotation(none);
+            CHECK("j: a fit that read no thigh: the record says thighUnread, covering both sides",
+                  hn.gates.size() == 1 && hn.gates.front().evidence.value(QStringLiteral("code")).toString() == QStringLiteral("thighUnread")
+                      && hn.gates.front().covers.size() == 2);
+            CHECK_NEAR("j: …and the trail impact reads −(pelvis turn), the thigh at 0 (deg)",
+                       hc.trail.series && phaseOf(&*hc.trail.series, Phase::Impact) ? phaseOf(&*hc.trail.series, Phase::Impact)->value : 0.0,
+                       -pelvisTruth(S, kImpactS), 0.5);
+            CHECK("j: …its route stays the fused rung (the top read the fit)",
+                  hc.trail.series && hc.trail.series->routeId == QStringLiteral("pelvisImu+faceOn+dtl"));
+        }
+
+        // ── Precedence: the sensors' bends win, whatever order the stages ran in — when trusted ──
+        {
+            const auto series = [](const char *key, const char *route, std::vector<Phase> at = {}) {
+                MetricSeries m;
+                m.key = QString::fromLatin1(key);
+                m.routeId = QString::fromLatin1(route);
+                m.t_us = { 0, 1 };
+                m.value = { 0.0, 0.0 };
+                for (Phase p : at) m.phaseSamples.push_back({ p, 0, 0.0, QString() });
+                return m;
+            };
+            const auto rec = [](const char *gate, const char *subject, GateEffect e, QStringList covers,
+                                QVariantMap ev = {}) {
+                return GateRecord{ QString::fromLatin1(gate), QString::fromLatin1(subject), e, ev, {}, {}, covers };
+            };
+            const std::vector<Phase> all{ Phase::Address, Phase::Top, Phase::Impact };
+            // The camera routes' records, and the sensors' own two assumptions (no face-in).
+            const auto records = [&]() {
+                return std::vector<GateRecord>{
+                    rec("body.upperAddress", "secondaryAxisTilt", GateEffect::Refused,
+                        { QStringLiteral("spineSideBend"), QStringLiteral("thoraxLateralDrift") }),
+                    rec("body.sideBendLines", "spineSideBend", GateEffect::Masked, {}),
+                    rec("posture.address", "pelvisThrust", GateEffect::Refused,
+                        { QStringLiteral("headRise"), QStringLiteral("spineForwardBend"), QStringLiteral("leadKneeFlexion") }),
+                    rec("body3d.fromFit", "spineSideBend", GateEffect::Downgraded, { QStringLiteral("spineSideBend") },
+                        { { QStringLiteral("code"), QStringLiteral("faceOn") }, { QStringLiteral("route"), QStringLiteral("faceOn+dtl") },
+                          { QStringLiteral("replaces"), QStringLiteral("faceOn") } }),
+                    rec("body.chestBendSite", "spineForwardBend", GateEffect::Downgraded, { QStringLiteral("spineForwardBend") }),
+                    rec("body.trunkMountYawAssumed", "spineForwardBend", GateEffect::Downgraded,
+                        { QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") },
+                        { { QStringLiteral("deltaTier"), QStringLiteral("δ0") }, { QStringLiteral("sigmaDeltaDeg"), 10.0 },
+                          { QStringLiteral("thoraxAddrDeg"), 6.4 }, { QStringLiteral("pelvisAddrDeg"), 3.4 } }) };
+            };
+            const auto byId = [](const std::vector<GateRecord> &gv, const char *id) -> const GateRecord * {
+                for (const GateRecord &g : gv) if (g.gate == QLatin1String(id)) return &g;
+                return nullptr;
+            };
+            const auto routesOf = [](const std::vector<MetricSeries> &sv, const char *key) {
+                QStringList r;
+                for (const MetricSeries &m : sv) if (m.key == QLatin1String(key)) r << m.routeId;
+                return r;
+            };
+            const auto check = [&](std::vector<MetricSeries> sv, const char *label) {
+                std::vector<GateRecord> gv = records();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *ua = byId(gv, "body.upperAddress"), *pa = byId(gv, "posture.address");
+                char lbl[160];
+                std::snprintf(lbl, sizeof lbl, "j: precedence (%s): one bend per key, the sensors'; the 3-D and camera ones erased", label);
+                CHECK(lbl, routesOf(sv, "spineForwardBend") == QStringList({ QStringLiteral("trunkImus") })
+                               && routesOf(sv, "spineSideBend") == QStringList({ QStringLiteral("trunkImus") })
+                               && r.seriesDropped == 3 && r.sensorDropped == 0);
+                std::snprintf(lbl, sizeof lbl, "j: precedence (%s): the camera refusals stop speaking for the bends, keep the rest", label);
+                CHECK(lbl, ua && !ua->covers.contains(QStringLiteral("spineSideBend")) && ua->covers.contains(QStringLiteral("thoraxLateralDrift"))
+                               && pa && !pa->covers.contains(QStringLiteral("spineForwardBend")) && pa->covers.contains(QStringLiteral("headRise")));
+                std::snprintf(lbl, sizeof lbl, "j: precedence (%s): the face-on mask and the 3-D stand-in record are gone", label);
+                CHECK(lbl, !byId(gv, "body.sideBendLines") && !byId(gv, "body3d.fromFit"));
+                std::snprintf(lbl, sizeof lbl, "j: precedence (%s): the sensors' own assumption records stay on the bends", label);
+                CHECK(lbl, byId(gv, "body.chestBendSite") && byId(gv, "body.trunkMountYawAssumed"));
+            };
+            // As the stages run today (face-on side bend, the sensors', the DTL forward bend, the 3-D side
+            // bend), and the sensors' last; every series stamps the same positions.
+            check({ series("spineSideBend", "", all), series("spineForwardBend", "trunkImus", all), series("spineSideBend", "trunkImus", all),
+                    series("spineForwardBend", "", all), series("spineSideBend", "faceOn+dtl", all) }, "stage order");
+            check({ series("spineSideBend", "", all), series("spineForwardBend", "", all), series("spineSideBend", "faceOn+dtl", all),
+                    series("spineForwardBend", "trunkImus", all), series("spineSideBend", "trunkImus", all) }, "sensors last");
+            // No sensor reading: nothing moves.
+            {
+                std::vector<MetricSeries> none{ series("spineSideBend", "", all), series("spineForwardBend", "", all) };
+                std::vector<GateRecord> gv = records();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(none, gv);
+                CHECK("j: precedence, no sensor: every series and record untouched",
+                      r.seriesDropped == 0 && r.recordsCleaned == 0 && r.sensorDropped == 0 && none.size() == 2
+                          && gv.size() == records().size());
+            }
+            // A CHEST WORN FACE-IN must not beat a good camera reading: its record covers both bends, so the
+            // down-the-line forward bend and the face-on side bend stay, the sensor bends are withdrawn, and
+            // the sensor's records stop speaking for them. The camera's records are untouched.
+            {
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", all), series("spineForwardBend", "", all),
+                                              series("spineSideBend", "trunkImus", all), series("spineSideBend", "", all) };
+                std::vector<GateRecord> gv = records();
+                gv.push_back(rec("body.thoraxFaceIn", "thoraxRotation", GateEffect::Downgraded,
+                                 { QStringLiteral("thoraxRotationSigned"), QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") }));
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fi = byId(gv, "body.thoraxFaceIn");
+                CHECK("j: face-in chest + a camera reading: the camera bends stay, the sensor bends are withdrawn",
+                      routesOf(sv, "spineForwardBend") == QStringList({ QString() })
+                          && routesOf(sv, "spineSideBend") == QStringList({ QString() }) && r.sensorDropped == 2 && r.seriesDropped == 0);
+                CHECK("j: …the face-in record no longer covers the bends (still its turn's), the sensor assumptions are gone",
+                      fi && !fi->covers.contains(QStringLiteral("spineForwardBend")) && !fi->covers.contains(QStringLiteral("spineSideBend"))
+                          && fi->covers.contains(QStringLiteral("thoraxRotationSigned"))
+                          && !byId(gv, "body.chestBendSite") && !byId(gv, "body.trunkMountYawAssumed"));
+                CHECK("j: …and the camera's own records still speak for its readings",
+                      byId(gv, "body.sideBendLines") && byId(gv, "posture.address")
+                          && byId(gv, "posture.address")->covers.contains(QStringLiteral("spineForwardBend")));
+            }
+            // A face-in chest with no other route: the sensor bend is published, with its face-in ⚠.
+            {
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", all) };
+                std::vector<GateRecord> gv{ rec("body.thoraxFaceIn", "thoraxRotation", GateEffect::Downgraded,
+                                                { QStringLiteral("spineForwardBend") }),
+                                            rec("body.chestBendSite", "spineForwardBend", GateEffect::Downgraded,
+                                                { QStringLiteral("spineForwardBend") }) };
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                CHECK("j: face-in chest, no camera reading: the sensor bend is published with its face-in record",
+                      sv.size() == 1 && r.sensorDropped == 0 && byId(gv, "body.thoraxFaceIn")
+                          && byId(gv, "body.thoraxFaceIn")->covers.contains(QStringLiteral("spineForwardBend"))
+                          && byId(gv, "body.chestBendSite"));
+            }
+            // A face-in HIP sensor touches only the key it is read from: the side bend stays the camera's,
+            // the forward bend (the chest's alone) is still the sensor's.
+            {
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", all), series("spineForwardBend", "", all),
+                                              series("spineSideBend", "trunkImus", all), series("spineSideBend", "", all) };
+                std::vector<GateRecord> gv = records();
+                gv.push_back(rec("body.pelvisFaceIn", "pelvisRotation", GateEffect::Downgraded,
+                                 { QStringLiteral("pelvisRotationSigned"), QStringLiteral("spineSideBend") }));
+                applyTrunkSensorPrecedence(sv, gv);
+                CHECK("j: face-in hips: side bend stays the camera's, forward bend is the chest sensor's",
+                      routesOf(sv, "spineSideBend") == QStringList({ QString() })
+                          && routesOf(sv, "spineForwardBend") == QStringList({ QStringLiteral("trunkImus") }));
+                const GateRecord *y = byId(gv, "body.trunkMountYawAssumed");
+                CHECK("j: …the mount-yaw record keeps the forward bend it still speaks for, not the side bend",
+                      y && y->covers == QStringList({ QStringLiteral("spineForwardBend") })
+                          && y->subject == QLatin1String("spineForwardBend"));
+                CHECK("j: …and no longer states the side-bend terms (thoraxAddrDeg / pelvisAddrDeg gone), keeps its tier",
+                      y && !y->evidence.contains(QStringLiteral("thoraxAddrDeg")) && !y->evidence.contains(QStringLiteral("pelvisAddrDeg"))
+                          && y->evidence.contains(QStringLiteral("sigmaDeltaDeg")));
+            }
+            // A GAP WITH NO REASON is not made: a camera reading at the top the sensor reading lacks keeps
+            // the camera series (and no record is fired for it); a sensor reading at every camera position wins.
+            {
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", { Phase::Address, Phase::Impact }),
+                                              series("spineForwardBend", "", all) };
+                std::vector<GateRecord> gv = records();
+                const size_t n0 = gv.size();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                CHECK("j: sensor without a top reading the camera has: the camera forward bend stays, the sensor's is withdrawn",
+                      routesOf(sv, "spineForwardBend") == QStringList({ QString() }) && r.sensorDropped == 1);
+                CHECK("j: …no record fired; only the sensor's own site record left with its reading",
+                      gv.size() == n0 - 1 && !byId(gv, "body.chestBendSite")
+                          && byId(gv, "posture.address")->covers.contains(QStringLiteral("spineForwardBend")));
+                const GateRecord *y = byId(gv, "body.trunkMountYawAssumed");
+                CHECK("j: …the mount-yaw record now speaks for the side bend alone (its subject moved there)",
+                      y && y->covers == QStringList({ QStringLiteral("spineSideBend") })
+                          && y->subject == QLatin1String("spineSideBend"));
+                std::vector<MetricSeries> sv2{ series("spineForwardBend", "trunkImus", all),
+                                               series("spineForwardBend", "", { Phase::Address, Phase::Impact }) };
+                std::vector<GateRecord> gv2 = records();
+                applyTrunkSensorPrecedence(sv2, gv2);
+                CHECK("j: …a sensor reading at every position the camera stamps wins",
+                      routesOf(sv2, "spineForwardBend") == QStringList({ QStringLiteral("trunkImus") }));
+                // The camera curve READS at a ladder phase it does not label (P5): the grader would read
+                // it there, so a sensor reading with no P5 sample must not win either.
+                MetricSeries cam = series("spineForwardBend", "", { Phase::Address, Phase::Impact });
+                cam.t_us = { 0, 500000, 1000000, 1500000, 2000000 };
+                cam.value = { 30.0, 31.0, 32.0, 33.0, 34.0 };
+                const std::vector<PhaseEvent> ladder{ { Phase::Address, 0, 1.f }, { Phase::Delivery, 1000000, 1.f },
+                                                      { Phase::Impact, 2000000, 1.f } };
+                std::vector<MetricSeries> sv3{ series("spineForwardBend", "trunkImus", { Phase::Address, Phase::Impact }), cam };
+                std::vector<GateRecord> gv3 = records();
+                applyTrunkSensorPrecedence(sv3, gv3, ladder);
+                CHECK("j: a camera curve graded at P5 (unlabelled) keeps the key from a sensor reading with no P5",
+                      routesOf(sv3, "spineForwardBend") == QStringList({ QString() }));
+                std::vector<MetricSeries> sv4{ series("spineForwardBend", "trunkImus", { Phase::Address, Phase::Delivery, Phase::Impact }), cam };
+                std::vector<GateRecord> gv4 = records();
+                applyTrunkSensorPrecedence(sv4, gv4, ladder);
+                CHECK("j: …and one that reads P5 too wins",
+                      routesOf(sv4, "spineForwardBend") == QStringList({ QStringLiteral("trunkImus") }));
+            }
+        }
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL PASS", g_fail);

@@ -31,7 +31,9 @@
 //         target line). All three live entirely in the plane the camera sees.
 //   OUT — `clubPath` (in-to-out is the depth axis), `swingPlane` (needs the plane's azimuth) and
 //         `shaftDirection` (where the shaft points relative to the target line). All three are
-//         down-the-line questions and stay planned.
+//         down-the-line questions and none is read here: `swingPlane` and `shaftDirection` come
+//         from the two-camera shaft fusion (shaft_fusion.h, shaft_direction.h); `clubPath` is
+//         still planned (the launch monitor reads it).
 //
 // ATTACK ANGLE IS DELIBERATELY IN THIS LIST, and its descriptor used to say the opposite. The
 // argument for "down the line makes it fully in-plane" does not survive being written down: a

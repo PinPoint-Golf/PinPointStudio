@@ -55,7 +55,9 @@
 // WHAT IT DOES NOT CLAIM. The cameras are uncalibrated. The downswing plane's
 // INCLINATION moved ≤ 1° over ±15° of yaw and 0–15° of pitch on the 07-04 session;
 // its HEADING moves one-for-one with yaw. So the inclination is published as a
-// measurement and the heading as a number that is only as good as `dtlYawDeg`.
+// measurement and the heading as a number that is only as good as `dtlYawDeg`. The one heading
+// read downstream — where the shaft points, shaftDirection (shaft_direction.h) — carries that as
+// σ_yaw and a camera-assumed trust record rather than being withheld.
 //
 // Pure header: no Qt, no OpenCV, no tracker types — standalone-testable. The caller
 // selects the samples; this header never learns what a tracker is.

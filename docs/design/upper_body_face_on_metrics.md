@@ -117,6 +117,12 @@ that **cancels** the whole-body tilt. Tilt both lines together and it reads zero
 that is a lean, not a bend. Drop only the trail shoulder and it reads positive, which is the trail
 shoulder working down and under the turn. The unit test asserts both cases directly.
 
+**With trunk sensors worn (12 November 2026) this reading steps aside.** The chest and hip sensors'
+frontal tilts (`thoraxSideBend − pelvisObliquity`, route `trunkImus`) are the ladder's top rung, and
+where they read they are the only `spineSideBend` on the swing; this face-on series and its records
+(`body.upperAddress`, `body.sideBendLines`) are taken off the key after the run
+(`applyTrunkSensorPrecedence`, `body_rotation_estimation.md` §7.4).
+
 ### `trailElbowHeight` is a VERTICAL height, not a perpendicular distance
 
 A perpendicular distance to the shoulder line needs a cross product, and the sign of a 2-D cross
@@ -184,7 +190,9 @@ is the obvious question:
   BACK CONTOUR of a down-the-line silhouette. That makes them a producer worth building, not a gap
   that can never close.
 - **`ballBodyDistance`** — depth, across the stance line. The face-on camera's own axis.
-- **`hipInternalRotation`** — needs a pelvis IMU plus thigh IMUs.
+- **Hip internal rotation** (`trailHipInternalRotation` / `leadHipInternalRotation` since 12 Nov 2026) —
+  needs a pelvis IMU; the thigh's own turn comes from the two-camera fit, or is assumed fixed
+  (`body_rotation_estimation.md` §7.4). No face-on route.
 
 `pelvisRotation` and `thoraxRotation` used to head this list and no longer do. They are also not
 frontal-plane quantities, but the image span of a body line collapses by the cosine of its turn, and

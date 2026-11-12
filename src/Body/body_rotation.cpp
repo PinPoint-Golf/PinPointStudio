@@ -19,6 +19,7 @@
 #include "body_rotation.h"
 
 #include "../IMU/trunk_angles.h"   // D13: the turn is the ML axis heading from address
+#include "trunk_sensor_series.h"   // the §8.2 σ budget and the graded phase readings (the bends)
 
 #include <QVector3D>
 
@@ -124,6 +125,101 @@ void fillFromImu(RotationChannel &mag, RotationChannel &sgn, const SegmentStream
     }
 }
 
+// ── The trunk sensors' bends (planned-metrics promotion W3, 12 Nov 2026) ───────────────────────
+//
+// spineForwardBend's and spineSideBend's `trunkImus` rungs, at every stream sample. The quantity is the
+// CAMERA's, so the sensor reading can stand in its place:
+//   forward bend — the chest's long axis in the vertical plane through the ball (trunk_sensor_series.h
+//     ballPlaneBendDeg), as the down-the-line hip-to-shoulder line reads it (~33° at address on 4 July).
+//     Not D13's forwardBendRad, whose sign turns with the chest (the reason is at ballPlaneBendDeg).
+//   side bend — thoraxSideBend − pelvisObliquity (trunk design §3.2), D13's obliquityRad of each, the
+//     chest's frontal tilt against the hips' as the face-on shoulder line against the hip line.
+// It is the inclination of the back-mounted chest sensor's long axis (T2–T5), zeroed by stand tall,
+// not of the hip-to-shoulder chord: the two differ by the posture of the spine between them, which no
+// worn session has measured yet (body.chestBendSite says so on the reading).
+//
+// σ per sample, design §8.2 (trunk_sensor_series.h): the garment, the gyro scale on the change from
+// address, the bias drift since address, and the mount yaw δ — for the forward bend through the address
+// front's heading, first order once the chest leans out of the ball plane (ballPlaneMountYawDeg); for the
+// side bend each sensor's δ through its own forward bend (§6.2, asin(sin θ·sin σ_δ)) — and, for the side
+// bend, each sensor's turn-scale error leaking through that bend. The address reference is the stream sample nearest the ladder's Address (the
+// first sample without one), as for the turn.
+void fillTrunkBends(BodyRotationResult &res, const FusedStreams &streams, const std::vector<PhaseEvent> &phases,
+                    bool leadIsLeft)
+{
+    const std::vector<int64_t> &grid = streams.timeGrid;
+    const SegmentStream *thx = streams.streamFor(SegmentRole::Thorax);
+    if (!thx || thx->qAnat.size() != grid.size() || grid.empty())
+        return;
+    const SegmentStream *pel = streams.streamFor(SegmentRole::Pelvis);
+    const bool pair = pel && pel->qAnat.size() == grid.size();
+    const int64_t addressUs = phaseTime(phases, Phase::Address, grid.front());
+    const size_t ia = size_t(nearestIndex(grid, addressUs));
+    const trunk_sensor::BallFront thxFront = trunk_sensor::ballPlaneFront(thx->qAnat[ia]);
+    if (!thxFront.ok)
+        return;   // a chest whose medio-lateral axis stands vertical at address has no front to bend toward
+    const trunk_sensor::BallFront pelFront = pair ? trunk_sensor::ballPlaneFront(pel->qAnat[ia]) : trunk_sensor::BallFront{};
+    // + toward the TRAIL side: the raw obliquity is + with the golfer's RIGHT side up, which is the
+    // trail side for a right-hander (sign conventions doc, "Trunk IMU readings").
+    const double s = leadIsLeft ? 1.0 : -1.0;
+    const auto side = [&](size_t i) {
+        return s * (trunk_angles::obliquityRad(pel->qAnat[i]) - trunk_angles::obliquityRad(thx->qAnat[i])) * kRadToDeg;
+    };
+    const auto pelBend = [&](size_t i) {
+        // The hips' own bend, for its δ and turn-leak terms (its ML axis is near horizontal at address).
+        return pelFront.ok ? trunk_sensor::ballPlaneBendDeg(pel->qAnat[i], pelFront)
+                           : trunk_angles::forwardBendRad(pel->qAnat[i]) * kRadToDeg;
+    };
+    const double fbAddr = trunk_sensor::ballPlaneBendDeg(thx->qAnat[ia], thxFront);
+    const double sbAddr = pair ? side(ia) : 0.0;
+    for (size_t i = 0; i < grid.size(); ++i) {
+        const double fb = trunk_sensor::ballPlaneBendDeg(thx->qAnat[i], thxFront);
+        res.forwardBend.push(grid[i], fb);
+        res.forwardBendSigma.push_back(trunk_sensor::forwardBendSigmaDeg(
+            fb, fbAddr, grid[i], addressUs, trunk_sensor::ballPlaneMountYawDeg(thx->qAnat[i], thxFront, fbAddr)));
+        if (!pair) continue;
+        const double sb = side(i);
+        const double pb = pelBend(i);
+        const double tt = trunk_angles::turnFromRad(thx->qAnat[i], thx->qAnat[ia]) * kRadToDeg;
+        const double tp = trunk_angles::turnFromRad(pel->qAnat[i], pel->qAnat[ia]) * kRadToDeg;
+        res.sideBend.push(grid[i], sb);
+        res.sideBendSigma.push_back(trunk_sensor::sideBendSigmaDeg(sb, sbAddr, fb, pb, tt, tp, grid[i], addressUs));
+    }
+    res.thoraxAddressBallBendDeg = fbAddr;
+    if (pair) res.pelvisAddressBallBendDeg = pelBend(ia);
+}
+
+// The trunk sensors' assumptions, each a DOWNGRADED record on the reading it is true of (the readings
+// stay, are judged, and carry the ⚠). Fired with the series; applyTrunkSensorPrecedence withdraws them
+// with the series when the camera reading stays the answer.
+//   body.chestBendSite — every published sensor forward bend: it is the upper back's inclination, not
+//     the hip-to-shoulder line the camera and the norms read, and no worn session has compared them.
+//   body.trunkMountYawAssumed — every published sensor bend while δ is unrefined (tier δ0 — every swing
+//     today: no swing-refined δ reaches the job): each sensor's turn on the back is taken from how it is
+//     worn, which stand tall cannot measure (§6.1). It moves the side bend by asin(sin θ·sin σ_δ) (§6.2),
+//     and the forward bend through the address front once the chest leans out of the ball plane
+//     (ballPlaneMountYawDeg). Covers whichever bends were emitted. Evidence: the tier, σ_δ, and — with a
+//     side bend — each sensor's side-bend term at THIS swing's address.
+void recordTrunkAssumptions(BodyRotationResult &res)
+{
+    if (res.forwardBend.size() >= 2)
+        res.gates.push_back(GateRecord{ PP_GATE("body.chestBendSite"), QStringLiteral("spineForwardBend"),
+                                        GateEffect::Downgraded, QVariantMap{ { QStringLiteral("code"), QStringLiteral("upperBack") } },
+                                        {}, {}, QStringList{ QStringLiteral("spineForwardBend") } });
+    QStringList covers;
+    if (res.forwardBend.size() >= 2) covers << QStringLiteral("spineForwardBend");
+    if (res.sideBend.size() >= 2)    covers << QStringLiteral("spineSideBend");
+    if (covers.isEmpty()) return;
+    QVariantMap ev{ { QStringLiteral("deltaTier"), QStringLiteral("δ0") },
+                    { QStringLiteral("sigmaDeltaDeg"), double(tuned::calib::kTrunkMountYawSigmaDeg) } };
+    if (res.sideBend.size() >= 2) {
+        ev.insert(QStringLiteral("thoraxAddrDeg"), trunk_sensor::mountYawObliquityDeg(res.thoraxAddressBallBendDeg));
+        ev.insert(QStringLiteral("pelvisAddrDeg"), trunk_sensor::mountYawObliquityDeg(res.pelvisAddressBallBendDeg));
+    }
+    res.gates.push_back(GateRecord{ PP_GATE("body.trunkMountYawAssumed"), covers.front(), GateEffect::Downgraded,
+                                    ev, {}, {}, covers });
+}
+
 // ── The face-in cue (trunk design §6.3, W2.1d) ─────────────────────────────────────────────────
 //
 // A sensor worn face-in (label against the body, USB still up) is the right mount turned 180° about
@@ -158,12 +254,17 @@ double addressBendDeg(const SegmentStream &seg, const std::vector<int64_t> &time
 // They read correctly under a true face-in (a rotation about the spine), but the sensor is not on the
 // mount the ceremony calibrated, so they drop from Measured to Estimated and carry the cue's words.
 //
+// THE BENDS, which a face-in sensor really does read backwards (a 40° address bend reads −40°, and
+// the obliquity flips), are covered by the sensor they read (12 Nov 2026): spineForwardBend by the
+// chest's record, spineSideBend by both. And the hip internal rotations (trail / lead), which
+// HipInternalRotationStage builds from THIS sensor's signed turn whenever it exists
+// (trunk_sensor_series.h), are covered by the hips' record — named here because a stage cannot read
+// another stage's records during the run.
+//
 // NOT COVERED: the KS node (ks.pelvis / ks.thorax) and the angular-speed series. The S-I rate is
 // gyro_segment · ẑ (D3), and a rotation about ẑ leaves it EXACTLY unchanged (trunk_e2e_test §f, to
 // 0.01 °/s); the node carries its own route quality and gates, and a downgrade there would demote a
-// Direct node and let §10.7 refuse ratios on a reading that is right. The readings face-in really
-// flips — forward bend and obliquity — have no IMU producer yet (spineForwardBend's trunkImus route
-// is PLANNED); when one lands it joins `covers` here.
+// Direct node and let §10.7 refuse ratios on a reading that is right.
 void recordFaceIn(BodyRotationResult &res, const BodyRotationConfig &cfg)
 {
     const auto one = [&](bool pelvis) {
@@ -176,6 +277,10 @@ void recordFaceIn(BodyRotationResult &res, const BodyRotationConfig &cfg)
             covers << (pelvis ? QStringLiteral("pelvisRotationSigned") : QStringLiteral("thoraxRotationSigned"));
         if (!res.xFactor.empty())        covers << QStringLiteral("xFactor");
         if (!res.xFactorStretch.empty()) covers << QStringLiteral("xFactorStretch");
+        if (!pelvis && !res.forwardBend.empty()) covers << QStringLiteral("spineForwardBend");
+        if (!res.sideBend.empty())       covers << QStringLiteral("spineSideBend");
+        if (pelvis && !sgn.turn.empty() && sgn.tier == RotationTier::Imu)
+            covers << QStringLiteral("trailHipInternalRotation") << QStringLiteral("leadHipInternalRotation");
         res.gates.push_back(GateRecord{ pelvis ? PP_GATE("body.pelvisFaceIn") : PP_GATE("body.thoraxFaceIn"),
                                         pelvis ? QStringLiteral("pelvisRotation") : QStringLiteral("thoraxRotation"),
                                         GateEffect::Downgraded,
@@ -389,6 +494,9 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
         fillFromImu(res.thorax, res.thoraxSigned, *s, streams.timeGrid, addressUs, leadSign);
         res.thoraxAddressBendDeg = addressBendDeg(*s, streams.timeGrid, phases, cfg);
     }
+    // The bends: the chest sensor for the forward bend, both for the side bend.
+    fillTrunkBends(res, streams, phases, leadIsLeft);
+    res.bendSigma = cfg.withSigma;
 
     // The IMU tier writes onto the stream time grid, which is not the pose grid. Adopt whichever
     // grid actually carries samples so the resample target is never empty.
@@ -421,10 +529,11 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
         recordStretchWithoutTop(res, topUs >= 0);
     }
 
-    // After the separation, so a face-in record knows whether it has an X-factor to cover.
+    // After the separation and the bends, so a face-in record knows what it has to cover.
     recordFaceIn(res, cfg);
+    recordTrunkAssumptions(res);
 
-    res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty();
+    res.valid = !res.pelvis.turn.empty() || !res.thorax.turn.empty() || !res.forwardBend.empty();
     return res;
 }
 
@@ -472,7 +581,15 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         }), m.phaseSamples.end());
     };
 
-    const auto emitRotation = [&](const RotationChannel &ch, const char *key, const char *label) {
+    // THE IMU TIER STATES ITS ROUTE (12 Nov 2026): the catalogue's rung ids, Direct. HipInternalRotation
+    // reads pelvisRotationSigned only from the pelvis sensor, and says so by this id. The two-camera
+    // tier leaves it unstated, as it always has.
+    const auto imuRoute = [](MetricSeries &m, const char *route) {
+        m.routeId     = QString::fromLatin1(route);
+        m.routeDirect = true;
+    };
+    const auto emitRotation = [&](const RotationChannel &ch, const char *key, const char *label,
+                                  const char *route) {
         // The triangulated route masks its gaps — a frame whose bearing was unusable is bridged,
         // never graded. The IMU route keeps its unmasked behaviour.
         const bool tri = ch.tier == RotationTier::Triangulated;
@@ -482,6 +599,7 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         if (m.key.isEmpty())
             return;
         if (tri) dropFarPhases(m);
+        if (ch.tier == RotationTier::Imu) imuRoute(m, route);
         // Carry the propagated uncertainty ONLY where one was actually computed. The field's
         // contract is explicit that absent means "not characterised" rather than "zero error", so
         // the IMU tier — which has no error budget through this path — leaves it unset rather than
@@ -500,10 +618,10 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         out.push_back(std::move(m));
     };
 
-    emitRotation(res.pelvis, "pelvisRotation", "Pelvis rotation");
-    emitRotation(res.thorax, "thoraxRotation", "Thorax rotation");
-    emitRotation(res.pelvisSigned, "pelvisRotationSigned", "Pelvis rotation (signed)");
-    emitRotation(res.thoraxSigned, "thoraxRotationSigned", "Thorax rotation (signed)");
+    emitRotation(res.pelvis, "pelvisRotation", "Pelvis rotation", "pelvisImu");
+    emitRotation(res.thorax, "thoraxRotation", "Thorax rotation", "thoraxImu");
+    emitRotation(res.pelvisSigned, "pelvisRotationSigned", "Pelvis rotation (signed)", "pelvisImu");
+    emitRotation(res.thoraxSigned, "thoraxRotationSigned", "Thorax rotation (signed)", "thoraxImu");
 
     // From the triangulated route both halves carry σ, so the separation carries both in quadrature
     // (a difference of two turns is no better known than either); the IMU route stays as it was.
@@ -515,6 +633,7 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                             deg, phases, defaultPhaseSamples(), triPair ? res.triGapUs : -1);
         if (m.key.isEmpty()) return;
         if (triPair) dropFarPhases(m);
+        if (res.pelvis.tier == RotationTier::Imu && res.thorax.tier == RotationTier::Imu) imuRoute(m, "trunkImus");
         if (triPair) {
             m.sigma     = std::hypot(res.pelvis.sigmaDeg, res.thorax.sigmaDeg);
             m.sigmaKind = uint8_t(SigmaKind::Propagated);
@@ -528,6 +647,30 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
     };
     emitSeparation(res.xFactor, "xFactor", "X-factor");
     emitSeparation(res.xFactorStretch, "xFactorStretch", "X-factor stretch");
+
+    // The trunk sensors' bends, on their own (stream) grid: every sample is a measurement, so no mask;
+    // the phase readings are the graded ones, each with its own σ.
+    const auto emitBend = [&](const MetricChannel &ch, const std::vector<double> &sg, const char *key,
+                              const char *label) {
+        if (ch.size() < 2) return;
+        MetricSeries m;
+        m.key   = QString::fromLatin1(key);
+        m.label = QString::fromUtf8(label);
+        m.unit  = deg;
+        m.t_us  = ch.t_us;
+        m.value = ch.value;
+        m.routeId     = trunk_sensor::bendRouteId();
+        m.routeDirect = true;
+        // Every phase on the ladder: the grader reads the curve at each, and the precedence rule
+        // compares this reading's positions with the camera's.
+        std::vector<Phase> at;
+        for (const PhaseEvent &e : phases)
+            if (std::find(at.begin(), at.end(), e.phase) == at.end()) at.push_back(e.phase);
+        trunk_sensor::stampGradedPhases(m, sg, phases, at, res.bendSigma);
+        out.push_back(std::move(m));
+    };
+    emitBend(res.forwardBend, res.forwardBendSigma, "spineForwardBend", "Spine forward bend");
+    emitBend(res.sideBend, res.sideBendSigma, "spineSideBend", "Spine side bend");
     return out;
 }
 

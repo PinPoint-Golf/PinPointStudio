@@ -200,6 +200,34 @@
       "golfer": "the two cameras were looking along nearly the same line there"
     },
     {
+      "id": "club3d.cameraAssumed",
+      "golfer": "the down-the-line camera has not been calibrated, so its direction is assumed and where the club points is a few degrees less certain"
+    },
+    {
+      "id": "body3d.cameraAssumed",
+      "golfer": "the three-dimensional fit of your body works out the cameras' directions for itself, so where your shoulders aim is a few degrees less certain"
+    },
+    {
+      "id": "body.chestBendSite",
+      "golfer": "the chest sensor reads the bend on your upper back, not along the line from your hips to your shoulders, and the two have not yet been checked against each other"
+    },
+    {
+      "id": "body.trunkMountYawAssumed",
+      "golfer": "which way each sensor faces on your back is taken from how it is worn, because standing tall cannot measure it, so the bends it reads are a few degrees less certain"
+    },
+    {
+      "id": "body.thighTurnAssumed",
+      "golfer": "no sensor is worn on the thigh and the cameras could not read its own turn, so the thigh was taken as not turning and the hip rotation is less certain"
+    },
+    {
+      "id": "body3d.fromFit",
+      "golfer": "one camera could not read this on this swing, so it was read from the three-dimensional fit of your body instead"
+    },
+    {
+      "id": "club3d.shaftDirectionFromFit",
+      "golfer": "the two camera tracks could not fix where the shaft pointed there, so it was read from the three-dimensional fit of your body and club instead"
+    },
+    {
       "id": "clubDtl.topOutOfView",
       "golfer": "the club went out of the top of the down-the-line picture, which is the camera's framing, not your swing"
     },

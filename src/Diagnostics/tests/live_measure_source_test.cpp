@@ -609,7 +609,14 @@ int main(int argc, char **argv)
         // 10 -> 11 on 2026-10-22: m_spineBendChangeTop is HELD until the trunk IMUs can corroborate it —
         // the down-the-line hip-to-shoulder line tips upright at the top with the turn, not the posture
         // (trunk_imu_sequence_grf_design.md §8.8).
-        check(planned == 11, "11 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
+        // 11 -> 6 on 2026-11-12 (the planned-metrics promotion): m_shaftDirectionP2 and
+        // m_shaftDirectionP4 (W1, ShaftDirectionStage — the fused shaft's bearing) and m_shoulderPlane,
+        // m_shoulderAlignment and m_leadKneeFlex (W2, Skeleton3dBodyStage — the two-camera 3-D fit)
+        // went live. This fixture is a single-camera capture, so none of the five produces a value
+        // here — the producer landing is the only reason the count fell. metric_catalogue_test's
+        // planned count moved with them (12 -> 9); diagnostics_catalogue_integrity_test pins no count
+        // here and asserts the two zero-sums (no overclaim, no understatement), which still hold.
+        check(planned == 6, "6 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 

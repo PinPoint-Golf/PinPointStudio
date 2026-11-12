@@ -111,7 +111,18 @@ std::vector<QString> BodyRotationProvider::provides() const
     return { QStringLiteral("pelvisRotation"), QStringLiteral("thoraxRotation"),
              QStringLiteral("xFactor"),        QStringLiteral("xFactorStretch"),
              QStringLiteral("pelvisRotationSigned"),     // the two-camera route, 1 Oct 2026; the pelvis IMU, 26 Oct
-             QStringLiteral("thoraxRotationSigned") };   // the thorax IMU and the two-camera route, 26 Oct 2026
+             QStringLiteral("thoraxRotationSigned"),     // the thorax IMU and the two-camera route, 26 Oct 2026
+             // The trunk sensors' bends, the trunkImus rungs (12 Nov 2026): the chest sensor's forward
+             // bend, and the chest's frontal tilt against the hips'. Also claimed by the camera
+             // producers (DtlPosture, UpperBodyMetric, Skeleton3dBody); the sensor reading wins.
+             QStringLiteral("spineForwardBend"),         QStringLiteral("spineSideBend") };
+}
+
+// ----------------------------------------------------------------- HipInternalRotationProvider
+
+std::vector<QString> HipInternalRotationProvider::provides() const
+{
+    return { QStringLiteral("trailHipInternalRotation"), QStringLiteral("leadHipInternalRotation") };
 }
 
 // ----------------------------------------------------------------------- ClubDeliveryProvider
@@ -179,7 +190,20 @@ std::vector<QString> DtlShaftLieProvider::provides() const
 std::vector<QString> ShaftFusionProvider::provides() const
 {
     return { QStringLiteral("swingPlane"), QStringLiteral("swingPlaneAngle"), QStringLiteral("swingPlaneCurve"),
-             QStringLiteral("handPlaneCurve"), QStringLiteral("handPlaneSteepening"), QStringLiteral("shoulderPlane") };
+             QStringLiteral("handPlaneCurve"), QStringLiteral("handPlaneSteepening"), QStringLiteral("shoulderPlane"),
+             // Where the fused shaft points against the target line (ShaftDirectionStage,
+             // shaft_direction.h), the 3-D skeleton's shaft where fusion has no clean frame (2026-11-12).
+             QStringLiteral("shaftDirection") };
+}
+
+// ------------------------------------------------------------------ Skeleton3dBodyProvider
+
+std::vector<QString> Skeleton3dBodyProvider::provides() const
+{
+    // The research-only thigh turns (thighTurn3dLead / thighTurn3dTrail) carry no descriptor and are
+    // not claimed (isResearchOnlySeries).
+    return { QStringLiteral("shoulderPlaneAngle3d"), QStringLiteral("shoulderLineYaw"),
+             QStringLiteral("leadKneeFlexion"),      QStringLiteral("spineSideBend") };
 }
 
 // ------------------------------------------------------------------ KinematicSequenceProvider

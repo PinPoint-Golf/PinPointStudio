@@ -613,7 +613,12 @@ QVariantMap gateOfPicked(const Ctx &x, const QString &key)
     const QVariantMap g = trust::gateFor(s.gates, key);
     const QString eff = g.value(QStringLiteral("effect")).toString();
     if (g.value(QStringLiteral("words")).toString().isEmpty()
-        || (eff != QLatin1String("refused") && eff != QLatin1String("bounded"))) return {};
+        || (eff != QLatin1String("refused") && eff != QLatin1String("bounded"))) {
+        // a reading another route supplied, with nothing here: the failed route's record is still the
+        // reason (route_substitution.h; trust_readings.h substitutedGapFor)
+        const QVariantMap sub = trust::substitutedGapFor(s.gates, key);
+        return sub.value(QStringLiteral("words")).toString().isEmpty() ? QVariantMap{} : sub;
+    }
     return g;
 }
 

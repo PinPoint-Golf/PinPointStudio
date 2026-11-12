@@ -53,6 +53,11 @@ World is Z-up, so the horizontal plane is world XY, and the direction angle of t
 segment's axial orientation. Referenced to its own address direction.
 
 This is the quantity the descriptor names, measured rather than inferred. It resolves `Measured`.
+Since 12 November 2026 each IMU-tier series says so on itself: `routeId` `pelvisImu`, `thoraxImu`
+or (the separation) `trunkImus`, `routeDirect` true. The two-camera tier leaves the route unstated.
+
+The same two sensors give the trunk's **bends** (12 November 2026, §7.4): `spineForwardBend` from the
+chest sensor and `spineSideBend` from the pair, with the design's §8.2 σ.
 
 ### `RotationTier::Foreshortening`
 
@@ -196,7 +201,111 @@ The route's largest error term is the assumed camera placement. It will improve 
 
 ### 7.2 What it does not do
 
-- **Forearm rotation, elbow flexion and hip internal rotation stay unproduced.** They depend on hand keypoints or thigh axial roll, which skeleton3d does not observe reliably (hand confidence lies on this pose model).
+- **Forearm rotation and elbow flexion stay unproduced.** They depend on hand keypoints, which skeleton3d does not observe reliably (hand confidence lies on this pose model).
+- **Hip internal rotation is not produced here.** Since 12 November 2026 the fit's thigh turn is published, research-only, by the 3-D body stage (§7.3), and `HipInternalRotationStage` subtracts it from the **pelvis sensor's** turn (§7.4). The two-camera pelvis turn is not used for it: the rung is the pelvis sensor's, and the two-camera turn carries the same fit's errors as the thigh. A thigh's axial roll is read only through the plane its knee bends in, so a nearly straight leg has none (§7.3).
 - **The left-handed mirror is unverified.** The sign was checked on right-handed captures only; no left-handed capture exists.
 - **`kinematicSequence` keeps its own pelvis and thorax rate producer.** That producer runs before skeleton3d. The plan to give it a skeleton rung that reads the same lines is `ks_skeleton3d_route_design.md` (designed 2 October 2026, not built).
 
+### 7.3 The other readings from the 3-D body (12 November 2026)
+
+`Skeleton3dBodyStage` (after this stage; `src/Body/skeleton3d_body_metrics.h` and `skeleton3d_body_series.h`) reads four more quantities off the same fit, with the same rules: joints at tier ≥ Constrained only, σ from `FitResult::sigmaM` propagated to first order, route `faceOn+dtl`, Estimated (Bridged).
+
+| Series | Read at | Definition | Sign | σ |
+|---|---|---|---|---|
+| `shoulderPlaneAngle3d` | Top | the shoulder line's inclination out of the horizontal, in its own vertical plane | + trail shoulder higher | √(σ_l² + σ_t²) / line length |
+| `shoulderLineYaw` | Address (one reading) | the shoulder line's bearing in the ground plane against the target line; a left-hander mirrored | open −, closed + | the line's σ ⊕ σ_yaw (5° uncalibrated), plus `body3d.cameraAssumed` |
+| `leadKneeFlexion` | Address, Top, Impact, P8 | 180° − the angle at the knee between hip and ankle (17/18/19, or 22/23/24 for a left-hander) | + more bend | the angle's gradient over the three joints |
+| `spineSideBend` | Address, Top, Impact | the hip line's frontal tilt minus the shoulder line's, both in the frontal plane square to the pelvis heading | + toward the trail side | the two tilts' σ in quadrature |
+| `thighTurn3dLead` / `thighTurn3dTrail` (research only) | Address, Top, Impact | the turn from Address of the normal to the hip–knee–ankle plane; unmeasured below 12° of knee bend | lead-relative, as `pelvisRotationSigned` | the normal's heading σ ⊕ the reference ⊕ `kTriScaleFrac`·Δ |
+
+Precedence: the 3-D lead knee **replaces** the down-the-line one where it reads through Impact → P8; elsewhere the down-the-line lead knee stays, unchanged (`dtl_posture_design.md` §3). The 3-D side bend is published only when the face-on side bend is absent. Only the aim carries the camera-yaw σ and the camera-assumed record (`body3d.cameraAssumed`: the fit works out the cameras' directions itself, so the aim carries ±5°); the inclinations do not turn with the cameras' heading.
+
+**When the 3-D route stands in for a single camera.** The side bend wherever it is published, and the lead knee on a shot with no down-the-line series, carry `body3d.fromFit` (Downgraded; evidence `code`, `route` `faceOn+dtl`, `replaces` `faceOn` / `dtl`). The 3-D lead knee replacing a down-the-line one does not: that is the ladder's better rung winning. After every stage has spliced its records, `runProfile` runs `reconcileSubstitutedReadings` (`src/Analysis/route_substitution.h`). For each such record whose reading is present on its route, every Refused, Bounded or Masked record from another producer (its id's area differs) stops speaking for the reading: the key leaves its `covers`; where the key was its subject, the next cover becomes the subject, or the record is dropped when it covered nothing else. The moved ids are listed in the substitute record's `replacedRecords`, so the face-on `body.upperAddress` or down-the-line `posture.address` refusal no longer sits beside a graded 3-D value. Where the 3-D series has no reading — the fit reads the lead knee near address but not through impact — a measure there is still explained by the failed route's real reason: `LiveMeasureSource::gateCause` falls back to the first of the substitute's `replacedRecords` (`substitutedGapGate`) when no record refuses the key. The charts do the same for a "-": the posture chart's cells, Charts → Relations and the trace readouts word it with that record's claim words (`trust::substitutedGapFor`), never with a ⚠. A substitute must fire under a gate-id area different from the route it replaces, because the area is how the clean-up tells producers apart. `shaftDirection` needs none of this: no other producer's record covers it, and its fit fallback is inside its own producer (`club3d.shaftDirectionFromFit`).
+
+### 7.4 The trunk sensors' bends and hip internal rotation (12 November 2026)
+
+Planned-metrics promotion, work item W3. **No worn recording exists**: the synthetic body of
+`trunk_e2e_test` §j (sensors at arbitrary mounts, through the real stand-tall solve) is the only check
+these readings have had.
+
+**The bends** (`body_rotation.cpp` `fillTrunkBends`; route `trunkImus`, Direct, on the sensors' own
+samples; the trunk design's `thoraxForwardBend` and `thoraxSideBend − pelvisObliquity`, §3.2 / §8.8):
+
+| Series | Definition (D13 projections, `trunk_angles.h`) | Sign | σ per sample (design §8.2, in quadrature) |
+|---|---|---|---|
+| `spineForwardBend` | the chest sensor's long axis `s = q·ẑ` in the vertical plane through the ball, `atan2(s·Ŷ, s·ẑ)`, Ŷ = ẑ × the chest's ML axis at this swing's address (`ballPlaneBendDeg`) — absolute, zeroed by stand tall | + toward the ball, through the whole swing | chest garment 3°; gyro scale 1.5 % of the change from address; bias 0.5 °/s × time from address. The mount yaw δ, through the address front's heading: FIRST ORDER in ε ≈ atan(tan δ·cos θ_addr) once the chest leans out of the ball plane (a side tilt), ε·s_z·(s·X̂)/((s·Ŷ)² + s_z²) — −3.3° at δ 10° on a 35° chest 45° open with a 30° side tilt at impact — and only second order with no tilt (−0.25° to −0.28° at address) — in the σ as that term at σ_δ, and on `body.trunkMountYawAssumed` |
+| `spineSideBend` | s·(obliquity_pelvis − obliquity_thorax), each `obliquityRad` (the ML axis's elevation) | + toward the **trail** side; s = +1 right-handed, −1 left-handed | both garments (3°, 2°); each sensor's δ term asin(sin θ·sin σ_δ) at its own forward bend θ, σ_δ = 10° (§6.2, §6.5); gyro scale on the change from address and on each sensor's turn (≈ sin θ · 1.5 % · |turn|); both sensors' bias drift |
+
+**Why not D13's forward bend.** `trunk_angles::forwardBendRad` signs the inclination by the chest's own
+anterior axis, which turns with the chest: past ~90° of turn (earlier with a side tilt or a mount yaw)
+a chest bent over the ball reads negative, and its size is the whole inclination, which a side tilt
+inflates. The ball-plane projection is sign-stable and is what the down-the-line camera reads. D13's
+reading stays for the face-in cue at address.
+
+The forward bend needs the chest sensor only; the side bend needs both. The quantity is the
+**camera's**: the chest's inclination over the ball, comparable to the down-the-line hip-to-shoulder
+line (~33° at address on 4 July), and the chest's frontal tilt against the hips', as the face-on
+shoulder line against the hip line. It is not thorax-relative-pelvis flexion, which the catalogue's
+`trunkImus` summary said until this change. It is the inclination of the back-mounted sensor (T2–T5);
+how it compares with the hip-to-shoulder chord is for the first worn two-camera session (trunk design
+§14.4). The relative reading at the top (`m_spineBendChangeTop`, thorax bend less pelvis tilt) stays
+held (§8.8).
+
+The phase readings are the GRADED ones (`trunk_sensor_series.h` `stampGradedPhases`): `reduceAt` over
+the published curve at the ladder's instant, its σ the median σ of the same frames.
+
+**Records on the bends** (Downgraded, fired with the series, withdrawn with it): `body.chestBendSite`
+on the forward bend (read on the upper back, not along the hips-to-shoulders line; not yet checked
+against the camera), and `body.trunkMountYawAssumed` on every published sensor bend — forward and side —
+while δ is at tier δ0, every swing today (evidence `deltaTier`, `sigmaDeltaDeg`, and with a side bend each
+sensor's asin(sin θ_addr·sin σ_δ) at this address).
+
+**Precedence.** The sensor bends are the answer for their keys wherever they read, with two exceptions
+where another route also read the key: the sensor the key is read from is probably worn face-in (its
+`body.*FaceIn` record covers the key), or the sensor reading has no stamped reading at a phase the camera
+series would be graded at (a ladder phase where its curve reads, or a phase it labels). Then the camera
+reading stays, the sensor bend is withdrawn and its records stop speaking for the key (the face-in covers
+lose it; `body.chestBendSite` is dropped; `body.trunkMountYawAssumed` loses the key and is dropped only
+when it covers nothing else). With no other route a face-in sensor's bend is published, with the ⚠. The sensor bends are
+stamped at every phase on the ladder so the comparison is like for like.
+`applyTrunkSensorPrecedence` runs once after every stage in `runProfile`, before
+`reconcileSubstitutedReadings`, so it holds whatever order the stages run in (the down-the-line
+forward bend comes from `DtlPostureStage`, which runs after `BodyRotationStage`; the face-on side
+bend from `UpperBodyMetricsStage`, before it; the 3-D side bend already steps aside when any side
+bend is present). It erases the other routes' series for the two keys and takes the records that
+spoke for them off the keys (`route_substitution.h` `supersedeReadings`): Refused, Bounded and Masked
+records (`body.upperAddress`, `body.sideBendLines`, `posture.address`), and a substitution record for
+another route (`body3d.fromFit`). **No record is fired for the win**: the better rung winning is not a
+fallback, so the reading carries no ⚠ for it. The rule is by effect, not by gate-id area, because the
+sensors' own records (`body.thoraxFaceIn`, Downgraded, untouched) share the `body` area with the
+face-on upper body's refusals.
+
+**Face-in.** A sensor worn label-in reads both bends backward, so the bends join its record's
+`covers`: `body.thoraxFaceIn` covers `spineForwardBend` and `spineSideBend`; `body.pelvisFaceIn`
+covers `spineSideBend` and both hip internal rotations.
+
+**Hip internal rotation** (`HipInternalRotationStage`, after `Skeleton3dBodyStage`;
+`trunk_sensor_series.h` `buildHipInternalRotation`). Two descriptors, `trailHipInternalRotation` and
+`leadHipInternalRotation`, read at the top and at impact; the single `hipInternalRotation` they replace
+had only a planned thigh-sensor rung, so nothing was ever saved under it. With both turns
+lead-relative (+ toward the target):
+
+    lead  hip IR = pelvisRotationSigned − thighTurn3dLead
+    trail hip IR = thighTurn3dTrail − pelvisRotationSigned
+
+\+ = internal rotation of that hip for either hand: the backswing closes the pelvis over the trail
+femur (trail +), the downswing opens it over the lead femur (lead +). The pelvis turn is read only
+from the pelvis sensor (`routeId` `pelvisImu`). The thigh is the fit's (§7.3) at an IMU sample between
+two read fit frames, linear between them. Elsewhere — no two-camera fit, no thigh at address, a frame
+the fit did not read — the thigh is **assumed fixed** (turn 0, σ `kHipIrThighFixedSigmaDeg` = 6°,
+PROVISIONAL: seated on 2026-07-04 swing 8, where the fit's thigh turn from address read lead −2.3° at the
+top and +1.5° at impact and trail −1.9° at impact — the trail thigh unmeasured at the top, its knee 1.7°
+bent — against a measured thigh-turn σ of 3.5–6°; a worn session with the 3-D fit seats it properly). σ per sample = the pelvis sensor's budget (garment 2°, gyro scale on the turn, bias drift) ⊕
+the thigh's σ. The record `body.thighTurnAssumed` (Downgraded; evidence `code` `noFit` / `thighUnread`,
+`sigmaDeg`) fires only when a graded reading's window holds a frame that assumed the thigh, and covers
+exactly those readings. Its code is `noFit` only when no two-camera fit reached the stage; with a fit it
+is `thighUnread` (the fit did not read that thigh there). The series' `routeId` is `pelvisImu+faceOn+dtl` when a graded reading read the
+fit's thigh, else `pelvisImu`; both rungs are Estimated. No camera-assumed record: a turn from address
+is a difference of two bearings, so the cameras' assumed heading cancels, and the camera-scale
+assumption is in the thigh's σ (`kTriScaleFrac`), as for the two-camera pelvis turn. Nothing in the
+diagnostics pack reads these; the hip faults are confirmed by the physical screen.

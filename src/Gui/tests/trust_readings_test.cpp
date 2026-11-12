@@ -23,6 +23,7 @@
 
 #include "../trust/trust_readings.h"
 #include "../charts/session_series_types.h"
+#include "../../Metrics/gate_catalogue.h"   // gateEntry, claimWords (the substituted gap)
 
 #include <QHashSeed>
 #include <QJsonArray>
@@ -332,6 +333,28 @@ int main()
         check(cascade, "the summary names how many readings a cascade took down");
         check(partly && texts.last().startsWith(QStringLiteral("Partly drawn")), "masks share one quiet line, last");
         check(!sum.value(QStringLiteral("tail")).toString().contains(QStringLiteral("elbow")), "…and stay out of the closed fold's words");
+    }
+
+    // ── a gap in a reading another route supplied (route_substitution.h, 12 Nov 2026) ──
+    {
+        const QVariantList recs = QJsonDocument::fromJson(R"([
+            {"gate":"posture.address","subject":"pelvisThrust","effect":"refused","covers":["headRise"]},
+            {"gate":"body3d.fromFit","subject":"leadKneeFlexion","effect":"downgraded","covers":["leadKneeFlexion"],
+             "evidence":{"code":"dtl","route":"faceOn+dtl","replaces":"dtl","replacedRecords":["posture.address"]}}])").array().toVariantList();
+        const QVariantMap gap = trust::substitutedGapFor(recs, QStringLiteral("leadKneeFlexion"));
+        const gates::GateEntry *e = gates::gateEntry(QStringLiteral("posture.address"));
+        check(e && gap.value(QStringLiteral("gate")).toString() == QStringLiteral("posture.address")
+                  && gap.value(QStringLiteral("words")).toString() == gates::claimWords(*e)
+                  && gap.value(QStringLiteral("effect")).toString() == QStringLiteral("refused")
+                  && gap.value(QStringLiteral("subject")).toString() == QStringLiteral("leadKneeFlexion")
+                  && gap.value(QStringLiteral("substituted")).toBool(),
+              "a substituted reading's gap is worded by the record it replaced (posture.address), not left bare");
+        check(trust::gateFor(recs, QStringLiteral("leadKneeFlexion")).value(QStringLiteral("gate")).toString()
+                  == QStringLiteral("body3d.fromFit"),
+              "…while a claim about its VALUE shows the substitute's own record");
+        check(trust::substitutedGapFor(recs, QStringLiteral("headRise")).isEmpty()
+                  && trust::substitutedGapFor(recs, QStringLiteral("spineSideBend")).isEmpty(),
+              "…and a key with no substitute gets nothing from it");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);

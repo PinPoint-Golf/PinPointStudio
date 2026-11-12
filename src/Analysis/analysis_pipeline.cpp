@@ -41,6 +41,7 @@
 #include "../Club/shaft_fusion_json.h" // shaftFusionConfigFromOverrides (ShaftFusionStage)
 #include "../Club/shaft_plane_curve.h" // swingPlaneCurve (ShaftFusionStage)
 #include "../Club/dtl_shaft_synth3d.h" // the 3-D synthetic shaft into the DTL tile (DtlSynth3DStage)
+#include "../Club/shaft_direction_series.h" // shaftDirection: the bearing, its readings and records (ShaftDirectionStage)
 #include "../Body/address_marks.h" // the body's edges at hip height at address (AddressMarksStage)
 #include <opencv2/imgcodecs.hpp>  // the address-marks debug dump
 #include <opencv2/core/utility.hpp>  // cv::getNumThreads (runProfile, analysis.parallel)
@@ -48,6 +49,8 @@
 #include "../Pose/person_segmenter.h"
 #endif
 #include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
+#include "../Body/skeleton3d_body_series.h" // the readings from the 3-D body (Skeleton3dBodyStage)
+#include "../Body/trunk_sensor_series.h" // hip internal rotation, the trunk sensors' bend precedence
 #include "../Club/dtl_shaft_tracker.h"
 #include "../Club/dtl_shaft_post.h"   // dtlShaftGates (DtlShaftStage, trust stage 6)
 #include "../Timeline/event_refine.h"
@@ -1537,6 +1540,13 @@ struct UpperBodyMetricsStage : AnalysisStage {
 //      thoraxRotationSigned here (trunk design defect 2): BodyRotationTriangulated
 //      steps aside for every segment an IMU measured, so on a worn swing this is
 //      the only producer of the signed pelvis turn hip_stall's rate reads.
+//
+//      And the trunk sensors' BENDS (12 Nov 2026): spineForwardBend from the chest
+//      sensor and spineSideBend from the pair, routeId trunkImus. They are appended
+//      beside whatever camera reading of the same key another stage makes (the
+//      face-on side bend before this stage, the down-the-line forward bend after
+//      it); applyTrunkSensorPrecedence, run once after every stage in runProfile,
+//      makes the sensor reading the answer whatever the stage order.
 struct BodyRotationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotation"); }
     StageDecl decl() const override { return D({ kPose2d, kStreams, kSeg }, {}, { kSeries }); }
@@ -1570,7 +1580,8 @@ struct BodyRotationStage : AnalysisStage {
             }
         }
 
-        const BodyRotationConfig brCfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
+        BodyRotationConfig brCfg = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
+        brCfg.withSigma = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
         const BodyRotationResult br =
             trackBodyRotation(ctx.detail->pose2d, ctx.streams, w, h, ctx.job.handedness != 2,
                               ctx.seg.events, brCfg);
@@ -3637,6 +3648,115 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
     }
 };
 
+// 13h-ter. READINGS FROM THE 3-D BODY (skeleton3d_body_series.h; planned-metrics promotion,
+//      12 Nov 2026) — the catalogue's `faceOn+dtl` rungs of shoulderPlaneAngle3d (the shoulder
+//      line's inclination at the top), shoulderLineYaw (its aim at address), leadKneeFlexion and
+//      spineSideBend, plus the research-only thigh turns W3's hip internal rotation reads. Off the
+//      two-camera fit's joints at tier ≥ constrained, σ from the fit's per-joint σ exactly as
+//      skeletonLines() propagates it. Estimated: the fit solves its own cameras, so the aim carries
+//      σ_yaw and body3d.cameraAssumed — Downgraded, shown and judged with its ⚠, never refused.
+//      After BodyRotationTriangulated (so after Skeleton3D, DtlPosture and the face-on body stages):
+//      it REPLACES the down-the-line lead knee where the 3-D one reads through impact, and adds the
+//      3-D side bend only where the face-on one is absent (mergeSkeleton3dBody). It erases a series
+//      another stage wrote, so it WRITES detail.series and the executor runs it in order.
+struct Skeleton3dBodyStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("Skeleton3dBody"); }
+    StageDecl decl() const override { return D({ kSkeleton3d, kSeg, kSeries }, { kSeries }, {}); }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return ctx.detail->skeleton3d.valid && ctx.detail->skeleton3d.dtlUsed && !ctx.detail->skeleton3d.t_us.empty();
+    }
+    QString skipReason(const AnalysisContext &) const override
+    {
+        return QStringLiteral("no two-camera skeleton fit");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        ctx.detail->versions.skeleton3dBody = kSkeleton3dBodyStageVersion;
+        const BodyRotationConfig brc = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
+        Skeleton3dBodyInput in;
+        in.fit        = &ctx.detail->skeleton3d;
+        in.phases     = ctx.seg.events;
+        in.leftHanded = ctx.job.handedness == 2;
+        in.calibrated = false;   // skeleton3d solves its own cameras; no calibration reaches the fit yet
+        in.withSigma  = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+        in.thigh.addrWindowUs = brc.addrWindowUs;
+        in.thigh.addrMaxGapUs = brc.triAddrMaxGapUs;
+        in.thigh.scaleFrac    = brc.triScaleFrac;
+        Skeleton3dBodyOutput out = buildSkeleton3dBody(in);
+        const bool aimBuilt = out.shoulderAim.has_value();
+        // Reads AND writes detail.series, so the executor gives it no buffer: this IS detail->series.
+        const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(ctx.detail->series, out);
+        if (aimBuilt && mg.published.contains(QStringLiteral("shoulderLineYaw")))
+            ctx.addGates(std::move(out.gates));
+        ctx.addGates(std::vector<GateRecord>(mg.gates));   // body3d.fromFit (route_substitution.h)
+        ppInfo() << "[WristAnalysis] 3-D body:" << qPrintable(mg.published.join(QStringLiteral(", ")))
+                 << (mg.leadKneeReplaced ? "| lead knee from the fit (replaces the down-the-line one)"
+                     : mg.leadKneeKeptDtl ? "| lead knee: no 3-D reading through impact, the down-the-line one stays"
+                                          : "")
+                 << "| camera directions ASSUMED, σ_yaw" << out.yawSigmaDeg << "°";
+    }
+};
+
+// 13h-quater. HIP INTERNAL ROTATION, trail and lead (trunk_sensor_series.h; planned-metrics promotion
+//      W3, 12 Nov 2026): the pelvis SENSOR's signed turn (pelvisRotationSigned, routeId pelvisImu)
+//      less each thigh's own turn off the two-camera fit (body3d::thighTurn — the research series
+//      thighTurn3dLead / thighTurn3dTrail, the same function and settings as Skeleton3dBodyStage), the
+//      thigh taken as fixed — σ kHipIrThighFixedSigmaDeg and the Downgraded body.thighTurnAssumed —
+//      wherever the fit did not read it (no fit, or a frame it did not read). After Skeleton3dBody, so
+//      after the fit and BodyRotation. Appends only: nothing else produces the two keys.
+struct HipInternalRotationStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("HipInternalRotation"); }
+    StageDecl decl() const override { return D({ kSkeleton3d, kSeg, kSeries }, {}, { kSeries }); }
+    static const MetricSeries *pelvisSensorTurn(const AnalysisContext &ctx)
+    {
+        for (const MetricSeries &m : ctx.detail->series)
+            if (m.key == QLatin1String("pelvisRotationSigned") && m.routeId == trunk_sensor::pelvisRouteId()) return &m;
+        return nullptr;
+    }
+    bool canRun(const AnalysisContext &ctx) const override { return pelvisSensorTurn(ctx) != nullptr; }
+    QString skipReason(const AnalysisContext &) const override
+    {
+        return QStringLiteral("no pelvis-sensor turn (pelvisRotationSigned from the pelvis IMU)");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        ctx.detail->versions.hipInternalRotation = kHipInternalRotationStageVersion;
+        HipInternalRotationInput in;
+        in.pelvisSigned = pelvisSensorTurn(ctx);
+        in.phases       = ctx.seg.events;
+        in.withSigma    = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+        const pinpoint::skeleton3d::FitResult &fr = ctx.detail->skeleton3d;
+        const std::optional<int64_t> addr = phaseTimeOpt(ctx.seg.events, Phase::Address);
+        in.fitUsed = fr.valid && fr.dtlUsed && !fr.t_us.empty();
+        if (in.fitUsed && addr) {
+            const BodyRotationConfig brc = BodyRotationConfig::fromOverrides(ctx.job.tuningOverrides);
+            body3d::ThighTurnConfig tc;   // exactly Skeleton3dBodyStage's
+            tc.addrWindowUs = brc.addrWindowUs;
+            tc.addrMaxGapUs = brc.triAddrMaxGapUs;
+            tc.scaleFrac    = brc.triScaleFrac;
+            const bool leadIsLeft = ctx.job.handedness != 2;
+            for (bool lead : { true, false }) {
+                const body3d::ThighTurn tt = body3d::thighTurn(fr, lead ? leadIsLeft : !leadIsLeft, leadIsLeft, *addr, tc);
+                if (!tt.ok) continue;
+                (lead ? in.leadThigh : in.trailThigh) = HipIrThigh{ fr.t_us, tt.turnDeg, tt.sigmaDeg };
+            }
+        }
+        // Built in full before anything is appended: `in.pelvisSigned` points into detail.series.
+        HipInternalRotationOutput out = buildHipInternalRotation(in);
+        in.pelvisSigned = nullptr;
+        const auto describe = [](const HipIrSide &s) {
+            return QStringLiteral("%1/%2 frames from the fit%3").arg(s.measuredFrames).arg(s.frames)
+                .arg(s.assumedAtTop || s.assumedAtImpact ? QStringLiteral(", thigh ASSUMED at a graded position") : QString());
+        };
+        ppInfo() << "[WristAnalysis] hip internal rotation: trail" << qPrintable(describe(out.trail))
+                 << "| lead" << qPrintable(describe(out.lead));
+        for (HipIrSide *sd : { &out.trail, &out.lead })
+            if (sd->series) ctx.seriesOut().push_back(std::move(*sd->series));
+        ctx.addGates(std::move(out.gates));
+    }
+};
+
 // 13c-octies. The 3-D SYNTHETIC SHAFT projected into the down-the-line tile
 //      (dtl_shaft_synth3d.h; dtl_continuous_track_design_update.md §3.2). The face-on Layer C
 //      synth de-projected through the per-phase fused planes and projected through the DTL
@@ -3754,6 +3874,77 @@ struct DtlSynth3DStage : AnalysisStage {
                  << ") planes addr/back/down" << pl.addr << pl.back << pl.down
                  << (fcfg.calibrated ? ", calibrated camera" : ", PREVIEW: uncalibrated camera (yaw/pitch/roll assumed 0)")
                  << (cfg.useEta && t3.eta.fitted ? ", η(t) applied" : ", in-plane");
+    }
+};
+
+// 13h-bis. SHAFT DIRECTION (shaft_direction.h; shaft_fusion_design.md §7): where the shaft points
+//      against the target line, read at P2 and at the top — the catalogue's `faceOn+dtl` rung of
+//      `shaftDirection`, Estimated. The fused 3-D shaft is the source wherever it has a clean frame
+//      (face-on measured, no sign disagreement, not ill-conditioned, not a reflected band) within
+//      ±25 ms; the 3-D skeleton's shaft (tier ≥ one view) is the fallback, because at P2 the shaft
+//      points almost straight at the down-the-line camera and the two views' planes coincide. After
+//      Skeleton3D for that fallback, which is why it is its own stage and not part of ShaftFusion.
+//      A bearing moves one-for-one with the down-the-line camera's yaw, so its σ carries σ_yaw and,
+//      while the camera is uncalibrated, the reading carries club3d.cameraAssumed — Downgraded,
+//      shown and judged with its ⚠, never refused. A graded position read from the fit adds
+//      club3d.shaftDirectionFromFit. The assembly is shaft_direction_series.h.
+struct ShaftDirectionStage : AnalysisStage {
+    QString name() const override { return QStringLiteral("ShaftDirection"); }
+    StageDecl decl() const override { return D({ kShaft3d, kSkeleton3d, kSeg }, {}, { kSeries }); }
+    static bool haveFit(const AnalysisContext &ctx)
+    {
+        const auto &fr = ctx.detail->skeleton3d;
+        return fr.valid && fr.dtlUsed && !fr.shaftDir.empty() && fr.shaftDir.size() == fr.t_us.size()
+            && fr.shaftTier.size() == fr.t_us.size();
+    }
+    bool canRun(const AnalysisContext &ctx) const override
+    {
+        return ctx.job.dtlSource != pinpoint::kInvalidSourceId
+            && ((ctx.detail->shaft3d.valid && !ctx.detail->shaft3d.samples.empty()) || haveFit(ctx));
+    }
+    QString skipReason(const AnalysisContext &ctx) const override
+    {
+        if (ctx.job.dtlSource == pinpoint::kInvalidSourceId) return QStringLiteral("no down-the-line camera");
+        return QStringLiteral("no fused 3-D shaft and no two-camera skeleton fit");
+    }
+    void run(AnalysisContext &ctx) override
+    {
+        namespace sd = pinpoint::analysis::shaftdir;
+        ctx.detail->versions.shaftDirection = kShaftDirectionStageVersion;
+        // The whole per-shot assembly — the curve, the two readings, σ, the trust records — is
+        // shaft_direction_series.h, so shaft_direction_test reaches it without the pipeline.
+        ShaftDirectionInput in;
+        in.calibrated = ShaftFusionStage::configFor(ctx.job).calibrated;
+        in.leftHanded = ctx.job.handedness == 2;
+        in.withSigma  = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+        if (ctx.detail->shaft3d.valid) in.fused = ctx.detail->shaft3d.samples;
+        if (haveFit(ctx)) {
+            const auto &fr = ctx.detail->skeleton3d;
+            in.fit.reserve(fr.t_us.size());
+            for (size_t i = 0; i < fr.t_us.size(); ++i)
+                in.fit.push_back({ fr.t_us[i], { fr.shaftDir[i].x, fr.shaftDir[i].y, fr.shaftDir[i].z }, fr.shaftTier[i] });
+        }
+        if (const PhaseEvent *e = ctx.seg.eventFor(Phase::ShaftParallelBack)) in.p2Us = e->t_us;
+        if (const PhaseEvent *e = ctx.seg.eventFor(Phase::Top)) in.topUs = e->t_us;
+        ShaftDirectionOutput res = buildShaftDirection(in);
+        if (!res.ok) {
+            ppInfo() << "[WristAnalysis] shaft direction: no usable frame (" << qlonglong(in.fused.size()) << "fused,"
+                     << qlonglong(in.fit.size()) << "fit frames)";
+            return;
+        }
+        ctx.seriesOut().push_back(std::move(res.series));
+        ctx.addGates(std::move(res.gates));
+
+        const auto say = [](const sd::Reading &r) {
+            if (r.src == sd::Source::None) return QStringLiteral("none");
+            return QStringLiteral("%1° ± %2 (%3)").arg(r.deg, 0, 'f', 1).arg(r.sigmaDeg, 0, 'f', 1)
+                .arg(r.src == sd::Source::Fusion ? QStringLiteral("fused") : QStringLiteral("fit tier %1").arg(r.fitTier));
+        };
+        const sd::Curve &curve = res.assembly.curve;
+        ppInfo() << "[WristAnalysis] shaft direction:" << qlonglong(curve.points.size()) << "frames (" << curve.nFusion
+                 << "fused," << curve.nFit << "from the fit); P2" << say(res.p2) << "| top" << say(res.top)
+                 << (in.calibrated ? QStringLiteral("| calibrated camera, σ_yaw %1°").arg(res.yawSigmaDeg, 0, 'f', 1)
+                                   : QStringLiteral("| camera direction ASSUMED, σ_yaw %1°").arg(res.yawSigmaDeg, 0, 'f', 1));
     }
 };
 
@@ -4264,8 +4455,15 @@ SessionProfile fullProfile()
     // (ks_skeleton3d_route_design.md §8). Neither skeleton stage reads anything the sequence writes.
     p.stages.push_back(std::make_unique<Skeleton3DStage>());
     p.stages.push_back(std::make_unique<BodyRotationTriangulatedStage>());
+    // The readings from the 3-D body: after the fit, the down-the-line posture whose lead knee it may
+    // replace and the face-on side bend it stands in for.
+    p.stages.push_back(std::make_unique<Skeleton3dBodyStage>());
+    // The hip internal rotations: the pelvis sensor's turn (BodyRotation) less the fit's thigh turns.
+    p.stages.push_back(std::make_unique<HipInternalRotationStage>());
     p.stages.push_back(std::make_unique<KinematicSequenceStage>());
     p.stages.push_back(std::make_unique<DtlSynth3DStage>());
+    // After Skeleton3D, whose shaft is its fallback where fusion has no clean frame (P2).
+    p.stages.push_back(std::make_unique<ShaftDirectionStage>());
     p.stages.push_back(std::make_unique<BindingsStage>());
     p.stages.push_back(std::make_unique<ResemblanceStage>());
     p.stages.push_back(std::make_unique<AssessmentStage>());
@@ -4393,6 +4591,23 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
             if (e.ran && e.endNs > lastEnd) { lastEnd = e.endNs; lastName = e.name; }
         ppInfo() << "[AnalysisDag]" << profile.name << "on" << threads << "threads: last stage"
                  << lastName.toUtf8().constData() << "ended at" << qlonglong(lastEnd / 1000000) << "ms";
+    }
+    // The trunk sensors' bends are THE reading of spineForwardBend / spineSideBend (trunk_sensor_series.h):
+    // the camera and 3-D readings of the two keys are erased and their records stop speaking for them —
+    // unless the sensor is worn face-in or reads fewer positions, when the camera reading stays. After
+    // the run, so it holds whatever order the producing stages ran in.
+    if (ctx.detail) {
+        const TrunkPrecedence tp = applyTrunkSensorPrecedence(ctx.detail->series, ctx.detail->gates, ctx.seg.events);
+        if (tp.seriesDropped > 0 || tp.recordsCleaned > 0 || tp.sensorDropped > 0)
+            ppInfo() << "[WristAnalysis] trunk sensors' bends:" << tp.seriesDropped << "camera series dropped,"
+                     << tp.sensorDropped << "sensor bend(s) withdrawn (face-in, or fewer positions than the camera),"
+                     << tp.recordsCleaned << "record(s) taken off the bends";
+    }
+    // A reading one route supplied in place of another's: the failed route's refusals stop speaking
+    // for it (route_substitution.h). After the run, so every stage's records have been spliced.
+    if (ctx.detail) {
+        const int n = reconcileSubstitutedReadings(ctx.detail->gates, ctx.detail->series);
+        if (n > 0) ppInfo() << "[WristAnalysis] route substitution:" << n << "refusal(s) moved onto the substitute record";
     }
     attachStagePreds(ctx, graph);
     bindStageTimings(ctx);

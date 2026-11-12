@@ -28,6 +28,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -642,13 +643,43 @@ struct MetricDescriptor {
     // The FLOOR: the least-demanding route — the cheapest kit that gets a number at all. Live where
     // one exists, otherwise the cheapest planned one, because a planned metric still has to be able
     // to say what it will need. Null only for the degenerate empty-routes case.
+    //
+    // Best-first, so the last live rung is normally the cheapest. ONE EXCEPTION: a live rung that needs
+    // strictly MORE kit than a live rung above it is never the floor, whatever its position. It sits
+    // low because it is the weaker reading, not the cheaper one — spineSideBend's two-camera rung
+    // (2026-11-12) is Estimated, so it must sit below the face-on Direct rung, and it needs the face-on
+    // camera too; without this the directory would say side bend needs two cameras.
     const MetricRoute *baselineRoute() const
     {
         const MetricRoute *live = nullptr;
-        for (const MetricRoute &r : routes)
-            if (!r.planned) live = &r;                 // best-first, so the last live one is cheapest
+        for (const MetricRoute &r : routes) {
+            if (r.planned) continue;
+            bool dearer = false;
+            for (const MetricRoute &q : routes) {
+                if (&q == &r) break;
+                if (!q.planned && needsMoreThan(r.requirement, q.requirement)) dearer = true;
+            }
+            if (!dearer) live = &r;
+        }
         if (live) return live;
         return routes.empty() ? nullptr : &routes.back();
+    }
+
+    // `a` needs everything `b` needs and something more.
+    static bool needsAtLeast(const MetricRequirement &a, const MetricRequirement &b)
+    {
+        const auto has = [](bool x, bool y) { return x || !y; };
+        if (!has(a.faceOnCamera, b.faceOnCamera) || !has(a.dtlCamera, b.dtlCamera) || !has(a.clubTrack, b.clubTrack)
+            || !has(a.ballTrack, b.ballTrack) || !has(a.launchMonitor, b.launchMonitor) || !has(a.hackMotion, b.hackMotion)
+            || int(a.minTier) < int(b.minTier))
+            return false;
+        for (SegmentRole rb : b.imuRoles)
+            if (std::find(a.imuRoles.begin(), a.imuRoles.end(), rb) == a.imuRoles.end()) return false;
+        return true;
+    }
+    static bool needsMoreThan(const MetricRequirement &a, const MetricRequirement &b)
+    {
+        return needsAtLeast(a, b) && !needsAtLeast(b, a);
     }
 
     // What you must have for any reading at all. This is the "Needs" facet, and the descriptor-level

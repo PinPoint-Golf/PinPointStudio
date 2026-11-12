@@ -45,7 +45,8 @@ static const Expect kExpected[] = {
       "spineForwardBend is 'the forward tilt of the trunk'; upright is less of it" },
     { "sig_ballTooClose",     Direction::Low,   "ballBodyDistance: 'higher means further away'" },
     { "sig_ballTooFar",       Direction::High,  "ballBodyDistance: 'higher means further away'" },
-    // On `shoulderLineYaw` since 2026-09-14, a planned series nothing emits yet. Until then the
+    // On `shoulderLineYaw` since 2026-09-14, produced since 2026-11-12 off the two-camera 3-D fit
+    // (Skeleton3dBodyStage; open is the lead end toward the golfer's side, either hand). Until then the
     // measure read shoulderPlaneAngle at P1 — the face-on TILT, which the grip sets at ~-10° on every
     // right-handed setup — and the corridor fired "open" on square shoulders. The direction rows
     // were right the whole time; it was the measure underneath that answered a different question.
@@ -72,8 +73,8 @@ static const Expect kExpected[] = {
       "detection 'all' — the conjunction needs both ends of the swing wrong before it fires, which "
       "is why this signal names its phase" },
     { "sig_lossOfWidth",      Direction::Low,   "leadHandWidth: 'lower means narrower'" },
-    // On `shoulderPlaneAngle3d` since 2026-09-14, planned on the pair; the face-on line at P4 is
-    // foreshortened into noise. Same convention, so the tails are unchanged.
+    // On `shoulderPlaneAngle3d` since 2026-09-14, produced since 2026-11-12 off the two-camera 3-D fit;
+    // the face-on line at P4 is foreshortened into noise. Same convention, so the tails are unchanged.
     { "sig_flatShoulderPlane",Direction::Low,   "shoulderPlaneAngle3d: 'Lower means flatter'" },
     { "sig_flyingElbow",      Direction::High,
       "trailElbowHeight: 'higher means the elbow has risen further above the shoulder line'" },
@@ -147,7 +148,8 @@ static const Expect kExpected[] = {
 
     // ── content extension: backswing ────────────────────────────────────────
     { "sig_insideTakeaway",       Direction::Low,
-      "shaftDirection: 'POSITIVE POINTS RIGHT OF THE TARGET … outside in the takeaway'; inside is left" },
+      "shaftDirection: 'POSITIVE POINTS ACROSS THE TARGET LINE, AWAY FROM THE GOLFER — … outside in the "
+      "takeaway'; inside, back toward the golfer, is negative" },
     { "sig_outsideTakeaway",      Direction::High, "shaftDirection: outside is the positive end" },
     { "sig_earlyFaceRoll",        Direction::High,
       "m_leadForearmRot_p2 highMeans: 'the face opening in the takeaway'" },
@@ -161,8 +163,9 @@ static const Expect kExpected[] = {
       "m_downswingPlaneAngle highMeans: 'a more upright downswing plane' — steep coming down is the upright end" },
     { "sig_downswingPlaneTooFlat",    Direction::Low,  "the other end of that same range" },
     { "sig_acrossTheLine",        Direction::High,
-      "shaftDirection: 'across the line at the top' is the positive, right-of-target end" },
-    { "sig_laidOff",              Direction::Low,  "…and laid off is the negative, left-of-target end" },
+      "shaftDirection: 'across the line at the top' is the positive end — away from the golfer, right of "
+      "the target for a right-hander" },
+    { "sig_laidOff",              Direction::Low,  "…and laid off, back toward the golfer, is the negative end" },
     { "sig_overswing",            Direction::High,
       "shaftAngleVsHorizontal: 'POSITIVE IS PAST PARALLEL and negative is short of it'" },
     { "sig_bentLeadArm",          Direction::High,

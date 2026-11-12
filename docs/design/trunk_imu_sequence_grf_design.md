@@ -111,8 +111,8 @@ These resolve `Measured` instead of `Bridged`, with a σ: `pelvisRotation`, `tho
 |---|---|---|
 | `pelvisTilt` (anterior/posterior) | Pelvis sagittal tilt from upright stance | Early extension's rotational half: posterior tilt address→impact. The camera gives only the thrust half (`pelvisThrust`, DTL). |
 | `pelvisObliquity` | Pelvis frontal tilt, lead hip high + | IMU route for `hipLineTilt`; pelvis side bend at top, about 10–12° (NR, low confidence) |
-| `thoraxForwardBend` | Thorax sagittal inclination | The PLANNED `trunkImus` route on `spineForwardBend`; loss of posture P1→P7 |
-| `thoraxSideBend` | Thorax frontal inclination | IMU route for `spineSideBend`; side bend at impact; reverse spine angle at top |
+| `thoraxForwardBend` | Thorax sagittal inclination | The `trunkImus` route on `spineForwardBend` (**produced since 12 Nov 2026**, see below); loss of posture P1→P7 |
+| `thoraxSideBend` | Thorax frontal inclination | IMU route for `spineSideBend`, against `pelvisObliquity` (**produced since 12 Nov 2026**); side bend at impact; reverse spine angle at top |
 | `xFactorAtTop` measure | xFactor at P4 | No such measure exists today |
 | `pelvisDecel` present/absent | The pelvis rate falls before impact | NR-12 says report it as binary |
 | `speedGainPelvisThorax` | Thorax peak − pelvis peak (°/s); and the ratio | Cheetham 250 ± 42 °/s pro |
@@ -120,6 +120,16 @@ These resolve `Measured` instead of `Bridged`, with a σ: `pelvisRotation`, `tho
 | `crunchFactor` | Thorax side bend × axial rate relative to the pelvis | NR-17: compute and log, do not display |
 
 The KS norms (Cheetham) come from sensors on the pelvis and upper thorax: this layout. The "% of pro" in the KS tile becomes like-for-like for the first time.
+
+**Produced since 12 November 2026** (planned-metrics promotion W3; `body_rotation_estimation.md` §7.4 has the detail):
+- `spineForwardBend`, route `trunkImus`, Direct: `thoraxForwardBend` as the down-the-line camera reads it — the chest's long axis `s = q·ẑ` in the vertical plane through the ball, `atan2(s·Ŷ, s·ẑ)`, Ŷ the golfer's horizontal front at this swing's address (ẑ × the chest's medio-lateral axis there; `trunk_sensor_series.h` `ballPlaneBendDeg`). Absolute (stand tall reads 0). It needs the chest sensor only.
+  - **A departure from D13's wording, deliberately (W3 review, 12 Nov).** D13's forward bend is the long axis's whole inclination, signed by the segment's own anterior axis (`trunk_angles::forwardBendRad`). That sign turns with the chest: past ~90° of turn, earlier with a side tilt or a mount yaw, a chest still bent over the ball reads −40° (a 35° chest, 45° open with a 30° side tilt at impact, reads −44.8° by D13 and +39° down the line). And the whole inclination grows with a side tilt. The ball-plane projection is sign-stable through the swing, is the quantity the down-the-line camera and its norms read, and a mount yaw δ moves it through the address front's heading: FIRST ORDER in ε ≈ atan(tan δ·cos θ_addr) once the chest leans out of the ball plane (a side tilt), ε·s_z·(s·X̂)/((s·Ŷ)² + s_z²) — −3.3° at δ 10° on a 35° chest 45° open with a 30° side tilt at impact — and only second order with no tilt (−0.25° to −0.28° at address); its σ and `body.trunkMountYawAssumed` carry that. **D13 stays for the face-in cue at address** (`addressBendDeg`), where the chest has not turned.
+- `spineSideBend`, route `trunkImus`, Direct: `thoraxSideBend − pelvisObliquity`, both `obliquityRad`, signed + toward the trail side (the chest's lead side up against the hips'), mirrored for a left-hander. It needs both sensors.
+- `trailHipInternalRotation` / `leadHipInternalRotation`: the pelvis sensor's signed turn less each thigh's own turn off the two-camera fit, the thigh assumed fixed (wider σ, `body.thighTurnAssumed`) without it.
+- Each carries the §8.2 σ per sample, and the sensor bends beat the down-the-line, face-on and 3-D readings of the same key (`applyTrunkSensorPrecedence`, after every stage) — except where that sensor is worn face-in, or reads fewer positions than the camera, when the camera reading stays. `pelvisObliquity`, `pelvisTilt` and `thoraxSideBend` are not published as series of their own.
+- Two Downgraded records carry their assumptions: `body.chestBendSite` on every published sensor forward bend (the upper back, not the hip-to-shoulder line; not yet checked against the camera), and `body.trunkMountYawAssumed` on every published sensor bend — forward and side — while δ is at tier δ0 (every swing today), with each sensor's side-bend term asin(sin θ·sin σ_δ) at the address. The forward bend's σ carries the δ term above.
+
+⚠ **No worn recording exists.** These readings have been checked only on `trunk_e2e_test`'s synthetic body (§j), not on a swing.
 
 ### 3.3 Kinematic sequence complete on the trunk
 
@@ -312,7 +322,7 @@ Mount-yaw error δ, trunk bent forward by θ (thorax 30–45° at address, pelvi
 | S-I rates (KS) | **None** | 0 |
 | Peak times, sequence order | **None** | 0 |
 | Turn from address, X-factor | atan(tan δ·cos θ), changing only as θ changes — for a turn about world vertical. For a turn about the bent spine itself it grows with the turn (`trunk_e2e_test`, 17 Oct) | about 1–2° turning about vertical; about the spine: pelvis (θ 20°) 0.5° at 45° and 1.2° at 90° of turn, thorax (θ 40°) 1.6° at 45° and **5.3° at 90°** |
-| Forward bend / tilt | none with the projection definition (inclination of q·ẑ; `trunk_e2e_test`, 17 Oct) | 0 |
+| Forward bend / tilt | D13's inclination of q·ẑ: none (`trunk_e2e_test`, 17 Oct). The published `spineForwardBend` (12 Nov, the ball-plane projection, §3.2): δ-free at address to second order (−0.25° to −0.28° at θ 40–35°), and FIRST ORDER in ε = atan(tan δ·cos θ_addr) once the chest leans out of the ball plane: ε·s_z·(s·X̂)/((s·Ŷ)² + s_z²) | 0.25–0.28° at address; −0.28° at impact 45° open, **−3.3° with a 30° side tilt** (`trunk_e2e_test` §j) |
 | **Side bend / obliquity** | **First order: asin(sin θ·sin δ)** | **4° at θ = 25°, 6.4° at θ = 40°** |
 | Load: vertical | second order (gravity axis known) | small |
 | **Load: lateral push, lead fraction** | **First order** (the target-line axis is the heading, which δ shifts through the bend) | to be computed in the synthetic test |
@@ -501,8 +511,8 @@ The briefs' `rot.*` ids map onto the catalogue (R11). Existing keys gain an IMU 
 | `rot.sequence.pelvisThoraxGap` | `pelvisThoraxPeakGap` | new |
 | `rot.sequence.gainRatio` | `speedGainPelvisThorax` | new |
 | `rot.pelvis.tilt.*` | `pelvisObliquity` → route on `hipLineTilt` | new route |
-| `rot.thorax.sideBend.*` | `thoraxSideBend` → route on `spineSideBend` | new route |
-| `rot.*.forwardBend.*` | `pelvisTilt`; `thoraxForwardBend` → `spineForwardBend` (PLANNED `trunkImus`) | new / PLANNED |
+| `rot.thorax.sideBend.*` | `thoraxSideBend` → route on `spineSideBend` | IMU route live (12 Nov), against `pelvisObliquity` |
+| `rot.*.forwardBend.*` | `pelvisTilt`; `thoraxForwardBend` → `spineForwardBend` (`trunkImus`) | `pelvisTilt` new; `trunkImus` live (12 Nov) |
 | `rot.*.turn.series`, `rot.xfactor.series` | `pelvisRotationSigned` (IMU route live, 26 Oct), new `thoraxRotationSigned` (IMU, then two cameras) | fixes defect 2 |
 
 ### 8.2 σ for IMU rotation
@@ -516,6 +526,8 @@ Per sample, in quadrature, `SigmaKind::Propagated`:
 - **Mount yaw:** σ_δ through §6.2 — first order for side bend and obliquity, near zero for turn, zero for S-I rates and peak times.
 
 Closes the census rows for the IMU tier ("IMU readings reach diagnostics with no σ at all"). Display per memory note `feedback_no_sigma_rounding`.
+
+**Built for the bends and hip internal rotation (12 Nov 2026)**, `tuned::bodyRotation::kImu*` (`src/Body/trunk_sensor_series.h`): garment 3° / 2° (the placeholders above), gyro scale 1.5 % of the change from address (and, for the side bend, 1.5 % of each sensor's turn leaking through its bend, ≈ sin θ · 1.5 % · |turn|), bias drift at `calib::kTrunkStillGyroMaxDps` (0.5 °/s, the stand-tall gate's bound, taken as the residual's 1σ — PROVISIONAL), and the mount yaw for the side bend at δ0's σ_δ 10° (`calib::kTrunkMountYawSigmaDeg`) through each sensor's own forward bend. Not included: the ceremony's axis residuals and a slip flag, which do not reach the analysis (`FusedStreams` carries neither). The turn series themselves (`pelvisRotation`, `pelvisRotationSigned`, …) still carry no σ; hip internal rotation adds the pelvis turn's budget inside its own σ.
 
 ### 8.3 Body rotation
 
@@ -576,7 +588,7 @@ The wiring exists (`analysis_pipeline.cpp:3050`: Pelvis → Hips, Thorax → Spi
 Scored against 0 ± 2.5°, the reading made `loss_of_posture_backswing` fire on every swing Nick hit. The IMUs remove both failure modes: the sensors sit on the segments, so there is no occlusion and no keypoint travel with the turn.
 
 **What the IMU work owes here:**
-- `thoraxForwardBend` (§3.2) as the `trunkImus` route on `spineForwardBend`, from the §5.3 decomposition, with the §8.2 σ.
+- `thoraxForwardBend` (§3.2) as the `trunkImus` route on `spineForwardBend`, from the §5.3 decomposition, with the §8.2 σ. **Done 12 Nov 2026** (§3.2): the chest's absolute inclination, which wins over the down-the-line line wherever both read. `m_spineBendChangeTop` stays held: it waits on the relative reading below and the worn-session grading pass.
 - The reading at the top **relative to the pelvis**: thorax bend minus pelvis tilt, so that a pelvis that tips under the trunk is not reported as the trunk standing up.
 - A grading pass on worn swings recorded with both cameras (§14.4): the DTL line against the IMU at P1 and P4. That pass decides whether the camera line can be corrected (its error looks systematic, about 7°, but has been measured on two golfers only) or stays held on camera-only swings.
 - Then release the hold: `m_spineBendChangeTop` back to `live`, with the IMU rung first in its ladder. The camera rung is live only if §14.4 passes it. Re-seat its norm from the worn swings, labelled one-golfer.

@@ -168,6 +168,75 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         "At address the chest sensor read a forward bend of {bendDeg:deg}, a lean backward[ (the cue fires below {limitDeg:deg})].",
         { GateEffect::Downgraded }, rotProd, faceInDoc);
 
+    // ── The trunk sensors' bends (body_rotation.cpp): their two assumptions ─────────────────────────
+    // DOWNGRADED, never refused: the sensor readings are kept and judged, a step lower in trust, with the
+    // warning. Withdrawn with the reading when a camera reading stays the answer (applyTrunkSensorPrecedence).
+    add(c, "body.chestBendSite", body, "Chest bend read on the upper back", "read on the upper back",
+        QStringLiteral("The forward bend is normally the line from your hips to your shoulders, seen from down the "
+                       "line. With the chest sensor worn it is read by that sensor instead, on your upper back, which "
+                       "tilts with the upper spine rather than with that line. The two have not yet been compared on "
+                       "a swing where both were recorded, so the reading is kept and judged, a step lower in trust."),
+        "Read by the chest sensor on the upper back, not along the hips-to-shoulders line; not yet checked against the camera.",
+        { GateEffect::Downgraded }, rotProd, "docs/design/body_rotation_estimation.md");
+    add(c, "body.trunkMountYawAssumed", body, "Sensor direction on the back assumed", "sensor direction assumed",
+        QStringLiteral("The bends read by the motion sensors need to know exactly which way each sensor faces on "
+                       "your back. Standing tall cannot measure that turn, so it is taken from how the sensors are "
+                       "worn. A sensor turned a little on the back reads part of your forward bend as side bend, and "
+                       "part of a side lean as forward bend, so these readings are kept and judged, a step lower in "
+                       "trust, and carry that much more uncertainty."),
+        "Each sensor's turn on the back is assumed (±{sigmaDeltaDeg:deg}), so the bends read from it carry more "
+        "uncertainty[; at this address the side bend carries ±{thoraxAddrDeg:deg} from the chest sensor][ and "
+        "±{pelvisAddrDeg:deg} from the hip sensor].",
+        { GateEffect::Downgraded }, rotProd, "docs/design/trunk_imu_sequence_grf_design.md §6.2");
+
+    // ── Hip internal rotation (trunk_sensor_series.h, for HipInternalRotationStage) ────────────────
+    // DOWNGRADED, never refused: where the two-camera fit did not read a thigh's own turn, the hip's
+    // rotation is the hip sensor's turn over a thigh taken as not turning, kept and judged with this
+    // warning and the assumption's σ. Fired only when a graded reading (the top or impact) rests on it,
+    // covering exactly those readings.
+    {
+        GateEntry &e = add(c, "body.thighTurnAssumed", body, "Thigh turn assumed", "thigh turn assumed",
+            QStringLiteral("Hip internal rotation is the hips' turn against the thigh's. The hip sensor measures "
+                           "the hips' turn; no sensor is worn on the thigh, so the thigh's own turn comes from the "
+                           "3-D fit of your body, which needs both cameras to see the legs. Where the fit did not "
+                           "read it, the thigh is taken as not turning, which a planted foot nearly allows, so "
+                           "the reading is kept and judged, a step lower in trust, with more uncertainty."),
+            "{code:code}, so the thigh is taken as not turning and hip rotation carries ±{sigmaDeg:deg} more.",
+            { GateEffect::Downgraded }, "src/Body/trunk_sensor_series.h", "docs/design/body_rotation_estimation.md");
+        e.codes = {
+            { QStringLiteral("noFit"),       QStringLiteral("There is no 3-D fit of the body on this swing") },
+            { QStringLiteral("thighUnread"), QStringLiteral("The 3-D fit did not read that thigh's own turn there") } };
+    }
+
+    // ── The readings from the 3-D body (skeleton3d_body_series.h, for Skeleton3dBodyStage) ─────────
+    // DOWNGRADED, never refused: the aim is shown and judged, a step lower in trust, with the warning.
+    // Only the AIM carries it — a bearing turns one-for-one with the cameras' assumed direction; the
+    // shoulder tilt, the side bend and the knee bend are inclinations and do not. It fires on every
+    // published aim: skeleton3d solves its own cameras and no measured calibration reaches the fit,
+    // so the words promise no way to remove it.
+    add(c, "body3d.cameraAssumed", body, "Camera direction assumed", "camera direction assumed",
+        QStringLiteral("Where the shoulders aim is read against the target line, and the cameras are what tell the "
+                       "3-D fit of your body which way that line runs. The fit works out the cameras' directions "
+                       "for itself, from the swing it sees, and a direction off by a few degrees turns the reading "
+                       "of where the shoulders aim by the same few degrees. So the reading is kept and judged, a "
+                       "step lower in trust, and carries that much more uncertainty."),
+        "The 3-D fit works out the cameras' directions itself, so where the shoulder line points carries ±{sigmaYawDeg:deg}.",
+        { GateEffect::Downgraded }, "src/Body/skeleton3d_body_series.h", "docs/design/body_rotation_estimation.md");
+    // The 3-D route standing in where the single-camera route had nothing (route_substitution.h): the
+    // reading is kept and judged from the fit, a step lower in trust; the failed route's own refusals
+    // are moved onto this record's `replacedRecords` after the run, so they no longer sit beside the value.
+    {
+        GateEntry &e = add(c, "body3d.fromFit", body, "Read from the 3-D fit", "from the 3-D fit",
+            QStringLiteral("This reading is normally taken by one camera. On this swing that camera could not read it, "
+                           "so it was read from the 3-D fit of your body, which combines both cameras. It is kept and "
+                           "judged, a step lower in trust, with this warning."),
+            "{code:code}, so this was read from the 3-D fit of the body.",
+            { GateEffect::Downgraded }, "src/Body/skeleton3d_body_series.h", "docs/design/body_rotation_estimation.md");
+        e.codes = {
+            { QStringLiteral("faceOn"), QStringLiteral("The face-on camera could not read it on this swing") },
+            { QStringLiteral("dtl"),    QStringLiteral("The down-the-line camera could not read it on this swing") } };
+    }
+
     add(c, "body.xFactorStretchTop", body, "No top to measure from", "no top found",
         QStringLiteral("X-factor stretch is how much the separation between chest and hips grows after the top of "
                        "the backswing. Without a top on this swing's timeline there is no instant to measure it "

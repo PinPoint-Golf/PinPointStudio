@@ -68,8 +68,13 @@ frame handedness-free. The right-handed *glosses* — in-to-out, open, draw — 
 > above relies on. A corridor of 0 ± 4° on the tilt fired `alignment_open` on 7 of 7 shots of the
 > 9 Sep 2026 session over a visibly square setup. Aim is a rotation about the vertical axis, which
 > one camera cannot measure (8524467), so the measure now names `shoulderLineYaw` — the shoulder
-> line's bearing from the triangulated pair, open negative and closed positive per rule 1 — and
-> reports "not produced" until that lands.
+> line's bearing from the triangulated pair, open negative and closed positive — and reported
+> "not produced" until that landed. **It landed on 2026-11-12** (`Skeleton3dBodyStage`,
+> `skeleton3d_body_metrics.h`): the bearing of the trail→lead shoulder line in the ground plane of
+> the two-camera fit, against the target line. Like `shaftDirection` it is **MIRRORED for a
+> left-hander**, so OPEN IS NEGATIVE FOR BOTH (the lead end aimed toward the golfer's own side of
+> the target line) and `alignment_open` / `alignment_closed` read it the same way; it is therefore
+> not a rule-1 world-frame bearing like `clubPath`, whose sign stays put while the gloss flips.
 
 `toeLineAngle` is the one row here that is **not** comparable with an outside number: it is the
 apparent stance line as one camera sees it, not a measured aim. It is a body-line tilt (see the
@@ -242,7 +247,9 @@ All written right-handed; handedness is a transform applied at read time, never 
 | `smashFactor` | a more efficient strike |
 | `strikeLocation` | toward the TOE; negative toward the heel |
 | `dynamicLoft`, `spinLoft` | more loft delivered / a larger loft-to-path angle |
-| `shaftDirection` | pointing right of the target — across the line at the top, outside in the takeaway |
+| `shoulderLineYaw` | the shoulder line aimed CLOSED — right of the target for a right-hander; open is negative. MIRRORED for a left-hander (`skeleton3d_body_metrics.h`, 12 Nov 2026), so open is negative for both; the two-camera fit's bearing, carrying the cameras' assumed yaw (σ_yaw) |
+| `shoulderPlaneAngle3d` | the TRAIL shoulder above the lead one, the line's inclination taken in its own vertical plane — the body-line convention below, in 3-D, so it does not flip for a left-hander |
+| `shaftDirection` | pointing ACROSS the target line, away from the golfer — across the line at the top, outside in the takeaway; right of the target for a right-hander. MIRRORED for a left-hander (`shaft_direction.h`, 12 Nov 2026), so the sign means across / outside for both and the four faults read it the same way; it is not a world-frame bearing like `clubPath` |
 | `shaftLie` | the shaft STEEPER to the ground — more upright — as the down-the-line camera sees it, 0° flat along the ground and 90° straight up; the card's Δ is impact − address, so positive is the shaft coming back steeper than it was set up and negative flatter (Mark, 2026-10-01: "+ve delta is steepening"). NOT the sole's lie: that is `lieAngle` below, a different quantity |
 | `lieAngle` | the clubhead sole **toe UP** relative to the ground at impact; negative is toe down and zero is flat. Foresight's published convention, taken unchanged |
 | `closureRate` | the face rotating **CLOSED** through impact — a higher positive value is a faster closing rate, a low or stable one a squarer, held-off release. Foresight's published convention. Reported by the device in dps **or** rpm; the connector converts on the header's declared unit, so ours is always °/s |
@@ -263,6 +270,11 @@ All written right-handed; handedness is a transform applied at read time, never 
 tilt of a line between a lead point and its trail partner, and all four mean the same thing:
 
 > **Positive means the TRAIL end sits ABOVE the lead end.**
+
+The two-camera fit's lines keep the same convention in 3-D (`skeleton3d_body_metrics.h`, 12 Nov
+2026): `shoulderPlaneAngle3d` is `atan2(z_trail − z_lead, |horizontal|)`, and the 3-D route of
+`spineSideBend` takes both lines' tilts the same way in the frontal plane square to the pelvis, hip
+tilt minus shoulder tilt, so it is + toward the trail side exactly as the face-on route is.
 
 They are computed against the **absolute** horizontal separation — `atan2(leadY − trailY, |Δx|)` —
 which is what makes the sign independent of which image side the lead is on. The alternative, a raw
@@ -328,6 +340,9 @@ The trunk frame and its stand-tall solve are owned by
 | Obliquity / side bend | elevation of the ML axis above horizontal | **lead side higher** |
 | Forward bend / tilt | inclination of the long axis `q_anat·ẑ` from vertical, in the sagittal direction | **anterior** (bent toward the ball) |
 | KS trunk rate (`pelvisAngularSpeed`, `thoraxAngularSpeed` IMU route) | the segment's own **S-I rate**, `gyro_segment · ẑ_segment` (D3), not the world-vertical rate | turning toward the **lead** side, as the camera rates above |
+| `spineForwardBend` from the chest sensor (route `trunkImus`, 12 Nov 2026) | the chest's long axis `q·ẑ` in the vertical plane through the ball, `atan2(s·Ŷ, s·ẑ)` with Ŷ the golfer's horizontal front at address (ẑ × the ML axis there) — NOT the row above's sign rule, which turns with the chest; ABSOLUTE (stand tall reads 0, not address) | bent **toward the ball**, as the down-the-line reading, through the whole swing; the same for both hands |
+| `spineSideBend` from the two sensors (route `trunkImus`, 12 Nov 2026) | the chest's obliquity less the hips' — each "lead side higher" as above | side bend toward the **trail** side, as the face-on reading: the chest's lead side up against the hips'. Raw, it is s·(obliquity_pelvis − obliquity_thorax) with the +X-side-up raw obliquity and s = +1 for a right-hander, −1 for a left-hander |
+| `trailHipInternalRotation` / `leadHipInternalRotation` (12 Nov 2026) | lead: `pelvisRotationSigned` − the lead thigh's own turn; trail: the trail thigh's turn − `pelvisRotationSigned` (both turns lead-relative, the thigh's off the two-camera fit, `thighTurn3dLead` / `thighTurn3dTrail`, or 0 when assumed fixed) | **internal rotation of that hip**, for either hand: the trail hip + at the top (the pelvis closed over the trail femur), the lead hip + through impact (opened over the lead femur) |
 
 **Handedness (D15).** The flip happens at ingest. The trunk frame is the same for both hands (+X is always the golfer's right). The producer mirrors the lateral readings for a left-hander, so stored metrics are handedness-neutral and handedness lives in the binding.
 

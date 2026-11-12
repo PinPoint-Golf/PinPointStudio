@@ -1,4514 +1,5700 @@
 {
- "schema": "pinpoint.analysisDag/1",
- "profile": "Wrist",
- "nodes": [
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [
-    "window.faceOn"
-   ],
-   "height": 23,
-   "id": 0,
-   "name": "FrameDecodeFaceOn",
-   "rank": 0,
-   "reads": [
-    "window.faceOn"
-   ],
-   "series": "none",
-   "writes": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [
-    "window.dtl"
-   ],
-   "height": 10,
-   "id": 1,
-   "name": "FrameDecodeDtl",
-   "rank": 0,
-   "reads": [
-    "window.dtl"
-   ],
-   "series": "none",
-   "writes": [
-    "frames.dtl"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 24,
-   "id": 2,
-   "name": "ImuResample",
-   "rank": 0,
-   "reads": [
-    "window.imu",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "streams",
-    "doRefuse"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 23,
-   "id": 3,
-   "name": "ImuSegmentation",
-   "rank": 1,
-   "reads": [
-    "streams",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "segImu"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 16,
-   "id": 4,
-   "name": "WristMetrics",
-   "rank": 2,
-   "reads": [
-    "segImu",
-    "streams",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "ctx.series"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [
-    "window.faceOn"
-   ],
-   "height": 22,
-   "id": 5,
-   "name": "Pose",
-   "rank": 2,
-   "reads": [
-    "window.faceOn",
-    "segImu",
-    "halted",
-    "frames.faceOn"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.pose2d",
-    "runnerOpt"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 21,
-   "id": 6,
-   "name": "PoseSmooth",
-   "rank": 3,
-   "reads": [
-    "runnerOpt",
-    "detail.pose2d",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 20,
-   "id": 7,
-   "name": "Ball",
-   "rank": 4,
-   "reads": [
-    "frames.faceOn",
-    "runnerOpt",
-    "detail.pose2d",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "ball"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [
-    "window.impact"
-   ],
-   "height": 15,
-   "id": 8,
-   "name": "Impact",
-   "rank": 0,
-   "reads": [
-    "window.impact",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.impact"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 19,
-   "id": 9,
-   "name": "Shaft",
-   "rank": 5,
-   "reads": [
-    "frames.faceOn",
-    "ball",
-    "detail.pose2d",
-    "streams",
-    "segImu",
-    "seg",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.shaft",
-    "segVision",
-    "foWitness",
-    "detail.ball"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 18,
-   "id": 10,
-   "name": "SegResolve",
-   "rank": 6,
-   "reads": [
-    "segImu",
-    "segVision",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "seg"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 17,
-   "id": 11,
-   "name": "EventRefine",
-   "rank": 7,
-   "reads": [
-    "segImu",
-    "detail.shaft",
-    "detail.ball",
-    "seg",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 16,
-   "id": 12,
-   "name": "ImpactAnchor",
-   "rank": 8,
-   "reads": [
-    "frames.faceOn",
-    "detail.shaft",
-    "detail.pose2d",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 15,
-   "id": 13,
-   "name": "ShaftLean",
-   "rank": 9,
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "detail.pose2d",
-    "ctx.series",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "ctx.series"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 14,
-   "id": 14,
-   "name": "RequireProducts",
-   "rank": 10,
-   "reads": [
-    "ctx.series",
-    "detail.pose2d",
-    "streams"
-   ],
-   "series": "none",
-   "writes": [
-    "halted"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 13,
-   "id": 15,
-   "name": "PositionsLadder",
-   "rank": 11,
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "seg"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 12,
-   "id": 16,
-   "name": "TimelineFusion",
-   "rank": 12,
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "seg"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 11,
-   "id": 17,
-   "name": "BindDetail",
-   "rank": 13,
-   "reads": [
-    "ctx.series",
-    "seg",
-    "halted"
-   ],
-   "series": "gated",
-   "writes": [
-    "detail.series",
-    "detail.phases"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 18,
-   "name": "HeadTrack",
-   "rank": 14,
-   "reads": [
-    "detail.pose2d",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 19,
-   "name": "FootMetrics",
-   "rank": 14,
-   "reads": [
-    "detail.pose2d",
-    "seg",
-    "detail.ball",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 20,
-   "name": "LowerBodyMetrics",
-   "rank": 14,
-   "reads": [
-    "detail.pose2d",
-    "seg",
-    "detail.ball",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 21,
-   "name": "UpperBodyMetrics",
-   "rank": 14,
-   "reads": [
-    "detail.pose2d",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 22,
-   "name": "BodyRotation",
-   "rank": 14,
-   "reads": [
-    "detail.pose2d",
-    "streams",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 10,
-   "id": 23,
-   "name": "ClubDelivery",
-   "rank": 14,
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "detail.ball",
-    "detail.pose2d",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 24,
-   "name": "Tempo",
-   "rank": 14,
-   "reads": [
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 10,
-   "id": 25,
-   "name": "Kinematics",
-   "rank": 14,
-   "reads": [
-    "detail.shaft",
-    "detail.pose2d",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 9,
-   "id": 26,
-   "name": "ShaftPlane",
-   "rank": 15,
-   "reads": [
-    "detail.shaft",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [
-    "window.dtl"
-   ],
-   "height": 9,
-   "id": 27,
-   "name": "DtlPose",
-   "rank": 13,
-   "reads": [
-    "window.dtl",
-    "detail.pose2d",
-    "seg",
-    "halted",
-    "frames.dtl"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 8,
-   "id": 28,
-   "name": "DtlShaft",
-   "rank": 16,
-   "reads": [
-    "frames.dtl",
-    "detail.poseDtl",
-    "detail.shaft",
-    "foWitness",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 29,
-   "name": "ShaftFusion",
-   "rank": 17,
-   "reads": [
-    "detail.shaft",
-    "detail.shaftDtl",
-    "detail.poseDtl",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": [
-    "detail.shaft3d"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 7,
-   "id": 30,
-   "name": "DtlPosture",
-   "rank": 17,
-   "reads": [
-    "detail.poseDtl",
-    "detail.pose2d",
-    "seg",
-    "detail.ball",
-    "detail.shaftDtl",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": [
-    "detail.dtlRuler"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [
-    "window.faceOn",
-    "window.dtl"
-   ],
-   "height": 6,
-   "id": 31,
-   "name": "AddressMarks",
-   "rank": 18,
-   "reads": [
-    "window.faceOn",
-    "window.dtl",
-    "seg",
-    "detail.pose2d",
-    "detail.poseDtl",
-    "detail.dtlRuler",
-    "halted",
-    "frames.faceOn",
-    "frames.dtl"
-   ],
-   "series": "buffered",
-   "writes": [
-    "detail.addressMarks"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 6,
-   "id": 32,
-   "name": "DtlShaftLie",
-   "rank": 17,
-   "reads": [
-    "detail.shaftDtl",
-    "detail.shaft",
-    "seg",
-    "halted"
-   ],
-   "series": "buffered",
-   "writes": []
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 5,
-   "id": 33,
-   "name": "Skeleton3D",
-   "rank": 19,
-   "reads": [
-    "detail.pose2d",
-    "detail.poseDtl",
-    "detail.shaft",
-    "detail.shaftDtl",
-    "seg",
-    "detail.ball",
-    "streams",
-    "detail.series",
-    "ctx.series",
-    "halted"
-   ],
-   "series": "gated",
-   "writes": [
-    "detail.skeleton3d"
-   ]
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 4,
-   "id": 34,
-   "name": "BodyRotationTriangulated",
-   "rank": 20,
-   "reads": [
-    "detail.skeleton3d",
-    "seg",
-    "detail.series",
-    "halted"
-   ],
-   "series": "gated",
-   "writes": []
-  },
-  {
-   "appends": [
-    "detail.series"
-   ],
-   "barrier": false,
-   "cameras": [],
-   "height": 3,
-   "id": 35,
-   "name": "KinematicSequence",
-   "rank": 21,
-   "reads": [
-    "detail.pose2d",
-    "detail.poseDtl",
-    "streams",
-    "detail.shaft",
-    "detail.shaft3d",
-    "detail.skeleton3d",
-    "seg",
-    "detail.series",
-    "halted"
-   ],
-   "series": "gated",
-   "writes": [
-    "detail.kinematicSequence"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 1,
-   "id": 36,
-   "name": "DtlSynth3D",
-   "rank": 20,
-   "reads": [
-    "detail.shaft",
-    "detail.shaft3d",
-    "detail.skeleton3d",
-    "seg",
-    "detail.shaftDtl",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 1,
-   "id": 37,
-   "name": "Bindings",
-   "rank": 11,
-   "reads": [
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.bindings"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 3,
-   "id": 38,
-   "name": "Resemblance",
-   "rank": 13,
-   "reads": [
-    "ctx.series",
-    "seg",
-    "streams",
-    "doRefuse",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.score"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 2,
-   "id": 39,
-   "name": "Assessment",
-   "rank": 22,
-   "reads": [
-    "ctx.series",
-    "streams",
-    "detail.series",
-    "detail.phases",
-    "halted"
-   ],
-   "series": "gated",
-   "writes": [
-    "detail.score"
-   ]
-  },
-  {
-   "appends": [],
-   "barrier": false,
-   "cameras": [],
-   "height": 1,
-   "id": 40,
-   "name": "PoseAssessment",
-   "rank": 23,
-   "reads": [
-    "streams",
-    "detail.pose2d",
-    "detail.phases",
-    "halted"
-   ],
-   "series": "none",
-   "writes": [
-    "detail.score"
-   ]
-  }
- ],
- "edges": [
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 3,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 4,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 4,
-   "via": [
-    "segImu"
-   ]
-  },
-  {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 5,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 5,
-   "via": [
-    "segImu"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": false,
-   "to": 6,
-   "via": [
-    "detail.pose2d",
-    "runnerOpt"
-   ]
-  },
-  {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 7,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 7,
-   "via": [
-    "detail.pose2d",
-    "runnerOpt"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 7,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 9,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 9,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 9,
-   "via": [
-    "segImu"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 9,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 9,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 7,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 9,
-   "via": [
-    "ball"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 10,
-   "via": [
-    "segImu"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": false,
-   "to": 10,
-   "via": [
-    "segVision",
-    "seg"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 11,
-   "via": [
-    "segImu"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "waw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 11,
-   "via": [
-    "detail.shaft",
-    "detail.ball",
-    "seg"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw",
-    "waw",
-    "serial"
-   ],
-   "reduced": false,
-   "to": 11,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": true,
-   "to": 12,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw",
-    "waw",
-    "war"
-   ],
-   "reduced": false,
-   "to": 12,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": false,
-   "to": 13,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 13,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 13,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "streams",
-    "halted"
-   ]
-  },
-  {
-   "from": 3,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "ctx.series",
-    "halted"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "detail.pose2d",
-    "halted"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "detail.pose2d",
-    "halted"
-   ]
-  },
-  {
-   "from": 7,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 8,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": false,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 14,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "raw",
-    "halted"
-   ],
-   "reduced": false,
-   "to": 14,
-   "via": [
-    "ctx.series",
-    "halted"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "detail.shaft",
-    "seg"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw",
-    "waw",
-    "war",
-    "serial"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 15,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": false,
-   "to": 15,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "detail.shaft",
-    "seg"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw",
-    "waw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 16,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw",
-    "waw",
-    "war",
-    "serial"
-   ],
-   "reduced": false,
-   "to": 16,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 17,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 17,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 18,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 18,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "detail.ball"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 19,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 19,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "detail.ball"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 20,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 20,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 21,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 21,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 22,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 22,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "detail.shaft",
-    "detail.ball"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 23,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 23,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 24,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 24,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 25,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 25,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw",
-    "waw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw",
-    "waw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 26,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 23,
-   "kinds": [
-    "war"
-   ],
-   "reduced": false,
-   "to": 26,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 25,
-   "kinds": [
-    "war"
-   ],
-   "reduced": false,
-   "to": 26,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 1,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 27,
-   "via": [
-    "frames.dtl"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 27,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 27,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 1,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "frames.dtl"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "detail.shaft",
-    "foWitness"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 28,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 28,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 28,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 29,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 28,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 29,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "detail.ball"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 30,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 28,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 30,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 0,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "frames.faceOn"
-   ]
-  },
-  {
-   "from": 1,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "frames.dtl"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 31,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 31,
-   "via": [
-    "detail.dtlRuler"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 32,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 28,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 32,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.shaft",
-    "detail.ball"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 18,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 19,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 20,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 21,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 22,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 23,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 24,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 25,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw",
-    "append"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.shaft",
-    "detail.series"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 28,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 29,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 31,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 32,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 33,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "raw",
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 18,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 19,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 20,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 21,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 22,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 23,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 24,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 25,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 29,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 31,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 32,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 34,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 33,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 34,
-   "via": [
-    "detail.skeleton3d"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "raw",
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 18,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 19,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 20,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 21,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 22,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 23,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 24,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 25,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw",
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.shaft",
-    "detail.series"
-   ]
-  },
-  {
-   "from": 27,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.poseDtl"
-   ]
-  },
-  {
-   "from": 29,
-   "kinds": [
-    "raw",
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.shaft3d",
-    "detail.series"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 31,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 32,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 33,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 35,
-   "via": [
-    "detail.skeleton3d"
-   ]
-  },
-  {
-   "from": 34,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 35,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 9,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "seg",
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 12,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaft"
-   ]
-  },
-  {
-   "from": 28,
-   "kinds": [
-    "raw",
-    "waw"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 29,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaft3d",
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 32,
-   "kinds": [
-    "war"
-   ],
-   "reduced": true,
-   "to": 36,
-   "via": [
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 33,
-   "kinds": [
-    "raw",
-    "war"
-   ],
-   "reduced": false,
-   "to": 36,
-   "via": [
-    "detail.skeleton3d",
-    "detail.shaftDtl"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": false,
-   "to": 37,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "streams",
-    "doRefuse"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 10,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 11,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 15,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 38,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 16,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": false,
-   "to": 38,
-   "via": [
-    "seg"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 4,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 13,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "ctx.series"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series",
-    "detail.phases"
-   ]
-  },
-  {
-   "from": 18,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 19,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 20,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 21,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 22,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 23,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 24,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 25,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 26,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 29,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 30,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 31,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 32,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 34,
-   "kinds": [
-    "append"
-   ],
-   "reduced": true,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 35,
-   "kinds": [
-    "append"
-   ],
-   "reduced": false,
-   "to": 39,
-   "via": [
-    "detail.series"
-   ]
-  },
-  {
-   "from": 38,
-   "kinds": [
-    "waw"
-   ],
-   "reduced": false,
-   "to": 39,
-   "via": [
-    "detail.score"
-   ]
-  },
-  {
-   "from": 2,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "streams"
-   ]
-  },
-  {
-   "from": 5,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 6,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "detail.pose2d"
-   ]
-  },
-  {
-   "from": 14,
-   "kinds": [
-    "halted"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "halted"
-   ]
-  },
-  {
-   "from": 17,
-   "kinds": [
-    "raw"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "detail.phases"
-   ]
-  },
-  {
-   "from": 38,
-   "kinds": [
-    "waw"
-   ],
-   "reduced": true,
-   "to": 40,
-   "via": [
-    "detail.score"
-   ]
-  },
-  {
-   "from": 39,
-   "kinds": [
-    "waw"
-   ],
-   "reduced": false,
-   "to": 40,
-   "via": [
-    "detail.score"
-   ]
-  }
- ],
- "serialGroups": [
-  [
-   "SegResolve",
-   "EventRefine",
-   "PositionsLadder",
-   "TimelineFusion"
-  ]
- ]
+    "edges": [
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 3,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 4,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 4,
+            "via": [
+                "segImu"
+            ]
+        },
+        {
+            "from": 0,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 5,
+            "via": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 5,
+            "via": [
+                "segImu"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": false,
+            "to": 6,
+            "via": [
+                "detail.pose2d",
+                "runnerOpt"
+            ]
+        },
+        {
+            "from": 0,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 7,
+            "via": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 7,
+            "via": [
+                "detail.pose2d",
+                "runnerOpt"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 7,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 0,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 9,
+            "via": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 9,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 9,
+            "via": [
+                "segImu"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 9,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 9,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 7,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 9,
+            "via": [
+                "ball"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 10,
+            "via": [
+                "segImu"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": false,
+            "to": 10,
+            "via": [
+                "segVision",
+                "seg"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 11,
+            "via": [
+                "segImu"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "waw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 11,
+            "via": [
+                "detail.shaft",
+                "detail.ball",
+                "seg"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw",
+                "waw",
+                "serial"
+            ],
+            "reduced": false,
+            "to": 11,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 0,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 12,
+            "via": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 12,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 12,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 12,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw",
+                "waw",
+                "war"
+            ],
+            "reduced": false,
+            "to": 12,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": false,
+            "to": 13,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 13,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 13,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 13,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 13,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 13,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 13,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw",
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "streams",
+                "halted"
+            ]
+        },
+        {
+            "from": 3,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw",
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "ctx.series",
+                "halted"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw",
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "detail.pose2d",
+                "halted"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw",
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "detail.pose2d",
+                "halted"
+            ]
+        },
+        {
+            "from": 7,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 8,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": false,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 14,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "raw",
+                "halted"
+            ],
+            "reduced": false,
+            "to": 14,
+            "via": [
+                "ctx.series",
+                "halted"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 15,
+            "via": [
+                "detail.shaft",
+                "seg"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 15,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw",
+                "waw",
+                "war",
+                "serial"
+            ],
+            "reduced": true,
+            "to": 15,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 15,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "war"
+            ],
+            "reduced": true,
+            "to": 15,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": false,
+            "to": 15,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "detail.shaft",
+                "seg"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw",
+                "waw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "war"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 16,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw",
+                "waw",
+                "war",
+                "serial"
+            ],
+            "reduced": false,
+            "to": 16,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 17,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 17,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 18,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 18,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "detail.ball"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 19,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 19,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "detail.ball"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 20,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 20,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 21,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 21,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 22,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 22,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "detail.shaft",
+                "detail.ball"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 23,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 23,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 24,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 24,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 24,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 24,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 24,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 24,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 25,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 25,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw",
+                "waw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw",
+                "waw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "war"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 26,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "war"
+            ],
+            "reduced": false,
+            "to": 26,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "war"
+            ],
+            "reduced": false,
+            "to": 26,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 1,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 27,
+            "via": [
+                "frames.dtl"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 27,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 27,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 1,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 28,
+            "via": [
+                "frames.dtl"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 28,
+            "via": [
+                "detail.shaft",
+                "foWitness"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 28,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 28,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 28,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 28,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 28,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 29,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 28,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 29,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "detail.ball"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 30,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 28,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 30,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 0,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "from": 1,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "frames.dtl"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 31,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 31,
+            "via": [
+                "detail.dtlRuler"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 32,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 28,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 32,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.shaft",
+                "detail.ball"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.shaft",
+                "detail.series"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 28,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 33,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 34,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 34,
+            "via": [
+                "detail.skeleton3d"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 35,
+            "via": [
+                "detail.skeleton3d",
+                "detail.series"
+            ]
+        },
+        {
+            "from": 34,
+            "kinds": [
+                "war",
+                "append"
+            ],
+            "reduced": false,
+            "to": 35,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.skeleton3d"
+            ]
+        },
+        {
+            "from": 34,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 35,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": false,
+            "to": 36,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.shaft",
+                "detail.series"
+            ]
+        },
+        {
+            "from": 27,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.shaft3d",
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.skeleton3d"
+            ]
+        },
+        {
+            "from": 34,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 35,
+            "kinds": [
+                "raw",
+                "append"
+            ],
+            "reduced": true,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 36,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 37,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 9,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 12,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "from": 28,
+            "kinds": [
+                "raw",
+                "waw"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaft3d",
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "war"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "war"
+            ],
+            "reduced": true,
+            "to": 38,
+            "via": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw",
+                "war"
+            ],
+            "reduced": false,
+            "to": 38,
+            "via": [
+                "detail.skeleton3d",
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "detail.shaft3d"
+            ]
+        },
+        {
+            "from": 33,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 39,
+            "via": [
+                "detail.skeleton3d"
+            ]
+        },
+        {
+            "from": 35,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 39,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": false,
+            "to": 40,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "streams",
+                "doRefuse"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 10,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 11,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 15,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 41,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 16,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": false,
+            "to": 41,
+            "via": [
+                "seg"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 4,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 13,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "ctx.series"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series",
+                "detail.phases"
+            ]
+        },
+        {
+            "from": 18,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 19,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 20,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 21,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 22,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 23,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 24,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 25,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 26,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 29,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 30,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 31,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 32,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 34,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 35,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 36,
+            "kinds": [
+                "append"
+            ],
+            "reduced": true,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 37,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 39,
+            "kinds": [
+                "append"
+            ],
+            "reduced": false,
+            "to": 42,
+            "via": [
+                "detail.series"
+            ]
+        },
+        {
+            "from": 41,
+            "kinds": [
+                "waw"
+            ],
+            "reduced": false,
+            "to": 42,
+            "via": [
+                "detail.score"
+            ]
+        },
+        {
+            "from": 2,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "streams"
+            ]
+        },
+        {
+            "from": 5,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 6,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "from": 14,
+            "kinds": [
+                "halted"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "halted"
+            ]
+        },
+        {
+            "from": 17,
+            "kinds": [
+                "raw"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "detail.phases"
+            ]
+        },
+        {
+            "from": 41,
+            "kinds": [
+                "waw"
+            ],
+            "reduced": true,
+            "to": 43,
+            "via": [
+                "detail.score"
+            ]
+        },
+        {
+            "from": 42,
+            "kinds": [
+                "waw"
+            ],
+            "reduced": false,
+            "to": 43,
+            "via": [
+                "detail.score"
+            ]
+        }
+    ],
+    "nodes": [
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.faceOn"
+            ],
+            "height": 25,
+            "id": 0,
+            "name": "FrameDecodeFaceOn",
+            "rank": 0,
+            "reads": [
+                "window.faceOn"
+            ],
+            "series": "none",
+            "writes": [
+                "frames.faceOn"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.dtl"
+            ],
+            "height": 12,
+            "id": 1,
+            "name": "FrameDecodeDtl",
+            "rank": 0,
+            "reads": [
+                "window.dtl"
+            ],
+            "series": "none",
+            "writes": [
+                "frames.dtl"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 26,
+            "id": 2,
+            "name": "ImuResample",
+            "rank": 0,
+            "reads": [
+                "window.imu",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "streams",
+                "doRefuse"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 25,
+            "id": 3,
+            "name": "ImuSegmentation",
+            "rank": 1,
+            "reads": [
+                "streams",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "segImu"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 18,
+            "id": 4,
+            "name": "WristMetrics",
+            "rank": 2,
+            "reads": [
+                "segImu",
+                "streams",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "ctx.series"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.faceOn"
+            ],
+            "height": 24,
+            "id": 5,
+            "name": "Pose",
+            "rank": 2,
+            "reads": [
+                "window.faceOn",
+                "segImu",
+                "halted",
+                "frames.faceOn"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.pose2d",
+                "runnerOpt"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 23,
+            "id": 6,
+            "name": "PoseSmooth",
+            "rank": 3,
+            "reads": [
+                "runnerOpt",
+                "detail.pose2d",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.pose2d"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 22,
+            "id": 7,
+            "name": "Ball",
+            "rank": 4,
+            "reads": [
+                "frames.faceOn",
+                "runnerOpt",
+                "detail.pose2d",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "ball"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.impact"
+            ],
+            "height": 17,
+            "id": 8,
+            "name": "Impact",
+            "rank": 0,
+            "reads": [
+                "window.impact",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.impact"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 21,
+            "id": 9,
+            "name": "Shaft",
+            "rank": 5,
+            "reads": [
+                "frames.faceOn",
+                "ball",
+                "detail.pose2d",
+                "streams",
+                "segImu",
+                "seg",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.shaft",
+                "segVision",
+                "foWitness",
+                "detail.ball"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 20,
+            "id": 10,
+            "name": "SegResolve",
+            "rank": 6,
+            "reads": [
+                "segImu",
+                "segVision",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "seg"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 19,
+            "id": 11,
+            "name": "EventRefine",
+            "rank": 7,
+            "reads": [
+                "segImu",
+                "detail.shaft",
+                "detail.ball",
+                "seg",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "seg",
+                "detail.shaft"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 18,
+            "id": 12,
+            "name": "ImpactAnchor",
+            "rank": 8,
+            "reads": [
+                "frames.faceOn",
+                "detail.shaft",
+                "detail.pose2d",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 17,
+            "id": 13,
+            "name": "ShaftLean",
+            "rank": 9,
+            "reads": [
+                "detail.shaft",
+                "seg",
+                "detail.pose2d",
+                "ctx.series",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "ctx.series"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 16,
+            "id": 14,
+            "name": "RequireProducts",
+            "rank": 10,
+            "reads": [
+                "ctx.series",
+                "detail.pose2d",
+                "streams"
+            ],
+            "series": "none",
+            "writes": [
+                "halted"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 15,
+            "id": 15,
+            "name": "PositionsLadder",
+            "rank": 11,
+            "reads": [
+                "detail.shaft",
+                "seg",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "seg"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 14,
+            "id": 16,
+            "name": "TimelineFusion",
+            "rank": 12,
+            "reads": [
+                "detail.shaft",
+                "seg",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "seg"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 13,
+            "id": 17,
+            "name": "BindDetail",
+            "rank": 13,
+            "reads": [
+                "ctx.series",
+                "seg",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+                "detail.series",
+                "detail.phases"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 18,
+            "name": "HeadTrack",
+            "rank": 14,
+            "reads": [
+                "detail.pose2d",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 19,
+            "name": "FootMetrics",
+            "rank": 14,
+            "reads": [
+                "detail.pose2d",
+                "seg",
+                "detail.ball",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 20,
+            "name": "LowerBodyMetrics",
+            "rank": 14,
+            "reads": [
+                "detail.pose2d",
+                "seg",
+                "detail.ball",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 21,
+            "name": "UpperBodyMetrics",
+            "rank": 14,
+            "reads": [
+                "detail.pose2d",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 22,
+            "name": "BodyRotation",
+            "rank": 14,
+            "reads": [
+                "detail.pose2d",
+                "streams",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 12,
+            "id": 23,
+            "name": "ClubDelivery",
+            "rank": 14,
+            "reads": [
+                "detail.shaft",
+                "seg",
+                "detail.ball",
+                "detail.pose2d",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 24,
+            "name": "Tempo",
+            "rank": 14,
+            "reads": [
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 12,
+            "id": 25,
+            "name": "Kinematics",
+            "rank": 14,
+            "reads": [
+                "detail.shaft",
+                "detail.pose2d",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 11,
+            "id": 26,
+            "name": "ShaftPlane",
+            "rank": 15,
+            "reads": [
+                "detail.shaft",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+                "detail.shaft"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.dtl"
+            ],
+            "height": 11,
+            "id": 27,
+            "name": "DtlPose",
+            "rank": 13,
+            "reads": [
+                "window.dtl",
+                "detail.pose2d",
+                "seg",
+                "halted",
+                "frames.dtl"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.poseDtl"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 10,
+            "id": 28,
+            "name": "DtlShaft",
+            "rank": 16,
+            "reads": [
+                "frames.dtl",
+                "detail.poseDtl",
+                "detail.shaft",
+                "foWitness",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 29,
+            "name": "ShaftFusion",
+            "rank": 17,
+            "reads": [
+                "detail.shaft",
+                "detail.shaftDtl",
+                "detail.poseDtl",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+                "detail.shaft3d"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 9,
+            "id": 30,
+            "name": "DtlPosture",
+            "rank": 17,
+            "reads": [
+                "detail.poseDtl",
+                "detail.pose2d",
+                "seg",
+                "detail.ball",
+                "detail.shaftDtl",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+                "detail.dtlRuler"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+                "window.faceOn",
+                "window.dtl"
+            ],
+            "height": 8,
+            "id": 31,
+            "name": "AddressMarks",
+            "rank": 18,
+            "reads": [
+                "window.faceOn",
+                "window.dtl",
+                "seg",
+                "detail.pose2d",
+                "detail.poseDtl",
+                "detail.dtlRuler",
+                "halted",
+                "frames.faceOn",
+                "frames.dtl"
+            ],
+            "series": "buffered",
+            "writes": [
+                "detail.addressMarks"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 8,
+            "id": 32,
+            "name": "DtlShaftLie",
+            "rank": 17,
+            "reads": [
+                "detail.shaftDtl",
+                "detail.shaft",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 7,
+            "id": 33,
+            "name": "Skeleton3D",
+            "rank": 19,
+            "reads": [
+                "detail.pose2d",
+                "detail.poseDtl",
+                "detail.shaft",
+                "detail.shaftDtl",
+                "seg",
+                "detail.ball",
+                "streams",
+                "detail.series",
+                "ctx.series",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+                "detail.skeleton3d"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 6,
+            "id": 34,
+            "name": "BodyRotationTriangulated",
+            "rank": 20,
+            "reads": [
+                "detail.skeleton3d",
+                "seg",
+                "detail.series",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 5,
+            "id": 35,
+            "name": "Skeleton3dBody",
+            "rank": 21,
+            "reads": [
+                "detail.skeleton3d",
+                "seg",
+                "detail.series",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+                "detail.series"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 4,
+            "id": 36,
+            "name": "HipInternalRotation",
+            "rank": 22,
+            "reads": [
+                "detail.skeleton3d",
+                "seg",
+                "detail.series",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 3,
+            "id": 37,
+            "name": "KinematicSequence",
+            "rank": 23,
+            "reads": [
+                "detail.pose2d",
+                "detail.poseDtl",
+                "streams",
+                "detail.shaft",
+                "detail.shaft3d",
+                "detail.skeleton3d",
+                "seg",
+                "detail.series",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+                "detail.kinematicSequence"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 1,
+            "id": 38,
+            "name": "DtlSynth3D",
+            "rank": 20,
+            "reads": [
+                "detail.shaft",
+                "detail.shaft3d",
+                "detail.skeleton3d",
+                "seg",
+                "detail.shaftDtl",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.shaftDtl"
+            ]
+        },
+        {
+            "appends": [
+                "detail.series"
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 3,
+            "id": 39,
+            "name": "ShaftDirection",
+            "rank": 22,
+            "reads": [
+                "detail.shaft3d",
+                "detail.skeleton3d",
+                "seg",
+                "halted"
+            ],
+            "series": "buffered",
+            "writes": [
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 1,
+            "id": 40,
+            "name": "Bindings",
+            "rank": 11,
+            "reads": [
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.bindings"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 3,
+            "id": 41,
+            "name": "Resemblance",
+            "rank": 13,
+            "reads": [
+                "ctx.series",
+                "seg",
+                "streams",
+                "doRefuse",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.score"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 2,
+            "id": 42,
+            "name": "Assessment",
+            "rank": 24,
+            "reads": [
+                "ctx.series",
+                "streams",
+                "detail.series",
+                "detail.phases",
+                "halted"
+            ],
+            "series": "gated",
+            "writes": [
+                "detail.score"
+            ]
+        },
+        {
+            "appends": [
+            ],
+            "barrier": false,
+            "cameras": [
+            ],
+            "height": 1,
+            "id": 43,
+            "name": "PoseAssessment",
+            "rank": 25,
+            "reads": [
+                "streams",
+                "detail.pose2d",
+                "detail.phases",
+                "halted"
+            ],
+            "series": "none",
+            "writes": [
+                "detail.score"
+            ]
+        }
+    ],
+    "profile": "Wrist",
+    "resources": [
+        "window.faceOn",
+        "window.dtl",
+        "window.impact",
+        "window.imu",
+        "frames.faceOn",
+        "frames.dtl",
+        "streams",
+        "doRefuse",
+        "segImu",
+        "segVision",
+        "seg",
+        "ctx.series",
+        "runnerOpt",
+        "ball",
+        "foWitness",
+        "halted",
+        "detail.pose2d",
+        "detail.poseDtl",
+        "detail.shaft",
+        "detail.shaftDtl",
+        "detail.shaft3d",
+        "detail.skeleton3d",
+        "detail.series",
+        "detail.phases",
+        "detail.impact",
+        "detail.addressMarks",
+        "detail.dtlRuler",
+        "detail.ball",
+        "detail.kinematicSequence",
+        "detail.score",
+        "detail.bindings"
+    ],
+    "schema": "pinpoint.analysisDag/1",
+    "serialGroups": [
+        [
+            "SegResolve",
+            "EventRefine",
+            "PositionsLadder",
+            "TimelineFusion"
+        ]
+    ],
+    "seriesOrder": [
+        "BindDetail",
+        "HeadTrack",
+        "FootMetrics",
+        "LowerBodyMetrics",
+        "UpperBodyMetrics",
+        "BodyRotation",
+        "ClubDelivery",
+        "Tempo",
+        "Kinematics",
+        "ShaftPlane",
+        "ShaftFusion",
+        "DtlPosture",
+        "AddressMarks",
+        "DtlShaftLie",
+        "Skeleton3D",
+        "BodyRotationTriangulated",
+        "Skeleton3dBody",
+        "HipInternalRotation",
+        "KinematicSequence",
+        "ShaftDirection",
+        "Assessment"
+    ],
+    "timeline": [
+        {
+            "endMs": 484.897208,
+            "ms": 484.20325,
+            "name": "FrameDecodeFaceOn",
+            "ran": true,
+            "startMs": 0.688958,
+            "thread": 1
+        },
+        {
+            "endMs": 404.056042,
+            "ms": 403.356375,
+            "name": "FrameDecodeDtl",
+            "ran": true,
+            "startMs": 0.693667,
+            "thread": 0
+        },
+        {
+            "endMs": 0.683375,
+            "ms": 0,
+            "name": "ImuResample",
+            "ran": false,
+            "skipReason": "no motion sensors",
+            "startMs": 0.683333,
+            "thread": 0
+        },
+        {
+            "endMs": 0.692917,
+            "ms": 0,
+            "name": "ImuSegmentation",
+            "ran": false,
+            "skipReason": "no sensor streams",
+            "startMs": 0.692875,
+            "thread": 0
+        },
+        {
+            "endMs": 0.693208,
+            "ms": 0,
+            "name": "WristMetrics",
+            "ran": false,
+            "skipReason": "no sensor ladder",
+            "startMs": 0.693208,
+            "thread": 0
+        },
+        {
+            "endMs": 90406.305708,
+            "ms": 89921.401042,
+            "name": "Pose",
+            "ran": true,
+            "startMs": 484.903583,
+            "thread": 1
+        },
+        {
+            "endMs": 90409.836542,
+            "ms": 3.507917,
+            "name": "PoseSmooth",
+            "ran": true,
+            "startMs": 90406.328583,
+            "thread": 1
+        },
+        {
+            "endMs": 90938.706667,
+            "ms": 528.859833,
+            "name": "Ball",
+            "ran": true,
+            "startMs": 90409.846375,
+            "thread": 1
+        },
+        {
+            "endMs": 0.6905,
+            "ms": 0,
+            "name": "Impact",
+            "ran": false,
+            "skipReason": "no impact camera stream",
+            "startMs": 0.690458,
+            "thread": 3
+        },
+        {
+            "endMs": 91525.9275,
+            "ms": 587.209167,
+            "name": "Shaft",
+            "ran": true,
+            "startMs": 90938.717958,
+            "thread": 1
+        },
+        {
+            "endMs": 91525.937083,
+            "ms": 0.000209,
+            "name": "SegResolve",
+            "ran": true,
+            "startMs": 91525.93675,
+            "thread": 1
+        },
+        {
+            "endMs": 91526.401625,
+            "ms": 0.46325,
+            "name": "EventRefine",
+            "ran": true,
+            "startMs": 91525.937458,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.114417,
+            "ms": 80.708083,
+            "name": "ImpactAnchor",
+            "ran": true,
+            "startMs": 91526.4055,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.136,
+            "ms": 0.011792,
+            "name": "ShaftLean",
+            "ran": true,
+            "startMs": 91607.124125,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.137167,
+            "ms": 4.2e-05,
+            "name": "RequireProducts",
+            "ran": true,
+            "startMs": 91607.137125,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.137833,
+            "ms": 0,
+            "name": "PositionsLadder",
+            "ran": false,
+            "skipReason": "refine.fusion is on",
+            "startMs": 91607.137375,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.151292,
+            "ms": 0.012917,
+            "name": "TimelineFusion",
+            "ran": true,
+            "startMs": 91607.13825,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.188042,
+            "ms": 0.001917,
+            "name": "BindDetail",
+            "ran": true,
+            "startMs": 91607.186083,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.269042,
+            "ms": 0.067333,
+            "name": "HeadTrack",
+            "ran": true,
+            "startMs": 91607.20125,
+            "thread": 0
+        },
+        {
+            "endMs": 91607.287542,
+            "ms": 0.0855,
+            "name": "FootMetrics",
+            "ran": true,
+            "startMs": 91607.201792,
+            "thread": 2
+        },
+        {
+            "endMs": 91607.325542,
+            "ms": 0.123042,
+            "name": "LowerBodyMetrics",
+            "ran": true,
+            "startMs": 91607.202375,
+            "thread": 3
+        },
+        {
+            "endMs": 91607.478958,
+            "ms": 0.275791,
+            "name": "UpperBodyMetrics",
+            "ran": true,
+            "startMs": 91607.202958,
+            "thread": 4
+        },
+        {
+            "endMs": 91607.228708,
+            "ms": 0.0225,
+            "name": "BodyRotation",
+            "ran": true,
+            "startMs": 91607.206083,
+            "thread": 6
+        },
+        {
+            "endMs": 91621.514333,
+            "ms": 14.325541,
+            "name": "ClubDelivery",
+            "ran": true,
+            "startMs": 91607.188625,
+            "thread": 1
+        },
+        {
+            "endMs": 91607.2335,
+            "ms": 0.003666,
+            "name": "Tempo",
+            "ran": true,
+            "startMs": 91607.229417,
+            "thread": 6
+        },
+        {
+            "endMs": 91623.058833,
+            "ms": 15.864917,
+            "name": "Kinematics",
+            "ran": true,
+            "startMs": 91607.192792,
+            "thread": 7
+        },
+        {
+            "endMs": 91632.353625,
+            "ms": 9.288417,
+            "name": "ShaftPlane",
+            "ran": true,
+            "startMs": 91623.064292,
+            "thread": 7
+        },
+        {
+            "endMs": 95493.75775,
+            "ms": 3886.559042,
+            "name": "DtlPose",
+            "ran": true,
+            "startMs": 91607.191583,
+            "thread": 5
+        },
+        {
+            "endMs": 95746.825333,
+            "ms": 253.035375,
+            "name": "DtlShaft",
+            "ran": true,
+            "startMs": 95493.770125,
+            "thread": 5
+        },
+        {
+            "endMs": 95747.963792,
+            "ms": 1.119208,
+            "name": "ShaftFusion",
+            "ran": true,
+            "startMs": 95746.842167,
+            "thread": 4
+        },
+        {
+            "endMs": 95747.002167,
+            "ms": 0.152542,
+            "name": "DtlPosture",
+            "ran": true,
+            "startMs": 95746.845125,
+            "thread": 5
+        },
+        {
+            "endMs": 98348.947583,
+            "ms": 2601.937542,
+            "name": "AddressMarks",
+            "ran": true,
+            "startMs": 95747.006333,
+            "thread": 5
+        },
+        {
+            "endMs": 95746.892792,
+            "ms": 0.048875,
+            "name": "DtlShaftLie",
+            "ran": true,
+            "startMs": 95746.8435,
+            "thread": 3
+        },
+        {
+            "endMs": 99220.798667,
+            "ms": 871.716875,
+            "name": "Skeleton3D",
+            "ran": true,
+            "startMs": 98349.072375,
+            "thread": 5
+        },
+        {
+            "endMs": 99220.894208,
+            "ms": 0.085333,
+            "name": "BodyRotationTriangulated",
+            "ran": true,
+            "startMs": 99220.806458,
+            "thread": 5
+        },
+        {
+            "endMs": 99220.97825,
+            "ms": 0.080208,
+            "name": "Skeleton3dBody",
+            "ran": true,
+            "startMs": 99220.897917,
+            "thread": 5
+        },
+        {
+            "endMs": 99220.983083,
+            "ms": 0,
+            "name": "HipInternalRotation",
+            "ran": false,
+            "skipReason": "no pelvis-sensor turn (pelvisRotationSigned from the pelvis IMU)",
+            "startMs": 99220.982375,
+            "thread": 5
+        },
+        {
+            "endMs": 99223.183417,
+            "ms": 2.189125,
+            "name": "KinematicSequence",
+            "ran": true,
+            "startMs": 99220.983458,
+            "thread": 5
+        },
+        {
+            "endMs": 99220.90875,
+            "ms": 0.0985,
+            "name": "DtlSynth3D",
+            "ran": true,
+            "startMs": 99220.808625,
+            "thread": 3
+        },
+        {
+            "endMs": 99221.048583,
+            "ms": 0.0655,
+            "name": "ShaftDirection",
+            "ran": true,
+            "startMs": 99220.982917,
+            "thread": 3
+        },
+        {
+            "endMs": 91607.151375,
+            "ms": 0,
+            "name": "Bindings",
+            "ran": true,
+            "startMs": 91607.151292,
+            "thread": 0
+        },
+        {
+            "endMs": 91607.237875,
+            "ms": 0.003583,
+            "name": "Resemblance",
+            "ran": true,
+            "startMs": 91607.234167,
+            "thread": 6
+        },
+        {
+            "endMs": 99223.202917,
+            "ms": 0,
+            "name": "Assessment",
+            "ran": false,
+            "skipReason": "no sensor streams",
+            "startMs": 99223.202833,
+            "thread": 5
+        },
+        {
+            "endMs": 99223.205667,
+            "ms": 0,
+            "name": "PoseAssessment",
+            "ran": false,
+            "skipReason": "pose.wristAngles is off",
+            "startMs": 99223.204667,
+            "thread": 5
+        }
+    ]
 }

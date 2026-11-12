@@ -109,6 +109,15 @@ public:
     std::vector<QString> provides() const override;
 };
 
+// trunk_sensor_series.h (HipInternalRotationStage) — trailHipInternalRotation /
+// leadHipInternalRotation: the pelvis sensor's signed turn less each thigh's own turn off the
+// two-camera fit, the thigh taken as fixed (wider σ, body.thighTurnAssumed) where the fit has none.
+// Both rungs Estimated; a pelvis sensor is the least either needs.
+class HipInternalRotationProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
 // club_delivery.cpp — shaftAngleVsHorizontal / attackAngle from the measured clubhead;
 // lowPointAhead additionally needs the ball (the reference it is stated against) and its diameter
 // ruler (the unit it is stated in).
@@ -156,8 +165,19 @@ public:
 };
 
 // analysis_pipeline.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
-// against the address shaft plane, from the two cameras' shaft angles intersected.
+// against the address shaft plane, from the two cameras' shaft angles intersected — and its
+// family; plus ShaftDirectionStage (shaft_direction.h): shaftDirection, where the fused shaft points
+// against the target line at P2 and the top.
 class ShaftFusionProvider : public IMetricProvider {
+public:
+    std::vector<QString> provides() const override;
+};
+
+// skeleton3d_body_series.h (Skeleton3dBodyStage) — readings from the two-camera skeleton fit's 3-D
+// body: the shoulder line's inclination at the top and its aim at address (no other producer), the
+// lead knee (it replaces the down-the-line one where the fit reads through impact) and the side bend
+// (only where the face-on one is absent). Every one Estimated — the fit's cameras are self-solved.
+class Skeleton3dBodyProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
 };

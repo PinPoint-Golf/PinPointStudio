@@ -1343,7 +1343,7 @@
       "sigmaLo": 4.0,
       "unit": "°",
       "source": "heuristic",
-      "citation": "Grades a YAW — the shoulder line's bearing relative to the target line, open negative, closed positive — which nothing produces yet (m_shoulderAlignment is noProducer since 2026-09-14; see its gapReason). Until 2026-09-14 this row graded shoulderPlaneAngle at P1, the face-on TILT, and 0 +/- 4 deg on a tilt fires on every right-handed setup. The corridor is kept for the measure it names."
+      "citation": "Grades a YAW — the shoulder line's bearing relative to the target line, open negative, closed positive — read since 2026-11-12 off the two-camera 3-D fit of the body (shoulderLineYaw, Skeleton3dBodyStage), with the cameras' directions assumed, so every reading carries +/- 5 deg of camera yaw and the camera-assumed warning. Until 2026-09-14 this row graded shoulderPlaneAngle at P1, the face-on TILT: a right-hander's trail hand sits lower on the grip, so the trail shoulder sits ~8-12 deg below the lead one at address on every square setup, and 0 +/- 4 deg on that tilt fired alignment_open on 7 of 7 shots of the 9 Sep 2026 session while the video shows the shoulders square. The tilt cannot be corrected into an aim (the perspective effect is an order of magnitude smaller than the grip tilt), and rotation about the vertical axis is not measurable from one camera (8524467), so the measure waited (noProducer) on the triangulated pair. The corridor is kept for the measure it names; heuristic, not yet seated on measured swings."
     },
     {
       "measure": "m_shoulderPlane",
@@ -1351,7 +1351,8 @@
       "mu": 50.0,
       "sigmaLo": 10.0,
       "unit": "°",
-      "source": "heuristic"
+      "source": "heuristic",
+      "citation": "Grades the shoulder line's inclination out of the horizontal at the top, in its own vertical plane, + with the trail shoulder higher — read since 2026-11-12 off the two-camera 3-D fit of the body (shoulderPlaneAngle3d, Skeleton3dBodyStage). Until 2026-09-14 the measure read the face-on image's shoulderPlaneAngle at P4, where the turned shoulders foreshorten toward one image column (131 px apart at address, 19-79 px at the top on the 9 Sep 2026 swings) and the angle read 4.6 to 30.4 deg on swings of one shape; it then waited (noProducer) on the triangulated pair. Heuristic, not yet seated on measured swings."
     },
     {
       "measure": "m_ballBodyGap",

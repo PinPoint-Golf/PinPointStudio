@@ -107,6 +107,7 @@ MetricCatalogue makeMetricCatalogue()
     static const UpperBodyMetricProvider upperBodyProvider;
     static const TrailWristProvider      trailWristProvider;
     static const BodyRotationProvider    bodyRotationProvider;
+    static const HipInternalRotationProvider hipInternalRotationProvider;
     static const ClubDeliveryProvider    clubDeliveryProvider;
     static const TempoProvider           tempoProvider;
     static const HeadMetricProvider      headProvider;
@@ -116,6 +117,7 @@ MetricCatalogue makeMetricCatalogue()
     static const DtlPostureProvider      dtlPostureProvider;
     static const DtlShaftLieProvider     dtlShaftLieProvider;
     static const ShaftFusionProvider     shaftFusionProvider;
+    static const Skeleton3dBodyProvider  skeleton3dBodyProvider;
     static const ScoreProvider           scoreProvider;
     static const LaunchMonitorProvider   launchMonitorProvider;
     static const LaunchMonitorDerivedProvider lmDerivedProvider;
@@ -126,6 +128,7 @@ MetricCatalogue makeMetricCatalogue()
     cat.addProvider(&upperBodyProvider);
     cat.addProvider(&trailWristProvider);
     cat.addProvider(&bodyRotationProvider);
+    cat.addProvider(&hipInternalRotationProvider);
     cat.addProvider(&clubDeliveryProvider);
     cat.addProvider(&tempoProvider);
     cat.addProvider(&headProvider);
@@ -135,6 +138,7 @@ MetricCatalogue makeMetricCatalogue()
     cat.addProvider(&dtlPostureProvider);
     cat.addProvider(&dtlShaftLieProvider);
     cat.addProvider(&shaftFusionProvider);
+    cat.addProvider(&skeleton3dBodyProvider);
     cat.addProvider(&scoreProvider);
     cat.addProvider(&launchMonitorProvider);
     cat.addProvider(&lmDerivedProvider);

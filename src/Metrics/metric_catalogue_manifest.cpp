@@ -19,7 +19,8 @@
 #include "metric_catalogue.h"
 
 // The one place every descriptor is declared (design §3.3 / build order §3) — the full design
-// catalogue (shot_analyzer_design.md §A). 86 descriptors.
+// catalogue (shot_analyzer_design.md §A). 134 descriptors (metric_catalogue_test counts them) — 133 until
+// 2026-11-12, when hipInternalRotation became trailHipInternalRotation + leadHipInternalRotation.
 //
 // EVERY DESCRIPTOR DECLARES A ROUTE LADDER, and it is the only statement of what the metric needs.
 // `.routes` is ordered BEST FIRST, and its LAST rung is the cheapest way to get the metric at all;
@@ -40,7 +41,9 @@
 //   a purchase behind it rather than a promise. See the Launch monitor block at the foot of this
 //   file for why every one of them is `lm.`-prefixed even where nothing else could ever produce it.
 //
-// PLANNED (13) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
+// PLANNED (8 on 2026-11-12, when shaftDirection's faceOn+dtl rung was built, then the two shoulder
+//   lines' faceOn+dtl rungs off the 3-D fit, then hip internal rotation off the hip sensor and the
+//   fit's thigh turn; metric_catalogue_test prints and counts them) — every rung planned, so nothing produces them by any route. `.planned` on a ROUTE
 //   rather than on a metric is the distinction that had been missing, and nine of these were
 //   mis-stated because of it: `clubPath` is not work we owe, it is a metric that needs a camera
 //   pointing down the target line, and saying "planned" about it promised a pipeline while hiding
@@ -50,14 +53,23 @@
 //   They group by WHY, which is worth keeping legible because it is what a reader deciding what to
 //   build next needs first — and the reason now sits on the route, next to the requirement it
 //   explains, rather than in a list somewhere else that had to be kept in step:
-//     · DEPTH — the face-on camera's blind axis (pelvisThrust, clubPath, swingPlane, shaftDirection,
-//       launchDirection, ballBodyDistance). Requires `dtlCamera`.
-//     · SAGITTAL — present in the image, foreshortened to noise by the frontal projection
-//       (spineForwardBend, the two knee flexions). The knees keep their face-on rung, Estimated and
-//       planned, because it says exactly why nobody reads them there.
+//     · DEPTH — the face-on camera's blind axis (clubPath, launchDirection). Requires `dtlCamera`.
+//       (pelvisThrust, swingPlane and ballBodyDistance left on 2026-09-21 with their down-the-line
+//       rungs; shaftDirection on 2026-11-12 with the fused shaft's bearing, shaft_direction.h.)
+//     · (THE TRIANGULATED PAIR emptied on 2026-11-12: shoulderLineYaw and shoulderPlaneAngle3d read
+//       the shoulder line off the two-camera fit's 3-D joints, skeleton3d_body_series.h — Estimated,
+//       the fit's cameras self-solved.)
+//     · A TRACKED EDGE — pelvisLiftBelt needs the waistband's edge tracked through the swing.
+//     · (SAGITTAL emptied on 2026-09-21: spineForwardBend and the two knee flexions read down the line;
+//       the knees keep their face-on rung, Estimated and planned, because it says exactly why nobody
+//       reads them there.)
 //     · NO KEYPOINT — nothing sits between the shoulders and the hips in either pose layout
 //       (thoracicFlexion, lumbarExtension), but the back CONTOUR of a DTL silhouette shows both.
-//     · SENSORS WE DO NOT PLACE — hipInternalRotation.
+//     · (SENSORS WE DO NOT PLACE emptied on 2026-11-12: hip internal rotation no longer waits on
+//       thigh sensors — the hip sensor's turn less the 3-D fit's thigh turn, the thigh assumed fixed
+//       without the fit, trunk_sensor_series.h — and is a lead / trail pair. The trunk-sensor rungs
+//       of spineForwardBend and spineSideBend went live the same day; they were never in this list,
+//       because each metric had a live camera rung.)
 //     · WORK WE HAVE NOT DONE — launchAngle / ballSpeed need a ball-FLIGHT tracker (the detector we
 //       have is an at-spot presence tracker) and swingScore needs a live adherence scorer.
 //       (kinematicSequence left this list on 2026-09-17: segment_rates.cpp produces the four
@@ -912,33 +924,84 @@ void installMetricManifest(MetricCatalogue &cat)
                     QStringLiteral("characteristic:excessive_separation_stretch") },
     });
 
+    // HIP INTERNAL ROTATION, ONE DESCRIPTOR PER SIDE (planned-metrics promotion W3, 12 Nov 2026). The
+    // single `hipInternalRotation` with a "per side" howToRead could not be one series: a series is one
+    // curve, and the two hips rotate at different times. Nothing was ever saved under the old key (its
+    // only rung was planned). Produced by HipInternalRotationStage (trunk_sensor_series.h): the pelvis
+    // SENSOR's signed turn less that thigh's own turn off the two-camera fit; with no 3-D thigh, the
+    // thigh is taken as fixed, with a wide σ and body.thighTurnAssumed. Thigh sensors are not placed,
+    // so the old pelvisThighImus rung is gone. Both rungs Estimated: the fused one reads an
+    // uncalibrated fit, the inertial one assumes the thigh.
     cat.addDescriptor({
-        .key = QStringLiteral("hipInternalRotation"),
+        .key = QStringLiteral("trailHipInternalRotation"),
         .type = MetricType::TimeSeries,
-        .label = QStringLiteral("Hip internal rotation"),
-        .shortLabel = QStringLiteral("Hip rotation"),
+        .label = QStringLiteral("Trail hip internal rotation"),
+        .shortLabel = QStringLiteral("Trail hip IR"),
         .unit = QStringLiteral("°"),
         .group = QStringLiteral("Body rotation"),
         .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
-            "True rotation at the hip joints — each thigh turning axially relative to the pelvis — "
-            "as opposed to how far the pelvis as a whole has turned. It is what lets a player load "
-            "into the trail hip going back and clear the lead hip coming down; limited hip internal "
-            "rotation is a common physical restriction behind sway and early extension."),
+            "True rotation at the trail hip joint — the pelvis turning over the trail thigh — as "
+            "opposed to how far the pelvis as a whole has turned. It is what lets a player load into "
+            "the trail hip going back; limited trail hip internal rotation is a common physical "
+            "restriction behind sway and a backswing that runs out of turn."),
         .howToRead = QStringLiteral(
-            "Read per side at the Top and Impact; amplitudes of roughly 50° on the lead hip and 40° "
-            "on the trail hip are typical references. Restricted rotation on one side often forces "
-            "a compensation elsewhere in the chain, so this is as much a physical-screening tool as "
-            "a swing metric. Planned: needs a pelvis motion sensor plus thigh motion sensors."),
-        .signPositive = QStringLiteral("internal rotation of that hip"),
+            "Read at the Top, and at Impact; about 40° at the top is a typical reference for the trail "
+            "hip. It is the pelvis's turn from address, measured by the hip motion sensor, less the "
+            "trail thigh's own turn, read off the 3-D fit of the body when both cameras see the legs. "
+            "Without that fit the thigh is taken as not turning, which a planted trail foot nearly "
+            "allows, and the reading says so and carries a wider margin. Restricted rotation often "
+            "forces a compensation elsewhere in the chain, so this is as much a physical-screening "
+            "tool as a swing metric; the hip faults are confirmed by the physical screen."),
+        .signPositive = QStringLiteral("internal rotation of the trail hip"),
         .signNegative = QStringLiteral("external rotation"),
         .phases = { P::Top, P::Impact },
         .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
         .routes = {
-            via("pelvisThighImus", RM::Inertial, Direct,
-                { .imuRoles = { R::Pelvis, R::LeadThigh, R::TrailThigh } },
-                QStringLiteral("the thigh-against-pelvis twist — thigh motion sensors we do not place "
-                               "today, and no producer for it"), PLANNED) },
+            via("pelvisImu+faceOn+dtl", RM::Fused, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true, .imuRoles = { R::Pelvis } },
+                QStringLiteral("the hip sensor's turn less the trail thigh's own turn, read off the "
+                               "two-camera fit of the body (uncalibrated: the fit solves its own "
+                               "cameras)")),
+            via("pelvisImu", RM::Inertial, Estimated, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the hip sensor's turn over a trail thigh assumed not to turn — no "
+                               "thigh sensor is placed")) },
+    });
+
+    cat.addDescriptor({
+        .key = QStringLiteral("leadHipInternalRotation"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Lead hip internal rotation"),
+        .shortLabel = QStringLiteral("Lead hip IR"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Body rotation"),
+        .color = QStringLiteral("sky"),
+        .description = QStringLiteral(
+            "True rotation at the lead hip joint — the pelvis turning over the lead thigh — as opposed "
+            "to how far the pelvis as a whole has turned. It is what lets a player clear the lead hip "
+            "coming down; limited lead hip internal rotation is a common physical restriction behind "
+            "early extension and a pelvis that stalls before impact."),
+        .howToRead = QStringLiteral(
+            "Read at Impact, and at the Top; about 50° through the downswing is a typical reference "
+            "for the lead hip. It is the pelvis's turn from address, measured by the hip motion "
+            "sensor, less the lead thigh's own turn, read off the 3-D fit of the body when both "
+            "cameras see the legs. Without that fit the thigh is taken as not turning and the reading "
+            "says so and carries a wider margin; the lead thigh turns more than the trail one through "
+            "impact, so that margin matters more here. The hip faults are confirmed by the physical "
+            "screen."),
+        .signPositive = QStringLiteral("internal rotation of the lead hip"),
+        .signNegative = QStringLiteral("external rotation"),
+        .phases = { P::Top, P::Impact },
+        .card = { .readAt = { { P::Top, {} }, { P::Impact, {} } }, .peak = false },
+        .routes = {
+            via("pelvisImu+faceOn+dtl", RM::Fused, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true, .imuRoles = { R::Pelvis } },
+                QStringLiteral("the hip sensor's turn less the lead thigh's own turn, read off the "
+                               "two-camera fit of the body (uncalibrated: the fit solves its own "
+                               "cameras)")),
+            via("pelvisImu", RM::Inertial, Estimated, { .imuRoles = { R::Pelvis } },
+                QStringLiteral("the hip sensor's turn over a lead thigh assumed not to turn — no "
+                               "thigh sensor is placed")) },
     });
 
     // ------------------------ Spine & tilt, then Pelvis & lateral
@@ -977,19 +1040,30 @@ void installMetricManifest(MetricCatalogue &cat)
             "downswing as a whole: a golfer who drops into it and then stands up by impact shows "
             "both, and a reading spanning the pair cancels them. From the down-the-line camera it "
             "is the hip-to-shoulder line against the vertical; the CHANGE is robust, while the "
-            "absolute angle carries that camera's pitch until it is calibrated."),
+            "absolute angle carries that camera's pitch until it is calibrated. With a chest motion "
+            "sensor worn, the sensor's own forward bend is the reading instead: it sits on the upper "
+            "back, so it reads the chest's tilt, not the line from the hips to the shoulders, and no "
+            "worn session has yet checked the two against each other."),
         .signPositive = QStringLiteral("more forward bend from the hips"),
         .signNegative = QStringLiteral("standing taller than upright, which a swing does not reach"),
         .phases = { P::Address, P::Impact },
         .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact, .rate = false,
                   .curve = true },   // the Posture preset plots the angle changing (posture_metrics_design.md §8)
         .routes = {
+            // LIVE since 2026-11-12 (body_rotation.cpp): the chest sensor's own forward bend, the trunk
+            // design's thoraxForwardBend (§3.2 / §8.8), FIRST — it beats the camera wherever both read
+            // (applyTrunkSensorPrecedence) — unless the chest sensor reads face-in or fewer positions.
+            // It is the chest's long axis in the vertical plane through the ball (ballPlaneBendDeg), the
+            // camera's trunk line's quantity, NOT thorax-relative-pelvis flexion (this rung's summary said
+            // so until then). It reads the chest sensor alone, so that is all it needs. Downgraded on every
+            // swing by body.chestBendSite until a worn session checks it against the camera.
+            via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Thorax } },
+                QStringLiteral("the chest's forward bend over the ball, measured by the chest motion "
+                               "sensor on the upper back — sagittal, so the face-on camera cannot "
+                               "stand in")),
             via("dtl", RM::Projected, Direct, { .dtlCamera = true },
                 QStringLiteral("the trunk's hinge over the ball, seen square-on from down the "
-                               "line")),
-            via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
-                QStringLiteral("thorax-relative-pelvis flexion from the two trunk motion sensors — "
-                               "sagittal, so the face-on camera cannot stand in"), PLANNED) },
+                               "line")) },
         .usedBy = { QStringLiteral("characteristic:posture_too_upright"),
                     QStringLiteral("characteristic:posture_too_bent"),
                     QStringLiteral("characteristic:diving"),
@@ -1071,7 +1145,12 @@ void installMetricManifest(MetricCatalogue &cat)
             "the shoulder line against the hip line: with no keypoint between them, two segments "
             "that both exist is the honest reading of thorax-relative-to-pelvis, and the "
             "difference cancels the whole-body lean that secondary axis tilt already reports. "
-            "POSITIVE IS SIDE BEND TOWARD THE TRAIL SIDE. Needs a face-on camera."),
+            "POSITIVE IS SIDE BEND TOWARD THE TRAIL SIDE. Needs a face-on camera. With a "
+            "down-the-line camera as well, the 3-D fit of the body reads it where the face-on "
+            "lines cannot (the hips or shoulders turned edge-on), in the frontal plane square to "
+            "the pelvis, so the turn does not leak in. With chest and hip motion sensors worn, their "
+            "frontal tilts are the reading instead; until the sensors' mount direction is refined from "
+            "the swings it carries a few degrees more uncertainty at a deep forward bend."),
         .signPositive = QStringLiteral("side bend toward the TRAIL side"),
         .signNegative = QStringLiteral("side bend toward the lead side"),
         .phases = { P::Impact },
@@ -1082,21 +1161,25 @@ void installMetricManifest(MetricCatalogue &cat)
         .domain = P1toP7,
         .card = { .readAt = { { P::Impact, {} } }, .peak = false, .hasDeltaSpan = true, .deltaFrom = P::Address, .deltaTo = P::Impact },
         .routes = {
-            // Planned, nothing built (trunk_imu_sequence_grf_design.md): true side bend is thorax
-            // against pelvis, so it needs both sensors, thoraxSideBend and pelvisObliquity.
+            // LIVE since 2026-11-12 (body_rotation.cpp): true side bend is thorax against pelvis, so it
+            // needs both sensors — thoraxSideBend against pelvisObliquity (trunk design §3.2). It beats
+            // the face-on and 3-D readings wherever it reads (applyTrunkSensorPrecedence).
             via("trunkImus", RM::Inertial, Direct, { .imuRoles = { R::Pelvis, R::Thorax } },
-                QStringLiteral("the thorax's side bend (thoraxSideBend, rot.thorax.sideBend.*) "
-                               "against the pelvis's frontal tilt (pelvisObliquity), from two "
-                               "worn sensors"),
-                true),
+                QStringLiteral("the chest's sideways tilt against the hips' (thoraxSideBend against "
+                               "pelvisObliquity), measured by the chest and hip motion sensors")),
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("lateral trunk flexion, read in the frontal plane the face-on "
                                "camera sees square-on")),
+            // LIVE since 2026-11-12 (Skeleton3dBodyStage, skeleton3d_body_series.h): published only
+            // where the face-on series is absent, so the face-on rung above stays the answer wherever
+            // it read. Estimated: the two-camera fit solves its own cameras. It needs MORE kit than the
+            // face-on rung, so it is never this ladder's floor (MetricDescriptor::baselineRoute).
             via("faceOn+dtl", RM::Triangulated, Estimated,
                 { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the 3-D hip and shoulder lines from triangulated pose, so the "
-                               "shoulder line against the hip line no longer carries the turn"),
-                true) },
+                QStringLiteral("the 3-D hip and shoulder lines from the two-camera fit of the body "
+                               "(uncalibrated: the fit solves its own cameras), each tilt taken in "
+                               "the frontal plane square to the pelvis, so the shoulder line against "
+                               "the hip line no longer carries the turn")) },
         .usedBy = { QStringLiteral("characteristic:insufficient_side_bend_impact"),
                     QStringLiteral("characteristic:excessive_side_bend_impact") },
         // R31: graded against the norm of its own quantity (calibration report-s5 §1): at P4, 6°.
@@ -3282,7 +3365,8 @@ void installMetricManifest(MetricCatalogue &cat)
     // imaging higher) by an order of magnitude. Graded at 0 ± 4° it fired "shoulders open" on 7 of 7
     // shots of the 9 Sep 2026 session over a visibly square setup. Aim is rotation about the body's
     // vertical axis, which one camera does not measure (8524467), so the measure now reads the
-    // planned series below and says "not produced" until the triangulated pair lands. The hip line
+    // series below — the shoulder line's bearing off the two-camera fit's 3-D joints since
+    // 2026-11-12 (Skeleton3dBodyStage, skeleton3d_body_series.h). The hip line
     // does not carry the same trap — nothing tilts the pelvis at address the way the grip tilts the
     // shoulders — so `m_hipAlignment` stays on `hipLineTilt`.
 
@@ -3304,17 +3388,22 @@ void installMetricManifest(MetricCatalogue &cat)
         .howToRead = QStringLiteral(
             "OPEN IS NEGATIVE AND CLOSED IS POSITIVE, the club-path convention: a line aimed left "
             "of the target for a right-hander is open. A few degrees either way is ordinary; a "
-            "persistent open line starts the swing left before the club has moved. Needs the "
-            "calibrated camera pair — the bearing is depth, and one view has none of it."),
-        .signPositive = QStringLiteral("the shoulder line aimed right of the target — closed"),
-        .signNegative = QStringLiteral("the shoulder line aimed left of the target — open"),
+            "persistent open line starts the swing left before the club has moved. Needs both "
+            "cameras — the bearing is depth, and one view has none of it. Read from the 3-D fit "
+            "of the body; until the cameras are calibrated their directions are assumed, so the "
+            "aim carries a few degrees more uncertainty and a warning."),
+        .signPositive = QStringLiteral("the shoulder line aimed closed — right of the target for a right-hander"),
+        .signNegative = QStringLiteral("the shoulder line aimed open — left of the target for a right-hander"),
         .phases = { P::Address },
         .card = { .readAt = { { P::Address, {} } } },
         .routes = {
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
+            // LIVE since 2026-11-12 (Skeleton3dBodyStage): Estimated — the fit's cameras are
+            // self-solved, so a bearing carries σ_yaw and body3d.cameraAssumed.
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder joints from the two-camera fit of the body, and the "
                                "bearing of the line between them taken in the horizontal plane "
-                               "against the target line"), PLANNED) },
+                               "against the target line, with the cameras' directions assumed "
+                               "(uncalibrated)")) },
         .usedBy = { QStringLiteral("characteristic:alignment_open"),
                     QStringLiteral("characteristic:alignment_closed") },
     });
@@ -3635,7 +3724,7 @@ void installMetricManifest(MetricCatalogue &cat)
         // has turned 70-90° and the two shoulder joints foreshorten toward one image column (131 px
         // at address -> 19-79 px on the 9 Sep 2026 swings, confidence ~0.5); atan(dy/dx) with dx near
         // zero read 5° to 59° on swings of one shape. The P4 reading is `shoulderPlaneAngle3d` below,
-        // planned on the triangulated pair. Address and impact stay honest here.
+        // off the two-camera fit's 3-D joints since 2026-11-12. Address and impact stay honest here.
         .usedBy = { QStringLiteral("chart:review") },
         .consistencyArea = QStringLiteral("rotation"),
     });
@@ -3661,16 +3750,20 @@ void installMetricManifest(MetricCatalogue &cat)
         .howToRead = QStringLiteral(
             "Read at the top. Lower means flatter, more horizontal shoulders; higher means steeper. "
             "POSITIVE MEANS THE TRAIL SHOULDER SITS ABOVE THE LEAD SHOULDER, the same convention as "
-            "the face-on line. Needs the calibrated camera pair — the inclination lives in the "
-            "plane the shoulders have turned into, which one view has no depth to see."),
+            "the face-on line. Needs both cameras — the inclination lives in the plane the "
+            "shoulders have turned into, which one view has no depth to see. Read from the 3-D fit "
+            "of the body; an inclination does not turn with the cameras' assumed direction, so it "
+            "carries no camera warning."),
         .signPositive = QStringLiteral("the TRAIL shoulder sits above the lead shoulder — a steeper turn"),
         .signNegative = QStringLiteral("the lead shoulder sits above the trail shoulder"),
         .phases = { P::Top },
         .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
         .routes = {
-            via("faceOn+dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
-                QStringLiteral("the shoulder joints triangulated from the calibrated pair, and the "
-                               "line's inclination taken in its own vertical plane"), PLANNED) },
+            // LIVE since 2026-11-12 (Skeleton3dBodyStage): Estimated — the fit's cameras are self-solved.
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the shoulder joints from the two-camera fit of the body "
+                               "(uncalibrated: the fit solves its own cameras), and the line's "
+                               "inclination taken in its own vertical plane")) },
         .usedBy = { QStringLiteral("characteristic:flat_shoulder_plane"),
                     QStringLiteral("characteristic:steep_shoulder_plane") },
     });
@@ -3691,13 +3784,25 @@ void installMetricManifest(MetricCatalogue &cat)
             "A per-frame curve; the reading that matters is the peak from impact into the "
             "follow-through. Higher means more bend. A knee angle is between two SEGMENTS, not a "
             "property of the knee point itself — which is why the shin and thigh exist separately "
-            "in the anatomy vocabulary. Needs a down-the-line camera."),
+            "in the anatomy vocabulary. Needs a down-the-line camera; with the face-on camera as "
+            "well it is read from the 3-D fit of the body wherever the fit sees the knee through "
+            "impact."),
         .signPositive = QStringLiteral("more knee bend"),
         .signNegative = QString(),
         .phases = { P::Impact, P::ShaftParallelThrough },
         .card = { .readAt = { { P::Impact, {} } }, .hasPeakSpan = true, .peakFrom = P::Impact, .peakTo = P::ShaftParallelThrough, .delta = false, .rate = false },
         .routes = {
-            via("dtl", RM::Triangulated, Direct, { .faceOnCamera = true, .dtlCamera = true },
+            // FIRST since 2026-11-12 (Skeleton3dBodyStage, skeleton3d_body_series.h): the hip, knee and
+            // ankle from the two-camera fit. Estimated, the fit's cameras self-solved. It replaces the
+            // down-the-line series wherever it reads through impact.
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("180° less the angle at the knee between the hip and the ankle, "
+                               "from the two-camera 3-D fit of the body (uncalibrated: the fit "
+                               "solves its own cameras)")),
+            // Estimated since 2026-11-12, below the 3-D rung, so an Estimated rung never sits above a
+            // Direct one (the best-first sweep). The trail leg, nearer the camera, occludes the lead
+            // one through much of the swing.
+            via("dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
                 QStringLiteral("the shin-against-thigh angle seen from down the line, where the "
                                "bend is in view rather than pointing at the camera")),
             via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
@@ -4135,19 +4240,29 @@ void installMetricManifest(MetricCatalogue &cat)
             "top it is the across-the-line / laid-off distinction, which is the same question asked "
             "at the other end of the backswing."),
         .howToRead = QStringLiteral(
-            "Read at P2 and at the Top. POSITIVE POINTS RIGHT OF THE TARGET for a right-handed "
-            "golfer — across the line at the top, outside in the takeaway — and negative points "
-            "left: laid off, or dragged inside. Zero is parallel to the target line, which is the "
-            "reference both positions are named against. Planned: needs the club track and a "
-            "down-the-line camera."),
-        .signPositive = QStringLiteral("pointing RIGHT of the target line — across the line for a right-hander"),
-        .signNegative = QStringLiteral("pointing left — laid off, or dragged inside"),
+            "Read at P2 and at the Top. POSITIVE POINTS ACROSS THE TARGET LINE, AWAY FROM THE "
+            "GOLFER — across the line at the top, outside in the takeaway; that is right of the "
+            "target for a right-handed golfer, and a left-hander is mirrored so the sign means the "
+            "same — and negative points back toward the golfer: laid off, or dragged inside. Zero "
+            "is parallel to the target line, which is the reference both positions are named "
+            "against. Read where the face-on and down-the-line views of the shaft cross, or from "
+            "the 3-D fit where the down-the-line camera sees the shaft end-on (halfway back, most "
+            "often). Until the down-the-line camera is calibrated its direction is assumed, so the "
+            "reading carries a few degrees more uncertainty and a warning."),
+        .signPositive = QStringLiteral("pointing across the target line, away from the golfer — across the line at the top, outside in the takeaway; right of the target for a right-hander"),
+        .signNegative = QStringLiteral("pointing back toward the golfer — laid off, or dragged inside"),
         .phases = { P::ShaftParallelBack, P::Top },
         .card = { .readAt = { { P::ShaftParallelBack, {} }, { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
+        // ONE RUNG, Estimated: the cameras are uncalibrated and a bearing moves one-for-one with the
+        // down-the-line camera's yaw (shaft_fusion.h), so it resolves Bridged and every reading carries
+        // σ_yaw and club3d.cameraAssumed (ShaftDirectionStage, shaft_direction.h; 2026-11-12).
         .routes = {
-            via("dtl", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },
-                QStringLiteral("where the shaft points relative to the target line is a bearing "
-                               "on the depth axis, so it needs the down-the-line view"), PLANNED) },
+            via("faceOn+dtl", RM::Triangulated, Estimated,
+                { .faceOnCamera = true, .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the bearing of the fused 3-D shaft — the face-on and down-the-line "
+                               "shaft tracks intersected — against the target line, with the "
+                               "down-the-line camera's direction assumed (uncalibrated); the 3-D "
+                               "skeleton's shaft where the two views cannot cross")) },
         .usedBy = { QStringLiteral("characteristic:across_the_line"),
                     QStringLiteral("characteristic:inside_takeaway"),
                     QStringLiteral("characteristic:laid_off"),

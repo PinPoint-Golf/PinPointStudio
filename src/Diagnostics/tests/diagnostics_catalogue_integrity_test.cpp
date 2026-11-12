@@ -15,6 +15,8 @@
 #include "../engine/diagnostics_health.h" // referenceHealth()
 #include "../norms/norm_pack.h"       // requiredNormSchemaVersion()
 #include "../packs/reference_pack.h"
+#include "../measures/measure_facets.h"     // quantityName (the synthetic roadmap row)
+#include "../measures/anatomy_vocabulary.h"  // roleName
 
 #include "model_browser.h"
 #include "metric_catalogue.h"
@@ -24,6 +26,7 @@
 #include <QMetaMethod>
 #include <QRegularExpression>
 #include <QFile>
+#include <QHash>
 #include <QSet>
 
 #include <cstdio>
@@ -436,6 +439,16 @@ int main()
     // characteristics behind them. The DTL shaft is fused into a 3-D shaft for the swing plane, but
     // no producer yet reads a direction off it at a phase.
     //
+    //
+    // On 2026-11-12 shaftDirection left too: its faceOn+dtl rung was built (ShaftDirectionStage —
+    // the fused shaft's bearing, the 3-D skeleton's shaft as the fallback at P2) and both reducers
+    // went live. No series in the shipped pack carries two roadmap reducers any more, so the
+    // exemplar is now thoracicFlexion — one reducer (m_thoracicCurve, no producer: nothing sits
+    // between the shoulders and the hips in either pose layout) behind TWO characteristics,
+    // c_posture and flat_thoracic_spine. The several-reducers rule is still asserted, for every row
+    // at once: no series appears on two rows, and each row's sample count is the number of
+    // roadmap reducers the pack has on that series.
+    //
     // So spineForwardBend's row shrank both ways the file knows about: once because a fault was re-authored
     // off a sagittal measure (below), and once because somebody finally built the camera rung that
     // reads it. The second is the one this roadmap exists to produce.
@@ -454,15 +467,86 @@ int main()
         for (const QVariant &v : rows) {
             const QVariantMap r = v.toMap();
             if (r.value(QStringLiteral("metricKey")).toString()
-                != QStringLiteral("shaftDirection"))
+                != QStringLiteral("thoracicFlexion"))
                 continue;
             ++exemplarRows;
             exemplarBlocks  = r.value(QStringLiteral("blocks")).toInt();
             exemplarSamples = r.value(QStringLiteral("samples")).toInt();
         }
-        check(exemplarRows == 1, "a series with several reducers is ONE roadmap row");
-        check(exemplarSamples == 2, "that row knows it carries two reducers");
-        check(exemplarBlocks == 4, "and that it unblocks four characteristics");
+        check(exemplarRows == 1, "the exemplar series is ONE roadmap row");
+        check(exemplarSamples == 1, "that row knows it carries one reducer");
+        check(exemplarBlocks == 2, "and that it unblocks two characteristics");
+
+        // The rule the exemplar used to show, now for every row: ranked by SERIES, so no series is on
+        // two rows, and a row's `samples` is every roadmap reducer the pack has on that series.
+        {
+            QHash<QString, int> reducers;   // the shipped core pack (`p`); the model adds no user layer here
+            for (const Measure &m : p.measures) {
+                if (m.status == MeasureStatus::Live || m.status == MeasureStatus::NotCapturable
+                    || m.status == MeasureStatus::Held || m.metricKey.isEmpty())
+                    continue;
+                ++reducers[m.metricKey];
+            }
+            QSet<QString> seen;
+            bool unique = true, counted = true;
+            for (const QVariant &v : rows) {
+                const QVariantMap r = v.toMap();
+                const QString k = r.value(QStringLiteral("metricKey")).toString();
+                if (k.isEmpty()) continue;
+                if (seen.contains(k)) unique = false;
+                seen.insert(k);
+                if (r.value(QStringLiteral("samples")).toInt() != reducers.value(k)) {
+                    counted = false;
+                    std::printf("        roadmap row '%s' says %d reducers, the pack has %d\n", qPrintable(k),
+                                r.value(QStringLiteral("samples")).toInt(), reducers.value(k));
+                }
+            }
+            check(unique, "no series is on two roadmap rows — several reducers are ONE row");
+            check(counted, "every roadmap row counts every roadmap reducer on its series");
+        }
+
+        // …and the several-reducers case itself, which the shipped pack no longer carries since
+        // shaftDirection left (2026-11-12): two NEW reducers minted on ONE series in a fresh model's
+        // working layer (in memory — nothing is saved). A roadmap that listed reducers rather than
+        // series would gain two rows here; it must gain exactly one, carrying both.
+        {
+            ModelBrowser synth;
+            const QVariantList before = synth.roadmap();
+            QSet<QString> beforeIds;
+            for (const QVariant &v : before) beforeIds.insert(v.toMap().value(QStringLiteral("id")).toString());
+            // A shipped composed series read AT a phase, so its facets are valid by construction.
+            const Measure *seed = nullptr;
+            for (const Measure &m : p.measures)
+                if (m.kind == MeasureKind::Composed && m.reducer.kind == ReducerKind::At && m.reducer.anchor.has_value()) {
+                    seed = &m;
+                    break;
+                }
+            check(seed != nullptr, "synthetic roadmap row: a shipped composed measure to mint beside");
+            int minted = 0;
+            if (seed) {
+                for (const char *anchor : { "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10" }) {
+                    if (minted == 2) break;
+                    QVariantMap facets;
+                    facets.insert(QStringLiteral("what"), roleName(seed->series.what));
+                    facets.insert(QStringLiteral("quantity"), quantityName(seed->series.quantity));
+                    facets.insert(QStringLiteral("reference"), roleName(seed->series.reference));
+                    facets.insert(QStringLiteral("anchor"), QString::fromLatin1(anchor));
+                    if (synth.mintMeasure(facets).value(QStringLiteral("ok")).toBool()) ++minted;
+                }
+            }
+            check(minted == 2, "synthetic roadmap row: two reducers minted on one series");
+            const QVariantList after = synth.roadmap();
+            int newRows = 0, newSamples = 0;
+            for (const QVariant &v : after) {
+                const QVariantMap r = v.toMap();
+                if (beforeIds.contains(r.value(QStringLiteral("id")).toString())) continue;
+                ++newRows;
+                newSamples = r.value(QStringLiteral("samples")).toInt();
+            }
+            check(after.size() == before.size() + 1 && newRows == 1,
+                  "a series with several reducers is ONE roadmap row (two minted reducers add one row)");
+            check(newSamples == 2, "that row knows it carries two reducers");
+        }
 
         // And the metrics that LEFT the roadmap must really be gone: a producer landing has to
         // remove its row, or the roadmap keeps advertising work that is finished.
@@ -474,7 +558,9 @@ int main()
                                       "trailWristFlexExt", "comOverLeadFoot",
                                       "spineForwardBend", "ballBodyDistance", "leadKneeFlexion",
                                       "trailKneeFlexion", "swingPlane", "pelvisThrust",
-                                      "balanceHeelToe" })
+                                      "balanceHeelToe", "shaftDirection",
+                                      // 2026-11-12, off the two-camera 3-D fit (Skeleton3dBodyStage)
+                                      "shoulderLineYaw", "shoulderPlaneAngle3d" })
                 if (k == QLatin1String(done)) ++goneRows;
         }
         check(goneRows == 0, "a series that gained a producer leaves the roadmap");

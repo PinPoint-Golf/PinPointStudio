@@ -37,10 +37,13 @@ namespace pinpoint::analysis {
 // A series a stage saves for research but no chart offers: the face-on ellipse's two inclinations,
 // tilts against the camera's image rather than the ground, which share no scale with any plane on
 // the Swing plane chart (docs/design/swing_plane_area.md). They carry no descriptor, so without this
-// they would land in the charts' "Other" group.
+// they would land in the charts' "Other" group. Also the 3-D fit's two thigh turns (thighTurn3dLead /
+// thighTurn3dTrail, skeleton3d_body_series.h): the input hip internal rotation subtracts from the
+// pelvis's turn, not a reading of their own (planned-metrics promotion, 12 Nov 2026).
 inline bool isResearchOnlySeries(const QString &key)
 {
-    return key == QLatin1String("swingPlaneIotaBack") || key == QLatin1String("swingPlaneIotaDown");
+    return key == QLatin1String("swingPlaneIotaBack") || key == QLatin1String("swingPlaneIotaDown")
+        || key == QLatin1String("thighTurn3dLead") || key == QLatin1String("thighTurn3dTrail");
 }
 
 // A key renamed after swings were saved: a saved series keeps the label its analysis wrote, so the

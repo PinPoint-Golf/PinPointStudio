@@ -26,6 +26,7 @@
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Metrics/gate_catalogue.h"                // a gate's words for a refused reading
+#include "../../Analysis/route_substitution.h"           // substitutedGapGate: a gap in a substituted reading
 #include "../../Coaching/diagnostic_ledger.h"            // conditionTier, wilsonLowerBound: the session's pattern gate
 
 #include <QHash>
@@ -237,6 +238,21 @@ GateHit gateFor(const ShotSeries &s, const QString &key, double atMs)
         }
     }
     return mask;
+}
+
+// A "-" in a reading another route supplied (route_substitution.h: the 3-D fit's lead knee or side
+// bend where the down-the-line posture or the face-on upper body had none). The failed route's record
+// was moved off the reading onto the substitute's `replacedRecords`, so gateFor finds no refusal; where
+// the supplied series has no value that record is still the true reason, in its claim words. Never a ⚠:
+// it words a gap only, and the caller asks it only for a cell with no value.
+GateHit substitutedGapFor(const ShotSeries &s, const QString &key)
+{
+    if (s.gatesVersion <= 0 || s.gates.isEmpty() || key.isEmpty()) return {};
+    const std::vector<pa::GateRecord> recs = pa::gateRecordsFromJson(QJsonArray::fromVariantList(s.gates));
+    const QString id = pa::substitutedGapGate(recs, key);
+    const gates::GateEntry *e = id.isEmpty() ? nullptr : gates::gateEntry(id);
+    if (!e) return {};
+    return GateHit{ gates::claimWords(*e), QString(), false };
 }
 
 // ── row views ──
@@ -1000,6 +1016,7 @@ PostureShotInput postureInputFromShot(const ShotSeries &shot, const PostureEnv &
             }
             in.value[size_t(r)][size_t(p)] = v;
             GateHit g = gateFor(shot, gateKey, atMs[size_t(p)]);
+            if (!fin(v) && g.words.isEmpty()) g = substitutedGapFor(shot, gateKey);
             // decision 17: a mask over the instants this reading reads — impact, or its address anchor — keeps the value and draws the ⚠
             if (s.row == PostureRow::SideBend && p == kP7 && fin(v)) {
                 const GateHit hit = g.words.isEmpty() ? gateFor(shot, gateKey, atMs[0]) : g;

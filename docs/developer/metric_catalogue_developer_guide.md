@@ -76,9 +76,16 @@ Design invariants (do not break):
   | Reading | Method | Used by |
   |---|---|---|
   | is it built at all | `planned()` — every rung planned | the Planned badge, roadmap counts |
-  | what it needs | `baselineRequirement()` — the last live rung | "Needs", the row's source glyphs |
+  | what it needs | `baselineRequirement()` — the last live rung that needs no more kit than a live rung above it | "Needs", the row's source glyphs |
   | what better kit adds | `upgradeDevices()` — devices above the floor, **planned rungs included** | the "Improves with" filter |
   | this shot's answer | `resolveRoutes()` — first satisfied live rung | Measured/Bridged, the reason, `upgrade` |
+
+  **The floor's one exception (12 Nov 2026).** A live rung that needs strictly MORE kit than a live
+  rung above it is never the floor. Quality order and cost order usually agree, but not always:
+  `spineSideBend`'s two-camera rung (the 3-D fit) is Estimated, so it must sit below the face-on
+  Direct rung, and it needs the face-on camera as well. Read as "the last live rung" it would make
+  the directory say side bend needs two cameras (`MetricDescriptor::baselineRoute()`;
+  `metric_catalogue_test` pins it).
 
   The two device readings differ deliberately: `upgradeDevices()` answers a *catalogue* question
   ("where could this metric go") and counts routes nobody has built, while
@@ -222,8 +229,14 @@ Two frames express that rule, and every metric belongs to exactly one.
 
 Referenced to the world, not to the golfer. **Positive is to the RIGHT of the target line, or
 UPWARD.** Nothing is mirrored, because the reference is the world and the world does not care which
-way the golfer stands. `clubPath`, `launchDirection`, `shaftDirection`, `faceAngle`, `attackAngle`,
+way the golfer stands. `clubPath`, `launchDirection`, `faceAngle`, `attackAngle`,
 `offline`, every `lm.*` reading.
+
+`shaftDirection` is deliberately NOT in that list, although it is a bearing against the target line.
+It belongs to the GOLFER-REFERENCED (anatomical) frame below: its producer (`shaft_direction.h`,
+12 Nov 2026) mirrors a left-hander, so positive always means the shaft points across the line, away
+from the golfer — across at the top, outside in the takeaway — which is how its four faults read it.
+That is right of the target for a right-hander and left of it for a left-hander.
 
 "Right of the target line" is read looking down the line toward the target, so it is the same
 absolute direction for both golfers — which is exactly what makes it handedness-free.
@@ -239,6 +252,10 @@ Referenced to the body. **Positive is flexion, ulnar deviation and pronation.** 
 a left-handed golfer (`pose_wrist_angle_source.cpp`, `mirrorSign()` in `wrist_assessment_types.h`),
 and that mirror is what holds the meaning fixed: a bowed lead wrist must read negative-of-cupped for
 both golfers. Removing it would invert every left-handed swing's archetype.
+
+`shaftDirection` is in this frame too, as a golfer-referenced bearing: positive is the shaft pointing
+away from the golfer, across the target line, and the producer mirrors a left-hander to hold that
+(`shaft_direction.h`). Its sign is not right-of-target for everyone, as a world-frame one would be.
 
 ### ISB compliance — what the standard governs, and what it does not
 
@@ -358,21 +375,25 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `pelvisRotation` | ° | live | turn away from address — a MAGNITUDE, so positive at the top and again at impact,  passing through zero as the body squares | *cannot go negative* |
-| `pelvisRotationSigned` | ° | planned | the pelvis turned toward the LEAD side — open | the pelvis turned toward the TRAIL side — closed |
+| `pelvisRotationSigned` | ° | live | the pelvis turned toward the LEAD side — open | the pelvis turned toward the TRAIL side — closed |
 | `thoraxRotation` | ° | live | turn away from address — a MAGNITUDE, so positive at the top and again at impact | *cannot go negative* |
+| `thoraxRotationSigned` | ° | live | the chest turned toward the LEAD side — open | the chest turned toward the TRAIL side — closed |
 | `xFactor` | ° | live | the chest turned further than the pelvis | the pelvis turned further than the chest |
 | `xFactorStretch` | ° | live | separation still growing after the top — the stretch | separation already unwinding at the top |
-| `hipInternalRotation` | ° | planned | internal rotation of that hip | external rotation |
+| `trailHipInternalRotation` | ° | live | internal rotation of the trail hip | external rotation |
+| `leadHipInternalRotation` | ° | live | internal rotation of the lead hip | external rotation |
 | `shoulderPlaneAngle` | ° | live | the TRAIL shoulder sits above the lead shoulder | the lead shoulder sits above the trail shoulder |
-| `shoulderPlaneAngle3d` | ° | planned | the TRAIL shoulder sits above the lead shoulder — a steeper turn | the lead shoulder sits above the trail shoulder |
+| `shoulderPlaneAngle3d` | ° | live | the TRAIL shoulder sits above the lead shoulder — a steeper turn | the lead shoulder sits above the trail shoulder |
 
 #### Spine & tilt
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
-| `spineForwardBend` | ° | planned | more forward bend from the hips | standing taller than upright, which a swing does not reach |
+| `spineForwardBend` | ° | live | more forward bend from the hips | standing taller than upright, which a swing does not reach |
+| `trunkRise` | % | live | the trunk more upright than at address | the trunk bent further over the ball |
 | `spineSideBend` | ° | live | side bend toward the TRAIL side | side bend toward the lead side |
 | `secondaryAxisTilt` | ° | live | the upper body leaning AWAY from the target — trail-side lean | *cannot go negative* |
+| `spineBackLine` | ° | live | more forward bend over the ball | leaning back past upright, which a swing does not reach |
 | `thoracicFlexion` | ° | planned | a more rounded upper back | a flatter, more extended upper back |
 | `lumbarExtension` | ° | planned | a more arched low back | a flattened low back |
 
@@ -381,12 +402,23 @@ a magnitude — a carry, a spin rate, a duration.
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
 | `pelvisSway` | % stance width | live | the pelvis moved toward the LEAD side | moved away from the lead side |
-| `pelvisThrust` | cm | planned | the pelvis moved toward the ball | *cannot go negative* |
+| `pelvisThrust` | cm | live | the pelvis moved toward the ball | *cannot go negative* |
+| `hipDepthButt` | cm | live | the hips moved toward the ball | the hips moved away from the ball |
 | `pelvisLift` | % stance width | live | the pelvis rose | the pelvis dropped |
 | `pelvisLiftBelt` | % stance width | planned | the belt line rose | the belt line dropped |
 | `hipLineTilt` | ° | live | the TRAIL hip sits above the lead hip | *cannot go negative* |
 | `plumbBobDistance` | in | live | the hips sit AHEAD of the stance centre, toward the lead side | the hips sit behind centre, toward the trail side |
 | `thoraxLateralDrift` | % stance width | live | the chest moved toward the LEAD side | moved away from the lead side |
+
+#### Head
+
+| Metric | Unit | Status | Positive means | Negative means |
+|---|---|---|---|---|
+| `headRise` | cm | live | the head rose | the head dropped |
+| `headSway` | cm | live | the head moved toward the LEAD side | moved away from the lead side |
+| `headLift` | cm | live | the head rose | the head dropped |
+| `headPitch` | ° | live | the chin down toward the chest | the chin up, away from the chest |
+| `headTilt` | ° | live | the eye line tilted further than at address, trail-end high | tilted the other way from address |
 
 #### Feet & stance
 
@@ -398,17 +430,16 @@ a magnitude — a carry, a spin rate, a duration.
 | `ballPosition` | % stance width | live | the ball further BACK, toward the trail foot — 0% is the lead heel, 100% the trail  heel, the scale other golf software uses | forward of the lead heel, which is a real driver setup |
 | `leadFootFlare` | ° | live | the lead toe turned out, away from the ball | turned in |
 | `trailFootFlare` | ° | live | the trail toe turned out, away from the ball | turned in |
-| `toeLineAngle` | ° | live | a closed stance line as the camera sees it | an open stance line — and this one line metric FLIPS for a mirrored camera |
+| `toeLineAngle` | ° | live | a closed stance line as the camera sees it | an open stance line |
 | `leadHeelLift` | cm | live | the lead heel further off the ground | *cannot go negative* |
-| `leadKneeFlexion` | ° | planned | more knee bend | *cannot go negative* |
-| `ballBodyDistance` | % shoulder width | planned | standing further from the ball | standing closer to the ball |
-| `trailKneeFlexion` | ° | planned | more knee bend | *cannot go negative* |
+| `leadKneeFlexion` | ° | live | more knee bend | *cannot go negative* |
+| `ballBodyDistance` | cm | live | standing further from the ball | standing closer to the ball |
+| `ballReachExcess` | cm | live | standing further from the ball than the club needs | standing closer to the ball than the club needs |
+| `trailKneeFlexion` | ° | live | more knee bend | *cannot go negative* |
 | `comOverLeadFoot` | % stance width | live | further FROM the lead ankle — UNSIGNED, because still back and fallen through are the  same fault seen from either side | *cannot go negative* |
-| `balanceHeelToe` | % foot length | planned | the balance point further toward the toes | further back toward the heels |
+| `balanceHeelToe` | % foot length | live | the balance point further toward the toes | further back toward the heels |
 
-#### Club delivery — the club's motion
-
-Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026 so the club's motion and its impact readings are one preset. In Replay the preset shows its curves and only path, face, attack angle, low point and dynamic loft as instant readings.
+#### Club delivery
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
@@ -417,25 +448,13 @@ Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026
 | `clubheadPeakLead` | ms | live | the clubhead peaked earlier, further before the ball | the peak sat at, or just past, the impact anchor |
 | `lagAngle` | ° | live | more lag retained — a tighter forearm-to-shaft angle | *cannot go negative* |
 | `impactShaftLean` | ° | live | the shaft leaning FORWARD, toward the target | leaning back, away from the target |
-| `shaftLie` | ° | live | the shaft steeper to the ground, down the line — more upright; its Δ (impact − address) positive = came back steeper | *a reading cannot go negative*; the Δ negative = came back flatter |
-| `lm.clubheadSpeed` | mph | device | a faster clubhead | *cannot go negative* |
-
-#### Club delivery
-
-| Metric | Unit | Status | Positive means | Negative means |
-|---|---|---|---|---|
-| `swingPlane` | ° | live | above the address shaft plane, steeper; Δ PLANE + = came down steeper | below it, flatter |
-| `swingPlaneAngle` | ° | live | a more upright plane (absolute, to the ground; 90 = vertical) | a flatter plane |
-| `swingPlaneCurve` | ° | live | a more upright plane through the target line and the shaft, moment to moment | a flatter plane |
-| `handPlaneCurve` | ° | live | hands on a more upright plane through the ball line, moment to moment | hands on a flatter plane |
-| `handPlaneSteepening` | ° | live | the hands came down on a steeper plane than they went up — over the top | the hands came down on a flatter plane |
-| `shoulderPlane` | ° | live | a more upright plane through the ball line and the trail shoulder at address (the slot's steep edge) | a flatter shoulder plane |
-| `transitionPlaneDelta` | ° | live | the club steepened in transition — the over-the-top direction | the club shallowed in transition |
+| `shaftLie` | ° | live | the shaft steeper to the ground — more upright; Δ = came back steeper than at address | flatter; Δ = came back flatter — cannot go negative as a reading, only as a Δ |
 | `clubPath` | ° | planned | the head travelling RIGHT of the target line — in-to-out for a right-hander | travelling left — out-to-in for a right-hander |
 | `attackAngle` | ° | live | an UPWARD strike | a descending strike |
 | `lowPointAhead` | in | live | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
-| `shaftDirection` | ° | planned | pointing RIGHT of the target line — across the line for a right-hander | pointing left — laid off, or dragged inside |
+| `shaftDirection` | ° | live | pointing across the target line, away from the golfer — across the line at the top, outside in the takeaway; right of the target for a right-hander | pointing back toward the golfer — laid off, or dragged inside |
 | `shaftAngleVsHorizontal` | ° | live | PAST parallel to the ground; zero IS parallel | short of parallel |
+| `lm.clubheadSpeed` | mph | device | a faster clubhead | *cannot go negative* |
 | `lm.attackAngle` | ° | device | an UPWARD strike | a descending strike |
 | `lm.clubPath` | ° | device | the head travelling RIGHT of the target line — in-to-out for a right-hander | travelling left — out-to-in for a right-hander |
 | `lm.lowPointAhead` | in | device | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
@@ -444,6 +463,20 @@ Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026
 | `lm.spinLoft` | ° | device | a larger angle between delivered loft and the direction of travel | the face delivered below the path direction |
 | `lm.lieAngle` | ° | device | the clubhead sole toe UP relative to the ground at impact | the sole toe DOWN; zero is flat to the ground |
 | `lm.closureRate` | °/s | device | the face rotating CLOSED through impact — a faster closing rate | the face rotating open; a low or stable value is a squarer, held-off release |
+| `lowPointFromAttack` | in | device | the arc bottoming out AHEAD of the ball, on the target side | bottoming out behind the ball |
+
+#### Swing plane
+
+| Metric | Unit | Status | Positive means | Negative means |
+|---|---|---|---|---|
+| `swingPlaneCurve` | ° | live | a more upright plane | a flatter plane |
+| `handPlaneCurve` | ° | live | hands on a more upright plane | hands on a flatter plane |
+| `handPlaneSteepening` | ° | live | the hands came down on a steeper plane — over the top | the hands came down on a flatter plane |
+| `shoulderPlane` | ° | live | a more upright shoulder plane | a flatter shoulder plane |
+| `swingPlane` | ° | live | above the address shaft plane — steeper; Δ = came down steeper than it went back | below it — flatter; Δ = came down flatter than it went back |
+| `swingPlaneAngle` | ° | live | a more upright plane | a flatter plane |
+| `transitionPlaneDelta` | ° | live | the club steepened in transition — the over-the-top direction | the club shallowed in transition |
+| `handPathLoop` | % hand rise | live | the hands came down outside the backswing path — over the top | the hands came down inside the backswing path |
 
 #### Tempo & sequence
 
@@ -451,27 +484,31 @@ Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026
 |---|---|---|---|---|
 | `tempoBackswing` | s | live | a longer backswing | *cannot go negative* |
 | `tempoRatio` | :1 | live | a backswing slower relative to the downswing | *cannot go negative* |
-| `kinematicSequence` | — | live | *no direction* | *cannot go negative* |
+| `kinematicSequence` | ms | live | *no direction* | *cannot go negative* |
 | `pelvisAngularSpeed` | °/s | live | the pelvis turning toward the LEAD side — opening | the pelvis turning toward the TRAIL side — closing |
 | `thoraxAngularSpeed` | °/s | live | the chest turning toward the LEAD side — opening | the chest turning toward the TRAIL side — closing |
-| `leadArmAngularSpeed` | °/s | live | *no direction* | *cannot go negative* |
-| `clubAngularSpeed` | °/s | live | *no direction* | *cannot go negative* |
+| `leadArmAngularSpeed` | °/s | live | the arm swinging down and through, towards the target | the arm swinging back, away from the target |
+| `clubAngularSpeed` | °/s | live | the shaft swinging down and through, towards the target | the shaft swinging back, away from the target |
+| `pelvisPeakTime` | ms | live | the peak came after impact | the peak came before impact |
+| `thoraxPeakTime` | ms | live | the peak came after impact | the peak came before impact |
+| `leadArmPeakTime` | ms | live | the peak came after impact | the peak came before impact |
+| `clubPeakTime` | ms | live | the peak came after impact | the peak came before impact |
+| `pelvisPeakSpeed` | °/s | live | a faster peak — a speed, never negative | *cannot go negative* |
+| `thoraxPeakSpeed` | °/s | live | a faster peak — a speed, never negative | *cannot go negative* |
+| `leadArmPeakSpeed` | °/s | live | a faster peak — a speed, never negative | *cannot go negative* |
+| `clubPeakSpeed` | °/s | live | a faster peak — a speed, never negative | *cannot go negative* |
+| `pelvisReversalTime` | ms | live | the hips started down after impact | the hips started down before impact |
+| `thoraxReversalTime` | ms | live | the chest started down after impact | the chest started down before impact |
+| `ksOrderShare` | ratio | live | more of the session's swings came in the professional order | fewer of the session's swings came in order |
+| `ksTimingSpread` | ratio | live | the peak instants wander more from swing to swing | the peak instants repeat more tightly |
 
 #### Alignment
 
 | Metric | Unit | Status | Positive means | Negative means |
 |---|---|---|---|---|
-| `shoulderLineYaw` | ° | planned | the shoulder line aimed right of the target — closed | the shoulder line aimed left of the target — open |
+| `shoulderLineYaw` | ° | live | the shoulder line aimed closed — right of the target for a right-hander | the shoulder line aimed open — left of the target for a right-hander |
 | `elbowAlignment` | ° | live | the TRAIL elbow sits above the lead elbow | the lead elbow sits above the trail elbow |
 | `feetAlignment` | ° | live | the TRAIL ankle sits above the lead ankle — a closed stance | the lead ankle sits above the trail ankle — an open stance |
-
-#### Head
-
-| Metric | Unit | Status | Positive means | Negative means |
-|---|---|---|---|---|
-| `headSway` | cm | live | the head moved toward the LEAD side | moved away from the lead side |
-| `headLift` | cm | live | the head rose | the head dropped |
-| `headTilt` | ° | live | the eye line tilted further than at address, trail-end high | tilted the other way from address |
 
 #### Arms
 
@@ -479,7 +516,9 @@ Formerly its own group, *Club & speed*; merged into Club delivery on 16 Oct 2026
 |---|---|---|---|---|
 | `leadArmToTorso` | ° | live | the arm further from the torso — UNSIGNED 0–180°, a frontal projection cannot say  which side it left on | *cannot go negative* |
 | `trailElbowHeight` | % shoulder width | live | the trail elbow higher above the shoulder line | below the shoulder line |
+| `trailForearmAngle` | ° | live | the trail elbow points further behind the golfer | tucked toward the ball side of the hands |
 | `leadHandWidth` | % arm length | live | the hands further from the chest — a wider arc | the hands closer to the chest |
+| `armHang` | ° | live | the hands further toward the ball than the shoulders — reaching | the hands tucked in under the body |
 | `leadUpperArmToChest` | % shoulder width | live | a larger gap — the arm further from the chest | *cannot go negative* |
 
 #### Ball flight
@@ -864,12 +903,12 @@ study counts named swing faults across a population. It is a prior, and it is re
 | Metric | Status | Faults it would unlock | Top rung | Which |
 |---|---|---:|---|---|
 | `swingPlane` | planned | **6** | ubiquitous | *Over the top*, *Steep through delivery*, *Stuck under the plane*, *Shallowing in transition*, *Steep backswing plane*, *Flat backswing plane* |
-| `spineForwardBend` | planned | **3** | occasional | *Standing too upright*, *Bent over too much at address*, *Diving into the ball* |
+| `spineForwardBend` | live (down the line 21 Sep; the chest sensor 12 Nov 2026) | **3** | occasional | *Standing too upright*, *Bent over too much at address*, *Diving into the ball* |
 | `clubPath` | planned | **2** | ubiquitous | *Path too far out-to-in*, *Path too far in-to-out* |
 | `faceToPath` | device | **2** | ubiquitous | *Face open to the path*, *Face closed to the path* |
 | `pelvisThrust` | planned | **2** | ubiquitous | *Early extension*, *Backing away from the ball* |
 | `spinAxis` | device | **2** | ubiquitous | *Slice*, *Hook* |
-| `shaftDirection` | planned | **4** | common | *Club taken inside*, *Club taken outside*, *Across the line at the top*, *Laid off at the top* |
+| `shaftDirection` | live (12 Nov 2026) | **4** | common | *Club taken inside*, *Club taken outside*, *Across the line at the top*, *Laid off at the top* |
 | `launchDirection` | planned | **2** | common | *Pull*, *Push* |
 | `lumbarExtension` | noProducer | **2** | common | *S-posture*, *Flat lower back at address* |
 | `spinRate` | device | **2** | common | *Too much spin*, *Too little spin* |
@@ -879,7 +918,7 @@ study counts named swing faults across a population. It is a prior, and it is re
 | `carryDistance` | device | **1** | common | *Short carry* |
 | `smashFactor` | device | **1** | common | *Poor strike efficiency* |
 | `trailKneeFlexion` | planned | **1** | common | *Trail knee straightens* |
-| `leadKneeFlexion` | planned | **3** | occasional | *Sitting too deep*, *Legs too straight*, *Late lead-knee buckle* |
+| `leadKneeFlexion` | live (12 Nov 2026, the 3-D fit) | **3** | occasional | *Sitting too deep*, *Legs too straight*, *Late lead-knee buckle* |
 | `ballBodyDistance` | planned | **2** | occasional | *Ball too close to the body*, *Ball too far from the body* |
 | `launchAngle` | planned | **2** | occasional | *Low ball flight*, *Ballooning* |
 
@@ -1008,7 +1047,9 @@ Measured for the pelvis / thorax IMUs, so these read as real-but-estimated rathe
 | `xFactor` | live | FaceCam (Plv+Thx upgrade it; DTL triangulates both bearings) | thorax−pelvis separation ✓ | camCal / anat+mount | `body_rotation_test` · (mocap owed) |
 | `xFactorStretch` | live | as `xFactor` (incl. the DTL rung), + a segmented Top | separation minus its value at Top ✓ | camCal / anat+mount | `body_rotation_test` · (corpus: speed correlation owed) |
 | `shoulderPlaneAngle` | live | FaceCam | `buildUpperBodySeries` shoulder-line vs horizontal ✓ | camCal | `upper_body_metrics_test` · (corpus) |
-| `hipInternalRotation` | planned | Plv+Thg | thigh-vs-pelvis twist | anat+mount (pelvis+thigh) | new unit · (mocap) |
+| `shoulderPlaneAngle3d` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's shoulder line, its inclination in its own vertical plane at the top (`Skeleton3dBodyStage`, 12 Nov 2026) ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test` · (one-swing check) |
+| `trailHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: thigh turn − pelvis-sensor turn; the thigh assumed fixed (σ 6°, `body.thighTurnAssumed`) without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
+| `leadHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: pelvis-sensor turn − thigh turn; the thigh assumed fixed without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
 
 ### Spine & tilt
 
@@ -1018,9 +1059,9 @@ the set a reader plots together, and ten members made it unreadable.
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
-| `spineSideBend` | live | FaceCam | `buildUpperBodySeries` lateral flexion ✓ | camCal | `upper_body_metrics_test` · (mocap owed) |
+| `spineSideBend` | live | FaceCam (+ **DTL**: the 3-D fit where the face-on lines refuse; **Plv+Thx** upgrade it and win) | `buildUpperBodySeries` lateral flexion ✓; the fit's frontal-plane tilts, square to the pelvis, only where the face-on series is absent (12 Nov 2026) ✓; the sensors' thoraxSideBend − pelvisObliquity, which beat both (12 Nov 2026) ✓ | camCal / anat+mount | `upper_body_metrics_test`, `skeleton3d_body_metrics_test`, `trunk_e2e_test` §j · (no worn session; mocap owed) |
 | `secondaryAxisTilt` | live | FaceCam | frontal spine vector vs vertical ✓ | camCal, ground | `upper_body_metrics_test` · (mocap owed) |
-| `spineForwardBend` | planned | Plv+Thx (or 3D cam) | thorax-rel-pelvis flex — SAGITTAL, so face-on cannot see it | anat+mount / camCal | new unit · (mocap) |
+| `spineForwardBend` | live | DTL (**Thx** upgrades it and wins) | `buildDtlPosture` hip-to-shoulder line ✓; the chest sensor's forward bend (thoraxForwardBend, the chest's inclination — not thorax-relative-pelvis flexion), which beats the camera (12 Nov 2026) ✓ — SAGITTAL, so face-on cannot see it | camCal / anat+mount | `dtl_posture_test`, `trunk_e2e_test` §j · (no worn session; mocap owed) |
 | `thoracicFlexion` | planned | **DTL** | upper-back CONTOUR at Address — no keypoint exists between shoulders and hips in either layout | stereo | new unit · (mocap) |
 | `lumbarExtension` | planned | **DTL** | low-back CONTOUR at Address — no keypoint exists between shoulders and hips in either layout | stereo | new unit · (mocap) |
 
@@ -1057,7 +1098,7 @@ not scale with the player, and they differ **by club**, including in sign.
 | `leadHeelLift` | live | FaceCam + **Ball** | heel-vs-toe elevation curve, in **cm** ✓ | **px→mm**; absent without the ruler | `foot_metrics_test` · (corpus) |
 | `leadKneeDrift` | live | FaceCam + ground | `buildLowerBodySeries` lead-knee lateral travel ✓ | camCal, ground | `lower_body_metrics_test` · (corpus) |
 | `comOverLeadFoot` | live | FaceCam + ground | balance point vs lead foot, sampled to Finish ✓ | camCal, ground | `lower_body_metrics_test` · (corpus) |
-| `leadKneeFlexion` | planned | FaceCam (DTL better) | knee angle — sagittal, face-on cannot see it | camCal / stereo | new unit · (mocap) |
+| `leadKneeFlexion` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's hip–knee–ankle angle (`Skeleton3dBodyStage`, 12 Nov 2026), replacing the DTL series where it reads through impact; elsewhere the DTL series ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test`, `dtl_posture_test` · (one-swing check) |
 | `trailKneeFlexion` | planned | FaceCam (DTL better) | knee angle — sagittal | camCal / stereo | new unit · (mocap) |
 | `ballBodyDistance` | planned | **DTL** + Ball | ball standoff from the body — depth axis | stereo | new unit · (corpus) |
 
@@ -1096,7 +1137,7 @@ not scale with the player, and they differ **by club**, including in sign.
 | `lm.spinLoft` | device | **LM** | derived in the connector from the row ✓ | — | `gcquad_csv_parser_test` |
 | `swingPlane` | planned | **DTL** + Club | SVD best-fit plane of head path — needs the path in 3D | stereo | new unit · (DTL cross-check) |
 | `clubPath` | planned | **DTL** + Club | horizontal velocity angle — needs depth | stereo | new unit · (launch monitor) |
-| `shaftDirection` | planned | **DTL** + Club | shaft pointing vs target line — needs depth | stereo | new unit · (DTL cross-check) |
+| `shaftDirection` | live *(Bridged)* | FaceCam + **DTL** + Club | the fused 3-D shaft's bearing vs the target line at P2 and the top, the 3-D skeleton's shaft where fusion has no clean frame; σ ⊕ σ_yaw ✓ | DTL yaw assumed (σ 5°) until calibrated | `shaft_fusion_test` §SD · (one-swing check) |
 | `lm.attackAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.clubPath` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.lieAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
@@ -1119,6 +1160,7 @@ not scale with the player, and they differ **by club**, including in sign.
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
+| `shoulderLineYaw` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's shoulder line, its bearing vs the target line at address, a left-hander mirrored (`Skeleton3dBodyStage`, 12 Nov 2026); σ ⊕ σ_yaw ✓ | camera yaw assumed (σ 5°) until calibrated | `skeleton3d_body_metrics_test` · (one-swing check) |
 | `elbowAlignment` | live | FaceCam | `buildUpperBodySeries` elbow-line angle ✓ | camCal | `upper_body_metrics_test` · (corpus) |
 | `feetAlignment` | live | FaceCam | `buildLowerBodySeries` ankle-line angle ✓ | camCal | `lower_body_metrics_test` · (corpus) |
 

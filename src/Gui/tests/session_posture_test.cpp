@@ -39,6 +39,8 @@
 #include "charts/session_series_model.h"
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
+#include "gate_record.h"                // a substitute record, written as swing.json writes it
+#include "gate_catalogue.h"             // its replaced record's claim words
 
 #include <QFile>
 #include <QJsonDocument>
@@ -405,6 +407,55 @@ private slots:
         QVERIFY(v.trust.bandSources.startsWith(QStringLiteral("Bands from 20 tour professionals (Kim 2021), 29 skilled men (Evans 2008), ")));
         QVERIFY(v.trust.bandSources.contains(QStringLiteral("a vendor's published figures")));
         QVERIFY(!v.trust.trunkDatum.isEmpty());
+    }
+
+    // 5a. A "-" in a reading another route supplied (route_substitution.h, 12 Nov 2026): the failed route's
+    // refusal was moved off the reading onto the substitute's replacedRecords, so no refusal names the key;
+    // the "-" still says the failed route's real reason, in its claim words, and never draws a ⚠. A cell
+    // with a value in the same row is untouched (masks and gaps do not label values).
+    void substitutedGapKeepsItsReason()
+    {
+        QFile f(qEnvironmentVariable("PP_POSTURE_FIXTURE"));
+        QVERIFY2(f.open(QIODevice::ReadOnly), "PP_POSTURE_FIXTURE");
+        QString why;
+        const auto shot = SessionSeriesModel::extractShot(
+            QJsonDocument::fromJson(f.readAll()).object(), QStringLiteral("/fixture/2026-10-20_Nick-Henn_Wrist_03/swing_0002"), &why);
+        QVERIFY2(shot, qPrintable(why));
+        const PostureShotInput base = postureInputFromShot(*shot, *m_env);
+        // a row read on its own key (not hip depth, whose P3–P5 read the butt line), with a wordless "-" and a value
+        int R = -1, gap = -1, read = -1;
+        QString key;
+        for (const PostureRowSpec &s : postureRowSpecs()) {
+            if (s.row == PostureRow::Hips || !base.present[size_t(r(s.row))]) continue;
+            int g = -1, v = -1;
+            for (int p = 1; p < kPosturePositions; ++p) {
+                const size_t rr = size_t(r(s.row)), pp = size_t(p);
+                if (!std::isfinite(base.value[rr][pp]) && base.gateWords[rr][pp].isEmpty() && g < 0) g = p;
+                if (std::isfinite(base.value[rr][pp]) && v < 0) v = p;
+            }
+            if (g >= 0 && v >= 0) { R = r(s.row); gap = g; read = v; key = s.metricKey; break; }
+        }
+        QVERIFY2(R >= 0, "the fixture has a row with a wordless \"-\" and a value");
+        namespace pa = pinpoint::analysis;
+        const QStringList covers{ key };
+        const std::vector<pa::GateRecord> sub{ pa::GateRecord{
+            QStringLiteral("body3d.fromFit"), key, pa::GateEffect::Downgraded,
+            QVariantMap{ { QStringLiteral("code"), QStringLiteral("dtl") }, { QStringLiteral("route"), QStringLiteral("faceOn+dtl") },
+                         { QStringLiteral("replaces"), QStringLiteral("dtl") },
+                         { QStringLiteral("replacedRecords"), QStringList{ QStringLiteral("posture.address") } } },
+            {}, {}, covers } };
+        ShotSeries s = *shot;
+        s.gates += pa::gateRecordsToJson(sub).toVariantList();
+        if (s.gatesVersion <= 0) s.gatesVersion = pa::kGatesVersion;
+        const PostureShotInput in = postureInputFromShot(s, *m_env);
+        const pinpoint::gates::GateEntry *e = pinpoint::gates::gateEntry(QStringLiteral("posture.address"));
+        QVERIFY(e);
+        QCOMPARE(in.gateWords[size_t(R)][size_t(gap)], pinpoint::gates::claimWords(*e));
+        QVERIFY(!in.gateWarn[size_t(R)][size_t(gap)]);
+        QVERIFY(in.gateWords[size_t(R)][size_t(read)].isEmpty());
+        QVERIFY(!in.gateWarn[size_t(R)][size_t(read)]);
+        // and with no substitute record the same "-" stays wordless, as before
+        QVERIFY(postureInputFromShot(*shot, *m_env).gateWords[size_t(R)][size_t(gap)].isEmpty());
     }
 
     // 5b. Decision 15 on the real swing: the butt line at the top is read without a ⚠ and counted in d; refused

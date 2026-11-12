@@ -25,8 +25,11 @@
 //   ctest --test-dir build/analyzer-tests -R shaft_fusion_test --output-on-failure
 
 #include "../../Club/shaft_fusion.h"
+#include "../../Club/shaft_direction.h"   // §SD shaftDirection: the bearing, its sign and the source rule
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -525,6 +528,182 @@ int main()
         check(t0.valid && t0.down.fitted && std::fabs(t0.down.inclDeg - 60.0) > 1.0,
               "§R blind to the roll, the same swing's plane is off by more than 1°");
         std::printf("       rolled DTL camera: told 6° ⇒ down %.2f°; blind ⇒ %.2f°\n", t1.down.inclDeg, t0.down.inclDeg);
+    }
+
+    // §SD shaftDirection (shaft_direction.h): the bearing against the target line, its sign for both
+    // hands, its continuity, its σ, and the per-position source rule — fusion, then the skeleton, then
+    // nothing. The frame: +X the target for a right-hander, −Y the far side of the line (beyond the
+    // ball), + = the head end on the far side: across the line at the top, outside in the takeaway.
+    {
+        namespace sd = pinpoint::analysis::shaftdir;
+        const auto dirAt = [](double headingDeg, double elevDeg) {   // heading from +X toward +Y
+            const double h = headingDeg * kPi / 180.0, e = elevDeg * kPi / 180.0;
+            return Vec3 { std::cos(e) * std::cos(h), std::cos(e) * std::sin(h), std::sin(e) };
+        };
+        // ── the four cases, right-handed (target +X) ──
+        check(near(sd::shaftBearingDeg(dirAt(180.0, 0.0), false), 0.0, 1e-9)
+                  && near(sd::shaftBearingDeg(dirAt(0.0, 0.0), false), 0.0, 1e-9),
+              "§SD on the line: 0 at P2 (pointing back) and at the top (pointing at the target)");
+        check(near(sd::shaftBearingDeg(dirAt(170.0, 5.0), false), -10.0, 1e-9),
+              "§SD P2, head toward the golfer (+Y): INSIDE reads −10");
+        check(near(sd::shaftBearingDeg(dirAt(-170.0, 5.0), false), 10.0, 1e-9),
+              "§SD P2, head beyond the ball (−Y): OUTSIDE reads +10");
+        check(near(sd::shaftBearingDeg(dirAt(-12.0, -8.0), false), 12.0, 1e-9),
+              "§SD top, pointing right of the target (−Y): ACROSS THE LINE reads +12");
+        check(near(sd::shaftBearingDeg(dirAt(12.0, -8.0), false), -12.0, 1e-9),
+              "§SD top, pointing left of the target (+Y): LAID OFF reads −12");
+        // ── a left-hander: the same cabin, target −X, golfer still on +Y; every case mirrored in X ──
+        {
+            const auto mir = [](Vec3 u) { u.x = -u.x; return u; };
+            const double inside = sd::shaftBearingDeg(mir(dirAt(170.0, 5.0)), true);
+            const double outside = sd::shaftBearingDeg(mir(dirAt(-170.0, 5.0)), true);
+            const double across = sd::shaftBearingDeg(mir(dirAt(-12.0, -8.0)), true);
+            const double laidOff = sd::shaftBearingDeg(mir(dirAt(12.0, -8.0)), true);
+            check(near(inside, -10.0, 1e-9) && near(outside, 10.0, 1e-9) && near(across, 12.0, 1e-9)
+                      && near(laidOff, -12.0, 1e-9),
+                  "§SD left-hander: inside −10, outside +10, across +12, laid off −12 — the sign means the same");
+            // Pointing across for a left-hander is LEFT of the target looking down the line: a world-frame
+            // "right of the target" sign would read it −12 and grade a left-hander's across as laid off.
+            check(across > 0, "§SD …so a left-hander's across the line is NOT read as the world frame's left (−)");
+            check(near(sd::shaftBearingDeg(mir(dirAt(-12.0, -8.0)), false), across, 1e-12),
+                  "§SD …and the mirror leaves the number unchanged (|u_x|), so a frame change cannot invert it silently");
+        }
+        // ── continuity: through end-on at P2, and as the shaft turns from pointing back to the target ──
+        {
+            double worst = 0.0;
+            double prev = sd::shaftBearingDeg(dirAt(175.0, 3.0), false);
+            for (double hd = 175.0; hd <= 185.0 + 1e-9; hd += 0.25) {   // through −X: the DTL camera end-on
+                const double b = sd::shaftBearingDeg(dirAt(hd, 3.0), false);
+                worst = std::max(worst, std::fabs(b - prev));
+                prev = b;
+            }
+            check(worst < 0.3, "§SD continuous through end-on at P2 (0.25° steps of heading move it < 0.3°)");
+            // Back → target in the ground plane, by the inside (+Y) and by the outside (−Y): no flip at
+            // u_x = 0, where the two positions' readings meet at ∓90.
+            double worstIn = 0.0, worstOut = 0.0;
+            double pIn = sd::shaftBearingDeg(dirAt(180.0, 0.0), false), pOut = pIn;
+            for (double k = 0.5; k <= 180.0 + 1e-9; k += 0.5) {
+                const double bIn = sd::shaftBearingDeg(dirAt(180.0 - k, 0.0), false);
+                const double bOut = sd::shaftBearingDeg(dirAt(-180.0 + k, 0.0), false);
+                worstIn = std::max(worstIn, std::fabs(bIn - pIn));
+                worstOut = std::max(worstOut, std::fabs(bOut - pOut));
+                pIn = bIn; pOut = bOut;
+            }
+            check(worstIn <= 0.5 + 1e-9 && worstOut <= 0.5 + 1e-9,
+                  "§SD no flip as the shaft turns from pointing back to pointing at the target (0.5° steps)");
+            check(near(sd::shaftBearingDeg(dirAt(90.0, 0.0), false), -90.0, 1e-9)
+                      && near(sd::shaftBearingDeg(dirAt(-90.0, 0.0), false), 90.0, 1e-9),
+                  "§SD …passing −90 on the inside and +90 on the outside");
+            // Up the swing plane from P2 to the top: a 55° plane through the target line, rising toward
+            // the golfer (+Y); every frame with a usable ground projection reads within one step of the last.
+            const double i = 55.0 * kPi / 180.0;
+            const Vec3 e1 { 1, 0, 0 }, e2 { 0, std::cos(i), std::sin(i) };
+            double worstPlane = 0.0, pPl = std::numeric_limits<double>::quiet_NaN();
+            bool neverOutside = true;
+            for (double a = 180.0; a >= 0.0; a -= 0.5) {   // P2 (−X) → up the plane → the top (+X)
+                const Vec3 u = e1 * std::cos(a * kPi / 180.0) + e2 * std::sin(a * kPi / 180.0);
+                if (sd::horizontalFrac(u) < 0.6) { pPl = std::numeric_limits<double>::quiet_NaN(); continue; }
+                const double b = sd::shaftBearingDeg(u, false);
+                if (std::isfinite(pPl)) worstPlane = std::max(worstPlane, std::fabs(b - pPl));
+                pPl = b;
+                neverOutside = neverOutside && b <= 1e-9;
+            }
+            check(neverOutside, "§SD a backswing on a plane rising toward the golfer never reads outside");
+            check(worstPlane < 1.5, "§SD …and moves smoothly along the plane (0.5° steps move it < 1.5°)");
+        }
+        // ── σ: the direction's σ over |h|, ⊕ the camera's yaw σ ──
+        check(near(sd::shaftBearingSigmaDeg(dirAt(180.0, 0.0), 2.0, 5.0), std::hypot(2.0, 5.0), 1e-9),
+              "§SD σ on a level shaft: √(2² + 5²)");
+        check(near(sd::shaftBearingSigmaDeg(dirAt(180.0, 60.0), 2.0, 5.0), std::hypot(4.0, 5.0), 1e-9),
+              "§SD σ on a shaft 60° up: the direction's σ doubles on the ground (|h| = ½), then ⊕ 5");
+        check(std::isnan(sd::shaftBearingSigmaDeg(dirAt(180.0, 0.0), std::numeric_limits<double>::quiet_NaN(), 5.0)),
+              "§SD σ not assessed stays not assessed (NaN), never the yaw term alone");
+
+        // ── the source rule ──
+        const auto fused = [&](int64_t t, double headingDeg, uint8_t flags, FoSource src) {
+            Sample3D s;
+            s.t_us = t; s.u = dirAt(headingDeg, 2.0); s.flags = flags; s.foSrc = src; s.sigmaDeg = 1.5;
+            return s;
+        };
+        sd::Config cfg;   // the tuned defaults: ±25 ms, SignDisagree | IllConditioned | Reflected, tier ≥ 2
+        cfg.yawSigmaDeg = 5.0;
+        const int64_t p2 = 1000000;
+        std::vector<Sample3D> F {
+            fused(p2 - 10000, 175.0, IllConditioned, FoSource::Measured),
+            fused(p2,         175.0, IllConditioned, FoSource::Measured),
+            fused(p2 + 5000,  175.0, Reflected,      FoSource::Measured),
+            fused(p2 + 8000,  175.0, SignDisagree,   FoSource::Measured),
+            fused(p2 + 10000, 175.0, 0,              FoSource::Bridged),
+            fused(p2 + 40000, 175.0, 0,              FoSource::Measured) };   // clean, but 40 ms away
+        std::vector<sd::FitFrame> K { { p2 - 4000, dirAt(172.0, 2.0), 2 }, { p2 + 1000, dirAt(-174.0, 2.0), 3 } };
+        {
+            const sd::Reading r = sd::readAt(F, K, p2, cfg);
+            check(r.src == sd::Source::Fit && r.sampleUs == p2 + 1000 && near(r.deg, 6.0, 1e-9),
+                  "§SD no clean fused frame within ±25 ms ⇒ the skeleton's nearest frame (+6, outside)");
+            check(near(r.sigmaDeg, std::hypot(cfg.fitSigmaBothDeg / std::cos(2.0 * kPi / 180.0), 5.0), 1e-9),
+                  "§SD …σ = the both-views fit σ over |h| ⊕ σ_yaw");
+        }
+        {
+            std::vector<Sample3D> F2 = F;
+            F2.push_back(fused(p2 + 20000, 168.0, OffPlane, FoSource::Measured));   // clean (OffPlane is not refused), 20 ms
+            std::sort(F2.begin(), F2.end(), [](const Sample3D &a, const Sample3D &b) { return a.t_us < b.t_us; });
+            const sd::Reading r = sd::readAt(F2, K, p2, cfg);
+            check(r.src == sd::Source::Fusion && r.sampleUs == p2 + 20000 && near(r.deg, -12.0, 1e-9),
+                  "§SD a clean fused frame within ±25 ms wins over a nearer skeleton frame (−12, inside)");
+            check(near(r.sigmaDeg, std::hypot(1.5 / std::cos(2.0 * kPi / 180.0), 5.0), 1e-9),
+                  "§SD …σ = its sigmaDeg over |h| ⊕ σ_yaw");
+        }
+        {
+            std::vector<sd::FitFrame> K1 { { p2, dirAt(172.0, 2.0), 1 },                // model only
+                                           { p2 + 30000, dirAt(172.0, 2.0), 3 },        // outside the window
+                                           { p2 + 2000, dirAt(172.0, 85.0), 3 } };      // nearly vertical
+            const sd::Reading r = sd::readAt(F, K1, p2, cfg);
+            check(r.src == sd::Source::None && std::isnan(r.deg),
+                  "§SD neither source within the window (model-only, too far, vertical) ⇒ no reading");
+            const sd::Reading one = sd::readAt({}, { { p2, dirAt(172.0, 0.0), 2 } }, p2, cfg);
+            check(one.src == sd::Source::Fit && near(one.sigmaDeg, std::hypot(cfg.fitSigmaOneDeg, 5.0), 1e-9),
+                  "§SD a one-view skeleton frame carries the one-view σ");
+            sd::Config cal = cfg; cal.yawSigmaDeg = pinpoint::tuned::dtlCamera::kDtlYawSigmaCalDeg;
+            const sd::Reading c1 = sd::readAt({}, { { p2, dirAt(172.0, 0.0), 2 } }, p2, cal);
+            check(near(c1.sigmaDeg, std::hypot(cfg.fitSigmaOneDeg, 1.0), 1e-9), "§SD a calibrated camera carries σ_yaw 1°");
+            sd::Config off = cfg; off.withSigma = false;
+            check(std::isnan(sd::readAt(F, K, p2, off).sigmaDeg), "§SD uncertainty off ⇒ no σ written");
+        }
+        // ── the curve: fused frames, the skeleton filling fusion's gap, refused frames bridged ──
+        {
+            std::vector<Sample3D> C;
+            for (int k = 0; k <= 10; ++k) C.push_back(fused(int64_t(k) * 10000, 170.0 + k, 0, FoSource::Measured));
+            C[3].flags = IllConditioned;                                                       // one refused frame inside
+            for (int k = 11; k <= 15; ++k) C.push_back(fused(int64_t(k) * 10000, 170.0, IllConditioned, FoSource::Measured));
+            C.push_back(fused(300000, 170.0, IllConditioned, FoSource::Measured));             // trailing refused
+            std::vector<sd::FitFrame> S;
+            for (int64_t t = 130000; t <= 190000; t += 5000) S.push_back({ t, dirAt(175.0, 0.0), 2 });
+            S.push_back({ 105000, dirAt(175.0, 0.0), 3 });                                     // beside a fused frame: not used
+            std::sort(S.begin(), S.end(), [](const sd::FitFrame &a, const sd::FitFrame &b) { return a.t_us < b.t_us; });
+            const sd::Curve cv = sd::buildCurve(C, S, cfg);
+            int bridged = 0, fit = 0;
+            bool ordered = true, bridgedLine = false, noRefusedInFit = true;
+            for (size_t i = 0; i < cv.points.size(); ++i) {
+                const sd::Point &q = cv.points[i];
+                if (i && q.t_us < cv.points[i - 1].t_us) ordered = false;
+                if (!q.valid) {
+                    ++bridged;
+                    if (q.t_us == 30000) bridgedLine = near(q.deg, 0.5 * (cv.points[i - 1].deg + cv.points[i + 1].deg), 1e-9);
+                    if (q.t_us >= 130000) noRefusedInFit = false;
+                }
+                if (q.src == sd::Source::Fit) ++fit;
+            }
+            check(ordered && cv.points.front().valid && cv.points.back().valid,
+                  "§SD the curve is in time order and starts and ends on a reading");
+            check(cv.nFusion == 10 && cv.nFit == 13 && fit == 13,
+                  "§SD 10 clean fused frames; the skeleton fills only fusion's gap (13 frames), never beside a fused frame");
+            check(bridgedLine, "§SD a refused fused frame between two readings is bridged on the straight line");
+            check(noRefusedInFit && bridged == 1 && cv.points.back().t_us == 190000,
+                  "§SD …refused frames in the skeleton's stretch are dropped, the trailing one trimmed");
+            check(std::isfinite(cv.medianSigmaDeg), "§SD the curve's σ is the median of its readings'");
+            std::printf("       curve: %zu points, %d fused, %d fit, %d bridged, σ̃ %.2f°\n", cv.points.size(), cv.nFusion,
+                        cv.nFit, bridged, cv.medianSigmaDeg);
+        }
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

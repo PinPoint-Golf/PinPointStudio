@@ -320,8 +320,27 @@ int main()
         CHECK("signed thorax at impact ≈ +10", sampleAt(ts, Phase::Impact, v) && near(v, 10.0, 0.5));
         CHECK("the magnitude beside it is still |turn| (20 at impact)",
               sampleAt(find(rh, "pelvisRotation"), Phase::Impact, v) && near(v, 20.0, 0.5));
-        CHECK("the IMU signed series claims no error budget (design §8.2 not built)",
+        CHECK("the IMU signed series claims no error budget (design §8.2 is built for the bends, not the turn)",
               ps && !ps->sigma.has_value() && ts && !ts->sigma.has_value());
+        // The IMU tier states its route (12 Nov 2026): HipInternalRotationStage reads the signed pelvis
+        // only from the pelvis sensor, by this id. Direct, as the catalogue's IMU rungs are.
+        CHECK("IMU tier: the signed turns carry their sensor's route, Direct (pelvisImu / thoraxImu)",
+              ps && ps->routeId == QStringLiteral("pelvisImu") && ps->routeDirect
+                  && ts && ts->routeId == QStringLiteral("thoraxImu") && ts->routeDirect);
+        CHECK("IMU tier: the magnitudes too, and the separation is the pair's (trunkImus)",
+              find(rh, "pelvisRotation") && find(rh, "pelvisRotation")->routeId == QStringLiteral("pelvisImu")
+                  && find(rh, "thoraxRotation") && find(rh, "thoraxRotation")->routeId == QStringLiteral("thoraxImu")
+                  && find(rh, "xFactor") && find(rh, "xFactor")->routeId == QStringLiteral("trunkImus"));
+        // Pure-yaw streams: the bends read upright and level, from the same two sensors.
+        const MetricSeries *fb = find(rh, "spineForwardBend"), *sb = find(rh, "spineSideBend");
+        CHECK("the trunk sensors' bends are emitted beside the turn (trunkImus, Direct)",
+              fb && sb && fb->routeId == QStringLiteral("trunkImus") && fb->routeDirect && sb->routeId == QStringLiteral("trunkImus"));
+        // (to 0.05°: QQuaternion is single precision, and acos is steep at 1 — 1 − 6e-8 reads 0.02°)
+        double vb = 99.0, vs = 99.0;
+        sampleAt(fb, Phase::Top, vb);
+        sampleAt(sb, Phase::Top, vs);
+        std::printf("    pure turn at the top: forward bend %.4f°, side bend %.4f°\n", vb, vs);
+        CHECK("…a pure turn reads no forward bend and no side bend at the top", near(vb, 0.0, 0.05) && near(vs, 0.0, 0.05));
 
         const auto lh = run(false, true);
         CHECK("left-hander: the same yaw reads the mirror (+30 at the top)",
@@ -386,8 +405,18 @@ int main()
         CHECK("IMU-only: pelvis magnitude at the top ≈ 30", sampleAt(pm, Phase::Top, v) && near(v, 30.0, 0.5));
         CHECK("IMU-only: signed pelvis at the top ≈ −30", sampleAt(ps, Phase::Top, v) && near(v, -30.0, 0.5));
         CHECK("IMU-only: signed thorax at impact ≈ +10", sampleAt(ts, Phase::Impact, v) && near(v, 10.0, 0.5));
-        CHECK("IMU-only: no gate refuses either measured segment",
-              bodyRotationGates(r, fs, /*dtlCamera*/ false, /*triangulatedOn*/ true).empty());
+        // Since 12 Nov 2026 the trunk sensors' bends carry their two assumption records (Downgraded, on
+        // the bends only); still no record of any other kind, and none on a segment's turn.
+        {
+            const std::vector<GateRecord> g = bodyRotationGates(r, fs, /*dtlCamera*/ false, /*triangulatedOn*/ true);
+            bool onlyBendAssumptions = true;
+            for (const GateRecord &x : g)
+                onlyBendAssumptions = onlyBendAssumptions && x.effect == GateEffect::Downgraded
+                    && (x.gate == QLatin1String("body.chestBendSite") || x.gate == QLatin1String("body.trunkMountYawAssumed"))
+                    && !x.covers.contains(QStringLiteral("pelvisRotation")) && !x.covers.contains(QStringLiteral("thoraxRotation"));
+            CHECK("IMU-only: no gate refuses either measured segment (only the bends' two Downgraded assumptions)",
+                  onlyBendAssumptions && g.size() == 2);
+        }
     }
 
     // ── The two-camera route (trackBodyRotationTriangulated) ────────────────────────────────
@@ -491,6 +520,8 @@ int main()
             const MetricSeries *tsImu = find(merged, "thoraxRotationSigned");
             int nSigned = 0;
             for (const MetricSeries &m : merged) if (m.key == QLatin1String("thoraxRotationSigned")) ++nSigned;
+            CHECK("…and the two-camera tier leaves the route unstated, so hip rotation never reads it",
+                  find(merged, "pelvisRotationSigned") && find(merged, "pelvisRotationSigned")->routeId.isEmpty());
             CHECK("IMU thorax: one thoraxRotationSigned, the IMU's (−80 at the top, no σ)",
                   nSigned == 1 && tsImu && at(tsImu, Phase::Top) && std::fabs(at(tsImu, Phase::Top)->value + 80.0) < 0.5
                   && !tsImu->sigma.has_value());

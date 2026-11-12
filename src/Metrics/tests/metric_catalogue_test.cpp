@@ -86,7 +86,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 133, "descriptor count == 133");   // +shoulderPlane (2026-10-29, the plane through the ball line and the trail shoulder at address)   // +handPlaneCurve, +handPlaneSteepening (2026-10-29, the plane through the ball line and the hands)   // +swingPlaneCurve (2026-10-29, the plane through the target line and the shaft as one smooth curve)   // +swingPlaneAngle (2026-10-29, the two fitted planes as absolute angles to the ground)   // +ballReachExcess (2026-10-29, the ball distance less the club's reach, ball_reach_by_club.md)   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 134, "descriptor count == 134");   // hipInternalRotation → trailHipInternalRotation + leadHipInternalRotation (2026-11-12, one descriptor per side)   // +shoulderPlane (2026-10-29, the plane through the ball line and the trail shoulder at address)   // +handPlaneCurve, +handPlaneSteepening (2026-10-29, the plane through the ball line and the hands)   // +swingPlaneCurve (2026-10-29, the plane through the target line and the shaft as one smooth curve)   // +swingPlaneAngle (2026-10-29, the two fitted planes as absolute angles to the ground)   // +ballReachExcess (2026-10-29, the ball distance less the club's reach, ball_reach_by_club.md)   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -130,7 +130,7 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  61, "TimeSeries count");   // +handPlaneCurve (2026-10-29)   // +swingPlaneCurve (2026-10-29)   // +swingPlaneAngle (2026-10-29)   // +thoraxRotationSigned (2026-10-26)   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  62, "TimeSeries count");   // +1: hip internal rotation per side (2026-11-12)   // +handPlaneCurve (2026-10-29)   // +swingPlaneCurve (2026-10-29)   // +swingPlaneAngle (2026-10-29)   // +thoraxRotationSigned (2026-10-26)   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
@@ -155,7 +155,7 @@ int main()
         checkEqI(static_cast<int>(cat.query(hq).size()), 5, "group 'Head' == 5");   // +headRise (2026-10-22)   // +headPitch (2026-10-21)
 
         MetricQuery brq; brq.group = QStringLiteral("Body rotation");
-        checkEqI(static_cast<int>(cat.query(brq).size()), 9, "group 'Body rotation' == 9");   // +thoraxRotationSigned (2026-10-26)   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
+        checkEqI(static_cast<int>(cat.query(brq).size()), 10, "group 'Body rotation' == 10");   // hip internal rotation per side (2026-11-12)   // +thoraxRotationSigned (2026-10-26)   // +shoulderPlaneAngle3d   // +pelvisRotationSigned
 
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
@@ -179,16 +179,21 @@ int main()
         // retired `shoulderAlignment` coming back under another name — that one was the image-plane
         // tilt, and the tilt at address is the grip's doing (trail hand lower, trail shoulder ~10°
         // lower), not the aim's. The yaw is the bearing of the line, a rotation about the vertical
-        // axis, which one camera does not measure; it is planned on the triangulated pair.
+        // axis, which one camera does not measure; it was planned on the triangulated pair, and is
+        // LIVE since 2026-11-12 off the two-camera fit's 3-D joints (Skeleton3dBodyStage).
         MetricQuery alq; alq.group = QStringLiteral("Alignment");
         checkEqI(static_cast<int>(cat.query(alq).size()), 3, "group 'Alignment' == 3");
         check(cat.descriptor(QStringLiteral("shoulderAlignment")) == nullptr,
               "shoulderAlignment retired — shoulderPlaneAngle is that line");
         check(cat.descriptor(QStringLiteral("hipAlignment")) == nullptr,
               "hipAlignment retired — hipLineTilt is that line");
+        // Still its own descriptor, and still NOT the face-on tilt: its one rung is the two-camera
+        // fit's bearing (2026-11-12), so it needs both cameras and the face-on line cannot stand in.
         check(cat.descriptor(QStringLiteral("shoulderLineYaw")) != nullptr
-                  && cat.descriptor(QStringLiteral("shoulderLineYaw"))->planned(),
-              "shoulderLineYaw exists and is planned — the tilt is not the aim");
+                  && !cat.descriptor(QStringLiteral("shoulderLineYaw"))->planned()
+                  && cat.descriptor(QStringLiteral("shoulderLineYaw"))->routes.size() == 1
+                  && cat.descriptor(QStringLiteral("shoulderLineYaw"))->baselineRequirement().dtlCamera,
+              "shoulderLineYaw exists, is live on the two-camera fit alone — the tilt is not the aim");
         check(cat.descriptor(QStringLiteral("clubheadPeakLead")) != nullptr
                   && !cat.descriptor(QStringLiteral("clubheadPeakLead"))->planned(),
               "clubheadPeakLead exists and is LIVE — the kinematics stage emits it; hand speed "
@@ -422,7 +427,15 @@ int main()
         // 20 -> 13 on 2026-09-21: the down-the-line rungs of pelvisThrust, spineForwardBend, the two
         // knee flexions, ballBodyDistance and balanceHeelToe (dtl_posture.h) and of swingPlane
         // (shaft_fusion.h) were built.
-        checkEqI(planned, 12, "12 planned metrics — nothing produces them by any route");   // 14 -> 12 on 2026-10-14: ksOrderShare, ksTimingSpread went live on the session reducer (§10.8 E2)   // −pelvisRotationSigned (two-camera route live 2026-10-01)   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
+        // 12 -> 11 on 2026-11-12: shaftDirection's faceOn+dtl rung was built (ShaftDirectionStage,
+        // shaft_direction.h) — the fused shaft's bearing, the 3-D skeleton's shaft as its fallback.
+        // 11 -> 9 the same day: shoulderLineYaw and shoulderPlaneAngle3d's faceOn+dtl rungs were
+        // built (Skeleton3dBodyStage, skeleton3d_body_series.h) — the shoulder line off the
+        // two-camera fit's 3-D joints.
+        // 9 -> 8 the same day: hip internal rotation, now a trail / lead pair off the hip sensor's turn
+        // less the fit's thigh turn (the thigh assumed fixed without one; HipInternalRotationStage,
+        // trunk_sensor_series.h) — no thigh sensor needed.
+        checkEqI(planned, 8, "8 planned metrics — nothing produces them by any route");   // 14 -> 12 on 2026-10-14: ksOrderShare, ksTimingSpread went live on the session reducer (§10.8 E2)   // −pelvisRotationSigned (two-camera route live 2026-10-01)   // the 9 launch-monitor rungs went live with the connector; +balanceHeelToe, which needs the down-the-line view; −kinematicSequence (live 2026-09-17, segment_rates.cpp)
         checkEqI(unavailable, planned,
                  "every planned metric resolves Unavailable even with every device present");
         checkEqI(saysPlanned, planned,
@@ -605,6 +618,188 @@ int main()
                       "…and fires, Bridged, on a two-camera shot with a club track");
                 check(cat.resolve(key, wristShot({}, true, true)).routeId == QStringLiteral("faceOnClub"),
                       "…and not on a face-on-only shot");
+            }
+        }
+
+        // shaftDirection went LIVE on 2026-11-12 (ShaftDirectionStage, shaft_direction.h): one
+        // faceOn+dtl rung, Estimated — the bearing moves one-for-one with the uncalibrated
+        // down-the-line camera's yaw — claimed by the shaft-fusion provider, and it fires on a
+        // two-camera shot with a club track, Bridged, and on nothing less.
+        {
+            const MetricDescriptor *sd = cat.descriptor(QStringLiteral("shaftDirection"));
+            check(sd && !sd->planned(), "shaftDirection is no longer planned");
+            check(sd && sd->routes.size() == 1 && sd->routes.front().id == QStringLiteral("faceOn+dtl")
+                      && !sd->routes.front().planned && sd->routes.front().quality == RouteQuality::Estimated
+                      && sd->routes.front().method == RouteMethod::Triangulated,
+                  "…its one rung is faceOn+dtl, Triangulated, live and Estimated");
+            check(sd && sd->routes.front().summary.contains(QStringLiteral("uncalibrated")),
+                  "…and its summary says the camera direction is assumed");
+            check(sd && !sd->howToRead.contains(QStringLiteral("Planned")), "…and howToRead no longer says Planned");
+            ShotContext two = wristShot({}, /*faceOn*/ true, /*club*/ true);
+            two.hasDtl = true;
+            const MetricAvailability a = cat.resolve(QStringLiteral("shaftDirection"), two);
+            check(a.routeId == QStringLiteral("faceOn+dtl") && a.state == MetricAvailability::Bridged,
+                  "…it fires, Bridged, on a two-camera shot with a club track");
+            check(cat.resolve(QStringLiteral("shaftDirection"), wristShot({}, true, true)).state
+                      == MetricAvailability::Unavailable,
+                  "…and not on a face-on-only shot");
+        }
+
+        // The readings from the 3-D body went LIVE on 2026-11-12 (Skeleton3dBodyStage,
+        // skeleton3d_body_series.h), each on a faceOn+dtl rung, Triangulated and Estimated — the
+        // two-camera fit solves its own cameras — claimed by the 3-D body provider.
+        {
+            ShotContext two = wristShot({}, /*faceOn*/ true);
+            two.hasDtl = true;
+            const ShotContext one = wristShot({}, /*faceOn*/ true);
+            const auto pair = [&](const char *k) -> const MetricRoute * {
+                const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
+                if (!d) return nullptr;
+                for (const MetricRoute &r : d->routes)
+                    if (r.id == QStringLiteral("faceOn+dtl")) return &r;
+                return nullptr;
+            };
+            const auto claimed = [&](const char *k) {
+                for (const IMetricProvider *p : cat.providers()) {
+                    const auto keys = p->provides();
+                    if (std::find(keys.begin(), keys.end(), QString::fromLatin1(k)) != keys.end()
+                        && std::find(keys.begin(), keys.end(), QStringLiteral("shoulderLineYaw")) != keys.end())
+                        return true;
+                }
+                return false;
+            };
+            for (const char *k : { "shoulderPlaneAngle3d", "shoulderLineYaw", "leadKneeFlexion", "spineSideBend" }) {
+                const MetricRoute *r = pair(k);
+                check(r && !r->planned && r->quality == RouteQuality::Estimated && r->method == RouteMethod::Triangulated
+                          && r->requirement.faceOnCamera && r->requirement.dtlCamera,
+                      qPrintable(QStringLiteral("%1's faceOn+dtl rung is live, Triangulated and Estimated").arg(k)));
+                check(r && r->summary.contains(QStringLiteral("uncalibrated")),
+                      qPrintable(QStringLiteral("…%1's says the fit's cameras are uncalibrated").arg(k)));
+                check(claimed(k), qPrintable(QStringLiteral("…and the 3-D body provider claims %1").arg(k)));
+                check(!cat.descriptor(QString::fromLatin1(k))->howToRead.contains(QStringLiteral("calibrated camera pair")),
+                      qPrintable(QStringLiteral("…and %1's howToRead no longer promises the calibrated pair").arg(k)));
+            }
+            // The two shoulder lines: one rung, so they fire Bridged on two cameras and on nothing less.
+            for (const char *k : { "shoulderPlaneAngle3d", "shoulderLineYaw" }) {
+                const MetricAvailability a = cat.resolve(QString::fromLatin1(k), two);
+                check(a.routeId == QStringLiteral("faceOn+dtl") && a.state == MetricAvailability::Bridged,
+                      qPrintable(QStringLiteral("%1 fires, Bridged, on a two-camera shot").arg(k)));
+                check(cat.resolve(QString::fromLatin1(k), one).state == MetricAvailability::Unavailable,
+                      qPrintable(QStringLiteral("…%1 not on a face-on-only shot").arg(k)));
+            }
+            // The lead knee: the 3-D rung FIRST, the down-the-line rung
+            // below it, both Estimated so the ladder stays best-first.
+            const MetricDescriptor *lk = cat.descriptor(QStringLiteral("leadKneeFlexion"));
+            check(lk && lk->routes.size() >= 2 && lk->routes[0].id == QStringLiteral("faceOn+dtl")
+                      && lk->routes[1].id == QStringLiteral("dtl") && lk->routes[1].quality == RouteQuality::Estimated
+                      && !lk->routes[1].planned,
+                  "leadKneeFlexion: the 3-D rung first, then the down-the-line one, Estimated");
+            check(cat.resolve(QStringLiteral("leadKneeFlexion"), two).routeId == QStringLiteral("faceOn+dtl"),
+                  "…and the 3-D rung is what fires on a two-camera shot");
+            // The side bend: the 3-D rung sits BELOW the face-on Direct one (it is the weaker reading)
+            // but needs more kit, so it is never the floor: a face-on camera is still what side bend
+            // needs, and the face-on rung still answers on a two-camera shot.
+            const MetricDescriptor *sb = cat.descriptor(QStringLiteral("spineSideBend"));
+            check(sb && sb->baselineRoute() && sb->baselineRoute()->id == QStringLiteral("faceOn")
+                      && !sb->baselineRequirement().dtlCamera,
+                  "spineSideBend's floor is still the face-on camera, not the two-camera rung below it");
+            check(cat.resolve(QStringLiteral("spineSideBend"), two).routeId == QStringLiteral("faceOn"),
+                  "…and the face-on rung answers on a two-camera shot");
+            check(sb && sb->stereoGain() == MetricDescriptor::StereoGain::Refines,
+                  "…so it stays a projected reading the pair refines");
+            // The thigh turns are research-only inputs (W3's hip internal rotation): no descriptor,
+            // no claim, and hidden from the charts.
+            for (const char *k : { "thighTurn3dLead", "thighTurn3dTrail" })
+                check(isResearchOnlySeries(QString::fromLatin1(k)) && !cat.descriptor(QString::fromLatin1(k)),
+                      qPrintable(QStringLiteral("%1 is research-only and has no descriptor").arg(k)));
+        }
+
+        // The trunk sensors' readings went LIVE on 2026-11-12 (planned-metrics promotion W3):
+        // spineForwardBend and spineSideBend's trunkImus rungs (body_rotation.cpp), and hip internal
+        // rotation as a trail / lead pair (HipInternalRotationStage, trunk_sensor_series.h).
+        {
+            const auto claimedBy = [&](const char *k, const char *alongside) {
+                for (const IMetricProvider *p : cat.providers()) {
+                    const auto keys = p->provides();
+                    if (std::find(keys.begin(), keys.end(), QString::fromLatin1(k)) != keys.end()
+                        && std::find(keys.begin(), keys.end(), QString::fromLatin1(alongside)) != keys.end())
+                        return true;
+                }
+                return false;
+            };
+            // The bends: the sensor rung FIRST (it beats the camera, applyTrunkSensorPrecedence), live,
+            // Direct; the forward bend reads the chest sensor alone, the side bend both.
+            const MetricDescriptor *fb = cat.descriptor(QStringLiteral("spineForwardBend"));
+            check(fb && fb->routes.size() == 2 && fb->routes[0].id == QStringLiteral("trunkImus") && !fb->routes[0].planned
+                      && fb->routes[0].quality == RouteQuality::Direct && fb->routes[0].method == RouteMethod::Inertial
+                      && fb->routes[0].requirement.imuRoles == std::vector<SegmentRole>{ SegmentRole::Thorax }
+                      && fb->routes[1].id == QStringLiteral("dtl"),
+                  "spineForwardBend: the chest sensor's rung first, live, Direct, needing the chest sensor only");
+            check(fb && !fb->routes[0].summary.contains(QStringLiteral("relative")),
+                  "…its summary no longer says thorax-relative-pelvis flexion (it is the chest's inclination)");
+            check(fb && fb->baselineRoute() && fb->baselineRoute()->id == QStringLiteral("dtl"),
+                  "…and the down-the-line camera is still its floor");
+            const MetricDescriptor *sb = cat.descriptor(QStringLiteral("spineSideBend"));
+            check(sb && sb->routes[0].id == QStringLiteral("trunkImus") && !sb->routes[0].planned
+                      && sb->routes[0].quality == RouteQuality::Direct
+                      && sb->routes[0].requirement.imuRoles == std::vector<SegmentRole>({ SegmentRole::Pelvis, SegmentRole::Thorax }),
+                  "spineSideBend: the two trunk sensors' rung first, live, Direct");
+            ShotContext chest = wristShot({ SegmentRole::Thorax }, /*faceOn*/ true);
+            chest.hasDtl = true;
+            const MetricAvailability fa = cat.resolve(QStringLiteral("spineForwardBend"), chest);
+            check(fa.routeId == QStringLiteral("trunkImus") && fa.state == MetricAvailability::Measured,
+                  "a chest sensor Measures spineForwardBend, over the down-the-line camera");
+            check(cat.resolve(QStringLiteral("spineSideBend"), chest).routeId == QStringLiteral("faceOn"),
+                  "…while side bend, needing both sensors, stays the face-on camera's");
+            ShotContext worn = wristShot({ SegmentRole::Pelvis, SegmentRole::Thorax }, /*faceOn*/ true);
+            worn.hasDtl = true;
+            const MetricAvailability sa = cat.resolve(QStringLiteral("spineSideBend"), worn);
+            check(sa.routeId == QStringLiteral("trunkImus") && sa.state == MetricAvailability::Measured,
+                  "both trunk sensors Measure spineSideBend, over the face-on and 3-D readings");
+            check(claimedBy("spineForwardBend", "pelvisRotation") && claimedBy("spineSideBend", "pelvisRotation"),
+                  "…and the body-rotation provider claims both bends");
+            check(sb && sb->baselineRoute() && sb->baselineRoute()->id == QStringLiteral("faceOn"),
+                  "…side bend's floor is still the face-on camera");
+
+            // Hip internal rotation: one descriptor per side, two Estimated rungs, no thigh sensor.
+            check(!cat.descriptor(QStringLiteral("hipInternalRotation")),
+                  "hipInternalRotation is gone (nothing was ever saved under it)");
+            for (const char *k : { "trailHipInternalRotation", "leadHipInternalRotation" }) {
+                const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
+                const QString K = QString::fromLatin1(k);
+                check(d && !d->planned() && d->type == MetricType::TimeSeries && d->unit == QStringLiteral("°")
+                          && d->phases == std::vector<Phase>({ Phase::Top, Phase::Impact }),
+                      qPrintable(K + QStringLiteral(": live, a time series in degrees, read at the top and impact")));
+                check(d && d->routes.size() == 2 && d->routes[0].id == QStringLiteral("pelvisImu+faceOn+dtl")
+                          && d->routes[0].method == RouteMethod::Fused && d->routes[0].quality == RouteQuality::Estimated
+                          && d->routes[0].requirement.dtlCamera && d->routes[0].requirement.faceOnCamera
+                          && d->routes[1].id == QStringLiteral("pelvisImu") && d->routes[1].method == RouteMethod::Inertial
+                          && d->routes[1].quality == RouteQuality::Estimated
+                          && d->routes[1].requirement.imuRoles == std::vector<SegmentRole>{ SegmentRole::Pelvis },
+                      qPrintable(K + QStringLiteral(": the fused rung (the 3-D thigh) first, then the hip sensor alone, both Estimated")));
+                bool thighSensor = false;
+                for (const MetricRoute &r : d ? d->routes : std::vector<MetricRoute>{})
+                    for (SegmentRole role : r.requirement.imuRoles)
+                        thighSensor = thighSensor || role == SegmentRole::LeadThigh || role == SegmentRole::TrailThigh;
+                check(!thighSensor, qPrintable(K + QStringLiteral(": no rung needs a thigh sensor (we place none)")));
+                check(d && !d->howToRead.contains(QStringLiteral("Planned")),
+                      qPrintable(K + QStringLiteral(": howToRead no longer says Planned")));
+                check(claimedBy(k, K == QStringLiteral("trailHipInternalRotation") ? "leadHipInternalRotation"
+                                                                                    : "trailHipInternalRotation"),
+                      qPrintable(K + QStringLiteral(": claimed by the hip-rotation provider")));
+                const MetricAvailability hip = cat.resolve(K, wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true));
+                check(hip.routeId == QStringLiteral("pelvisImu") && hip.state == MetricAvailability::Bridged,
+                      qPrintable(K + QStringLiteral(": a hip sensor alone estimates it (Bridged, pelvisImu)")));
+                ShotContext fit = wristShot({ SegmentRole::Pelvis }, /*faceOn*/ true);
+                fit.hasDtl = true;
+                check(cat.resolve(K, fit).routeId == QStringLiteral("pelvisImu+faceOn+dtl"),
+                      qPrintable(K + QStringLiteral(": with both cameras the fused rung fires")));
+                ShotContext camerasOnly = wristShot({}, /*faceOn*/ true);
+                camerasOnly.hasDtl = true;
+                check(cat.resolve(K, camerasOnly).state == MetricAvailability::Unavailable,
+                      qPrintable(K + QStringLiteral(": no hip sensor, no reading")));
+                check(d && d->baselineRoute() && d->baselineRoute()->id == QStringLiteral("pelvisImu"),
+                      qPrintable(K + QStringLiteral(": the floor is the hip sensor")));
             }
         }
 

@@ -150,7 +150,10 @@ inline constexpr int kPhaseGridSchemaVersion = 10;
 // SigmaSource — where a reading's measurement σ came from — lives in sigma_source.h.
 
 struct PhaseGridConfig {
-    // ±15 ms about the phase instant, the WristAngleSampler convention.
+    // ±15 ms about the phase instant, the WristAngleSampler convention. Producers that stamp a
+    // phase sample equal to what this window grades (shaftdir::assemble in src/Club/shaft_direction.h,
+    // the 3-D body and trunk-sensor assemblies) read the same constant; if this ever becomes
+    // configurable per grid, they must be handed the configured value or graded and stamped drift.
     int64_t windowHalfUs    = tuned::sampler::kWindowHalfUs;
     int     minValidSamples = 1;       // fewer in the window => this phase has no value
 
