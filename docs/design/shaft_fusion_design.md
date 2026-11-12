@@ -147,8 +147,9 @@ the top — with that dependence stated as uncertainty and as a warning rather t
   down-the-line camera and the two view planes coincide; else no reading. A shaft within 10° of
   vertical has no bearing and is never read.
 - **σ** = √((σ_dir / |h|)² + σ_yaw²): the frame's direction σ (`sigmaDeg`, or the provisional
-  skeleton σ, 5° both views / 15° one view) moved onto the ground, ⊕ σ_yaw = 5° uncalibrated (the
-  4 July stick probe, 4.4–8.7°) or 1° calibrated. `sigmaKind = Propagated`.
+  skeleton σ, 5° both views / 15° one view) moved onto the ground, ⊕ σ_yaw = 9° uncalibrated (the
+  largest turn the 4 July stick probe found, 4.4–8.7°; widened from 5° on 12 Nov because the turn is a
+  one-way bias) or 1° calibrated. The face-on camera is taken as square to the target line. `sigmaKind = Propagated`.
 - **The curve agrees with the readings.** The diagnostics grade a position off the curve (the median
   of its valid frames within ±15 ms) and stamp the phase reading's σ, so inside each position's ±15 ms
   only the chosen source's frames are valid (the other source's are bridged), and the reading's value

@@ -14,9 +14,9 @@
 
 | Reading | Route | Read at | Grades | σ / trust |
 |---|---|---|---|---|
-| `shaftDirection` | fused shaft (`faceOn+dtl`), 3-D fit fallback | P2, top | `inside_takeaway`, `outside_takeaway`, `across_the_line`, `laid_off` (draft) | σ_dir/\|h\| ⊕ σ_yaw 5°; ⚠ `club3d.cameraAssumed`; ⚠ `club3d.shaftDirectionFromFit` when a graded reading came from the fit |
+| `shaftDirection` | fused shaft (`faceOn+dtl`), 3-D fit fallback | P2, top | `inside_takeaway`, `outside_takeaway`, `across_the_line`, `laid_off` (draft) | σ_dir/\|h\| ⊕ σ_yaw 9°; ⚠ `club3d.cameraAssumed`; ⚠ `club3d.shaftDirectionFromFit` when a graded reading came from the fit |
 | `shoulderPlaneAngle3d` | 3-D fit | top | `flat_shoulder_plane`, `steep_shoulder_plane` | σ from the joints' posterior σ; a tilt, so no camera term |
-| `shoulderLineYaw` | 3-D fit | address | `alignment_open`, `alignment_closed` | line σ ⊕ σ_yaw 5°; ⚠ `body3d.cameraAssumed` |
+| `shoulderLineYaw` | 3-D fit | address | `alignment_open`, `alignment_closed` | line σ ⊕ σ_yaw 9°; ⚠ `body3d.cameraAssumed` |
 | `leadKneeFlexion` | 3-D fit, replacing the down-the-line reading through impact | impact → P8 | `late_buckle`, `lead_knee_folds_backswing` | joint σ. With no fit, the down-the-line reading grades exactly as before |
 | `spineSideBend` | 3-D fit, only when the face-on reading is absent | impact | side-bend drafts (only on such shots) | joint σ; ⚠ `body3d.fromFit` |
 | `spineForwardBend` | chest sensor (`trunkImus`) | every phase | the posture faults that read the bend | §8.2 budget ⊕ mount-yaw term; ⚠ `body.chestBendSite`, ⚠ `body.trunkMountYawAssumed` |
@@ -61,15 +61,17 @@ Logs, the dump script output and the sheets are in `build/planned-metrics-202611
 
 No trunk-sensor recording exists, so the sensor readings are checked only against the synthetic body (`trunk_e2e_test` §j, analytic truths).
 
-## 3. Decisions for Mark
+## 3. Decisions (Mark, 12 Nov 2026)
 
-1. **σ_yaw for shaft direction and shoulder aim.** σ_yaw = 5° treats a known one-way camera turn as zero-mean noise (§2). Keep it, or apply the session's stick-probe yaw?
-2. **Left-handers are mirrored for `shaftDirection` and `shoulderLineYaw`.** + means across/outside, and closed, for both hands. This departs from the sign doc's world-frame rule for "where something points".
-3. **Shoulder plane norm.** It is 50 ± 10° (heuristic); the swing read 31°.
-4. **`m_spineSideBendTop` norm.** It is μ +8°, but the 3-D (about −38°) and sensor (about −26°) routes read strongly toward the lead at a top with no lateral flexion. No fault reads it today.
-5. **The 3-D side bend grades the side-bend drafts on shots where the face-on reading refused.** Those norms were seated on the face-on route.
-6. **The aim's σ_yaw.** It is sourced from the down-the-line camera's turn, but the fit's target line is the face-on camera's axis. Separately, the shoulder plane carries no term for the solved vertical.
-7. **The golfer wording added to `core.json` and `gate_words.json`.**
+1. **Camera-direction σ widened from 5° to 9°.** It covers the largest down-the-line camera turn measured (8.7°, 4 July), because that error is a one-way bias, not noise. It applies to shaft direction and shoulder aim, uncalibrated (`kDtlYawSigmaUncalDeg`). The swing-8 shaft readings now carry about ±18° rather than ±16°.
+2. **Left-handers stay mirrored** for `shaftDirection` and `shoulderLineYaw`: + means across/outside, and closed, for both hands. The sign doc records the exception.
+3. **Shoulder plane norm kept at 50 ± 10°.** It is revisited only with evidence from more two-camera swings and golfers (the swing read 31°).
+4. **`m_spineSideBendTop` left as is, and noted.** Its norm is μ +8°, but the 3-D (about −38°) and sensor (about −26°) routes read toward the lead at a top with no lateral flexion, because the turn tilts the reading. No fault reads it. Define it before anything grades it.
+5. **The 3-D side bend keeps grading** the side-bend drafts, with its ⚠, on shots where the face-on reading refused.
+6. **The face-on camera is taken as square to the target line.** A camera fixed to a wall is not pointed at an angle, so it carries no σ term. The shoulder aim's camera σ is the down-the-line camera's (it supplies the depth), at 9° per decision 1. The shoulder plane's solved vertical stays an open item for calibration.
+7. **The golfer wording is approved as written.**
+
+**Norms.** Every norm these readings grade against is heuristic and provisional. None becomes proven without Mark's conscious decision and evidence.
 
 ## 4. What stays planned, and why
 
@@ -85,7 +87,7 @@ No trunk-sensor recording exists, so the sensor readings are checked only agains
 
 Held, unchanged: `m_spineBendChangeTop`, which waits on a worn session.
 
-Found while planning, not fixed here: a `held` measure still grades on the plain signal path; only composites respect it. Filed as a GitHub issue.
+Found while planning, not fixed here: a `held` measure still grades on the plain signal path; only composites respect it. Filed as #176.
 
 ## 5. Per-item detail
 
@@ -139,7 +141,7 @@ ground heading). `sigmaKind = Propagated` on the series and on both phase sample
   (tier 3, both views: the fit's 3° face-on and 4° DTL shaft-angle observation σs in quadrature) and
   `kShaftDirSkeletonOneViewSigmaDeg` = 15° (tier 2, one view: the swing-plane term's σ_plane, which
   alone holds the depth — i.e. the bearing — when one camera sees the shaft). Seat on the one swing.
-- σ_yaw = `kDtlYawSigmaUncalDeg` 5° (4 July stick probe, 4.4–8.7° toward the golfer by distance,
+- σ_yaw = `kDtlYawSigmaUncalDeg` 9° (was 5°; widened 12 Nov, decision 1) (4 July stick probe, 4.4–8.7° toward the golfer by distance,
   `tools/shaftlab/dtl_yaw_probe.py`, `dtl_posture_design.md` §4) uncalibrated; `kDtlYawSigmaCalDeg`
   1° (stated, provisional) calibrated. Calibration = `ShaftFusionStage::configFor(job).calibrated`.
 - The series σ is the median of its valid frames' σ. With `uncertainty.enabled` off no σ is written.
@@ -173,7 +175,7 @@ graded == stamped, with the right source, for fusion-chosen and fit-chosen posit
 #### Trust records (both Downgraded, subject `shaftDirection`, covers `[shaftDirection]`)
 
 - `club3d.cameraAssumed` — whenever the camera is uncalibrated. Evidence `sigmaYawDeg`. Words: "The
-  down-the-line camera's direction is assumed, so where the shaft points carries ±5°."
+  down-the-line camera's direction is assumed, so where the shaft points carries ±9°."
 - `club3d.shaftDirectionFromFit` — only when a GRADED position reading came from the 3-D fit (code
   `p2` / `top` / `both`). Skeleton frames elsewhere on the curve do not fire it; their share is in
   the evidence (`fitFrames`, `ofFrames`) and the stage log.
@@ -198,7 +200,7 @@ valid fused track or a valid two-camera fit. Version `kShaftDirectionStageVersio
 
 | constant | value | provenance |
 |---|---|---|
-| `dtlCamera::kDtlYawSigmaUncalDeg` | 5° | 4 July stick probe 4.4–8.7° (`dtl_yaw_probe.py`, `dtl_posture_design.md` §4) |
+| `dtlCamera::kDtlYawSigmaUncalDeg` | 9° (was 5°) | the largest 4 July stick-probe turn, 4.4–8.7° (`dtl_yaw_probe.py`, `dtl_posture_design.md` §4) |
 | `dtlCamera::kDtlYawSigmaCalDeg` | 1° | stated, provisional |
 | `shaftDirection::kFusionWindowUs` | 25 ms | the plan |
 | `shaftDirection::kFusionRejectFlags` | 0x13 | the plan's flag set |
@@ -282,7 +284,7 @@ A thigh frame is unmeasured below `kThighTurnMinKneeFlexDeg` of knee bend, or wh
 - `body3d.cameraAssumed` is Downgraded. Its subject is `shoulderLineYaw` and it covers `[shoulderLineYaw]`; its evidence is `sigmaYawDeg`.
   - It fires only when the shoulderLineYaw reading was published, which needs Address on the ladder and read shoulders within ±15 ms of it.
   - It is registered in `gate_catalogue_body.h` with producer `skeleton3d_body_series.h`, and has a golfer clause in `gate_words.json`.
-  - Its words: "The 3-D fit works out the cameras' directions itself, so where the shoulder line points carries ±5°." No promise that calibrating removes it: no calibration reaches the fit, so it fires on every published aim.
+  - Its words: "The 3-D fit works out the cameras' directions itself, so where the shoulder line points carries ±9°." No promise that calibrating removes it: no calibration reaches the fit, so it fires on every published aim.
   - The tilts, the knee bend and the side bend do not carry it; they do not turn with the cameras' heading.
 - `body3d.fromFit` is Downgraded. Its subject and covers are the reading K; its evidence is `code` / `replaces` (`faceOn` or `dtl`), `route` (`faceOn+dtl`) and, after the run, `replacedRecords`.
   - It fires when the 3-D route supplied K because the single-camera route had none: the side bend wherever it is published (the face-on series was absent), and the lead knee when there was no down-the-line series.
@@ -356,7 +358,7 @@ A thigh frame is unmeasured below `kThighTurnMinKneeFlexDeg` of knee bend, or wh
 |---|---|---|
 | `body3d::kThighTurnMinKneeFlexDeg` | 12° | PROVISIONAL, the plan's starting value. Below it the normal's σ is more than about 5× the joints' angular σ (1/sin θ). To be seated on the one swing against the knee bend the fit reads at address and the top |
 | `body3d::kThighTurnMinNormalHorizFrac` | 0.5 | design value: the plane more than 60° from vertical has no usable heading. No swing reaches it |
-| reused: `bodyRotation::kTriMinBaselineM` 8 cm, `kAddrWindowUs` 250 ms, `kTriAddrMaxGapUs` 100 ms, `kTriScaleFrac` 10 % (via `BodyRotationConfig` overrides); `sampler::kWindowHalfUs` 15 ms; `dtlCamera::kDtlYawSigmaUncalDeg` 5° / `kDtlYawSigmaCalDeg` 1° (W1) | | |
+| reused: `bodyRotation::kTriMinBaselineM` 8 cm, `kAddrWindowUs` 250 ms, `kTriAddrMaxGapUs` 100 ms, `kTriScaleFrac` 10 % (via `BodyRotationConfig` overrides); `sampler::kWindowHalfUs` 15 ms; `dtlCamera::kDtlYawSigmaUncalDeg` 9° / `kDtlYawSigmaCalDeg` 1° (W1) | | |
 
 #### What stays planned
 

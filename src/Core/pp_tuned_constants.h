@@ -1881,9 +1881,13 @@ inline constexpr bool kDtlPost   = true;   // shaft.dtl.parallel.post — the sn
 // reading's own σ, with the camera-assumed trust record (club3d.cameraAssumed).
 namespace dtlCamera {
 // Uncalibrated: the 4 July stick probe found the down-the-line camera turned 4.4–8.7° toward the
-// golfer, by its distance (tools/shaftlab/dtl_yaw_probe.py; dtl_posture_design.md §4), so 5° is
-// that range's lower end taken as one σ. A design value, not a calibration.
-inline constexpr double kDtlYawSigmaUncalDeg = 5.0;
+// golfer, by its distance (tools/shaftlab/dtl_yaw_probe.py; dtl_posture_design.md §4). That error is
+// a one-way BIAS, not noise: it pushes P2 toward outside and the top toward laid off at once (4 July
+// swing 8 read +9.4° / −11.0°). Mark, 12 Nov 2026: widen to 9°, the largest turn measured, so every
+// uncalibrated bearing says plainly how weak it is until calibration lands (was 5°). A design value.
+// The FACE-ON camera is taken as square to the target line (Mark, 12 Nov: a camera fixed to a wall
+// is not pointed at an angle), so it carries no term of its own.
+inline constexpr double kDtlYawSigmaUncalDeg = 9.0;
 // Calibrated (camera_pose_sticks.h on the protocol's stick clips): a stated 1°. Provisional — no
 // calibrated session has been graded against a second yaw measurement yet.
 inline constexpr double kDtlYawSigmaCalDeg   = 1.0;

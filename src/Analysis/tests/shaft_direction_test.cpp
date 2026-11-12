@@ -166,8 +166,8 @@ int main()
                 && (o.series.valid.empty() || o.series.valid[i]))
                 ++fitInWindow;
         check(fitInWindow == 7, "§3 …every skeleton frame inside ±15 ms is on the curve and valid (7)");
-        check(near(o.p2.sigmaDeg, std::hypot(15.0 / std::cos(2.0 * fusion::kPi / 180.0), 5.0), 1e-9),
-              "§3 …σ = the one-view fit σ over |h| ⊕ σ_yaw 5°");
+        check(near(o.p2.sigmaDeg, std::hypot(15.0 / std::cos(2.0 * fusion::kPi / 180.0), pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg), 1e-9),
+              "§3 …σ = the one-view fit σ over |h| ⊕ σ_yaw (uncalibrated)");
         const GateRecord *ff = gate(o, "club3d.shaftDirectionFromFit");
         check(ff && ff->effect == GateEffect::Downgraded && ff->subject == QStringLiteral("shaftDirection")
                   && ff->covers == QStringList{ QStringLiteral("shaftDirection") }
@@ -196,12 +196,12 @@ int main()
                   && utop->sigmaKind == uint8_t(SigmaKind::Propagated),
               "§4 both phase samples carry σ, Propagated");
         const double h = std::cos(2.0 * fusion::kPi / 180.0);
-        check(up2 && near(*up2->sigma, std::hypot(1.5 / h, 5.0), 1e-9), "§4 uncalibrated: σ = σ_dir/|h| ⊕ 5°");
+        check(up2 && near(*up2->sigma, std::hypot(1.5 / h, pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg), 1e-9), "§4 uncalibrated: σ = σ_dir/|h| ⊕ σ_yaw (uncalibrated)");
         const GateRecord *ca = gate(u, "club3d.cameraAssumed");
         check(ca && ca->effect == GateEffect::Downgraded && ca->subject == QStringLiteral("shaftDirection")
                   && ca->covers == QStringList{ QStringLiteral("shaftDirection") }
-                  && near(ca->evidence.value(QStringLiteral("sigmaYawDeg")).toDouble(), 5.0, 1e-12),
-              "§4 uncalibrated: club3d.cameraAssumed, Downgraded, covering shaftDirection, σ_yaw 5°");
+                  && near(ca->evidence.value(QStringLiteral("sigmaYawDeg")).toDouble(), pinpoint::tuned::dtlCamera::kDtlYawSigmaUncalDeg, 1e-12),
+              "§4 uncalibrated: club3d.cameraAssumed, Downgraded, covering shaftDirection, σ_yaw (uncalibrated)");
         const PhaseSample *cp2 = sampleAt(c.series, Phase::ShaftParallelBack);
         check(cp2 && near(*cp2->sigma, std::hypot(1.5 / h, 1.0), 1e-9) && near(c.yawSigmaDeg, 1.0, 1e-12),
               "§4 calibrated: σ_yaw 1°");

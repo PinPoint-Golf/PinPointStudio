@@ -213,7 +213,7 @@ The route's largest error term is the assumed camera placement. It will improve 
 | Series | Read at | Definition | Sign | σ |
 |---|---|---|---|---|
 | `shoulderPlaneAngle3d` | Top | the shoulder line's inclination out of the horizontal, in its own vertical plane | + trail shoulder higher | √(σ_l² + σ_t²) / line length |
-| `shoulderLineYaw` | Address (one reading) | the shoulder line's bearing in the ground plane against the target line; a left-hander mirrored | open −, closed + | the line's σ ⊕ σ_yaw (5° uncalibrated), plus `body3d.cameraAssumed` |
+| `shoulderLineYaw` | Address (one reading) | the shoulder line's bearing in the ground plane against the target line; a left-hander mirrored | open −, closed + | the line's σ ⊕ σ_yaw (9° uncalibrated; the face-on camera taken as square), plus `body3d.cameraAssumed` |
 | `leadKneeFlexion` | Address, Top, Impact, P8 | 180° − the angle at the knee between hip and ankle (17/18/19, or 22/23/24 for a left-hander) | + more bend | the angle's gradient over the three joints |
 | `spineSideBend` | Address, Top, Impact | the hip line's frontal tilt minus the shoulder line's, both in the frontal plane square to the pelvis heading | + toward the trail side | the two tilts' σ in quadrature |
 | `thighTurn3dLead` / `thighTurn3dTrail` (research only) | Address, Top, Impact | the turn from Address of the normal to the hip–knee–ankle plane; unmeasured below 12° of knee bend | lead-relative, as `pelvisRotationSigned` | the normal's heading σ ⊕ the reference ⊕ `kTriScaleFrac`·Δ |
