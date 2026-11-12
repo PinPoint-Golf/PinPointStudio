@@ -138,7 +138,6 @@ set(PP_QML_FILES
     src/Gui/shell/PpAnalysingBadge.qml
     src/Gui/shell/PlayPage.qml
     src/Gui/athlete/ScreenAthleteForm.qml
-    src/Gui/athlete/ScreenSessions.qml
     src/Gui/athlete/AthleteClubsSection.qml
     src/Gui/athlete/PpGroupCard.qml
     src/Gui/athlete/PpFieldLabel.qml
@@ -195,6 +194,7 @@ set(PP_QML_FILES
     src/Gui/home/HmFocus.qml
     # Home's tabs and the area table (four-modes refactor, Phase 4).
     src/Gui/home/HmHomeTabs.qml
+    src/Gui/home/HmSessions.qml
     src/Gui/home/HmSwingAreas.qml
     src/Gui/home/HmAreaRow.qml
     # The per-athlete Home view state, appSettings.homeViewByAthlete (.pragma library, imported

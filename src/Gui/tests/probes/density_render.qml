@@ -63,11 +63,22 @@ Item {
             })
         })
     }
+    function findNamed(item, name) {
+        if (!item) return null
+        if (item.objectName === name) return item
+        const k = item.children || []
+        for (let i = 0; i < k.length; ++i) { const f = probe.findNamed(k[i], name); if (f) return f }
+        return null
+    }
     function showScreen(name, then) {
-        const map = { home: AppScreen.Home, sessions: AppScreen.Sessions, settings: AppScreen.Settings,
+        // "sessions" is Home's Sessions tab.
+        const map = { home: AppScreen.Home, sessions: AppScreen.Home, settings: AppScreen.Settings,
                       athletes: AppScreen.Athletes, system: AppScreen.System }
         if (map[name] === undefined) { probe.log("unknown screen " + name); then(); return }
-        navController.navigate(map[name]); after(1500, then)
+        navController.navigate(map[name])
+        const tabs = probe.findNamed(Overlay.overlay.parent, "homeTabs")
+        if (tabs && (name === "home" || name === "sessions")) tabs.current = name === "sessions" ? "sessions" : "coaching"
+        after(1500, then)
     }
     function next() {
         if (jobs.length === 0) { Theme.density = startDensity; after(300, () => Qt.exit(0)); return }

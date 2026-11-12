@@ -161,20 +161,7 @@ Item {
             onClicked: root.pageRequested(AppScreen.Session)
         }
 
-        Item { Layout.preferredHeight: Theme.gap(8); Layout.fillWidth: true }
-
-        // Sessions — the current golfer's sessions. Muted with no golfer, as the avatar's edit is:
-        // with no athlete the form would open as a blank "New athlete" form.
-        PpRailButton {
-            Layout.alignment: Qt.AlignHCenter
-            iconText:  "◑"
-            labelText: qsTr("Sessions")
-            isActive:  root.currentPageIndex === AppScreen.Sessions
-            isMuted:   root._muted(AppScreen.Sessions) || !athleteController.hasCurrentAthlete
-            attention: root.anyLocked
-            onClicked: root.pageRequested(AppScreen.Sessions)
-        }
-
+        // No Sessions button: the golfer's sessions are Home's Sessions tab (Mark, 11 Nov 2026).
 
         // ── Spacer ────────────────────────────────────────────────────────────
         Item { Layout.fillHeight: true; Layout.fillWidth: true }

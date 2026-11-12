@@ -17,7 +17,7 @@
  */
 
 // THE GOLFER'S SESSIONS, EACH WITH ITS REPORT (docs/design/session_report_design.md §8.0;
-// sessions_screen_redesign.md §2) — the table of the rail's Sessions screen (ScreenSessions): one
+// sessions_screen_redesign.md §2) — the table of Home's Sessions tab (HmSessions): one
 // PpSessionsTableRow per session, over SessionReportListModel (`sessionReportList`), in a PpCard table.
 //
 // THE SELECTION (§2.3) lives here: `selection` holds session dirs, `_anchor` the range anchor.
@@ -598,106 +598,128 @@ Column {
     }
 
     // ── The table ────────────────────────────────────────────────────────────
-    PpCard {
-        id: table
-        objectName: "sessionsTable"
-        table: true
+    // Never narrower than its fixed columns and a usable Work-on: in a narrower window (Home's column at a
+    // large text scale) it scrolls sideways in its own strip, so ⋯ and the report actions stay in the card.
+    readonly property real minTableWidth: {
+        let w = 2 * Theme.sp(Theme.rowPadH) + Theme.sp(80)             // padding, and Work-on's least
+        for (const c of table.columns) if (!c.fill) w += c.width
+        return w + (table.columns.length - 1) * table.columnGap
+    }
+    Flickable {
+        id: tableStrip
+        objectName: "sessionsTableStrip"
         visible: root.shown > 0
         width: root.width
-        // Fixed columns in design pixels (they scale with the text); Work-on takes what is left. Sized at
-        // Mark's text scale (1.35) to their widest content: Date holds "Tue 18 Aug 2026 · 2" beside its
-        // Review chip; Club "7 iron, Driver"; Recorded with three tags (Face-on HackMotion GC Quad) with
-        // a pixel or two to spare. Report (#146) holds the widest emailing line, the confirm for a short
-        // address, "Send to nick@example.com · 7.4 MB  Send  Cancel" (a longer address elides in the
-        // middle), and so "Making report… page 12 of 14", "Sending to Nick… 40%" and "Report queued".
-        columnGap: Theme.gap(10)
-        columns: [
-            { title: qsTr("Date ▾"),        width: Theme.sp(202) },
-            { title: qsTr("Club"),          width: Theme.sp(80) },
-            { title: qsTr("Swings"),        width: Theme.sp(44), align: "right" },
-            { title: qsTr("Recorded with"), width: Theme.sp(202) },
-            { title: qsTr("Work-on"),       fill: true },
-            { title: qsTr("Report"),        width: Theme.sp(302) },
-            { title: "",                    width: Theme.sp(24), align: "right" }
-        ]
+        height: table.height
+        contentWidth: table.width
+        contentHeight: table.height
+        flickableDirection: Flickable.HorizontalFlick
+        interactive: contentWidth > width
+        boundsBehavior: Flickable.StopAtBounds
+        clip: interactive
+        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
 
-        Repeater {
-            id: rows
-            model: root.model
-            onItemAdded:   root._schedulePrune()
-            onItemRemoved: root._schedulePrune()
+        PpCard {
+            id: table
+            objectName: "sessionsTable"
+            table: true
+            visible: root.shown > 0
+            width: Math.max(root.width, root.minTableWidth)
+            // Fixed columns in design pixels (they scale with the text); Work-on takes what is left. Sized at
+            // Mark's text scale (1.35) to their widest content: Date holds "Tue 18 Aug 2026 · 2" beside its
+            // Review chip; Club "7 iron, Driver"; Recorded with three tags (Face-on HackMotion GC Quad) with
+            // a pixel or two to spare. Report (#146) holds the widest emailing line, the confirm for a short
+            // address, "Send to nick@example.com · 7.4 MB  Send  Cancel" (a longer address elides in the
+            // middle), and so "Making report… page 12 of 14", "Sending to Nick… 40%" and "Report queued".
+            columnGap: Theme.gap(10)
+            columns: [
+                { title: qsTr("Date ▾"),        width: Theme.sp(202) },
+                { title: qsTr("Club"),          width: Theme.sp(80) },
+                { title: qsTr("Swings"),        width: Theme.sp(44), align: "right" },
+                { title: qsTr("Recorded with"), width: Theme.sp(202) },
+                { title: qsTr("Work-on"),       fill: true },
+                { title: qsTr("Report"),        width: Theme.sp(302) },
+                { title: "",                    width: Theme.sp(24), align: "right" }
+            ]
 
-            PpSessionsTableRow {
-                id: trow
-                // The model's roles through `model`: one of them is `state`, which as a property of its
-                // own would shadow Item.state. A JS array (a harness's rows) hands each row as modelData.
-                required property int index
-                required property var model
-                readonly property var r: (model.modelData !== undefined && model.modelData !== null
-                                          && typeof model.modelData === "object") ? model.modelData : model
+            Repeater {
+                id: rows
+                model: root.model
+                onItemAdded:   root._schedulePrune()
+                onItemRemoved: root._schedulePrune()
 
-                readonly property int rank: r.shownRank !== undefined ? r.shownRank : index
-                readonly property real sessionBytes: r.sessionBytes || 0
-                objectName: rank >= 0 ? "sessionsRow_" + rank : "sessionsRowHidden_" + index
-                visible: rank >= 0
-                height:  visible ? implicitHeight : 0
-                onRankChanged:         root._schedulePrune()
-                onReportStateChanged:  root._schedulePrune()
-                onSessionBytesChanged: root._schedulePrune()
+                PpSessionsTableRow {
+                    id: trow
+                    // The model's roles through `model`: one of them is `state`, which as a property of its
+                    // own would shadow Item.state. A JS array (a harness's rows) hands each row as modelData.
+                    required property int index
+                    required property var model
+                    readonly property var r: (model.modelData !== undefined && model.modelData !== null
+                                              && typeof model.modelData === "object") ? model.modelData : model
 
-                dir:          r.dir || ""
-                dateLabel:    r.dateLabel || ""
-                sessionOfDay: r.sessionOfDay || 0
-                clubs:        r.clubs || ""
-                swings:       r.swings || 0
-                devices:      r.devices || []
-                deviceTokens: r.deviceTokens || []
-                selectedDevices: root.model && root.model.deviceFilter ? root.model.deviceFilter : []
-                workOn1:      r.workOn1 || ""
-                workOnKnown:  !!r.workOnKnown
-                isLive:       !!r.isLive
-                archived:     !!r.archived
-                canReport:    !!r.canReport
-                reportState:  r.state || ""
-                stateShort:   r.stateShort || ""
-                stateWords:   r.stateWords || ""
-                pdfPath:      r.pdfPath || ""
-                sizeBytes:    r.sizeBytes || 0
+                    readonly property int rank: r.shownRank !== undefined ? r.shownRank : index
+                    readonly property real sessionBytes: r.sessionBytes || 0
+                    objectName: rank >= 0 ? "sessionsRow_" + rank : "sessionsRowHidden_" + index
+                    visible: rank >= 0
+                    height:  visible ? implicitHeight : 0
+                    onRankChanged:         root._schedulePrune()
+                    onReportStateChanged:  root._schedulePrune()
+                    onSessionBytesChanged: root._schedulePrune()
 
-                greeting: root.greeting
-                email:    root.email
-                making:   root.reports ? (root.reports.busySession === trow.dir && trow.dir !== "") : false
-                progressPage:  root.reports ? root.reports.progressPage : 0
-                progressPages: root.reports ? root.reports.progressPages : 0
-                error: root._errors[trow.dir] || ""
-                confirming:   root.sendReady && root._confirmDir === trow.dir && trow.dir !== ""
-                confirmTo:    root.addresses.join(", ")
-                sendBusy:     root.sendBusy
-                sendingHere:  root.sendBusy && root._sendingDir === trow.dir && trow.dir !== ""
-                sendProgress: root.mailer ? (root.mailer.sendProgress || 0) : 0
-                // A bulk job's state for this row: "queued" | "working" | "failed: …" ("" otherwise).
-                readonly property string jobStatus: bulk.status[trow.dir] || ""
-                jobWords:  root._jobWords(trow.jobStatus, bulk.verb, trow.making,
-                                          root.archiver ? (root.archiver.progress || 0) : 0,
-                                          root.mailer ? (root.mailer.sendProgress || 0) : 0)
-                jobFailed: trow.jobStatus.indexOf("failed: ") === 0
-                jobs:      bulk
+                    dir:          r.dir || ""
+                    dateLabel:    r.dateLabel || ""
+                    sessionOfDay: r.sessionOfDay || 0
+                    clubs:        r.clubs || ""
+                    swings:       r.swings || 0
+                    devices:      r.devices || []
+                    deviceTokens: r.deviceTokens || []
+                    selectedDevices: root.model && root.model.deviceFilter ? root.model.deviceFilter : []
+                    workOn1:      r.workOn1 || ""
+                    workOnKnown:  !!r.workOnKnown
+                    isLive:       !!r.isLive
+                    archived:     !!r.archived
+                    canReport:    !!r.canReport
+                    reportState:  r.state || ""
+                    stateShort:   r.stateShort || ""
+                    stateWords:   r.stateWords || ""
+                    pdfPath:      r.pdfPath || ""
+                    sizeBytes:    r.sizeBytes || 0
 
-                selected: root.selection.indexOf(trow.dir) >= 0
-                keyFocus: root.activeFocus && root.focusIndex === trow.rank
-                menuOpen: rowMenu.opened && root._menuDir === trow.dir
+                    greeting: root.greeting
+                    email:    root.email
+                    making:   root.reports ? (root.reports.busySession === trow.dir && trow.dir !== "") : false
+                    progressPage:  root.reports ? root.reports.progressPage : 0
+                    progressPages: root.reports ? root.reports.progressPages : 0
+                    error: root._errors[trow.dir] || ""
+                    confirming:   root.sendReady && root._confirmDir === trow.dir && trow.dir !== ""
+                    confirmTo:    root.addresses.join(", ")
+                    sendBusy:     root.sendBusy
+                    sendingHere:  root.sendBusy && root._sendingDir === trow.dir && trow.dir !== ""
+                    sendProgress: root.mailer ? (root.mailer.sendProgress || 0) : 0
+                    // A bulk job's state for this row: "queued" | "working" | "failed: …" ("" otherwise).
+                    readonly property string jobStatus: bulk.status[trow.dir] || ""
+                    jobWords:  root._jobWords(trow.jobStatus, bulk.verb, trow.making,
+                                              root.archiver ? (root.archiver.progress || 0) : 0,
+                                              root.mailer ? (root.mailer.sendProgress || 0) : 0)
+                    jobFailed: trow.jobStatus.indexOf("failed: ") === 0
+                    jobs:      bulk
 
-                onRowPressed: (modifiers) => root.rowPressed(trow.dir, modifiers)
-                onRowDoubleClicked: (modifiers, scenePos) => root.rowDoubleClicked(trow.dir, modifiers, scenePos)
-                onReviewRequested:        root.review(trow.dir)
-                onMenuRequested:          { if (rowMenu.opened && root._menuDir === trow.dir) root.closeRowMenu()
-                                            else root.openRowMenu(trow.rank) }
-                onOpenReportRequested:    root.openPdf(trow.pdfPath)
-                onMakeReportRequested: function(thenEmail) { root.openSheet(trow.dir, thenEmail) }
-                onEmailRequested:         root.emailPressed(trow.dir, trow.pdfPath, trow.r.sessionMs || 0)
-                onSendConfirmed:          root.sendReport(trow.dir, trow.pdfPath, trow.r.sessionMs || 0)
-                onSendCancelled:          root._confirmDir = ""
-                onStudioSettingsRequested: root.studioSettingsRequested()
+                    selected: root.selection.indexOf(trow.dir) >= 0
+                    keyFocus: root.activeFocus && root.focusIndex === trow.rank
+                    menuOpen: rowMenu.opened && root._menuDir === trow.dir
+
+                    onRowPressed: (modifiers) => root.rowPressed(trow.dir, modifiers)
+                    onRowDoubleClicked: (modifiers, scenePos) => root.rowDoubleClicked(trow.dir, modifiers, scenePos)
+                    onReviewRequested:        root.review(trow.dir)
+                    onMenuRequested:          { if (rowMenu.opened && root._menuDir === trow.dir) root.closeRowMenu()
+                                                else root.openRowMenu(trow.rank) }
+                    onOpenReportRequested:    root.openPdf(trow.pdfPath)
+                    onMakeReportRequested: function(thenEmail) { root.openSheet(trow.dir, thenEmail) }
+                    onEmailRequested:         root.emailPressed(trow.dir, trow.pdfPath, trow.r.sessionMs || 0)
+                    onSendConfirmed:          root.sendReport(trow.dir, trow.pdfPath, trow.r.sessionMs || 0)
+                    onSendCancelled:          root._confirmDir = ""
+                    onStudioSettingsRequested: root.studioSettingsRequested()
+                }
             }
         }
     }

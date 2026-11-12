@@ -17,7 +17,7 @@
  */
 
 // ONE SESSION, ONE TABLE ROW (docs/design/sessions_screen_redesign.md §2.1, §8) — a row of
-// PpSessionReportList on the rail's Sessions screen, on its PpCard's column template:
+// PpSessionReportList on Home's Sessions tab, on its PpCard's column template:
 //
 //   Date [Review]   Club   Swings   Recorded with   Work-on…   Report · action   ⋯
 //

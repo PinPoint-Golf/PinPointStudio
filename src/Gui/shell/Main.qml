@@ -471,7 +471,6 @@ ApplicationWindow {
         var n = {}
         n[AppScreen.Home]       = qsTr("Home")
         n[AppScreen.Session]    = qsTr("Live")
-        n[AppScreen.Sessions]   = qsTr("Sessions")
         n[AppScreen.Athlete]    = qsTr("New athlete")
         n[AppScreen.Athletes]   = qsTr("Athletes")
         n[AppScreen.System]     = qsTr("System")
@@ -479,12 +478,6 @@ ApplicationWindow {
         n[AppScreen.Developer]  = qsTr("Developer")
         n[AppScreen.Wizard]     = qsTr("New session")
         return n
-    }
-
-    // The Sessions screen (the rail's) is the CURRENT golfer's list, which follows the golfer by
-    // itself; it opens at the top.
-    function _showSessions() {
-        sessionsScreen.toTop()
     }
 
     // Open the session wizard for a start request { focusConditionId, focusLabel } (Home's
@@ -513,8 +506,6 @@ ApplicationWindow {
             locked: navController.currentIndex === AppScreen.Wizard
 
             onPageRequested: function(index) {
-                // The Sessions screen opens at the top.
-                if (index === AppScreen.Sessions) root._showSessions()
                 if (navController.currentIndex === AppScreen.Wizard)
                     navController.navigate(index)   // preserves wizard in back-history
                 else
@@ -613,30 +604,20 @@ ApplicationWindow {
                         sessionReviewController.loadSession(sessionDir)
                         navController.navigate(AppScreen.Session)
                     }
-                    // The rig pane's "Rig ▸" opens Settings → Studio.
+                    // The rig pane's "Rig ▸", and the Sessions tab's link to the studio's details,
+                    // open Settings → Studio.
                     onStudioSettingsRequested: {
                         settingsScreen.openStudio()
                         navController.navigate(AppScreen.Settings)
                     }
-                }
-                ScreenWrist {}                                             // AppScreen.Session — the one session screen
-                ScreenSessions {                                           // AppScreen.Sessions — the current golfer's sessions, from the rail
-                    id: sessionsScreen
-                    onReviewSessionRequested: function(sessionDir) {
-                        sessionReviewController.loadSession(sessionDir)
-                        navController.navigate(AppScreen.Session)
-                    }
-                    onStudioSettingsRequested: {
-                        settingsScreen.openStudio()
-                        navController.navigate(AppScreen.Settings)
-                    }
-                    // A missing address or photo approval: the golfer's own page.
+                    // The Sessions tab's link to a missing address or photo approval: the golfer's own page.
                     onGolferDetailsRequested: {
                         athleteFormScreen.editUuid = athleteController.currentUuid
                         athleteFormScreen.loadForEdit()
                         navController.navigate(AppScreen.Athlete)
                     }
                 }
+                ScreenWrist {}                                             // AppScreen.Session — the one session screen
                 ScreenAthleteForm {                                        // AppScreen.Athlete — new / edit athlete form
                     id: athleteFormScreen
                     // Dismiss (Cancel / close ✕) returns to the origin screen, the

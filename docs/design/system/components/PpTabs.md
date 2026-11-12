@@ -1,11 +1,11 @@
 # PpTabs
 
-The view toggles of a typeset register: label + quiet count, the current one ruled underneath; optionally a note and a quiet chip at the right. Chrome thins last and least — the toggles never go.
+The view toggles of a typeset register: label + quiet count, the current one ruled underneath; optionally a note and a quiet chip at the right, and end tabs at the right in the same look. Chrome thins last and least — the toggles never go.
 
 Source: `src/Gui/typeset/PpTabs.qml`.
 
 ## When to use
-Switching between the views of a typeset register (Session diagnostics Analyse and Replay, the Charts register, the launch monitor board) and Home's Coaching | Your swing | Tendencies | Matchups bar (`size: "title"`). Screen only. Keyboard: the bar is ONE Tab stop (the current tab, or the first when none is current); Left/Right move between tabs (wrapping), Home/End go to the ends, Space/Enter/Return activate; a focused tab or chip draws an accent focus ring. Tabs are `Accessible.PageTab` in an `Accessible.PageTabList`; the chip is a `Link`.
+Switching between the views of a typeset register (Session diagnostics Analyse and Replay, the Charts register, the launch monitor board) and Home's Coaching | Your swing | Tendencies | Matchups … Sessions bar (`size: "title"`; Sessions is an end tab). Screen only. Keyboard: the bar is ONE Tab stop (the current tab, or the first when none is current); Left/Right move between tabs (wrapping), Home/End go to the ends, Space/Enter/Return activate; a focused tab or chip draws an accent focus ring. Tabs are `Accessible.PageTab` in an `Accessible.PageTabList`; the chip is a `Link`.
 
 Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choosing a value in place (`PpSegmentedControl`).
 
@@ -19,7 +19,7 @@ Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choos
 | brush | var | null | |
 | medium | string | `roles.medium` | |
 | interactive | bool | `medium === "screen"` | false on an auto-closing cast: drawn, never pressed. |
-| tabs | var | [] | `[{ key, label, count }]`. |
+| tabs | var | [] | `[{ key, label, count, end }]`. `end: true` puts the tab at the right of the bar (left of the chip), looking the same as the others (Mark, 11 Nov 2026). |
 | current | string | "" | The current tab's key. |
 | note | string | "" | e.g. the review note (tier 3). |
 | chip | string | "" | e.g. "‹ Back", a chart preset; "" = none. |
@@ -31,9 +31,9 @@ Not for: one tab of a stock TabBar in the app's chrome (`PpTabButton`), or choos
 | signal tabActivated(string key) | | | |
 | signal chipActivated() | | | |
 
-Read-only: `isTitle`, `counts`, `tabFont`, `onBaseline`, `currentIndex`, `keyKinds`. Function: `focusTab(i)`.
+Read-only: `isTitle`, `counts`, `tabFont`, `onBaseline`, `startTabs`, `endTabs`, `ordered` (the left tabs then the end ones), `currentIndex` (into `ordered`), `keyKinds`. Function: `focusTab(i)` (into `ordered`).
 
-objectNames: `sdTabBar` (callers may override), `sdTabRow`, `sdTab`, `sdTabLabel`, `sdTabCount`, `sdTabRule` (the current tab's underline), `sdTabFocus`, `sdReviewNote`, the chip (`chipObjectName`), `sdChipFocus`.
+objectNames: `sdTabBar` (callers may override), `sdTabRow`, `sdTabEndRow` (the end tabs), `sdTab`, `sdTabLabel`, `sdTabCount`, `sdTabRule` (the current tab's underline), `sdTabFocus`, `sdReviewNote`, the chip (`chipObjectName`), `sdChipFocus`.
 
 ## Typeset tokens
 `roles.fTab` (labels; title size: the display family at `roles.u(Theme.fontSzTab)` and `r.displayWeight`), `roles.ink` (current) / `ink2` (others), `roles.fFigS` + `ink3` (counts), `roles.ink` 2 px rule or `roles.accent` at `u(Theme.tabUnderline)`, `roles.fSmall` / `fSmallL` + `roles.link` / `ink3` / `ink` (chip), `roles.fSmall` + `ink3` (note), `roles.hair` (1 px rule under the bar), `roles.accent` (focus ring), `roles.u(28)` (height; title size: font height + u(14)), `roles.g(26)` between tabs from compact (else `g(18)`), `roles.g(5)`, `roles.g(24)`. Theme: `fontSzTab`, `tabUnderline`.
@@ -43,6 +43,7 @@ objectNames: `sdTabBar` (callers may override), `sdTabRow`, `sdTab`, `sdTabLabel
 - **Note** shows from the medium class (`shows("reviewNote")`) and only when it fits beside the tabs and chip.
 - **Chip:** a link while interactive, plain ink3 otherwise, ink when `chipOn`.
 - **Title size:** larger display labels, accent underline, note and chip on the labels' baseline.
+- **End tabs:** sit at the right, left of the chip (`g(24)` apart), spaced as the left ones; the note folds rather than meet them. Keyboard order runs on from the last left tab, so Right from it reaches the first end tab and End goes to the last end tab.
 
 ## Usage
 ```qml

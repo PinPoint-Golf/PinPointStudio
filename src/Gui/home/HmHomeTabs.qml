@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Home's four views of the swing, under one title-size tab bar
+// Home's four views of the swing and the golfer's sessions, under one title-size tab bar
 // (docs/design/ux_refactor_away_from_4_modes.md §2.3, 03_home_coaching.png):
 //
 //   Coaching     HmSwingSummary — what to do next, in the golfer's words (the default, D6)
@@ -24,6 +24,9 @@
 //   Tendencies   HmTendencies — each club's usual strike, direction and flight, cross-session
 //   Matchups     HmGoesTogether — what travels together: today faults that move together; later
 //                also pairs that work together (Mark, 28 Oct)
+//   Sessions     HmSessions — every session with its report; the tab at the RIGHT of the bar (an `end` tab).
+//                It was the rail's own screen until 11 Nov 2026 (Mark). It has its own filters, so the
+//                shot filter line hides on it, and the bar's note is what it shows (sessions · swings · size).
 //
 // One filter line (HmShotFilter) sits above the tabs: Club (All, a group or one club), Strike, Direction and Flight,
 // each a quiet picker with its counts, then Clear, then the shots it reads in words (workOns.shotFilterLine, empty
@@ -40,11 +43,13 @@
 // flight choices in .shotFilter; HmSwingAreas keeps its own keys in the same entry. Both read and
 // write it through hm_view_store.js.
 //
-// Signals go up to ScreenHome: Practise, and an open fault's "Review the … session →".
+// Signals go up to ScreenHome: Practise, an open fault's "Review the … session →", and the Sessions page's
+// Review and links (Settings → Studio, the golfer's own page). ScreenHome floats the Sessions selection bar and
+// toast over `sessions.list`.
 //
 // objectNames: homeTabs (this), homeTabBar (the PpTabs), homeShotFilter (the filter line; its pickers keep
-// HmShotFilter's names), homeTabCoaching, homeTabSwing and homeTabMatchups (the pages),
-// homeTabTendencies (HmTendencies' card, the third page).
+// HmShotFilter's names), homeTabCoaching, homeTabSwing, homeTabMatchups and homeTabSessions (the pages),
+// homeTabTendencies (HmTendencies' card, the third page), homeSessions (HmSessions, in homeTabSessions).
 
 import QtQuick
 import QtQuick.Layouts
@@ -63,8 +68,13 @@ Column {
 
     signal practiseRequested(string conditionId, string label)
     signal reviewSessionRequested(string sessionDir)
+    signal studioSettingsRequested()
+    signal golferDetailsRequested()
 
-    readonly property var tabKeys: ["coaching", "swing", "tendencies", "matchups"]
+    // The Sessions page, for the selection bar and toast ScreenHome floats over it.
+    readonly property alias sessions: sessions
+
+    readonly property var tabKeys: ["coaching", "swing", "tendencies", "matchups", "sessions"]
     // The tab showing. Read from the settings for each athlete; "coaching" when none was chosen.
     property string current: "coaching"
 
@@ -73,7 +83,7 @@ Column {
     readonly property string clubScope:     root.hasClubScope ? root.controller.clubScope : "all"
     readonly property bool   readingScope:  root.hasClubScope && root.controller.clubScopeRefreshing
     readonly property bool   matchingScope: root.hasClubScope && root.controller.matchupsRefreshing
-    readonly property bool   scopedTab:     root.current !== "tendencies"
+    readonly property bool   scopedTab:     root.current !== "tendencies" && root.current !== "sessions"
     // A stored choice is not "working", so it never flashes the page dim.
     readonly property bool   scopeWorking:  root.scopedTab && root.hasClubScope && root.controller.clubScopeWorking
                                             && (root.current === "matchups" ? root.matchingScope : root.readingScope)
@@ -124,11 +134,14 @@ Column {
         size:   "title"
         noteAfterTabs: true
         tabs: [{ key: "coaching", label: qsTr("Coaching") }, { key: "swing", label: qsTr("Your swing") },
-               { key: "tendencies", label: qsTr("Tendencies") }, { key: "matchups", label: qsTr("Matchups") }]
+               { key: "tendencies", label: qsTr("Tendencies") }, { key: "matchups", label: qsTr("Matchups") },
+               { key: "sessions", label: qsTr("Sessions"), end: true }]
         current: root.current
         // The evidence each tab reads: "From N swings over M sessions"; Tendencies counts its shots.
-        // With no table to back, Tendencies says why in its own card and the bar stays quiet.
+        // With no table to back, Tendencies says why in its own card and the bar stays quiet. Sessions says
+        // what its table shows.
         note: {
+            if (root.current === "sessions") return sessions.summaryLine
             if (!root.controller) return ""
             if (root.current === "tendencies")
                 return (root.controller.tendencyItems || []).length > 0 ? (root.controller.tendencyNote || "") : ""
@@ -141,7 +154,9 @@ Column {
         id: filterLine
         objectName: "homeShotFilter"
         width:      root.width
-        clubOnly:   !root.scopedTab
+        // Sessions has its own filters.
+        visible:    root.current !== "sessions"
+        clubOnly:   root.current === "tendencies"
         enabled:    !root.controller || !root.controller.paused
         clubScopes: root.hasClubScope ? (root.controller.clubScopes || []) : []
         clubScope:  root.clubScope
@@ -160,7 +175,7 @@ Column {
         enabled: !root.scopeWorking
         currentIndex: Math.max(0, root.tabKeys.indexOf(root.current))
         // As tall as the page showing, not the tallest.
-        height: [coachingPage, swingPage, tendenciesPage, matchupsPage][currentIndex].implicitHeight
+        height: [coachingPage, swingPage, tendenciesPage, matchupsPage, sessionsPage][currentIndex].implicitHeight
 
         Item {
             id: coachingPage
@@ -224,6 +239,18 @@ Column {
                 width: matchupsPage.width
                 controller: root.controller
                 onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+            }
+        }
+        Item {
+            id: sessionsPage
+            objectName: "homeTabSessions"
+            implicitHeight: sessions.implicitHeight
+            HmSessions {
+                id: sessions
+                width: sessionsPage.width
+                onReviewSessionRequested:  (dir) => root.reviewSessionRequested(dir)
+                onStudioSettingsRequested: root.studioSettingsRequested()
+                onGolferDetailsRequested:  root.golferDetailsRequested()
             }
         }
     }

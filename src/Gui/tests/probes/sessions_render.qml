@@ -20,7 +20,7 @@ import QtQuick
 import QtQuick.Controls
 import PinPointStudio
 
-// Whole-window renders of the rail's Sessions screen (docs/design/sessions_screen_redesign.md).
+// Whole-window renders of Home's Sessions tab (until 11 Nov 2026 the rail's Sessions screen; docs/design/sessions_screen_redesign.md).
 // Run offscreen on a COPY of the settings pointed at a SCRATCH library (never the live one):
 //   PinPointStudio --probe-qml <this file> --probe-out <dir> [--probe-phase before|after]
 // before: <out>/before-sessions.png
@@ -145,7 +145,9 @@ Item {
     }
 
     Component.onCompleted: {
-        navController.navigate(AppScreen.Sessions)
+        navController.navigate(AppScreen.Home)
+        const tabs = named("homeTabs")
+        if (tabs) tabs.current = "sessions"
         after(800, () => waitScan(run, 80))
     }
     function run() {

@@ -23,8 +23,9 @@
 //   1. Start — one table card: left, a new session (Start session, the club, the last session);
 //      right, what this rig can measure (HmRigCapability), with the phone pairing entry, a phone's
 //      offered sessions and the first device warning;
-//   2. HmHomeTabs — Coaching | Your swing | Matchups | Tendencies; a fault opens its detail in place.
-// The golfer's sessions are the rail's Sessions (ScreenSessions), not repeated here.
+//   2. HmHomeTabs — Coaching | Your swing | Tendencies | Matchups, and Sessions at the right of the bar; a
+//      fault opens its detail in place. The Sessions tab's selection bar and toast float over the foot of
+//      Home (they were its own screen's, the rail's Sessions, until 11 Nov 2026).
 // The contour background (PpTopoBackground) sits behind all of Home, first run and golfer alike.
 
 import QtQuick
@@ -47,6 +48,8 @@ Item {
     signal studioSettingsRequested()
     // A setup card: "cameras" (Settings → Cameras) or "imus" (Settings → Motion sensors).
     signal deviceSettingsRequested(string panel)
+    // The Sessions tab's link to a missing address or photo approval: the golfer's own page.
+    signal golferDetailsRequested()
 
     // EMPTY, not a club. This is carried into SessionController.activeClub at session
     // start, and start() only seeds from the athlete's preferred club when activeClub is
@@ -126,7 +129,8 @@ Item {
     Flickable {
         anchors.fill:  parent
         contentWidth:  width
-        contentHeight: mainCol.implicitHeight + 80
+        // Room under the Sessions table for its floating selection bar.
+        contentHeight: mainCol.implicitHeight + 80 + (sessionsBar.visible ? sessionsBar.height + Theme.gap(24) : 0)
         clip:          true
 
         // Pointer handlers live on the Flickable, not the screen root: the
@@ -356,7 +360,7 @@ Item {
 
                     Text {
                         width: parent.width
-                        // The count is the rail's Sessions list's (sessionReportList, already pointed at
+                        // The count is the Sessions tab's list's (sessionReportList, already pointed at
                         // this golfer's folder), not the registry's sessionCount, which nothing updates.
                         text: {
                             var m   = root.athMap
@@ -567,10 +571,42 @@ Item {
                 width:   parent.width
                 onPractiseRequested: (conditionId, label) =>
                     root.startSessionRequested({ focusConditionId: conditionId, focusLabel: label })
-                onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
+                onReviewSessionRequested:  (dir) => root.reviewSessionRequested(dir)
+                onStudioSettingsRequested: root.studioSettingsRequested()
+                onGolferDetailsRequested:  root.golferDetailsRequested()
             }
 
             Item { width: 1; height: Theme.gap(60) }
+        }
+    }
+
+    // ── The Sessions tab's selection bar (sessions_screen_redesign.md §2.4) and its jobs' toast ──
+    // Over the foot of Home, the table's width; only on the Sessions tab (a job keeps running on another).
+    PpSessionsSelectionBar {
+        id: sessionsBar
+        list: homeTabs.sessions.list
+        visible: root.hasGolfer && homeTabs.current === "sessions" && ((info.count || 0) > 0 || running)
+        x: mainCol.x
+        width: mainCol.width
+        height: implicitHeight
+        anchors { bottom: parent.bottom; bottomMargin: Theme.gap(20) }
+    }
+
+    // A bulk job's outcome (the exported zips' paths to copy), above the bar.
+    PpToast {
+        id: sessionsToast
+        objectName: "sessionsToast"
+        showUndo: false
+        clearOf: sessionsBar
+        margin: Theme.gap(16)
+    }
+    Connections {
+        target: homeTabs.sessions.list
+        function onNotice(glyph, message, severity, copyText) {
+            sessionsToast.copyText = copyText || ""
+            sessionsToast.glyph    = glyph
+            sessionsToast.severity = severity
+            sessionsToast.show(message)
         }
     }
 }

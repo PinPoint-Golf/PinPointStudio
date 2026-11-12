@@ -267,8 +267,8 @@ Item {
         }
 
         // ── the tabs ──
-        function test_four_tabs_and_no_chip() {
-            compare(all(tabs, "sdTab").map((t) => t.key).join(","), "coaching,swing,tendencies,matchups")
+        function test_five_tabs_and_no_chip() {
+            compare(all(tabs, "sdTab").map((t) => t.key).join(","), "coaching,swing,tendencies,matchups,sessions")
             compare(one(tabs, "homeTabBar").chip, "", "no 'All work-ons': a fault opens in place")
             mouseClick(tabOf("matchups"))
             compare(tabs.current, "matchups")

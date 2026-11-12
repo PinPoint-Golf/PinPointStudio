@@ -529,7 +529,8 @@ Goal: the rail and stack no longer know about modes. Behaviour otherwise identic
   because that session's swings are being saved to the current golfer. Home's Start (and a work-on's
   Practise) goes to Live while a session runs, rather than opening the wizard over it.
 - **Changed (Mark, 28 Oct, after Phase 5): no Work-ons, no Swing diagnostics screen.** The rail
-  is Home, Live, Sessions and Settings. A fault on Home opens its detail **in place**, under its
+  is Home, Live, Sessions and Settings (**changed 11 Nov 2026, Mark:** Sessions is now Home's fifth tab, at
+  the right of the bar — `HmSessions`; the rail is Home, Live and Settings). A fault on Home opens its detail **in place**, under its
   row (`HmFaultDetail`): what it costs, Now / Latest / Swings / Sessions / Linked, the drill, and
   "Review the … session →". That holds for Coaching's focus ("Right now") and "Next on your list",
   and for an open area's items on Your swing, which now lists every condition in the area (no cap

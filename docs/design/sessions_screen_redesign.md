@@ -9,6 +9,14 @@ How to use with Claude Code: one phase per fresh session (§6). **Look at the tw
 proportion and hierarchy; `Theme` tokens govern exact values — never copy a hex from the PNGs or
 `sessions_mockup.html` into QML.
 
+**Changed (Mark, 11 Nov 2026): Sessions is a Home tab, not a rail screen.** It is the tab at the RIGHT of
+Home's title-size bar (Coaching · Your swing · Tendencies · Matchups … Sessions), drawn like the others
+(PpTabs' `end` tab). The page is `home/HmSessions.qml` (was `athlete/ScreenSessions.qml`): no title of its own —
+the summary ("10 sessions · 202 swings · 14.6 GB") is the bar's note — then the filters with the search at their
+right, the table and the hint, at Home's column width. Home's shot filter line hides on it. The selection bar
+and the jobs' toast float over the foot of Home (ScreenHome), shown only on the Sessions tab. The rail's Sessions
+button and `AppScreen.Sessions` are gone. Where the sections below say "screen", read "tab".
+
 Visual reference for humans: Design canvas "PinPoint Studio — UX restructure", board
 **S1 · Sessions — table with bulk actions** (S2 and S3 beside it were the rejected alternatives).
 

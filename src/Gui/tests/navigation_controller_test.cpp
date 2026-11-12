@@ -44,7 +44,6 @@ static const char *nameOf(int screen)
     switch (screen) {
     case AppScreen::Home:       return "Home";
     case AppScreen::Session:    return "Session";
-    case AppScreen::Sessions:   return "Sessions";
     case AppScreen::Athlete:    return "Athlete";
     case AppScreen::Athletes:   return "Athletes";
     case AppScreen::System:     return "System";
@@ -77,16 +76,16 @@ static void testHistory()
     check(QStringLiteral("H2 a fresh controller has no history"),
           !nav.canGoBack() && !nav.canGoForward());
     QSignalSpy indexChanged(&nav, &NavigationController::currentIndexChanged);
-    nav.navigate(AppScreen::Sessions);
+    nav.navigate(AppScreen::System);
     checkScreen(QStringLiteral("H4 navigate moves to the screen"), nav.currentIndex(),
-                AppScreen::Sessions);
+                AppScreen::System);
     check(QStringLiteral("H5 navigate announces the move"), indexChanged.count() == 1);
     check(QStringLiteral("H6 navigate pushes the old screen"), nav.canGoBack());
 
     nav.navigate(AppScreen::Settings);
     nav.back();
     checkScreen(QStringLiteral("H7 back returns to the previous screen"), nav.currentIndex(),
-                AppScreen::Sessions);
+                AppScreen::System);
     check(QStringLiteral("H8 back makes forward available"), nav.canGoForward());
     nav.forward();
     checkScreen(QStringLiteral("H9 forward replays it"), nav.currentIndex(), AppScreen::Settings);
@@ -119,7 +118,7 @@ static void testHomeReset()
 
     NavigationController nav;
 
-    nav.navigateRail(AppScreen::Sessions);
+    nav.navigateRail(AppScreen::System);
     nav.navigateRail(AppScreen::Settings);
     nav.back();
     check(QStringLiteral("R1 (setup) there is back and forward history"),
@@ -132,7 +131,7 @@ static void testHomeReset()
           !nav.canGoBack() && !nav.canGoForward());
 
     // A rail press on any other screen extends history rather than resetting it.
-    nav.navigateRail(AppScreen::Sessions);
+    nav.navigateRail(AppScreen::System);
     check(QStringLiteral("R4 any other rail press pushes"), nav.canGoBack());
 
     // Already on Home with history behind it: the reset still clears it, and says so.

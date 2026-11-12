@@ -31,6 +31,9 @@
 //
 // There is no Swing model screen: the DiagnosticModel editor (called "Swing model" wherever users
 // see it) lives in Settings → Reference (slot 10). No rail button (Mark, 28 Oct).
+//
+// There is no Sessions screen either: the golfer's sessions are Home's Sessions tab (HmSessions; Mark, 11 Nov
+// 2026). It was slot 2, so every later value moved down one — nothing stores a screen value.
 class AppScreen : public QObject
 {
     Q_OBJECT
@@ -41,7 +44,6 @@ public:
     enum Value {
         Home = 0,
         Session,     // the one live/review session screen (ScreenWrist); the rail's Live
-        Sessions,    // the current athlete's sessions (ScreenSessions)
         Athlete,     // ScreenAthleteForm: new / edit athlete
         Athletes,    // ScreenAthletePicker
         System,      // ScreenResourceMonitor
