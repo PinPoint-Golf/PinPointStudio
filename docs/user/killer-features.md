@@ -381,11 +381,11 @@ Calibration stages 1–4 and 9 are also buildable now, but they belong to the ca
 | # | Killer feature | Leading apps | PinPoint Studio today |
 |---|---|---|---|
 | 1 | Launch-monitor fusion | Swing Catalyst, Trackman, Foresight FSX Pro (plus Sportsbox integration) | Every shot fused; outcome filter across sessions; no numeric query |
-| 2 | Validated 3D kinematics | GEARS (marker-based reference), Sportsbox AI, Theia3D | Two-camera 3-D with partial σ; uncalibrated; not benchmarked |
-| 3 | Ground reaction forces | Swing Catalyst (6-DOF force plates); BodiTrak is pressure-only (vertical force + CoP, no shear/torque) | None |
+| 2 | Validated 3D kinematics | GEARS (marker-based reference), AMM (electromagnetic 6-DOF, TPI 3D tour database), K-Motion (IMU vest), Sportsbox AI, Theia3D | Two-camera 3-D skeleton fitted with the club; trunk IMUs on the Direct routes; partial σ; uncalibrated; not benchmarked |
+| 3 | Ground reaction forces | Swing Catalyst (1000 Hz dual force plates, $12,500; force vectors drawn on the video); BodiTrak is pressure-only (vertical force + CoP, no shear/torque) | None |
 | 4 | Phase-normalised comparison | Sportsbox AI, GEARS, V1 (manual sync only) | P-aligned chart overlays; no video side-by-side |
 | 5 | Variability and trends | Trackman (Combine/Test Center), HackMotion — **market gap** | Strong within a session; trend arrows across sessions; no dated chart |
-| 6 | Real-time biofeedback | HackMotion, K-Motion | None |
+| 6 | Real-time biofeedback | K-Motion (140+ drills with visual and audio cues; "train to your best swing"), HackMotion | None |
 | 7 | Frictionless capture | Swing Catalyst, Trackman, Swing Profile (phone) | Automatic detection and pairing; capture pauses while a shot is processed |
 | 8 | Coach workflow | V1, OnForm, CoachNow | Report PDF by email; unsaved telestrator; no remote viewer |
 | 9 | Open data | GEARS, Theia3D, Kinovea — **market gap** | Open format and raw lanes; no metrics table yet |
@@ -394,6 +394,84 @@ Calibration stages 1–4 and 9 are also buildable now, but they belong to the ca
 Notes:
 - **Swing Catalyst** comes closest to covering everything: up to four synced high-speed cameras, force and pressure plates, launch-monitor auto-record, and now markerless motion capture.
 - **Sportsbox AI** is the markerless leader (PGA of America official 3D software; acquired by a DeChambeau-led group, Apr 2026). It lifts single-camera 2D video to 3D, so accuracy claims need scrutiny.
-- **HackMotion** is the best biofeedback example: adaptive guided practice plus ball-flight tagging after each shot.
+- **HackMotion** is the best wrist biofeedback example: adaptive guided practice plus ball-flight tagging after each shot.
 - **Rows 5 and 9 are open opportunities** that fit PPS's open-source positioning. PPS is closest on both: items 5a and 9a would close most of the remaining gap.
-- Theia3D and K-Motion are included from general knowledge and have not been freshly verified.
+- Theia3D is included from general knowledge and has not been freshly verified. GEARS, K-Motion, Swing Catalyst and AMM were checked on 12 Nov 2026 (next section). The GEARS and AMM detail comes mostly from launch coverage, so newer versions may exist.
+
+---
+
+## Against the 3-D biomechanics systems (12 Nov 2026)
+
+GEARS, K-Motion, Swing Catalyst and AMM are the systems a coach would set PPS against on body measurement. This is the same question as features 1–9, asked from the competitor side. Item numbers (2d, 6a …) and issue numbers refer to the sections and tables above.
+
+### What each one is
+
+| System | Technology | What it measures | Distinctive strength | Price (where published) |
+|---|---|---|---|---|
+| **GEARS** | Eight high-speed cameras; 26 body markers and 6 club markers (OptiTrack platform) | Body angles and lines, kinematic sequence, club in 3-D, ball for impact location | Full 3-D club delivery at sub-millimetre resolution — the lab reference | About $39,500 at launch |
+| **K-Motion** (K-Vest, K-Coach, K-Player) | IMU vest, belt and glove | 3-D trunk and arm motion, kinematic sequence, setup by club ("My Bag") | The training loop: capture the best swing, then train it with 140+ biofeedback activities; cloud link from coach to player | Not published |
+| **Swing Catalyst** | Up to four synced high-speed cameras; pressure and force plates; launch-monitor integration | Video, ground reaction force, CoP heat map, markerless joint angles and centre of mass | Measured force drawn as vectors on the video; mature coach video tools and shareable lessons | Dual Force Plates $12,500, plus a Pro+ subscription |
+| **AMM** | Electromagnetic 6-DOF sensors; TPI 3D reports | 200+ parameters, including sway, thrust, lift, pelvis turn, forward and side bend | True segment translations; a tour-pro reference database behind every number | Walkabout 6D under $10,000 (2012) |
+
+AMM's electromagnetic field is distorted by metal, so its sensors cannot go on a steel club.
+
+### Parity, capability by capability
+
+| Capability | Leader | PPS today | Gap | Closed by |
+|---|---|---|---|---|
+| 3-D segment rotations | GEARS, AMM, K-Motion | skeleton3d two-camera fit (Estimated); trunk IMUs (Direct) | **Architecture at parity; accuracy unproven** | #74, #109 |
+| Translations (sway, thrust, lift) | AMM, K-Motion | 2-D: sway and lift face-on, to impact; thrust down-the-line with a ruler; nothing for the thorax | **Large** | 2d now (as % of stance); measured after #74 |
+| Kinematic sequence | All four | Peaks with σ; gyro peaks for pelvis, chest and arm when worn | At parity on worn swings; the camera routes are weaker (arm +43 ms) | #109, 2f |
+| Club delivery | GEARS | Impact: LM covers it. Through the swing: shaft plane and path fused in 3-D, in the same model as the body | Small. Face through the swing is derivable when the wG3 is worn (palm roll + camera shaft, checked against LM face and closure rate); shaft deflection is not measured | 2g |
+| Measured GRF / CoP | Swing Catalyst | Two 2-D proxies | **Large** | #72 (Wii boards); a reference on borrowed plates |
+| Synced multi-camera video | Swing Catalyst | Face-on, down-the-line and impact roles; software sync | Parity; no hardware sync | Trigger cabling |
+| Coach video tools | Swing Catalyst | Telestrator (unsaved); P-aligned chart overlays | Medium | 4a, 8a–8d |
+| LM integration | Swing Catalyst | Three connectors; GSPro OpenConnect coming | Near parity | — |
+| Biofeedback training | K-Motion | None | **Large** | 6a, 6b |
+| Normative reference | AMM (TPI 3D), GEARS | Literature corridors; comparisons against the player's own swings | A different basis, and a defensible one | — (no tour corpus planned) |
+| Coach–player platform | K-Motion, Swing Catalyst | Report PDF by email | Medium | Hosting (Mark's call) |
+| Fidelity against markers | GEARS | About 7 px reprojection (~2 cm at the golfer) | Stays | A marker-lab benchmark |
+
+### Where PPS leads
+
+None of the four has any of these:
+- **The causal diagnostic network.** The competitors give numbers, some with tour comparisons. None models signals → conditions → consequences, explains root causes, or lets coaches maintain the rules.
+- **Shot-outcome explanation and Tendencies.** "What happened there?" is answered for each shot and each session, with outcomes classified automatically from the LM. The competitors show LM numbers next to video.
+- **Session statistics.** Chains are confirmed over a session, not read from one swing.
+- **Body, club and ball in one fitted 3-D model.** Only GEARS does this, and it needs eight cameras and a marker suit.
+- **IMUs as truth for the camera routes.** The worn sensors improve the results for camera-only users, not just for the wearer.
+- **Open source, an open format and commodity hardware**, against $10k–40k+ closed systems.
+
+### Actions to close the gaps
+
+Ranked by how much each changes the comparison.
+
+| Rank | Action | Gap it closes | State | Ref |
+|---|---|---|---|---|
+| 1 | **Camera calibration**, stages 1–4 and 9, then the lens models | 3-D accuracy, metres, a real heading and target line, measured translations. Removes the 7 px residual and the knee and spine biases (skeleton3d §12.5) | Designed; nothing built; board in hand | #74 |
+| 2 | **The worn reference session**: both cameras, trunk IMUs, wG3 and LM, giving the IMU-vs-camera table | Proves rotations and the sequence; settles the thorax disagreement (corr 0.37); gives σ and bias for every camera route; the evidence to cite at launch | Sensors and routine ready | #109 |
+| 3 | **Witmotion clock fit** from the hop spike (2f, new) | Sequence order is decided by tens of ms, and Witmotion samples carry host-arrival times from a bursty link | In the trunk design §7.1; not built | 2f |
+| 4 | **σ on the IMU routes**, then the census | The Direct routes claim more than they show (`body_rotation.cpp:112`) | Not started | #88 |
+| 5 | **Trunk data hygiene**: `imuIntegrity` parity on a Witmotion swing; an IMU-only job run end to end | Trunk numbers believable at all | Open | — |
+| 6 | **3-D sway, lift and thrust**, thorax included, from skeleton3d | Translations | Can build now, as % of stance before calibration | 2d |
+| 7 | **Coach video tools** | Swing Catalyst's strength | Can build now | 4a, 8a–8d |
+| 8 | **A training loop**: after-shot tone with fading; wG3 cue at the top; work-on drills measured on the measures they target | K-Motion's proposition, and the "help the golfer improve" layer | Mark's call | 6a, 6b, work-ons |
+| 9 | **Force**: Wii boards, then a reference session on borrowed plates | GRF | Hardware | #72 |
+| 10 | **A marker-lab benchmark** | GEARS's fidelity claim | External | — |
+
+New items for section 2, **Can build now**:
+- **2f. Witmotion clock fit.** Fit each trunk sensor's clock to the host from the landing spike of the calibration hop, which shows in both trunk accelerometers, both wG3 units and the video (trunk design §7.1). Until then every arm-versus-trunk gap carries both clocks' σ.
+- **2g. Face angle through the swing (wG3 worn).**
+  - The face follows the lead palm's full orientation (forearm rotation plus wrist), not wrist angles alone.
+  - The cameras' fused shaft fixes two of the club's three rotations. The palm unit supplies the third, roll about the shaft, which skeleton3d already accepts as its HackMotion term (`hmSigmaDeg`).
+  - Set a constant grip offset with the face square at address. Validate against the LM's face angle and closure rate at impact, which gives the series a measured σ.
+  - The wG3 samples adaptively up to 800 Hz through impact. Check that analysis uses the full-rate recording, not the 25–100 Hz live lane.
+  - Resolve the quaternion anomaly first (trunk design §3.7: lower-arm quaternions turning ~50° through a downswing the gyro integrates to ~246°), or build from the gyro anchored at address.
+  - Hand–club compliance near impact shows up as error; the LM check measures it. Camera-only swings don't get this.
+
+### Sources (12 Nov 2026)
+
+- GEARS: https://m.morgancreekgolf.com/teaching-academy/gears-golf · https://golfnewsstoriesonline.com/news/all/golf_news/naturalpoint_introduces_gears_3d_golf_swing_analysis_system.html · https://thesandtrap.com/forums/topic/76878-gears-golf-swing-analysis-system/
+- K-Motion: https://www.k-motion.com/?p=1358 · https://thegolfwire.com/323950-2 · https://thegolfwire.com/328979-2 · https://www.hogwire.biz/?p=3908
+- Swing Catalyst: https://shop.swingcatalyst.com · https://foresightsports.eu/complementary-technology/swing-catalyst · https://support.swingcatalyst.com/hc/en-us/articles/6091620159644 · https://swingcatalyst.com/products/dual-force-plates
+- AMM: https://www.newswire.com/news/advanced-motion-measurement-releases-walkabout-6d-golf-system-83126 · https://golfmonthly.com/gear/gear-news/st-andrews-links-academy-adds-new-analysis-equipment-9093 · https://www.mytpi.com/articles/technology/capture-methods-overview
