@@ -189,6 +189,84 @@ void fillTrunkBends(BodyRotationResult &res, const FusedStreams &streams, const 
     if (pair) res.pelvisAddressBallBendDeg = pelBend(ia);
 }
 
+// ── The trunk sensors' three tilts (planned-metrics second pass W4, 13 Nov 2026) ───────────────
+//
+// shoulderPlaneAngle3d's and secondaryAxisTilt's `thoraxImu` rungs, hipLineTilt's `pelvisImu` rung, at
+// every stream sample. Each is the camera reading's own quantity and sign (trunk_sensor_series.h,
+// TrailAxis), so the camera's norms still apply:
+//   shoulder plane — s·obliquityRad of the chest: the 3-D fit's inclination of the shoulder line in its
+//     own vertical plane, + the trail shoulder higher. No projection, no address front.
+//   hip tilt — the hip sensor's ML axis in the face-on plane, the target line square to the hips'
+//     address front; + the trail hip higher; no reading where the hip line has turned edge-on (the
+//     face-on producer's minHipSpanRatio rule).
+//   axis tilt — the chest's long axis in the face-on plane, the target line square to the chest's
+//     address front; + away from the target.
+// Each needs its own sensor only: a swing with the hip sensor alone still reads its hip tilt.
+// σ per sample (trunk_sensor_series.h): the sensor's §8.2 budget — for the shoulder plane its obliquity
+// budget as it stands; for the hip tilt that budget carried through the face-on projection; for the axis
+// tilt the long axis's (δ-free) — and, for the two face-on tilts, the address front's heading at ±σ_δ,
+// propagated numerically. The address reference is the stream sample nearest the ladder's Address.
+void fillTrunkTilts(BodyRotationResult &res, const FusedStreams &streams, const std::vector<PhaseEvent> &phases,
+                    bool leadIsLeft, const BodyRotationConfig &cfg)
+{
+    namespace ts = trunk_sensor;
+    const std::vector<int64_t> &grid = streams.timeGrid;
+    if (grid.empty()) return;
+    const int64_t addressUs = phaseTime(phases, Phase::Address, grid.front());
+    const size_t ia = size_t(nearestIndex(grid, addressUs));
+    // Each front's heading at address, lead-relative (+ open), for body.targetFromAddress's evidence.
+    const double leadSign = leadIsLeft ? 1.0 : -1.0;
+
+    const SegmentStream *thx = streams.streamFor(SegmentRole::Thorax);
+    if (thx && thx->qAnat.size() == grid.size()) {
+        const ts::BallFront front = ts::ballPlaneFront(thx->qAnat[ia]);
+        const ts::TrailAxis axis = ts::trailAxisOf(front, leadIsLeft);
+        if (front.ok) res.thoraxAddressHeadingDeg = leadSign * trunk_angles::turnHeadingRad(thx->qAnat[ia]) * kRadToDeg;
+        const double spAddr = ts::shoulderPlaneDeg(thx->qAnat[ia], leadIsLeft);
+        const double atAddr = ts::faceOnAxisTiltDeg(thx->qAnat[ia], axis);
+        for (size_t i = 0; i < grid.size(); ++i) {
+            const QQuaternion &q = thx->qAnat[i];
+            // The chest's own bend (its δ and turn-leak terms), as the side bend takes it.
+            const double fb = front.ok ? ts::ballPlaneBendDeg(q, front) : trunk_angles::forwardBendRad(q) * kRadToDeg;
+            const double tt = trunk_angles::turnFromRad(q, thx->qAnat[ia]) * kRadToDeg;
+            const double sp = ts::shoulderPlaneDeg(q, leadIsLeft);
+            res.shoulderPlane.push(grid[i], sp);
+            res.shoulderPlaneSigma.push_back(ts::shoulderPlaneSigmaDeg(sp, spAddr, fb, tt, grid[i], addressUs));
+            if (!axis.ok) continue;   // a chest whose ML axis stands vertical at address has no face-on plane
+            const double at = ts::faceOnAxisTiltDeg(q, axis);
+            const bool ok = std::isfinite(at) && std::isfinite(atAddr);
+            res.axisTilt.push(grid[i], ok ? at : 0.0);
+            res.axisTiltValid.push_back(ok ? 1u : 0u);
+            res.axisTiltSigma.push_back(ok ? ts::axisTiltSigmaDeg(q, axis, at, atAddr, grid[i], addressUs) : ts::kNaN);
+        }
+    }
+
+    const SegmentStream *pel = streams.streamFor(SegmentRole::Pelvis);
+    if (pel && pel->qAnat.size() == grid.size()) {
+        const ts::BallFront front = ts::ballPlaneFront(pel->qAnat[ia]);
+        const ts::TrailAxis axis = ts::trailAxisOf(front, leadIsLeft);
+        if (!axis.ok) return;     // a hip ML axis standing vertical at address: no face-on plane
+        res.pelvisAddressHeadingDeg = leadSign * trunk_angles::turnHeadingRad(pel->qAnat[ia]) * kRadToDeg;
+        const double spanAddr = ts::faceOnHipSpan(pel->qAnat[ia], axis);
+        const double oblAddr = trunk_angles::obliquityRad(pel->qAnat[ia]) * kRadToDeg;
+        for (size_t i = 0; i < grid.size(); ++i) {
+            const QQuaternion &q = pel->qAnat[i];
+            const double ht = ts::faceOnHipTiltDeg(q, axis, leadIsLeft);
+            // THE EDGE-ON RULE, the face-on producer's: the hip line along the target line against its
+            // address length (lower_body_metrics.cpp hipLineValid).
+            const bool ok = spanAddr > 1e-9 && ts::faceOnHipSpan(q, axis) / spanAddr >= cfg.minHipSpanRatio;
+            const double pb = ts::ballPlaneBendDeg(q, front);
+            const double tp = trunk_angles::turnFromRad(q, pel->qAnat[ia]) * kRadToDeg;
+            const double obl = trunk_angles::obliquityRad(q) * kRadToDeg;
+            const double so = ts::obliquitySigmaDeg(tuned::bodyRotation::kImuTissueSigmaPelvisDeg, obl, oblAddr, pb, tp,
+                                                    grid[i], addressUs);
+            res.hipTilt.push(grid[i], ht);
+            res.hipTiltValid.push_back(ok ? 1u : 0u);
+            res.hipTiltSigma.push_back(ok ? ts::hipTiltSigmaDeg(q, axis, leadIsLeft, so) : ts::kNaN);
+        }
+    }
+}
+
 // The trunk sensors' assumptions, each a DOWNGRADED record on the reading it is true of (the readings
 // stay, are judged, and carry the ⚠). Fired with the series; applyTrunkSensorPrecedence withdraws them
 // with the series when the camera reading stays the answer.
@@ -200,15 +278,44 @@ void fillTrunkBends(BodyRotationResult &res, const FusedStreams &streams, const 
 //     and the forward bend through the address front once the chest leans out of the ball plane
 //     (ballPlaneMountYawDeg). Covers whichever bends were emitted. Evidence: the tier, σ_δ, and — with a
 //     side bend — each sensor's side-bend term at THIS swing's address.
+//   (W4, 13 Nov 2026) body.chestBendSite also covers the sensor secondaryAxisTilt — the upper back's
+//     lean, not the hip-to-shoulder line the face-on camera reads; body.chestShoulderSite covers the
+//     sensor shoulderPlaneAngle3d — the upper back's tilt across, not the line through the shoulder
+//     joints, which also move with the shoulder blades; and body.trunkMountYawAssumed covers all three
+//     tilts as well (the shoulder plane through the chest's bend, the hip tilt through the hips' bend
+//     and both face-on tilts through the address front's heading).
+//   (W4c, 13 Nov 2026) body.targetFromAddress — every published sensor reading whose target line or ball
+//     plane is the sensor's OWN front at this swing's address (trunk_sensor_series.h ballPlaneFront):
+//     spineForwardBend (the ball plane, the chest's front), hipLineTilt (the face-on plane, the hips'
+//     front) and secondaryAxisTilt (the face-on plane, the chest's front). The front is taken as square
+//     to the target line, so an open or closed set-up is absorbed and not seen (Mark, 13 Nov: never
+//     assume a square set-up; the target line from the alignment stick, with its drift, is #178). The
+//     readings stay graded, with the ⚠ — not Not assessable. NOT covered, because no front enters the
+//     value: spineSideBend and shoulderPlaneAngle3d (obliquities — the height of the ML axis, which no
+//     heading moves; the front reaches only their σ, as the |sin θ| of a bend), the turns, X-factor and
+//     hip internal rotation (heading CHANGES from this swing's own address, by definition on every route,
+//     so the address heading cancels), and the KS rates (gyro, no heading at all). Evidence: the code,
+//     and each front's heading at address against stand tall (lead-relative, + open; drift included).
 void recordTrunkAssumptions(BodyRotationResult &res)
 {
-    if (res.forwardBend.size() >= 2)
-        res.gates.push_back(GateRecord{ PP_GATE("body.chestBendSite"), QStringLiteral("spineForwardBend"),
-                                        GateEffect::Downgraded, QVariantMap{ { QStringLiteral("code"), QStringLiteral("upperBack") } },
-                                        {}, {}, QStringList{ QStringLiteral("spineForwardBend") } });
+    const auto downgraded = [&](const QString &gate, const QStringList &covers) {
+        if (covers.isEmpty()) return;
+        res.gates.push_back(GateRecord{ gate, covers.front(), GateEffect::Downgraded,
+                                        QVariantMap{ { QStringLiteral("code"), QStringLiteral("upperBack") } },
+                                        {}, {}, covers });
+    };
+    QStringList bendSite;
+    if (res.forwardBend.size() >= 2) bendSite << QStringLiteral("spineForwardBend");
+    if (res.axisTilt.size() >= 2)    bendSite << QStringLiteral("secondaryAxisTilt");
+    downgraded(PP_GATE("body.chestBendSite"), bendSite);
+    downgraded(PP_GATE("body.chestShoulderSite"),
+               res.shoulderPlane.size() >= 2 ? QStringList{ QStringLiteral("shoulderPlaneAngle3d") } : QStringList{});
     QStringList covers;
-    if (res.forwardBend.size() >= 2) covers << QStringLiteral("spineForwardBend");
-    if (res.sideBend.size() >= 2)    covers << QStringLiteral("spineSideBend");
+    if (res.forwardBend.size() >= 2)   covers << QStringLiteral("spineForwardBend");
+    if (res.sideBend.size() >= 2)      covers << QStringLiteral("spineSideBend");
+    if (res.shoulderPlane.size() >= 2) covers << QStringLiteral("shoulderPlaneAngle3d");
+    if (res.hipTilt.size() >= 2)       covers << QStringLiteral("hipLineTilt");
+    if (res.axisTilt.size() >= 2)      covers << QStringLiteral("secondaryAxisTilt");
     if (covers.isEmpty()) return;
     QVariantMap ev{ { QStringLiteral("deltaTier"), QStringLiteral("δ0") },
                     { QStringLiteral("sigmaDeltaDeg"), double(tuned::calib::kTrunkMountYawSigmaDeg) } };
@@ -218,6 +325,21 @@ void recordTrunkAssumptions(BodyRotationResult &res)
     }
     res.gates.push_back(GateRecord{ PP_GATE("body.trunkMountYawAssumed"), covers.front(), GateEffect::Downgraded,
                                     ev, {}, {}, covers });
+
+    QStringList fromAddress;
+    if (res.forwardBend.size() >= 2) fromAddress << QStringLiteral("spineForwardBend");
+    if (res.hipTilt.size() >= 2)     fromAddress << QStringLiteral("hipLineTilt");
+    if (res.axisTilt.size() >= 2)    fromAddress << QStringLiteral("secondaryAxisTilt");
+    if (fromAddress.isEmpty()) return;
+    QVariantMap fa{ { QStringLiteral("code"), QStringLiteral("squareAtAddress") } };
+    const bool chest = fromAddress.contains(QStringLiteral("spineForwardBend"))
+                    || fromAddress.contains(QStringLiteral("secondaryAxisTilt"));
+    if (chest && std::isfinite(res.thoraxAddressHeadingDeg))
+        fa.insert(QStringLiteral("chestAddressHeadingDeg"), res.thoraxAddressHeadingDeg);
+    if (fromAddress.contains(QStringLiteral("hipLineTilt")) && std::isfinite(res.pelvisAddressHeadingDeg))
+        fa.insert(QStringLiteral("hipAddressHeadingDeg"), res.pelvisAddressHeadingDeg);
+    res.gates.push_back(GateRecord{ PP_GATE("body.targetFromAddress"), fromAddress.front(), GateEffect::Downgraded,
+                                    fa, {}, {}, fromAddress });
 }
 
 // ── The face-in cue (trunk design §6.3, W2.1d) ─────────────────────────────────────────────────
@@ -256,7 +378,8 @@ double addressBendDeg(const SegmentStream &seg, const std::vector<int64_t> &time
 //
 // THE BENDS, which a face-in sensor really does read backwards (a 40° address bend reads −40°, and
 // the obliquity flips), are covered by the sensor they read (12 Nov 2026): spineForwardBend by the
-// chest's record, spineSideBend by both. And the hip internal rotations (trail / lead), which
+// chest's record, spineSideBend by both. So are the tilts (13 Nov 2026), which flip too:
+// shoulderPlaneAngle3d and secondaryAxisTilt by the chest's record, hipLineTilt by the hips'. And the hip internal rotations (trail / lead), which
 // HipInternalRotationStage builds from THIS sensor's signed turn whenever it exists
 // (trunk_sensor_series.h), are covered by the hips' record — named here because a stage cannot read
 // another stage's records during the run.
@@ -279,6 +402,11 @@ void recordFaceIn(BodyRotationResult &res, const BodyRotationConfig &cfg)
         if (!res.xFactorStretch.empty()) covers << QStringLiteral("xFactorStretch");
         if (!pelvis && !res.forwardBend.empty()) covers << QStringLiteral("spineForwardBend");
         if (!res.sideBend.empty())       covers << QStringLiteral("spineSideBend");
+        // The tilts (W4): each flips under a half turn about the spine — the ML axis reverses, and so
+        // does the address front the face-on plane is taken from.
+        if (!pelvis && !res.shoulderPlane.empty()) covers << QStringLiteral("shoulderPlaneAngle3d");
+        if (!pelvis && !res.axisTilt.empty())      covers << QStringLiteral("secondaryAxisTilt");
+        if (pelvis && !res.hipTilt.empty())        covers << QStringLiteral("hipLineTilt");
         if (pelvis && !sgn.turn.empty() && sgn.tier == RotationTier::Imu)
             covers << QStringLiteral("trailHipInternalRotation") << QStringLiteral("leadHipInternalRotation");
         res.gates.push_back(GateRecord{ pelvis ? PP_GATE("body.pelvisFaceIn") : PP_GATE("body.thoraxFaceIn"),
@@ -494,8 +622,10 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
         fillFromImu(res.thorax, res.thoraxSigned, *s, streams.timeGrid, addressUs, leadSign);
         res.thoraxAddressBendDeg = addressBendDeg(*s, streams.timeGrid, phases, cfg);
     }
-    // The bends: the chest sensor for the forward bend, both for the side bend.
+    // The bends: the chest sensor for the forward bend, both for the side bend. The tilts: each from
+    // its own sensor.
     fillTrunkBends(res, streams, phases, leadIsLeft);
+    fillTrunkTilts(res, streams, phases, leadIsLeft, cfg);
     res.bendSigma = cfg.withSigma;
 
     // The IMU tier writes onto the stream time grid, which is not the pose grid. Adopt whichever
@@ -650,8 +780,13 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
 
     // The trunk sensors' bends, on their own (stream) grid: every sample is a measurement, so no mask;
     // the phase readings are the graded ones, each with its own σ.
+    // The tilts (W4) on the same terms, each on its own sensor's route; the two face-on tilts carry the
+    // face-on producers' validity (a frame with no reading is 0) and their Address→Impact domain
+    // (applyPhaseDomainMask, as lower_body_metrics.cpp / upper_body_metrics.cpp mark theirs) BEFORE the
+    // phases are stamped, so a stamped reading is what the grader reads off the masked curve.
     const auto emitBend = [&](const MetricChannel &ch, const std::vector<double> &sg, const char *key,
-                              const char *label) {
+                              const char *label, const QString &route,
+                              const std::vector<uint8_t> *valid = nullptr, bool p1toP7 = false) {
         if (ch.size() < 2) return;
         MetricSeries m;
         m.key   = QString::fromLatin1(key);
@@ -659,8 +794,12 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         m.unit  = deg;
         m.t_us  = ch.t_us;
         m.value = ch.value;
-        m.routeId     = trunk_sensor::bendRouteId();
+        m.routeId     = route;
         m.routeDirect = true;
+        if (valid && valid->size() == ch.size()
+            && std::find(valid->begin(), valid->end(), uint8_t(0)) != valid->end())
+            m.valid = *valid;
+        if (p1toP7) applyPhaseDomainMask(m, phases);
         // Every phase on the ladder: the grader reads the curve at each, and the precedence rule
         // compares this reading's positions with the camera's.
         std::vector<Phase> at;
@@ -669,8 +808,14 @@ std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
         trunk_sensor::stampGradedPhases(m, sg, phases, at, res.bendSigma);
         out.push_back(std::move(m));
     };
-    emitBend(res.forwardBend, res.forwardBendSigma, "spineForwardBend", "Spine forward bend");
-    emitBend(res.sideBend, res.sideBendSigma, "spineSideBend", "Spine side bend");
+    emitBend(res.forwardBend, res.forwardBendSigma, "spineForwardBend", "Spine forward bend", trunk_sensor::bendRouteId());
+    emitBend(res.sideBend, res.sideBendSigma, "spineSideBend", "Spine side bend", trunk_sensor::bendRouteId());
+    emitBend(res.shoulderPlane, res.shoulderPlaneSigma, "shoulderPlaneAngle3d", "Shoulder plane angle (3-D)",
+             trunk_sensor::thoraxRouteId());
+    emitBend(res.hipTilt, res.hipTiltSigma, "hipLineTilt", "Hip line tilt", trunk_sensor::pelvisRouteId(),
+             &res.hipTiltValid, /*p1toP7*/ true);
+    emitBend(res.axisTilt, res.axisTiltSigma, "secondaryAxisTilt", "Secondary axis tilt", trunk_sensor::thoraxRouteId(),
+             &res.axisTiltValid, /*p1toP7*/ true);
     return out;
 }
 

@@ -1927,8 +1927,8 @@ inline constexpr double kMinHorizontalFrac = 0.1736;   // sin 10°
 } // namespace shaftDirection
 
 // --- Readings from the 3-D body (src/Body/skeleton3d_body_metrics.h; Skeleton3dBodyStage) ---------
-// shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion and spineSideBend, and the
-// research-only thigh turns, off the two-camera skeleton fit. Every other number they use is shared
+// shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion, trailKneeFlexion (W5, 13 Nov 2026)
+// and spineSideBend, and the research-only thigh turns, off the two-camera skeleton fit. Every other number they use is shared
 // with the two-camera turn (tuned::bodyRotation: kTriMinBaselineM, kAddrWindowUs, kTriAddrMaxGapUs,
 // kTriScaleFrac), the grader (tuned::sampler::kWindowHalfUs) and the camera yaw (tuned::dtlCamera).
 namespace body3d {

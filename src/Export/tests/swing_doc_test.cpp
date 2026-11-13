@@ -728,8 +728,8 @@ int main()
             const QJsonObject vB = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vB[QStringLiteral("skeleton3dBody")].toObject()[QStringLiteral("code")].toInt()
-                      == kSkeleton3dBodyStageVersion && kSkeleton3dBodyStageVersion == 1,
-                  "versions.skeleton3dBody.code == kSkeleton3dBodyStageVersion (1)");
+                      == kSkeleton3dBodyStageVersion && kSkeleton3dBodyStageVersion == 3,
+                  "versions.skeleton3dBody.code == kSkeleton3dBodyStageVersion (3: the 3-D trail knee, and the 3-D side bend beside a trunk sensor's, W5 2026-11-13)");
         }
         check(!vv.contains(QStringLiteral("hipInternalRotation")),
               "HipInternalRotation did not run ⇒ no versions.hipInternalRotation");
@@ -743,6 +743,20 @@ int main()
             check(vH[QStringLiteral("hipInternalRotation")].toObject()[QStringLiteral("code")].toInt()
                       == kHipInternalRotationStageVersion && kHipInternalRotationStageVersion == 1,
                   "versions.hipInternalRotation.code == kHipInternalRotationStageVersion (1)");
+        }
+        check(!vv.contains(QStringLiteral("shoulderTiltVsBend")),
+              "no shoulderTiltVsBend written ⇒ no versions.shoulderTiltVsBend");
+        // versions.shoulderTiltVsBend (2026-11-13, W7): stamped only when the step after the precedence wrote
+        // the reading (shoulder_tilt_vs_bend.h); series only.
+        {
+            SwingAnalysis aT = aD;
+            aT.versions.shoulderTiltVsBend = kShoulderTiltVsBendVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "shoulderTiltVsBend version write ok");
+            const QJsonObject vT = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vT[QStringLiteral("shoulderTiltVsBend")].toObject()[QStringLiteral("code")].toInt()
+                      == kShoulderTiltVsBendVersion && kShoulderTiltVsBendVersion == 1,
+                  "versions.shoulderTiltVsBend.code == kShoulderTiltVsBendVersion (1: the first version, W7 2026-11-13)");
         }
 
         // posture_chart_design.md §10 stage 4a: the DTL ruler persisted (analysis.dtlRuler) and the

@@ -117,6 +117,25 @@ int main()
         check(gb && gates::evidenceText(*gb, ev2).contains(QStringLiteral("taller measured hump")), "…and said when present");
     }
     {
+        // the trunk sensors' address front (body.targetFromAddress, W4c): a downgrade whose sentence states the
+        // assumption only. The headings in its evidence are for diagnostics and are NEVER shown: they hold the
+        // golfer's turn since stand tall, the mount yaw and the sensor's drift, so shown they would read as a
+        // set-up fault on a square golfer (W4c review).
+        const gates::GateEntry *fa = gates::gateEntry(QStringLiteral("body.targetFromAddress"));
+        check(fa && fa->effects.size() == 1 && fa->effects[0] == GateEffect::Downgraded,
+              "the address-front record is a downgrade, nothing else");
+        const QString want = QStringLiteral("Your address was taken as square to the target line.");
+        const QString both = fa ? gates::evidenceText(*fa, { { QStringLiteral("code"), QStringLiteral("squareAtAddress") },
+                                                             { QStringLiteral("chestAddressHeadingDeg"), 17.0 },
+                                                             { QStringLiteral("hipAddressHeadingDeg"), -4.0 } })
+                                : QString();
+        check(both == want && !both.contains(QStringLiteral("17")) && !both.contains(QStringLiteral("open")),
+              "the address-front sentence states the assumption, never the headings (a square golfer must not read 17° open)");
+        const QString none = fa ? gates::evidenceText(*fa, { { QStringLiteral("code"), QStringLiteral("squareAtAddress") } }) : QString();
+        check(none == want, "…and reads the same with no heading in the evidence");
+        check(fa && !fa->evidenceText.contains(QStringLiteral("Heading")), "…the template names no heading field");
+    }
+    {
         const gates::GateEntry *band = gates::gateEntry(QStringLiteral("sequence.sightedBand"));
         const QString minus = QString(QChar(0x2212)), nb = QString(QChar(0x00A0));
         const QString a = gates::evidenceText(*band, { { QStringLiteral("sightLostMs"), -129.0 },

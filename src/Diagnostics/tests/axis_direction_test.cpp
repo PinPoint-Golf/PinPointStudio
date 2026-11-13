@@ -73,9 +73,12 @@ static const Expect kExpected[] = {
       "detection 'all' — the conjunction needs both ends of the swing wrong before it fires, which "
       "is why this signal names its phase" },
     { "sig_lossOfWidth",      Direction::Low,   "leadHandWidth: 'lower means narrower'" },
-    // On `shoulderPlaneAngle3d` since 2026-09-14, produced since 2026-11-12 off the two-camera 3-D fit;
-    // the face-on line at P4 is foreshortened into noise. Same convention, so the tails are unchanged.
-    { "sig_flatShoulderPlane",Direction::Low,   "shoulderPlaneAngle3d: 'Lower means flatter'" },
+    // On `shoulderTiltVsBend` since 2026-11-13 (W7, Mark's decision): the shoulder plane at the top LESS the
+    // forward bend at address, so flat means flatter than the golfer's own posture. Before that, on the
+    // absolute `shoulderPlaneAngle3d` (2026-09-14; the face-on line at P4 is foreshortened into noise).
+    // Both are + steeper, so the tails are unchanged.
+    { "sig_flatShoulderPlane",Direction::Low,
+      "shoulderTiltVsBend: negative means 'the shoulders turned flatter than the posture at address sets them up to'" },
     { "sig_flyingElbow",      Direction::High,
       "trailElbowHeight: 'higher means the elbow has risen further above the shoulder line'" },
     // flying_elbow's PREFERRED signal since 2026-10-08 (detection 'first'): the down-the-line view,
@@ -311,8 +314,8 @@ static const Expect kExpected[] = {
       "into the ball'; diving IS that dip, so it is the high end. The measure takes the MAXIMUM "
       "between P5 and P6: a dip is a peak, and it happens in the transition" },
     { "sig_steepShoulderPlane",     Direction::High,
-      "shoulderPlaneAngle3d: 'higher means steeper'; steep is the high end, where "
-      "sig_flatShoulderPlane takes the low" },
+      "shoulderTiltVsBend: positive means 'the shoulders turned more steeply than the posture at address "
+      "sets them up to'; steep is the high end, where sig_flatShoulderPlane takes the low" },
     { "sig_excessiveAxisTiltTop",   Direction::High,
       "m_axisTiltAtTop highMeans 'more tilt away from the target at the top'; excessive tilt is the "
       "high end, where sig_reverseSpineP4 (too little) takes the low" },

@@ -340,6 +340,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             v.insert(QStringLiteral("skeleton3dBody"), QJsonObject{ { QStringLiteral("code"), a.versions.skeleton3dBody } });
         if (a.versions.hipInternalRotation > 0)
             v.insert(QStringLiteral("hipInternalRotation"), QJsonObject{ { QStringLiteral("code"), a.versions.hipInternalRotation } });
+        if (a.versions.shoulderTiltVsBend > 0)
+            v.insert(QStringLiteral("shoulderTiltVsBend"), QJsonObject{ { QStringLiteral("code"), a.versions.shoulderTiltVsBend } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;

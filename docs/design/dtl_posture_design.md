@@ -89,6 +89,22 @@ series, as `late_buckle` already did in practice (the plain signal path did not 
 so stored verdicts regrade).
 The catalogue's `dtl` rung for the lead knee is Estimated, below the fit's `faceOn+dtl` rung.
 
+**13 November 2026 (planned-metrics second pass, W5; Mark's rule).** The trail knee has a 3-D
+route too, but this series stays the answer whenever it exists while the cameras are uncalibrated,
+which is every swing today. On 2026-07-04 s8 the self-solved fit read the trail knee 21.8° at impact
+against this camera's 30.5°: the hands and the shaft cover the trail knee in the face-on view there.
+With no series here at all, the fit's fills, with `body3d.fromFit`. Once the cameras are calibrated,
+the fit's trail knee will **replace** this series where it reads at BOTH Address and the Top. Every
+trail-knee measure (`m_kneeFlexAddress`, `m_trailKneeFlex`, `m_trailKneeFlex_p2` … `_p8`) is the
+address reading or a change from it, so both ends must come from one route
+(`planned_metrics_promotion.md` §6, W5). The catalogue's `dtl` rung for the trail knee stays Direct
+and first, with the fit's rung below it, so a two-camera rig still reads the trail knee as Measured.
+
+| Knee | Routes (best first) | When the 3-D fit replaces this series |
+|---|---|---|
+| `leadKneeFlexion` | `faceOn+dtl` (3-D fit) · `dtl` · `faceOn` (planned) | it reads in Impact → P8 (12 Nov) |
+| `trailKneeFlexion` | `dtl` · `faceOn+dtl` (3-D fit) · `faceOn` (planned) | uncalibrated cameras (today): never, it only fills when this series is absent. Calibrated: it reads at Address AND the Top (13 Nov) |
+
 With the heuristic norms as they stand, this golfer's 8.6 cm of thrust is ~2σ
 (`early_extension`) and +6° of delivery plane ~1.5σ.
 

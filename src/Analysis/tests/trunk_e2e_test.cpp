@@ -62,6 +62,22 @@
 //       (−pelvis turn trail, +pelvis turn lead, the thigh-assumed record) and with a 3-D thigh; and the
 //       precedence rule that makes the sensors' bends the answer whatever the stage order. NO WORN
 //       RECORDING EXISTS: this is the only check these readings have.
+//   §k  the trunk sensors' three tilts (planned-metrics second pass W4, 13 Nov 2026): shoulderPlaneAngle3d,
+//       hipLineTilt and secondaryAxisTilt against an IDEAL FACE-ON CAMERA square to the target line on the
+//       same body (its true axes projected into the target line's vertical plane), for both hands, at
+//       every sample and graded within σ at address, the top and impact; their σ at address, a 10° mount
+//       yaw on both sensors inside it, the face-on edge-on rule and P1→P7 domain, the records' covers and
+//       the precedence (the sensor beats the camera and 3-D series; a face-in chest keeps the camera).
+//   §l  the address front (W4c, 13 Nov 2026): a golfer set up OPEN reads exactly as a square one on the
+//       three sensor readings taken against an address front — the open set-up is absorbed, while the
+//       ideal camera sees it — so body.targetFromAddress (Downgraded) covers exactly those readings,
+//       states each front's heading (+ open, both hands), and is withdrawn with a reading when the
+//       camera stays the answer.
+//   §m  the shoulder tilt against the forward bend (W7, 13 Nov 2026; shoulder_tilt_vs_bend.h) on §k's body,
+//       both hands, after the precedence: both halves from the chest sensor (the trunkImus rung, no
+//       mixed-sources record), the value = the graded tilt at the top − the graded bend at address, the
+//       same for either hand, σ the two graded σ in quadrature, and the chest's four Downgraded records
+//       covering it; with the chest face-in beside a 3-D tilt and a down-the-line bend, the cameras' pair.
 //
 // Own main()/CHECK, no fixture. The skeleton3d term is evaluated in the test, in its own types
 // (skeleton3d_rig.h), exactly as skeleton3d_fit.cpp writes it — the fit itself needs cameras.
@@ -72,6 +88,7 @@
 #include "../../IMU/hm_frame.h"
 #include "../../Body/body_rotation.h"
 #include "../../Body/trunk_sensor_series.h"
+#include "../../Body/shoulder_tilt_vs_bend.h"
 #include "../../Kinematics/segment_rates.h"
 #include "../../Timeline/phase_segmenter.h"
 #include "../../Timeline/phase_signals.h"
@@ -229,6 +246,9 @@ struct Rig {
     bool   eskf = false;
     double yaw0Deg  = 57.0;    // the fusion world's arbitrary heading
     double driftDeg = 0.0;     // fusion yaw drift, ramped in over [2, 2.6) s — after stand tall
+    // §l (W4c): the golfer SET UP OPEN by this much — the whole true body turned about world vertical
+    // toward the lead side, ramped in with the bend [2, 2.6) s, after stand tall. Zero before §l.
+    double setupOpenDeg = 0.0;
     // Stand-tall window doctoring for §f.
     QVector3D extraGyroDps;
     double    sampleFraction = 1.0;
@@ -243,7 +263,10 @@ SQ trueOrientation(const Rig &rig, const TrunkMotion &m, double t)
     // The frontal tilt: Ry(+β) lowers the +X side, the golfer's right — a right-hander's trail side;
     // mirrored for a left-hander as the turn is. Identity when the motion has none.
     const double side = m.sideAt(t);
-    return side == 0.0 ? q : (ry(hand * side) * q).normalized();
+    const SQ qs = side == 0.0 ? q : (ry(hand * side) * q).normalized();
+    if (rig.setupOpenDeg == 0.0) return qs;
+    const double open = rig.setupOpenDeg * smooth((t - kStandEndS) / (kBendEndS - kStandEndS));
+    return (rz(hand * open) * qs).normalized();     // opening is +Z for a right-hander, as ψ is
 }
 
 // Body-frame rate (°/s) by a central difference of the analytic orientation.
@@ -1431,8 +1454,12 @@ int main()
             }
             const GateRecord *y = nullptr;
             for (const GateRecord &g : rt.gates) if (g.gate == QLatin1String("body.trunkMountYawAssumed")) y = &g;
-            CHECK("j: …the chest-site record, and the mount-yaw record on the forward bend alone (no side-bend terms)",
-                  site == 1 && yaw == 1 && y && y->covers == QStringList({ QStringLiteral("spineForwardBend") })
+            // (Since W4, 13 Nov 2026, the chest sensor alone also reads its shoulder plane and axis tilt,
+            // which the mount-yaw record covers too; §k checks those.)
+            CHECK("j: …the chest-site record, and the mount-yaw record on the chest's readings alone (no side-bend terms)",
+                  site == 1 && yaw == 1 && y
+                      && y->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("shoulderPlaneAngle3d"),
+                                                    QStringLiteral("secondaryAxisTilt") })
                       && !y->evidence.contains(QStringLiteral("pelvisAddrDeg")));
         }
 
@@ -1443,12 +1470,15 @@ int main()
                 if (g.gate == QLatin1String("body.chestBendSite")) site = &g;
                 if (g.gate == QLatin1String("body.trunkMountYawAssumed")) yaw = &g;
             }
-            CHECK("j: body.chestBendSite: Downgraded, on spineForwardBend alone",
+            // Since W4 (13 Nov 2026) both also cover the sensors' tilts (§k).
+            CHECK("j: body.chestBendSite: Downgraded, on the forward bend (and the chest's axis tilt, §k)",
                   site && site->effect == GateEffect::Downgraded && site->subject == QLatin1String("spineForwardBend")
-                      && site->covers == QStringList({ QStringLiteral("spineForwardBend") }));
-            CHECK("j: body.trunkMountYawAssumed: Downgraded, on both bends, tier δ0, σ_δ 10°",
+                      && site->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") }));
+            CHECK("j: body.trunkMountYawAssumed: Downgraded, on both bends (and the three tilts, §k), tier δ0, σ_δ 10°",
                   yaw && yaw->effect == GateEffect::Downgraded && yaw->subject == QLatin1String("spineForwardBend")
-                      && yaw->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") })
+                      && yaw->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend"),
+                                                      QStringLiteral("shoulderPlaneAngle3d"), QStringLiteral("hipLineTilt"),
+                                                      QStringLiteral("secondaryAxisTilt") })
                       && yaw->evidence.value(QStringLiteral("deltaTier")).toString() == QStringLiteral("δ0")
                       && yaw->evidence.value(QStringLiteral("sigmaDeltaDeg")).toDouble() == 10.0);
             CHECK_NEAR("j: …its chest term at this address = asin(sin θ·sin 10°) at the chest's 40.3° (deg)",
@@ -1758,6 +1788,22 @@ int main()
                       y && !y->evidence.contains(QStringLiteral("thoraxAddrDeg")) && !y->evidence.contains(QStringLiteral("pelvisAddrDeg"))
                           && y->evidence.contains(QStringLiteral("sigmaDeltaDeg")));
             }
+            // THE SENSOR BEND ALONE, a camera route having refused (W4, 13 Nov 2026): the down-the-line
+            // posture refusal covered spineForwardBend though no down-the-line series was written. The sensor's
+            // reading stands, so that refusal stops speaking for it — and keeps its other readings — while
+            // the sensor's own assumption records stay.
+            {
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", all) };
+                std::vector<GateRecord> gv = records();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *pa = byId(gv, "posture.address");
+                CHECK("j: sensor forward bend alone: the down-the-line refusal is taken off it, keeps headRise",
+                      sv.size() == 1 && r.sensorDropped == 0 && pa && !pa->covers.contains(QStringLiteral("spineForwardBend"))
+                          && pa->covers.contains(QStringLiteral("headRise")) && pa->covers.contains(QStringLiteral("leadKneeFlexion")));
+                CHECK("j: …the chest-bend and mount-yaw records stay on it",
+                      byId(gv, "body.chestBendSite") && byId(gv, "body.trunkMountYawAssumed")
+                          && byId(gv, "body.trunkMountYawAssumed")->covers.contains(QStringLiteral("spineForwardBend")));
+            }
             // A GAP WITH NO REASON is not made: a camera reading at the top the sensor reading lacks keeps
             // the camera series (and no record is fired for it); a sensor reading at every camera position wins.
             {
@@ -1799,6 +1845,812 @@ int main()
                 CHECK("j: …and one that reads P5 too wins",
                       routesOf(sv4, "spineForwardBend") == QStringList({ QStringLiteral("trunkImus") }));
             }
+        }
+    }
+
+    // ── §k the trunk sensors' three tilts (planned-metrics second pass W4, 13 Nov 2026) ───────────
+    // shoulderPlaneAngle3d from the chest sensor (thoraxImu), hipLineTilt from the hip sensor (pelvisImu)
+    // and secondaryAxisTilt from the chest sensor (thoraxImu), against an IDEAL FACE-ON CAMERA square to
+    // the target line — the stance frame's X axis, the golfer's right at address — on the same synthetic
+    // body: the true axes projected into the target line's vertical plane. NO WORN RECORDING EXISTS.
+    std::printf("-- k. the trunk sensors' three tilts (shoulder plane, hip tilt, axis tilt) --\n");
+    {
+        namespace ts = pinpoint::analysis::trunk_sensor;
+        const auto findS = [](const std::vector<MetricSeries> &all, const char *key) -> const MetricSeries * {
+            for (const MetricSeries &m : all)
+                if (m.key == QLatin1String(key)) return &m;
+            return nullptr;
+        };
+        const auto phaseOf = [](const MetricSeries *m, Phase p) -> const PhaseSample * {
+            if (m)
+                for (const PhaseSample &s : m->phaseSamples)
+                    if (s.phase == p) return &s;
+            return nullptr;
+        };
+        const auto gradedVsStamped = [](const MetricSeries *m) {
+            if (!m || m->phaseSamples.empty()) return 99.0;
+            SeriesView v;
+            v.t = m->t_us.data(); v.v = m->value.data(); v.n = m->t_us.size();
+            v.valid = m->valid.size() == m->t_us.size() ? m->valid.data() : nullptr;
+            double worst = 0.0;
+            for (const PhaseSample &ps : m->phaseSamples) {
+                const Reduced r = reduceAt(v, ps.t_us, ReduceConfig{});
+                worst = std::max(worst, r.ok ? std::fabs(r.value - ps.value) : 99.0);
+            }
+            return worst;
+        };
+        // THE IDEAL FACE-ON CAMERA, on the truth (qTrue, the stance frame): h = +1 for a right-hander, whose
+        // trail side is the golfer's right (+X), −1 for a left-hander.
+        //   shoulder plane  asin(h·(q·x̂)_z): the chest's left-right axis against level, + trail side up;
+        //   hip tilt        atan2(d_z, |d_x|), d = h·(q·x̂) the lead → trail hip line — lineTiltDeg's
+        //                   atan2(leadY − trailY, |Δx|) with image y down;
+        //   axis tilt       atan2(h·s_x, s_z), s = q·ẑ — upper_body_metrics.cpp's atan2(towardTrail, rise).
+        const auto camShoulder = [](const SQ &q, bool lh) {
+            const SV ml = q.rotate({ 1, 0, 0 });
+            return std::asin(std::clamp((lh ? -1.0 : 1.0) * ml.z, -1.0, 1.0)) * kR2D;
+        };
+        const auto camHip = [](const SQ &q, bool lh) {
+            const double h = lh ? -1.0 : 1.0;
+            const SV ml = q.rotate({ 1, 0, 0 });
+            return std::atan2(h * ml.z, std::fabs(h * ml.x)) * kR2D;
+        };
+        const auto camAxis = [](const SQ &q, bool lh) {
+            const SV s = q.rotate({ 0, 0, 1 });
+            return std::atan2((lh ? -1.0 : 1.0) * s.x, s.z) * kR2D;
+        };
+        const auto atS = [&](const Run &r, double t) { return r.grid.empty() ? size_t(0) : idxAt(t); };
+
+        // The §j body: the chest 8° toward the trail side at address against the hips' 2°, the trail
+        // side up at the top (−12 / −4), well down at impact (25 / 10).
+        Rig kb = base;
+        kb.thx.sideDeg = 8.0;  kb.thx.sideTopDeg = -12.0; kb.thx.sideImpactDeg = 25.0;
+        kb.pel.sideDeg = 2.0;  kb.pel.sideTopDeg = -4.0;  kb.pel.sideImpactDeg = 10.0;
+
+        struct Hand { const char *name; bool lh; };
+        std::vector<MetricSeries> rhSeries;
+        for (const Hand hand : { Hand{ "right-hander", false }, Hand{ "left-hander", true } }) {
+            Rig hr = kb;
+            hr.leftHanded = hand.lh;
+            const Run K = build(hr);
+            const BodyRotationResult rk = rotation(K);
+            const std::vector<MetricSeries> sk = buildBodyRotationSeries(rk, K.phases);
+            const MetricSeries *sp = findS(sk, "shoulderPlaneAngle3d"), *ht = findS(sk, "hipLineTilt"),
+                               *at = findS(sk, "secondaryAxisTilt");
+            char lbl[200];
+            std::snprintf(lbl, sizeof lbl, "k (%s): the three tilts emitted on their sensors' routes, Direct, σ Propagated", hand.name);
+            CHECK(lbl, sp && ht && at && sp->routeId == QStringLiteral("thoraxImu") && ht->routeId == QStringLiteral("pelvisImu")
+                           && at->routeId == QStringLiteral("thoraxImu") && sp->routeDirect && ht->routeDirect && at->routeDirect
+                           && sp->sigma && ht->sigma && at->sigma && sp->sigmaKind == uint8_t(SigmaKind::Propagated)
+                           && ht->sigmaKind == uint8_t(SigmaKind::Propagated) && at->sigmaKind == uint8_t(SigmaKind::Propagated));
+            if (!sp || !ht || !at) continue;
+            // Every in-domain sample: the sensor reading IS the ideal camera's (float quaternions).
+            const size_t iImp = idxAt(kImpactS);
+            double eS = 0, eH = 0, eA = 0;
+            for (size_t i = idxAt(kAddressS); i <= iImp; ++i) {
+                eS = std::max(eS, std::fabs(sp->value[i] - camShoulder(K.thx.qTrue[i], hand.lh)));
+                eH = std::max(eH, std::fabs(ht->value[i] - camHip(K.pel.qTrue[i], hand.lh)));
+                eA = std::max(eA, std::fabs(at->value[i] - camAxis(K.thx.qTrue[i], hand.lh)));
+            }
+            std::printf("    %s: max |sensor − ideal camera| P1→P7: shoulder plane %.4f°, hip tilt %.4f°, axis tilt %.4f°\n",
+                        hand.name, eS, eH, eA);
+            std::snprintf(lbl, sizeof lbl, "k (%s): shoulder plane = the chest's true left-right inclination, every sample P1→P7", hand.name);
+            CHECK_NEAR(lbl, eS, 0.0, 0.05);
+            std::snprintf(lbl, sizeof lbl, "k (%s): hip tilt = the ideal face-on camera's hip line, every sample P1→P7", hand.name);
+            CHECK_NEAR(lbl, eH, 0.0, 0.05);
+            std::snprintf(lbl, sizeof lbl, "k (%s): axis tilt = the ideal face-on camera's spine line, every sample P1→P7", hand.name);
+            CHECK_NEAR(lbl, eA, 0.0, 0.05);
+            // The GRADED readings at address, the top and impact, within each reading's own σ of the camera.
+            for (Phase ph : { Phase::Address, Phase::Top, Phase::Impact }) {
+                const double t = ph == Phase::Address ? kAddressS : ph == Phase::Top ? kTopS : kImpactS;
+                const size_t i = atS(K, t);
+                const struct { const char *n; const MetricSeries *m; double truth; } rows[] = {
+                    { "shoulder plane", sp, camShoulder(K.thx.qTrue[i], hand.lh) },
+                    { "hip tilt", ht, camHip(K.pel.qTrue[i], hand.lh) },
+                    { "axis tilt", at, camAxis(K.thx.qTrue[i], hand.lh) } };
+                for (const auto &row : rows) {
+                    const PhaseSample *p = phaseOf(row.m, ph);
+                    std::printf("    %s %s at phase %d: sensor %.3f°, ideal camera %.3f°, σ %.3f°\n", hand.name, row.n, int(ph),
+                                p ? p->value : std::nan(""), row.truth, p && p->sigma ? *p->sigma : std::nan(""));
+                    std::snprintf(lbl, sizeof lbl, "k (%s): %s graded at phase %d within its σ of the ideal camera",
+                                  hand.name, row.n, int(ph));
+                    CHECK(lbl, p && p->sigma && std::fabs(p->value - row.truth) <= *p->sigma);
+                }
+            }
+            // The signs, worked: at address the chest leans 8° toward the trail side (away from the target)
+            // with its trail shoulder 8° lower, the hips' trail side 2° lower; at the top the trail shoulder
+            // is up (the turn about the bent spine, plus the −12° tilt).
+            std::snprintf(lbl, sizeof lbl, "k (%s): signs — axis tilt +8° at address (away from the target), shoulder plane −8°, hip tilt −2°", hand.name);
+            CHECK(lbl, phaseOf(at, Phase::Address) && std::fabs(phaseOf(at, Phase::Address)->value - 8.0) < 0.3
+                           && phaseOf(sp, Phase::Address) && std::fabs(phaseOf(sp, Phase::Address)->value + 8.0) < 0.05
+                           && phaseOf(ht, Phase::Address) && std::fabs(phaseOf(ht, Phase::Address)->value + 2.0) < 0.05);
+            std::snprintf(lbl, sizeof lbl, "k (%s): …and the trail shoulder well up at the top (shoulder plane > +20°)", hand.name);
+            CHECK(lbl, phaseOf(sp, Phase::Top) && phaseOf(sp, Phase::Top)->value > 20.0);
+            // The domain: Address → Impact for the two face-on tilts (the face-on series' own mask); the
+            // shoulder plane, like the 3-D one, has none.
+            std::snprintf(lbl, sizeof lbl, "k (%s): hip and axis tilt masked past Impact, no Finish reading; the shoulder plane read there", hand.name);
+            CHECK(lbl, ht->valid.size() == ht->t_us.size() && at->valid.size() == at->t_us.size()
+                           && ht->valid[iImp] == 1 && ht->valid[iImp + 1] == 0 && at->valid[iImp] == 1 && at->valid[iImp + 1] == 0
+                           && !phaseOf(ht, Phase::Finish) && !phaseOf(at, Phase::Finish) && phaseOf(ht, Phase::Impact)
+                           && phaseOf(sp, Phase::Finish) && sp->valid.empty());
+            std::snprintf(lbl, sizeof lbl, "k (%s): what is stamped is what is graded, all three (max deg)", hand.name);
+            CHECK_NEAR(lbl, std::max({ gradedVsStamped(sp), gradedVsStamped(ht), gradedVsStamped(at) }), 0.0, 1e-9);
+            if (!hand.lh) rhSeries = sk;
+            else {
+                // A left-hander's mirrored body reads the same curves, sign for sign.
+                double d = 0.0;
+                for (const char *k : { "shoulderPlaneAngle3d", "hipLineTilt", "secondaryAxisTilt" }) {
+                    const MetricSeries *r = findS(rhSeries, k), *l = findS(sk, k);
+                    if (!r || !l || r->value.size() != l->value.size()) { d = 99; break; }
+                    for (size_t i = idxAt(kAddressS); i <= iImp; ++i) d = std::max(d, std::fabs(r->value[i] - l->value[i]));
+                }
+                CHECK_NEAR("k: left-hander: all three curves = the right-hander's, P1→P7 (max deg)", d, 0.0, 0.05);
+            }
+
+            if (hand.lh) continue;
+            // σ AT ADDRESS (design §8.2): no change from address, no turn, no drift yet, so —
+            //   shoulder plane = the chest's garment ⊕ its δ term at its bend: √(3² + asin(sin θ·sin 10°)²);
+            //   hip tilt = the hips' garment ⊕ their δ term (the front's heading is second order there: the
+            //     hip line lies along the target line, so ±σ_δ moves it the same way and half the spread is 0);
+            //   axis tilt = the chest's garment ⊕ the front term, half the spread of atan2(s·T±, s_z), T
+            //     turned ±10°: a chest bent 40° over the ball leans atan(tan θ·sin 10°) in a plane turned 10°.
+            {
+                const SQ qa = K.thx.qTrue[idxAt(kAddressS)], pa = K.pel.qTrue[idxAt(kAddressS)];
+                const SV s = qa.rotate({ 0, 0, 1 });
+                const double thB = std::atan2(std::sin(40 * kD2R), std::cos(40 * kD2R) * std::cos(8 * kD2R)) * kR2D;
+                const double peB = std::atan2(std::sin(20 * kD2R), std::cos(20 * kD2R) * std::cos(2 * kD2R)) * kR2D;
+                const double e = 10.0 * kD2R;
+                const double front = 0.5 * std::fabs(std::atan2(s.x * std::cos(e) + s.y * std::sin(e), s.z)
+                                                     - std::atan2(s.x * std::cos(e) - s.y * std::sin(e), s.z)) * kR2D;
+                (void)pa;
+                const PhaseSample *a1 = phaseOf(sp, Phase::Address), *a2 = phaseOf(ht, Phase::Address), *a3 = phaseOf(at, Phase::Address);
+                std::printf("    σ at address: shoulder plane %.3f°, hip tilt %.3f°, axis tilt %.3f° (front term %.3f°)\n",
+                            a1 && a1->sigma ? *a1->sigma : std::nan(""), a2 && a2->sigma ? *a2->sigma : std::nan(""),
+                            a3 && a3->sigma ? *a3->sigma : std::nan(""), front);
+                CHECK_NEAR("k: shoulder plane σ at address = √(3² + δ_chest²) (deg)", a1 && a1->sigma ? *a1->sigma : 0.0,
+                           std::hypot(3.0, ts::mountYawObliquityDeg(thB)), 0.02);
+                CHECK_NEAR("k: hip tilt σ at address = √(2² + δ_hips²) — the front term is second order there (deg)",
+                           a2 && a2->sigma ? *a2->sigma : 0.0, std::hypot(2.0, ts::mountYawObliquityDeg(peB)), 0.02);
+                CHECK_NEAR("k: axis tilt σ at address = √(3² + the front term) (deg)", a3 && a3->sigma ? *a3->sigma : 0.0,
+                           std::hypot(3.0, front), 0.02);
+                CHECK("k: …that front term is first order: ≈ atan(tan 40°·sin 10°) = 8.3° on this chest", front > 7.5 && front < 9.0);
+            }
+            // THE PUBLISHED σ AT THE TOP, re-derived here from the TRUE body and §8.2's numbers (W4 review): the
+            // hips' obliquity budget — garment 2°, δ through their ball-plane bend asin(sin θ·sin 10°), gyro scale
+            // 1.5 % of the obliquity's change, the turn's leak 1.5 %·|ψ|·sin θ, drift 0.5 °/s × 0.8 s — carried
+            // through the face-on projection atan2(sin φ, cos φ·|cos ρ|) at φ ± budget, ⊕ the front term (the
+            // reading with T = X̂ turned ±10° about vertical, half the spread). Against the graded Top σ.
+            {
+                const size_t it = idxAt(kTopS), ia = idxAt(kAddressS);
+                const SQ q = K.pel.qTrue[it], qa = K.pel.qTrue[ia];
+                const SV ml = q.rotate({ 1, 0, 0 }), mla = qa.rotate({ 1, 0, 0 }), sl = q.rotate({ 0, 0, 1 });
+                const double phi = std::asin(ml.z), phiA = std::asin(mla.z);
+                const double bend = std::atan2(sl.y, sl.z);                                  // the address front is +Y
+                const double psi = std::atan2(ml.y, ml.x) - std::atan2(mla.y, mla.x);        // turn from address
+                const double dTerm = std::asin(std::sin(std::fabs(bend)) * std::sin(10.0 * kD2R)) * kR2D;
+                const double gTerm = 0.015 * std::fabs(phi - phiA) * kR2D;
+                const double lTerm = 0.015 * std::fabs(psi) * kR2D * std::fabs(std::sin(bend));
+                const double bTerm = 0.5 * (kTopS - kAddressS);
+                const double budget = std::sqrt(4.0 + dTerm * dTerm + gTerm * gTerm + lTerm * lTerm + bTerm * bTerm);
+                const double c = std::fabs(ml.x) / std::hypot(ml.x, ml.y);                   // |cos ρ|, T = X̂
+                const auto proj = [&](double p) { return std::atan2(std::sin(p), std::cos(p) * c); };
+                const double carried = 0.5 * std::fabs(proj(phi + budget * kD2R) - proj(phi - budget * kD2R)) * kR2D;
+                const auto tilt = [&](double eDeg) {                                         // right-hander: d = +ml
+                    const double e = eDeg * kD2R;
+                    return std::atan2(ml.z, std::fabs(ml.x * std::cos(e) + ml.y * std::sin(e))) * kR2D;
+                };
+                const double front = 0.5 * std::fabs(tilt(10.0) - tilt(-10.0));
+                const double want = std::hypot(carried, front);
+                const PhaseSample *pt = phaseOf(ht, Phase::Top);
+                std::printf("    hip tilt σ at the top: published %.3f°, re-derived %.3f° (budget %.3f° carried to %.3f° at "
+                            "|cos ρ| %.3f, front %.3f°)\n", pt && pt->sigma ? *pt->sigma : std::nan(""), want, budget,
+                            carried, c, front);
+                CHECK_NEAR("k: hip tilt σ at the top = the budget carried through the projection ⊕ the front term, from the truth (deg)",
+                           pt && pt->sigma ? *pt->sigma : 0.0, want, 0.1);
+                CHECK("k: …and the projection really carries it (> the budget as it stands) with the front term first order",
+                      carried > budget * 1.2 && front > 1.0);
+            }
+        }
+
+        // A FUSION-YAW DRIFT of 17° since stand tall (§e's) turns q_anat's address heading off the stance X axis,
+        // so the face-on plane's target line is no longer X̂ in the sensors' world and both components of
+        // trailAxisOf are exercised. The plane follows each segment's own address front, so the drift drops
+        // out: the three tilts still equal the ideal camera on the TRUE body (square to X̂), every sample P1→P7.
+        {
+            for (const Hand hand : { Hand{ "right-hander", false }, Hand{ "left-hander", true } }) {
+                Rig dr = kb;
+                dr.driftDeg = 17.0;
+                dr.leftHanded = hand.lh;
+                const Run Dr = build(dr);
+                const std::vector<MetricSeries> sd = buildBodyRotationSeries(rotation(Dr), Dr.phases);
+                const MetricSeries *sp = findS(sd, "shoulderPlaneAngle3d"), *ht = findS(sd, "hipLineTilt"),
+                                   *at = findS(sd, "secondaryAxisTilt");
+                const QVector3D mla = Dr.pel.stream.qAnat[idxAt(kAddressS)].rotatedVector({ 1, 0, 0 });
+                const double heading = std::atan2(double(mla.y()), double(mla.x())) * kR2D;
+                double eS = 99, eH = 99, eA = 99;
+                if (sp && ht && at) {
+                    eS = eH = eA = 0;
+                    for (size_t i = idxAt(kAddressS); i <= idxAt(kImpactS); ++i) {
+                        eS = std::max(eS, std::fabs(sp->value[i] - camShoulder(Dr.thx.qTrue[i], hand.lh)));
+                        eH = std::max(eH, std::fabs(ht->value[i] - camHip(Dr.pel.qTrue[i], hand.lh)));
+                        eA = std::max(eA, std::fabs(at->value[i] - camAxis(Dr.thx.qTrue[i], hand.lh)));
+                    }
+                }
+                std::printf("    yaw drift 17°, %s: the hips' address heading in q_anat %.2f°; max |sensor − ideal camera| "
+                            "P1→P7: shoulder plane %.4f°, hip tilt %.4f°, axis tilt %.4f°\n", hand.name, heading, eS, eH, eA);
+                char lbl[200];
+                std::snprintf(lbl, sizeof lbl, "k (drift, %s): the address heading really moved (|heading| > 10°)", hand.name);
+                CHECK(lbl, std::fabs(heading) > 10.0);
+                std::snprintf(lbl, sizeof lbl, "k (drift, %s): all three tilts = the ideal camera on the true body, P1→P7 (max deg)", hand.name);
+                CHECK_NEAR(lbl, std::max({ eS, eH, eA }), 0.0, 0.05);
+            }
+        }
+
+        // A 10° MOUNT YAW on both sensors: each reading's error against the ideal camera lies inside its
+        // published σ at address, the top and impact — the δ terms and the front term are that error.
+        {
+            Rig dy = kb;
+            dy.thxMount.yawDeg = 10.0;
+            dy.pelMount.yawDeg = 10.0;
+            const Run D = build(dy);
+            const std::vector<MetricSeries> sd = buildBodyRotationSeries(rotation(D), D.phases);
+            for (Phase ph : { Phase::Address, Phase::Top, Phase::Impact }) {
+                const double t = ph == Phase::Address ? kAddressS : ph == Phase::Top ? kTopS : kImpactS;
+                const size_t i = idxAt(t);
+                const struct { const char *k; double truth; } rows[] = {
+                    { "shoulderPlaneAngle3d", camShoulder(D.thx.qTrue[i], false) },
+                    { "hipLineTilt", camHip(D.pel.qTrue[i], false) },
+                    { "secondaryAxisTilt", camAxis(D.thx.qTrue[i], false) } };
+                for (const auto &row : rows) {
+                    const PhaseSample *p = phaseOf(findS(sd, row.k), ph);
+                    std::printf("    δ 10° on both sensors, %s at phase %d: error %.3f°, σ %.3f°\n", row.k, int(ph),
+                                p ? p->value - row.truth : std::nan(""), p && p->sigma ? *p->sigma : std::nan(""));
+                    char lbl[160];
+                    std::snprintf(lbl, sizeof lbl, "k: δ 10°: %s at phase %d off the ideal camera by no more than its σ", row.k, int(ph));
+                    CHECK(lbl, p && p->sigma && std::fabs(p->value - row.truth) <= *p->sigma);
+                }
+            }
+            const PhaseSample *sa = phaseOf(findS(sd, "shoulderPlaneAngle3d"), Phase::Address);
+            CHECK("k: δ 10°: the shoulder plane's address error is real (> 4°: asin(sin 40° sin 10°) = 6.4°)",
+                  sa && std::fabs(sa->value - camShoulder(D.thx.qTrue[idxAt(kAddressS)], false)) > 4.0);
+        }
+
+        // THE EDGE-ON RULE: hips turned 77° at the top lie along the camera's axis (|cos 77°| = 0.22, below
+        // minHipSpanRatio 0.40). The face-on producer has no hip line there, and nor has the sensor.
+        {
+            Rig eo = kb;
+            eo.pel = pelvisMotion();
+            eo.pel.closeDeg = 80.0;
+            const Run E = build(eo);
+            const BodyRotationResult re = rotation(E);
+            const std::vector<MetricSeries> se = buildBodyRotationSeries(re, E.phases);
+            const MetricSeries *ht = findS(se, "hipLineTilt");
+            const double ratio = std::fabs(std::cos(eo.pel.psiDeg(kTopS) * kD2R));
+            std::printf("    hips %.1f° turned at the top: span ratio %.3f (gate %.2f); valid there %d, Top reading %s, valid at address %d\n",
+                        eo.pel.psiDeg(kTopS), ratio, pinpoint::tuned::lowerBody::kMinHipSpanRatio,
+                        ht && ht->valid.size() == ht->t_us.size() ? int(ht->valid[idxAt(kTopS)]) : -1,
+                        ht && phaseOf(ht, Phase::Top) ? "yes" : "no",
+                        ht && ht->valid.size() == ht->t_us.size() ? int(ht->valid[idxAt(kAddressS)]) : -1);
+            CHECK("k: edge-on hips: no hip tilt at the top (the frame not valid, no Top reading), address still read",
+                  ht && ratio < pinpoint::tuned::lowerBody::kMinHipSpanRatio && ht->valid.size() == ht->t_us.size()
+                      && ht->valid[idxAt(kTopS)] == 0 && !phaseOf(ht, Phase::Top) && phaseOf(ht, Phase::Address)
+                      && ht->valid[idxAt(kAddressS)] == 1);
+            CHECK("k: …and no record is fired for it (the gap is the face-on rule's, the precedence keeps a camera that reads)",
+                  std::none_of(re.gates.begin(), re.gates.end(), [](const GateRecord &g) {
+                      return g.effect != GateEffect::Downgraded && g.covers.contains(QStringLiteral("hipLineTilt")); }));
+        }
+
+        // THE RECORDS, each Downgraded on the readings it is true of.
+        {
+            const Run K = build(kb);
+            const BodyRotationResult rk = rotation(K);
+            const auto byId = [&](const BodyRotationResult &r, const char *id) -> const GateRecord * {
+                for (const GateRecord &g : r.gates) if (g.gate == QLatin1String(id)) return &g;
+                return nullptr;
+            };
+            const GateRecord *bend = byId(rk, "body.chestBendSite"), *shoulder = byId(rk, "body.chestShoulderSite"),
+                             *yaw = byId(rk, "body.trunkMountYawAssumed");
+            CHECK("k: body.chestBendSite covers the forward bend and the axis tilt (the upper back, not the hip-to-shoulder line)",
+                  bend && bend->effect == GateEffect::Downgraded && bend->subject == QLatin1String("spineForwardBend")
+                      && bend->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") }));
+            CHECK("k: body.chestShoulderSite: Downgraded, on shoulderPlaneAngle3d alone",
+                  shoulder && shoulder->effect == GateEffect::Downgraded && shoulder->subject == QLatin1String("shoulderPlaneAngle3d")
+                      && shoulder->covers == QStringList({ QStringLiteral("shoulderPlaneAngle3d") }));
+            CHECK("k: body.trunkMountYawAssumed covers both bends and all three tilts",
+                  yaw && yaw->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend"),
+                                                     QStringLiteral("shoulderPlaneAngle3d"), QStringLiteral("hipLineTilt"),
+                                                     QStringLiteral("secondaryAxisTilt") }));
+            // The hip sensor alone: its hip tilt, and nothing from the chest.
+            Run P = K;
+            P.fs.segments.erase(std::remove_if(P.fs.segments.begin(), P.fs.segments.end(),
+                                               [](const SegmentStream &s) { return s.role == SegmentRole::Thorax; }),
+                                P.fs.segments.end());
+            const BodyRotationResult rp = rotation(P);
+            const std::vector<MetricSeries> spp = buildBodyRotationSeries(rp, P.phases);
+            const GateRecord *py = byId(rp, "body.trunkMountYawAssumed");
+            CHECK("k: hip sensor alone: hipLineTilt, and no shoulder plane, axis tilt or bend",
+                  findS(spp, "hipLineTilt") && !findS(spp, "shoulderPlaneAngle3d") && !findS(spp, "secondaryAxisTilt")
+                      && !findS(spp, "spineForwardBend") && !findS(spp, "spineSideBend"));
+            CHECK("k: …the mount-yaw record on the hip tilt alone, and neither chest-site record",
+                  py && py->covers == QStringList({ QStringLiteral("hipLineTilt") }) && !byId(rp, "body.chestBendSite")
+                      && !byId(rp, "body.chestShoulderSite"));
+            // FACE-IN: each tilt reads backward and joins the record of the sensor it is read from.
+            Rig fc = kb;
+            fc.thxMount.extra = rz(180);
+            const Run Fc = build(fc);
+            const BodyRotationResult rfc = rotation(Fc);
+            const GateRecord *gc = byId(rfc, "body.thoraxFaceIn");
+            CHECK("k: face-in chest: its record covers shoulderPlaneAngle3d and secondaryAxisTilt, not hipLineTilt",
+                  gc && gc->covers.contains(QStringLiteral("shoulderPlaneAngle3d")) && gc->covers.contains(QStringLiteral("secondaryAxisTilt"))
+                      && !gc->covers.contains(QStringLiteral("hipLineTilt")));
+            const std::vector<MetricSeries> sfc = buildBodyRotationSeries(rfc, Fc.phases);
+            const PhaseSample *fsp = phaseOf(findS(sfc, "shoulderPlaneAngle3d"), Phase::Address);
+            std::printf("    face-in chest: shoulder plane at address %.3f° (the true −8°)\n", fsp ? fsp->value : std::nan(""));
+            CHECK("k: …and its shoulder plane reads backward (+8° for −8°), shown, never hidden",
+                  fsp && std::fabs(fsp->value - 8.0) < 0.1);
+            Rig fp = kb;
+            fp.pelMount.extra = rz(180);
+            const BodyRotationResult rfp = rotation(build(fp));
+            const GateRecord *gp = byId(rfp, "body.pelvisFaceIn");
+            CHECK("k: face-in hips: their record covers hipLineTilt, not the chest's tilts",
+                  gp && gp->covers.contains(QStringLiteral("hipLineTilt")) && !gp->covers.contains(QStringLiteral("shoulderPlaneAngle3d"))
+                      && !gp->covers.contains(QStringLiteral("secondaryAxisTilt")));
+        }
+
+        // ── Precedence: the tilts win, whatever the stage order — when trusted ──
+        {
+            const auto series = [](const char *key, const char *route, std::vector<Phase> at = {}) {
+                MetricSeries m;
+                m.key = QString::fromLatin1(key);
+                m.routeId = QString::fromLatin1(route);
+                m.t_us = { 0, 1 };
+                m.value = { 0.0, 0.0 };
+                for (Phase p : at) m.phaseSamples.push_back({ p, 0, 0.0, QString() });
+                return m;
+            };
+            const auto rec = [](const char *gate, const char *subject, GateEffect e, QStringList covers) {
+                return GateRecord{ QString::fromLatin1(gate), QString::fromLatin1(subject), e, {}, {}, {}, covers };
+            };
+            const std::vector<Phase> all{ Phase::Address, Phase::Top, Phase::Impact };
+            const auto records = [&]() {
+                return std::vector<GateRecord>{
+                    rec("body.lowerAddress", "pelvisSway", GateEffect::Refused,
+                        { QStringLiteral("pelvisLift"), QStringLiteral("hipLineTilt") }),
+                    rec("body.hipLine", "hipLineTilt", GateEffect::Masked, {}),
+                    rec("body.upperAddress", "secondaryAxisTilt", GateEffect::Refused,
+                        { QStringLiteral("spineSideBend"), QStringLiteral("thoraxLateralDrift") }),
+                    rec("body.chestBendSite", "spineForwardBend", GateEffect::Downgraded,
+                        { QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") }),
+                    rec("body.chestShoulderSite", "shoulderPlaneAngle3d", GateEffect::Downgraded,
+                        { QStringLiteral("shoulderPlaneAngle3d") }),
+                    rec("body.trunkMountYawAssumed", "spineForwardBend", GateEffect::Downgraded,
+                        { QStringLiteral("spineForwardBend"), QStringLiteral("shoulderPlaneAngle3d"),
+                          QStringLiteral("hipLineTilt"), QStringLiteral("secondaryAxisTilt") }) };
+            };
+            const auto byId = [](const std::vector<GateRecord> &gv, const char *id) -> const GateRecord * {
+                for (const GateRecord &g : gv) if (g.gate == QLatin1String(id)) return &g;
+                return nullptr;
+            };
+            const auto routesOf = [](const std::vector<MetricSeries> &sv, const char *key) {
+                QStringList r;
+                for (const MetricSeries &m : sv) if (m.key == QLatin1String(key)) r << m.routeId;
+                return r;
+            };
+            // Sensors first (BodyRotationStage), then the face-on and 3-D ones; and the sensors last.
+            for (int order = 0; order < 2; ++order) {
+                std::vector<MetricSeries> sensors{ series("shoulderPlaneAngle3d", "thoraxImu", all),
+                                                   series("hipLineTilt", "pelvisImu", all),
+                                                   series("secondaryAxisTilt", "thoraxImu", all) };
+                std::vector<MetricSeries> cams{ series("shoulderPlaneAngle3d", "faceOn+dtl", all), series("hipLineTilt", "", all),
+                                                series("secondaryAxisTilt", "", all) };
+                std::vector<MetricSeries> sv = order == 0 ? sensors : cams;
+                for (const MetricSeries &m : order == 0 ? cams : sensors) sv.push_back(m);
+                std::vector<GateRecord> gv = records();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                char lbl[160];
+                std::snprintf(lbl, sizeof lbl, "k: precedence (%s): one reading per tilt, the sensor's; the 3-D and face-on ones erased",
+                              order == 0 ? "sensors first" : "sensors last");
+                CHECK(lbl, routesOf(sv, "shoulderPlaneAngle3d") == QStringList({ QStringLiteral("thoraxImu") })
+                               && routesOf(sv, "hipLineTilt") == QStringList({ QStringLiteral("pelvisImu") })
+                               && routesOf(sv, "secondaryAxisTilt") == QStringList({ QStringLiteral("thoraxImu") })
+                               && r.seriesDropped == 3 && r.sensorDropped == 0);
+                std::snprintf(lbl, sizeof lbl, "k: precedence (%s): the face-on records stop speaking for the tilts, keep the rest",
+                              order == 0 ? "sensors first" : "sensors last");
+                const GateRecord *la = byId(gv, "body.lowerAddress"), *ua = byId(gv, "body.upperAddress");
+                CHECK(lbl, !byId(gv, "body.hipLine") && la && !la->covers.contains(QStringLiteral("hipLineTilt"))
+                               && la->covers.contains(QStringLiteral("pelvisLift")) && ua
+                               && ua->subject == QLatin1String("spineSideBend") && byId(gv, "body.chestShoulderSite"));
+            }
+            // A CHEST WORN FACE-IN must not beat a good camera: the 3-D shoulder plane and the face-on axis
+            // tilt stay, the sensor's are withdrawn, and the chest's records stop speaking for them —
+            // body.chestBendSite keeps the forward bend it still speaks for. The hip tilt is still the hip
+            // sensor's.
+            {
+                std::vector<MetricSeries> sv{ series("shoulderPlaneAngle3d", "thoraxImu", all), series("shoulderPlaneAngle3d", "faceOn+dtl", all),
+                                              series("secondaryAxisTilt", "thoraxImu", all), series("secondaryAxisTilt", "", all),
+                                              series("hipLineTilt", "pelvisImu", all), series("hipLineTilt", "", all),
+                                              series("spineForwardBend", "trunkImus", all) };
+                std::vector<GateRecord> gv = records();
+                gv.push_back(rec("body.thoraxFaceIn", "thoraxRotation", GateEffect::Downgraded,
+                                 { QStringLiteral("spineForwardBend"), QStringLiteral("shoulderPlaneAngle3d"),
+                                   QStringLiteral("secondaryAxisTilt") }));
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *bs = byId(gv, "body.chestBendSite"), *y = byId(gv, "body.trunkMountYawAssumed");
+                CHECK("k: face-in chest + camera readings: the 3-D shoulder plane and the face-on axis tilt stay, the sensor's withdrawn",
+                      routesOf(sv, "shoulderPlaneAngle3d") == QStringList({ QStringLiteral("faceOn+dtl") })
+                          && routesOf(sv, "secondaryAxisTilt") == QStringList({ QString() }) && r.sensorDropped == 2);
+                CHECK("k: …the hip tilt is still the hip sensor's", routesOf(sv, "hipLineTilt") == QStringList({ QStringLiteral("pelvisImu") }));
+                CHECK("k: …body.chestShoulderSite dropped, body.chestBendSite keeps the forward bend alone",
+                      !byId(gv, "body.chestShoulderSite") && bs && bs->covers == QStringList({ QStringLiteral("spineForwardBend") }));
+                CHECK("k: …the mount-yaw record keeps the forward bend and the hip tilt only",
+                      y && y->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("hipLineTilt") }));
+                CHECK("k: …and the camera's own records still speak for the readings that stay",
+                      byId(gv, "body.upperAddress") && byId(gv, "body.upperAddress")->subject == QLatin1String("secondaryAxisTilt"));
+            }
+            // Fewer positions: a sensor axis tilt with no top reading, against a face-on curve that has one,
+            // keeps the camera.
+            {
+                std::vector<MetricSeries> sv{ series("secondaryAxisTilt", "thoraxImu", { Phase::Address, Phase::Impact }),
+                                              series("secondaryAxisTilt", "", all) };
+                std::vector<GateRecord> gv = records();
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                CHECK("k: sensor axis tilt without a top reading the camera has: the camera stays",
+                      routesOf(sv, "secondaryAxisTilt") == QStringList({ QString() }) && r.sensorDropped == 1);
+            }
+            // The sensor ALONE, the face-on route having refused at address (its refusal covers the key, its
+            // series never written): the refusal no longer speaks for the reading that stands.
+            {
+                std::vector<MetricSeries> sv{ series("hipLineTilt", "pelvisImu", all) };
+                std::vector<GateRecord> gv = records();
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *la = byId(gv, "body.lowerAddress");
+                CHECK("k: sensor hip tilt alone: the face-on refusal and mask are taken off it, the refusal keeps its other readings",
+                      sv.size() == 1 && la && !la->covers.contains(QStringLiteral("hipLineTilt"))
+                          && la->covers.contains(QStringLiteral("pelvisLift")) && !byId(gv, "body.hipLine")
+                          && byId(gv, "body.trunkMountYawAssumed")->covers.contains(QStringLiteral("hipLineTilt")));
+            }
+        }
+    }
+
+    // ── §l the address front (W4c, 13 Nov 2026) ─────────────────────────────────────────────────────
+    // spineForwardBend, hipLineTilt and secondaryAxisTilt take the target line (or the plane through the
+    // ball) from each sensor's OWN front at this swing's address. A golfer set up open therefore reads
+    // EXACTLY as a square one on them — the set-up is absorbed — while the ideal face-on camera, square to
+    // the true target line, sees it. That is never hidden: body.targetFromAddress, Downgraded, on exactly
+    // those readings (Mark, 13 Nov; the stick's target line is #178).
+    std::printf("-- l. the address front: an open set-up is absorbed by the sensors, and said (body.targetFromAddress) --\n");
+    {
+        const auto findS = [](const std::vector<MetricSeries> &all, const char *key) -> const MetricSeries * {
+            for (const MetricSeries &m : all)
+                if (m.key == QLatin1String(key)) return &m;
+            return nullptr;
+        };
+        const auto byId = [](const std::vector<GateRecord> &gv, const char *id) -> const GateRecord * {
+            for (const GateRecord &g : gv) if (g.gate == QLatin1String(id)) return &g;
+            return nullptr;
+        };
+        const auto evDeg = [](const GateRecord *g, const char *k) {
+            return g && g->evidence.contains(QLatin1String(k)) ? g->evidence.value(QLatin1String(k)).toDouble() : std::nan("");
+        };
+        // The ideal face-on camera on the truth (§k's): the hip line and the spine's lean in the target
+        // line's vertical plane, the stance frame's X–Z plane.
+        const auto camHip = [](const SQ &q, bool lh) {
+            const double h = lh ? -1.0 : 1.0;
+            const SV ml = q.rotate({ 1, 0, 0 });
+            return std::atan2(h * ml.z, std::fabs(h * ml.x)) * kR2D;
+        };
+        const auto camAxis = [](const SQ &q, bool lh) {
+            const SV s = q.rotate({ 0, 0, 1 });
+            return std::atan2((lh ? -1.0 : 1.0) * s.x, s.z) * kR2D;
+        };
+        const QStringList fromAddress{ QStringLiteral("spineForwardBend"), QStringLiteral("hipLineTilt"),
+                                       QStringLiteral("secondaryAxisTilt") };
+        // §k's body: a frontal tilt, so the forward bend's front is first order too.
+        Rig lb = base;
+        lb.thx.sideDeg = 8.0;  lb.thx.sideTopDeg = -12.0; lb.thx.sideImpactDeg = 25.0;
+        lb.pel.sideDeg = 2.0;  lb.pel.sideTopDeg = -4.0;  lb.pel.sideImpactDeg = 10.0;
+        constexpr double kOpenDeg = 12.0;
+        struct Hand { const char *name; bool lh; };
+        for (const Hand hand : { Hand{ "right-hander", false }, Hand{ "left-hander", true } }) {
+            Rig sq = lb;
+            sq.leftHanded = hand.lh;
+            Rig op = sq;
+            op.setupOpenDeg = kOpenDeg;
+            const Run S = build(sq), O = build(op);
+            const BodyRotationResult rs = rotation(S), ro = rotation(O);
+            const std::vector<MetricSeries> ss = buildBodyRotationSeries(rs, S.phases), so = buildBodyRotationSeries(ro, O.phases);
+            char lbl[220];
+            // ABSORBED: every trunk-sensor reading, front-based or not, is the same open as square — sample by
+            // sample P1→P7, and at every graded position. (The turns, X-factor, side bend and shoulder plane
+            // need no front; the three that take one read the open golfer's own line as the target line.)
+            const char *keys[] = { "spineForwardBend", "hipLineTilt", "secondaryAxisTilt", "spineSideBend",
+                                   "shoulderPlaneAngle3d", "pelvisRotationSigned", "thoraxRotationSigned", "xFactor" };
+            double worst = 0.0;
+            bool present = true;
+            for (const char *k : keys) {
+                const MetricSeries *a = findS(ss, k), *b = findS(so, k);
+                if (!a || !b || a->value.size() != b->value.size() || a->phaseSamples.size() != b->phaseSamples.size()) {
+                    present = false;
+                    continue;
+                }
+                for (size_t i = 0; i < a->t_us.size(); ++i) {
+                    const double t = double(a->t_us[i]) * 1e-6;
+                    if (t < kAddressS || t > kImpactS) continue;
+                    if (a->valid.size() == a->t_us.size() && (!a->valid[i] || !b->valid[i])) continue;
+                    worst = std::max(worst, std::fabs(a->value[i] - b->value[i]));
+                }
+                for (size_t i = 0; i < a->phaseSamples.size(); ++i)
+                    worst = std::max(worst, std::fabs(a->phaseSamples[i].value - b->phaseSamples[i].value));
+            }
+            // …WHILE THE CAMERA SEES IT: the true body's hip line and spine lean, open against square.
+            double camH = 0.0, camA = 0.0;
+            for (size_t i = idxAt(kAddressS); i <= idxAt(kImpactS); ++i) {
+                camH = std::max(camH, std::fabs(camHip(O.pel.qTrue[i], hand.lh) - camHip(S.pel.qTrue[i], hand.lh)));
+                camA = std::max(camA, std::fabs(camAxis(O.thx.qTrue[i], hand.lh) - camAxis(S.thx.qTrue[i], hand.lh)));
+            }
+            const size_t ia = idxAt(kAddressS);
+            std::printf("    %s set up %.0f° open: max |open − square| P1→P7 on the sensor readings %.5f°; the ideal camera "
+                        "differs by up to %.2f° (hip tilt) and %.2f° (axis tilt; %.2f° at address)\n",
+                        hand.name, kOpenDeg, worst, camH, camA,
+                        std::fabs(camAxis(O.thx.qTrue[ia], hand.lh) - camAxis(S.thx.qTrue[ia], hand.lh)));
+            std::snprintf(lbl, sizeof lbl, "l (%s): an open set-up is absorbed — every sensor reading as square (max deg)", hand.name);
+            CHECK(lbl, present);
+            CHECK_NEAR(lbl, worst, 0.0, 0.01);
+            std::snprintf(lbl, sizeof lbl, "l (%s): …while the ideal camera sees it (hip tilt and axis tilt move > 3°)", hand.name);
+            CHECK(lbl, camH > 3.0 && camA > 3.0);
+            // SO IT IS SAID: the record, on exactly the three readings that take a front.
+            for (const BodyRotationResult *r : { &rs, &ro }) {
+                const GateRecord *fa = byId(r->gates, "body.targetFromAddress");
+                const bool open = r == &ro;
+                std::snprintf(lbl, sizeof lbl, "l (%s, %s): body.targetFromAddress, Downgraded, covers exactly the forward bend, hip tilt and axis tilt",
+                              hand.name, open ? "open" : "square");
+                CHECK(lbl, fa && fa->effect == GateEffect::Downgraded && fa->subject == QLatin1String("spineForwardBend")
+                               && fa->covers == fromAddress
+                               && fa->evidence.value(QStringLiteral("code")).toString() == QLatin1String("squareAtAddress"));
+                // Its evidence: each front's heading at address against stand tall, lead-relative, + open.
+                const double want = open ? kOpenDeg : 0.0;
+                std::printf("    %s, %s: the fronts' headings at address — chest %.3f°, hips %.3f°\n", hand.name,
+                            open ? "open" : "square", evDeg(fa, "chestAddressHeadingDeg"), evDeg(fa, "hipAddressHeadingDeg"));
+                std::snprintf(lbl, sizeof lbl, "l (%s, %s): evidence, the chest's front heading (+ open, deg)", hand.name, open ? "open" : "square");
+                CHECK_NEAR(lbl, evDeg(fa, "chestAddressHeadingDeg"), want, 0.05);
+                std::snprintf(lbl, sizeof lbl, "l (%s, %s): evidence, the hips' front heading (+ open, deg)", hand.name, open ? "open" : "square");
+                CHECK_NEAR(lbl, evDeg(fa, "hipAddressHeadingDeg"), want, 0.05);
+            }
+            // A FUSION-YAW DRIFT since stand tall moves the stated heading as an open set-up would: the
+            // sensors cannot tell the two apart, which is why the words say "sensor drift included".
+            Rig dr = sq;
+            dr.driftDeg = 17.0;
+            const GateRecord *fd = nullptr;
+            const BodyRotationResult rd = rotation(build(dr));
+            fd = byId(rd.gates, "body.targetFromAddress");
+            std::snprintf(lbl, sizeof lbl, "l (%s): a 17° yaw drift reads as 17° of heading in the evidence (|deg|)", hand.name);
+            CHECK_NEAR(lbl, std::fabs(evDeg(fd, "hipAddressHeadingDeg")), 17.0, 0.05);
+        }
+
+        // ONE SENSOR AT A TIME: the record covers the readings that sensor's front made, and states only
+        // that front's heading.
+        {
+            const Run L = build(lb);
+            for (const bool chestOnly : { true, false }) {
+                Run one = L;
+                const SegmentRole drop = chestOnly ? SegmentRole::Pelvis : SegmentRole::Thorax;
+                one.fs.segments.erase(std::remove_if(one.fs.segments.begin(), one.fs.segments.end(),
+                                                     [&](const SegmentStream &s) { return s.role == drop; }),
+                                      one.fs.segments.end());
+                const BodyRotationResult r1 = rotation(one);
+                const GateRecord *fa = byId(r1.gates, "body.targetFromAddress");
+                if (chestOnly)
+                    CHECK("l: chest sensor alone: the record covers the forward bend and axis tilt, with the chest's heading only",
+                          fa && fa->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") })
+                              && fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg"))
+                              && !fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
+                else
+                    CHECK("l: hip sensor alone: the record covers the hip tilt, with the hips' heading only",
+                          fa && fa->subject == QLatin1String("hipLineTilt") && fa->covers == QStringList({ QStringLiteral("hipLineTilt") })
+                              && fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg"))
+                              && !fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg")));
+            }
+        }
+
+        // PRECEDENCE: like the sensors' other records, withdrawn from a key with the reading when the camera
+        // stays the answer, its heading with it; dropped when it covers nothing. It stays when the sensor wins.
+        {
+            const auto series = [](const char *key, const char *route, std::vector<Phase> at = {}) {
+                MetricSeries m;
+                m.key = QString::fromLatin1(key);
+                m.routeId = QString::fromLatin1(route);
+                m.t_us = { 0, 1 };
+                m.value = { 0.0, 0.0 };
+                for (Phase p : at) m.phaseSamples.push_back({ p, 0, 0.0, QString() });
+                return m;
+            };
+            const std::vector<Phase> all{ Phase::Address, Phase::Top, Phase::Impact };
+            const auto records = [&](QStringList faceInChest, QStringList faceInHips) {
+                std::vector<GateRecord> gv{ GateRecord{ QStringLiteral("body.targetFromAddress"), QStringLiteral("spineForwardBend"),
+                                                        GateEffect::Downgraded,
+                                                        QVariantMap{ { QStringLiteral("code"), QStringLiteral("squareAtAddress") },
+                                                                     { QStringLiteral("chestAddressHeadingDeg"), 4.0 },
+                                                                     { QStringLiteral("hipAddressHeadingDeg"), 3.0 } },
+                                                        {}, {}, fromAddress } };
+                if (!faceInChest.isEmpty())
+                    gv.push_back(GateRecord{ QStringLiteral("body.thoraxFaceIn"), QStringLiteral("thoraxRotation"),
+                                             GateEffect::Downgraded, {}, {}, {}, faceInChest });
+                if (!faceInHips.isEmpty())
+                    gv.push_back(GateRecord{ QStringLiteral("body.pelvisFaceIn"), QStringLiteral("pelvisRotation"),
+                                             GateEffect::Downgraded, {}, {}, {}, faceInHips });
+                return gv;
+            };
+            const auto withCameras = [&]() {
+                return std::vector<MetricSeries>{ series("spineForwardBend", "trunkImus", all), series("spineForwardBend", "", all),
+                                                  series("hipLineTilt", "pelvisImu", all), series("hipLineTilt", "", all),
+                                                  series("secondaryAxisTilt", "thoraxImu", all), series("secondaryAxisTilt", "", all) };
+            };
+            {
+                std::vector<MetricSeries> sv = withCameras();
+                std::vector<GateRecord> gv = records({}, {});
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fa = byId(gv, "body.targetFromAddress");
+                CHECK("l: sensors trusted: the record stays on all three, both headings stated",
+                      fa && fa->covers == fromAddress && fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg"))
+                          && fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
+            }
+            {
+                // A face-in chest beside the camera's axis tilt, with no camera forward bend: the axis tilt goes
+                // to the camera, the sensor's forward bend stands and keeps the chest's heading.
+                std::vector<MetricSeries> sv{ series("spineForwardBend", "trunkImus", all), series("hipLineTilt", "pelvisImu", all),
+                                              series("secondaryAxisTilt", "thoraxImu", all), series("secondaryAxisTilt", "", all) };
+                std::vector<GateRecord> gv = records({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") }, {});
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fa = byId(gv, "body.targetFromAddress");
+                CHECK("l: face-in chest, camera axis tilt: the record loses the axis tilt, keeps the bend, the hip tilt and both headings",
+                      fa && fa->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("hipLineTilt") })
+                          && fa->subject == QLatin1String("spineForwardBend")
+                          && fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg"))
+                          && fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
+            }
+            {
+                // The face-in chest beside camera readings of BOTH its keys: the chest's heading goes with them.
+                std::vector<MetricSeries> sv = withCameras();
+                std::vector<GateRecord> gv = records({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") }, {});
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fa = byId(gv, "body.targetFromAddress");
+                CHECK("l: face-in chest, camera bend and axis tilt: the record keeps the hip tilt alone, its subject moved, no chest heading",
+                      fa && fa->covers == QStringList({ QStringLiteral("hipLineTilt") }) && fa->subject == QLatin1String("hipLineTilt")
+                          && !fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg"))
+                          && fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
+            }
+            {
+                // Face-in hips beside the face-on hip line: the hips' heading goes with the hip tilt.
+                std::vector<MetricSeries> sv = withCameras();
+                std::vector<GateRecord> gv = records({}, { QStringLiteral("hipLineTilt") });
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fa = byId(gv, "body.targetFromAddress");
+                CHECK("l: face-in hips, face-on hip tilt: the record loses the hip tilt and the hips' heading, keeps the chest's",
+                      fa && fa->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") })
+                          && !fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg"))
+                          && fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg")));
+            }
+            {
+                // Every sensor reading withdrawn (both sensors face-in, cameras on all three): the record goes.
+                std::vector<MetricSeries> sv = withCameras();
+                std::vector<GateRecord> gv = records({ QStringLiteral("spineForwardBend"), QStringLiteral("secondaryAxisTilt") },
+                                                     { QStringLiteral("hipLineTilt") });
+                const TrunkPrecedence r = applyTrunkSensorPrecedence(sv, gv);
+                CHECK("l: every front-based reading withdrawn: the record is dropped with them",
+                      !byId(gv, "body.targetFromAddress") && r.sensorDropped == 3);
+            }
+            {
+                // Fewer positions: a sensor hip tilt with no top reading the camera has keeps the camera, and the
+                // record lets the hip tilt go.
+                std::vector<MetricSeries> sv{ series("hipLineTilt", "pelvisImu", { Phase::Address, Phase::Impact }),
+                                              series("hipLineTilt", "", all), series("spineForwardBend", "trunkImus", all),
+                                              series("secondaryAxisTilt", "thoraxImu", all) };
+                std::vector<GateRecord> gv = records({}, {});
+                applyTrunkSensorPrecedence(sv, gv);
+                const GateRecord *fa = byId(gv, "body.targetFromAddress");
+                CHECK("l: sensor hip tilt short of the camera's positions: the record lets the hip tilt go",
+                      fa && !fa->covers.contains(QStringLiteral("hipLineTilt")) && !fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
+            }
+        }
+    }
+
+    // ── §m the shoulder tilt against the forward bend (W7, 13 Nov 2026) ───────────────────────────────
+    // shoulderTiltVsBend = shoulderPlaneAngle3d at the top − spineForwardBend at address, derived AFTER the
+    // precedence (runProfile), on §k's body: the chest bent 40° over the ball, 8° toward the trail side at
+    // address, the trail side up 12° at the top. NO WORN RECORDING EXISTS.
+    std::printf("-- m. the shoulder tilt against the forward bend, after the precedence --\n");
+    {
+        const auto findS = [](const std::vector<MetricSeries> &all, const QString &key) -> const MetricSeries * {
+            for (const MetricSeries &m : all)
+                if (m.key == key) return &m;
+            return nullptr;
+        };
+        const auto phaseOf = [](const MetricSeries *m, Phase p) -> const PhaseSample * {
+            if (m)
+                for (const PhaseSample &s : m->phaseSamples)
+                    if (s.phase == p) return &s;
+            return nullptr;
+        };
+        const QString K = tilt_vs_bend::readingKey();
+        Rig kb = base;
+        kb.thx.sideDeg = 8.0;  kb.thx.sideTopDeg = -12.0; kb.thx.sideImpactDeg = 25.0;
+        kb.pel.sideDeg = 2.0;  kb.pel.sideTopDeg = -4.0;  kb.pel.sideImpactDeg = 10.0;
+        double rhValue = std::nan("");
+        for (const bool lh : { false, true }) {
+            const char *hand = lh ? "left-hander" : "right-hander";
+            Rig hr = kb;
+            hr.leftHanded = lh;
+            const Run M = build(hr);
+            const BodyRotationResult rm = rotation(M);
+            std::vector<MetricSeries> sm = buildBodyRotationSeries(rm, M.phases);
+            std::vector<GateRecord> gm = rm.gates;
+            applyTrunkSensorPrecedence(sm, gm, M.phases);
+            const PhaseSample *tTop = phaseOf(findS(sm, tilt_vs_bend::tiltKey()), Phase::Top);
+            const PhaseSample *bAddr = phaseOf(findS(sm, tilt_vs_bend::bendKey()), Phase::Address);
+            const tilt_vs_bend::Outcome o = deriveShoulderTiltVsBend(sm, gm, M.phases);
+            const MetricSeries *r = findS(sm, K);
+            const PhaseSample *rTop = phaseOf(r, Phase::Top);
+            std::printf("    %s: tilt at the top %.3f° (σ %.3f) − bend at address %.3f° (σ %.3f) = %.3f° (σ %.3f)\n", hand,
+                        tTop ? tTop->value : std::nan(""), tTop && tTop->sigma ? *tTop->sigma : std::nan(""),
+                        bAddr ? bAddr->value : std::nan(""), bAddr && bAddr->sigma ? *bAddr->sigma : std::nan(""),
+                        rTop ? rTop->value : std::nan(""), rTop && rTop->sigma ? *rTop->sigma : std::nan(""));
+            char lbl[220];
+            std::snprintf(lbl, sizeof lbl, "m (%s): produced on the trunkImus rung, Direct, no mixed-sources record", hand);
+            bool mixed = false;
+            for (const GateRecord &g : gm) mixed = mixed || g.gate == QLatin1String("body.tiltBendMixedSources");
+            CHECK(lbl, o.produced && r && r->routeId == QStringLiteral("trunkImus") && r->routeDirect && !mixed && !o.mixed);
+            if (!o.produced || !r || !rTop || !tTop || !bAddr) continue;
+            // The stamped phase samples ARE the graded readings (§k), so the difference of the two is the graded one.
+            std::snprintf(lbl, sizeof lbl, "m (%s): the value = the graded tilt at the top − the graded bend at address (deg)", hand);
+            CHECK_NEAR(lbl, rTop->value, tTop->value - bAddr->value, 1e-9);
+            std::snprintf(lbl, sizeof lbl, "m (%s): σ = the two graded σ in quadrature (deg)", hand);
+            CHECK_NEAR(lbl, rTop->sigma ? *rTop->sigma : -1.0, std::hypot(*tTop->sigma, *bAddr->sigma), 1e-9);
+            std::snprintf(lbl, sizeof lbl, "m (%s): the trail shoulder up at the top by about the bend: within 6° of 0 here", hand);
+            CHECK(lbl, std::fabs(rTop->value) < 6.0);
+            const auto covers = [&](const char *id) {
+                for (const GateRecord &g : gm) if (g.gate == QLatin1String(id) && g.covers.contains(K)) return true;
+                return false;
+            };
+            std::snprintf(lbl, sizeof lbl, "m (%s): the chest's records cover it: bend site, shoulder site, mount yaw, address front", hand);
+            CHECK(lbl, covers("body.chestBendSite") && covers("body.chestShoulderSite") && covers("body.trunkMountYawAssumed")
+                           && covers("body.targetFromAddress"));
+            if (!lh) rhValue = rTop->value;
+            else CHECK_NEAR("m: left-hander: the same reading as the right-hander's (deg)", rTop->value, rhValue, 0.05);
+
+            if (lh) continue;
+            // The chest worn FACE-IN beside a 3-D tilt and a down-the-line bend: the precedence keeps the cameras'
+            // readings, so the difference is the cameras' pair, with the mixed-sources warning, and the chest's
+            // records — withdrawn from both halves — do not reach it.
+            std::vector<MetricSeries> sf = buildBodyRotationSeries(rm, M.phases);
+            std::vector<GateRecord> gf = rm.gates;
+            gf.push_back(GateRecord{ QStringLiteral("body.thoraxFaceIn"), QStringLiteral("thoraxRotation"), GateEffect::Downgraded,
+                                     {}, {}, {}, { tilt_vs_bend::tiltKey(), tilt_vs_bend::bendKey() } });
+            MetricSeries t3 = *findS(sf, tilt_vs_bend::tiltKey());
+            t3.routeId = QStringLiteral("faceOn+dtl"); t3.routeDirect = false;
+            for (double &v : t3.value) v += 2.0;
+            for (PhaseSample &p : t3.phaseSamples) p.value += 2.0;
+            MetricSeries bd = *findS(sf, tilt_vs_bend::bendKey());
+            bd.routeId.clear(); bd.routeDirect = false;
+            for (double &v : bd.value) v -= 1.0;
+            for (PhaseSample &p : bd.phaseSamples) p.value -= 1.0;
+            sf.push_back(t3);
+            sf.push_back(bd);
+            applyTrunkSensorPrecedence(sf, gf, M.phases);
+            const tilt_vs_bend::Outcome of = deriveShoulderTiltVsBend(sf, gf, M.phases);
+            const MetricSeries *rf = findS(sf, K);
+            const PhaseSample *rfTop = phaseOf(rf, Phase::Top);
+            const GateRecord *mx = nullptr;
+            for (const GateRecord &g : gf) if (g.gate == QLatin1String("body.tiltBendMixedSources")) mx = &g;
+            bool chestCovers = false;
+            for (const GateRecord &g : gf)
+                if ((g.gate == QLatin1String("body.chestBendSite") || g.gate == QLatin1String("body.chestShoulderSite")
+                     || g.gate == QLatin1String("body.thoraxFaceIn")) && g.covers.contains(K))
+                    chestCovers = true;
+            CHECK("m: chest face-in beside the cameras: the cameras' pair (faceOn+dtl), the mixed-sources record, no chest record on it",
+                  of.produced && rf && rf->routeId == QStringLiteral("faceOn+dtl") && !rf->routeDirect && mx
+                      && mx->evidence.value(QStringLiteral("tiltFrom")).toString() == QStringLiteral("faceOn+dtl")
+                      && mx->evidence.value(QStringLiteral("bendFrom")).toString() == QStringLiteral("dtl") && !chestCovers);
+            CHECK_NEAR("m: …and its value is the cameras' (the sensor's difference + 2° − (−1°))",
+                       rfTop ? rfTop->value : 99.0, rTop->value + 3.0, 1e-6);
         }
     }
 

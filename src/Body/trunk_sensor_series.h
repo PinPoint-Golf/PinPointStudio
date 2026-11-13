@@ -32,9 +32,13 @@
 //     — with a wide σ and the Downgraded body.thighTurnAssumed record — where the fit did not read it;
 //   · the forward bend's definition (ballPlaneBendDeg): the long axis in the vertical plane through
 //     the ball, as the down-the-line camera reads it;
-//   · the precedence rule: a trunk-sensor spineForwardBend / spineSideBend beats the down-the-line,
-//     face-on and 3-D readings — unless the sensor is worn face-in or reads fewer positions than the
-//     camera (applyTrunkSensorPrecedence, run once after every stage).
+//   · the three tilts (W4, 13 Nov 2026): shoulderPlaneAngle3d (the chest's ML axis against level),
+//     hipLineTilt and secondaryAxisTilt (the hip sensor's ML axis and the chest's long axis in the
+//     face-on plane, from the address front) — definitions, signs and σ at TrailAxis below;
+//   · the precedence rule: a trunk-sensor spineForwardBend / spineSideBend / shoulderPlaneAngle3d /
+//     hipLineTilt / secondaryAxisTilt beats the down-the-line, face-on and 3-D readings — unless the
+//     sensor is worn face-in or reads fewer positions than the camera (applyTrunkSensorPrecedence, run
+//     once after every stage).
 //
 // HIP INTERNAL ROTATION, the definition. Both turns are LEAD-RELATIVE (+ toward the target, for either
 // hand): the pelvis sensor's pelvisRotationSigned (body_rotation.cpp) and the fit's thigh turn
@@ -73,8 +77,11 @@ inline constexpr double kNaN   = std::numeric_limits<double>::quiet_NaN();
 inline constexpr double kR2D   = 57.29577951308232;
 // The trunk sensors' route on the bends (the catalogue's rung id): Direct, measured on the segments.
 inline const QString &bendRouteId() { static const QString r = QStringLiteral("trunkImus"); return r; }
-// The pelvis sensor's route on pelvisRotationSigned (body_rotation.cpp sets it on the IMU tier).
+// The pelvis sensor's route on pelvisRotationSigned (body_rotation.cpp sets it on the IMU tier), and on
+// hipLineTilt (W4, 13 Nov 2026).
 inline const QString &pelvisRouteId() { static const QString r = QStringLiteral("pelvisImu"); return r; }
+// The chest sensor's route on thoraxRotationSigned, and on shoulderPlaneAngle3d and secondaryAxisTilt (W4).
+inline const QString &thoraxRouteId() { static const QString r = QStringLiteral("thoraxImu"); return r; }
 
 // ── σ, design §8.2, per sample (degrees) ────────────────────────────────────────────────────────
 namespace R = tuned::bodyRotation;
@@ -179,6 +186,162 @@ inline double ballPlaneMountYawDeg(const QQuaternion &q, const BallFront &front,
     const double den = sy * sy + sz * sz;
     if (!(den > 1e-9)) return 0.0;
     return std::fabs(eps * sz * sx / den) * kR2D;
+}
+
+// ── THE THREE TILTS (planned-metrics second pass W4, 13 Nov 2026) ───────────────────────────────
+//
+// shoulderPlaneAngle3d, hipLineTilt and secondaryAxisTilt from the trunk sensors. Each keeps the
+// definition and sign of the camera reading it stands in for, so that reading's norms still apply.
+//
+// THE SHOULDER PLANE needs no plane: it is the 3-D fit's quantity, the line's inclination out of the
+// horizontal in its OWN vertical plane (skeleton3d_body_metrics.h shoulderPlaneDeg, atan2(z_trail −
+// z_lead, |horizontal|)), and for a unit axis that is asin of its height — trunk_angles::obliquityRad,
+// signed + with the TRAIL side up (s below, the side bend's factor).
+//
+// THE HIP TILT AND THE AXIS TILT are FACE-ON readings: an angle in the vertical plane that contains
+// the target line, which the face-on camera looks square onto (Mark, 12 Nov: a camera fixed to a wall
+// is square to the target line). The sensors have no target line; the address front stands in for it
+// (ballPlaneFront: Ŷ = ẑ × the segment's ML axis at THIS swing's address, toward the ball), and the
+// target line is the horizontal square to it — the segment's own ML axis's ground direction at address.
+// So the plane assumes the segment was SQUARE to the target line at address, the assumption the sensor
+// forward bend already makes (there it is second order; here it is first order for the axis tilt —
+// the address front's heading term below). That assumption is never hidden: every reading taken against
+// an address front carries the Downgraded body.targetFromAddress (W4c, body_rotation.cpp
+// recordTrunkAssumptions) until the target line comes from the alignment stick (#178).
+//   `TrailAxis` is that horizontal unit axis, pointing to the golfer's TRAIL side: s·(golfer's right),
+//   s = +1 for a right-hander (lead side left) and −1 for a left-hander.
+//   hipLineTilt       — lower_body_metrics.cpp lineTiltDeg(lead, trail) = atan2(leadY − trailY, |Δx|) in
+//                       the image (y down), i.e. atan2(z_trail − z_lead, |the hip line along the target
+//                       line|). With d = s·(q·x̂) the lead → trail direction of the hip sensor's ML axis:
+//                       atan2(d_z, |d·T|). + = the TRAIL hip higher.
+//                       AS THE LINE TURNS EDGE-ON the face-on producer drops the frame: |Δx| below
+//                       minHipSpanRatio × its address |Δx| has no hip line (body.hipLine). The sensor
+//                       keeps the same rule on the same ratio — |d·T| against |d_addr·T| — so it reads
+//                       where the camera's definition reads and not where it runs to ±90°.
+//   secondaryAxisTilt — upper_body_metrics.cpp atan2(towardTrail, rise): the mid-hip → mid-shoulder line
+//                       from vertical, + AWAY FROM THE TARGET. On the chest sensor's long axis s = q·ẑ:
+//                       atan2(s·T, s_z), and no reading when s_z ≤ 0 (the face-on producer's `rise > kEps`).
+//                       It is the upper back's lean, not the hip-to-shoulder line (body.chestBendSite).
+// THE FRONT'S HEADING moves both readings, the axis tilt at FIRST ORDER even at address (a long axis
+// bent θ toward the ball reads atan(tan θ·sin ε) of lean in a plane turned by ε: 8.3° at θ 40°, ε 10°),
+// the hip tilt first order only once the hips have turned. Its σ is propagated NUMERICALLY:
+// the reading re-evaluated with T turned by ±σ_δ about vertical, half the spread
+// (faceOnFrontTermDeg). σ_δ (tuned::calib::kTrunkMountYawSigmaDeg) is what a mount yaw does to the
+// front — ε ≈ atan(tan δ·cos θ_addr), 9.4° on the hips at 20°, 7.7° on the chest at 40° — and the
+// rest is the golfer's own address alignment, which no constant measures (planned_metrics_promotion.md
+// §6, W4).
+struct TrailAxis { double x = 1.0, y = 0.0; bool ok = false; };
+inline TrailAxis trailAxisOf(const BallFront &f, bool leadIsLeft)
+{
+    TrailAxis a;
+    if (!f.ok) return a;
+    const double s = leadIsLeft ? 1.0 : -1.0;     // the golfer's right IS the trail side of a right-hander
+    a.x =  s * f.y;                               // the golfer's right at address = (Ŷ_y, −Ŷ_x): Ŷ = ẑ × it
+    a.y = -s * f.x;
+    a.ok = true;
+    return a;
+}
+inline TrailAxis turnedBy(const TrailAxis &a, double epsDeg)
+{
+    const double e = epsDeg / kR2D, c = std::cos(e), s = std::sin(e);
+    return TrailAxis{ a.x * c - a.y * s, a.x * s + a.y * c, a.ok };
+}
+// The handedness factor of every lateral sensor reading here: + with the golfer's RIGHT side, which is
+// the TRAIL side of a right-hander (fillTrunkBends' side bend uses the same s).
+inline double trailSign(bool leadIsLeft) { return leadIsLeft ? 1.0 : -1.0; }
+
+// shoulderPlaneAngle3d: the chest's ML axis against level, + the TRAIL shoulder higher (°).
+inline double shoulderPlaneDeg(const QQuaternion &qThorax, bool leadIsLeft)
+{
+    const QVector3D ml = qThorax.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    return trailSign(leadIsLeft) * std::asin(std::clamp(double(ml.z()), -1.0, 1.0)) * kR2D;
+}
+// hipLineTilt: the hip sensor's ML axis in the face-on plane, + the TRAIL hip higher (°); `epsDeg` turns
+// the plane's target line about vertical (the front term). NaN without a plane.
+inline double faceOnHipTiltDeg(const QQuaternion &qPelvis, const TrailAxis &a, bool leadIsLeft, double epsDeg = 0.0)
+{
+    if (!a.ok) return kNaN;
+    const TrailAxis t = epsDeg == 0.0 ? a : turnedBy(a, epsDeg);
+    const QVector3D ml = qPelvis.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    const double s = trailSign(leadIsLeft);
+    const double dz = s * double(ml.z());
+    const double along = std::fabs(s * (double(ml.x()) * t.x + double(ml.y()) * t.y));
+    return std::atan2(dz, along) * kR2D;
+}
+// The hip line's length along the target line (the face-on camera's |Δx|, for a unit line).
+inline double faceOnHipSpan(const QQuaternion &qPelvis, const TrailAxis &a)
+{
+    if (!a.ok) return 0.0;
+    const QVector3D ml = qPelvis.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    return std::fabs(double(ml.x()) * a.x + double(ml.y()) * a.y);
+}
+// secondaryAxisTilt: the chest's long axis in the face-on plane from vertical, + AWAY from the target
+// (°); NaN where the long axis does not point up (the camera's rise ≤ 0) or without a plane.
+inline double faceOnAxisTiltDeg(const QQuaternion &qThorax, const TrailAxis &a, double epsDeg = 0.0)
+{
+    if (!a.ok) return kNaN;
+    const TrailAxis t = epsDeg == 0.0 ? a : turnedBy(a, epsDeg);
+    const QVector3D si = qThorax.rotatedVector(QVector3D(0.0f, 0.0f, 1.0f));
+    const double rise = double(si.z());
+    if (!(rise > 1e-9)) return kNaN;
+    return std::atan2(double(si.x()) * t.x + double(si.y()) * t.y, rise) * kR2D;
+}
+// The address front's heading term: half the spread of `reading(ε)` at ε = ±σ_δ (degrees; 0 when either
+// side has no reading).
+template <class F>
+inline double faceOnFrontTermDeg(F reading)
+{
+    const double sd = double(tuned::calib::kTrunkMountYawSigmaDeg);
+    const double hi = reading(sd), lo = reading(-sd);
+    if (!std::isfinite(hi) || !std::isfinite(lo)) return 0.0;
+    return 0.5 * std::fabs(hi - lo);
+}
+
+// ── σ of the tilts, design §8.2 per sample (degrees) ──
+// ONE SENSOR'S OBLIQUITY BUDGET — that sensor's share of sideBendSigmaDeg: its garment, the mount yaw δ
+// through its own forward bend (§6.2, asin(sin θ·sin σ_δ)), the gyro scale on the obliquity's change
+// from address, its turn's scale error leaking through its bend, and its bias drift. No new term.
+inline double obliquitySigmaDeg(double tissueDeg, double oblDeg, double addrOblDeg, double bendDeg, double turnDeg,
+                                int64_t tUs, int64_t addressUs)
+{
+    const double d = mountYawObliquityDeg(bendDeg), g = R::kImuGyroScaleFrac * std::fabs(oblDeg - addrOblDeg);
+    const double l = turnLeakObliquityDeg(turnDeg, bendDeg), b = driftDeg(tUs, addressUs);
+    return std::sqrt(tissueDeg * tissueDeg + d * d + g * g + l * l + b * b);
+}
+// shoulderPlaneAngle3d: the chest's obliquity budget, as it stands — the reading IS the obliquity.
+inline double shoulderPlaneSigmaDeg(double planeDeg, double addrPlaneDeg, double thoraxBendDeg, double thoraxTurnDeg,
+                                    int64_t tUs, int64_t addressUs)
+{
+    return obliquitySigmaDeg(R::kImuTissueSigmaThoraxDeg, planeDeg, addrPlaneDeg, thoraxBendDeg, thoraxTurnDeg,
+                             tUs, addressUs);
+}
+// hipLineTilt: the hip sensor's obliquity budget CARRIED THROUGH THE FACE-ON PROJECTION — an obliquity
+// error e moves atan2(sin φ, cos φ·|cos ρ|) (φ the hips' obliquity, ρ their heading off the target line)
+// by half the spread at φ ± e, which is e at address (ρ = 0) and ≈ e/|cos ρ| as the hips turn: 1.4× at a
+// 45° turn, 2.5× at the edge-on gate — ⊕ the address front's heading term.
+inline double hipTiltSigmaDeg(const QQuaternion &qPelvis, const TrailAxis &a, bool leadIsLeft, double oblSigmaDeg)
+{
+    const QVector3D ml = qPelvis.rotatedVector(QVector3D(1.0f, 0.0f, 0.0f));
+    const double z = std::clamp(double(ml.z()), -1.0, 1.0), h = std::hypot(double(ml.x()), double(ml.y()));
+    const double phi = std::asin(z), c = h > 1e-9 ? faceOnHipSpan(qPelvis, a) / h : 0.0;   // |cos ρ|
+    const double e = oblSigmaDeg / kR2D;
+    const auto proj = [&](double p) { return std::atan2(std::sin(p), std::cos(p) * c); };
+    const double obl = 0.5 * std::fabs(proj(phi + e) - proj(phi - e)) * kR2D;
+    const double front = faceOnFrontTermDeg([&](double eps) { return faceOnHipTiltDeg(qPelvis, a, leadIsLeft, eps); });
+    return std::hypot(obl, front);
+}
+// secondaryAxisTilt: the chest's LONG-AXIS budget — garment, gyro scale on the reading's change from
+// address, bias drift (forwardBendSigmaDeg's terms). No δ term: δ is a turn about the long axis and does
+// not move it (trunk_angles.h forwardBendRad; design §6.2's forward-bend row), so δ reaches this reading
+// only through the address front, which the front term carries. No turn leak, for the same reason. An
+// error within the face-on plane moves the reading one-for-one ⊕ the address front's heading term.
+inline double axisTiltSigmaDeg(const QQuaternion &qThorax, const TrailAxis &a, double tiltDeg, double addrTiltDeg,
+                               int64_t tUs, int64_t addressUs)
+{
+    const double t = R::kImuTissueSigmaThoraxDeg, g = R::kImuGyroScaleFrac * std::fabs(tiltDeg - addrTiltDeg);
+    const double b = driftDeg(tUs, addressUs);
+    const double front = faceOnFrontTermDeg([&](double eps) { return faceOnAxisTiltDeg(qThorax, a, eps); });
+    return std::sqrt(t * t + g * g + b * b + front * front);
 }
 
 inline double medianOf(std::vector<double> v)
@@ -378,21 +541,29 @@ inline HipInternalRotationOutput buildHipInternalRotation(const HipInternalRotat
     return out;
 }
 
-// ── Precedence: the trunk sensors' bends win — when they can be trusted to ─────────────────────
+// ── Precedence: the trunk sensors' readings win — when they can be trusted to ─────────────────
 //
-// The plan's rule (IMU > 3-D > single camera): a spineForwardBend / spineSideBend from the trunk
-// sensors (routeId "trunkImus") is THE reading of the key. The down-the-line forward bend
-// (DtlPostureStage runs AFTER BodyRotationStage), the face-on side bend (UpperBodyMetricsStage, before
-// it) and the 3-D side bend (Skeleton3dBodyStage, which already steps aside when any side bend is
-// present) are erased, and the records that spoke for them stop speaking for the key
-// (route_substitution.h supersedeReadings). No record is fired: the better rung winning is not a
-// fallback. Run ONCE AFTER EVERY STAGE (runProfile, before reconcileSubstitutedReadings), so it holds
-// whatever order the stages run in.
+// The plan's rule (IMU > 3-D > single camera): a trunk-sensor reading of one of these keys is THE
+// reading of the key —
+//   spineForwardBend, spineSideBend  routeId "trunkImus" (12 Nov 2026);
+//   shoulderPlaneAngle3d             routeId "thoraxImu" (W4, 13 Nov 2026), over the 3-D fit's;
+//   hipLineTilt                      routeId "pelvisImu" (W4), over the face-on hip line;
+//   secondaryAxisTilt                routeId "thoraxImu" (W4), over the face-on spine line.
+// The down-the-line forward bend (DtlPostureStage runs AFTER BodyRotationStage), the face-on readings
+// (the upper and lower body stages) and the 3-D readings (Skeleton3dBodyStage: its side bend and its
+// shoulder plane are published beside the sensor's — W4 / W5, 13 Nov 2026 — so they are there to fall
+// back on) are erased, and the records that spoke for them stop speaking for the key
+// (route_substitution.h supersedeReadings) — also when no other series was published, so a camera
+// route's refusal (body.upperAddress, body.lowerAddress) does not stand beside the sensor's graded
+// value. No record is fired: the better rung winning is not a fallback. Run ONCE AFTER EVERY STAGE
+// (runProfile, before reconcileSubstitutedReadings), so it holds whatever order the stages run in.
+// shoulderTiltVsBend (W7, shoulder_tilt_vs_bend.h) is derived from the two halves this leaves, after both.
 //
 // TWO EXCEPTIONS, where another route also read the key (W3 review rulings, 12 Nov 2026) — the camera
-// reading stays the answer, the sensor bend is NOT published for the key, and the sensor's own records
-// stop speaking for it (the face-in covers lose the key; body.chestBendSite / body.trunkMountYawAssumed
-// for the key are dropped):
+// reading stays the answer, the sensor reading is NOT published for the key, and the sensor's own records
+// stop speaking for it (the face-in covers lose the key; body.chestBendSite / body.chestShoulderSite /
+// body.trunkMountYawAssumed / body.targetFromAddress (W4c) lose the key, and one left covering nothing is
+// dropped):
 //   · a sensor the key is read from is probably worn face-in (body.thoraxFaceIn / body.pelvisFaceIn
 //     covers the key): a backward-reading sensor must not beat a good camera reading. With no other
 //     route, the sensor bend is published with the face-in ⚠, as before;
@@ -402,13 +573,22 @@ inline HipInternalRotationOutput buildHipInternalRotation(const HipInternalRotat
 struct TrunkPrecedence {
     int seriesDropped  = 0;   // camera / 3-D series erased because the sensor won
     int recordsCleaned = 0;   // (record, key) pairs taken off a key
-    int sensorDropped  = 0;   // sensor bends withdrawn because the camera stayed
+    int sensorDropped  = 0;   // sensor readings withdrawn because the camera stayed
 };
+// The keys the rule covers, each with the trunk-sensor route that reads it.
+struct TrunkSensorKey { const char *key; const QString &(*route)(); };
+inline const std::vector<TrunkSensorKey> &trunkSensorKeys()
+{
+    static const std::vector<TrunkSensorKey> k{
+        { "spineForwardBend", &trunk_sensor::bendRouteId },     { "spineSideBend", &trunk_sensor::bendRouteId },
+        { "shoulderPlaneAngle3d", &trunk_sensor::thoraxRouteId }, { "hipLineTilt", &trunk_sensor::pelvisRouteId },
+        { "secondaryAxisTilt", &trunk_sensor::thoraxRouteId } };
+    return k;
+}
 inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &series, std::vector<GateRecord> &gates,
                                                   const std::vector<PhaseEvent> &ladder = {})
 {
     TrunkPrecedence total;
-    const QString &route = trunk_sensor::bendRouteId();
     // The phases a camera series WOULD BE GRADED AT (measure_sample.cpp): every ladder phase where its
     // curve has a reading (reduceAt), plus every phase it labels.
     const auto gradedPhases = [&](const MetricSeries &m) {
@@ -422,7 +602,9 @@ inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &ser
         }
         return out;
     };
-    for (const QString &key : { QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") }) {
+    for (const TrunkSensorKey &tk : trunkSensorKeys()) {
+        const QString key = QString::fromLatin1(tk.key);
+        const QString &route = tk.route();
         const auto sensorIt = std::find_if(series.begin(), series.end(), [&](const MetricSeries &m) {
             return m.key == key && m.routeId == route;
         });
@@ -436,12 +618,13 @@ inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &ser
                                  [&](const PhaseSample &q) { return q.phase == ph; }))
                     gapFree = false;
         }
-        if (!others) continue;   // the sensor alone: published, with whatever records it carries
         const bool faceIn = std::any_of(gates.begin(), gates.end(), [&](const GateRecord &g) {
             return (g.gate == QLatin1String("body.thoraxFaceIn") || g.gate == QLatin1String("body.pelvisFaceIn"))
                 && g.covers.contains(key);
         });
-        if (faceIn || !gapFree) {
+        // The two exceptions need another route's reading to fall back on; the sensor alone is
+        // published, with whatever records it carries (a face-in sensor with its ⚠).
+        if (others && (faceIn || !gapFree)) {
             series.erase(std::remove_if(series.begin(), series.end(),
                                         [&](const MetricSeries &m) { return m.key == key && m.routeId == route; }),
                          series.end());
@@ -451,11 +634,12 @@ inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &ser
                     && g.covers.removeAll(key) > 0)
                     ++total.recordsCleaned;
             // The sensor's assumption records lose the key; one left covering nothing is dropped, one that
-            // still covers the other bend keeps it (its subject moves to that bend).
+            // still covers another sensor reading keeps it (its subject moves to that reading).
             std::vector<char> drop(gates.size(), 0);
             for (size_t gi = 0; gi < gates.size(); ++gi) {
                 GateRecord &g = gates[gi];
-                if (g.gate != QLatin1String("body.chestBendSite") && g.gate != QLatin1String("body.trunkMountYawAssumed"))
+                if (g.gate != QLatin1String("body.chestBendSite") && g.gate != QLatin1String("body.chestShoulderSite")
+                    && g.gate != QLatin1String("body.trunkMountYawAssumed") && g.gate != QLatin1String("body.targetFromAddress"))
                     continue;
                 if (g.covers.removeAll(key) == 0 && g.subject != key) continue;
                 ++total.recordsCleaned;
@@ -467,6 +651,15 @@ inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &ser
                     g.evidence.remove(QStringLiteral("thoraxAddrDeg"));
                     g.evidence.remove(QStringLiteral("pelvisAddrDeg"));
                 }
+                // The same for an address front: a sensor whose readings no longer speak through the
+                // record does not state the heading its front was taken from (W4c).
+                if (g.gate == QLatin1String("body.targetFromAddress")) {
+                    if (!g.covers.contains(QStringLiteral("hipLineTilt")))
+                        g.evidence.remove(QStringLiteral("hipAddressHeadingDeg"));
+                    if (!g.covers.contains(QStringLiteral("spineForwardBend"))
+                        && !g.covers.contains(QStringLiteral("secondaryAxisTilt")))
+                        g.evidence.remove(QStringLiteral("chestAddressHeadingDeg"));
+                }
             }
             std::vector<GateRecord> kept;
             for (size_t gi = 0; gi < gates.size(); ++gi)
@@ -474,6 +667,10 @@ inline TrunkPrecedence applyTrunkSensorPrecedence(std::vector<MetricSeries> &ser
             gates = std::move(kept);
             continue;
         }
+        // The sensor reading stands: every other route's series under the key is erased, and the
+        // Refused / Bounded / Masked records and weaker stand-ins that spoke for the key stop speaking
+        // for it — with no other series too (W4): a camera route that refused at address leaves its
+        // refusal covering the key, which is not true of the reading that stands.
         const Supersession s = supersedeReadings(series, gates, key, route);
         total.seriesDropped  += s.seriesDropped;
         total.recordsCleaned += s.recordsCleaned;

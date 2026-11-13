@@ -36,8 +36,10 @@
 //     metric resolves as `Measured`. The same difference, kept signed and made lead-relative, is
 //     pelvisRotationSigned / thoraxRotationSigned (trunk design defect 2). The same sensors also give
 //     the trunk's BENDS (12 Nov 2026): spineForwardBend from the chest sensor and spineSideBend from
-//     the pair, each with its §8.2 σ — see BodyRotationResult::forwardBend. Every IMU-tier series
-//     carries its route (pelvisImu / thoraxImu / trunkImus, Direct).
+//     the pair, each with its §8.2 σ — see BodyRotationResult::forwardBend — and THREE TILTS (13 Nov
+//     2026): shoulderPlaneAngle3d and secondaryAxisTilt from the chest sensor, hipLineTilt from the
+//     hip sensor (BodyRotationResult::shoulderPlane). Every IMU-tier series carries its route
+//     (pelvisImu / thoraxImu / trunkImus, Direct).
 //
 //   Tier FORESHORTENING (`RotationTier::Foreshortening`) — a face-on camera only. As a body line
 //     turns away from the camera its image width collapses by the cosine of the turn, so
@@ -128,6 +130,10 @@ struct BodyRotationConfig {
     // Write the trunk sensors' bend σ (uncertainty.enabled). Not a bodyRotation.* key: the stage sets
     // it from UncertaintyConfig, as every producer that honours the switch does.
     bool    withSigma       = true;
+    // The hip sensor's hipLineTilt keeps the face-on hip line's edge-on rule (W4, 13 Nov 2026): no
+    // reading where the hip line's length along the target line is below this share of its address
+    // length. The face-on producers' own knob, so the two routes refuse the same geometry.
+    double  minHipSpanRatio = tuned::lowerBody::kMinHipSpanRatio;     // lowerBody.minHipSpanRatio
 
     static BodyRotationConfig fromOverrides(const QVariantMap &ov)
     {
@@ -143,6 +149,7 @@ struct BodyRotationConfig {
         apply(ov, "bodyRotation.triAddrMaxGapUs", c.triAddrMaxGapUs);
         apply(ov, "bodyRotation.triScaleFrac",  c.triScaleFrac);
         apply(ov, "bodyRotation.faceInBendDeg", c.faceInBendDeg);
+        apply(ov, "lowerBody.minHipSpanRatio",  c.minHipSpanRatio);
         return c;
     }
 };
@@ -204,6 +211,31 @@ struct BodyRotationResult {
     // mount-yaw record (body.trunkMountYawAssumed).
     double thoraxAddressBallBendDeg = std::numeric_limits<double>::quiet_NaN();
     double pelvisAddressBallBendDeg = std::numeric_limits<double>::quiet_NaN();
+    // Each sensor's heading at THIS swing's address, the front its forward bend / face-on tilt is read
+    // against (W4c, 13 Nov 2026; °, LEAD-RELATIVE, + open; NaN where that sensor has no front): the ML
+    // axis's heading in the stance frame (trunk_angles::turnHeadingRad), zero at stand tall — so it also
+    // holds any heading drift since stand tall and the mount yaw's share. Not an aim measurement: the
+    // evidence of body.targetFromAddress, which says those readings take the target line as square to it.
+    double thoraxAddressHeadingDeg = std::numeric_limits<double>::quiet_NaN();
+    double pelvisAddressHeadingDeg = std::numeric_limits<double>::quiet_NaN();
+    // THE THREE TILTS (planned-metrics second pass W4, 13 Nov 2026; trunk_sensor_series.h TrailAxis has
+    // the definitions), on the STREAM grid, each with its §8.2 σ per sample, each the camera reading's
+    // own definition and sign so its norms still apply:
+    //   shoulderPlane  shoulderPlaneAngle3d (route thoraxImu, Direct): the chest's ML axis against level,
+    //                  s·obliquityRad, + the TRAIL shoulder higher — the 3-D fit's inclination in the
+    //                  line's own vertical plane, so no projection. The chest sensor alone.
+    //   hipTilt        hipLineTilt (route pelvisImu, Direct): the hip sensor's ML axis in the face-on
+    //                  plane, atan2(d_z, |d·T|), + the TRAIL hip higher; T the target line from the hips'
+    //                  address front. A frame whose hip line has turned edge-on (|d·T| below
+    //                  minHipSpanRatio × its address value, the face-on producer's rule) is NOT VALID
+    //                  (hipTiltValid 0), and the series is Address→Impact (P1toP7, as the face-on one).
+    //                  The hip sensor alone.
+    //   axisTilt       secondaryAxisTilt (route thoraxImu, Direct): the chest's long axis in the face-on
+    //                  plane from vertical, atan2(s·T, s_z), + AWAY from the target; T from the chest's
+    //                  address front. P1toP7. The chest sensor alone.
+    MetricChannel shoulderPlane, hipTilt, axisTilt;
+    std::vector<double> shoulderPlaneSigma, hipTiltSigma, axisTiltSigma;   // parallel to the channels
+    std::vector<uint8_t> hipTiltValid, axisTiltValid;                      // parallel; 0 = no reading there
     bool   valid = false;                      // at least one segment produced a turn curve
 
     // Trust stage 6: the gates this route decided. trackBodyRotationTriangulated records its own
@@ -228,10 +260,12 @@ BodyRotationResult trackBodyRotation(const PoseTrack2D &pose, const FusedStreams
                                      const BodyRotationConfig &cfg = {});
 
 // Emit pelvisRotation / thoraxRotation / pelvisRotationSigned / thoraxRotationSigned / xFactor /
-// xFactorStretch, and the trunk sensors' spineForwardBend / spineSideBend (their phase readings the
-// graded ones, trunk_sensor_series.h stampGradedPhases). A channel that could not be produced is
-// simply absent — never a curve of zeros. The bends are published BESIDE any camera reading of the
-// same key; applyTrunkSensorPrecedence (trunk_sensor_series.h, after every stage) makes them the answer.
+// xFactorStretch, and the trunk sensors' spineForwardBend / spineSideBend / shoulderPlaneAngle3d /
+// hipLineTilt / secondaryAxisTilt (their phase readings the graded ones, trunk_sensor_series.h
+// stampGradedPhases; the two face-on tilts masked past Impact, as the face-on series are). A channel
+// that could not be produced is simply absent — never a curve of zeros. The sensor readings are
+// published BESIDE any camera reading of the same key; applyTrunkSensorPrecedence
+// (trunk_sensor_series.h, after every stage) makes them the answer.
 std::vector<MetricSeries> buildBodyRotationSeries(const BodyRotationResult &res,
                                                   const std::vector<PhaseEvent> &phases);
 

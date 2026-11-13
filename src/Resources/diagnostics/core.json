@@ -761,6 +761,23 @@
       "unit": "°"
     },
     {
+      "id": "m_shoulderTiltVsBend",
+      "kind": "provided",
+      "metricKey": "shoulderTiltVsBend",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p4"
+      },
+      "status": "live",
+      "label": "Shoulder tilt at P4 against the forward bend at P1",
+      "unit": "°",
+      "golferHigh": "your shoulders turn more steeply than your posture sets them up to",
+      "golferLow": "your shoulders turn flatter than your posture sets them up to",
+      "highMeans": "a shoulder turn steeper at the top than the forward bend at address sets it up to be; the low side is a turn flatter than the posture",
+      "golferSign": 1,
+      "golferName": "your shoulder turn against your posture"
+    },
+    {
       "id": "m_ballBodyGap",
       "kind": "composed",
       "series": {
@@ -4358,7 +4375,7 @@
       "id": "sig_flatShoulderPlane",
       "test": "outsideCorridor",
       "measures": [
-        "m_shoulderPlane"
+        "m_shoulderTiltVsBend"
       ],
       "direction": "low"
     },
@@ -5370,7 +5387,7 @@
       "id": "sig_steepShoulderPlane",
       "test": "outsideCorridor",
       "measures": [
-        "m_shoulderPlane"
+        "m_shoulderTiltVsBend"
       ],
       "direction": "high"
     },
@@ -6455,7 +6472,7 @@
     {
       "id": "flat_shoulder_plane",
       "label": "Flat shoulder plane",
-      "golfer": "your shoulders turn too flat going back",
+      "golfer": "your shoulders turn flatter than your posture sets them up to",
       "golferWell": "your shoulders turn on plane going back",
       "golferWhy": "A flat shoulder turn leaves the club behind you, so you have to throw it back out and direction wanders.",
       "goal": "Tilt your shoulders as they turn going back",
@@ -10787,7 +10804,7 @@
     {
       "id": "steep_shoulder_plane",
       "label": "Steep shoulder plane",
-      "golfer": "your shoulders tilt too steeply going back",
+      "golfer": "your shoulders turn more steeply than your posture sets them up to",
       "golferWell": "your shoulders turn on plane going back",
       "golferWhy": "A steep shoulder tilt sends the club up instead of around, so it comes down steep and contact suffers.",
       "goal": "Turn your shoulders around as well as down",
@@ -12739,17 +12756,6 @@
       }
     },
     {
-      "from": "posture_too_upright",
-      "to": "flat_shoulder_plane",
-      "type": "causes",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-07-27",
-        "searchTerms": "address alignment aim ball position golf setup geometry"
-      }
-    },
-    {
       "from": "limited_trail_hip_ir",
       "to": "trail_hip_hike",
       "type": "causes",
@@ -14428,17 +14434,6 @@
         "tier": "practice",
         "searchedOn": "2026-07-28",
         "searchTerms": "ball position distance from body address posture golf"
-      }
-    },
-    {
-      "from": "posture_too_bent",
-      "to": "steep_shoulder_plane",
-      "type": "causes",
-      "strength": "strong",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-07-28",
-        "searchTerms": "spine angle shoulder plane relationship golf"
       }
     },
     {

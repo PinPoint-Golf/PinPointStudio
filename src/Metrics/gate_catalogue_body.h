@@ -150,7 +150,7 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         QStringLiteral("The hip sensor is worn on the lower back, USB-down with its label facing out. Worn on the "
                        "front, or label-in, it is the right mount turned half a turn about the spine: standing tall "
                        "and the turns of the set-up routine cannot tell the two apart. The turn and its speed still "
-                       "read correctly, but the bends read backwards, so an address that bends forward at the hips "
+                       "read correctly, but the bends and tilts read backwards, so an address that bends forward at the hips "
                        "reads as a lean back. A real address always bends forward, so a backward lean at this "
                        "swing's address means the sensor is probably on the front or label-in. Its readings are kept "
                        "and shown, a step lower in trust, with this warning: wear the sensor on your back, label out."),
@@ -160,7 +160,7 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         QStringLiteral("The chest sensor is worn in the vest's back pocket, USB-down with its label facing out. Worn "
                        "on the front, or label-in, it is the right mount turned half a turn about the spine: standing "
                        "tall and the turns of the set-up routine cannot tell the two apart. The turn and its speed "
-                       "still read correctly, but the bends read backwards, so an address that bends forward from the "
+                       "still read correctly, but the bends and tilts read backwards, so an address that bends forward from the "
                        "hips reads as the chest leaning back. A real address always tilts the chest forward, so a "
                        "backward lean at this swing's address means the sensor is probably on the front or label-in. "
                        "Its readings are kept and shown, a step lower in trust, with this warning: wear the sensor on "
@@ -168,26 +168,80 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         "At address the chest sensor read a forward bend of {bendDeg:deg}, a lean backward[ (the cue fires below {limitDeg:deg})].",
         { GateEffect::Downgraded }, rotProd, faceInDoc);
 
-    // ── The trunk sensors' bends (body_rotation.cpp): their two assumptions ─────────────────────────
+    // ── The trunk sensors' bends and tilts (body_rotation.cpp): their three assumptions ─────────────
     // DOWNGRADED, never refused: the sensor readings are kept and judged, a step lower in trust, with the
     // warning. Withdrawn with the reading when a camera reading stays the answer (applyTrunkSensorPrecedence).
     add(c, "body.chestBendSite", body, "Chest bend read on the upper back", "read on the upper back",
-        QStringLiteral("The forward bend is normally the line from your hips to your shoulders, seen from down the "
-                       "line. With the chest sensor worn it is read by that sensor instead, on your upper back, which "
-                       "tilts with the upper spine rather than with that line. The two have not yet been compared on "
-                       "a swing where both were recorded, so the reading is kept and judged, a step lower in trust."),
+        QStringLiteral("The forward bend, and the spine's lean away from the target, are normally read along the line "
+                       "from your hips to your shoulders: the bend from down the line, the lean face-on. With the "
+                       "chest sensor worn they are read by that sensor instead, on your upper back, which tilts with "
+                       "the upper spine rather than with that line. The two have not yet been compared on a swing "
+                       "where both were recorded, so the reading is kept and judged, a step lower in trust."),
         "Read by the chest sensor on the upper back, not along the hips-to-shoulders line; not yet checked against the camera.",
         { GateEffect::Downgraded }, rotProd, "docs/design/body_rotation_estimation.md");
+    // W4, 13 Nov 2026: the chest sensor's shoulder plane (shoulderPlaneAngle3d's thoraxImu rung).
+    add(c, "body.chestShoulderSite", body, "Shoulder tilt read on the upper back", "read on the upper back",
+        QStringLiteral("The shoulder plane is the tilt of the line through your two shoulder joints, from the 3-D fit "
+                       "of both cameras. With the chest sensor worn it is read by that sensor instead: the tilt of "
+                       "your upper back across, not of the shoulder joints themselves, which also move with your "
+                       "shoulder blades. The two have not yet been compared on a swing where both were recorded, so "
+                       "the reading is kept and judged, a step lower in trust."),
+        "Read by the chest sensor as the upper back's tilt across, not the line through the shoulder joints; not yet "
+        "checked against the cameras.",
+        { GateEffect::Downgraded }, rotProd, "docs/design/body_rotation_estimation.md");
     add(c, "body.trunkMountYawAssumed", body, "Sensor direction on the back assumed", "sensor direction assumed",
-        QStringLiteral("The bends read by the motion sensors need to know exactly which way each sensor faces on "
-                       "your back. Standing tall cannot measure that turn, so it is taken from how the sensors are "
+        QStringLiteral("The bends and tilts read by the motion sensors need to know exactly which way each sensor faces "
+                       "on your back. Standing tall cannot measure that turn, so it is taken from how the sensors are "
                        "worn. A sensor turned a little on the back reads part of your forward bend as side bend, and "
-                       "part of a side lean as forward bend, so these readings are kept and judged, a step lower in "
-                       "trust, and carry that much more uncertainty."),
-        "Each sensor's turn on the back is assumed (±{sigmaDeltaDeg:deg}), so the bends read from it carry more "
+                       "part of a side lean as forward bend, and it turns the direction the sensor takes as the "
+                       "target line, so these readings are kept and judged, a step lower in trust, and carry that "
+                       "much more uncertainty."),
+        "Each sensor's turn on the back is assumed (±{sigmaDeltaDeg:deg}), so the bends and tilts read from it carry more "
         "uncertainty[; at this address the side bend carries ±{thoraxAddrDeg:deg} from the chest sensor][ and "
         "±{pelvisAddrDeg:deg} from the hip sensor].",
         { GateEffect::Downgraded }, rotProd, "docs/design/trunk_imu_sequence_grf_design.md §6.2");
+    // W4c, 13 Nov 2026: the sensor readings whose target line, or the plane through the ball, is each
+    // sensor's own front at this swing's address (trunk_sensor_series.h ballPlaneFront) — the forward
+    // bend, the hip tilt and the spine's lean. Interim, until the target line comes from the alignment
+    // stick (#178): the set-up is taken as square, and that is said on the reading, never hidden.
+    // The evidence also carries chestAddressHeadingDeg / hipAddressHeadingDeg (each sensor's heading at
+    // address against stand tall, + open), for diagnostics only: they are deliberately NOT in the sentence.
+    // That heading holds the golfer's turn since stand tall, the mount yaw and the sensor's heading drift,
+    // so a square golfer can read 17° "open" — shown, it would read as a set-up fault (W4c review).
+    add(c, "body.targetFromAddress", body, "Target line taken from your address", "target line from your address",
+        QStringLiteral("These readings are measured against your target line. The motion sensors cannot see the "
+                       "target line yet, so each one takes it from the way you stood at this swing's address, as "
+                       "if you were set up square to the target. An open or closed set-up is therefore not seen "
+                       "in these readings: the bend, the hip tilt and the spine's lean are read against your own "
+                       "address line, not the target line. They are kept and judged, a step lower in trust, with "
+                       "this warning."),
+        "Your address was taken as square to the target line.",
+        { GateEffect::Downgraded }, rotProd, "docs/design/trunk_imu_sequence_grf_design.md §6.6");
+
+    // ── The shoulder tilt against the forward bend (shoulder_tilt_vs_bend.h, after the precedence) ──
+    // W7, 13 Nov 2026 (Mark's decision): shoulderTiltVsBend is the tilt at the top less the bend at
+    // address, each from whichever route won. DOWNGRADED, never refused, when the two halves came from
+    // different instruments (the 3-D fit's tilt with the down-the-line bend, or one half from the chest
+    // sensor and the other from a camera): the difference carries both instruments' errors, and no
+    // swing has yet compared them. Both halves from the chest sensor: no record.
+    {
+        GateEntry &e = add(c, "body.tiltBendMixedSources", body, "Tilt and posture read by different instruments",
+            "different instruments",
+            QStringLiteral("This reading compares the tilt of your shoulders at the top with your forward bend at "
+                           "address. Here the two were measured by different instruments, which have not yet "
+                           "been checked against each other on one swing, so the comparison carries both of "
+                           "their errors. Where one of them states no margin (the down-the-line camera's bend, "
+                           "today), the reading shows none either, and this warning is the only sign of that "
+                           "uncertainty. The reading is kept and judged, a step lower in trust."),
+            "Your shoulder tilt was read {tiltFrom:code} and your posture {bendFrom:code}.",
+            { GateEffect::Downgraded }, "src/Body/shoulder_tilt_vs_bend.h", "docs/design/planned_metrics_promotion.md §6 W7");
+        e.codes = {
+            { QStringLiteral("thoraxImu"),  QStringLiteral("by the chest sensor") },
+            { QStringLiteral("trunkImus"),  QStringLiteral("by the chest sensor") },
+            { QStringLiteral("faceOn+dtl"), QStringLiteral("from the 3-D fit of both cameras") },
+            { QStringLiteral("dtl"),        QStringLiteral("by the down-the-line camera") },
+            { QStringLiteral("unstated"),   QStringLiteral("by a route that was not recorded") } };
+    }
 
     // ── Hip internal rotation (trunk_sensor_series.h, for HipInternalRotationStage) ────────────────
     // DOWNGRADED, never refused: where the two-camera fit did not read a thigh's own turn, the hip's

@@ -363,7 +363,7 @@ int main(int argc, char **argv)
     // 203 -> 206 on 2026-10-22: m_spineBackLine_p3/_p4/_p5 — the back line's change from address at P3–P5,
     // drawn as the trunk-bend row's second reading under its own ⚠ (posture_chart_design.md §2.3); no signal
     // reads them and they carry no band of their own.
-    check(pack.measures.size() == 212, "…and 212 measures");   // +m_carryShortfall, +m_ballSpeedShortfall (2026-11-08)   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    check(pack.measures.size() == 213, "…and 213 measures");   // +m_shoulderTiltVsBend (2026-11-13, W7: the shoulder tilt at P4 less the forward bend at P1; the flat/steep faults read it)   // +m_carryShortfall, +m_ballSpeedShortfall (2026-11-08)   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;

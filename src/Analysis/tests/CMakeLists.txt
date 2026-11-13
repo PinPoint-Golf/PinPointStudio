@@ -1311,6 +1311,21 @@ pp_add_test(measure_sample_test
     SOURCES ${DIAG}/tests/measure_sample_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
 
+# The shoulder tilt against the forward bend (Body/shoulder_tilt_vs_bend.h; planned-metrics second pass
+# W7): the difference of the two halves for every route pair, each half sampled EXACTLY as the grader
+# samples it (checked through measure_sample.cpp's own phase grid and `at` reducer on the document the
+# pipeline writes — the real writer, SwingDocWriter), σ in quadrature, no reading when a half is missing
+# (and then the missing half's refusal is the reason LiveMeasureSource gives), the halves' records carried
+# over and body.tiltBendMixedSources on mixed instruments. Qt-only, synthetic halves.
+pp_add_test(shoulder_tilt_vs_bend_test
+    SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
+            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
+            ${SRC}/Export/swing_doc.cpp ${ANALYSIS}/recorded_products.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
+
 # Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8): σ through
 # the phase grid and its reducers, P(fire) on every verdict with the verdict unchanged, soft session
 # counts that reproduce today's tier when no reading has a σ, and the noisy-OR posterior ranking with

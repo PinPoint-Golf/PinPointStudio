@@ -65,7 +65,7 @@ No trunk-sensor recording exists, so the sensor readings are checked only agains
 
 1. **Camera-direction σ widened from 5° to 9°.** It covers the largest down-the-line camera turn measured (8.7°, 4 July), because that error is a one-way bias, not noise. It applies to shaft direction and shoulder aim, uncalibrated (`kDtlYawSigmaUncalDeg`). The swing-8 shaft readings now carry about ±18° rather than ±16°.
 2. **Left-handers stay mirrored** for `shaftDirection` and `shoulderLineYaw`: + means across/outside, and closed, for both hands. The sign doc records the exception.
-3. **Shoulder plane norm kept at 50 ± 10°.** It is revisited only with evidence from more two-camera swings and golfers (the swing read 31°).
+3. **Shoulder plane norm kept at 50 ± 10°.** It is revisited only with evidence from more two-camera swings and golfers (the swing read 31°). Re-centred to 36 ± 8 on 13 Nov (GolfTEC), Mark's decision (§6, W6).
 4. **`m_spineSideBendTop` left as is, and noted.** Its norm is μ +8°, but the 3-D (about −38°) and sensor (about −26°) routes read toward the lead at a top with no lateral flexion, because the turn tilts the reading. No fault reads it. Define it before anything grades it.
 5. **The 3-D side bend keeps grading** the side-bend drafts, with its ⚠, on shots where the face-on reading refused.
 6. **The face-on camera is taken as square to the target line.** A camera fixed to a wall is not pointed at an angle, so it carries no σ term. The shoulder aim's camera σ is the down-the-line camera's (it supplies the depth), at 9° per decision 1. The shoulder plane's solved vertical stays an open item for calibration.
@@ -83,7 +83,7 @@ No trunk-sensor recording exists, so the sensor readings are checked only agains
 | `pelvisLiftBelt` (faceOn) | Needs a belt-line tracker |
 | `launchDirection`, `launchAngle`, `ballSpeed` (camera) | Need a ball-flight tracker; the launch monitor supplies them |
 | `swingScore` (adherence) | The scorer is not wired in |
-| knee flexion (faceOn) | Foreshortened to noise; the down-the-line and 3-D routes are live |
+| knee flexion (faceOn) | Foreshortened to noise. The down-the-line route is live for both knees. The 3-D route is live for the lead knee since 12 Nov (W2) and for the trail knee since 13 Nov (W5, §6); before W5 this row wrongly said both knees had one |
 
 Held, unchanged: `m_spineBendChangeTop`, which waits on a worn session.
 
@@ -350,7 +350,7 @@ A thigh frame is unmeasured below `kThighTurnMinKneeFlexDeg` of knee bend, or wh
 - **History moved to the norm citations.** The face-on tilt history for `m_shoulderAlignment` and the foreshortening history for `m_shoulderPlane` went into the citations in `norms.json`. The stale "nothing produces it" citation was rewritten.
 - **Norm scales.**
   - μ 0 / σLo 4 for the aim and μ 25 / σLo 8 for the lead knee peak are on the same definition and sign.
-  - μ 50 / σLo 10 for the shoulder plane is the same sign and definition (trail higher, its own vertical plane). Whether 50° is the right centre for this golfer's 3-D reading is for the one swing to show; it is not changed.
+  - μ 50 / σLo 10 for the shoulder plane is the same sign and definition (trail higher, its own vertical plane). Whether 50° is the right centre for this golfer's 3-D reading is for the one swing to show; it is not changed here. (It was re-centred to 36 ± 8 on 13 Nov: §6, W6.)
 
 #### Constants and their provenance (`pp_tuned_constants.h`)
 
@@ -579,3 +579,273 @@ leaves it unstated as before (body_rotation_test checks both).
 - `m_spineBendChangeTop` held (no fault reads it; it waits on a worn session and the relative reading).
 - `pelvisObliquity`, `pelvisTilt`, `thoraxSideBend` are not published as series of their own.
 - The turn series' own σ (§8.2 on `pelvisRotation*` / `thoraxRotation*`) is not built.
+
+## 6. Second pass (13 Nov 2026): routes the first pass missed
+
+The first pass filled the catalogue's PLANNED rungs; it never checked each source we own against each metric it can measure (Mark, 13 Nov). The second pass adds those routes. Plan: `~/.claude/plans/planned-metrics-completion.md`.
+
+### W4: trunk-sensor routes
+
+Three readings the chest and hip sensors make with the bends' code (`body_rotation.cpp` `fillTrunkTilts`; definitions, signs and σ in `src/Body/trunk_sensor_series.h`, from `TrailAxis` on). Each keeps the camera reading's own definition and sign, so the camera's norms apply unchanged (`m_shoulderPlane`, `m_hipLineTiltTop` 7°, `m_hipAlignment`, `m_hipLineTiltImpact`, `m_hipLineTiltShift`, the axis-tilt measures). Each needs only its own sensor.
+
+**It changes no stored result.** No library swing has worn trunk sensors, so every library swing analyses as before. The one stored change is provenance: `versions.skeleton3dBody` 1 → 2 on two-camera swings (§ precedence below). **Validation waits on the worn session (#109)**: until then `trunk_e2e_test` §k's synthetic body is the only check.
+
+#### Definitions and signs
+
+The trunk frame: +X the golfer's right, +Y anterior, +Z up (`imu_frame_contract.md` §5). s = +1 for a right-hander, whose trail side is +X, and −1 for a left-hander (the side bend's factor). The face-on plane is the vertical plane containing the target line. The sensors have no target line, so it is taken square to each sensor's **address front** (`ballPlaneFront`: Ŷ = ẑ × the segment's ML axis at this swing's address). That assumes the segment was square to the target line at address. T is that plane's horizontal axis, pointing to the trail side.
+
+| Reading | Rung | Definition | + means | Worked example (§k: chest 8° and hips 2° toward the trail side at address; −12° / −4° at the top) |
+|---|---|---|---|---|
+| `shoulderPlaneAngle3d` | `thoraxImu`, Inertial, **Direct** | `asin(s·(q·x̂)_z)`: s·`obliquityRad` of the chest. This is the 3-D fit's quantity, `atan2(z_trail − z_lead, \|horizontal\|)`, the line's inclination in its own vertical plane, so there is no projection and no address front. Every stream sample; no domain (the descriptor reads the top) | the **trail** shoulder higher | address −8.0° for either hand. At the top, turned 89° about a 40° bend with the trail side up 12°: **+39.1°** RH and LH |
+| `hipLineTilt` | `pelvisImu`, Inertial, **Direct** | d = s·(q·x̂), the lead → trail hip direction; `atan2(d_z, \|d·T\|)`. This is the face-on `lineTiltDeg`, `atan2(leadY − trailY, \|Δx\|)`. Like the face-on producer, a frame whose hip line along the target line falls below `lowerBody.minHipSpanRatio` (0.40) × its address value has no reading (valid 0). P1→P7: masked past Impact, as the face-on series is | the **trail** hip higher | address −2.0°. At the top, 42° turned: **+21.8°**. At impact: −30.4° (the ideal camera reads −31.1°, inside σ 7.2°). Same for both hands |
+| `secondaryAxisTilt` | `thoraxImu`, Inertial, **Direct** | the chest's long axis s = q·ẑ against vertical in the face-on plane, `atan2(s·T, s_z)`. This is the face-on `atan2(towardTrail, rise)`, with no reading where s_z ≤ 0. P1→P7 | leaning **away from the target** | address **+8.0°**, top −12.0°, impact +24.9° (truth 25°), for either hand |
+
+Sign check against the raw frame: for a right-hander, s = +1. A raw obliquity that is + with the golfer's right side up is the trail side up, so it reads +. For a left-hander, s = −1: the same raw value means the lead side is up, so it reads −. `trunk_e2e_test` §k checks the left-hander's curves against the right-hander's to 0.0001°.
+
+#### σ, per sample, in quadrature (§8.2 terms only; `sigmaKind = Propagated`)
+
+- **`shoulderPlaneAngle3d`**: the chest's obliquity budget (`obliquitySigmaDeg`, the thorax share of `sideBendSigmaDeg`):
+  - garment 3°;
+  - δ through the chest's own bend, asin(sin θ·sin σ_δ);
+  - gyro scale 1.5 % of the change from address;
+  - the turn's scale error leaking through the bend;
+  - bias drift.
+
+  7.1° at address (the δ term 6.4° dominates), 7.3° at the top, 7.5° at impact.
+- **`hipLineTilt`**: the hips' obliquity budget, CARRIED THROUGH THE FACE-ON PROJECTION, ⊕ the address front's heading term.
+  - An obliquity error e moves `atan2(sin φ, cos φ·|cos ρ|)` (ρ = the hips' heading off T) by half the spread at φ ± e. That is e at address and ≈ e/|cos ρ| as the hips turn.
+  - The front term is evaluated NUMERICALLY: the reading with T turned ±σ_δ about vertical, half the spread. It is second order at address (0) and first order once the hips have turned.
+  - 3.95° at address, 6.0° at the top (obliquity budget alone 4.0°), 7.2° at impact.
+- **`secondaryAxisTilt`**: the chest's LONG-AXIS budget ⊕ the front term.
+  - The long-axis budget is garment, gyro scale on the reading's change from address, and drift (`forwardBendSigmaDeg`'s terms).
+  - **No δ-through-bend term**: δ is a turn about the long axis and does not move it (`trunk_angles.h`; design §6.2's forward-bend row). δ reaches this reading only through the address front, which the front term carries. There is no turn-leak term for the same reason.
+  - The front term is **first order even at address**: a long axis bent θ toward the ball, seen in a plane turned ε, leans atan(tan θ·sin ε). That is 8.2° on this 40° chest.
+  - So σ is 8.7° at address, 8.7° at the top and 8.2° at impact.
+
+**A 10° mount yaw on both sensors** (§k): every reading's error against the ideal camera stays inside its σ at address, the top and impact:
+
+| Reading | Address | Top | Impact |
+|---|---|---|---|
+| shoulder plane | −6.3° in 7.0° | +1.9° in 7.4° | −0.5° in 7.2° |
+| hip tilt | −3.4° in 3.9° | −3.2° in 5.9° | −0.8° in 7.3° |
+| axis tilt | +6.3° in 8.2° | +6.7° in 9.1° | +5.4° in 7.1° |
+
+**Is σ_δ the right size for the front's heading?** The front's heading has two parts:
+- **The mount yaw's share.** It is ε ≈ atan(tan δ·cos θ_addr): 9.4° on hips at 20°, 7.7° on a chest at 40°. σ_δ (10°) is that share, rounded up.
+- **The golfer's own address alignment.** Hips or chest set open or closed to the target line. No existing constant measures it. `dtlCamera::kDtlYawSigmaUncalDeg` (9°) is a camera's yaw, not a golfer's, and the face-on camera is ruled square.
+
+So σ_δ is a fair single size for now: it slightly overstates δ's share on the chest, and leaves about √(10² − 9.4²) ≈ 3.4° (hips) to 6.4° (chest) for alignment. No constant was added. Once δ is refined from the swings (§6.5), the alignment share needs its own number. That number should come from the worn session (#109), with the face-on camera as the reference.
+
+**Known omissions in the hip tilt's σ** (small while δ is at δ0; to revisit once δ is refined):
+- **Correlated δ terms.** The δ-through-bend term and the front term come from one δ but are added in quadrature as if independent.
+- **The turn's errors through ρ.** The turn's gyro-scale error and its heading drift move ρ (|cos ρ|) but are not propagated. That is about 0.6° against the ±10° front term.
+- **Even-order effects.** The half-spread misses them: the front term is exactly 0 at address, against a true second-order effect of about 0.03°.
+
+#### Trust records (all Downgraded; the readings stay, are judged, and carry the ⚠)
+
+- **`body.chestShoulderSite`** (new; `gate_catalogue_body.h`, `gate_words.json`): subject and covers `shoulderPlaneAngle3d`, evidence `code` `upperBack`. Golfer words: "the chest sensor reads the tilt of your upper back, not of the shoulder joints themselves, which move with the shoulder blades, and the two have not yet been checked against each other".
+- **`body.chestBendSite`** now also covers `secondaryAxisTilt`. Its description and golfer words now name the lean as well as the bend: the upper back's lean, not the hip-to-shoulder line the face-on camera reads.
+- **`body.trunkMountYawAssumed`** covers all three. Its description and words say "bends and tilts", and that a turned sensor turns the direction it takes as the target line.
+- **Face-in.** Each tilt reads backward under a half turn about the spine, because the ML axis reverses and so does the address front. `body.thoraxFaceIn` covers `shoulderPlaneAngle3d` and `secondaryAxisTilt`; `body.pelvisFaceIn` covers `hipLineTilt`. Their descriptions say "bends and tilts".
+- **"Square at address" is now its own record** (W4c, below): `body.targetFromAddress` on the forward bend and both face-on tilts. W4 had left the assumption inside the front term's σ; Mark ruled (13 Nov) that a square set-up must never be assumed silently.
+- **No record for the hip tilt's edge-on frames.** Those frames are not valid, exactly as the face-on producer's are. The face-on producer's mask record (`body.hipLine`, Masked) is not fired by the sensor: `supersedeReadings` removes Masked records from a key the sensor wins, so a sensor-fired one would be erased as it was fired. Within P1→P7 the hips stay under 66° of turn on a normal swing, so it does not bite. When it does and a camera reads the position, the camera stays the answer (fewer positions).
+
+#### Precedence
+
+The bends' rule (Mark, 12 Nov), extended to the three keys (`applyTrunkSensorPrecedence`, `trunkSensorKeys()`, run once after every stage). The sensor reading is the answer wherever it reads. The 3-D or face-on series of the key is erased, and the Refused / Masked records and weaker stand-ins that spoke for it come off the key. The camera stays the answer in two cases:
+- the sensor is probably worn face-in (its face-in record covers the key);
+- the sensor reading lacks a phase reading the camera series would be graded at.
+
+In those cases the sensor reading and its own records (`body.chestBendSite`, `body.chestShoulderSite`, `body.trunkMountYawAssumed`, and since W4c `body.targetFromAddress`) are withdrawn from the key.
+
+- **Stage order.** `BodyRotationStage` runs before `Skeleton3dBodyStage`, whose `mergeSkeleton3dBody` used to skip a key that was already present. That would have left no 3-D fallback once the precedence withdrew the sensor's shoulder plane. It now publishes the 3-D `shoulderPlaneAngle3d` beside a `thoraxImu` one, and still skips if another 3-D one is present. `skeleton3d_body_metrics_test` §10 checks both orders and the face-in fallback. `kSkeleton3dBodyStageVersion` is 2.
+- **Also changed.** A sensor reading that stands now takes a camera route's refusal off its key even when that route wrote no series. Before this, the sensor-alone case skipped `supersedeReadings`, so a face-on `body.upperAddress` / `body.lowerAddress` refusal kept covering a key the sensor read. This applies to the two bends as well.
+
+#### Catalogue
+
+- Each descriptor gains its sensor rung FIRST. The camera rung stays the floor (`baselineRoute`), so what the directory says a golfer "needs" is unchanged, as is each descriptor's stereo gain.
+- **Direct, not Estimated** for `hipLineTilt` and `secondaryAxisTilt` (the brief said Estimated). `metric_catalogue_test` holds every ladder best-first: no Direct rung below an Estimated one. So an Estimated sensor rung cannot sit above the Direct face-on rung, and the sensor must be first because it is the answer. This matches the bends' `trunkImus` rungs, which are Direct on the same address front. The plane's assumption is carried as σ and as Downgraded records.
+- `howToRead` gains one sentence each. The manifest header's sensor-route paragraph names the three. `BodyRotationProvider::provides()` claims the three keys, beside the camera providers.
+- Signs (`signPositive` / `signNegative`) are unchanged, so `tools/metrics/gen_sign_table.py` has no row to regenerate.
+
+### W4c: the address-front ⚠ (interim, until #178)
+
+Mark, 13 Nov: "a common fault is setup at address being faulty and one of the most important reasons we need to measure it." Three trunk-sensor readings take the target line, or the vertical plane through the ball, from each sensor's OWN heading at that swing's address (`trunk_sensor::ballPlaneFront`). They therefore take the golfer as square at address: an open or closed set-up is absorbed and not seen. Until the target line comes from the alignment stick, with its drift σ (#178), that is said on every such reading.
+
+**The record.** `body.targetFromAddress`, Downgraded, fired by `body_rotation.cpp` `recordTrunkAssumptions` with the series. Its subject is the first of its covers; its covers are exactly the readings that were emitted from an address front:
+
+| Reading | Front | How the front enters |
+|---|---|---|
+| `spineForwardBend` (`trunkImus`) | the chest's | the ball plane is square to the chest's ML axis at address (`ballPlaneBendDeg`). Second order with no side tilt, first order once the chest leans out of the plane |
+| `hipLineTilt` (`pelvisImu`) | the hips' | the face-on plane's target line is the hips' ML axis direction at address (`trailAxisOf`). Second order at address, first order once the hips turn |
+| `secondaryAxisTilt` (`thoraxImu`) | the chest's | the same, from the chest. First order even at address: a 40° chest set 12° open reads 10.2° less lean than the face-on camera sees (`trunk_e2e_test` §l) |
+
+**Readings that do NOT depend on the address front, and why** (none is covered):
+- `spineSideBend` and `shoulderPlaneAngle3d`: obliquities, `asin((q·x̂)_z)`, the height of the ML axis. No heading moves that. The front reaches only their σ, through |sin θ| of a forward bend (the δ and turn-leak terms), which is a size, not a direction.
+- `pelvisRotation`, `thoraxRotation`, their signed twins, `xFactor`, `xFactorStretch`: heading CHANGES from this swing's own address (D13 `turnFromRad`). The address heading cancels, and every route (the two-camera one too) defines them from address, so no target line is assumed. They do not show an open set-up either, by definition; see the open question in W4c's notes.
+- `trailHipInternalRotation` / `leadHipInternalRotation` (`HipInternalRotationStage`): the pelvis sensor's signed turn from address less the thigh's own turn from address. Both from address, so the address heading cancels.
+- The KS rates (`ks.pelvis`, `ks.thorax`, `segment_rates.cpp`): the gyro's own S-I component, which has no heading at all.
+
+**Evidence.** `code` `squareAtAddress`; `chestAddressHeadingDeg` (when a chest reading is covered) and `hipAddressHeadingDeg` (when the hip tilt is covered): that sensor's ML-axis heading at address in the stance frame (`trunk_angles::turnHeadingRad`, zero at stand tall), lead-relative, + open. **The headings are kept in the record for diagnostics and are NOT shown**: the evidence sentence is only "Your address was taken as square to the target line." The heading is not an aim measurement. It holds the golfer's turn between stand tall and address, the heading drift since stand tall (a 17° drift reads 17°, §l) and the mount yaw's share, so a square golfer can read 17° "open". Shown, it would read as a set-up fault, the fault Mark cares most about (W4c review). A shown aim waits on #178's stick target line with its drift σ.
+
+**Golfer words** (`gate_words.json`): "your target line is taken from how you stood at address, so an open or closed set-up isn't seen in this reading yet". Catalogue (`gate_catalogue_body.h`): title "Target line taken from your address"; the description says the bend, the hip tilt and the spine's lean are read against the golfer's own address line, kept and judged a step lower in trust.
+
+**Precedence.** As the sensors' other records: when the camera stays the answer (a face-in sensor, or fewer positions), `applyTrunkSensorPrecedence` takes the key off the record, moves its subject to the next cover, and drops the record when it covers nothing. A heading whose readings have all gone goes too: `hipAddressHeadingDeg` with the hip tilt, `chestAddressHeadingDeg` with the last chest reading.
+
+**Not "Not assessable".** The readings stay graded with the ⚠, as the brief rules. No σ, norm, `core.json` status or stage version changed (`BodyRotationStage` always recomputes). No library swing has worn trunk sensors, so no stored result changes.
+
+**Tests.** `trunk_e2e_test` §l: a golfer set up 12° open reads the same as square on every trunk-sensor reading (to 0.0001°, P1→P7 and at every graded position, both hands) while the ideal face-on camera moves by up to 8.2° (hip tilt) and 10.4° (axis tilt); the record's covers, code and headings (0° square, +12° open, for both hands; 17° under a 17° drift); each sensor alone; and six precedence cases. `body_rotation_test`: the IMU-only record count is 4 and the new record covers the three keys. `gate_catalogue_test`: the evidence sentence states the assumption alone, the same with both headings in the evidence (one of them 17°) as with none.
+
+### W5: trail knee from the 3-D fit
+
+`trailKneeFlexion` now has the route `leadKneeFlexion` got on 12 Nov: the two-camera fit's hip, knee and ankle (`skeleton3d_body_series.h`, `buildSkeleton3dBody` / `mergeSkeleton3dBody`; the per-frame angle is `body3d::kneeFlexDeg`, already generic over the leg). The same work item makes the 3-D side bend a fallback for the trunk sensors' one, which W4 found missing.
+
+**Mark's rule (13 Nov), after the one-swing sheet.** On 2026-07-04 s8 the fit pulled the trail knee straight at impact: 21.8° against the down-the-line camera's 30.5°. In the face-on view at impact the hands and the banded shaft cover the trail knee, and the uncalibrated fit followed that view. Mark: "the 3d fit is likely to improve with calibration … with calibration likely the 3d fit, without calibration at impact the camera pose inference is better." So:
+- **Cameras uncalibrated** (every swing today: `Skeleton3dBodyInput::calibrated`, the flag that also decides `body3d.cameraAssumed`, is always false because no calibration reaches the fit). The down-the-line `trailKneeFlexion` is the answer whenever it exists. The 3-D series only fills when there is none.
+- **Cameras calibrated:** the replace rule below.
+- **The lead knee is unchanged.** The down-the-line camera cannot see the lead leg through much of the swing.
+
+**What it changes in stored results.** Two-camera swings that have a down-the-line trail knee keep it, so their trail-knee measures (`m_kneeFlexAddress`, `m_trailKneeFlex`, `m_trailKneeFlex_p2` … `_p8`) grade as before. Only a two-camera swing with NO down-the-line trail knee (the down-the-line posture refused) gains the fit's, with its ⚠ `body3d.fromFit`. `versions.skeleton3dBody` becomes 3 on every two-camera swing.
+
+#### Definition, sign, σ
+
+- **Value:** 180° minus the interior angle at the TRAIL knee between the hip and the ankle, in 3-D, at every fit frame. Joints `RightUpLeg` / `RightLeg` / `RightFoot` (22/23/24) for a right-hander, `LeftUpLeg` / `LeftLeg` / `LeftFoot` (17/18/19) for a left-hander: `kneeFlexDeg(fit, t, leftLeg = leftHanded)`, the lead knee's call with the other leg.
+- **Sign:** the down-the-line series' (`dtl_posture.h` `kneeFlexDeg`, the same formula on the image): **+ = more bend, 0 = a straight leg**, for either hand. Worked example (`skeleton3d_body_metrics_test` §12): a right-hander whose right knee bends 17° at address and 27° at the top reads 17° / 27°, so `m_trailKneeFlex` (P1 → P4) is +10°. The mirrored left-hander, whose LEFT knee does the same, reads the same numbers. The lead knee (20° throughout) is not read for it.
+- **σ:** the lead knee's gradient formula over the three joints' posterior σ (`FitResult::sigmaM`): σ_h²/a² + σ_a²/b² + σ_k²(1/a² + 1/b² − 2cos φ/(ab)), a and b the thigh and shin, φ the interior angle. 3.28° on the synthetic leg with 1 cm joint σ. Propagated on the series and every phase sample. No camera term: an angle between two segments does not turn with the cameras' heading, so no `body3d.cameraAssumed`.
+- **Frame validity:** the lead knee's. Each of the three joints at tier ≥ Constrained with a finite σ, each segment longer than `kTriMinBaselineM`. A frame with no reading between two that have one is bridged (valid 0). A position is read when a valid frame lies within the grader's ±`kWindowHalfUs` (15 ms) of the ladder instant (`readAt`, the grader's `reduceAt`).
+- **Stamped positions:** address, the top and impact, the down-the-line series' own. The grader reads the curve at P2, P3, P5, P6 and P8.
+
+#### The replace/keep rule (calibrated cameras), and why both ends share a route
+
+Built and tested, but it does not run on any swing until a calibration reaches the fit. Every trail-knee measure is the reading at address or a CHANGE from address (`delta`, anchor P1). A change taken from the fit at one end and the down-the-line camera at the other would grade the two routes' disagreement as the knee moving. So the rule is decided once per swing, for the whole series:
+
+- **Replace** when the 3-D series has a reading at Address AND at the Top (the window `m_trailKneeFlex` grades): the down-the-line series is erased and the 3-D one published. No record: the ladder's better rung winning is not a fallback.
+- **Keep** otherwise: the down-the-line series stays exactly as its producer made it, and the 3-D one is dropped, not published beside it.
+- **Fill** when there is no down-the-line series at all: the 3-D series is published whatever it covers, with `body3d.fromFit` (Downgraded, `replaces: "dtl"`, `route: "faceOn+dtl"`), as the lead knee does. `reconcileSubstitutedReadings` then moves the down-the-line refusal (`posture.address`) off the key into `replacedRecords`.
+- **Uncalibrated:** there is no replace. Keep whenever a down-the-line series exists (`trailKneeKeptUncalibrated`); fill as above when there is none.
+- `Skeleton3dBodyMerge` records the outcome (`trailKneeReplaced` / `trailKneeKeptDtl` / `trailKneeKeptUncalibrated`) and, on a replace, the positions P2 … P8 the down-the-line series read and the 3-D one does not (`trailKneeLost`), and the reverse (`trailKneeGained`). The stage logs the two counts.
+
+**The positions between.** A replaced series valid at P1 and P4 but not at, say, P6 makes P1 → P6 not assessable on that swing, although the down-the-line series could have graded it (§12 pins this). How often:
+
+- **Not from the fit's coverage.** The fit's grid spans address − 150 ms … P8 + 25 ms (stage version 16), so every P1 … P8 is inside it. On 2026-07-04 s8 its spacing is 6.4–27 ms, so a read leg always has a frame within ±15 ms.
+- **Only from a tier drop on one of the three trail-leg joints.** The trail leg is the one nearest the down-the-line camera, and the face-on camera sees it square. On 2026-07-04 s8 the three joints are tier 3 (measured) on all 115 frames, and the 3-D trail knee reads at all eight positions (read-only probe of the stored fit, no re-analysis).
+- **So it should be rare** once the replace rule runs (calibrated cameras only). The brief's rule is implemented as written. The sweep's log line (`positions lost N, gained M`) counts it across the library. If losses turn out common, the proposed fix is a stricter replace rule: replace only when the 3-D series reads every position P1 … P8 that the down-the-line series reads. That rule can never lose a grading, at the cost of keeping the camera's reading on more swings.
+
+**What the one-swing check showed** (my read-only probe of 2026-07-04 s8: stored fit joints against the stored down-the-line series, the grader's ±15 ms median, not the stage's output. The orchestrator's sheet read 21.8° / 30.5° at impact):
+
+| | P1 | P2 | P3 | P4 | P5 | P6 | P7 | P8 |
+|---|---|---|---|---|---|---|---|---|
+| down the line | 17.3° | 12.8° | 3.0° | 1.7° | 20.3° | 28.4° | 30.7° | 34.1° |
+| 3-D fit | 21.1° | 15.1° | 5.4° | 2.5° | 22.1° | 28.1° | 21.9° | 35.1° |
+
+The two agree within about 2–4° except at impact (P7), where the fit reads 8.8° less bend. Replacing would have moved P1 → P7 from +13.4° to +0.8°. Under the plan's gate rule that disagreement went to Mark, whose ruling is above.
+
+#### The 3-D side bend as the trunk sensors' fallback
+
+`mergeSkeleton3dBody` skipped the 3-D `spineSideBend` whenever any `spineSideBend` series existed. That included the trunk sensors' one (route `trunkImus`), which `BodyRotationStage` writes first and `applyTrunkSensorPrecedence` may later withdraw: a sensor worn face-in, or a sensor with fewer positions. With no face-on side bend, the swing then had none. W4 fixed this exact shape for `shoulderPlaneAngle3d`; the same fix is applied here:
+
+- The 3-D side bend is published unless ANOTHER route's series is present: the face-on one (the better rung, the answer wherever it read) or another 3-D one. A `trunkImus` series no longer stops it.
+- Beside the sensors' reading, the precedence decides. If the sensors' reading stands, `supersedeReadings` erases the 3-D series and its `body3d.fromFit` record (a weaker stand-in). If it is withdrawn, the 3-D series is the answer, with its `body3d.fromFit`.
+- `skeleton3d_body_metrics_test` §13 checks both stage orders (the sensors' series before the merge, as in the pipeline, and after it). Sensors face-in with no face-on reading: the 3-D side bend fills. Sensors trusted: the sensors' reading wins. A face-on reading present: it stays the answer and no 3-D series is added. It also checks the fewer-positions case, and that a second 3-D series is still blocked.
+
+#### Catalogue, provider, version
+
+- **The ladder:** `dtl` (Triangulated, **Direct**, both cameras: unchanged), then the new `faceOn+dtl` (Triangulated, Estimated, both cameras: "180° less the angle at the trail knee between the hip and the ankle, from the two-camera 3-D fit of the body (uncalibrated: the fit solves its own cameras), where the down-the-line reading is missing"), then `faceOn` (planned, unchanged).
+- **Why the 3-D rung sits BELOW the down-the-line one.** The route vocabulary (`MetricRequirement`) cannot say "calibrated cameras". It states devices; `minTier` is never raised by a second camera, and the manifest rules it out as a stand-in for kit. So the catalogue states the rule that holds on every rig today, the uncalibrated one: the camera first, the fit as the fallback. This is the same shape as `spineSideBend` (face-on Direct, the 3-D rung below it). When a calibration requirement is added, the rung moves above `dtl` and needs it. No requirement kind was added.
+- **What a rig resolves to:**
+  - **Two cameras (uncalibrated, as every rig is today):** `dtl`, **Measured**, as before W5. The setup summary's "Setup and stance" row and the model browser are unchanged from before W5. (Round 1 of W5 had put the 3-D rung first, which made this Bridged; Mark's rule undid that.)
+  - **Two cameras, calibrated (not possible yet):** the catalogue would still resolve `dtl`, Measured, while the stage lets the fit replace the down-the-line series. The catalogue would then understate the route until the calibration requirement exists.
+  - **Down-the-line camera only:** unchanged. It was Unavailable before and is still, because the `dtl` rung also needs the face-on camera (a known, older gap).
+  - **Face-on only:** Unavailable, as before (the face-on rung is planned).
+- **The floor** is now `faceOn+dtl`, the last live rung. It needs the same two cameras as `dtl`, so the floor's requirement ("needs" both cameras) and the stereo gain (Unlocks) are unchanged.
+- `howToRead`: the down-the-line camera reads it even with the face-on camera as well. The 3-D fit stands in only where that reading is missing, because until the cameras are calibrated the fit follows the face-on view, where the hands and the shaft cover the trail knee at impact. Once they are calibrated, the fit will read it wherever it sees the knee at both address and the top, so every change from address is read by one route. The sign sentence ("HIGHER MEANS MORE BEND") is unchanged.
+- `Skeleton3dBodyProvider::provides()` claims `trailKneeFlexion`, beside `DtlPostureProvider`.
+- `kSkeleton3dBodyStageVersion` 2 → 3, with a history line; `swing_doc_test` pins 3.
+- No `core.json` status, norm or gate changed. `body3d.fromFit` is the existing record.
+
+### W6: shoulder-plane norm
+
+**Mark's decision, 13 Nov 2026.** The `m_shoulderPlane` norm (`norms.json`) goes from μ 50 / σLo 10 to **μ 36 / σLo 8**, still `"source": "heuristic"`, provisional until it is seated at #109 (the worn session). Same measure, sign and definition: the shoulder line's inclination out of the horizontal at the top, in its own vertical plane, + with the trail shoulder higher (`shoulderPlaneAngle3d`, off the 3-D fit or, since W4, the chest sensor).
+
+- **Where 36 comes from.** The GolfTEC SwingTRU motion study (vest sensors, more than 13,000 golfers): tour players about 36° of shoulder tilt at the top and about 28° at shaft-parallel back; high handicappers 25–30° at the top. That is a commercial dataset on a different instrument, so it is not proven to be the same scale as the 3-D fit or the chest sensor.
+- **The brand stays out of `norms.json`.** `core_pack_test`'s brand rule forbids the study's company name in the three content files, so the citation there calls it "a commercial teaching chain's published motion study" and points here. This doc is the one place it is named.
+- **The library on 13 Nov** (medians): Nick 36.5°, Mark 30.1°, Jess 26.9°, Paddy 14.3° (an upright posture), Chris 11.2° (a suspected reading failure). Recorded, not used to set the centre.
+- **The 50° it replaces had no source.** The citation says so, and keeps the reading's history: what it grades, how it is read, and the face-on foreshortening that retired the P4 image reading on 14 Sep.
+- **What grades against it.** The corridor moves with the norm; the flat/steep faults' conditions and signals are unchanged here. W7 (below) moved those faults to a relative reading, the shoulder plane at the top against the forward bend at address; this norm stays as the absolute reading's context, and no fault grades it.
+- **Also fixed: the stale ±5° camera yaw** left by cab410f7. The `m_shoulderAlignment` citation, `body_rotation_estimation.md` §7.3 and the `shaftDirection` and `shoulderLineYaw` rows of `metric_catalogue_developer_guide.md` Appendix A (Club delivery, Alignment) now say 9°, `tuned::dtlCamera::kDtlYawSigmaUncalDeg`.
+- **Tests.** No test or golden pinned 50 for this norm (every consumer reads `norms.json` through the provider and checks shape, not value). `model_browser_test`'s list at the "derived measure labels" block names the three measures that carry `label: ""` in `core.json`, not the ones with no producer; `m_shoulderPlane` still carries an empty label, so the list is right and stays.
+- No `core.json` status, condition, signal, edge, σ constant or stage version changed. No stored result changes; only the grade read against the norm does, at the next diagnostics pass.
+
+### W7: shoulder tilt against posture
+
+**Mark's decision, 13 Nov 2026** (design B, as approved): option (a), a producer-side point reading; the flat and steep faults grade the RELATIVE reading; norm μ −3, σLo 5; the two posture → shoulder-plane edges removed.
+
+**The idea.** A golfer who turns the shoulders square to the spine finishes the backswing with the shoulder line inclined by about the spine's forward bend. GolfTEC (Josh Troyer): tour players tilt about **3° less than their forward bend at address** (about 40° of bend, about 37° of tilt). An absolute norm (36°, W6) calls an upright golfer flat and a bent-over one steep for the same turn. The relative reading asks whether the shoulders turned on the plane this golfer's posture set.
+
+**Evidence from the library** (ledgers at cab410f7, graded shots only, read 13 Nov):
+
+| Golfer | Shots | Tilt at the top (median) | Forward bend at address (median) | Tilt − bend (median) | Middle half |
+|---|---|---|---|---|---|
+| Jess | 23 | 26.9° | 29.7° | **−2.6°** | −4.3 … +2.3 |
+| Nick | 37 | 36.5° | 37.9° | **−3.2°** | −9.1 … +2.0 |
+| Paddy | 11 | 14.3° | 18.1° | **−3.9°** | −5.3 … −2.5 |
+| Mark | 127 | 30.1° | 36.5° | **−6.1°** | −10.6 … −2.9 |
+| Chris | 8 | 11.2° | 35.2° | **−24.0°** | −25.9 … −19.5 |
+
+- Four of the five centre within 3° of Troyer's −3°. That is a different instrument, so this is agreement, not proof.
+- Paddy's low absolute tilt is his upright posture (18° of bend), not a flat turn: the absolute norm calls him flat, the relative one does not.
+- Mark is the flattest of the four against his own posture (−6°), Jess the closest to it (−2.6°), which matches what Mark sees.
+- Chris (−24°) is not a swing: a 35° bend with an 11° tilt is a reading failure. Check his top frames before trusting any shoulder-plane reading for him.
+
+#### The reading
+
+- **`shoulderTiltVsBend`** = `shoulderPlaneAngle3d` at the top − `spineForwardBend` at address, in degrees (`src/Body/shoulder_tilt_vs_bend.h`, `deriveShoulderTiltVsBend`). One phase sample at the Top and no curve, as the setup readings are written.
+- **Sign:** + means the shoulders turned more steeply than the posture sets them up to; − means flatter. Neither half flips for a left-hander (the tilt is + with the trail shoulder higher, the bend + toward the ball), so neither does the difference. Worked: a 37° tilt on a 40° bend reads **−3°** for either hand. On `trunk_e2e_test` §m's body (the chest bent 40° and leaning 8° to the trail side at address, the trail side up 12° at the top) the chest sensor reads 39.05° − 40.28° = **−1.22°**, the same for both hands.
+- **Where it is made: one step in `runProfile`, after `applyTrunkSensorPrecedence` and `reconcileSubstitutedReadings`**, not a stage. Every stage runs before the precedence, so a stage would see the halves before the precedence settled which route won; the step sees exactly the series and records that will be written. It is header-only, so `shoulder_tilt_vs_bend_test` and `trunk_e2e_test` reach it without the pipeline.
+- **Each half is read exactly as the grader reads it** (`graderReadingAt`, the code of `measure_sample.cpp` `buildPhaseGrid` + the `at` reducer): the median of the valid samples within ±`kWindowHalfUs` (15 ms) of the ladder instant, one sample enough (`reduceAt`, or the instant on a fitted curve); else the phase sample the series labels at that phase; for a phase the ladder lacks, the curve at the label's own instant first. The ladder's first event for a phase wins, as in the grid; an empty ladder reads nothing. So `m_shoulderTiltVsBend` is exactly `m_shoulderPlane` − (`spineForwardBend` `at p1`) on the same swing; `shoulder_tilt_vs_bend_test` §2 checks that through the grid itself, on the document the pipeline writes.
+- **Not produced** when either half has no reading at its phase: no series, no zero, no half value.
+- **The reason given is the missing half's** (W7 review). Every Refused, Bounded or Withheld record that names the missing half (subject or covers: the effects `gates::primaryRecord` ranks) also covers `shoulderTiltVsBend`, so `LiveMeasureSource::gateCause` words the half's real refusal. An example is `posture.address` on a swing whose down-the-line posture refused at address, never the generic "metric not produced on this capture". Downgraded and Masked records are not extended: a kept-value warning or a frame count is not a reason for absence. A missing half with no such record touches nothing (the generic reason then stands, and it is true). Idempotent: the clean-up strips the key from every record first.
+
+#### σ
+
+- The two halves' graded σ (the phase sample's own, else the series σ: the grader's rule) **in quadrature**, on the phase sample and the series, `sigmaKind` Propagated (AssumedInput when either half's is). No σ on a half: no σ. A half whose σ is only a noise floor (a series σ with no `sigmaKind`, which the grader tags Noise) keeps the result a noise floor: a series σ with no kind, no phase-sample σ.
+- **Both halves from the chest sensor share one term, the mount yaw δ.** The tilt carries it through the chest's bend (`mountYawObliquityDeg`, asin(sin θ·sin σ_δ), 6.41° at 40°); the bend carries it through its address front (`ballPlaneMountYawDeg`: second order with no side lean, 0.63° on §m's body with its 8° lean, so the bend's σ there is 3.065° against the garment's 3°). The other terms do not correlate: the garment moves the bend about the chest's left-right axis and the tilt about its front-back one, the gyro-scale and drift terms are zero at address, and the turn leak is the tilt's alone.
+- **It cannot be taken exactly here.** The series carry σ, not signed sensitivities, and the two δ effects' signs depend on the turn and the lean.
+- **Quadrature is conservative in practice.** The tilt's δ term is budgeted at its address worst case and not reduced as the chest turns. On a 40° bend the true δ effect on the obliquity is 6.41° at no turn, 5.4° at 45°, 4.3° at 60° and 0.73° at 90° (numerically, ±10°). The largest cross term the two can add is 2 × that × 0.63°. The budget's surplus covers it for any chest turn at the top beyond about 37°; at a top with no chest turn at all the joint value could exceed quadrature by at most 0.55° (7.66° against 7.11°). Tops turn 80–100°.
+- **Mixed instruments** (a camera half and a sensor half, or the 3-D fit and the down-the-line camera): independent errors, so quadrature is the joint value.
+- **On every two-camera swing today the reading has NO σ.** The down-the-line `spineForwardBend` carries none (`dtl_posture.h` stamps σ only on the ball-reach readings), and "no σ on a half, no σ" then drops the 3-D tilt's propagated σ too. That is honest (not characterised, never a smaller σ), and the mixed-sources ⚠ is then the ONLY uncertainty marker the reading shows. `howToRead`, the record's explanation and its golfer words say so, and none implies a margin. The uncertainty census (`uncertainty_census_design.md` §1) lists it. A σ on the down-the-line bend fixes both readings.
+
+#### Trust records
+
+- **The halves' records cover it.** Every Downgraded or Withheld record whose subject or covers name either half also covers `shoulderTiltVsBend`, as `xFactor` sits under each turn's records. On a worn swing: `body.chestBendSite`, `body.chestShoulderSite`, `body.trunkMountYawAssumed`, `body.targetFromAddress` (and the face-in record when it still covers a half). Withheld is included because a half that may not be judged takes the difference with it (the series' `withheld` is copied too). Refused, Bounded and Masked records are not: they count a half's frames or refuse a half's value, and the reading exists only when both values do. Because this runs after the precedence, a sensor's records already withdrawn from a half (the camera kept the answer) do not reach it.
+- **`body.tiltBendMixedSources`** (new, Downgraded, subject and covers `shoulderTiltVsBend`, producer `shoulder_tilt_vs_bend.h`): fired whenever the halves are not both from the chest sensor. Evidence `tiltFrom` / `bendFrom` (the halves' routes; a bend with none stated is the down-the-line camera's, `dtl`). Sentence: "Your shoulder tilt was read from the 3-D fit of both cameras and your posture by the down-the-line camera." Golfer words (`gate_words.json`): "your shoulder tilt and your posture were measured by different instruments that haven't been checked against each other, so the comparison is less certain than either reading alone". It names no margin, because on two-camera swings there is none (σ above).
+
+#### Routes (the catalogue's rungs, best first) and precedence
+
+| Rung | Tilt | Bend | Method, quality | Record | When |
+|---|---|---|---|---|---|
+| `trunkImus` | chest sensor (`thoraxImu`) | chest sensor (`trunkImus`) | Inertial, Direct | none extra | sensors worn and trusted |
+| `thoraxImu+dtl` | chest sensor | down the line | Fused, Direct | mixed sources | the sensor's bend withdrawn (face-in, or fewer positions) and no 3-D tilt to replace its tilt |
+| `faceOn+dtl` | 3-D fit | down the line | Triangulated, Estimated | mixed sources | two cameras, no chest sensor (every library swing today) |
+| `trunkImus+faceOn+dtl` | 3-D fit | chest sensor | Fused, Estimated | mixed sources | the sensor's tilt withdrawn, its bend kept |
+| — | (none) | — | — | — | one camera only: no tilt at the top, not assessable |
+
+- The precedence is the trunk-sensor rule (W3/W4), unchanged: each half is whatever route it left. The reading takes no route decision of its own.
+- `routeDirect` is true on the two Direct rungs. The two rungs that need more kit than one above them (`thoraxImu+dtl`, `trunkImus+faceOn+dtl`) never resolve in the catalogue ahead of `trunkImus`; they name what the precedence can leave. The floor is `faceOn+dtl`, as `shoulderPlaneAngle3d`'s.
+- `BodyRotationProvider::provides()` claims the key: its precedence settles both halves.
+
+#### Catalogue, pack and norm
+
+- **Descriptor** `shoulderTiltVsBend`: "Shoulder tilt against posture", Body rotation, PointInTime at Top, `orchid` (the shoulder plane's; a point reading may share). `howToRead` states the definition, the sign and the published 3° rule without the brand. It also says that with two cameras the down-the-line bend states no margin, so the warning is the only sign of uncertainty there, and that a missing half's reason is the one given. `usedBy`: the two faults; `shoulderPlaneAngle3d` no longer lists them.
+- **Measure** `m_shoulderTiltVsBend` (`core.json`): `provided`, `at` p4, live. Golfer name "your shoulder turn against your posture"; high "your shoulders turn more steeply than your posture sets them up to"; low "your shoulders turn flatter than your posture sets them up to".
+- **Signals:** `sig_flatShoulderPlane` (low) and `sig_steepShoulderPlane` (high) read it.
+- **`m_shoulderPlane` stays live and shown**, against its 36 ± 8 norm, as context; no signal reads it. The pack validator then lists it as `unusedMeasure`, a warning (`characteristic_pack.cpp`); no test pins that, and no integrity rule needs a live measure to be read. Its descriptor names no trace corridor, and the new reading is a point reading, which cannot borrow one (`metric_catalogue_test`'s R31 guard: only TimeSeries, only with Mark's say-so), so no corridor moved.
+- **Conditions:** the golfer lines say the relative meaning: flat "your shoulders turn flatter than your posture sets them up to", steep "your shoulders turn more steeply than your posture sets them up to". `golferWell`, `cue`, `check`, `golferWhy`, `consequence` and `drills` are kept: none becomes false, and the down-the-line "line through your shoulders points at the ball" check is already the relative test.
+- **Edges:** `posture_too_upright → flat_shoulder_plane` and `posture_too_bent → steep_shoulder_plane` are deleted (Mark: under the relative meaning a posture cannot produce them; posture's own effects are linked directly already). Every other edge stays, including `c_posture → flat_shoulder_plane`, `s_posture → steep_shoulder_plane` and `loss_of_posture_backswing → flat_shoulder_plane`. 665 → 663 edges.
+- **Norm** (`norms.json`): `m_shoulderTiltVsBend`, μ **−3**, σLo **5**, heuristic, provisional until seated at #109 with both parts from the chest sensor. The corridor is −8 … +2: flat below −8, steep above +2. The citation gives the published rule without the brand (the content files carry none; this doc names GolfTEC and Troyer), the library medians above, and Mark's decision. On the library: Jess, Nick and Paddy's medians sit inside; Mark's median (−6.1°) is inside, but his flatter quarter (below −10.6°) fires; Chris fires on every shot until his reading is fixed.
+
+#### Version, tests
+
+- **`versions.shoulderTiltVsBend` 1** (`kShoulderTiltVsBendVersion`, new): the step has no stage, so it has its own stamp, written only when the reading was; never reused. `swing_doc_test` pins 1 and its absence.
+- **Tests:** `shoulder_tilt_vs_bend_test` (new: every route pair; the grader's own reading through `buildPhaseGrid` on the document the real writer (`SwingDocWriter::writeSwingJson`) writes; missing halves; σ cases; records; the mixed record and its sentence; idempotence; §7: a refused bend, a refused / bounded / withheld tilt and a bridged top each name the reading, `LiveMeasureSource::gateCause` on the written document gives `posture.address`, and a missing half with no record touches nothing); `trunk_e2e_test` §m (the real chest-sensor series and records after the precedence, both hands; a face-in chest beside the cameras gives the cameras' pair); `metric_catalogue_test` (the ladder, resolution, claim, usedBy; descriptor 134 → 135, PointInTime 64 → 65, Body rotation 10 → 11); `live_measure_source_test` (measures 212 → 213); `axis_direction_test`'s two rationale lines.
+- **What it changes in stored results.** Every library swing with a 3-D shoulder plane at the top and a down-the-line forward bend at address gains `shoulderTiltVsBend` (route `faceOn+dtl`, with the mixed-sources ⚠) at the next re-analysis. A swing missing either half has no reading, so its flat/steep faults are not assessable where the absolute tilt alone used to grade them. The commonest case is a two-camera swing whose down-the-line posture refused at address. Its "not judged" reason is that refusal (`posture.address`), carried onto the reading's key, so it is shown with its real reason, not hidden behind "metric not produced", and the flat/steep faults grade it instead of the absolute tilt. The flat/steep counts per golfer before and after come from the orchestrator's one-swing check, sweep and regrade; nothing was swept here.

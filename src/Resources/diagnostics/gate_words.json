@@ -209,11 +209,23 @@
     },
     {
       "id": "body.chestBendSite",
-      "golfer": "the chest sensor reads the bend on your upper back, not along the line from your hips to your shoulders, and the two have not yet been checked against each other"
+      "golfer": "the chest sensor reads the bend and the lean on your upper back, not along the line from your hips to your shoulders, and the two have not yet been checked against each other"
+    },
+    {
+      "id": "body.chestShoulderSite",
+      "golfer": "the chest sensor reads the tilt of your upper back, not of the shoulder joints themselves, which move with the shoulder blades, and the two have not yet been checked against each other"
     },
     {
       "id": "body.trunkMountYawAssumed",
-      "golfer": "which way each sensor faces on your back is taken from how it is worn, because standing tall cannot measure it, so the bends it reads are a few degrees less certain"
+      "golfer": "which way each sensor faces on your back is taken from how it is worn, because standing tall cannot measure it, so the bends and tilts it reads are a few degrees less certain"
+    },
+    {
+      "id": "body.targetFromAddress",
+      "golfer": "your target line is taken from how you stood at address, so an open or closed set-up isn't seen in this reading yet"
+    },
+    {
+      "id": "body.tiltBendMixedSources",
+      "golfer": "your shoulder tilt and your posture were measured by different instruments that haven't been checked against each other, so the comparison is less certain than either reading alone"
     },
     {
       "id": "body.thighTurnAssumed",

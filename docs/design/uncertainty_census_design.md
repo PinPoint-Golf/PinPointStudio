@@ -25,6 +25,8 @@ On 2 October 2026, the 58 metric keys on the 4 July session broke down as follow
 
 Examples of noise-only: pelvis sway, spine side bend, shoulder plane, tempo, the four angular speeds. Examples with no σ: knee flexion, spine forward bend, head sway and tilt, stance, ball position, pelvis thrust, foot flare.
 
+**Inherited absence (added 13 Nov 2026, W7).** `shoulderTiltVsBend` (the shoulder plane at the top less the forward bend at address) is the two halves' σ in quadrature, and has none when a half has none. On every two-camera swing today its bend is the down-the-line `spineForwardBend`, which carries no σ, so the reading carries none either, although its 3-D tilt has a propagated one. The mixed-sources warning (`body.tiltBendMixedSources`) is then the only uncertainty marker it shows. It is characterised only on a worn swing, where both halves come from the chest sensor. Giving the down-the-line bend a σ fixes both.
+
 For 42 of 58 metrics, then, the diagnostics still give a hard yes/no, or a falsely confident probability. A characteristic built on one of those fires as hard at its edge as far beyond it.
 
 **Validation cannot be honest on top of that.** A validation study compares readings to truth. If the readings carry no stated uncertainty, there is nothing to check coverage against. The study can only report errors after the fact, not test whether the app's own statements about confidence are true.

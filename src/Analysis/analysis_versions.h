@@ -150,12 +150,21 @@ constexpr int kShaftDirectionStageVersion = 1;   // 1: first version — fusion 
                                                  //    σ ⊕ the DTL camera's yaw σ (planned-metrics promotion, 2026-11-12)
 
 // skeleton3dBody — kSkeleton3dBodyStageVersion: the readings from the 3-D body (Skeleton3dBodyStage,
-//           skeleton3d_body_series.h): shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion
-//           and spineSideBend, and the research-only thigh turns, off the two-camera fit's joints.
+//           skeleton3d_body_series.h): shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion,
+//           trailKneeFlexion and spineSideBend, and the research-only thigh turns, off the two-camera
+//           fit's joints.
 //           Series only; stamped for the record (provenance), never reused — it reads the fit already
 //           in hand. Bump when skeleton3d_body_metrics.h / _series.h or the stage changes its output.
-constexpr int kSkeleton3dBodyStageVersion = 1;   // 1: first version — tier ≥ constrained joints, σ from the fit's
+constexpr int kSkeleton3dBodyStageVersion = 3;   // 1: first version — tier ≥ constrained joints, σ from the fit's
                                                  //    per-joint σ, the aim ⊕ σ_yaw (planned-metrics promotion, 2026-11-12)
+                                                 // 2: shoulderPlaneAngle3d is published beside the chest sensor's
+                                                 //    (thoraxImu), the fallback when the precedence withdraws that
+                                                 //    one; no change without a chest sensor (W4, 2026-11-13)
+                                                 // 3: the 3-D trailKneeFlexion — uncalibrated (today) only where
+                                                 //    there is no down-the-line one; calibrated, replacing it when
+                                                 //    it reads at address AND the top (Mark's rule); spineSideBend
+                                                 //    is published beside a trunk sensor's, as its fallback (W5,
+                                                 //    2026-11-13)
 
 // hipInternalRotation — kHipInternalRotationStageVersion: trailHipInternalRotation /
 //           leadHipInternalRotation (HipInternalRotationStage, trunk_sensor_series.h): the pelvis sensor's
@@ -163,10 +172,21 @@ constexpr int kSkeleton3dBodyStageVersion = 1;   // 1: first version — tier �
 //           the fit did not read it. Series only; stamped for the record (provenance), never reused — it
 //           reads the pelvis series and the fit already in hand. Bump when trunk_sensor_series.h's hip
 //           rotation or the stage changes its output. (BodyRotationStage, whose output gained the trunk
-//           sensors' bends the same day, has no version constant: it always recomputes.)
+//           sensors' bends the same day and their three tilts on 13 Nov, has no version constant: it
+//           always recomputes.)
 constexpr int kHipInternalRotationStageVersion = 1;   // 1: first version — pelvis sensor − 3-D thigh, the thigh
                                                        //    fixed with σ kHipIrThighFixedSigmaDeg where unread
                                                        //    (planned-metrics promotion, 2026-11-12)
+
+// shoulderTiltVsBend — kShoulderTiltVsBendVersion: the shoulder tilt at the top less the forward bend at
+//           address (shoulder_tilt_vs_bend.h deriveShoulderTiltVsBend). Not a stage: ONE STEP in runProfile,
+//           after applyTrunkSensorPrecedence and reconcileSubstitutedReadings, because each half is whatever
+//           route won the precedence. Series only; stamped for the record (provenance) when the reading was
+//           written, never reused — it is a subtraction on two readings already in hand. Bump when
+//           shoulder_tilt_vs_bend.h changes its output.
+constexpr int kShoulderTiltVsBendVersion = 1;   // 1: first version — the halves read as the grader reads them,
+                                                //    σ in quadrature, the halves' kept-value records extended and
+                                                //    body.tiltBendMixedSources on mixed instruments (W7, 2026-11-13)
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
@@ -182,6 +202,7 @@ struct AnalysisVersions {
     int     shaftDirection = 0; // 0 = the shaft-direction stage did not run (or predates its version)
     int     skeleton3dBody = 0; // 0 = the 3-D body readings stage did not run (or predates its version)
     int     hipInternalRotation = 0; // 0 = the hip internal rotation stage did not run (or predates its version)
+    int     shoulderTiltVsBend = 0;  // 0 = no shoulderTiltVsBend was written (or the swing predates it)
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

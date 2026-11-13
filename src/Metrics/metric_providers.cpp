@@ -115,7 +115,16 @@ std::vector<QString> BodyRotationProvider::provides() const
              // The trunk sensors' bends, the trunkImus rungs (12 Nov 2026): the chest sensor's forward
              // bend, and the chest's frontal tilt against the hips'. Also claimed by the camera
              // producers (DtlPosture, UpperBodyMetric, Skeleton3dBody); the sensor reading wins.
-             QStringLiteral("spineForwardBend"),         QStringLiteral("spineSideBend") };
+             QStringLiteral("spineForwardBend"),         QStringLiteral("spineSideBend"),
+             // The trunk sensors' three tilts (W4, 13 Nov 2026): the chest's shoulder plane (thoraxImu;
+             // also claimed by Skeleton3dBody), the hips' tilt in the face-on plane (pelvisImu; also
+             // LowerBodyMetric) and the chest's axis tilt in it (thoraxImu; also UpperBodyMetric). The
+             // sensor reading wins (applyTrunkSensorPrecedence).
+             QStringLiteral("shoulderPlaneAngle3d"),     QStringLiteral("hipLineTilt"),
+             QStringLiteral("secondaryAxisTilt"),
+             // The shoulder tilt against the forward bend (W7, 13 Nov 2026; shoulder_tilt_vs_bend.h), read
+             // after this provider's precedence settles both halves — the chest sensor's, or the cameras'.
+             QStringLiteral("shoulderTiltVsBend") };
 }
 
 // ----------------------------------------------------------------- HipInternalRotationProvider
@@ -203,7 +212,10 @@ std::vector<QString> Skeleton3dBodyProvider::provides() const
     // The research-only thigh turns (thighTurn3dLead / thighTurn3dTrail) carry no descriptor and are
     // not claimed (isResearchOnlySeries).
     return { QStringLiteral("shoulderPlaneAngle3d"), QStringLiteral("shoulderLineYaw"),
-             QStringLiteral("leadKneeFlexion"),      QStringLiteral("spineSideBend") };
+             QStringLiteral("leadKneeFlexion"),      QStringLiteral("spineSideBend"),
+             // W5 (2026-11-13): the trail knee — where the down-the-line one is missing while the cameras
+             // are uncalibrated; calibrated, where the fit reads it at address and the top.
+             QStringLiteral("trailKneeFlexion") };
 }
 
 // ------------------------------------------------------------------ KinematicSequenceProvider

@@ -384,6 +384,7 @@ a magnitude — a carry, a spin rate, a duration.
 | `leadHipInternalRotation` | ° | live | internal rotation of the lead hip | external rotation |
 | `shoulderPlaneAngle` | ° | live | the TRAIL shoulder sits above the lead shoulder | the lead shoulder sits above the trail shoulder |
 | `shoulderPlaneAngle3d` | ° | live | the TRAIL shoulder sits above the lead shoulder — a steeper turn | the lead shoulder sits above the trail shoulder |
+| `shoulderTiltVsBend` | ° | live | the shoulders turned more steeply than the posture at address sets them up to | the shoulders turned flatter than the posture at address sets them up to |
 
 #### Spine & tilt
 
@@ -1047,7 +1048,8 @@ Measured for the pelvis / thorax IMUs, so these read as real-but-estimated rathe
 | `xFactor` | live | FaceCam (Plv+Thx upgrade it; DTL triangulates both bearings) | thorax−pelvis separation ✓ | camCal / anat+mount | `body_rotation_test` · (mocap owed) |
 | `xFactorStretch` | live | as `xFactor` (incl. the DTL rung), + a segmented Top | separation minus its value at Top ✓ | camCal / anat+mount | `body_rotation_test` · (corpus: speed correlation owed) |
 | `shoulderPlaneAngle` | live | FaceCam | `buildUpperBodySeries` shoulder-line vs horizontal ✓ | camCal | `upper_body_metrics_test` · (corpus) |
-| `shoulderPlaneAngle3d` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's shoulder line, its inclination in its own vertical plane at the top (`Skeleton3dBodyStage`, 12 Nov 2026) ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test` · (one-swing check) |
+| `shoulderPlaneAngle3d` | live *(Bridged; Measured with Thx)* | FaceCam + **DTL** (**Thx** upgrades it and wins) | the two-camera 3-D fit's shoulder line, its inclination in its own vertical plane at the top (`Skeleton3dBodyStage`, 12 Nov 2026) ✓; the chest sensor's ML axis against level, the same inclination, which beats it (`thoraxImu`, 13 Nov 2026) ✓ | fit cameras self-solved / anat+mount | `skeleton3d_body_metrics_test`, `trunk_e2e_test` §k · (one-swing check; no worn session) |
+| `shoulderTiltVsBend` | live *(Bridged; Measured with Thx)* | FaceCam + **DTL** (**Thx** upgrades it and wins) | `shoulderPlaneAngle3d` at the top − `spineForwardBend` at address, each read as the grader reads it, derived once after the trunk-sensor precedence (`deriveShoulderTiltVsBend`, `shoulder_tilt_vs_bend.h`, 13 Nov 2026) ✓. Rungs: `trunkImus` (both halves from the chest sensor) · `thoraxImu+dtl` · `faceOn+dtl` (the 3-D fit's tilt, the down-the-line bend) · `trunkImus+faceOn+dtl`; every mixed pair carries `body.tiltBendMixedSources`. Grades `flat_shoulder_plane` / `steep_shoulder_plane` (norm −3 ± 5, heuristic) | as its halves | `shoulder_tilt_vs_bend_test` (the grader's own `at` reading), `trunk_e2e_test` §m · (one-swing check, library sweep; no worn session) |
 | `trailHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: thigh turn − pelvis-sensor turn; the thigh assumed fixed (σ 6°, `body.thighTurnAssumed`) without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
 | `leadHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: pelvis-sensor turn − thigh turn; the thigh assumed fixed without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
 
@@ -1060,7 +1062,7 @@ the set a reader plots together, and ten members made it unreadable.
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
 | `spineSideBend` | live | FaceCam (+ **DTL**: the 3-D fit where the face-on lines refuse; **Plv+Thx** upgrade it and win) | `buildUpperBodySeries` lateral flexion ✓; the fit's frontal-plane tilts, square to the pelvis, only where the face-on series is absent (12 Nov 2026) ✓; the sensors' thoraxSideBend − pelvisObliquity, which beat both (12 Nov 2026) ✓ | camCal / anat+mount | `upper_body_metrics_test`, `skeleton3d_body_metrics_test`, `trunk_e2e_test` §j · (no worn session; mocap owed) |
-| `secondaryAxisTilt` | live | FaceCam | frontal spine vector vs vertical ✓ | camCal, ground | `upper_body_metrics_test` · (mocap owed) |
+| `secondaryAxisTilt` | live | FaceCam (**Thx** upgrades it and wins) | frontal spine vector vs vertical ✓; the chest sensor's long axis in the face-on plane, square to the chest at address (`thoraxImu`, 13 Nov 2026) ✓ | camCal, ground / anat+mount | `upper_body_metrics_test`, `trunk_e2e_test` §k · (no worn session; mocap owed) |
 | `spineForwardBend` | live | DTL (**Thx** upgrades it and wins) | `buildDtlPosture` hip-to-shoulder line ✓; the chest sensor's forward bend (thoraxForwardBend, the chest's inclination — not thorax-relative-pelvis flexion), which beats the camera (12 Nov 2026) ✓ — SAGITTAL, so face-on cannot see it | camCal / anat+mount | `dtl_posture_test`, `trunk_e2e_test` §j · (no worn session; mocap owed) |
 | `thoracicFlexion` | planned | **DTL** | upper-back CONTOUR at Address — no keypoint exists between shoulders and hips in either layout | stereo | new unit · (mocap) |
 | `lumbarExtension` | planned | **DTL** | low-back CONTOUR at Address — no keypoint exists between shoulders and hips in either layout | stereo | new unit · (mocap) |
@@ -1080,7 +1082,7 @@ not scale with the player, and they differ **by club**, including in sign.
 |---|---|---|---|---|---|
 | `pelvisSway` | live | FaceCam + ground | `buildLowerBodySeries` lateral translation ✓ | camCal, ground | `lower_body_metrics_test` · (mocap owed) |
 | `pelvisLift` | live | FaceCam + ground | vertical translation ✓ | camCal, ground | `lower_body_metrics_test` · (mocap owed) |
-| `hipLineTilt` | live | FaceCam | hip-line angle vs horizontal ✓ | camCal | `lower_body_metrics_test` · (corpus) |
+| `hipLineTilt` | live | FaceCam (**Plv** upgrades it and wins) | hip-line angle vs horizontal ✓; the hip sensor's ML axis in the face-on plane, square to the hips at address, with the face-on edge-on rule (`pelvisImu`, 13 Nov 2026) ✓ | camCal / anat+mount | `lower_body_metrics_test`, `trunk_e2e_test` §k · (corpus; no worn session) |
 | `plumbBobDistance` | live | FaceCam + Ball | hip centre − ankle-line centre, projected on the stance line, through the ball-diameter ruler ✓ | **px→in**. **ABSENT when the ruler does not resolve**, never re-expressed in another unit | `lower_body_metrics_test` · corpus distribution owed (the four club corridors are heuristics) |
 | `thoraxLateralDrift` | live | FaceCam + ground | `buildUpperBodySeries` thorax lateral translation ✓ | camCal, ground | `upper_body_metrics_test` · (corpus) |
 | `pelvisThrust` | planned | FaceCam + **DTL** (optical axis) | toward-ball translation | stereo | new unit · (mocap; needs depth) |
@@ -1099,7 +1101,7 @@ not scale with the player, and they differ **by club**, including in sign.
 | `leadKneeDrift` | live | FaceCam + ground | `buildLowerBodySeries` lead-knee lateral travel ✓ | camCal, ground | `lower_body_metrics_test` · (corpus) |
 | `comOverLeadFoot` | live | FaceCam + ground | balance point vs lead foot, sampled to Finish ✓ | camCal, ground | `lower_body_metrics_test` · (corpus) |
 | `leadKneeFlexion` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's hip–knee–ankle angle (`Skeleton3dBodyStage`, 12 Nov 2026), replacing the DTL series where it reads through impact; elsewhere the DTL series ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test`, `dtl_posture_test` · (one-swing check) |
-| `trailKneeFlexion` | planned | FaceCam (DTL better) | knee angle — sagittal | camCal / stereo | new unit · (mocap) |
+| `trailKneeFlexion` | live | FaceCam + **DTL** | the DTL shin-against-thigh angle ✓; the two-camera 3-D fit's trail hip–knee–ankle angle (`Skeleton3dBodyStage`, 13 Nov 2026) only where the DTL series is missing, while the cameras are uncalibrated (Mark's rule). Once calibrated, the fit replaces the DTL series where it reads at address AND the top | none for DTL; fit cameras self-solved | `skeleton3d_body_metrics_test` §12, `dtl_posture_test` · (one-swing check, 2026-07-04 s8) |
 | `ballBodyDistance` | planned | **DTL** + Ball | ball standoff from the body — depth axis | stereo | new unit · (corpus) |
 
 > **Fixed 2026-08-02 — worth knowing about, because the failure was silent.** `stanceWidthMm` was
@@ -1137,7 +1139,7 @@ not scale with the player, and they differ **by club**, including in sign.
 | `lm.spinLoft` | device | **LM** | derived in the connector from the row ✓ | — | `gcquad_csv_parser_test` |
 | `swingPlane` | planned | **DTL** + Club | SVD best-fit plane of head path — needs the path in 3D | stereo | new unit · (DTL cross-check) |
 | `clubPath` | planned | **DTL** + Club | horizontal velocity angle — needs depth | stereo | new unit · (launch monitor) |
-| `shaftDirection` | live *(Bridged)* | FaceCam + **DTL** + Club | the fused 3-D shaft's bearing vs the target line at P2 and the top, the 3-D skeleton's shaft where fusion has no clean frame; σ ⊕ σ_yaw ✓ | DTL yaw assumed (σ 5°) until calibrated | `shaft_fusion_test` §SD · (one-swing check) |
+| `shaftDirection` | live *(Bridged)* | FaceCam + **DTL** + Club | the fused 3-D shaft's bearing vs the target line at P2 and the top, the 3-D skeleton's shaft where fusion has no clean frame; σ ⊕ σ_yaw ✓ | DTL yaw assumed (σ 9°, `kDtlYawSigmaUncalDeg`; the face-on camera taken as square) until calibrated | `shaft_fusion_test` §SD · (one-swing check) |
 | `lm.attackAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.clubPath` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
 | `lm.lieAngle` | device | **LM** | GC Quad connector ✓ | — | `gcquad_csv_parser_test` |
@@ -1160,7 +1162,7 @@ not scale with the player, and they differ **by club**, including in sign.
 
 | Metric | Status | Capture | Detection | Calibration | Verification & validation |
 |---|---|---|---|---|---|
-| `shoulderLineYaw` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's shoulder line, its bearing vs the target line at address, a left-hander mirrored (`Skeleton3dBodyStage`, 12 Nov 2026); σ ⊕ σ_yaw ✓ | camera yaw assumed (σ 5°) until calibrated | `skeleton3d_body_metrics_test` · (one-swing check) |
+| `shoulderLineYaw` | live *(Bridged)* | FaceCam + **DTL** | the two-camera 3-D fit's shoulder line, its bearing vs the target line at address, a left-hander mirrored (`Skeleton3dBodyStage`, 12 Nov 2026); σ ⊕ σ_yaw ✓ | camera yaw assumed (σ 9°, `kDtlYawSigmaUncalDeg`; the face-on camera taken as square) until calibrated | `skeleton3d_body_metrics_test` · (one-swing check) |
 | `elbowAlignment` | live | FaceCam | `buildUpperBodySeries` elbow-line angle ✓ | camCal | `upper_body_metrics_test` · (corpus) |
 | `feetAlignment` | live | FaceCam | `buildLowerBodySeries` ankle-line angle ✓ | camCal | `lower_body_metrics_test` · (corpus) |
 

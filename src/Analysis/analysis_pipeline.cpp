@@ -51,6 +51,7 @@
 #include "../Body/dtl_posture.h" // buildDtlPosture (DtlPostureStage)
 #include "../Body/skeleton3d_body_series.h" // the readings from the 3-D body (Skeleton3dBodyStage)
 #include "../Body/trunk_sensor_series.h" // hip internal rotation, the trunk sensors' bend precedence
+#include "../Body/shoulder_tilt_vs_bend.h" // the shoulder tilt against the forward bend, after that precedence (W7)
 #include "../Club/dtl_shaft_tracker.h"
 #include "../Club/dtl_shaft_post.h"   // dtlShaftGates (DtlShaftStage, trust stage 6)
 #include "../Timeline/event_refine.h"
@@ -1546,7 +1547,10 @@ struct UpperBodyMetricsStage : AnalysisStage {
 //      beside whatever camera reading of the same key another stage makes (the
 //      face-on side bend before this stage, the down-the-line forward bend after
 //      it); applyTrunkSensorPrecedence, run once after every stage in runProfile,
-//      makes the sensor reading the answer whatever the stage order.
+//      makes the sensor reading the answer whatever the stage order. The same holds for
+//      the sensors' three TILTS (13 Nov 2026): shoulderPlaneAngle3d and secondaryAxisTilt
+//      from the chest sensor (routeId thoraxImu), hipLineTilt from the hip sensor
+//      (pelvisImu), beside the 3-D and face-on readings of the same keys.
 struct BodyRotationStage : AnalysisStage {
     QString name() const override { return QStringLiteral("BodyRotation"); }
     StageDecl decl() const override { return D({ kPose2d, kStreams, kSeg }, {}, { kSeries }); }
@@ -3650,14 +3654,18 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
 
 // 13h-ter. READINGS FROM THE 3-D BODY (skeleton3d_body_series.h; planned-metrics promotion,
 //      12 Nov 2026) — the catalogue's `faceOn+dtl` rungs of shoulderPlaneAngle3d (the shoulder
-//      line's inclination at the top), shoulderLineYaw (its aim at address), leadKneeFlexion and
-//      spineSideBend, plus the research-only thigh turns W3's hip internal rotation reads. Off the
-//      two-camera fit's joints at tier ≥ constrained, σ from the fit's per-joint σ exactly as
-//      skeletonLines() propagates it. Estimated: the fit solves its own cameras, so the aim carries
+//      line's inclination at the top), shoulderLineYaw (its aim at address), leadKneeFlexion,
+//      trailKneeFlexion (W5, 13 Nov 2026) and spineSideBend, plus the research-only thigh turns W3's
+//      hip internal rotation reads. Off the two-camera fit's joints at tier ≥ constrained, σ from the
+//      fit's per-joint σ exactly as skeletonLines() propagates it. Estimated: the fit solves its own cameras, so the aim carries
 //      σ_yaw and body3d.cameraAssumed — Downgraded, shown and judged with its ⚠, never refused.
 //      After BodyRotationTriangulated (so after Skeleton3D, DtlPosture and the face-on body stages):
-//      it REPLACES the down-the-line lead knee where the 3-D one reads through impact, and adds the
-//      3-D side bend only where the face-on one is absent (mergeSkeleton3dBody). It erases a series
+//      it REPLACES the down-the-line lead knee where the 3-D one reads through impact, and — only
+//      once the cameras are calibrated (never yet) — the down-the-line trail knee where the 3-D one
+//      reads at address AND the top (both ends of every change from address on one route); the 3-D
+//      trail knee otherwise only fills where there is no down-the-line one. It adds the 3-D side bend
+//      only where the face-on one is absent — beside a trunk sensor's, as its fallback
+//      (mergeSkeleton3dBody). It erases a series
 //      another stage wrote, so it WRITES detail.series and the executor runs it in order.
 struct Skeleton3dBodyStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Skeleton3dBody"); }
@@ -3686,7 +3694,7 @@ struct Skeleton3dBodyStage : AnalysisStage {
         Skeleton3dBodyOutput out = buildSkeleton3dBody(in);
         const bool aimBuilt = out.shoulderAim.has_value();
         // Reads AND writes detail.series, so the executor gives it no buffer: this IS detail->series.
-        const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(ctx.detail->series, out);
+        const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(ctx.detail->series, out, ctx.seg.events);
         if (aimBuilt && mg.published.contains(QStringLiteral("shoulderLineYaw")))
             ctx.addGates(std::move(out.gates));
         ctx.addGates(std::vector<GateRecord>(mg.gates));   // body3d.fromFit (route_substitution.h)
@@ -3694,6 +3702,14 @@ struct Skeleton3dBodyStage : AnalysisStage {
                  << (mg.leadKneeReplaced ? "| lead knee from the fit (replaces the down-the-line one)"
                      : mg.leadKneeKeptDtl ? "| lead knee: no 3-D reading through impact, the down-the-line one stays"
                                           : "")
+                 << (mg.trailKneeReplaced ? "| trail knee from the fit (replaces the down-the-line one)"
+                     : mg.trailKneeKeptUncalibrated ? "| trail knee: cameras uncalibrated, the down-the-line one stays"
+                     : mg.trailKneeKeptDtl ? "| trail knee: no 3-D reading at address or the top, the down-the-line one stays"
+                                           : "")
+                 << qPrintable(mg.trailKneeReplaced
+                                   ? QStringLiteral("(positions lost %1, gained %2)")
+                                         .arg(int(mg.trailKneeLost.size())).arg(int(mg.trailKneeGained.size()))
+                                   : QString())
                  << "| camera directions ASSUMED, σ_yaw" << out.yawSigmaDeg << "°";
     }
 };
@@ -4592,22 +4608,37 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
         ppInfo() << "[AnalysisDag]" << profile.name << "on" << threads << "threads: last stage"
                  << lastName.toUtf8().constData() << "ended at" << qlonglong(lastEnd / 1000000) << "ms";
     }
-    // The trunk sensors' bends are THE reading of spineForwardBend / spineSideBend (trunk_sensor_series.h):
-    // the camera and 3-D readings of the two keys are erased and their records stop speaking for them —
+    // The trunk sensors' bends and tilts are THE reading of spineForwardBend / spineSideBend /
+    // shoulderPlaneAngle3d / hipLineTilt / secondaryAxisTilt (trunk_sensor_series.h): the camera and 3-D
+    // readings of those keys are erased and their records stop speaking for them —
     // unless the sensor is worn face-in or reads fewer positions, when the camera reading stays. After
     // the run, so it holds whatever order the producing stages ran in.
     if (ctx.detail) {
         const TrunkPrecedence tp = applyTrunkSensorPrecedence(ctx.detail->series, ctx.detail->gates, ctx.seg.events);
         if (tp.seriesDropped > 0 || tp.recordsCleaned > 0 || tp.sensorDropped > 0)
-            ppInfo() << "[WristAnalysis] trunk sensors' bends:" << tp.seriesDropped << "camera series dropped,"
-                     << tp.sensorDropped << "sensor bend(s) withdrawn (face-in, or fewer positions than the camera),"
-                     << tp.recordsCleaned << "record(s) taken off the bends";
+            ppInfo() << "[WristAnalysis] trunk sensors' bends and tilts:" << tp.seriesDropped << "camera series dropped,"
+                     << tp.sensorDropped << "sensor reading(s) withdrawn (face-in, or fewer positions than the camera),"
+                     << tp.recordsCleaned << "record(s) taken off those keys";
     }
     // A reading one route supplied in place of another's: the failed route's refusals stop speaking
     // for it (route_substitution.h). After the run, so every stage's records have been spliced.
     if (ctx.detail) {
         const int n = reconcileSubstitutedReadings(ctx.detail->gates, ctx.detail->series);
         if (n > 0) ppInfo() << "[WristAnalysis] route substitution:" << n << "refusal(s) moved onto the substitute record";
+    }
+    // The shoulder tilt at the top against the forward bend at address (W7, shoulder_tilt_vs_bend.h): AFTER
+    // both clean-ups, so each half is the reading that will be written and graded, from whichever route won,
+    // and the records it inherits are the ones that still speak for those halves. Read off the ladder the
+    // document carries (detail->phases), which is the grader's.
+    if (ctx.detail) {
+        const tilt_vs_bend::Outcome tb = deriveShoulderTiltVsBend(ctx.detail->series, ctx.detail->gates, ctx.detail->phases);
+        if (tb.produced) {
+            ctx.detail->versions.shoulderTiltVsBend = kShoulderTiltVsBendVersion;
+            ppInfo() << "[WristAnalysis] shoulder tilt against posture:" << (tb.tilt.value - tb.bend.value) << "° (tilt"
+                     << tb.tilt.value << "from" << qPrintable(tb.tiltRoute) << "− bend" << tb.bend.value << "from"
+                     << qPrintable(tb.bendRoute) << ")" << (tb.mixed ? "— mixed instruments" : "") << ","
+                     << tb.recordsExtended << "record(s) extended";
+        }
     }
     attachStagePreds(ctx, graph);
     bindStageTimings(ctx);

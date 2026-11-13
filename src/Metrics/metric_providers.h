@@ -104,6 +104,8 @@ public:
 // descriptors, which is what lets the directory show the ladder instead of only its outcome, and
 // what makes xFactor's "resolves at the weaker of the two segments" fall out of its routes needing
 // both IMUs rather than out of a hand-written per-key condition.
+// Also claims shoulderTiltVsBend (W7, 13 Nov 2026; shoulder_tilt_vs_bend.h): the tilt at the top less the
+// bend at address, derived once after this producer's trunk-sensor precedence has settled both halves.
 class BodyRotationProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;
@@ -175,8 +177,11 @@ public:
 
 // skeleton3d_body_series.h (Skeleton3dBodyStage) — readings from the two-camera skeleton fit's 3-D
 // body: the shoulder line's inclination at the top and its aim at address (no other producer), the
-// lead knee (it replaces the down-the-line one where the fit reads through impact) and the side bend
-// (only where the face-on one is absent). Every one Estimated — the fit's cameras are self-solved.
+// lead knee (it replaces the down-the-line one where the fit reads through impact), the trail knee
+// (W5 2026-11-13: uncalibrated, only where the down-the-line one is missing; calibrated, it replaces
+// it where the fit reads at address AND the top) and
+// the side bend (only where the face-on one is absent). Every one Estimated — the fit's cameras are
+// self-solved.
 class Skeleton3dBodyProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;

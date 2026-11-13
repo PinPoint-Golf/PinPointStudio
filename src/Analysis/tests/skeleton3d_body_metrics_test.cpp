@@ -29,10 +29,15 @@
 //   §8 the per-shot assembly: route, σ Propagated, graded (series_reduce.h reduceAt) == stamped
 //   §9 the camera-assumed record; calibrated; uncertainty off
 //   §10 precedence: the lead knee replaces / stays; the side bend only without face-on; the substitute record
+//   §11 / §11b the failed route's records come off a substituted reading; a gap keeps its real reason
+//   §12 the trail knee from the fit (W5): a known angle, both hands; uncalibrated keep / fill (Mark, 13 Nov);
+//       calibrated replace / keep / fill; positions lost
+//   §13 the 3-D side bend as the trunk sensors' fallback (W5), in both stage orders
 //
 //   ctest --test-dir build/tests -R '^skeleton3d_body_metrics_test$' --output-on-failure
 
 #include "../../Body/skeleton3d_body_series.h"
+#include "../../Body/trunk_sensor_series.h"   // applyTrunkSensorPrecedence: the 3-D shoulder plane as the fallback
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/gate_catalogue.h"   // primaryRecord, notJudgedClause: what a reader says for a gap
 
@@ -217,6 +222,7 @@ int main()
         sk::FitResult lf = makeFit(1);
         setBody(lf, 0, p, true);
         check(near(b3::kneeFlexDeg(lf, 0, false).deg, 25.0, 1e-9), "§3 left-hander, lead (RIGHT) knee 25°");
+        check(near(b3::kneeFlexDeg(lf, 0, true).deg, 40.0, 1e-9), "§3 …trail (LEFT) knee 40°");
         Pose st; st.leadFlex = 0.0;
         sk::FitResult s1 = makeFit(1);
         setBody(s1, 0, st);
@@ -363,10 +369,11 @@ int main()
     in.fit = &fr; in.phases = ladder;
     Skeleton3dBodyOutput out = buildSkeleton3dBody(in);
     {
-        check(out.shoulderPlane && out.shoulderAim && out.leadKnee && out.sideBend && out.thighLead && out.thighTrail,
-              "§8 all six series built");
-        for (const std::optional<MetricSeries> *s : { &out.shoulderPlane, &out.shoulderAim, &out.leadKnee, &out.sideBend,
-                                                      &out.thighLead, &out.thighTrail }) {
+        check(out.shoulderPlane && out.shoulderAim && out.leadKnee && out.trailKnee && out.sideBend && out.thighLead
+                  && out.thighTrail,
+              "§8 all seven series built");
+        for (const std::optional<MetricSeries> *s : { &out.shoulderPlane, &out.shoulderAim, &out.leadKnee, &out.trailKnee,
+                                                      &out.sideBend, &out.thighLead, &out.thighTrail }) {
             if (!*s) continue;
             const MetricSeries &m = **s;
             std::snprintf(buf, sizeof buf, "§8 %s: route faceOn+dtl, not Direct, σ Propagated", qPrintable(m.key));
@@ -444,8 +451,10 @@ int main()
         dtlKnee.t_us = { fr.t_us[0] }; dtlKnee.value = { 1.0 };
         MetricSeries foBend; foBend.key = QStringLiteral("spineSideBend");
         foBend.t_us = { fr.t_us[0] }; foBend.value = { 2.0 };
+        MetricSeries dtlTrail; dtlTrail.key = QStringLiteral("trailKneeFlexion");
+        dtlTrail.t_us = { fr.t_us[0] }; dtlTrail.value = { 3.0 };
         {
-            std::vector<MetricSeries> s{ dtlKnee, foBend };
+            std::vector<MetricSeries> s{ dtlKnee, foBend, dtlTrail };
             Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
             const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o);
             const MetricSeries *k = find(s, "leadKneeFlexion");
@@ -458,8 +467,13 @@ int main()
             check(find(s, "shoulderPlaneAngle3d") && find(s, "shoulderLineYaw") && find(s, "thighTurn3dLead")
                       && find(s, "thighTurn3dTrail"),
                   "§10 the shoulder readings and the thigh turns are published");
+            check(!mg.trailKneeReplaced && mg.trailKneeKeptDtl && mg.trailKneeKeptUncalibrated
+                      && count(s, "trailKneeFlexion") == 1 && find(s, "trailKneeFlexion")->routeId.isEmpty()
+                      && find(s, "trailKneeFlexion")->value.front() == 3.0,
+                  "§10 the cameras uncalibrated ⇒ the down-the-line trail knee stays, though the 3-D one reads "
+                  "at address and the top (Mark's rule, 13 Nov)");
             check(mg.gates.empty(),
-                  "§10 …and no body3d.fromFit: the 3-D lead knee REPLACING a down-the-line one is the better rung, "
+                  "§10 …and no body3d.fromFit: a 3-D knee REPLACING a down-the-line one is the better rung, "
                   "not a fallback, and the face-on side bend stood");
         }
         {
@@ -468,7 +482,7 @@ int main()
             Skeleton3dBodyInput bi = in; bi.fit = &blind;
             Skeleton3dBodyOutput o = buildSkeleton3dBody(bi);
             check(o.leadKnee && !o.leadKneeAtImpact, "§10 a 3-D lead knee blind through Impact → P8 does not read there");
-            std::vector<MetricSeries> s{ dtlKnee };
+            std::vector<MetricSeries> s{ dtlKnee, dtlTrail };
             const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o);
             const MetricSeries *k = find(s, "leadKneeFlexion");
             check(mg.leadKneeKeptDtl && count(s, "leadKneeFlexion") == 1 && k && k->withheld.isEmpty() && k->routeId.isEmpty(),
@@ -492,7 +506,63 @@ int main()
             for (const GateRecord &g : m2.gates)
                 if (g.subject == QStringLiteral("leadKneeFlexion") && g.gate == QStringLiteral("body3d.fromFit")
                     && g.evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl")) kneeRec = true;
-            check(kneeRec && m2.gates.size() == 2, "§10 …and it carries body3d.fromFit (replaces dtl), beside the side bend's");
+            bool trailRec = false;
+            for (const GateRecord &g : m2.gates)
+                if (g.subject == QStringLiteral("trailKneeFlexion") && g.gate == QStringLiteral("body3d.fromFit")
+                    && g.evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl")) trailRec = true;
+            check(kneeRec && trailRec && m2.gates.size() == 3,
+                  "§10 …and it carries body3d.fromFit (replaces dtl), beside the trail knee's and the side bend's");
+        }
+        // THE CHEST SENSOR'S SHOULDER PLANE (W4, 13 Nov 2026). BodyRotationStage runs first and may already
+        // have written it (routeId thoraxImu): the 3-D one is still published beside it, so that it is there
+        // when applyTrunkSensorPrecedence withdraws the sensor's. Whichever came first, the sensor's is the
+        // answer when it is trusted, and the 3-D one when the chest is worn face-in.
+        {
+            MetricSeries chest; chest.key = QStringLiteral("shoulderPlaneAngle3d"); chest.routeId = QStringLiteral("thoraxImu");
+            chest.t_us = { fr.t_us[0], fr.t_us.back() }; chest.value = { 30.0, 30.0 };
+            for (const PhaseEvent &e : in.phases) chest.phaseSamples.push_back({ e.phase, e.t_us, 30.0, QString() });
+            const auto routes = [](const std::vector<MetricSeries> &sv) {
+                QStringList r;
+                for (const MetricSeries &m : sv) if (m.key == QLatin1String("shoulderPlaneAngle3d")) r << m.routeId;
+                return r;
+            };
+            {
+                std::vector<MetricSeries> s{ chest };
+                Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+                const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o);
+                check(mg.published.contains(QStringLiteral("shoulderPlaneAngle3d"))
+                          && routes(s) == QStringList({ QStringLiteral("thoraxImu"), QStringLiteral("faceOn+dtl") }),
+                      "§10 a chest sensor's shoulder plane already written ⇒ the 3-D one is published BESIDE it");
+                std::vector<MetricSeries> s2 = s;
+                std::vector<GateRecord> g2;
+                applyTrunkSensorPrecedence(s2, g2, in.phases);
+                check(routes(s2) == QStringList({ QStringLiteral("thoraxImu") }),
+                      "§10 …and the precedence makes the sensor's the answer, the 3-D one erased");
+                std::vector<GateRecord> g3{ GateRecord{ QStringLiteral("body.thoraxFaceIn"), QStringLiteral("thoraxRotation"),
+                                                        GateEffect::Downgraded, {}, {}, {},
+                                                        QStringList{ QStringLiteral("shoulderPlaneAngle3d") } } };
+                applyTrunkSensorPrecedence(s, g3, in.phases);
+                check(routes(s) == QStringList({ QStringLiteral("faceOn+dtl") }),
+                      "§10 …a chest worn face-in: the 3-D shoulder plane is the fallback, the sensor's withdrawn");
+            }
+            {
+                std::vector<MetricSeries> s;
+                Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+                mergeSkeleton3dBody(s, o);
+                s.push_back(chest);   // the sensor's arriving after the 3-D stage
+                std::vector<GateRecord> g;
+                applyTrunkSensorPrecedence(s, g, in.phases);
+                check(routes(s) == QStringList({ QStringLiteral("thoraxImu") }), "§10 …and the same when the sensor's arrives last");
+            }
+            {
+                MetricSeries other; other.key = QStringLiteral("shoulderPlaneAngle3d"); other.routeId = QStringLiteral("faceOn+dtl");
+                other.t_us = { fr.t_us[0] }; other.value = { 1.0 };
+                std::vector<MetricSeries> s{ other };
+                Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+                const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o);
+                check(!mg.published.contains(QStringLiteral("shoulderPlaneAngle3d")) && routes(s).size() == 1,
+                      "§10 …while a 3-D shoulder plane already present still stops another");
+            }
         }
     }
 
@@ -594,6 +664,310 @@ int main()
         const std::vector<GateRecord> back = gateRecordsFromJson(gateRecordsToJson(g));
         check(substitutedGapGate(back, LK) == QStringLiteral("posture.address"),
               "§11b …and replacedRecords survives serialisation, so a reloaded swing gives the same reason");
+    }
+
+    // ── §12 the trail knee from the 3-D fit (W5, 13 Nov 2026) ────────────────────────────────────
+    // A swing whose TRAIL knee is known at every frame: 15° + 0.2°/frame (address frame 10 → 17°, the top
+    // frame 60 → 27°, impact frame 90 → 33°), while the lead knee holds 20°. The trail leg is the RIGHT
+    // one for a right-hander, the LEFT one for a left-hander; the lead knee must not be read for it.
+    {
+        const auto trailTruth = [](int i) { return 15.0 + 0.2 * i; };
+        const int m = 120;
+        std::vector<PhaseEvent> lad;
+        const auto at = [&](Phase ph, int64_t t) { PhaseEvent e; e.phase = ph; e.t_us = t; lad.push_back(e); };
+        sk::FitResult proto = makeFit(m);
+        at(Phase::Address, proto.t_us[10]);
+        at(Phase::ShaftParallelBack, proto.t_us[30]);
+        at(Phase::MidBackswing, proto.t_us[45]);
+        at(Phase::Top, proto.t_us[60]);
+        at(Phase::ArmParallelDown, proto.t_us[72]);
+        at(Phase::Delivery, proto.t_us[80]);
+        at(Phase::Impact, proto.t_us[90]);
+        at(Phase::ShaftParallelThrough, proto.t_us[100]);
+        const auto swingFor = [&](bool leftHanded) {
+            sk::FitResult f = makeFit(m);
+            for (int i = 0; i < m; ++i) {
+                Pose p;
+                p.leadFlex = 20.0;
+                p.trailFlex = trailTruth(i);
+                p.pelvisYaw = -30.0 * std::clamp((i - 20) / 40.0, 0.0, 1.0);
+                p.trailLegYaw = p.pelvisYaw;
+                setBody(f, size_t(i), p, leftHanded);
+            }
+            return f;
+        };
+        for (bool lh : { false, true }) {
+            const QString who = QString::fromLatin1(lh ? "left-hander" : "right-hander");
+            const sk::FitResult f = swingFor(lh);
+            Skeleton3dBodyInput ti; ti.fit = &f; ti.phases = lad; ti.leftHanded = lh;
+            const Skeleton3dBodyOutput o = buildSkeleton3dBody(ti);
+            check(o.trailKnee.has_value() && o.trailKnee->key == QStringLiteral("trailKneeFlexion")
+                      && o.trailKnee->routeId == QStringLiteral("faceOn+dtl") && !o.trailKnee->routeDirect
+                      && o.trailKnee->sigmaKind == uint8_t(SigmaKind::Propagated),
+                  qPrintable(QStringLiteral("§12 %1: a 3-D trailKneeFlexion, route faceOn+dtl, Estimated, σ Propagated").arg(who)));
+            if (!o.trailKnee) continue;
+            bool every = o.trailKnee->t_us.size() == size_t(m);
+            for (int i = 0; i < m && every; ++i) every = near(o.trailKnee->value[size_t(i)], trailTruth(i), 1e-9);
+            check(every, qPrintable(QStringLiteral("§12 %1: the curve is the TRAIL knee's known bend at every frame "
+                                                   "(+ = more bend, 0 = straight)").arg(who)));
+            const PhaseSample *a = sampleAt(*o.trailKnee, Phase::Address), *t = sampleAt(*o.trailKnee, Phase::Top),
+                              *im = sampleAt(*o.trailKnee, Phase::Impact);
+            check(a && t && im && o.trailKnee->phaseSamples.size() == 3,
+                  qPrintable(QStringLiteral("§12 %1: stamped at address, the top and impact — the down-the-line "
+                                            "series' positions — and nowhere else").arg(who)));
+            // Frames within ±15 ms of a frame instant: that frame and one either side, so the median is it.
+            check(a && near(a->value, 17.0, 1e-9) && t && near(t->value, 27.0, 1e-9) && im && near(im->value, 33.0, 1e-9),
+                  qPrintable(QStringLiteral("§12 %1: address 17°, top 27°, impact 33°").arg(who)));
+            const b3::Reading k60 = b3::kneeFlexDeg(f, 60, /*leftLeg*/ lh);
+            check(t && t->sigma && near(*t->sigma, k60.sigma, 0.05) && *t->sigma > 0,
+                  qPrintable(QStringLiteral("§12 %1: σ at the top is the knee angle's gradient σ (%2°), as the lead knee's")
+                                 .arg(who).arg(k60.sigma, 0, 'f', 3)));
+            check(o.leadKnee && sampleAt(*o.leadKnee, Phase::Top) && near(sampleAt(*o.leadKnee, Phase::Top)->value, 20.0, 1e-9),
+                  qPrintable(QStringLiteral("§12 %1: …and the lead knee still reads the LEAD leg (20°): the legs are not swapped").arg(who)));
+            check(o.trailKneeAtAddressAndTop, qPrintable(QStringLiteral("§12 %1: it reads at address and the top").arg(who)));
+            // Graded == stamped, and m_trailKneeFlex (P1 → P4) off the curve is the truth's +10°.
+            SeriesView view;
+            view.t = o.trailKnee->t_us.data(); view.v = o.trailKnee->value.data(); view.n = o.trailKnee->t_us.size();
+            view.valid = o.trailKnee->valid.size() == o.trailKnee->t_us.size() ? o.trailKnee->valid.data() : nullptr;
+            const Reduced d = reduceDelta(view, lad[0].t_us, lad[3].t_us, ReduceConfig{});
+            check(d.ok && near(d.value, 10.0, 1e-9),
+                  qPrintable(QStringLiteral("§12 %1: m_trailKneeFlex (P1 → P4) off the curve = +10°").arg(who)));
+        }
+
+        const sk::FitResult rh = swingFor(false);
+        // The replace rule is for CALIBRATED cameras (Mark, 13 Nov); uncalibrated, the down-the-line
+        // series stays wherever it exists (below).
+        Skeleton3dBodyInput ti; ti.fit = &rh; ti.phases = lad; ti.calibrated = true;
+        Skeleton3dBodyInput tu = ti; tu.calibrated = false;
+        // A down-the-line trail knee that reads at every position, on its own (camera) grid.
+        MetricSeries dtl; dtl.key = QStringLiteral("trailKneeFlexion"); dtl.label = QStringLiteral("Trail knee flexion");
+        for (int i = 0; i < m; ++i) { dtl.t_us.push_back(rh.t_us[size_t(i)] + 1000); dtl.value.push_back(trailTruth(i) + 2.0); }
+        for (const PhaseEvent &e : lad)
+            if (e.phase == Phase::Address || e.phase == Phase::Top || e.phase == Phase::Impact)
+                dtl.phaseSamples.push_back({ e.phase, e.t_us, 0.0, QString() });
+        // UNCALIBRATED (every swing today): the down-the-line series is the answer wherever it exists,
+        // even when the 3-D one reads at P1 and P4; with none, the 3-D one fills, with its record.
+        {
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(tu);
+            check(o.trailKnee && o.trailKneeAtAddressAndTop && !o.calibrated,
+                  "§12 uncalibrated: the 3-D trail knee reads at address and the top");
+            std::vector<MetricSeries> s{ dtl };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, tu.phases);
+            const MetricSeries *k = find(s, "trailKneeFlexion");
+            check(!mg.trailKneeReplaced && mg.trailKneeKeptDtl && mg.trailKneeKeptUncalibrated && count(s, "trailKneeFlexion") == 1
+                      && k && k->routeId.isEmpty() && k->value.front() == dtl.value.front()
+                      && !mg.published.contains(QStringLiteral("trailKneeFlexion")),
+                  "§12 …yet the down-the-line one STAYS, as produced, and the 3-D one is not published beside it");
+            check(mg.trailKneeLost.empty() && mg.trailKneeGained.empty()
+                      && std::none_of(mg.gates.begin(), mg.gates.end(),
+                                      [](const GateRecord &g) { return g.subject == QStringLiteral("trailKneeFlexion"); }),
+                  "§12 …with no record and no positions counted");
+            Skeleton3dBodyOutput o2 = buildSkeleton3dBody(tu);
+            std::vector<MetricSeries> none;
+            const Skeleton3dBodyMerge m2 = mergeSkeleton3dBody(none, o2, tu.phases);
+            const MetricSeries *f = find(none, "trailKneeFlexion");
+            const GateRecord *rec = nullptr;
+            for (const GateRecord &g : m2.gates) if (g.subject == QStringLiteral("trailKneeFlexion")) rec = &g;
+            check(f && f->routeId == QStringLiteral("faceOn+dtl") && rec && rec->gate == QStringLiteral("body3d.fromFit")
+                      && rec->evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl")
+                      && !m2.trailKneeKeptDtl && !m2.trailKneeReplaced,
+                  "§12 uncalibrated, no down-the-line series ⇒ the 3-D trail knee FILLS, with body3d.fromFit (replaces dtl)");
+        }
+        // CALIBRATED. Replace: valid at P1 and P4.
+        {
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(ti);
+            std::vector<MetricSeries> s{ dtl };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "trailKneeFlexion");
+            check(mg.trailKneeReplaced && !mg.trailKneeKeptDtl && count(s, "trailKneeFlexion") == 1 && k
+                      && k->routeId == QStringLiteral("faceOn+dtl"),
+                  "§12 calibrated: the 3-D trail knee reads at address AND the top ⇒ it REPLACES the down-the-line one");
+            check(mg.trailKneeLost.empty() && mg.trailKneeGained.empty(),
+                  "§12 …and with both reading every position, no position is lost or gained");
+            check(std::none_of(mg.gates.begin(), mg.gates.end(),
+                               [](const GateRecord &g) { return g.subject == QStringLiteral("trailKneeFlexion"); }),
+                  "§12 …with no body3d.fromFit on it: the better rung replacing, not standing in");
+        }
+        // Keep: the 3-D trail knee unread at the top (its knee inferred over frames 55–65).
+        {
+            sk::FitResult blind = rh;
+            for (int i = 55; i <= 65; ++i) blind.tier[size_t(i)][RightLeg] = sk::TierInferred;
+            Skeleton3dBodyInput bi = ti; bi.fit = &blind;
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(bi);
+            check(o.trailKnee && !o.trailKneeAtAddressAndTop && !sampleAt(*o.trailKnee, Phase::Top),
+                  "§12 calibrated: a 3-D trail knee blind at the top has no top reading");
+            std::vector<MetricSeries> s{ dtl };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "trailKneeFlexion");
+            check(mg.trailKneeKeptDtl && !mg.trailKneeKeptUncalibrated && !mg.trailKneeReplaced && count(s, "trailKneeFlexion") == 1 && k
+                      && k->routeId.isEmpty() && k->value.front() == dtl.value.front() && k->withheld.isEmpty(),
+                  "§12 …so the down-the-line one STAYS, as its producer made it, and the 3-D one is not published "
+                  "beside it (P1 → P4 on one route)");
+            check(!mg.published.contains(QStringLiteral("trailKneeFlexion"))
+                      && std::none_of(mg.gates.begin(), mg.gates.end(),
+                                      [](const GateRecord &g) { return g.subject == QStringLiteral("trailKneeFlexion"); }),
+                  "§12 …and no record for it");
+            // …and the same when it is blind at ADDRESS instead.
+            sk::FitResult blindA = rh;
+            for (int i = 5; i <= 15; ++i) blindA.tier[size_t(i)][RightFoot] = sk::TierInferred;
+            Skeleton3dBodyInput ai = ti; ai.fit = &blindA;
+            Skeleton3dBodyOutput oa = buildSkeleton3dBody(ai);
+            const bool builtBlindAtAddress = oa.trailKnee.has_value() && !oa.trailKneeAtAddressAndTop;
+            std::vector<MetricSeries> sa{ dtl };
+            const Skeleton3dBodyMerge ma = mergeSkeleton3dBody(sa, oa, lad);
+            check(builtBlindAtAddress && ma.trailKneeKeptDtl && !oa.trailKnee && find(sa, "trailKneeFlexion")
+                      && find(sa, "trailKneeFlexion")->routeId.isEmpty(),
+                  "§12 …and when it is blind at ADDRESS (the ankle inferred) the down-the-line one stays too");
+        }
+        // Fill: no down-the-line series at all.
+        {
+            sk::FitResult blind = rh;
+            for (int i = 55; i <= 65; ++i) blind.tier[size_t(i)][RightLeg] = sk::TierInferred;
+            Skeleton3dBodyInput bi = ti; bi.fit = &blind;
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(bi);
+            std::vector<MetricSeries> s;
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "trailKneeFlexion");
+            check(k && k->routeId == QStringLiteral("faceOn+dtl") && mg.published.contains(QStringLiteral("trailKneeFlexion"))
+                      && !mg.trailKneeReplaced && !mg.trailKneeKeptDtl,
+                  "§12 no down-the-line series ⇒ the 3-D trail knee FILLS, whatever it covers (here blind at the top)");
+            const GateRecord *rec = nullptr;
+            for (const GateRecord &g : mg.gates) if (g.subject == QStringLiteral("trailKneeFlexion")) rec = &g;
+            check(rec && rec->gate == QStringLiteral("body3d.fromFit") && rec->effect == GateEffect::Downgraded
+                      && rec->covers == QStringList{ QStringLiteral("trailKneeFlexion") }
+                      && rec->evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl")
+                      && rec->evidence.value(QStringLiteral("route")).toString() == QStringLiteral("faceOn+dtl")
+                      && isRouteSubstitution(*rec),
+                  "§12 …with body3d.fromFit (Downgraded, replaces dtl), as the lead knee does");
+        }
+        // The positions between: valid at P1 and P4, blind at P6 (Delivery, frame 80). The 3-D series still
+        // replaces (the rule is P1 and P4), and the swap is reported: P6 is LOST — the down-the-line series
+        // read it — so m_trailKneeFlex_p6 (P1 → P6) is not assessed on this swing.
+        {
+            sk::FitResult hole = rh;
+            for (int i = 76; i <= 84; ++i) hole.tier[size_t(i)][RightUpLeg] = sk::TierInferred;
+            Skeleton3dBodyInput hi = ti; hi.fit = &hole;
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(hi);
+            std::vector<MetricSeries> s{ dtl };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            check(mg.trailKneeReplaced && mg.trailKneeLost == std::vector<Phase>{ Phase::Delivery } && mg.trailKneeGained.empty(),
+                  "§12 calibrated: valid at P1 and P4, blind at P6 ⇒ it replaces, and P6 is reported LOST (the only one)");
+            const MetricSeries *k = find(s, "trailKneeFlexion");
+            SeriesView view;
+            if (k) {
+                view.t = k->t_us.data(); view.v = k->value.data(); view.n = k->t_us.size();
+                view.valid = k->valid.size() == k->t_us.size() ? k->valid.data() : nullptr;
+            }
+            check(k && !reduceDelta(view, lad[0].t_us, lad[5].t_us, ReduceConfig{}).ok
+                      && reduceDelta(view, lad[0].t_us, lad[3].t_us, ReduceConfig{}).ok
+                      && reduceDelta(view, lad[0].t_us, lad[6].t_us, ReduceConfig{}).ok,
+                  "§12 …so P1 → P6 is not assessable while P1 → P4 and P1 → P7 are (both ends on the fit)");
+            // The reverse: a down-the-line series blind at P5 that the fit reads is a position GAINED.
+            MetricSeries dg = dtl;
+            dg.valid.assign(dg.t_us.size(), 1);
+            for (int i = 68; i <= 76; ++i) dg.valid[size_t(i)] = 0;
+            Skeleton3dBodyOutput o2 = buildSkeleton3dBody(ti);
+            std::vector<MetricSeries> s2{ dg };
+            const Skeleton3dBodyMerge m2 = mergeSkeleton3dBody(s2, o2, lad);
+            check(m2.trailKneeReplaced && m2.trailKneeLost.empty() && m2.trailKneeGained == std::vector<Phase>{ Phase::ArmParallelDown },
+                  "§12 …and a position the down-the-line series missed and the fit reads is reported GAINED (P5)");
+        }
+    }
+
+    // ── §13 the 3-D side bend as the trunk sensors' fallback (W5, 13 Nov 2026) ────────────────────
+    // Before W5 the 3-D side bend stepped aside for ANY spineSideBend, the sensors' included; when the
+    // precedence then withdrew the sensors' (worn face-in), a swing with no face-on side bend had none.
+    // Now it is published beside the sensors' and the precedence decides — whichever stage ran first —
+    // while the face-on series stays the answer wherever it read.
+    {
+        MetricSeries sensor; sensor.key = QStringLiteral("spineSideBend"); sensor.routeId = QStringLiteral("trunkImus");
+        sensor.routeDirect = true;
+        sensor.t_us = { fr.t_us[0], fr.t_us.back() }; sensor.value = { 12.0, 12.0 };
+        for (const PhaseEvent &e : in.phases) sensor.phaseSamples.push_back({ e.phase, e.t_us, 12.0, QString() });
+        MetricSeries faceOn; faceOn.key = QStringLiteral("spineSideBend");
+        faceOn.t_us = { fr.t_us[0], fr.t_us.back() }; faceOn.value = { 4.0, 4.0 };
+        for (const PhaseEvent &e : in.phases) faceOn.phaseSamples.push_back({ e.phase, e.t_us, 4.0, QString() });
+        const GateRecord faceInRec{ QStringLiteral("body.thoraxFaceIn"), QStringLiteral("thoraxRotation"), GateEffect::Downgraded,
+                                    {}, {}, {}, QStringList{ QStringLiteral("spineForwardBend"), QStringLiteral("spineSideBend") } };
+        const auto routes = [](const std::vector<MetricSeries> &sv) {
+            QStringList r;
+            for (const MetricSeries &m : sv) if (m.key == QLatin1String("spineSideBend")) r << m.routeId;
+            return r;
+        };
+        const auto fromFitOn = [](const std::vector<GateRecord> &g) {
+            return std::count_if(g.begin(), g.end(), [](const GateRecord &r) {
+                return r.gate == QStringLiteral("body3d.fromFit") && r.covers.contains(QStringLiteral("spineSideBend"));
+            });
+        };
+        // The two stage orders: the sensors' series already there when the 3-D stage merges (the pipeline's
+        // order), or arriving after it.
+        for (bool sensorFirst : { true, false }) {
+            const QString order = QString::fromLatin1(sensorFirst ? "sensor first" : "sensor last");
+            const auto run = [&](std::vector<MetricSeries> start, bool withFaceIn, std::vector<GateRecord> &g) {
+                std::vector<MetricSeries> s = std::move(start);
+                if (sensorFirst) s.push_back(sensor);
+                Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+                const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, in.phases);
+                g.insert(g.end(), mg.gates.begin(), mg.gates.end());
+                if (!sensorFirst) s.push_back(sensor);
+                if (withFaceIn) g.push_back(faceInRec);
+                applyTrunkSensorPrecedence(s, g, in.phases);
+                return s;
+            };
+            {
+                std::vector<GateRecord> g;
+                const std::vector<MetricSeries> s = run({}, /*faceIn*/ true, g);
+                check(routes(s) == QStringList{ QStringLiteral("faceOn+dtl") } && fromFitOn(g) == 1,
+                      qPrintable(QStringLiteral("§13 %1: sensors worn face-in, no face-on side bend ⇒ the 3-D side bend "
+                                                "FILLS (with its body3d.fromFit), the sensors' withdrawn").arg(order)));
+            }
+            {
+                std::vector<GateRecord> g;
+                const std::vector<MetricSeries> s = run({}, /*faceIn*/ false, g);
+                check(routes(s) == QStringList{ QStringLiteral("trunkImus") } && fromFitOn(g) == 0,
+                      qPrintable(QStringLiteral("§13 %1: sensors trusted ⇒ the sensors' side bend is the answer, the 3-D one "
+                                                "and its body3d.fromFit erased").arg(order)));
+            }
+            {
+                std::vector<GateRecord> g;
+                const std::vector<MetricSeries> s = run({ faceOn }, /*faceIn*/ true, g);
+                const MetricSeries *sb = find(s, "spineSideBend");
+                check(routes(s) == QStringList{ QString() } && sb && sb->value.front() == 4.0 && fromFitOn(g) == 0,
+                      qPrintable(QStringLiteral("§13 %1: a face-on side bend present, sensors face-in ⇒ the FACE-ON one "
+                                                "stays the answer; no 3-D one was added").arg(order)));
+            }
+            {
+                std::vector<GateRecord> g;
+                const std::vector<MetricSeries> s = run({ faceOn }, /*faceIn*/ false, g);
+                check(routes(s) == QStringList{ QStringLiteral("trunkImus") } && fromFitOn(g) == 0,
+                      qPrintable(QStringLiteral("§13 %1: a face-on side bend present, sensors trusted ⇒ the sensors' wins, "
+                                                "as before").arg(order)));
+            }
+        }
+        // The sensors' reading missing a position the 3-D one reads (fewer positions) ⇒ the 3-D one stays.
+        {
+            MetricSeries thin = sensor;
+            thin.phaseSamples.erase(std::remove_if(thin.phaseSamples.begin(), thin.phaseSamples.end(),
+                                                   [](const PhaseSample &p) { return p.phase == Phase::Top; }),
+                                    thin.phaseSamples.end());
+            thin.t_us = { fr.t_us[0] }; thin.value = { 12.0 };
+            std::vector<MetricSeries> s{ thin };
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+            std::vector<GateRecord> g = mergeSkeleton3dBody(s, o, in.phases).gates;
+            applyTrunkSensorPrecedence(s, g, in.phases);
+            check(routes(s) == QStringList{ QStringLiteral("faceOn+dtl") } && fromFitOn(g) == 1,
+                  "§13 the sensors' reading lacks the top, which the 3-D one reads ⇒ the 3-D side bend is the answer");
+        }
+        // Another 3-D side bend already present still stops a second.
+        {
+            MetricSeries other; other.key = QStringLiteral("spineSideBend"); other.routeId = QStringLiteral("faceOn+dtl");
+            other.t_us = { fr.t_us[0] }; other.value = { 1.0 };
+            std::vector<MetricSeries> s{ other };
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, in.phases);
+            check(!mg.published.contains(QStringLiteral("spineSideBend")) && routes(s).size() == 1,
+                  "§13 …while a 3-D side bend already present still stops another");
+        }
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

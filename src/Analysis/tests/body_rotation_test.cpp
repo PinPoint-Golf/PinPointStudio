@@ -341,6 +341,21 @@ int main()
         sampleAt(sb, Phase::Top, vs);
         std::printf("    pure turn at the top: forward bend %.4f°, side bend %.4f°\n", vb, vs);
         CHECK("…a pure turn reads no forward bend and no side bend at the top", near(vb, 0.0, 0.05) && near(vs, 0.0, 0.05));
+        // The three tilts (W4, 13 Nov 2026): a pure turn about vertical keeps the left-right axes level and
+        // the chest's long axis vertical, so each reads 0 at the top — the hip line 30° off the target
+        // line is still inside the face-on edge-on rule (|cos 30°| = 0.87 ≥ 0.40).
+        const MetricSeries *spl = find(rh, "shoulderPlaneAngle3d"), *hlt = find(rh, "hipLineTilt"),
+                           *sat = find(rh, "secondaryAxisTilt");
+        CHECK("the three tilts are emitted on their sensors' routes, Direct (thoraxImu, pelvisImu, thoraxImu)",
+              spl && hlt && sat && spl->routeId == QStringLiteral("thoraxImu") && hlt->routeId == QStringLiteral("pelvisImu")
+                  && sat->routeId == QStringLiteral("thoraxImu") && spl->routeDirect && hlt->routeDirect && sat->routeDirect);
+        double v1 = 99.0, v2 = 99.0, v3 = 99.0;
+        sampleAt(spl, Phase::Top, v1);
+        sampleAt(hlt, Phase::Top, v2);
+        sampleAt(sat, Phase::Top, v3);
+        std::printf("    pure turn at the top: shoulder plane %.4f°, hip tilt %.4f°, axis tilt %.4f°\n", v1, v2, v3);
+        CHECK("…a pure turn reads a level shoulder plane, a level hip line and no axis tilt at the top",
+              near(v1, 0.0, 0.05) && near(v2, 0.0, 0.05) && near(v3, 0.0, 0.05));
 
         const auto lh = run(false, true);
         CHECK("left-hander: the same yaw reads the mirror (+30 at the top)",
@@ -412,10 +427,22 @@ int main()
             bool onlyBendAssumptions = true;
             for (const GateRecord &x : g)
                 onlyBendAssumptions = onlyBendAssumptions && x.effect == GateEffect::Downgraded
-                    && (x.gate == QLatin1String("body.chestBendSite") || x.gate == QLatin1String("body.trunkMountYawAssumed"))
+                    && (x.gate == QLatin1String("body.chestBendSite") || x.gate == QLatin1String("body.chestShoulderSite")
+                        || x.gate == QLatin1String("body.trunkMountYawAssumed") || x.gate == QLatin1String("body.targetFromAddress"))
                     && !x.covers.contains(QStringLiteral("pelvisRotation")) && !x.covers.contains(QStringLiteral("thoraxRotation"));
-            CHECK("IMU-only: no gate refuses either measured segment (only the bends' two Downgraded assumptions)",
-                  onlyBendAssumptions && g.size() == 2);
+            // Three since 13 Nov 2026: body.chestShoulderSite came with the chest sensor's shoulder plane.
+            // Four since W4c (13 Nov 2026): body.targetFromAddress on the readings taken against an address front.
+            CHECK("IMU-only: no gate refuses either measured segment (only the bends' and tilts' four Downgraded assumptions)",
+                  onlyBendAssumptions && g.size() == 4);
+            // The address front (W4c): exactly the forward bend, the hip tilt and the axis tilt — never a turn,
+            // the side bend or the shoulder plane, which take no front — each sensor's heading stated.
+            const GateRecord *fa = nullptr;
+            for (const GateRecord &x : g) if (x.gate == QLatin1String("body.targetFromAddress")) fa = &x;
+            CHECK("IMU-only: body.targetFromAddress covers the forward bend, hip tilt and axis tilt only, with both headings",
+                  fa && fa->covers == QStringList({ QStringLiteral("spineForwardBend"), QStringLiteral("hipLineTilt"),
+                                                   QStringLiteral("secondaryAxisTilt") })
+                      && fa->evidence.contains(QStringLiteral("chestAddressHeadingDeg"))
+                      && fa->evidence.contains(QStringLiteral("hipAddressHeadingDeg")));
         }
     }
 
