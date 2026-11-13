@@ -169,7 +169,9 @@ public:
 // analysis_pipeline.cpp ShaftFusionStage (shaft_fusion.h) — swingPlane, the downswing shaft plane
 // against the address shaft plane, from the two cameras' shaft angles intersected — and its
 // family; plus ShaftDirectionStage (shaft_direction.h): shaftDirection, where the fused shaft points
-// against the target line at P2 and the top.
+// against the target line at P2 and the top. Also claims clubSlotTop (plane stack D3, 13 Nov 2026;
+// club_slot_top.h): the climb to P3 placed in the on-plane window between this stage's address plane and its
+// shoulder plane, derived once after the run.
 class ShaftFusionProvider : public IMetricProvider {
 public:
     std::vector<QString> provides() const override;

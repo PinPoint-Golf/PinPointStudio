@@ -74,7 +74,7 @@
 //    standfirsts: [7 × Sentence] (P1..P7; the live one is `standfirst`),
 //    picture: PICTURE (delivery_picture.h, stage 6: the down-the-line frames at address, the top and P6 with the address
 //             line, the shoulder plane and the slot frozen at address, every coordinate in the frame's own pixels; each
-//             frame's `note` is the plane story's at that position — "plane 65° · inside the slot"; the stills are made
+//             frame's `note` is the plane story's at that position — "plane 65° · inside the on-plane window"; the stills are made
 //             by the app's still maker, setStillMaker, off the GUI thread, and the picture re-delivered with their `src`;
 //             no down-the-line camera: available false, no groups, nothing said) }
 //
@@ -84,7 +84,7 @@
 //  POS    = { index (0..6), tag ("P4"), phase (Phase id), name ("the top"), value (| null), text ("65°" | "-"),
 //             hands (the hand plane | null), handsText, tUs (−1 none), seekUs (= tUs) }
 //  SLOT   = { available, address, shoulders (| null), addressText, shouldersText, widthText ("10° wide" | ""),
-//             outside: [{ index, tag, side ("above"|"under"), words }], text ("inside the slot" | "above the shoulder plane
+//             outside: [{ index, tag, side ("above"|"under"), words }], text ("inside the on-plane window" | "above the shoulder plane
 //             at P3 — a steep backswing") }
 //  FLIGHT = { available, text (the fit's sentence: shown, refused or too few), attackText ("" unless its fit holds),
 //             thisLine ("This one: 65° at P6, your steepest third → path −4.3°." | the fit's prediction, said as one),
@@ -128,7 +128,7 @@
 //    session's medians, no stretches. Empty with no plane. t is ms from the shot's impact (the shot figure's axis).
 //    LAYER = { k: "hline", v, role: "address", label: "address", text: "59°" }
 //          | { k: "hline", v, role: "shoulders", label: "shoulders", text: "68°" }
-//          | { k: "band", t: [t0, t1], lo: [address, address], hi: [shoulders, shoulders], role: "slot", label: "the slot" }
+//          | { k: "band", t: [t0, t1], lo: [address, address], hi: [shoulders, shoulders], role: "slot", label: "the on-plane window" }
 //          | { k: "span", t0, t1, role: "hands", label: "hands carry the plane here", labelled (the first only) }
 //
 //  selected: int (the playhead's position, 0..6), standfirst: Sentence (thisShot.standfirsts[selected]).

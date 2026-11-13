@@ -82,6 +82,7 @@ struct MetricSeries {
     int    sigmaKind = -1;        // -1 when absent
     std::vector<PhaseSample> phaseSamples;
     bool   lineAngle = false;     // an angle of a line: a single reading is folded (line_angle.h)
+    QString routeId;              // the producer route, when stated (MetricSeries::routeId); "" otherwise
 
     bool hasCurve() const { return tUs.size() >= 2; }
     // A fitted curve's value AT an instant (fitted_curve.h, series_reduce.h reduceInstantOver); NaN when

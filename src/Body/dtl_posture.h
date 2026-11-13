@@ -66,6 +66,21 @@
 //                          shoulder midpoint), at ADDRESS only; + = chin down toward the chest. Body
 //                          keypoints 0 and 3/4 only — never the 68 face landmarks (WholeBody's fine
 //                          keypoints score high and can still be wrong; see the hands).
+//   armLiftTop        °    (plane stack D2, 13 Nov 2026) at the TOP only: the angle between the lead UPPER
+//                          ARM (lead shoulder → lead ELBOW, COCO 5 → 7 for a right-hander, 6 → 8 for a
+//                          left-hander) and the shoulder line (lead → trail shoulder) in the picture,
+//                          + with the elbow on the UPPER side of the shoulder line. Measured to the
+//                          ELBOW, never the wrist: a bent lead arm folds the forearm up and makes the
+//                          arms look lifted (Mark: a "cheat", and its own fault, bent_lead_arm). The
+//                          median over the frames within ±sampler::kWindowHalfUs of the Top where all
+//                          three keypoints score ≥ confMin (RAW confidence). A difference of two lines in
+//                          one image, so no ruler and no calibration, and it is the coach's own check.
+//                          σ: each keypoint's smoother σ × max(1, body3d.confSigmaRef / conf) — the
+//                          confidence rule the 3-D fit applies to the same keypoints, so the trail
+//                          shoulder, half hidden behind the lead arm at the top (≈ 0.7), carries more —
+//                          through the angle (the lead shoulder is in both lines); the frames' median.
+//                          No σ on a track with no smoother σ. The 3-D fit's reading fills where this
+//                          has none (Skeleton3dBodyStage).
 //
 // WHY THE HAND LOOP IS A RATIO AND NOT CENTIMETRES. Both paths are the same wrist in the same image,
 // so the offset needs no calibration at all if it is scaled by something in that image — the
@@ -104,6 +119,7 @@
 #include <vector>
 
 #include "../Analysis/analysis_tuning.h"
+#include "../Core/pp_tuned_constants.h"   // sampler::kWindowHalfUs, body3d::kConfSigmaRef (armLiftTop)
 #include "../Analysis/gate_record.h"   // GateRecord (trust stage 6)
 #include "../Metrics/metric_channel.h"
 #include "../Analysis/swing_analysis.h"
@@ -261,6 +277,39 @@ inline std::optional<double> medianOfSeen(const View &v, int64_t tUs, int64_t ha
     return medianOfCopy(xs);
 }
 
+// THE ARM LIFT IN THE PICTURE (armLiftTop): the signed angle from the shoulder line s = T − L (lead → trail
+// shoulder) to the lead upper arm a = E − L (lead shoulder → lead elbow), image y flipped to point up;
+// + when the elbow lies on the upper side of the shoulder line. `ok` false on a zero-length line.
+struct ArmLiftFrame { bool ok = false; double deg = 0, interiorDeg = 0, sLen = 0, aLen = 0; };
+inline ArmLiftFrame armLiftFrame(const QPointF &L, const QPointF &T, const QPointF &E)
+{
+    ArmLiftFrame f;
+    const double sx = T.x() - L.x(), sy = -(T.y() - L.y()), ax = E.x() - L.x(), ay = -(E.y() - L.y());
+    const double ls = std::hypot(sx, sy), la = std::hypot(ax, ay);
+    if (ls < 1e-6 || la < 1e-6) return f;
+    const double c = std::clamp((sx * ax + sy * ay) / (ls * la), -1.0, 1.0);
+    f.interiorDeg = std::acos(c) * 180.0 / M_PI;
+    double nx = -sy / ls, ny = sx / ls;            // a normal of s, turned to the upper side
+    if (ny < 0.0) { nx = -nx; ny = -ny; }
+    f.deg  = (ax * nx + ay * ny >= 0.0) ? f.interiorDeg : -f.interiorDeg;
+    f.sLen = ls; f.aLen = la;
+    f.ok   = true;
+    return f;
+}
+// σ of that angle from the three keypoints' isotropic σ (px): the angle is the difference of the two lines'
+// directions, so the trail shoulder moves it by σ_T/|s|, the elbow by σ_E/|a|, and the lead shoulder —
+// in BOTH lines — by the vector sum of the two, |n̂_s/|s| − n̂_a/|a||² = 1/|s|² + 1/|a|² − 2cos θ/(|s||a|)
+// (θ the interior angle; upper_body_metrics.cpp elbowBendSigmaDeg, the hinge at the lead shoulder).
+// 0 when any σ is missing: an incomplete budget is unknown, not small.
+inline double armLiftSigmaDeg(const ArmLiftFrame &f, double sigL, double sigT, double sigE)
+{
+    if (!f.ok || !(sigL > 0.0) || !(sigT > 0.0) || !(sigE > 0.0)) return 0.0;
+    const double ls = f.sLen, la = f.aLen, c = std::cos(f.interiorDeg * M_PI / 180.0);
+    const double var = sigT * sigT / (ls * ls) + sigE * sigE / (la * la)
+                     + sigL * sigL * (1.0 / (ls * ls) + 1.0 / (la * la) - 2.0 * c / (ls * la));
+    return std::sqrt(std::max(var, 0.0)) * 180.0 / M_PI;
+}
+
 inline double kneeFlexDeg(const QPointF &hip, const QPointF &knee, const QPointF &ank)
 {
     const QPointF a = hip - knee, b = ank - knee;
@@ -287,7 +336,7 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                                           QStringLiteral("trailKneeFlexion"), QStringLiteral("trailForearmAngle"),
                                           QStringLiteral("balanceHeelToe"), QStringLiteral("ballBodyDistance"),
                                           QStringLiteral("ballReachExcess"), QStringLiteral("handPathLoop"), QStringLiteral("armHang"),
-                                          QStringLiteral("headPitch") } });
+                                          QStringLiteral("headPitch"), QStringLiteral("armLiftTop") } });
         return res;
     };
     auto code = [](const char *c) { return QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(c) } }; };
@@ -649,6 +698,62 @@ inline DtlPostureResult buildDtlPosture(const DtlPostureInputs &in, const DtlPos
                 ev.insert(QStringLiteral("minLevels"), cfg.loopMinLevels);
                 refuseLoop(std::move(ev));
             }
+        }
+    }
+
+    // ── the arm lift at the top: the lead UPPER ARM against the shoulder line (plane stack D2) ───────
+    //
+    // Measured to the ELBOW (top of file). Signed by the picture's own up, so neither the facing (tw) nor
+    // the hand turns it; a left-hander's lead side is the right-hand keypoints. Refused, with the frames
+    // it looked at, when no frame within the grader's window of the Top has all three keypoints.
+    if (topT) {
+        const int lSh = in.leadIsLeft ? kLSh : kRSh, tSh = in.leadIsLeft ? kRSh : kLSh, lEl = in.leadIsLeft ? kLEl : kREl;
+        const PoseTrack2D &pt = *in.poseDtl;
+        // The smoother's σ describes the positions read only when those ARE the smoothed track (viewOf).
+        const bool aux = v.val == &pt.smoothed && pt.smoothedAux.size() == pt.smoothed.size();
+        const int64_t half = tuned::sampler::kWindowHalfUs;
+        std::vector<double> vals, sig;
+        int inWindow = 0;
+        for (size_t i = 0; i < v.size(); ++i) {
+            if (std::llabs(v.t(i) - *topT) > half) continue;
+            ++inWindow;
+            if (!v.ok(i, lSh, cm) || !v.ok(i, tSh, cm) || !v.ok(i, lEl, cm)) continue;
+            const ArmLiftFrame f = armLiftFrame(v.px(i, lSh), v.px(i, tSh), v.px(i, lEl));
+            if (!f.ok) continue;
+            vals.push_back(f.deg);
+            const auto &rc = (*v.raw)[i].conf;
+            if (aux) {
+                const auto sk = [&](int k) {
+                    const double s0 = pt.smoothedAux[i].sigma[size_t(k)];
+                    const double c  = rc[size_t(k)];
+                    return s0 > 0.0 && c > 0.0 ? s0 * std::max(1.0, tuned::body3d::kConfSigmaRef / c) : 0.0;
+                };
+                const double s = armLiftSigmaDeg(f, sk(lSh), sk(tSh), sk(lEl));
+                if (s > 0.0) sig.push_back(s);
+            }
+        }
+        if (!vals.empty()) {
+            MetricSeries m;
+            m.key = QStringLiteral("armLiftTop"); m.label = QStringLiteral("Arm lift at the top");
+            m.unit = QStringLiteral("°");
+            m.routeId = QStringLiteral("dtl");   // the catalogue rung; Skeleton3dBodyStage's precedence reads it
+            PhaseSample ps{ Phase::Top, *topT, medianOfCopy(vals), QString() };
+            // σ of the reading: the frames' median σ, not divided by √n — smoothed frames are not
+            // independent draws.
+            if (!sig.empty()) {
+                const double sg = medianOfCopy(sig);
+                ps.sigma = sg; ps.sigmaKind = uint8_t(SigmaKind::Propagated);
+                m.sigma = sg;  m.sigmaKind  = uint8_t(SigmaKind::Propagated);
+            }
+            m.phaseSamples.push_back(ps);
+            res.series.push_back(std::move(m));
+        } else {
+            QVariantMap ev = code(inWindow > 0 ? "keypoints" : "noFrames");
+            ev.insert(QStringLiteral("frames"), inWindow);
+            ev.insert(QStringLiteral("minConf"), cm);
+            ev.insert(QStringLiteral("windowMs"), double(half) / 1000.0);
+            res.gates.push_back(GateRecord{ PP_GATE("posture.armLift"), QStringLiteral("armLiftTop"),
+                                            GateEffect::Refused, ev, {}, {}, {} });
         }
     }
 

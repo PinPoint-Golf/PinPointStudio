@@ -87,6 +87,8 @@ enum class MissingKind {
                                 // (posture_metrics_design.md §4.6, rule.diag.compositeCoverage)
     ClubBaselineNotEarned,      // a history.* measure with no baseline to read against: no provider, or
                                 // too few of this golfer's shots with this club (rule.diag.clubBaselineMinShots)
+    WindowNotCovered,           // a millisecond span after a phase (the reducer's windowMs): the phase read,
+                                // but too much of the span had no reading to judge it (D5 round 3)
 };
 
 // The sentence a not-assessable cell shows. Generic on purpose — see the header comment on why
@@ -104,6 +106,8 @@ public:
     // `writeSidecar` follows readPhaseGrid()'s contract exactly: false means "never fat-parse", and
     // an unindexed swing then reads as having no analysis rather than stalling a GUI thread.
     // `parsed` is readPhaseGrid()'s: the one parse a caller also reading the summary shares (#142).
+    // The grid is read with the millisecond spans the PACK's measures name (msWindowsOf) added to
+    // `cfg`, so a `windowMs` measure reads without every caller having to know which spans exist.
     LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
                       bool writeSidecar = true, const PhaseGridConfig &cfg = {},
                       SwingStore::LazyDocument *parsed = nullptr);
@@ -129,6 +133,9 @@ public:
     // refused, bounded or withheld that node, this names it: the gate id, the subject, and the clause
     // a "not judged" cell reads ("pelvis peak out of sight"). Empty `gate` when no record speaks for it
     // — a swing analysed before records existed, or a measure no gate acts on.
+    // A PHASE-LEVEL REASON comes first (plane stack D6): a measure value() found "not segmented" because a
+    // phase its reducer needs has no reading, on a swing whose records refuse that phase itself
+    // (gates::phaseSubject — positions.p8Refused on position.p8), names that record. Asked after value().
     struct GateCause { QString gate, subject, clause; };
     GateCause gateCause(const QString &measureId) const;
     // The same, for a subject named directly rather than through a measure: "shot", whose records

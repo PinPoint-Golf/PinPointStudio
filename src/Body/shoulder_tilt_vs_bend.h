@@ -35,7 +35,7 @@
 // the series and records as they will be written — never inside a stage, which would see whichever
 // readings happened to be there before the precedence settled them.
 //
-// EACH HALF IS READ EXACTLY AS THE GRADER READS IT (graderReadingAt below = measure_sample.cpp
+// EACH HALF IS READ EXACTLY AS THE GRADER READS IT (grader::graderReadingAt, grader_sample.h = measure_sample.cpp
 // buildPhaseGrid + reduceOverGrid's `at`): the median of the VALID samples within ±sampler::kWindowHalfUs
 // of the ladder instant (series_reduce.h reduceAt, one sample enough), or the instant itself on a fitted
 // curve; else the phase sample the series labels at that phase. So the value graded here is exactly
@@ -61,6 +61,13 @@
 // missing half's Refused / Bounded / Withheld records cover the key instead, so the reading's "not judged"
 // reason is that half's real refusal (W7 review).
 //
+// THE BACKSTOP (FB, plane stack, 13 Nov 2026): a reading below tuned::body3d::kTiltBendFloorDeg (−20°,
+// body3d.tiltBendFloorDeg) is outside what a turn can make — with a 35° forward bend it would need a
+// shoulder turn under ~27° — and the library's clean 1st percentile. It is kept and judged, with the
+// Downgraded body.tiltBendOutOfRange (subject shoulderTiltVsBend, covers it and shoulderPlaneAngle3d;
+// evidence valueDeg, floorDeg): it is probably a misreading of the shoulders (Chris's −24 was the 3-D
+// fit throwing the down-the-line trail shoulder away, plane_stack_design.md §11 FB). Never a refusal.
+//
 // ROUTES (the catalogue's rungs, metric_catalogue_manifest.cpp):
 //   trunkImus             tilt thoraxImu   + bend trunkImus   both from the chest sensor; no extra record
 //   thoraxImu+dtl         tilt thoraxImu   + bend down the line
@@ -68,12 +75,10 @@
 //   trunkImus+faceOn+dtl  tilt faceOn+dtl  + bend trunkImus
 // The down-the-line posture series states no route (dtl_posture.h); a bend with none is that camera's.
 
+#include "grader_sample.h"   // grader::graderReadingAt — the grader's `at` reading, shared with club_slot_top.h
 #include "../Analysis/gate_record.h"
 #include "../Analysis/swing_analysis.h"
 #include "../Core/pp_tuned_constants.h"
-#include "../Metrics/fitted_curve.h"
-#include "../Metrics/line_angle.h"
-#include "../Metrics/series_reduce.h"
 
 #include <QString>
 #include <QStringList>
@@ -93,58 +98,6 @@ namespace tilt_vs_bend {
 inline const QString &readingKey() { static const QString k = QStringLiteral("shoulderTiltVsBend"); return k; }
 inline const QString &tiltKey()    { static const QString k = QStringLiteral("shoulderPlaneAngle3d"); return k; }
 inline const QString &bendKey()    { static const QString k = QStringLiteral("spineForwardBend"); return k; }
-
-// Where the grader takes a reading's σ from (measure_sample.cpp stampSigma → SigmaSource).
-enum class SigmaFrom : uint8_t { None, Reading, Series, Noise };
-
-struct GradedReading {
-    bool      ok = false;
-    int64_t   tUs = 0;
-    double    value = std::numeric_limits<double>::quiet_NaN();
-    double    sigma = std::numeric_limits<double>::quiet_NaN();
-    SigmaFrom sigmaFrom = SigmaFrom::None;
-    uint8_t   sigmaKind = 0;      // the SigmaKind behind it (the phase sample's, or the series')
-};
-
-// The reading the grader takes of `m` at phase `ph` (the `at` reducer), with its σ. The ladder's FIRST
-// event for a phase wins and an empty ladder reads nothing, as buildPhaseGrid's ladder does.
-inline GradedReading graderReadingAt(const MetricSeries &m, Phase ph, const std::vector<PhaseEvent> &ladder)
-{
-    GradedReading out;
-    if (ladder.empty()) return out;
-    const auto at = std::find_if(ladder.begin(), ladder.end(), [&](const PhaseEvent &e) { return e.phase == ph; });
-    const auto lab = std::find_if(m.phaseSamples.begin(), m.phaseSamples.end(),
-                                  [&](const PhaseSample &p) { return p.phase == ph; });
-    const bool labelled = lab != m.phaseSamples.end();
-    const auto fold = [&](double x) { return m.lineAngle ? wrapLeanDeg(x) : x; };
-    // The instant: the ladder's, else — a phase the ladder lacks but the series labels — the label's own
-    // (buildPhaseGrid's candidates). The curve is read there first either way.
-    std::optional<int64_t> instant;
-    if (at != ladder.end()) instant = at->t_us;
-    else if (labelled)      instant = lab->t_us;
-    if (instant) {
-        const size_t n = std::min(m.t_us.size(), m.value.size());
-        if (n > 0) {
-            SeriesView view;
-            view.t = m.t_us.data(); view.v = m.value.data(); view.n = n;
-            view.valid = m.valid.size() >= n ? m.valid.data() : nullptr;
-            ReduceConfig rc;
-            rc.atHalfWindowUs = tuned::sampler::kWindowHalfUs;   // PhaseGridConfig::windowHalfUs
-            rc.minAtSamples   = 1;                               // PhaseGridConfig::minValidSamples
-            const Reduced r = isFittedCurve(m.key) ? reduceInstant(view, *instant) : reduceAt(view, *instant, rc);
-            if (r.ok) { out.ok = true; out.tUs = *instant; out.value = fold(r.value); }
-        }
-    }
-    if (!out.ok && labelled) { out.ok = true; out.tUs = lab->t_us; out.value = fold(lab->value); }
-    if (!out.ok || !std::isfinite(out.value)) return GradedReading{};
-    if (labelled && lab->sigma && std::isfinite(*lab->sigma) && *lab->sigma > 0.0) {
-        out.sigma = *lab->sigma; out.sigmaFrom = SigmaFrom::Reading; out.sigmaKind = lab->sigmaKind;
-    } else if (m.sigma && std::isfinite(*m.sigma) && *m.sigma > 0.0) {
-        out.sigma = *m.sigma; out.sigmaKind = m.sigmaKind;
-        out.sigmaFrom = m.sigmaKind > 0 ? SigmaFrom::Series : SigmaFrom::Noise;
-    }
-    return out;
-}
 
 // The instrument family of a half's route: the chest sensor, or a camera route.
 inline bool fromChestSensor(const QString &route)
@@ -170,7 +123,8 @@ struct Outcome {
     bool    mixed = false;                 // the halves came from different instruments (the record fired)
     int     recordsExtended = 0;           // the halves' records that now also cover the reading
     int     recordsExplaining = 0;         // no reading: the missing half's refusals that now name it too
-    GradedReading tilt, bend;              // the halves as graded
+    bool    outOfRange = false;            // below the backstop's floor: body.tiltBendOutOfRange fired (FB)
+    grader::GradedReading tilt, bend;              // the halves as graded
 };
 
 } // namespace tilt_vs_bend
@@ -179,7 +133,8 @@ struct Outcome {
 // the precedence and the substitution clean-up. Idempotent: a reading, record or cover this left on an
 // earlier call is taken back first.
 inline tilt_vs_bend::Outcome deriveShoulderTiltVsBend(std::vector<MetricSeries> &series, std::vector<GateRecord> &gates,
-                                                      const std::vector<PhaseEvent> &ladder)
+                                                      const std::vector<PhaseEvent> &ladder,
+                                                      double floorDeg = tuned::body3d::kTiltBendFloorDeg)
 {
     namespace tb = tilt_vs_bend;
     tb::Outcome out;
@@ -187,7 +142,10 @@ inline tilt_vs_bend::Outcome deriveShoulderTiltVsBend(std::vector<MetricSeries> 
     series.erase(std::remove_if(series.begin(), series.end(), [&](const MetricSeries &m) { return m.key == K; }),
                  series.end());
     gates.erase(std::remove_if(gates.begin(), gates.end(),
-                               [](const GateRecord &g) { return g.gate == QLatin1String("body.tiltBendMixedSources"); }),
+                               [](const GateRecord &g) {
+                                   return g.gate == QLatin1String("body.tiltBendMixedSources")
+                                       || g.gate == QLatin1String("body.tiltBendOutOfRange");
+                               }),
                 gates.end());
     for (GateRecord &g : gates) g.covers.removeAll(K);
 
@@ -199,8 +157,8 @@ inline tilt_vs_bend::Outcome deriveShoulderTiltVsBend(std::vector<MetricSeries> 
     };
     const MetricSeries *tilt = first(tb::tiltKey());
     const MetricSeries *bend = first(tb::bendKey());
-    if (tilt) out.tilt = tb::graderReadingAt(*tilt, Phase::Top, ladder);
-    if (bend) out.bend = tb::graderReadingAt(*bend, Phase::Address, ladder);
+    if (tilt) out.tilt = grader::graderReadingAt(*tilt, Phase::Top, ladder);
+    if (bend) out.bend = grader::graderReadingAt(*bend, Phase::Address, ladder);
     // A HALF IS MISSING: no reading — and the reason a reader gives for that is the missing half's own.
     // Every record that refused, bounded or withheld that half (the effects gates::primaryRecord ranks,
     // which LiveMeasureSource::gateCause shows) also covers the reading, so "not judged" names the real
@@ -236,9 +194,9 @@ inline tilt_vs_bend::Outcome deriveShoulderTiltVsBend(std::vector<MetricSeries> 
     // A half that may not be judged takes the difference with it.
     m.withheld = !tilt->withheld.isEmpty() ? tilt->withheld : bend->withheld;
     PhaseSample ps{ Phase::Top, out.tilt.tUs, out.tilt.value - out.bend.value, QString() };
-    if (out.tilt.sigmaFrom != tb::SigmaFrom::None && out.bend.sigmaFrom != tb::SigmaFrom::None) {
+    if (out.tilt.sigmaFrom != grader::SigmaFrom::None && out.bend.sigmaFrom != grader::SigmaFrom::None) {
         const double s = std::hypot(out.tilt.sigma, out.bend.sigma);
-        if (out.tilt.sigmaFrom == tb::SigmaFrom::Noise || out.bend.sigmaFrom == tb::SigmaFrom::Noise) {
+        if (out.tilt.sigmaFrom == grader::SigmaFrom::Noise || out.bend.sigmaFrom == grader::SigmaFrom::Noise) {
             m.sigma = s;                // a noise floor stays one: no kind, no phase-sample σ
         } else {
             const bool assumed = out.tilt.sigmaKind == uint8_t(SigmaKind::AssumedInput)
@@ -267,6 +225,15 @@ inline tilt_vs_bend::Outcome deriveShoulderTiltVsBend(std::vector<MetricSeries> 
                                                                                    ? QStringLiteral("unstated") : out.tiltRoute },
                                                  { QStringLiteral("bendFrom"), out.bendRoute } },
                                     {}, {}, QStringList{ K } });
+    // The backstop (top of file): below the floor a turn cannot reach, the reading is kept with its ⚠.
+    const double value = out.tilt.value - out.bend.value;
+    if (std::isfinite(floorDeg) && value < floorDeg) {
+        out.outOfRange = true;
+        gates.push_back(GateRecord{ PP_GATE("body.tiltBendOutOfRange"), K, GateEffect::Downgraded,
+                                    QVariantMap{ { QStringLiteral("valueDeg"), std::round(value * 10.0) / 10.0 },
+                                                 { QStringLiteral("floorDeg"), floorDeg } },
+                                    {}, {}, QStringList{ K, tb::tiltKey() } });
+    }
     return out;
 }
 

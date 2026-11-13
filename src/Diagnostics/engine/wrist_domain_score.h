@@ -75,7 +75,7 @@ struct WristDomainScoreResult {
 // ── The weight map: engine rule → condition ─────────────────────────────────
 //
 // The engine's weights (src/Wrist/assessment_rules.cpp, RuleDef::weight) carried to the condition
-// each rule folded into (§7.3). Eight conditions are a rule's direct heir; the other seven have no
+// each rule folded into (§7.3). Seven conditions are a rule's direct heir; the other seven have no
 // engine rule of their own and inherit by ONE of two stated rules, never by a number made up here:
 //
 //   AXIS PARTNER — the other tail of a corridor the engine judged on one side only takes that
@@ -100,7 +100,13 @@ struct WristDomainScoreResult {
 //   shut_face_top            over_rotation            0.7     face side: shut
 //   early_face_roll          holding_off              0.6     face side: open
 //   face_held_shut_takeaway  over_rotation            0.7     face side: shut
-//   chicken_wing             chicken_wing             0.6     direct
+//
+// NOT IN THE DOMAIN: chicken_wing (plane stack D6, Mark's decision of 13 Nov 2026). It is the lead
+// ARM folding after impact, an arm fault (group arms), not a wrist motion, and since D5 it is read
+// from the face-on camera's elbow. The engine's chicken_wing rule (weight 0.6) folded into it, so it is
+// the one engine fault rule whose heir sits outside this domain (wristDomainExemptEngineRules). The
+// wrist score loses one condition (15 → 14); while chicken_wing keeps its reportHold it never fired
+// into a report, and on a camera swing it never read through the wrist sensors anyway.
 //
 // A wrist-domain condition missing from this table (a later addition to the domain) weighs
 // kWristDomainDefaultWeight, the engine's modal rule weight, until somebody writes its row; the
@@ -130,8 +136,16 @@ inline const std::vector<WristDomainWeight> &wristDomainWeights()
         { "shut_face_top",           "over_rotation",    0.7 },
         { "early_face_roll",         "holding_off",      0.6 },
         { "face_held_shut_takeaway", "over_rotation",    0.7 },
-        { "chicken_wing",            "chicken_wing",     0.6 },
     };
+    return k;
+}
+
+// The engine fault rules whose heir condition is NOT in the wrist domain, with why. Only chicken_wing:
+// the lead arm folding after impact is an arm fault (plane stack D6, 13 Nov 2026), so its condition
+// left the domain and its weight no longer counts here.
+inline const std::vector<const char *> &wristDomainExemptEngineRules()
+{
+    static const std::vector<const char *> k = { "chicken_wing" };
     return k;
 }
 

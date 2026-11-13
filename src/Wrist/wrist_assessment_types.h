@@ -145,6 +145,17 @@ inline std::optional<PpJointDof> dofForMetricKey(const QString &rawKey)
     return std::nullopt;
 }
 
+// THE WRIST ASSESSMENT IS THE SENSORS' GRID, and a camera reading of one of its keys stays out of it.
+// Since 13 Nov 2026 (plane stack D5) `leadArmFlexion` also has a face-on producer (routeId "faceOn",
+// upper_body_metrics.cpp). Its corridors in the assessment's reference bands were set for the wrist
+// sensors, and on the library the face-on elbow reads ~37° more bent at the top than at address — so
+// letting it into the DOF grid would grade every camera swing's top as a bent arm. The adapters
+// (wrist_analysis_adapter.cpp) and the pipeline's record subjects skip such a series.
+inline bool isCameraWristDofSeries(const QString &routeId)
+{
+    return routeId == QLatin1String("faceOn");
+}
+
 // Stable short identifier for logs / test output (not user-facing).
 inline const char *dofName(PpJointDof dof)
 {

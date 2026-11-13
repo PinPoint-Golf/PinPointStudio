@@ -116,6 +116,89 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
         .tuning = { tune("upperBody.minShoulderSpanRatio", U::kMinShoulderSpanRatio, ""),
                     tune("lowerBody.minHipSpanRatio", L::kMinHipSpanRatio, "") };
 
+    // leadArmToTorso (13 Nov 2026, plane stack FA): Masked over the swing, Refused at an instant the
+    // grade reads (P7, P8) when the gate leaves nothing there.
+    {
+        GateEntry &e = add(c, "body.armTorsoLines", body, "Lead arm or shoulders out of view",
+            "lead arm or shoulders out of view",
+            QStringLiteral("The lead arm's angle from the torso needs two directions the face-on camera can see: the "
+                           "torso's, which runs down from the point midway between the shoulders, and the upper "
+                           "arm's, from the lead shoulder to the elbow. As the chest turns, the shoulders line up "
+                           "one behind the other and that midpoint is guesswork; when the upper arm points toward "
+                           "or away from the camera it is a few pixels long and its direction is noise. Frames "
+                           "where either happens are left out, and the angle is not judged at impact or at the "
+                           "shaft parallel after impact if they leave nothing there."),
+            "No lead arm angle on {frames} of {ofFrames} frames ({frac:pct})[ from {fromMs:t} to {toMs:t}][, none at "
+            "{phase:code}: the shoulders were {shoulderRatio:pct} as wide as at address and the upper arm "
+            "{armRatio:pct} as long]; the shoulders must stay at least {minRatio:pct} as wide, and the upper arm "
+            "{minArmRatio:pct} to {maxArmRatio:pct} as long.",
+            { GateEffect::Masked, GateEffect::Refused }, upperProd, upperDoc);
+        e.tuning = { tune("upperBody.minShoulderSpanRatio", U::kMinShoulderSpanRatio, ""),
+                     tune("upperBody.minUpperArmRatio", U::kMinUpperArmRatio, ""),
+                     tune("upperBody.maxUpperArmRatio", U::kMaxUpperArmRatio, "") };
+        e.codes = { { QStringLiteral("P7"), QStringLiteral("impact") },
+                    { QStringLiteral("P8"), QStringLiteral("the shaft parallel after impact") } };
+    }
+
+    // The face-on lead elbow (leadArmFlexion's faceOn rung, plane stack D5, 13 Nov 2026): a frame whose lead
+    // upper arm or forearm images outside its length band against address is left out. Its own gate rather
+    // than an extension of body.armTorsoLines: this reading never uses the shoulder midpoint, so it is never
+    // refused for the shoulders, and its sentence and golfer words must not name them. A Masked summary over
+    // the swing, and a REFUSED record at impact when the gate leaves the grader nothing there — the instant
+    // the fold after impact is measured from.
+    {
+        GateEntry &e = add(c, "body.leadElbowLines", body, "Lead arm pointing at the camera",
+            "lead arm pointing at the camera",
+            QStringLiteral("The bend at the lead elbow is read from the face-on picture as the angle between the "
+                           "upper arm (lead shoulder to elbow) and the forearm (elbow to wrist). When either part "
+                           "points toward or away from the camera it looks much shorter than at address and the "
+                           "picture hides how bent the elbow is; when it looks much longer, a point has jumped off "
+                           "the arm. Frames where either happens are left out, and the bend is not judged at "
+                           "impact if they leave nothing there."),
+            "No lead elbow bend on {frames} of {ofFrames} frames ({frac:pct})[ from {fromMs:t} to {toMs:t}][, none "
+            "{phase:code}: the upper arm was {armRatio:pct} as long as at address and the forearm "
+            "{forearmRatio:pct}][, leaving {gapMs:ms} unread where at most {maxGapMs:ms} may be]; the upper arm must "
+            "stay {minArmRatio:pct} to {maxArmRatio:pct} as long, and the forearm {minForearmRatio:pct} to "
+            "{maxForearmRatio:pct}.",
+            { GateEffect::Masked, GateEffect::Refused }, upperProd, upperDoc);
+        e.tuning = { tune("upperBody.minUpperArmRatio", U::kMinUpperArmRatio, ""),
+                     tune("upperBody.maxUpperArmRatio", U::kMaxUpperArmRatio, ""),
+                     tune("upperBody.minForearmRatio", U::kMinForearmRatio, ""),
+                     tune("upperBody.maxForearmRatio", U::kMaxForearmRatio, "") };
+        e.codes = { { QStringLiteral("P7"), QStringLiteral("at impact") },
+                    { QStringLiteral("afterImpact"), QStringLiteral("across the 100 ms after impact") } };
+    }
+
+    // The face-on lead elbow's OCCLUSION gate (plane stack D5 round 3, 13 Nov 2026). The pose model places a
+    // hidden joint somewhere plausible — Jess's lead shoulder on her chin once her head covers it after impact,
+    // Mark's elbow and wrist scored low near his head — so a lead shoulder, elbow or wrist on the head, or one the model scored low on
+    // its RAW confidence, is not seen. Its own gate rather than a code of body.leadElbowLines: the cause, the
+    // fix (nothing the golfer can change; another view) and the golfer words all differ from a foreshortened arm.
+    {
+        GateEntry &e = add(c, "body.leadArmHidden", body, "Lead arm hidden from the face-on camera",
+            "lead arm hidden from the camera",
+            QStringLiteral("The bend at the lead elbow is read from the face-on picture, so all three of the lead "
+                           "shoulder, elbow and wrist must really be in view. After impact a golfer who keeps the "
+                           "head down hides the lead shoulder behind the head, and the pose model then places it "
+                           "on the face, chin or neck; a hand or elbow can be placed on the head the same way. A "
+                           "frame where any of the three sits on the head, or where the model was unsure of one "
+                           "on its own score, is left out. If that leaves impact, or too much of the 100 ms after "
+                           "it, unread, the fold after impact is not judged rather than read from what is left."),
+            "No lead elbow bend on {frames} of {ofFrames} frames ({frac:pct})[ from {fromMs:t} to {toMs:t}][, none "
+            "{phase:code}][, leaving {gapMs:ms} unread where at most {maxGapMs:ms} may be][: {code:code}][; the lead "
+            "shoulder sat on the head in {shoulderOnHead} of them][, the elbow in {elbowOnHead}][, the wrist in "
+            "{wristOnHead}][, and a point was scored under {minRawConf} in {lowConfidence}]. A point within "
+            "{headRadius:pct} of the shoulder width of the head's centre is on the head.",
+            { GateEffect::Masked, GateEffect::Refused }, upperProd, upperDoc);
+        e.tuning = { tune("upperBody.headRadiusRatio", U::kHeadRadiusRatio, ""),
+                     tune("upperBody.minRawConf", U::kMinRawConf, "") };
+        e.codes = { { QStringLiteral("P7"), QStringLiteral("at impact") },
+                    { QStringLiteral("afterImpact"), QStringLiteral("across the 100 ms after impact") },
+                    { QStringLiteral("shoulderOnHead"), QStringLiteral("the lead shoulder was behind the head") },
+                    { QStringLiteral("armOnHead"), QStringLiteral("the lead elbow or wrist was placed on the head") },
+                    { QStringLiteral("lowConfidence"), QStringLiteral("the pose model was unsure where the lead arm was") } };
+    }
+
     // ── Body rotation (body_rotation.cpp) ───────────────────────────────────────────────────────
     {
         GateEntry &e = add(c, "body.rotation", body, "Turn not measured", "not measured",
@@ -243,6 +326,25 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
             { QStringLiteral("unstated"),   QStringLiteral("by a route that was not recorded") } };
     }
 
+    // FB, 13 Nov 2026 (plane stack §11): the BACKSTOP. A tilt − bend below body3d.tiltBendFloorDeg is
+    // outside what a turn can make (a 35° bend would need under ~27° of shoulder turn) and the library's
+    // clean 1st percentile. DOWNGRADED, never refused: kept and judged with the warning that it is
+    // probably a misreading of the shoulders (Chris's −24, the 3-D fit having thrown the down-the-line
+    // trail shoulder away).
+    {
+        GateEntry &e = add(c, "body.tiltBendOutOfRange", body, "Shoulder tilt beyond a full turn",
+            "beyond a full turn",
+            QStringLiteral("This reading compares the tilt of your shoulders at the top with your forward bend at "
+                           "address. A turn made on the spine leaves the shoulders tilted by about the bend; to "
+                           "finish this much flatter than the bend, the shoulders would have to have turned far "
+                           "less than any full backswing does. A value this far out is much more likely to be a "
+                           "misreading of where the shoulders were than a real turn, so it is kept and judged, a "
+                           "step lower in trust, with this warning."),
+            "Your shoulder tilt read {valueDeg:deg} against your posture; below {floorDeg:deg} is beyond what a full turn can make.",
+            { GateEffect::Downgraded }, "src/Body/shoulder_tilt_vs_bend.h", "docs/design/plane_stack_design.md §11 FB");
+        e.tuning = { tune("body3d.tiltBendFloorDeg", tuned::body3d::kTiltBendFloorDeg, "°") };
+    }
+
     // ── Hip internal rotation (trunk_sensor_series.h, for HipInternalRotationStage) ────────────────
     // DOWNGRADED, never refused: where the two-camera fit did not read a thigh's own turn, the hip's
     // rotation is the hip sensor's turn over a thigh taken as not turning, kept and judged with this
@@ -290,6 +392,73 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
             { QStringLiteral("faceOn"), QStringLiteral("The face-on camera could not read it on this swing") },
             { QStringLiteral("dtl"),    QStringLiteral("The down-the-line camera could not read it on this swing") } };
     }
+
+    // FB, 13 Nov 2026 (plane stack §11): the two cameras disagree about the shoulders at the top — the
+    // down-the-line camera's shoulder line against the 3-D fit's, in that camera (Skeleton3DStage;
+    // skeleton3d_body_metrics.h shoulderViewsAtTop). DOWNGRADED, never refused: every reading built on the
+    // fit's shoulders there is kept and judged a step lower in trust (scoped to the readings that stand
+    // and came from the fit, scopeShoulderViewsRecord; shoulderTiltVsBend inherits it from its tilt).
+    {
+        GateEntry &e = add(c, "body3d.shoulderViewsDisagree", body, "Cameras disagree about the shoulders",
+            "cameras disagree at the top",
+            QStringLiteral("At the top of the backswing the shoulder line points almost straight at the face-on "
+                           "camera, so the shoulder furthest from it is hidden behind the chest and that camera "
+                           "can only guess where it is. The 3-D fit of your body combines both cameras; here the "
+                           "down-the-line camera's view of your shoulder line and the fit's differ by more than "
+                           "the cameras' agreement allows. Readings built on the shoulders at the top are kept "
+                           "and judged, a step lower in trust, with this warning."),
+            "At the top the down-the-line camera's shoulder line and the 3-D fit's differ by {medianDeg:deg} "
+            "(over {frames} frames); more than {limitDeg:deg} means the two cameras disagree.",
+            { GateEffect::Downgraded }, "src/Body/skeleton3d_body_series.h", "docs/design/plane_stack_design.md §11 FB");
+        e.tuning = { tune("body3d.shoulderViewsDisagreeDeg", tuned::body3d::kShoulderViewsDisagreeDeg, "°") };
+    }
+
+    // Plane stack D2 (13 Nov 2026): the 3-D arm lift at the top (Skeleton3dBodyStage, skeleton3d_body_series.h).
+    // Measured against the shoulder-turn plane, which is built on the fit's shoulder line at the top — so where
+    // the two cameras disagree about that line (body3d.shoulderViewsDisagree) the fit's arm lift is not read.
+    // REFUSED only when that leaves no arm lift at all (no down-the-line reading either).
+    {
+        GateEntry &e = add(c, "body3d.armLiftShoulders", body, "Arm lift not read from the 3-D fit",
+            "cameras disagree at the top",
+            QStringLiteral("The arm lift is measured against the plane your shoulders turn on, and the 3-D fit builds "
+                           "that plane from its shoulder line at the top. On this swing the two cameras disagree "
+                           "about where the shoulders are there, so the fit's arm lift is not used, and the "
+                           "down-the-line picture had no reading of its own."),
+            "{code:code}.",
+            { GateEffect::Refused }, "src/Body/skeleton3d_body_series.h", "docs/design/plane_stack_design.md §11 D2");
+        e.codes = { { QStringLiteral("shoulderViews"),
+                      QStringLiteral("The cameras disagree about the shoulders at the top, so the 3-D arm lift is not used") } };
+    }
+    // Plane stack D6 (Mark, 13 Nov 2026): bent_lead_arm's 3-D reading is the measured bend at the top less the
+    // median over the address hold, and both ends need the lead elbow MEASURED (seen by both cameras, FB's honest
+    // tier). REFUSED where either end has none, so the reading says why rather than "not segmented".
+    {
+        GateEntry &e = add(c, "body3d.leadElbowUnmeasured", body, "Lead elbow not seen by both cameras",
+            "lead elbow not seen by both cameras",
+            QStringLiteral("How much the lead arm bends between address and the top is read from the 3-D fit of the "
+                           "body, only on frames where both cameras saw the lead elbow; a frame the fit placed by "
+                           "its anatomy alone is left out. It needs such frames at the top and in the address hold, "
+                           "where the arm is still. Where either is missing the bend is not judged, rather than "
+                           "read against a guessed elbow."),
+            "{code:code} ({topFrames} fit frames at the top, {holdMeasured} of {holdFrames} measured in the "
+            "{holdMs:ms} address hold).",
+            { GateEffect::Refused }, "src/Body/skeleton3d_body_series.h", "docs/design/plane_stack_design.md §11 D6");
+        e.tuning = { tune("body3d.elbowHoldUs", double(tuned::body3d::kElbowHoldUs), "µs"),
+                     tune("body3d.elbowHoldMinFrames", double(tuned::body3d::kElbowHoldMinFrames), "frames") };
+        e.codes = { { QStringLiteral("top"),     QStringLiteral("Both cameras did not see the lead elbow at the top") },
+                    { QStringLiteral("address"), QStringLiteral("Both cameras did not see the lead elbow in the address hold") },
+                    { QStringLiteral("both"),    QStringLiteral("Both cameras saw the lead elbow neither at the top nor in the address hold") } };
+    }
+    // Plane stack D2: the corridor a 3-D arm lift is judged against was seated on the down-the-line picture's
+    // reading. A norm row is keyed by the shot's context and the golfer's cohort, never by the route that read
+    // the value, so the 3-D reading — a fill today, the answer once the cameras are calibrated — borrows it.
+    // DOWNGRADED: the reading stands and is judged, a step lower in trust.
+    add(c, "body3d.armLiftImageCorridor", body, "Judged against the down-the-line corridor", "corridor from the other camera",
+        QStringLiteral("This arm lift was read from the 3-D fit of your body. The range it is judged against was set on "
+                       "the down-the-line camera's own reading of the arm lift, which agrees with the fit's on average "
+                       "but spreads golfers less widely, so the verdict is a little less certain."),
+        "Read from the 3-D fit (route {route}) and judged against the corridor set on the {normRoute} reading.",
+        { GateEffect::Downgraded }, "src/Body/skeleton3d_body_series.h", "docs/design/plane_stack_design.md §11 D2");
 
     add(c, "body.xFactorStretchTop", body, "No top to measure from", "no top found",
         QStringLiteral("X-factor stretch is how much the separation between chest and hips grows after the top of "
@@ -390,6 +559,24 @@ inline void appendBodyGates(std::vector<GateEntry> &c)
             { QStringLiteral("wristAtTop"),     QStringLiteral("The lead wrist was not seen within {windowMs:ms} of the top") },
             { QStringLiteral("rise"),           QStringLiteral("The hands rose only {risePx:px} to the top; {minPx:px} is needed") },
             { QStringLiteral("levels"),         QStringLiteral("The two hand paths could be compared at only {levels} heights; {minLevels} needed") } };
+    }
+
+    // Plane stack D2 (13 Nov 2026): the arm lift at the top in the down-the-line picture — the lead upper arm
+    // (shoulder → elbow) against the shoulder line — needs the lead shoulder, the trail shoulder and the lead
+    // elbow on one frame near the top. The trail shoulder is the one that goes: half hidden behind the lead
+    // arm there.
+    {
+        GateEntry &e = add(c, "posture.armLift", posture, "Arm lift not read", "not read",
+            QStringLiteral("The arm lift at the top is the angle between the lead upper arm, from the lead shoulder to "
+                           "the lead elbow, and the shoulder line, in the down-the-line picture. It needs both "
+                           "shoulders and the lead elbow seen clearly on a frame near the top; at the top the trail "
+                           "shoulder is half hidden behind the lead arm, and it is usually the one missing."),
+            "{code:code} ({frames} frames looked at within {windowMs:ms} of the top; each point must score {minConf} or more).",
+            { GateEffect::Refused }, dtlProd, "docs/design/plane_stack_design.md §3.2");
+        e.tuning = { tune("dtlPosture.confMin", 0.30, "") };
+        e.codes = {
+            { QStringLiteral("keypoints"), QStringLiteral("No frame near the top showed both shoulders and the lead elbow clearly") },
+            { QStringLiteral("noFrames"),  QStringLiteral("The down-the-line camera has no frame near the top") } };
     }
 
     // ── Down-the-line shaft lie (Club/dtl_shaft_lie.h) ─────────────────────────────────────────

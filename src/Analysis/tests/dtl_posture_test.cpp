@@ -21,15 +21,18 @@
 // One synthetic golfer seen from down the line, ball image-right: hips that TURN (the two hip
 // joints swap depth, the midpoint stays) and then THRUST 30 px, a trunk that loses 9° of bend,
 // a trail knee that straightens at the top, and a lead wrist that rises 400 px up the inside and
-// comes down `loopPx` outside that path. Qt-only, no fixture.
+// comes down `loopPx` outside that path. Qt-only, no fixture. §9 (plane stack D2): the arm lift at the
+// top, the lead upper arm against the shoulder line, both facings and both hands.
 //
 //   cmake --build build/tests --target dtl_posture_test
 //   ctest --test-dir build/tests -R dtl_posture_test --output-on-failure
 
 #include "../../Body/dtl_posture.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <utility>
 
 using namespace pinpoint::analysis;
 
@@ -146,6 +149,28 @@ static void setHead(PoseTrack2D &p, bool mirror, double pitchDeg)
         const QPointF ear((sx + 70.0 * ux) / kW, (sy + 70.0 * uy) / kH);
         f.kp[3] = ear; f.kp[4] = ear;
         f.kp[0] = QPointF((sx + 70.0 * ux + 40.0 * ex) / kW, (sy + 70.0 * uy + 40.0 * ey) / kH);
+    }
+}
+// §9 THE ARM LIFT AT THE TOP (plane stack D2): on every frame within ±20 ms of the top, the lead shoulder
+// at (250, 300), the trail shoulder 100 px from it along a line rising `tiltDeg` (image up = −y), the lead
+// ELBOW 80 px from the lead shoulder at `liftDeg` above that line, and the lead wrist 70 px on from the
+// elbow with the forearm folded `foldDeg` further up — a bent lead arm, which a shoulder → wrist line
+// would read as lifted. A left-hander's lead side is the right-hand keypoints (6, 8, 10).
+static void setArmAtTop(PoseTrack2D &p, bool mirror, bool leftHanded, double tiltDeg, double liftDeg,
+                        double foldDeg = 0.0, float trailConf = 0.9f)
+{
+    const int lS = leftHanded ? 6 : 5, tS = leftHanded ? 5 : 6, lE = leftHanded ? 8 : 7, lW = leftHanded ? 10 : 9;
+    const auto X = [mirror](double x) { return mirror ? kW - x : x; };
+    const double a = tiltDeg * M_PI / 180.0, b = (tiltDeg + liftDeg) * M_PI / 180.0,
+                 c = (tiltDeg + liftDeg + foldDeg) * M_PI / 180.0;
+    const double Lx = 250.0, Ly = 300.0, Ex = Lx + 80.0 * std::cos(b), Ey = Ly - 80.0 * std::sin(b);
+    for (PoseFrame2D &f : p.frames) {
+        if (std::llabs(f.t_us - kTop) > 20000) continue;
+        f.kp[size_t(lS)] = QPointF(X(Lx) / kW, Ly / kH);
+        f.kp[size_t(tS)] = QPointF(X(Lx + 100.0 * std::cos(a)) / kW, (Ly - 100.0 * std::sin(a)) / kH);
+        f.kp[size_t(lE)] = QPointF(X(Ex) / kW, Ey / kH);
+        f.kp[size_t(lW)] = QPointF(X(Ex + 70.0 * std::cos(c)) / kW, (Ey - 70.0 * std::sin(c)) / kH);
+        f.conf[size_t(tS)] = trailConf;
     }
 }
 static const MetricSeries *find(const DtlPostureResult &r, const char *key)
@@ -412,6 +437,104 @@ int main()
         DtlPostureInputs noClub = inputs(d, false);
         noClub.clubLengthM = 0.0;
         check(refusedBy(noClub, "noClub"), "§8 no club length ⇒ no ball distance (noClub)");
+    }
+
+    // §9 THE ARM LIFT AT THE TOP (plane stack D2, 13 Nov 2026): the lead UPPER ARM (shoulder → ELBOW) against
+    // the shoulder line, + above it. A known angle reads exactly, for a golfer facing either way and for a
+    // left-hander; a bent forearm does not move it; σ carries the trail shoulder's confidence; a top with
+    // no trail shoulder is refused with its record.
+    {
+        const auto liftOf = [&](const PoseTrack2D &d, bool mirror, bool leftHanded) {
+            DtlPostureInputs in = inputs(d, mirror);
+            in.leadIsLeft = !leftHanded;
+            const DtlPostureResult r = buildDtlPosture(in, cfg);
+            return std::make_pair(r, atPhase(find(r, "armLiftTop"), Phase::Top));
+        };
+        for (const bool mirror : { false, true })
+            for (const bool lefty : { false, true }) {
+                char lab[160];
+                const char *who = lefty ? (mirror ? "left-hander facing left" : "left-hander facing right")
+                                        : (mirror ? "right-hander facing left" : "right-hander facing right");
+                PoseTrack2D up = makePose(mirror);
+                setArmAtTop(up, mirror, lefty, 25.0, 12.0, /*fold*/ 35.0);
+                const auto [r, v] = liftOf(up, mirror, lefty);
+                std::snprintf(lab, sizeof lab, "§9 %s: the elbow 12° above a 25° shoulder line reads +12 (got %.4f)", who, v);
+                check(near(v, 12.0, 1e-6), lab);
+                PoseTrack2D dn = makePose(mirror);
+                setArmAtTop(dn, mirror, lefty, 25.0, -8.0);
+                const double w = liftOf(dn, mirror, lefty).second;
+                std::snprintf(lab, sizeof lab, "§9 %s: the elbow 8° under it reads −8 (got %.4f)", who, w);
+                check(near(w, -8.0, 1e-6), lab);
+                const MetricSeries *m = find(r, "armLiftTop");
+                check(m && m->routeId == QStringLiteral("dtl") && m->phaseSamples.size() == 1
+                          && m->phaseSamples.front().phase == Phase::Top && m->phaseSamples.front().t_us == kTop
+                          && m->t_us.empty() && m->unit == QStringLiteral("°"),
+                      "§9 …one reading, at the ladder's Top, route dtl, no curve");
+            }
+        // A bent lead arm is not a lift: the forearm folded 35° up puts the WRIST 24° above the shoulder line
+        // (shoulder → wrist), yet the reading is the upper arm's 12°.
+        {
+            const double b = 37.0 * M_PI / 180.0, c = 72.0 * M_PI / 180.0, a = 25.0 * M_PI / 180.0;
+            const double wx = 80.0 * std::cos(b) + 70.0 * std::cos(c), wy = 80.0 * std::sin(b) + 70.0 * std::sin(c);
+            const double toWrist = std::atan2(wy, wx) * 180.0 / M_PI - a * 180.0 / M_PI;
+            PoseTrack2D d = makePose(false);
+            setArmAtTop(d, false, false, 25.0, 12.0, 35.0);
+            const double v = liftOf(d, false, false).second;
+            char lab[160];
+            std::snprintf(lab, sizeof lab, "§9 a bent lead arm (wrist %.1f° above the line) still reads the upper arm's 12 (got %.3f)",
+                          toWrist, v);
+            check(toWrist > 20.0 && near(v, 12.0, 1e-6), lab);
+        }
+        // σ: the smoother's σ (2 px on every keypoint) × max(1, 0.8 / conf) — the trail shoulder at 0.5 carries
+        // 3.2 px — through the angle, the lead shoulder in both lines.
+        {
+            PoseTrack2D d = makePose(false);
+            setArmAtTop(d, false, false, 25.0, 12.0, 0.0, /*trailConf*/ 0.5f);
+            d.smoothed = d.frames;
+            d.smoothedAux.resize(d.frames.size());
+            for (PoseKpAux &x : d.smoothedAux) x.sigma.fill(2.0f);
+            const DtlPostureResult r = buildDtlPosture(inputs(d, false), cfg);
+            const MetricSeries *m = find(r, "armLiftTop");
+            const double sT = 2.0 * 0.8 / 0.5, sE = 2.0, sL = 2.0, ls = 100.0, la = 80.0, th = 12.0 * M_PI / 180.0;
+            const double want = std::sqrt(sT * sT / (ls * ls) + sE * sE / (la * la)
+                                          + sL * sL * (1.0 / (ls * ls) + 1.0 / (la * la) - 2.0 * std::cos(th) / (ls * la)))
+                              * 180.0 / M_PI;
+            const double got = m && m->phaseSamples.front().sigma ? *m->phaseSamples.front().sigma : -1.0;
+            char lab[160];
+            std::snprintf(lab, sizeof lab, "§9 σ = the three keypoints' σ through the angle, the trail shoulder's × 0.8/0.5 (%.4f°, got %.4f°)",
+                          want, got);
+            check(m && near(got, want, 1e-4) && m->sigma && near(double(*m->sigma), want, 1e-4)
+                      && m->phaseSamples.front().sigmaKind == uint8_t(SigmaKind::Propagated), lab);
+            const MetricSeries *u = find(buildDtlPosture(inputs(makePose(false), false), cfg), "armLiftTop");
+            check(u && !u->phaseSamples.front().sigma, "§9 …and no σ on a track with no smoother σ (unknown, not small)");
+        }
+        // The trail shoulder half hidden on every frame of the top (0.2 < confMin): no reading, refused.
+        {
+            PoseTrack2D d = makePose(false);
+            setArmAtTop(d, false, false, 25.0, 12.0, 0.0, /*trailConf*/ 0.2f);
+            const DtlPostureResult r = buildDtlPosture(inputs(d, false), cfg);
+            const GateRecord *g = nullptr;
+            for (const GateRecord &x : r.gates) if (x.gate == QLatin1String("posture.armLift")) g = &x;
+            check(r.valid && !find(r, "armLiftTop") && g && g->subject == QLatin1String("armLiftTop")
+                      && g->effect == GateEffect::Refused
+                      && g->evidence.value(QStringLiteral("code")).toString() == QLatin1String("keypoints")
+                      && g->evidence.value(QStringLiteral("frames")).toInt() == 7,
+                  "§9 no trail shoulder at the top ⇒ no arm lift, posture.armLift (keypoints, 7 frames looked at)");
+            check(find(r, "handPathLoop") && find(r, "trailKneeFlexion"), "§9 …and the other readings stand");
+            const DtlPostureResult ok = buildDtlPosture(inputs(makePose(false), false), cfg);
+            check(std::none_of(ok.gates.begin(), ok.gates.end(),
+                               [](const GateRecord &x) { return x.gate == QLatin1String("posture.armLift"); }),
+                  "§9 …and none where it reads");
+        }
+        // An address refusal covers it, as it covers every reading here.
+        {
+            const PoseTrack2D d = makePose(false, 30.0, /*toeConf*/ 0.1f);
+            const DtlPostureResult r = buildDtlPosture(inputs(d, false), cfg);
+            bool covered = false;
+            for (const GateRecord &g : r.gates)
+                if (g.gate == QLatin1String("posture.address") && g.covers.contains(QStringLiteral("armLiftTop"))) covered = true;
+            check(!r.valid && covered, "§9 the address refusal covers armLiftTop");
+        }
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

@@ -28,6 +28,7 @@
 // hinges, joints have ranges — so the anatomy constrains the coordinates instead of
 // being checked against them afterwards.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -42,8 +43,20 @@ namespace pinpoint::skeleton3d {
 
 constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
 
-// One keypoint observation in one view (pixels). sigma ≤ 0 ⇒ not observed.
-struct KpObs { double u = 0, v = 0, sigma = 0; };
+// One keypoint observation in one view (pixels). sigma ≤ 0 ⇒ not observed. `conf` is the detector's
+// confidence (0..1; 1 = not stated): the cross-view pass inflates the LOWER-confidence view of a
+// shoulder or hip the two views disagree on (FitConfig::crossViewMissMm), and the caller has already
+// counted it into sigma (confSigmaFactor).
+struct KpObs { double u = 0, v = 0, sigma = 0, conf = 1.0; };
+
+// DETECTOR CONFIDENCE IN THE 2-D σ (FB, 13 Nov 2026): the factor a keypoint's σ is multiplied by,
+// max(1, ref / conf) — 1 at or above the reference (FitConfig::confSigmaRef), 2 at half of it. A
+// non-positive confidence is no observation at all, and leaves σ alone (the caller drops it).
+inline double confSigmaFactor(double conf, double ref)
+{
+    if (!(conf > 0.0) || !(ref > 0.0)) return 1.0;
+    return std::max(1.0, ref / conf);
+}
 
 struct ViewObs {
     std::array<KpObs, kMarkerCount> kp {};
@@ -320,6 +333,25 @@ struct FitConfig {
     double hmRadSign       = 1.0;
     int    stage1Iters     = 12;
     int    stage2Iters     = 25;
+    // ── the two views of a shoulder or hip that disagree (FB, 13 Nov 2026; pp_tuned_constants.h
+    // body3d) ── After stage 2 has settled the cameras, each frame's shoulder (5/6) and hip (11/12)
+    // keypoints are triangulated: where the two views' rays miss by more than crossViewMissMm, the σ
+    // of the LOWER-confidence view's keypoint is multiplied by miss / crossViewMissMm, at most
+    // crossViewSigmaCap (equal confidences: neither). 0 switches it off.
+    double crossViewMissMm   = pinpoint::tuned::body3d::kCrossViewMissMm;
+    double crossViewSigmaCap = pinpoint::tuned::body3d::kCrossViewSigmaCap;
+    // The hips (11/12) too — OFF by default: on the stored library fits the hip keypoints' two rays miss
+    // by > 30 mm on most frames of some golfers (Mark's trail hip: median 79 mm over the swing, 51 mm at
+    // address), a keypoint-definition difference between the views rather than an occlusion
+    // (plane_stack_design.md §11 FB). The switch stays, for the sweep.
+    bool   crossViewHips     = pinpoint::tuned::body3d::kCrossViewHips;
+    // The CALLER's confidence-to-σ reference (Skeleton3DStage::observePose, confSigmaFactor).
+    double confSigmaRef      = pinpoint::tuned::body3d::kConfSigmaRef;
+    // HONEST TIERS: a view saw a joint only where the fit lands within max(tierSeenSigmas × σ (the
+    // keypoint's own, before the cross-view pass), tierSeenFloorPx) of one of its witness keypoints.
+    // tierSeenSigmas ≤ 0: any keypoint counts (pre-FB).
+    double tierSeenSigmas    = pinpoint::tuned::body3d::kTierSeenSigmas;
+    double tierSeenFloorPx   = pinpoint::tuned::body3d::kTierSeenFloorPx;
     // Tier thresholds (m).
     double measuredSigmaM    = 0.02;
     double constrainedSigmaM = 0.05;
@@ -477,6 +509,9 @@ struct FitResult {
     double reprojMedPxFo = kNaN, reprojMedPxDtl = kNaN;
     std::array<double, GroupCount> rawLengthCv {};   // the unconstrained triangulation's length CV
     int    nSwapFo = 0, nSwapDtl = 0, nLimitHeld = 0;
+    // The cross-view pass (FitConfig::crossViewMissMm): keypoints whose σ it inflated, per view, and
+    // the frames with at least one.
+    int    nCrossViewFo = 0, nCrossViewDtl = 0, nCrossViewFrames = 0;
     double footSlipP90Mm = kNaN;
     // THE HANDS' LOCK (Mark, 19 Oct: both hands are locked together on the grip — anything else means
     // the fit is wrong): how far the FIT left the trail grip point from its locked place (on the

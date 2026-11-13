@@ -33,6 +33,12 @@
 //   §12 the trail knee from the fit (W5): a known angle, both hands; uncalibrated keep / fill (Mark, 13 Nov);
 //       calibrated replace / keep / fill; positions lost
 //   §13 the 3-D side bend as the trunk sensors' fallback (W5), in both stage orders
+//   §14 the two cameras about the shoulders at the top (FB): 12° off the down-the-line keypoints disagrees,
+//       3° does not; confidence, swap, camera; the record; its scope to the readings from the fit
+//   §15 the arm lift at the top (D2): the lead UPPER ARM against the shoulder-turn plane, a known angle under
+//       any turn and bend, both hands; a bent elbow is not a lift; σ against Monte Carlo; the reading; the
+//       precedence (uncalibrated keep / fill, calibrated replace) and the shoulder views' suppression
+//   §16 the lead elbow where the fit MEASURED it (D2): only tier-3 elbows read; the curve and its top reading
 //
 //   ctest --test-dir build/tests -R '^skeleton3d_body_metrics_test$' --output-on-failure
 
@@ -131,6 +137,36 @@ static void setBody(sk::FitResult &fr, size_t t, const Pose &p, bool leftHanded 
     fr.joints[t][size_t(ts)] = mir(tmp.joints[0][RightArm]);
     for (int j : { LeftLeg, LeftFoot }) fr.joints[t][size_t(leftHanded ? j + 5 : j)] = mir(tmp.joints[0][j]);
     for (int j : { RightLeg, RightFoot }) fr.joints[t][size_t(leftHanded ? j - 5 : j)] = mir(tmp.joints[0][j]);
+}
+
+// §15 / §16: a body built in a canonical frame — the shoulder line along X and level, the spine straight
+// up, so the shoulder-turn plane is horizontal — with the lead UPPER ARM leaving the lead shoulder `liftDeg`
+// above that plane (heading across the chest), the forearm folded `bendDeg` further up at the elbow, then
+// the whole body bent forward `fwdDeg` about X and turned `turnDeg` about Z (an armLiftDeg is a relation
+// between body lines, so neither may move it). A left-hander is the mirror image in X.
+static sk::V3 rotX(const sk::V3 &v, double deg)
+{
+    const double c = std::cos(deg * kD), s = std::sin(deg * kD);
+    return { v.x, c * v.y - s * v.z, s * v.y + c * v.z };
+}
+static void setArmBody(sk::FitResult &fr, size_t t, double liftDeg, double bendDeg = 0.0, double fwdDeg = 0.0,
+                       double turnDeg = 0.0, bool leftHanded = false)
+{
+    const double m = leftHanded ? -1.0 : 1.0;
+    const auto place = [&](sk::V3 v) {                       // pivot at the hips' centre, then mirror
+        v = rotZ(rotX(v - sk::V3{ 0, 1.0, 0.95 }, fwdDeg), turnDeg) + sk::V3{ 0, 1.0, 0.95 };
+        return sk::V3{ m * v.x, v.y, v.z };
+    };
+    const sk::V3 L{ 0.18, 1.0, 1.45 }, T{ -0.18, 1.0, 1.45 }, HL{ 0.10, 1.0, 0.95 }, HT{ -0.10, 1.0, 0.95 };
+    const sk::V3 h = sk::V3{ -0.6, -0.8, 0.0 };              // across the chest, horizontal
+    const auto dir = [&](double e) { return h * std::cos(e * kD) + sk::V3{ 0, 0, std::sin(e * kD) }; };
+    const sk::V3 E = L + dir(liftDeg) * 0.28, W = E + dir(liftDeg + bendDeg) * 0.27;
+    const int ls = leftHanded ? RightArm : LeftArm, ts = leftHanded ? LeftArm : RightArm;
+    const int le = leftHanded ? RightForeArm : LeftForeArm, lw = leftHanded ? RightHand : LeftHand;
+    const int lh = leftHanded ? RightUpLeg : LeftUpLeg, th = leftHanded ? LeftUpLeg : RightUpLeg;
+    fr.joints[t][size_t(ls)] = place(L);  fr.joints[t][size_t(ts)] = place(T);
+    fr.joints[t][size_t(lh)] = place(HL); fr.joints[t][size_t(th)] = place(HT);
+    fr.joints[t][size_t(le)] = place(E);  fr.joints[t][size_t(lw)] = place(W);
 }
 
 // What the grader reads at a phase (measure_sample.cpp): the curve's windowed median, else the
@@ -359,6 +395,11 @@ int main()
     }
     fr.tier[89][LeftLeg] = sk::TierInferred;
     fr.tier[91][LeftLeg] = sk::TierInferred;
+    // This body has no arms (setBody places the trunk and the legs): its elbows and hands are ABSENT, so the
+    // readings off the arm (D2's armLiftTop and leadArmFlexion3d, §15 / §16) do not read a joint left at
+    // the world origin.
+    for (int i = 0; i < n; ++i)
+        for (int j : { LeftForeArm, LeftHand, RightForeArm, RightHand }) fr.tier[size_t(i)][size_t(j)] = sk::TierAbsent;
     std::vector<PhaseEvent> ladder;
     const auto ev = [&](Phase ph, int64_t t) { PhaseEvent e; e.phase = ph; e.t_us = t; ladder.push_back(e); };
     ev(Phase::Address, fr.t_us[10] + 3000);
@@ -446,6 +487,14 @@ int main()
     }
 
     // ── §10 precedence ────────────────────────────────────────────────────────────────────────────
+    // The route-substitution records alone: this fixture's arm is not built, so since D6 round 2 the merge also
+    // carries body3d.leadElbowUnmeasured (code both) — true of the fixture, and pinned in §16, not here.
+    const auto subst = [](const Skeleton3dBodyMerge &mg) {
+        std::vector<GateRecord> v;
+        for (const GateRecord &g : mg.gates)
+            if (g.gate != QLatin1String("body3d.leadElbowUnmeasured")) v.push_back(g);
+        return v;
+    };
     {
         MetricSeries dtlKnee; dtlKnee.key = QStringLiteral("leadKneeFlexion");
         dtlKnee.t_us = { fr.t_us[0] }; dtlKnee.value = { 1.0 };
@@ -472,7 +521,7 @@ int main()
                       && find(s, "trailKneeFlexion")->value.front() == 3.0,
                   "§10 the cameras uncalibrated ⇒ the down-the-line trail knee stays, though the 3-D one reads "
                   "at address and the top (Mark's rule, 13 Nov)");
-            check(mg.gates.empty(),
+            check(subst(mg).empty(),
                   "§10 …and no body3d.fromFit: a 3-D knee REPLACING a down-the-line one is the better rung, "
                   "not a fallback, and the face-on side bend stood");
         }
@@ -489,12 +538,13 @@ int main()
                   "§10 …so the down-the-line one stays, as it is (not withheld), and the 3-D one is not published beside it");
             check(find(s, "spineSideBend") && find(s, "spineSideBend")->routeId == QStringLiteral("faceOn+dtl"),
                   "§10 no face-on side bend ⇒ the 3-D one is published");
-            check(mg.gates.size() == 1 && mg.gates[0].gate == QStringLiteral("body3d.fromFit")
-                      && mg.gates[0].subject == QStringLiteral("spineSideBend") && mg.gates[0].effect == GateEffect::Downgraded
-                      && mg.gates[0].covers == QStringList{ QStringLiteral("spineSideBend") }
-                      && mg.gates[0].evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("faceOn")
-                      && mg.gates[0].evidence.value(QStringLiteral("route")).toString() == QStringLiteral("faceOn+dtl")
-                      && isRouteSubstitution(mg.gates[0]),
+            const std::vector<GateRecord> sg = subst(mg);
+            check(sg.size() == 1 && sg[0].gate == QStringLiteral("body3d.fromFit")
+                      && sg[0].subject == QStringLiteral("spineSideBend") && sg[0].effect == GateEffect::Downgraded
+                      && sg[0].covers == QStringList{ QStringLiteral("spineSideBend") }
+                      && sg[0].evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("faceOn")
+                      && sg[0].evidence.value(QStringLiteral("route")).toString() == QStringLiteral("faceOn+dtl")
+                      && isRouteSubstitution(sg[0]),
                   "§10 …with ONE body3d.fromFit, Downgraded, on the side bend alone (replaces faceOn) — the lead knee "
                   "stayed down the line, so it has none");
             std::vector<MetricSeries> none;
@@ -510,7 +560,7 @@ int main()
             for (const GateRecord &g : m2.gates)
                 if (g.subject == QStringLiteral("trailKneeFlexion") && g.gate == QStringLiteral("body3d.fromFit")
                     && g.evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl")) trailRec = true;
-            check(kneeRec && trailRec && m2.gates.size() == 3,
+            check(kneeRec && trailRec && subst(m2).size() == 3,
                   "§10 …and it carries body3d.fromFit (replaces dtl), beside the trail knee's and the side bend's");
         }
         // THE CHEST SENSOR'S SHOULDER PLANE (W4, 13 Nov 2026). BodyRotationStage runs first and may already
@@ -968,6 +1018,394 @@ int main()
             check(!mg.published.contains(QStringLiteral("spineSideBend")) && routes(s).size() == 1,
                   "§13 …while a 3-D side bend already present still stops another");
         }
+    }
+
+    // ── §14 the two cameras disagree about the shoulders at the top (FB, 13 Nov 2026) ─────────────
+    // A fit whose shoulder line, projected into the down-the-line camera, is 12° off that camera's own
+    // keypoint line gets body3d.shoulderViewsDisagree; 3° off does not. Then the record's scope.
+    std::printf("-- §14 the two cameras about the shoulders at the top --\n");
+    {
+        sk::FitResult fr = makeFit(11);
+        // The synthetic swing's down-the-line camera (skeleton3d_test makeSwing): yawed 10°, pitched 8°.
+        fr.cam.fF = 1400; fr.cam.pF = 0;
+        fr.cam.psiD = 10 * kD; fr.cam.pD = 8 * kD; fr.cam.fD = 1250;
+        const sk::V3 golfer{ 0.05, 1.9, 0 };
+        fr.cam.cD = golfer - sk::V3{ std::cos(fr.cam.psiD), std::sin(fr.cam.psiD), 0 } * 2.3 + sk::V3{ 0, 0, 0.35 };
+        const int W = 1280, H = 1024;
+        const int64_t top = fr.t_us[5];
+        // The shoulders at the top: the line turned well past square, the trail end up 30°.
+        for (size_t t = 0; t < fr.t_us.size(); ++t)
+            setLine(fr, t, LeftArm, RightArm, { 0.05, 1.9, 0.45 }, 0.36, -80.0, 30.0);
+        // Down-the-line keypoints: the fit's shoulders projected, then turned by `deg` about their midpoint.
+        const auto obs = [&](double deg, double conf) {
+            std::vector<sk::ViewObs> v(fr.t_us.size());
+            for (size_t t = 0; t < fr.t_us.size(); ++t) {
+                double lu, lv, ru, rv;
+                sk::projectPoint(fr.cam, 1, W, H, fr.joints[t][LeftArm], lu, lv);
+                sk::projectPoint(fr.cam, 1, W, H, fr.joints[t][RightArm], ru, rv);
+                const double mu = 0.5 * (lu + ru), mv = 0.5 * (lv + rv), c = std::cos(deg * kD), s = std::sin(deg * kD);
+                const auto turn = [&](double u, double vv, sk::KpObs &o) {
+                    o.u = mu + c * (u - mu) - s * (vv - mv);
+                    o.v = mv + s * (u - mu) + c * (vv - mv);
+                    o.sigma = 1.5; o.conf = conf;
+                };
+                turn(lu, lv, v[t].kp[5]);
+                turn(ru, rv, v[t].kp[6]);
+            }
+            return v;
+        };
+        double lu, lv, ru, rv;
+        sk::projectPoint(fr.cam, 1, W, H, fr.joints[5][LeftArm], lu, lv);
+        sk::projectPoint(fr.cam, 1, W, H, fr.joints[5][RightArm], ru, rv);
+        std::printf("  the fit's shoulders image %.0f px apart in the down-the-line camera\n", std::hypot(ru - lu, rv - lv));
+        const b3::ShoulderViews s12 = b3::shoulderViewsAtTop(fr, fr.t_us, obs(12.0, 0.9), W, H, top);
+        const b3::ShoulderViews s3  = b3::shoulderViewsAtTop(fr, fr.t_us, obs(3.0, 0.9), W, H, top);
+        const b3::ShoulderViews sN  = b3::shoulderViewsAtTop(fr, fr.t_us, obs(-12.0, 0.9), W, H, top);
+        std::printf("  12° off: %d frames, median %.2f°; 3° off: %d frames, median %.2f°\n", s12.frames, s12.medianDeg,
+                    s3.frames, s3.medianDeg);
+        // ±15 ms at 120 fps: the top's frame and the one or two either side (8.333 ms spacing).
+        check(s12.frames == 3 && near(s12.medianDeg, 12.0, 0.01) && s12.disagree,
+              "§14 a fit 12° off its down-the-line keypoints at the top disagrees (3 frames in ±15 ms, median 12°)");
+        check(s3.frames == 3 && near(s3.medianDeg, 3.0, 0.01) && !s3.disagree, "§14 …3° off does not");
+        check(sN.disagree && near(sN.medianDeg, 12.0, 0.01), "§14 …the sense does not matter (−12° disagrees too)");
+        {
+            std::vector<sk::ViewObs> sw = obs(12.0, 0.9);
+            for (sk::ViewObs &o : sw) std::swap(o.kp[5], o.kp[6]);
+            const b3::ShoulderViews s = b3::shoulderViewsAtTop(fr, fr.t_us, sw, W, H, top);
+            check(near(s.medianDeg, 12.0, 0.01), "§14 …and a left/right label swap does not turn a line");
+        }
+        const b3::ShoulderViews sLow = b3::shoulderViewsAtTop(fr, fr.t_us, obs(12.0, 0.6), W, H, top);
+        check(sLow.frames == 0 && !sLow.disagree && !std::isfinite(sLow.medianDeg),
+              "§14 shoulder keypoints under 0.7 confidence are not compared: no frames, no record");
+        {
+            sk::FitResult one = fr;
+            one.dtlUsed = false;
+            check(b3::shoulderViewsAtTop(one, fr.t_us, obs(12.0, 0.9), W, H, top).frames == 0,
+                  "§14 …nor without the down-the-line camera in the fit");
+        }
+
+        // The record: Downgraded, subject the shoulder plane, the evidence the sentence names.
+        const std::optional<GateRecord> rec = shoulderViewsRecord(s12, b3::ShoulderViewsConfig{}.limitDeg);
+        check(rec && rec->gate == QStringLiteral("body3d.shoulderViewsDisagree") && rec->effect == GateEffect::Downgraded
+                  && rec->subject == QStringLiteral("shoulderPlaneAngle3d")
+                  && rec->covers == shoulderViewsCovers()
+                  && near(rec->evidence.value(QStringLiteral("medianDeg")).toDouble(), 12.0, 0.05)
+                  && rec->evidence.value(QStringLiteral("limitDeg")).toDouble() == 7.0
+                  && rec->evidence.value(QStringLiteral("frames")).toInt() == 3,
+              "§14 the record: body3d.shoulderViewsDisagree, Downgraded, subject shoulderPlaneAngle3d, the 3-D shoulder covers, medianDeg / limitDeg / frames");
+        check(!shoulderViewsRecord(s3, 7.0), "§14 …and none at 3°");
+        {
+            const gates::GateEntry *e = gates::gateEntry(QStringLiteral("body3d.shoulderViewsDisagree"));
+            const QString t = e && rec ? gates::evidenceText(*e, rec->evidence) : QString();
+            std::printf("  sentence: %s\n", qPrintable(t));
+            check(e && e->effects == std::vector<GateEffect>{ GateEffect::Downgraded } && t.contains(QStringLiteral("12°"))
+                      && t.contains(QStringLiteral("7°")) && !t.contains(QLatin1Char('{')),
+                  "§14 …catalogued Downgraded, its sentence filled");
+        }
+
+        // The scope (runProfile, after the precedence): only the readings that stand AND came from the fit.
+        const auto series = [](const char *key, const char *route) {
+            MetricSeries m; m.key = QString::fromLatin1(key); m.routeId = QString::fromLatin1(route);
+            m.t_us = { 1 }; m.value = { 1.0 };
+            return m;
+        };
+        {
+            std::vector<MetricSeries> s{ series("shoulderPlaneAngle3d", "faceOn+dtl"), series("shoulderLineYaw", "faceOn+dtl"),
+                                         series("spineSideBend", ""), series("thoraxRotation", ""),
+                                         series("thoraxRotationSigned", ""), series("xFactor", "") };
+            std::vector<GateRecord> g{ *rec };
+            const int n = scopeShoulderViewsRecord(s, g);
+            check(g.size() == 1 && g[0].subject == QStringLiteral("shoulderPlaneAngle3d")
+                      && g[0].covers == QStringList({ QStringLiteral("shoulderPlaneAngle3d"), QStringLiteral("shoulderLineYaw"),
+                                                      QStringLiteral("thoraxRotation"), QStringLiteral("thoraxRotationSigned"),
+                                                      QStringLiteral("xFactor") })
+                      && n == 1,
+                  "§14 scope, no sensors: the fit's tilt, aim, thorax turn and X-factor stay; the absent stretch leaves");
+        }
+        {
+            std::vector<MetricSeries> s{ series("shoulderPlaneAngle3d", "thoraxImu"), series("shoulderLineYaw", "faceOn+dtl"),
+                                         series("thoraxRotation", "thoraxImu"), series("xFactor", ""),
+                                         series("spineSideBend", "faceOn+dtl") };
+            std::vector<GateRecord> g{ *rec };
+            scopeShoulderViewsRecord(s, g);
+            check(g.size() == 1 && g[0].subject == QStringLiteral("shoulderLineYaw")
+                      && g[0].covers == QStringList({ QStringLiteral("shoulderLineYaw") }),
+                  "§14 scope, a chest sensor: its shoulder plane and thorax turn (and the X-factor built on it) leave; the "
+                  "subject moves to the aim");
+            check(!shoulderViewsCovers().contains(QStringLiteral("spineSideBend")),
+                  "§14 the 3-D side bend (graded at impact) is not covered by a record about the top");
+        }
+        {
+            std::vector<MetricSeries> s{ series("shoulderPlaneAngle3d", "thoraxImu"), series("thoraxRotation", "thoraxImu") };
+            std::vector<GateRecord> g{ *rec, GateRecord{ QStringLiteral("body.other"), QStringLiteral("x"), GateEffect::Refused,
+                                                         {}, {}, {}, { QStringLiteral("shoulderPlaneAngle3d") } } };
+            scopeShoulderViewsRecord(s, g);
+            check(g.size() == 1 && g[0].gate == QStringLiteral("body.other")
+                      && g[0].covers == QStringList{ QStringLiteral("shoulderPlaneAngle3d") },
+                  "§14 scope: a record left covering nothing is dropped; other records are untouched");
+        }
+    }
+
+    // ── §15 the arm lift at the top (plane stack D2, 13 Nov 2026) ───────────────────────────────────────
+    // The lead UPPER ARM (shoulder → ELBOW) against the shoulder-turn plane: asin(â · n̂), n̂ the spine with
+    // its component along the shoulder line removed.
+    {
+        // A known angle under any forward bend and turn, both hands.
+        for (const bool lefty : { false, true })
+            for (const double lift : { 12.0, -6.0, 30.0 }) {
+                sk::FitResult fr = makeFit(3);
+                setArmBody(fr, 0, lift);
+                setArmBody(fr, 1, lift, 0.0, 35.0, 0.0, lefty ? true : false);
+                setArmBody(fr, 2, lift, 0.0, 40.0, 95.0, lefty);
+                setArmBody(fr, 0, lift, 0.0, 0.0, 0.0, lefty);
+                bool ok = true;
+                for (size_t t = 0; t < 3; ++t) ok = ok && near(b3::armLiftDeg(fr, t, !lefty).deg, lift, 1e-9);
+                std::snprintf(buf, sizeof buf, "§15 %s: the upper arm %+.0f° out of the turn plane reads %+.0f, upright, bent 35° "
+                              "forward, and bent 40° and turned 95°", lefty ? "left-hander" : "right-hander", lift, lift);
+                check(ok, buf);
+            }
+        // A BENT ELBOW IS NOT A LIFT: the upper arm 5° above the plane, the forearm folded 60° up. Shoulder →
+        // wrist (what the 13 Nov figures read) puts the arm well above; the reading stays the upper arm's 5°.
+        {
+            sk::FitResult fr = makeFit(1);
+            setArmBody(fr, 0, 5.0, 60.0, 30.0, 70.0);
+            const auto &J = fr.joints[0];
+            const double toWrist = b3::armLiftOf(J[LeftArm], J[LeftHand], J[RightArm], J[LeftUpLeg], J[RightUpLeg]);
+            const double v = b3::armLiftDeg(fr, 0, true).deg;
+            std::snprintf(buf, sizeof buf, "§15 a bent lead arm (shoulder → wrist %.1f°) reads the upper arm's 5 (got %.6f)", toWrist, v);
+            check(toWrist > 25.0 && near(v, 5.0, 1e-9), buf);
+        }
+        // Tier: a joint below constrained gives no reading (the elbow inferred, or a hip).
+        {
+            sk::FitResult fr = makeFit(2);
+            setArmBody(fr, 0, 12.0); setArmBody(fr, 1, 12.0);
+            fr.tier[0][LeftForeArm] = sk::TierInferred;
+            fr.tier[1][RightUpLeg]  = sk::TierInferred;
+            check(!b3::armLiftDeg(fr, 0, true).ok() && !b3::armLiftDeg(fr, 1, true).ok(),
+                  "§15 an inferred elbow or hip gives no arm lift");
+            fr.tier[0][LeftForeArm] = sk::TierConstrained;
+            check(near(b3::armLiftDeg(fr, 0, true).deg, 12.0, 1e-9), "§15 …a constrained one does (tier ≥ 2)");
+        }
+        // σ against Monte Carlo: each of the five joints N(0, 1 cm) per axis, 4000 draws.
+        {
+            sk::FitResult fr = makeFit(1);
+            setArmBody(fr, 0, 15.0, 20.0, 35.0, 60.0);
+            const double an = b3::armLiftDeg(fr, 0, true).sigma;
+            std::mt19937 rng(20261113);
+            std::normal_distribution<double> nd(0.0, 0.01);
+            std::vector<double> xs;
+            const auto &J0 = fr.joints[0];
+            for (int k = 0; k < 4000; ++k) {
+                const auto jit = [&](sk::V3 v) { return sk::V3{ v.x + nd(rng), v.y + nd(rng), v.z + nd(rng) }; };
+                xs.push_back(b3::armLiftOf(jit(J0[LeftArm]), jit(J0[LeftForeArm]), jit(J0[RightArm]),
+                                           jit(J0[LeftUpLeg]), jit(J0[RightUpLeg])));
+            }
+            double mu = 0, var = 0;
+            for (double x : xs) mu += x;
+            mu /= double(xs.size());
+            for (double x : xs) var += (x - mu) * (x - mu);
+            const double mc = std::sqrt(var / double(xs.size() - 1));
+            std::snprintf(buf, sizeof buf, "§15 σ (first order, %.3f°) meets Monte Carlo (%.3f°) within 5 %%", an, mc);
+            check(an > 0 && near(an, mc, 0.05 * mc), buf);
+        }
+        // THE READING: one value at the top, the median of the fit frames within the grader's window.
+        const int m = 120;
+        std::vector<PhaseEvent> lad;
+        const auto at = [&](Phase ph, int64_t t) { PhaseEvent e; e.phase = ph; e.t_us = t; lad.push_back(e); };
+        sk::FitResult arm = makeFit(m);
+        for (int i = 0; i < m; ++i) setArmBody(arm, size_t(i), 8.0 + 0.1 * i, 10.0, 30.0, -60.0 * std::clamp((i - 10) / 50.0, 0.0, 1.0));
+        at(Phase::Address, arm.t_us[10]);
+        at(Phase::Top, arm.t_us[60]);
+        at(Phase::Impact, arm.t_us[90]);
+        Skeleton3dBodyInput ai; ai.fit = &arm; ai.phases = lad;
+        const Skeleton3dBodyOutput a0 = buildSkeleton3dBody(ai);
+        // Frames 59, 60, 61 lie within ±15 ms of the top at 120 fps: 13.9, 14.0, 14.1.
+        check(a0.armLift && a0.armLift->key == QStringLiteral("armLiftTop") && a0.armLift->routeId == QStringLiteral("faceOn+dtl")
+                  && !a0.armLift->routeDirect && a0.armLift->t_us.empty() && a0.armLift->phaseSamples.size() == 1
+                  && a0.armLift->phaseSamples.front().phase == Phase::Top && a0.armLift->phaseSamples.front().t_us == lad[1].t_us
+                  && near(a0.armLift->phaseSamples.front().value, 14.0, 1e-9),
+              "§15 one reading at the top, the median of the three frames in the window (14.0), route faceOn+dtl, Estimated");
+        check(a0.armLift && a0.armLift->phaseSamples.front().sigma && a0.armLift->sigma
+                  && a0.armLift->phaseSamples.front().sigmaKind == uint8_t(SigmaKind::Propagated)
+                  && near(*a0.armLift->phaseSamples.front().sigma, b3::armLiftDeg(arm, 60, true).sigma, 0.05),
+              "§15 …σ Propagated, the frames' median σ");
+        // PRECEDENCE (Mark, 13 Nov): uncalibrated, the picture's reading wherever it exists.
+        MetricSeries img; img.key = QStringLiteral("armLiftTop"); img.routeId = QStringLiteral("dtl");
+        img.phaseSamples.push_back({ Phase::Top, lad[1].t_us, 19.0, QString() });
+        const auto recOf = [](const Skeleton3dBodyMerge &mg, const char *gate) -> const GateRecord * {
+            for (const GateRecord &g : mg.gates)
+                if (g.gate == QLatin1String(gate) && g.subject == QLatin1String("armLiftTop")) return &g;
+            return nullptr;
+        };
+        {
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(ai);
+            std::vector<MetricSeries> s{ img };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "armLiftTop");
+            check(count(s, "armLiftTop") == 1 && k && k->routeId == QStringLiteral("dtl") && mg.armLiftKeptDtl
+                      && !mg.armLiftReplaced && !mg.published.contains(QStringLiteral("armLiftTop"))
+                      && std::none_of(mg.gates.begin(), mg.gates.end(),
+                                      [](const GateRecord &g) { return g.subject == QStringLiteral("armLiftTop"); }),
+                  "§15 uncalibrated: the down-the-line reading STAYS, the 3-D one is not published, no record");
+        }
+        {
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(ai);
+            std::vector<MetricSeries> s;
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "armLiftTop");
+            const GateRecord *ff = recOf(mg, "body3d.fromFit"), *ic = recOf(mg, "body3d.armLiftImageCorridor");
+            check(k && k->routeId == QStringLiteral("faceOn+dtl") && ff && ff->subject == QStringLiteral("armLiftTop")
+                      && ff->evidence.value(QStringLiteral("replaces")).toString() == QStringLiteral("dtl"),
+                  "§15 uncalibrated, no down-the-line reading ⇒ the 3-D one FILLS, with body3d.fromFit (replaces dtl)");
+            check(ic && ic->effect == GateEffect::Downgraded && ic->covers == QStringList{ QStringLiteral("armLiftTop") }
+                      && ic->evidence.value(QStringLiteral("normRoute")).toString() == QStringLiteral("dtl"),
+                  "§15 …and body3d.armLiftImageCorridor (Downgraded): judged against the picture's corridor");
+        }
+        {
+            Skeleton3dBodyInput ci = ai; ci.calibrated = true;
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(ci);
+            std::vector<MetricSeries> s{ img };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "armLiftTop");
+            check(count(s, "armLiftTop") == 1 && k && k->routeId == QStringLiteral("faceOn+dtl") && mg.armLiftReplaced
+                      && !recOf(mg, "body3d.fromFit") && recOf(mg, "body3d.armLiftImageCorridor"),
+                  "§15 calibrated: the 3-D reading REPLACES the picture's, no body3d.fromFit, the corridor record kept");
+        }
+        // THE SHOULDER VIEWS DISAGREE (FB): no 3-D reading at all, calibrated or not.
+        {
+            Skeleton3dBodyInput di = ai; di.calibrated = true; di.shoulderViewsDisagree = true;
+            Skeleton3dBodyOutput o = buildSkeleton3dBody(di);
+            check(!o.armLift && o.armLiftWithheld, "§15 shoulder views disagree ⇒ the 3-D arm lift is not built");
+            std::vector<MetricSeries> s{ img };
+            const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, o, lad);
+            const MetricSeries *k = find(s, "armLiftTop");
+            check(k && k->routeId == QStringLiteral("dtl") && mg.armLiftWithheld && !mg.armLiftReplaced
+                      && std::none_of(mg.gates.begin(), mg.gates.end(),
+                                      [](const GateRecord &g) { return g.subject == QStringLiteral("armLiftTop"); }),
+                  "§15 …even calibrated, the picture's reading stands, with no record");
+            Skeleton3dBodyOutput o2 = buildSkeleton3dBody(di);
+            std::vector<MetricSeries> none;
+            const Skeleton3dBodyMerge m2 = mergeSkeleton3dBody(none, o2, lad);
+            const GateRecord *r = recOf(m2, "body3d.armLiftShoulders");
+            check(!find(none, "armLiftTop") && r && r->effect == GateEffect::Refused && r->subject == QStringLiteral("armLiftTop")
+                      && !recOf(m2, "body3d.fromFit"),
+                  "§15 …and with no picture reading either, nothing stands and body3d.armLiftShoulders (Refused) says why");
+        }
+        {
+            Skeleton3dBodyInput ni = ai; ni.phases.erase(ni.phases.begin() + 1);   // no Top on the ladder
+            check(!buildSkeleton3dBody(ni).armLift, "§15 no Top on the ladder ⇒ no arm lift");
+        }
+    }
+
+    // ── §16 the lead elbow where the fit MEASURED it (plane stack D2) ─────────────────────────────────────
+    {
+        const int m = 120;
+        sk::FitResult fr = makeFit(m);
+        for (int i = 0; i < m; ++i) setArmBody(fr, size_t(i), 10.0, 25.0, 30.0, -40.0);
+        std::vector<PhaseEvent> lad;
+        const auto at = [&](Phase ph, int64_t t) { PhaseEvent e; e.phase = ph; e.t_us = t; lad.push_back(e); };
+        at(Phase::Address, fr.t_us[10]);
+        at(Phase::Top, fr.t_us[60]);
+        check(near(b3::leadElbowBendDeg(fr, 60, true).deg, 25.0, 1e-9), "§16 the forearm folded 25° at the elbow reads 25");
+        // Only a MEASURED elbow reads (FB's honest tier): constrained means the fit did not land on a keypoint.
+        sk::FitResult part = fr;
+        for (int i = 20; i <= 40; ++i) part.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+        check(!b3::leadElbowBendDeg(part, 30, true).ok() && b3::armLiftDeg(part, 30, true).ok(),
+              "§16 a constrained elbow gives no bend (the arm lift still reads it: tier ≥ 2)");
+        Skeleton3dBodyInput in; in.fit = &part; in.phases = lad;
+        const Skeleton3dBodyOutput o = buildSkeleton3dBody(in);
+        bool bridged = o.leadElbow3d.has_value() && o.leadElbow3d->valid.size() == o.leadElbow3d->t_us.size();
+        if (bridged)
+            for (size_t i = 0; i < o.leadElbow3d->t_us.size(); ++i) {
+                const bool constrained = o.leadElbow3d->t_us[i] >= part.t_us[20] && o.leadElbow3d->t_us[i] <= part.t_us[40];
+                if (bool(o.leadElbow3d->valid[i]) == constrained) bridged = false;
+            }
+        check(o.leadElbow3d && o.leadElbow3d->key == QStringLiteral("leadArmFlexion3d")
+                  && o.leadElbow3d->routeId == QStringLiteral("faceOn+dtl") && bridged,
+              "§16 leadArmFlexion3d: a curve whose constrained-elbow frames are bridged (valid 0), never read");
+        const PhaseSample *top = o.leadElbow3d ? sampleAt(*o.leadElbow3d, Phase::Top) : nullptr;
+        check(top && near(top->value, 25.0, 1e-9) && top->sigma, "§16 …read at the top, 25°, with its σ");
+        // D6 round 2: bent_lead_arm grades leadElbowBendChange3d, the measured bend at the top (as graded) less the
+        // median of the measured bend over the ADDRESS HOLD (P1 − 150 ms … P1). The curve itself is read at the top.
+        check(o.leadElbow3d && !sampleAt(*o.leadElbow3d, Phase::Address),
+              "§16 (D6) leadArmFlexion3d is read at the top only; the address end is the hold, below");
+        {
+            // Bent 12° through the hold (frames 0–15; P1 is frame 10, the hold frames 0–10), 30° from frame 16 on.
+            sk::FitResult hb = fr;
+            for (int i = 0; i < m; ++i) setArmBody(hb, size_t(i), 10.0, i <= 15 ? 12.0 : 30.0, 30.0, -40.0);
+            Skeleton3dBodyInput hi = in; hi.fit = &hb;
+            Skeleton3dBodyOutput oh = buildSkeleton3dBody(hi);
+            const PhaseSample *c = oh.leadElbowChange ? sampleAt(*oh.leadElbowChange, Phase::Top) : nullptr;
+            check(c && near(c->value, 18.0, 1e-6) && c->sigma && *c->sigma > 0.0
+                      && c->sigmaKind == uint8_t(SigmaKind::Propagated) && !oh.leadElbowUnmeasured
+                      && oh.leadElbowChange->key == QStringLiteral("leadElbowBendChange3d")
+                      && oh.leadElbowChange->t_us.empty(),
+                  "§16 (D6) 12° in the hold, 30° at the top: leadElbowBendChange3d +18°, one reading at the top, σ Propagated");
+            const double topSig = sampleAt(*oh.leadElbow3d, Phase::Top)->sigma.value_or(0.0);
+            check(c && *c->sigma > topSig, "§16 (D6) …its σ is the top's ⊕ the hold's");
+            // Not measured exactly at P1 (frames 9–11 constrained), but earlier in the hold: still read.
+            sk::FitResult gap = hb;
+            for (int i = 9; i <= 11; ++i) gap.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+            Skeleton3dBodyInput gi = in; gi.fit = &gap;
+            const Skeleton3dBodyOutput og = buildSkeleton3dBody(gi);
+            check(og.leadElbowChange && near(sampleAt(*og.leadElbowChange, Phase::Top)->value, 18.0, 1e-6),
+                  "§16 (D6) an elbow unseen at P1 itself but seen earlier in the hold still reads (the hold, not ±15 ms)");
+            // Unmeasured ends: the Refused body3d.leadElbowUnmeasured, code by end, and no reading.
+            const auto unmeasured = [&](int from, int to) {
+                sk::FitResult u = hb;
+                for (int i = from; i <= to; ++i) u.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+                Skeleton3dBodyInput ui = in; ui.fit = &u;
+                return buildSkeleton3dBody(ui);
+            };
+            const Skeleton3dBodyOutput ua = unmeasured(0, 12), ut = unmeasured(50, 70);
+            sk::FitResult bothU = hb;
+            for (int i = 0; i <= 12; ++i) bothU.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+            for (int i = 50; i <= 70; ++i) bothU.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+            Skeleton3dBodyInput bi2 = in; bi2.fit = &bothU;
+            const Skeleton3dBodyOutput ub = buildSkeleton3dBody(bi2);
+            const auto code = [](const Skeleton3dBodyOutput &x) {
+                return x.leadElbowUnmeasured ? x.leadElbowUnmeasured->evidence.value(QStringLiteral("code")).toString() : QString();
+            };
+            check(!ua.leadElbowChange && code(ua) == QStringLiteral("address")
+                      && ua.leadElbowUnmeasured->effect == GateEffect::Refused
+                      && ua.leadElbowUnmeasured->gate == QStringLiteral("body3d.leadElbowUnmeasured")
+                      && ua.leadElbowUnmeasured->subject == QStringLiteral("leadElbowBendChange3d")
+                      && ua.leadElbowUnmeasured->covers == QStringList{ QStringLiteral("leadElbowBendChange3d") }
+                      && ua.leadElbowUnmeasured->evidence.value(QStringLiteral("holdMeasured")).toInt() == 0
+                      && ua.leadElbowUnmeasured->evidence.value(QStringLiteral("holdFrames")).toInt() == 11,
+                  "§16 (D6) no measured elbow in the hold ⇒ no change, Refused body3d.leadElbowUnmeasured code address (0 of 11)");
+            check(!ut.leadElbowChange && code(ut) == QStringLiteral("top"), "§16 (D6) …none at the top ⇒ code top");
+            check(!ub.leadElbowChange && code(ub) == QStringLiteral("both"), "§16 (D6) …neither ⇒ code both");
+            // The merge publishes the reading, or the record when there is none.
+            std::vector<MetricSeries> sm;
+            Skeleton3dBodyOutput ohm = buildSkeleton3dBody(hi);
+            const Skeleton3dBodyMerge mm = mergeSkeleton3dBody(sm, ohm, lad);
+            check(mm.published.contains(QStringLiteral("leadElbowBendChange3d"))
+                      && std::none_of(mm.gates.begin(), mm.gates.end(),
+                                      [](const GateRecord &g) { return g.gate == QStringLiteral("body3d.leadElbowUnmeasured"); }),
+                  "§16 (D6) merge: the change is published, no refusal");
+            std::vector<MetricSeries> su;
+            Skeleton3dBodyOutput oum = unmeasured(0, 12);
+            const Skeleton3dBodyMerge mu = mergeSkeleton3dBody(su, oum, lad);
+            check(!mu.published.contains(QStringLiteral("leadElbowBendChange3d"))
+                      && std::count_if(mu.gates.begin(), mu.gates.end(),
+                                       [](const GateRecord &g) { return g.gate == QStringLiteral("body3d.leadElbowUnmeasured"); }) == 1,
+                  "§16 (D6) merge: no change ⇒ the refusal goes with the swing's records");
+        }
+        sk::FitResult blind = fr;
+        for (int i = 50; i <= 70; ++i) blind.tier[size_t(i)][LeftForeArm] = sk::TierConstrained;
+        Skeleton3dBodyInput bi = in; bi.fit = &blind;
+        const Skeleton3dBodyOutput ob = buildSkeleton3dBody(bi);
+        check(ob.leadElbow3d && !sampleAt(*ob.leadElbow3d, Phase::Top)
+                  && !grade(*ob.leadElbow3d, Phase::Top, lad[1].t_us).fromCurve
+                  && std::isnan(grade(*ob.leadElbow3d, Phase::Top, lad[1].t_us).value),
+              "§16 an elbow constrained over the top ⇒ no top reading: the grader reads nothing there");
+        Skeleton3dBodyOutput om = buildSkeleton3dBody(in);
+        std::vector<MetricSeries> s;
+        const Skeleton3dBodyMerge mg = mergeSkeleton3dBody(s, om, lad);
+        check(mg.published.contains(QStringLiteral("leadArmFlexion3d")) && count(s, "leadArmFlexion3d") == 1
+                  && count(s, "leadArmFlexion") == 0,
+              "§16 published under its OWN key; leadArmFlexion (chicken_wing's face-on reading) is untouched");
     }
 
     std::printf(g_fail ? "FAILED (%d)\n" : "ALL PASS\n", g_fail);

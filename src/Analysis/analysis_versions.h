@@ -45,7 +45,7 @@ namespace pinpoint::analysis {
 constexpr int kPoseStageVersion  = 2;   // 2: every frame of a two-pass pose goes through the one crop the single-pass path
                                         //    makes, pass 1 included; the hands move, and the positions read off them (#154, 2026-11-06)
 constexpr int kBallStageVersion  = 2;   // 2: replay bounded at max(launch, impact) + 150 ms, ROI-only decode (2026-10-06)
-constexpr int kShaftStageVersion = 12;
+constexpr int kShaftStageVersion = 13;
                                               // 1: first stamped version (2026-09-09)
                                               // 2: markerless stack ON — seg lock, snap, projPrior (2026-09-10)
                                               // 3: the blur wedge reads its LEADING edge; timed trail/mid/lead evidence (2026-09-29)
@@ -67,6 +67,8 @@ constexpr int kShaftStageVersion = 12;
                                               //     restarts from the backswing; a waggle had taken the top's place (#160, 2026-11-07)
                                               // 12: the address ball must sit 50 px (at 1280) below the toe line, not 10; the
                                               //     toe of a shoe that turns after impact was taken for it (#161, 2026-11-07)
+                                              // 13: P8 is the first rise through horizontal 40–200 ms after impact, and none after
+                                              //     the shaft sat near vertical; a light strip in the bay had put it at the finish (2026-11-13)
 // shaft — REUSABLE since 2026-09-17 (swing_reanalyzer.cpp): the recorded samples,
 //         P-anchors, lengths and plane fit are reloaded when this version matches,
 //         the pose and ball were themselves reused, and no tuning override is in
@@ -91,7 +93,11 @@ constexpr int kImpactStageVersion = 1;
 constexpr int kDtlPoseStageVersion  = 3;   // 3: re-pose with the face-on bump: schedule B follows the ladder, and that ladder moved with
                                            //    the face-on crop, so an older DTL pose is scheduled around the wrong positions (#154, 2026-11-06)
                                            // 2: posed on schedule B (P2 − 50 … P8 + 150 ms dense, backswing ÷2, rest ÷4) (2026-10-06)
-constexpr int kDtlShaftStageVersion = 6;   // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
+constexpr int kDtlShaftStageVersion = 7;   // 7: the ball's shadow crescent is gated by the BALL's imaged disc
+                                           //    (0.08–4 × π·r², r from the scene scale), not by the frame
+                                           //    width; the frame rule stays where there is no scale
+                                           //    (plane stack FC, 2026-11-13)
+                                           // 2: HELD / OCCLUDED_WRIST / OCCLUDED_ROW tiers, END_ON before quarantine,
                                            //    band-edge runs, one drawn length, late escapes refused (2026-10-02)
                                            // 3: per-frame σθ and gross risk (shaft uncertainty design, 2026-10-01)
                                            // 4: a refused late escape is never HELD (2026-10-03)
@@ -131,12 +137,15 @@ constexpr int kAddressMarksStageVersion = 4;  // 4: the head outline at address 
 //           dtl_posture.h) and, since 1, the DTL ruler it resolved (analysis.dtlRuler). The stage
 //           had no version before 2026-10-22: its output was series only, recomputed on every
 //           re-analysis. Stamped; never reused. Bump when dtl_posture.h changes its output.
-constexpr int kDtlPostureStageVersion = 2;   // 2: the ball's distance in cm with the club as the ruler, and
+constexpr int kDtlPostureStageVersion = 3;   // 3: armLiftTop — the lead UPPER ARM (shoulder → elbow) against the
+                                             //    shoulder line at the top, + above it, σ from the keypoints;
+                                             //    posture.armLift where no frame reads (plane stack D2, 2026-11-13)
+                                             // 2: the ball's distance in cm with the club as the ruler, and
                                              //    ballReachExcess — the club's reach taken out; a ball the club
                                              //    cannot reach refused (ball_reach_by_club.md, 2026-10-29)
                                              // 1: first stamped version — the ruler persisted (2026-10-22)
 
-constexpr int kSkeleton3DStageVersion = 17;  // 17: its Witmotion IMU tracks are sampled on re-timed instants — the fuser dates a host-stamped lane by its own fitted sample clock, not its burst arrivals (W2.4, imu_retime.h, 2026-10-26); 16: cut at P8 + 25 ms (2026-10-19); 15: two cameras or no skeleton — the face-on-only fit refused (2026-10-19); 14: the wrists and elbows kept in front of the back (2026-10-19); 13: the hands locked exactly — each frame's trail arm moved onto its locked grip after the solve; knots back to v11 (2026-10-19); 12: fast spline knots on through the follow-through (2026-10-19); 11: the hands keep one spacing along the grip (2026-10-19, #29 follow-up); 10: the head at the ball at impact (its own frame) and through address; a recorded length held on one camera too (2026-10-19, issues #28 / #29); 9: both planted soles rest on one floor — the lead foot's pitch is the trail foot's, and its toe keypoints are not fitted, until 150 ms before impact (2026-10-19, issue #27); 8: the club is held in the hands — grip-offset prior σ 3 cm → 1 cm (2026-10-05); 7: a recorded club's length is held (σ 5 mm), and the grounded head rests ON the floor (lift 0) (2026-10-02)
+constexpr int kSkeleton3DStageVersion = 18;  // 18: the two views of a shoulder that disagree — the lower-confidence view's σ inflated by the rays' miss (> 30 mm, ×5 at most; the hips only with body3d.crossViewHips, off by default); detector confidence in the 2-D σ (max(1, 0.8 / conf)); honest tiers — a view saw a joint only where the fit lands within max(3σ, 15 px) of its keypoint (FB, plane stack, 2026-11-13); 17: its Witmotion IMU tracks are sampled on re-timed instants — the fuser dates a host-stamped lane by its own fitted sample clock, not its burst arrivals (W2.4, imu_retime.h, 2026-10-26); 16: cut at P8 + 25 ms (2026-10-19); 15: two cameras or no skeleton — the face-on-only fit refused (2026-10-19); 14: the wrists and elbows kept in front of the back (2026-10-19); 13: the hands locked exactly — each frame's trail arm moved onto its locked grip after the solve; knots back to v11 (2026-10-19); 12: fast spline knots on through the follow-through (2026-10-19); 11: the hands keep one spacing along the grip (2026-10-19, #29 follow-up); 10: the head at the ball at impact (its own frame) and through address; a recorded length held on one camera too (2026-10-19, issues #28 / #29); 9: both planted soles rest on one floor — the lead foot's pitch is the trail foot's, and its toe keypoints are not fitted, until 150 ms before impact (2026-10-19, issue #27); 8: the club is held in the hands — grip-offset prior σ 3 cm → 1 cm (2026-10-05); 7: a recorded club's length is held (σ 5 mm), and the grounded head rests ON the floor (lift 0) (2026-10-02)
                                              // 6: the club grounded at address levels the world; a recorded club's length held to ±3 cm; session pools stamped (2026-10-02)
                                              // 2: the club held to its plane where the DTL is blind + the depth-branch pass (2026-09-28); 4: the pelvis yaw's own acceleration σ (2026-10-02); 5: the shod-foot marker lift (2026-10-02)
                                              // 3: the lean spine + spline trajectories; session camera pool at re-analysis (2026-09-28)
@@ -151,11 +160,16 @@ constexpr int kShaftDirectionStageVersion = 1;   // 1: first version — fusion 
 
 // skeleton3dBody — kSkeleton3dBodyStageVersion: the readings from the 3-D body (Skeleton3dBodyStage,
 //           skeleton3d_body_series.h): shoulderPlaneAngle3d, shoulderLineYaw, the 3-D leadKneeFlexion,
-//           trailKneeFlexion and spineSideBend, and the research-only thigh turns, off the two-camera
-//           fit's joints.
+//           trailKneeFlexion and spineSideBend, armLiftTop and leadArmFlexion3d, and the research-only
+//           thigh turns, off the two-camera fit's joints.
 //           Series only; stamped for the record (provenance), never reused — it reads the fit already
 //           in hand. Bump when skeleton3d_body_metrics.h / _series.h or the stage changes its output.
-constexpr int kSkeleton3dBodyStageVersion = 3;   // 1: first version — tier ≥ constrained joints, σ from the fit's
+constexpr int kSkeleton3dBodyStageVersion = 4;   // 4: armLiftTop — the lead UPPER ARM against the shoulder-turn
+                                                 //    plane at the top, filling where the down-the-line image
+                                                 //    has none (uncalibrated), never where the shoulder views
+                                                 //    disagree; leadArmFlexion3d — the lead elbow's bend where the
+                                                 //    fit MEASURED the elbow (plane stack D2, 2026-11-13)
+                                                 // 1: first version — tier ≥ constrained joints, σ from the fit's
                                                  //    per-joint σ, the aim ⊕ σ_yaw (planned-metrics promotion, 2026-11-12)
                                                  // 2: shoulderPlaneAngle3d is published beside the chest sensor's
                                                  //    (thoraxImu), the fallback when the precedence withdraws that
@@ -184,9 +198,21 @@ constexpr int kHipInternalRotationStageVersion = 1;   // 1: first version — pe
 //           route won the precedence. Series only; stamped for the record (provenance) when the reading was
 //           written, never reused — it is a subtraction on two readings already in hand. Bump when
 //           shoulder_tilt_vs_bend.h changes its output.
-constexpr int kShoulderTiltVsBendVersion = 1;   // 1: first version — the halves read as the grader reads them,
+constexpr int kShoulderTiltVsBendVersion = 2;   // 2: the backstop — below −20° (body3d.tiltBendFloorDeg) the
+                                                //    Downgraded body.tiltBendOutOfRange, covering the reading and
+                                                //    shoulderPlaneAngle3d (FB, plane stack, 2026-11-13)
+                                                // 1: first version — the halves read as the grader reads them,
                                                 //    σ in quadrature, the halves' kept-value records extended and
                                                 //    body.tiltBendMixedSources on mixed instruments (W7, 2026-11-13)
+
+// clubSlotTop — kClubSlotTopVersion: the club's climb from address to P3 placed in the on-plane window halfway back, between the address
+//           plane and the shoulder plane at address (club_slot_top.h deriveClubSlotTop). Not a stage: ONE STEP in
+//           runProfile, after the shoulder tilt, on the series as they will be written. Series only; stamped
+//           for the record (provenance) when the reading was written, never reused — a ratio of three readings
+//           already in hand. Bump when club_slot_top.h changes its output.
+constexpr int kClubSlotTopVersion = 1;   // 1: first version — the parts read as the grader reads them, σ first
+                                         //    order through the ratio, refused (club.slotUnread) under a 4° slot
+                                         //    (club.slotMinWidthDeg) or with a part missing (plane stack D3, 2026-11-13)
 
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
@@ -203,6 +229,7 @@ struct AnalysisVersions {
     int     skeleton3dBody = 0; // 0 = the 3-D body readings stage did not run (or predates its version)
     int     hipInternalRotation = 0; // 0 = the hip internal rotation stage did not run (or predates its version)
     int     shoulderTiltVsBend = 0;  // 0 = no shoulderTiltVsBend was written (or the swing predates it)
+    int     clubSlotTop = 0;         // 0 = no clubSlotTop was written (or the swing predates it)
     QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
     QString poseScope;          // "span" | "full"
     QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream

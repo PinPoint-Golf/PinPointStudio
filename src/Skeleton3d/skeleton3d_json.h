@@ -109,6 +109,14 @@ inline FitConfig fitConfigFromOverrides(const QVariantMap &ov)
     apply(ov, "skeleton3d.gripSpacingPriorSigmaM", c.gripSpacingPriorSigmaM);
     apply(ov, "skeleton3d.spineFlexSigmaDeg",  c.spineFlexSigmaDeg);
     apply(ov, "skeleton3d.hmRadSign",      c.hmRadSign);
+    // The two views of a shoulder or hip, the confidence in the 2-D σ and the honest tiers (FB, 13 Nov
+    // 2026): named body3d.* as the plane-stack design states them (pp_tuned_constants.h body3d).
+    apply(ov, "body3d.crossViewMissMm",    c.crossViewMissMm);
+    apply(ov, "body3d.crossViewSigmaCap",  c.crossViewSigmaCap);
+    apply(ov, "body3d.crossViewHips",      c.crossViewHips);
+    apply(ov, "body3d.confSigmaRef",       c.confSigmaRef);
+    apply(ov, "body3d.tierSeenSigmas",     c.tierSeenSigmas);
+    apply(ov, "body3d.tierSeenFloorPx",    c.tierSeenFloorPx);
     // The prior widths, for the knob audit (swing_3d_viz_design.md §13.2 (D)).
     apply(ov, "skeleton3d.limitSigmaDeg",      c.limitSigmaDeg);
     apply(ov, "skeleton3d.gripSigmaM",         c.gripSigmaM);
@@ -235,6 +243,8 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
               { "reprojMedPxFo", num(r.reprojMedPxFo) }, { "reprojMedPxDtl", num(r.reprojMedPxDtl) },
               { "rawLengthCv", rawCv },
               { "nSwapFo", r.nSwapFo }, { "nSwapDtl", r.nSwapDtl }, { "nLimitHeld", r.nLimitHeld },
+              { "nCrossViewFo", r.nCrossViewFo }, { "nCrossViewDtl", r.nCrossViewDtl },
+              { "nCrossViewFrames", r.nCrossViewFrames },
               { "footSlipP90Mm", num(r.footSlipP90Mm) },
               { "gripLockP90Mm", num(r.gripLockP90Mm) }, { "gripLockMaxMm", num(r.gripLockMaxMm) },
               { "nUnknowns", r.nUnknowns },

@@ -945,6 +945,11 @@ struct ShaftTrack2D {
     // IN-MEMORY conduit decideTrack → applyBallAnchor (never serialized): the accepted address
     // ball was confirmed by the collar's ridge evidence and may be painted over the address hold.
     bool    addrBallTrusted = false;
+    // WHY locatePTimes found no P8 (shaft_positions.h P8Refusal, as its integer: 0 None = P8 located,
+    // or positions never located). Persisted as analysis.club.diag.p8Refusal (shaftP8RefusalName) when
+    // not None, so a reused track still names the cause; the positions.p8Refused record is fired from it
+    // after the run, only when the document's ladder has no P8 (Club/p8_refusal_gate.h; plane stack D6).
+    uint8_t p8Refusal = 0;
 };
 
 inline const char* shaftRefusedReasonName(uint8_t r)
@@ -963,6 +968,26 @@ inline uint8_t shaftRefusedReasonFromName(const QString& s)
     if (s == QLatin1String("phaseSuspect"))   return 2;
     if (s == QLatin1String("lengthConflict")) return 3;
     if (s == QLatin1String("handsUnusable"))  return 4;
+    return 0;
+}
+
+// ShaftTrack2D::p8Refusal's names (shaft_positions.h P8Refusal: None 0, NoImpact 1, NoCrossing 2,
+// Late 3, WrongSense 4, VerticalStall 5 — static_assert'ed there). "" for None.
+inline const char* shaftP8RefusalName(uint8_t r)
+{
+    switch (r) {
+        case 1: return "noImpact";
+        case 2: return "noCrossing";
+        case 3: return "late";
+        case 4: return "wrongSense";
+        case 5: return "verticalStall";
+        default: return "";
+    }
+}
+inline uint8_t shaftP8RefusalFromName(const QString& s)
+{
+    for (uint8_t r = 1; r <= 5; ++r)
+        if (s == QLatin1String(shaftP8RefusalName(r))) return r;
     return 0;
 }
 
@@ -1086,6 +1111,12 @@ struct SwingAnalysis {
     // (Skeleton3DStage; swing_3d_viz_design.md). Feeds NO metric. Invalid when the stage did not
     // run or refused. Persisted as `analysis.skeleton3d` (pinpoint.skeleton3d/1); never reused.
     skeleton3d::FitResult     skeleton3d;
+    // body3d.shoulderViewsDisagree fired on this fit (Skeleton3DStage, FB): the down-the-line camera's
+    // shoulder line at the top and the fit's differ past the limit. The record itself goes to the gate
+    // list, which the stage executor splices only after every stage has run, so the fact rides here too
+    // for Skeleton3dBodyStage, which does not build the 3-D armLiftTop on such a swing (plane stack D2).
+    // Runtime only, never persisted: written with the fit on every analysis.
+    bool                      skeleton3dShoulderViewsDisagree = false;
     // The body's outer edges at hip height on each camera's address frame (AddressMarksStage;
     // address_marks.h) — the coach's static lines. Feeds NO metric; persisted as
     // `analysis.addressMarks`; never reused.

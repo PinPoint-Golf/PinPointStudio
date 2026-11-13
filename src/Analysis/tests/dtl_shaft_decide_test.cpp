@@ -671,6 +671,141 @@ int main()
               "T8A: with a bright ball present the BRIGHT cue wins, unchanged");
         check(std::isfinite(both.shadowX) && std::isfinite(both.launchRise),
               "T8A: … and the shadow cue's own answer is still recorded, so the two can be compared");
+
+        // The area gates by the ball (FC) change nothing on this scene: with the
+        // frame rule restored the same ball comes back, and the same refusal.
+        DtlShaftConfig frameRule = testCfg();
+        frameRule.ball.shadowAreaByRadius = false;
+        const DtlBall bF = dtlFindBall(srcOf(s), addr, post, away, aft, s.an, W, H, scalePxPerMm, frameRule);
+        const DtlBall scuffF = dtlFindBall(srcOf(s2), addr, post, away, aft, s2.an, W, H, scalePxPerMm, frameRule);
+        check(bF.found == b.found && bF.x == b.x && bF.y == b.y && bF.nCandidates == b.nCandidates
+              && bF.launchRise == b.launchRise && !scuffF.found && scuffF.nCandidates == scuff.nCandidates,
+              "T8A: the frame rule (shadowAreaByRadius off) gives the same ball and the same refusal");
+    }
+
+    // ── T8F the crescent is gated by the BALL's size, not the frame's (FC) ──
+    // MEASURED, Chris Marriott 24 Oct: 976 px wide, the ball r 8.9–9.9 px, and at
+    // address the clubhead hides it (the DTL camera sits on the ball line at
+    // clubhead height). Once the club is away its crescent is crisp and passes
+    // the darkness and launch tests, but it measures 27–46 px, and the old floor,
+    // 12 × (976/512)² = 43.6 px, refused it on 6 of 8 swings. Here: a 976-px
+    // frame, a 9-px ball and a ~30-px crescent that goes at launch.
+    std::printf("\n=== T8F: a 976-px frame, a 9-px ball, a 30-px crescent — found by the ball's own size ===\n");
+    {
+        struct Wide {
+            int w, h;
+            double bx, by, R;
+            Scene s;
+        };
+        // The scene's joints are placed off the ball: grip 140 px in and 225 px
+        // above it (grip→ball 58° below the horizontal, an address shaft's), hips
+        // and ankles 110 px further in, ankles 45 px above it.
+        const auto makeWide = [](int w, int h, double bx, double by, double R, int n) {
+            Wide o{ w, h, bx, by, R, makeScene(n) };
+            const double gx = bx - 140.0, gy = by - 225.0, hx = gx - 110.0, ay = by - 45.0;
+            o.s.an.gx.assign(size_t(n), gx);
+            o.s.an.gy.assign(size_t(n), gy);
+            o.s.an.leadWrist.assign(size_t(n), {gx - 6.0, gy});
+            o.s.an.trailWrist.assign(size_t(n), {gx + 6.0, gy});
+            o.s.an.joints.assign(size_t(n), std::vector<cv::Point2d>{
+                {hx - 10, gy - 100}, {hx + 10, gy - 100}, {hx - 10, gy}, {hx + 10, gy},
+                {hx - 10, gy + 100}, {hx + 10, gy + 100}, {hx - 10, ay}, {hx + 10, ay} });
+            return o;
+        };
+        const auto plainFrame = [](int w, int h) {
+            cv::Mat m(h, w, CV_8UC1);
+            for (int r = 0; r < h; ++r)
+                for (int c = 0; c < w; ++c)
+                    m.at<uchar>(r, c) = uchar(128 + ((r * 7 + c * 13) % 11) - 5);
+            return m;
+        };
+        // A thin crescent: the lower rim within ±60° of straight down, from R − 1
+        // to R + 0.5 — Chris's crescents are 14–16 × 4–5 px, thinner than
+        // drawBallShadow's three-pixel arc. Returns the pixel count.
+        const auto drawThinCrescent = [](cv::Mat &m, double cx, double cy, double R, int value) {
+            int cnt = 0;
+            for (int r = int(cy - R - 3); r <= int(cy + R + 3); ++r)
+                for (int c = int(cx - R - 3); c <= int(cx + R + 3); ++c) {
+                    if (r < 0 || c < 0 || r >= m.rows || c >= m.cols) continue;
+                    const double dx = double(c) - cx, dy = double(r) - cy, d = std::hypot(dx, dy);
+                    if (d < R - 1.0 || d > R + 0.5 || dy <= 0.5 * d) continue;
+                    m.at<uchar>(r, c) = uchar(value);
+                    ++cnt;
+                }
+            return cnt;
+        };
+        const int n = 40;
+        std::vector<int> addr, post, away, aft;
+        for (int i = 0; i < 20; ++i) addr.push_back(i);
+        for (int i = 5; i < 21; ++i) away.push_back(i);
+        for (int i = 30; i < n; ++i) { post.push_back(i); aft.push_back(i); }
+        // vanish = the crescent goes at launch (frame 25), as a ball's does;
+        // otherwise it stays, as a scuff or a tee hole does.
+        const auto build = [&](int w, int h, double bx, double by, double R, bool vanish, bool thin,
+                               int *areaOut) {
+            Wide o = makeWide(w, h, bx, by, R, n);
+            for (int i = 0; i < n; ++i) {
+                cv::Mat m = plainFrame(w, h);
+                drawBlownMat(m, int(bx) - 160, int(by) - 30, std::min(w - 1, int(bx) + 160), std::min(h - 1, int(by) + 45));
+                if (!vanish || i < 25) {
+                    const int a = thin ? drawThinCrescent(m, bx, by, R, 90)
+                                       : (drawBallShadow(m, bx, by, R, 90), 0);
+                    if (i == 0 && areaOut) *areaOut = a;
+                }
+                o.s.frames[size_t(i)] = m;
+            }
+            return o;
+        };
+        const double R = 9.0, scale = R / (0.5 * 42.7);
+        int area = 0;
+        Wide ch = build(976, 480, 560.0, 425.0, R, /*vanish*/ true, /*thin*/ true, &area);
+        const DtlBall b = dtlFindBall(srcOf(ch.s), addr, post, away, aft, ch.s.an, ch.w, ch.h, scale, testCfg());
+        std::printf("       976 px, r=%.1f, crescent %d px: found=%d source=%s at (%.1f, %.1f) cands=%d — %s\n",
+                    R, area, int(b.found), b.source.toUtf8().constData(), b.x, b.y, b.nCandidates,
+                    b.reason.toUtf8().constData());
+        check(area >= 26 && area <= 34, "T8F: the planted crescent is about 30 px, under the old 43.6 px floor");
+        check(b.found && b.source == QStringLiteral("shadow"), "T8F: the ball is found, from its shadow");
+        check(b.found && std::hypot(b.x - ch.bx, b.y - ch.by) <= 3.0,
+              "T8F: within 3 px of the planted ball centre");
+        check(b.reason.contains(QStringLiteral("by the ball")), "T8F: and the reason names the gate it used");
+
+        // The failure, reproduced: the frame rule refuses the same crescent.
+        DtlShaftConfig frameRule = testCfg();
+        frameRule.ball.shadowAreaByRadius = false;
+        const DtlBall old = dtlFindBall(srcOf(ch.s), addr, post, away, aft, ch.s.an, ch.w, ch.h, scale, frameRule);
+        std::printf("       frame rule: found=%d — %s\n", int(old.found), old.reason.toUtf8().constData());
+        check(!old.found && old.reason.contains(QStringLiteral("no dark compact blob")),
+              "T8F control: the frame rule (12 × (976/512)² = 43.6 px) refuses it, as it did on Chris's swings");
+        // With no scene scale the radius is a guess, and the frame rule stays.
+        const DtlBall noScale = dtlFindBall(srcOf(ch.s), addr, post, away, aft, ch.s.an, ch.w, ch.h, kNan, testCfg());
+        check(!noScale.found && noScale.reason.contains(QStringLiteral("by the frame")),
+              "T8F: with no scene scale the area gate is the frame's, as before");
+
+        // A 30-px dark mark that does NOT vanish at launch is still not a ball.
+        Wide sc = build(976, 480, 560.0, 425.0, R, /*vanish*/ false, /*thin*/ true, nullptr);
+        const DtlBall mark = dtlFindBall(srcOf(sc.s), addr, post, away, aft, sc.s.an, sc.w, sc.h, scale, testCfg());
+        std::printf("       static mark: found=%d cands=%d — %s\n", int(mark.found), mark.nCandidates,
+                    mark.reason.toUtf8().constData());
+        check(!mark.found && mark.nCandidates == 1,
+              "T8F: a 30-px dark mark that stays after impact passes the size gate and is still refused");
+
+        // At 512 px wide, the frame the old constants were written for, the two
+        // rules agree: a 6-px ball's 34-px crescent clears 12 px and 0.08·π·6² = 9 px.
+        const double R6 = 6.0, scale6 = R6 / (0.5 * 42.7);
+        Wide w5 = build(512, 480, 360.0, 425.0, R6, /*vanish*/ true, /*thin*/ false, nullptr);
+        const DtlBall n5 = dtlFindBall(srcOf(w5.s), addr, post, away, aft, w5.s.an, w5.w, w5.h, scale6, testCfg());
+        const DtlBall o5 = dtlFindBall(srcOf(w5.s), addr, post, away, aft, w5.s.an, w5.w, w5.h, scale6, frameRule);
+        Wide m5 = build(512, 480, 360.0, 425.0, R6, /*vanish*/ false, /*thin*/ false, nullptr);
+        const DtlBall nm5 = dtlFindBall(srcOf(m5.s), addr, post, away, aft, m5.s.an, m5.w, m5.h, scale6, testCfg());
+        const DtlBall om5 = dtlFindBall(srcOf(m5.s), addr, post, away, aft, m5.s.an, m5.w, m5.h, scale6, frameRule);
+        std::printf("       512 px: by ball found=%d (%.1f, %.1f); by frame found=%d (%.1f, %.1f); "
+                    "static mark %d / %d\n", int(n5.found), n5.x, n5.y, int(o5.found), o5.x, o5.y,
+                    int(nm5.found), int(om5.found));
+        check(n5.found && o5.found && n5.x == o5.x && n5.y == o5.y && n5.nCandidates == o5.nCandidates
+              && n5.launchRise == o5.launchRise && std::hypot(n5.x - w5.bx, n5.y - w5.by) <= 3.0,
+              "T8F: at 512 px the ball rule finds the same ball as the frame rule");
+        check(!nm5.found && !om5.found && nm5.nCandidates == om5.nCandidates,
+              "T8F: and refuses the same static mark");
     }
 
     // ── T8D a dim mat: the ball is only LOCALLY bright, and a decoy vanishes too ─

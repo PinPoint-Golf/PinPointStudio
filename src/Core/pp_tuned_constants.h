@@ -848,6 +848,29 @@ inline constexpr bool kSessionCache = true;          // segmenter.sessionCache
 // the legacy grip-only hold-end (byte-identical).
 namespace positions {
 inline constexpr double kP1ClubQuietSigma = 3.0;   // positions.p1ClubQuietSigma
+// P8 BOUNDS (13 Nov 2026, plane stack FA). P8 is the face-on shaft's first rise through
+// horizontal after impact, and it is looked for only between impact + kP8MinAfterImpactUs
+// and impact + kP8MaxAfterImpactUs. Before this nothing bounded it but the Finish, and on
+// 9 of Jess's 18 graded shots it sat 291–743 ms after impact: the tracker locks onto a
+// vertical light strip in her bay (the shaft reads 83–100° from +90 to +150 ms) and only
+// "crosses" when the club wraps at the finish. Mark has 13 of 159 late, Nick 4 of 36 plus
+// 3 at +4–5 ms (a flip of the track at impact), Chris 1 of 7.
+// PROVENANCE: every correctly timed P8 in the library lies 48–179 ms after impact, and the
+// earliest wrong one is 220 ms (arm-readings report, 13 Nov 2026). 40 / 200 sit outside the
+// good range on both sides with margin and inside the gap to the bad one. PROVISIONAL: one
+// library, five golfers, all irons and hybrids — a driver's slower release may need more.
+inline constexpr std::int64_t kP8MinAfterImpactUs = 40000;    // positions.p8MinAfterImpactUs
+inline constexpr std::int64_t kP8MaxAfterImpactUs = 200000;   // positions.p8MaxAfterImpactUs
+// The VERTICAL STALL refusal: a crossing that follows a run of at least kP8StallMinUs with
+// the shaft within ±kP8StallBandDeg of vertical, starting at or after impact +
+// kP8MinAfterImpactUs, is refused — that run is the tracker parked on something upright,
+// not a club swinging up. A real follow-through has turned 60° or more from the impact
+// shaft by +40 ms. PROVENANCE (stored tracks, 13 Nov 2026): no P8 timed 40–200 ms after
+// impact has any such run before it (0 of 181); 17 of the 24 late ones have 66–174 ms of it.
+// The window alone already refuses all 24; the stall is the guard for a strip the club
+// leaves early enough to cross inside the window. PROVISIONAL.
+inline constexpr double       kP8StallBandDeg     = 12.0;     // positions.p8StallBandDeg
+inline constexpr std::int64_t kP8StallMinUs       = 40000;    // positions.p8StallMinUs
 } // namespace positions
 
 // --- Setup + footwork metrics (WB3 — src/Body/foot_metrics.h) ------------
@@ -937,6 +960,15 @@ inline constexpr std::int64_t kExtremumWindowUs   = 40000; // reduce.extremumWin
 inline constexpr int          kMinExtremumSamples = 3;     // reduce.minExtremumSamples — widen to this
 inline constexpr std::int64_t kRateWindowUs       = 50000; // reduce.rateWindowUs — minimum fit span
 inline constexpr int          kMinRateSamples     = 3;     // reduce.minRateSamples
+// A SPAN IN MILLISECONDS AFTER A PHASE (the reducer's `windowMs`, plane stack D5 round 3, 13 Nov 2026)
+// reads only when its valid samples COVER it: no stretch longer than kMsSpanMaxGapUs unread, the span's
+// two ends included. Otherwise the measure is not assessable, never a value built from what is left —
+// a fold read from the frames before a hidden peak would report the gap as a straight arm.
+// PROVENANCE (library check, 13 Nov 2026, read-only, the face-on lead elbow over impact … +100 ms with
+// the occlusion gate on, frames 6.7 ms apart): the four false folds on the frame sheet leave 46–60 ms
+// unread and are refused; 30 ms (four frames) keeps 217 of the 244 swings with a fold reading. 25 ms keeps
+// 211, 35 ms 223, with the same four refused. PROVISIONAL.
+inline constexpr std::int64_t kMsSpanMaxGapUs     = 30000; // reduce.msSpanMaxGapUs
 } // namespace reduce
 
 // --- Lower-body frontal-plane metrics (src/Body/lower_body_metrics.h) -----
@@ -1014,6 +1046,56 @@ inline constexpr std::int64_t kAddrWindowUs         = 250000;  // upperBody.addr
 inline constexpr double       kMinShoulderSpanPx    = 30.0;    // upperBody.minShoulderSpanPx
 inline constexpr double       kMinShoulderSpanRatio = 0.40;    // upperBody.minShoulderSpanRatio
 inline constexpr double       kMinElbowSpanPx       = 25.0;    // upperBody.minElbowSpanPx
+// leadArmToTorso's UPPER-ARM gate (13 Nov 2026, plane stack FA): the lead upper arm's image
+// length (shoulder → elbow) must lie between kMinUpperArmRatio and kMaxUpperArmRatio × its
+// address length, or the frame has no arm-to-torso angle. Below the floor the upper arm points
+// along the view ray and its image direction is keypoint noise; above the ceiling the elbow has
+// jumped off the arm. PROVENANCE (arm-readings report, 13 Nov 2026): on Jess's late P8s the
+// upper arm imaged 13–43 px against ~110 px at address (0.12–0.39) and read 2–179°; at her
+// correctly timed P8s it imaged 0.55–0.75 of its address length. 1.4 is the elbow-swap side:
+// an arm cannot image longer than it is, and 40 % covers a closer-to-camera elbow and the
+// address median's own noise. PROVISIONAL — one golfer's failures, five golfers' good frames.
+// The SHOULDER half of the gate is kMinShoulderSpanRatio above: the torso direction runs from
+// the shoulder midpoint, which is guesswork once the shoulders overlap in the picture.
+inline constexpr double       kMinUpperArmRatio     = 0.45;    // upperBody.minUpperArmRatio
+inline constexpr double       kMaxUpperArmRatio     = 1.4;     // upperBody.maxUpperArmRatio
+// The face-on lead elbow's FOREARM gate (13 Nov 2026, plane stack D5): leadArmFlexion's faceOn rung
+// refuses a frame whose lead forearm (elbow → wrist) images outside kMinForearmRatio …
+// kMaxForearmRatio × its address length, as it refuses one whose upper arm is outside the pair
+// above. A foreshortened segment hides the bend; an over-long one is a keypoint off the arm.
+// PROVENANCE (library check, 13 Nov 2026, read-only from stored face-on keypoints, 249 swings,
+// 3711 frames in the 100 ms after impact): the forearm ratio there has median 0.88, 1st–99th
+// percentile 0.40–1.29; 46 frames fall below 0.45 and 23 above 1.4 (1.9 % refused). The refused
+// low tail is the lead wrist keypoint sweeping across the elbow (Nick 2 Nov: 0.29 at the elbow,
+// σ_wrist 5–22 px). The same band as the upper arm's because the data put both segments in it;
+// kept as its own pair so a sweep can move one segment without the other. PROVISIONAL.
+inline constexpr double       kMinForearmRatio      = 0.45;    // upperBody.minForearmRatio
+inline constexpr double       kMaxForearmRatio      = 1.4;     // upperBody.maxForearmRatio
+// The face-on lead elbow's OCCLUSION gate (plane stack D5 round 3, 13 Nov 2026). A frame is refused when
+// the lead shoulder, elbow or wrist cannot really be seen, which the pose model does not say on its own:
+// on the frame sheet (four false folds, 13 Nov) both the smoother's predicted lead shoulder AND the
+// model's own detection landed on Jess's face, chin or neck while her sleeve was plainly straight, and
+// Mark's elbow and wrist near his head were scored under 0.40 by the model (the confidence rule catches them).
+//  * kHeadRadiusRatio: a point within this × the address shoulder width of the centre of the head's
+//    confident keypoints (nose, eyes, ears) is on the head. PROVENANCE (library, read-only, impact …
+//    +100 ms): the shoulder sits 0.35 or more shoulder widths from the head centre at 0–30 ms on every
+//    golfer (5th percentile); on the four false folds it falls to 0.09–0.24 at their peak frames; 0.25
+//    refuses 70 % of those, 0 % of Mark's and Nick's, and 12–30 % of the late frames of Jess, Paddy and
+//    Chris, who keep their head down (the shoulder IS behind the head there). The head's own radius is
+//    about 0.30 shoulder widths, so 0.25 is inside the head, not beside it.
+//  * kMinRawConf: a point the pose model scored below this RAW confidence (pose.frames, never the
+//    smoother's, which floors a predicted point at 0.5) is unseen. PROVENANCE: on the false folds the
+//    elbow and wrist score 0.18–0.39 at the peak; good frames' 5th percentile is 0.54 (Mark's wrist),
+//    0.62 (Mark's elbow), 0.74 (Mark's shoulder). Nick's wrist is low throughout (10th percentile 0.33):
+//    14 % of his window frames are refused for it. 0.30 refused the same four; 0.40 is one tenth above
+//    the detector gate (kConfMin) so a point that only just passes it is not trusted to place a bend.
+//  * kElbowFoldSpanUs: the span after impact the fold is read over — m_leadElbowFoldAfterImpact's
+//    windowMs [0, 100] in core.json, here only so the producer's "not judged" record covers the same
+//    stretch the grader reads (live_measure_source_test pins the two together).
+// PROVISIONAL, all three.
+inline constexpr double       kHeadRadiusRatio      = 0.25;    // upperBody.headRadiusRatio
+inline constexpr double       kMinRawConf           = 0.40;    // upperBody.minRawConf
+inline constexpr std::int64_t kElbowFoldSpanUs      = 100000;  // the fold's span after impact (content's)
 } // namespace upperBody
 
 // --- Axial body rotation (src/Body/body_rotation.h) -----------------------
@@ -1728,6 +1810,20 @@ namespace shaftPlane {
 inline constexpr bool kEnabled = true;   // shaftPlane.enabled — master gate (ON 2026-08-11)
 } // namespace shaftPlane
 
+// The club's climb placed in the on-plane window halfway back (club_slot_top.h; plane stack D3, 13 Nov 2026; "slot"
+// in the names is historical, not the golf downswing slot). clubSlotTop divides the climb from address to P3 by the
+// window's width — the shoulder plane at address less the swing plane at address — so a window narrower than this
+// is refused (club.slotUnread, code `narrow`) rather than divided by.
+// Why 4°: one tolerance of the m_clubSlotTop norm is a quarter of the window, and it must stay above about 1°, the
+// error an uncalibrated down-the-line camera puts into a plane inclination difference (an inclination moves
+// less than 1° under ±15° of camera turn, shaft_fusion_design.md); 4 × 1° = 4°. The library (13 Nov 2026,
+// read-only, the stored documents: 156 swings with both edges) has a narrowest window of 5.4°, 1st percentile
+// 6.0°, median 10.3° (Mark 9.4°, Nick 15.1°, Jess 13.5°), so it refuses none of them.
+// PROVISIONAL, sweepable (club.slotMinWidthDeg).
+namespace clubSlot {
+inline constexpr double kMinWidthDeg = 4.0;
+} // namespace clubSlot
+
 // --- Shaft uncertainty (docs/design/shaft_uncertainty_propagation_design.md) -----------
 // Per-sample 1σ of the shaft angle and the gross-error probability, by tier × phase
 // group, CALIBRATED on the corpus hand marks by tools/shaftlab/uncertainty/
@@ -1873,6 +1969,30 @@ inline constexpr bool kDtlMedian = true;   // shaft.dtl.parallel.medians — the
 inline constexpr bool kDtlPost   = true;   // shaft.dtl.parallel.post — the snap + run loop per frame
 } // namespace shaftParallel
 
+// --- The down-the-line ball's contact shadow: its AREA gates (dtl_shaft_decide.cpp shadowBallCue) --
+// The crescent a ball casts at its own lower rim is a fraction of the ball's imaged disc π·r², with r
+// the ball's radius from the scene scale (dtlFindBall). The gates were 12–400 px × (frameW / 512)²
+// until 13 Nov 2026, which sized a ball by the FRAME it was filmed in: on Chris's 24 Oct session
+// (976 px wide, r 8.9–9.9 px) the floor was 43.6 px and his crescents measure 27–46 px, so 6 of 8
+// swings lost the ball and with it the takeaway (plane stack FC). MEASURED (a read-only replay of
+// the cue, 13 Nov 2026), crescent area / π·r²:
+//   06-11 nine (576 px, r 6.1–7.0, the swings the cue was seated on): 52–79 px, 0.34–0.53;
+//   Jess 20 Oct, 22 (976 px, r 8.2–9.3): 41–64 px, 0.17–0.30;
+//   Nick 20 Oct, 23 (976 px, r 8.5–11.8): 41–58 px, 0.10–0.25;
+//   Chris 24 Oct, 8 (976 px, r 8.9–9.9): 27, 37, 46, 34, 43, 45, 45, 33 px, 0.11–0.18.
+// The old floor at 06-11's own width and radius is 15.2 px = 0.10–0.13 π·r², so the frame rule
+// carried to Chris's ball as a share would be 24–40 px and still cut his 27, 33 and 34. 0.08 sits
+// 23 % under the smallest share measured (0.104, on Nick's largest radius); a radius read 10 %
+// large reads the share 17 % small. The cap keeps the old cap's share of the 06-11 ball,
+// 506 px ≈ 4 π·r² at r 6.4. PROVISIONAL: four sessions of blown mat, three golfers' bays.
+// The launch-rise test (shaft.dtl.ball.shadowLaunchRise), the elongation limit and the ball prior
+// are unchanged and still refuse a scuff or a tee hole. With no scene scale the radius is a guess
+// (0.012 × H), so the frame rule above still applies there, as before.
+namespace dtlBall {
+inline constexpr double kShadowAreaMinFrac = 0.08;   // shaft.dtl.ball.shadowAreaMinFrac — × π·r²
+inline constexpr double kShadowAreaMaxFrac = 4.0;    // shaft.dtl.ball.shadowAreaMaxFrac — × π·r²
+} // namespace dtlBall
+
 // --- The down-the-line camera's direction (planned-metrics promotion, 12 Nov 2026) --------------
 // Every BEARING read in the two-camera frame (a heading in the ground plane: where the shaft points,
 // where the shoulders aim) moves one-for-one with the down-the-line camera's yaw, which nothing
@@ -1942,6 +2062,77 @@ inline constexpr double kThighTurnMinKneeFlexDeg = 12.0;
 // A normal whose ground projection is under half its length (the plane tipped more than 60° from
 // vertical) has a heading that is mostly noise, and is not read. A design value: no swing reaches it.
 inline constexpr double kThighTurnMinNormalHorizFrac = 0.5;
+
+// ── The two views of a shoulder or hip that disagree (skeleton3d_fit.cpp, the cross-view pass; FB,
+// plane stack, 13 Nov 2026; docs/design/plane_stack_design.md §11 FB) ──
+// At the top the shoulder line points almost at the face-on camera, so the face-on trail shoulder is
+// hidden behind the chest and its keypoint sits 5–6 cm low: the face-on and down-the-line rays through
+// that marker miss each other by 42–67 mm at P4 on Chris's 8 swings, library median 51 mm (sweep_p4.csv,
+// 206 two-camera fits, the stored cameras). With the shoulder width held, the robust loss then threw one
+// view away — on 6 of Chris's 8 the down-the-line one, 21–33 px off at σ ~1.5 px — and the tilt collapsed.
+// A marker (shoulders 5/6, hips 11/12) whose two rays miss by more than kCrossViewMissMm has the σ of its
+// LOWER-CONFIDENCE view's keypoint multiplied by miss / kCrossViewMissMm, at most kCrossViewSigmaCap.
+// PROVISIONAL, both sweepable (body3d.crossViewMissMm, body3d.crossViewSigmaCap): 30 mm sits under the
+// library's P4 trail-shoulder median (Mark 63 mm, Chris 60, Jess 49, Nick 17 on the stored fits) and above
+// a seen shoulder's miss at address (median 5–23 mm) and on the synthetic swing (a few mm).
+inline constexpr double kCrossViewMissMm   = 30.0;
+inline constexpr double kCrossViewSigmaCap = 5.0;
+// The hips (11/12) are OUT of the pass by default (body3d.crossViewHips; coordinator's decision, 13 Nov
+// 2026). On the stored fits (v17 cameras, 184 swings) the hips' rays miss by more than 30 mm on 76–94 % of
+// Mark's frames (trail hip median 79 mm over the swing, 51 mm at address), 10–47 % of Nick's and Jess's:
+// the hip keypoint's placement differs between a front and a side view, a definition offset rather than
+// the occlusion the pass is for, and down-weighting it would move the pelvis turn with no evidence that
+// it is wrong. The switch stays, for the sweep. PROVISIONAL.
+inline constexpr bool   kCrossViewHips     = false;
+// DETECTOR CONFIDENCE IN THE 2-D σ (Skeleton3DStage::observePose): the smoothed track's σ is multiplied
+// by max(1, kConfSigmaRef / conf). Before FB it ignored confidence, so a 0.36-confidence occluded
+// shoulder got 2.4–2.9 px against 1.5 px at 0.9. 0.8 leaves a confident keypoint (≥ 0.8) as it was; a
+// 0.4 one doubles. PROVISIONAL, sweepable (body3d.confSigmaRef).
+inline constexpr double kConfSigmaRef = 0.8;
+// HONEST TIERS (skeleton3d_fit.cpp): a view counts as having SEEN a joint only where the fit lands within
+// this many of the keypoint's own σ (before the cross-view inflation) of one of its witness keypoints.
+// Before FB a keypoint merely existing counted, so elbows the fit sits 57–114 px from (Nick, Jess, Chris;
+// armdiag elbow_summary2.txt) were "measured". It decides only measured (3) against constrained (2): a
+// joint with no keypoint near it in any view is still absent, as before. ⚠ On the stored library fits
+// (v17) 3σ alone demotes 49–99 % of the measured joint-frames by joint and golfer: the 2-D σ (1.5 px
+// floor) is well under the fit's typical residual (median reprojection 3–8 px), so the knees, hips and
+// shoulders go to constrained as well as the poorly seen elbows (plane_stack_design.md §11 FB has the
+// table). So the reach is max(kTierSeenSigmas × σ, kTierSeenFloorPx) (coordinator's decision, 13 Nov
+// 2026): 15 px sits above the fits' typical miss (median reprojection 3–8 px) and well below the poorly
+// seen elbows' 57–114 px. With it the rule still demotes Nick's, Jess's and Chris's lead elbow at the top
+// (100 / 85 / 100 % of those frames) and about half of Mark's (47 %). PROVISIONAL, both sweepable
+// (body3d.tierSeenSigmas, body3d.tierSeenFloorPx).
+inline constexpr double kTierSeenSigmas  = 3.0;
+inline constexpr double kTierSeenFloorPx = 15.0;
+
+// ── body3d.shoulderViewsDisagree (Skeleton3DStage, skeleton3d_body_series.h; FB) ──
+// At the Top ± kShoulderViewsHalfWindowUs, the down-the-line keypoints' shoulder line (both confidences
+// ≥ kShoulderViewsMinConf, at least kShoulderViewsMinLinePx long) against the fit's shoulder line
+// projected into that camera: a median angle beyond kShoulderViewsDisagreeDeg fires the Downgraded record.
+// 7° catches 38 of the library's 70 fits that leave the DTL trail shoulder > 20 px off (Chris's 6, 32 of
+// Mark's), sweep_p4.csv slope_err. PROVISIONAL, sweepable (body3d.shoulderViewsDisagreeDeg).
+inline constexpr double       kShoulderViewsDisagreeDeg = 7.0;
+inline constexpr std::int64_t kShoulderViewsHalfWindowUs = 15000;
+inline constexpr double       kShoulderViewsMinConf      = 0.7;
+// A design value: under 20 px apart the two keypoints' few-px noise turns the line by more than 7°.
+inline constexpr double       kShoulderViewsMinLinePx    = 20.0;
+
+// ── The tilt − bend backstop (shoulder_tilt_vs_bend.h; FB) ──
+// shoulderTiltVsBend below this is outside what a turn can make: with a 35° forward bend it would need a
+// shoulder turn under ~27°. It is the library's clean 1st percentile (13 Nov 2026, Chris left out: his
+// −24 is the reading failure this backstop names). Downgraded body.tiltBendOutOfRange, never a refusal.
+// PROVISIONAL, sweepable (body3d.tiltBendFloorDeg).
+inline constexpr double kTiltBendFloorDeg = -20.0;
+
+// ── bent_lead_arm's 3-D address reference (skeleton3d_body_series.h leadElbowBendChange3d; plane stack D6) ──
+// Mark, 13 Nov 2026: the address end of the bend's change is the median over the swing's ADDRESS HOLD, where
+// the arm is still, not the ±15 ms window at P1. The hold is the fit frames from P1 − kElbowHoldUs to P1: P1 is
+// the END of the hold (shaft_positions.h addressHoldEndFrame), and the fit keeps only address − 150 ms onward
+// (Skeleton3DStage trimResultBefore), so 150 ms is all of the hold the fit has (a median 6 fit frames on the
+// library, 4 of them with the elbow measured). At least kElbowHoldMinFrames measured frames, the grader's own
+// one-sample rule for a phase reading. PROVISIONAL, sweepable (body3d.elbowHoldUs, body3d.elbowHoldMinFrames).
+inline constexpr std::int64_t kElbowHoldUs        = 150000;
+inline constexpr int          kElbowHoldMinFrames = 1;
 } // namespace body3d
 
 } // namespace pinpoint::tuned

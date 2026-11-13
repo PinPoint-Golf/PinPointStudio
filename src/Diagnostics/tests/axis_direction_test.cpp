@@ -156,12 +156,21 @@ static const Expect kExpected[] = {
     { "sig_outsideTakeaway",      Direction::High, "shaftDirection: outside is the positive end" },
     { "sig_earlyFaceRoll",        Direction::High,
       "m_leadForearmRot_p2 highMeans: 'the face opening in the takeaway'" },
+    // On `clubSlotTop` since 2026-11-13 (plane stack D3): the climb to P3 placed in the on-plane window halfway back, 0 on the address
+    // plane, 1 on the shoulder plane at address. Before that, on the climb in degrees (m_shaftPlaneBackswing).
+    // Both are + steeper, so the tails are unchanged.
     { "sig_steepBackswingPlane",  Direction::High,
-      "m_shaftPlaneBackswing highMeans: 'climbing further above the plane it started on — steeper'" },
-    { "sig_flatBackswingPlane",   Direction::Low,  "the other end of that same range" },
-    { "sig_backswingPlaneTooUpright", Direction::High,
-      "m_backswingPlaneAngle highMeans: 'a more upright backswing plane — the shaft's plane stands closer to vertical'" },
-    { "sig_backswingPlaneTooFlat",    Direction::Low,  "the other end of that same range" },
+      "m_clubSlotTop highMeans: 'the club sitting higher in the on-plane window halfway back'; above 1 is above the shoulder plane at address" },
+    { "sig_flatBackswingPlane",   Direction::Low,  "the other end of that same range: below 0, under the plane the club was set on" },
+    // The absolute plane at P3 (m_backswingPlaneAngle) lost its two signals on 2026-11-13: it is shown
+    // against the club's corridor and grades nothing (plane_stack_design.md §3.4). The takeaway against
+    // the set-up took their place (§3.1).
+    { "sig_steepTakeaway",        Direction::High,
+      "m_takeawayPlane highMeans: 'the club starting back above the plane it was set on at address'" },
+    { "sig_flatTakeaway",         Direction::Low,  "the other end of that same range: under the address plane" },
+    { "sig_armsLift",             Direction::High, "POSITIVE MEANS THE LEAD UPPER ARM SITS ABOVE THE SHOULDERS: lifted high above the turn" },
+    { "sig_armsSwingAround",      Direction::Low,  "the other end of that range: the upper arm under the shoulders, swinging round" },
+    { "sig_bentLeadArm3d",        Direction::High, "larger values mean more bend: the lead arm bent at the top" },
     { "sig_downswingPlaneTooSteep",   Direction::High,
       "m_downswingPlaneAngle highMeans: 'a more upright downswing plane' — steep coming down is the upright end" },
     { "sig_downswingPlaneTooFlat",    Direction::Low,  "the other end of that same range" },

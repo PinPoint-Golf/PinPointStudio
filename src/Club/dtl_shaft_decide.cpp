@@ -405,6 +405,7 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
                         const std::vector<int>& clubAwayFramesIn,
                         const std::vector<int>& afterFramesIn,
                         const BallPrior& prior, int frameW, int frameH,
+                        double radiusPx, bool haveScale,
                         const DtlShaftConfig& cfg)
 {
     ShadowCue out;
@@ -453,11 +454,31 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
     cv::Mat lab, stats, cent;
     const int n = cv::connectedComponentsWithStats(mask, lab, stats, cent, 8, CV_32S);
 
-    // Area scales with the frame: 12–400 px at 512 wide, and the crescents that
-    // this was measured on run 51–79 px at 576. Elongation 4:1 is loose on
-    // purpose — a crescent is 2.4–3.2:1 and a shaft shadow is far worse.
-    const double s = (frameW > 0) ? (double(frameW) / 512.0) * (double(frameW) / 512.0) : 1.0;
-    const double aMin = 12.0 * s, aMax = 400.0 * s;
+    // Area scales with the BALL: the crescent is a piece of the ball's own rim,
+    // so its gates are fractions of the ball's imaged disc π·r², r from the scene
+    // scale (tuned::dtlBall; measured 0.34–0.53 of the disc on 06-11, 0.10–0.30
+    // on Jess's and Nick's 20 Oct sessions, 0.11–0.18 on Chris's 24 Oct one). It
+    // used to scale with the FRAME, 12–400 px at 512 wide, and on Chris's 976-px
+    // frames that floor was 43.6 px against crescents of 27–46 px: 6 of his 8
+    // swings lost the ball (plane stack FC).
+    // With no scene scale the radius is the 0.012 × H guess, and a gate sized on
+    // a guess would be a new claim nobody measured, so the frame rule stays
+    // there. Elongation 4:1 is loose on purpose — a crescent is 2.4–3.2:1 and a
+    // shaft shadow is far worse.
+    const bool byRadius = cfg.ball.shadowAreaByRadius && haveScale && fin(radiusPx) && radiusPx > 0.0;
+    double aMin, aMax;
+    if (byRadius) {
+        const double disc = kPi * radiusPx * radiusPx;
+        aMin = cfg.ball.shadowAreaMinFrac * disc;
+        aMax = cfg.ball.shadowAreaMaxFrac * disc;
+    } else {
+        const double s = (frameW > 0) ? (double(frameW) / 512.0) * (double(frameW) / 512.0) : 1.0;
+        aMin = 12.0 * s; aMax = 400.0 * s;
+    }
+    const QString gate = QStringLiteral("area gate %1–%2 px%3")
+                             .arg(aMin, 0, 'f', 1).arg(aMax, 0, 'f', 0)
+                             .arg(byRadius ? QStringLiteral(" by the ball (r=%1)").arg(radiusPx, 0, 'f', 1)
+                                           : QStringLiteral(" by the frame"));
     struct Cand { double rise, x, y; int area; };
     std::vector<Cand> cands;
     for (int j = 1; j < n; ++j) {
@@ -485,9 +506,9 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
     }
     if (cands.empty()) {
         out.reason = out.nCand
-                         ? QStringLiteral("shadow cue: %1 dark blob(s) in the prior, none vanished at launch")
-                               .arg(out.nCand)
-                         : QStringLiteral("shadow cue: no dark compact blob on blown mat in the prior");
+                         ? QStringLiteral("shadow cue: %1 dark blob(s) in the prior, none vanished at launch (%2)")
+                               .arg(out.nCand).arg(gate)
+                         : QStringLiteral("shadow cue: no dark compact blob on blown mat in the prior (%1)").arg(gate);
         return out;
     }
     std::sort(cands.begin(), cands.end(), [](const Cand& a, const Cand& b) {
@@ -509,8 +530,8 @@ ShadowCue shadowBallCue(const FrameSource& frameAt,
     }
     out.found = true;
     out.x = cands[0].x; out.y = cands[0].y; out.rise = cands[0].rise;
-    out.reason = QStringLiteral("shadow cue: one crescent that vanished at launch, rise %1, area %2")
-                     .arg(cands[0].rise, 0, 'f', 0).arg(cands[0].area);
+    out.reason = QStringLiteral("shadow cue: one crescent that vanished at launch, rise %1, area %2 (%3)")
+                     .arg(cands[0].rise, 0, 'f', 0).arg(cands[0].area).arg(gate);
     return out;
 }
 
@@ -641,7 +662,7 @@ DtlBall dtlFindBall(const FrameSource& frameAt,
     // CONSULTED where brightness found nothing.
     const BrightCue bright = brightBallCue(frameAt, addr, postFramesIn, med8, prior, frameH);
     const ShadowCue shadow = shadowBallCue(frameAt, clubAwayFramesIn, afterFramesIn,
-                                           prior, frameW, frameH, cfg);
+                                           prior, frameW, frameH, radiusPx, haveScale, cfg);
     out.nCandidates = shadow.nCand;
     if (shadow.found) { out.shadowX = shadow.x; out.shadowY = shadow.y; out.launchRise = shadow.rise; }
 

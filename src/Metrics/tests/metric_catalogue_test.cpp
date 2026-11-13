@@ -86,7 +86,7 @@ int main()
         // sequence is read from (pelvis / thorax / leadArm / club — segment_rates.h); the
         // Sequence itself went from planned to live the same day.
         // 104 -> 105 on 2026-09-23 with handPathLoop, the down-the-line hand loop over the top reads.
-        checkEqI(static_cast<int>(cat.all().size()), 135, "descriptor count == 135");   // +shoulderTiltVsBend (2026-11-13, W7: the shoulder tilt at the top less the forward bend at address)   // hipInternalRotation → trailHipInternalRotation + leadHipInternalRotation (2026-11-12, one descriptor per side)   // +shoulderPlane (2026-10-29, the plane through the ball line and the trail shoulder at address)   // +handPlaneCurve, +handPlaneSteepening (2026-10-29, the plane through the ball line and the hands)   // +swingPlaneCurve (2026-10-29, the plane through the target line and the shaft as one smooth curve)   // +swingPlaneAngle (2026-10-29, the two fitted planes as absolute angles to the ground)   // +ballReachExcess (2026-10-29, the ball distance less the club's reach, ball_reach_by_club.md)   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
+        checkEqI(static_cast<int>(cat.all().size()), 139, "descriptor count == 139");   // +leadElbowBendChange3d (2026-11-13, plane stack D6: bent_lead_arm against the address hold)   // +clubSlotTop (2026-11-13, plane stack D3: the climb to P3 placed in the slot)   // +armLiftTop, +leadArmFlexion3d (2026-11-13, plane stack D2)   // +shoulderTiltVsBend (2026-11-13, W7: the shoulder tilt at the top less the forward bend at address)   // hipInternalRotation → trailHipInternalRotation + leadHipInternalRotation (2026-11-12, one descriptor per side)   // +shoulderPlane (2026-10-29, the plane through the ball line and the trail shoulder at address)   // +handPlaneCurve, +handPlaneSteepening (2026-10-29, the plane through the ball line and the hands)   // +swingPlaneCurve (2026-10-29, the plane through the target line and the shaft as one smooth curve)   // +swingPlaneAngle (2026-10-29, the two fitted planes as absolute angles to the ground)   // +ballReachExcess (2026-10-29, the ball distance less the club's reach, ball_reach_by_club.md)   // +thoraxRotationSigned (2026-10-26, trunk design defect 2: the chest's signed twin, thorax IMU)   // +spineBackLine, +hipDepthButt (2026-10-22, the silhouette pair at every P-frame, posture_chart_design.md §10 stage 4a)   // +headRise (2026-10-22, standing up going back from down the line, posture_metrics_design.md §4.5)   // +trunkRise, +armHang, +headPitch (2026-10-21, posture_metrics_design.md §3)   // +lowPointFromAttack (2026-10-21, issue #92: the low point the monitor's attack angle implies)   // +ksOrderShare, +ksTimingSpread (2026-10-14: the session sequence-consistency readings, planned)   // +8 sequence node readings (2026-10-14: arm/club peak times, four peak speeds, two reversals)   // +trailForearmAngle (2026-10-08, flying_elbow from down the line)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02, what sequence_order reads)   // +shaftLie (2026-10-01)   // 71 + 26 lm. - 9 renamed, + transitionPlaneDelta, + compoundMiss, + 4 wrist/HM, + plumbBobDistance, + shoulderLineYaw, + clubheadPeakLead, + 4 angular speeds, + handPathLoop
         const char *live[] = { "leadWristFlexExt", "leadWristRadUln", "forearmPronation",
                                "leadArmFlexion",  "clubheadSpeed",   "handSpeed", "lagAngle",
                                "clubheadPeakLead",
@@ -130,14 +130,14 @@ int main()
 
     // 2. Type / group / scored filtering.
     {
-        checkEqI(countType(cat, MetricType::TimeSeries),  62, "TimeSeries count");   // +1: hip internal rotation per side (2026-11-12)   // +handPlaneCurve (2026-10-29)   // +swingPlaneCurve (2026-10-29)   // +swingPlaneAngle (2026-10-29)   // +thoraxRotationSigned (2026-10-26)   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
+        checkEqI(countType(cat, MetricType::TimeSeries),  63, "TimeSeries count");   // +leadArmFlexion3d (2026-11-13, D2)   // +1: hip internal rotation per side (2026-11-12)   // +handPlaneCurve (2026-10-29)   // +swingPlaneCurve (2026-10-29)   // +swingPlaneAngle (2026-10-29)   // +thoraxRotationSigned (2026-10-26)   // +spineBackLine, +hipDepthButt (2026-10-22)   // +headRise (2026-10-22)   // +trunkRise (2026-10-21)   // +trailForearmAngle (2026-10-08)   // +shaftLie (2026-10-01)   // +4 segment angular speeds (2026-09-17)   // +shoulderPlaneAngle3d, +pelvisLiftBelt (2026-09-14)   // +pelvisRotationSigned   // +balanceHeelToe, +forearmRotation, +3 hm., +plumbBobDistance
         // 26, not 28: `shoulderAlignment` and `hipAlignment` were both PointInTime and both retired
         // as duplicates of a series the catalogue already carries.
         // 45 -> 47 on 2026-09-14, both PLANNED and both the honest replacement for a measure that
         // was firing on the wrong quantity: `shoulderLineYaw` (aim is a bearing, and the tilt one
         // camera reads is set by the grip) and `clubheadPeakLead` (the fault is the CLUBHEAD peaking
         // early; hand speed falls into impact on every good release).
-        checkEqI(countType(cat, MetricType::PointInTime), 65, "PointInTime count");   // +shoulderTiltVsBend (2026-11-13, W7)   // +shoulderPlane (2026-10-29)   // +handPlaneSteepening (2026-10-29)   // +ballReachExcess (2026-10-29)   // +armHang, +headPitch (2026-10-21: address scalars, no curve)   // +lowPointFromAttack (2026-10-21)   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
+        checkEqI(countType(cat, MetricType::PointInTime), 68, "PointInTime count");   // +leadElbowBendChange3d (2026-11-13, D6)   // +clubSlotTop (2026-11-13, D3)   // +armLiftTop (2026-11-13, D2)   // +shoulderTiltVsBend (2026-11-13, W7)   // +shoulderPlane (2026-10-29)   // +handPlaneSteepening (2026-10-29)   // +ballReachExcess (2026-10-29)   // +armHang, +headPitch (2026-10-21: address scalars, no curve)   // +lowPointFromAttack (2026-10-21)   // +8 sequence node readings (2026-10-14)   // +pelvisPeakTime, +thoraxPeakTime (2026-10-02)   // +17: a monitor reports one number per shot; +transitionPlaneDelta, +compoundMiss, +shoulderLineYaw, +clubheadPeakLead, +handPathLoop
         checkEqI(countType(cat, MetricType::Summary),      7, "Summary count");   // +ksOrderShare, +ksTimingSpread
         checkEqI(countType(cat, MetricType::Sequence),     1, "Sequence count (kinematicSequence)");
 
@@ -160,7 +160,7 @@ int main()
         // Arm geometry (trail elbow height, swing width, arm-to-torso) is its own group rather
         // than being filed under wrist and forearm, which would mislabel it in the directory.
         MetricQuery armq; armq.group = QStringLiteral("Arms");
-        checkEqI(static_cast<int>(cat.query(armq).size()), 6, "group 'Arms' == 6");   // +armHang (2026-10-21)   // +trailForearmAngle
+        checkEqI(static_cast<int>(cat.query(armq).size()), 9, "group 'Arms' == 9");   // +leadElbowBendChange3d (2026-11-13, D6)   // +armLiftTop, +leadArmFlexion3d (2026-11-13, D2)   // +armHang (2026-10-21)   // +trailForearmAngle
 
         // Two groups arrived with the content extension. Ball flight is what the golfer sees and
         // Strike is what the face did; keeping them apart matters because one of them is mostly
@@ -539,7 +539,7 @@ int main()
 
         // Depth metrics state a DEVICE. Three of them used minTier = Stereo3D as a stand-in, which
         // rendered as "a higher reconstruction tier" — true, unactionable, and unfilterable.
-        for (const char *k : { "pelvisThrust", "clubPath", "swingPlane", "swingPlaneAngle", "swingPlaneCurve", "handPlaneCurve", "handPlaneSteepening", "shoulderPlane", "shaftDirection",
+        for (const char *k : { "pelvisThrust", "clubPath", "swingPlane", "swingPlaneAngle", "swingPlaneCurve", "handPlaneCurve", "handPlaneSteepening", "shoulderPlane", "clubSlotTop", "shaftDirection",
                                "ballBodyDistance", "ballReachExcess", "launchDirection" }) {
             const MetricDescriptor *d = cat.descriptor(QString::fromLatin1(k));
             check(d && d->baselineRequirement().dtlCamera,
@@ -669,7 +669,9 @@ int main()
                 return false;
             };
             for (const char *k : { "shoulderPlaneAngle3d", "shoulderLineYaw", "leadKneeFlexion", "spineSideBend",
-                                   "trailKneeFlexion" /* W5, 2026-11-13 */ }) {
+                                   "trailKneeFlexion" /* W5, 2026-11-13 */,
+                                   "armLiftTop", "leadArmFlexion3d" /* plane stack D2, 2026-11-13 */,
+                                   "leadElbowBendChange3d" /* plane stack D6, 2026-11-13 */ }) {
                 const MetricRoute *r = pair(k);
                 check(r && !r->planned && r->quality == RouteQuality::Estimated && r->method == RouteMethod::Triangulated
                           && r->requirement.faceOnCamera && r->requirement.dtlCamera,
@@ -722,6 +724,30 @@ int main()
                       && tk->howToRead.contains(QStringLiteral("3-D fit")) && tk->howToRead.contains(QStringLiteral("calibrated"))
                       && tk->howToRead.contains(QStringLiteral("address and the top")),
                   "…and its howToRead keeps the sign and names the 3-D fit, the calibration rule and the both-ends rule");
+            // The arm lift at the top (plane stack D2, 2026-11-13; Mark's rule): the down-the-line picture's rung
+            // FIRST and Direct (two lines in one image), the 3-D rung below it — today's rule while the cameras are
+            // uncalibrated. Both describe the lead UPPER ARM, measured to the ELBOW, and say why.
+            const MetricDescriptor *al = cat.descriptor(QStringLiteral("armLiftTop"));
+            check(al && al->type == MetricType::PointInTime && al->group == QStringLiteral("Arms") && al->routes.size() == 2
+                      && al->routes[0].id == QStringLiteral("dtl") && al->routes[0].quality == RouteQuality::Direct
+                      && !al->routes[0].planned && al->routes[1].id == QStringLiteral("faceOn+dtl")
+                      && al->routes[1].quality == RouteQuality::Estimated && !al->routes[1].planned,
+                  "armLiftTop: the down-the-line rung first (Direct), then the 3-D one (Estimated)");
+            check(al && al->howToRead.contains(QStringLiteral("ELBOW")) && al->description.contains(QStringLiteral("ELBOW"))
+                      && al->howToRead.contains(QStringLiteral("bent lead arm")) && al->description.contains(QStringLiteral("bent lead arm"))
+                      && al->howToRead.contains(QStringLiteral("POSITIVE MEANS THE LEAD UPPER ARM SITS ABOVE THE SHOULDERS"))
+                      && al->howToRead.contains(QStringLiteral("uncalibrated")),
+                  "…its description and howToRead say it is measured to the ELBOW and why, the sign, and the calibration rule");
+            const MetricAvailability ala = cat.resolve(QStringLiteral("armLiftTop"), two);
+            check(ala.routeId == QStringLiteral("dtl") && ala.state == MetricAvailability::Measured,
+                  "…the down-the-line rung is what fires, MEASURED, on an (uncalibrated) two-camera shot");
+            check(cat.resolve(QStringLiteral("armLiftTop"), one).state == MetricAvailability::Unavailable,
+                  "…and nothing fires on a face-on-only shot");
+            const MetricDescriptor *le = cat.descriptor(QStringLiteral("leadArmFlexion3d"));
+            check(le && le->type == MetricType::TimeSeries && le->routes.size() == 1
+                      && le->routes[0].summary.contains(QStringLiteral("both cameras saw the elbow"))
+                      && le->color == cat.descriptor(QStringLiteral("leadArmFlexion"))->color,
+                  "leadArmFlexion3d: one 3-D rung, read only where both cameras saw the elbow, in the elbow's hue");
             // The side bend: the 3-D rung sits BELOW the face-on Direct one (it is the weaker reading)
             // but needs more kit, so it is never the floor: a face-on camera is still what side bend
             // needs, and the face-on rung still answers on a two-camera shot.
@@ -1012,7 +1038,11 @@ int main()
         // reading exists because the trunk leans out of the image plane — and a calibrated pair
         // would read the bend it stands in for directly. armHang and headPitch are down-the-line
         // angles read at Address only, so like toeLineAngle they escape.
-        checkEqI(refines, 32, "32 projected readings taken past Address");
+        // 33 with leadArmFlexion's faceOn rung (13 Nov 2026, plane stack D5): the angle at the lead
+        // elbow in the face-on picture, read at the Top and through impact, is a projection of a 3-D
+        // bend — the picture's angle is the bend only while the arm lies across the view — so a
+        // calibrated pair would read it outright.
+        checkEqI(refines, 33, "33 projected readings taken past Address");
     }
 
     // 3d-quater. The upgrade hint — what more kit would buy, on a real shot.
@@ -1492,7 +1522,7 @@ int main()
                 if (!d->card.drawsCurve()) { ++instantOnly; who << d->key; }
             }
             std::printf("    instant-only time series: %s\n", qPrintable(who.join(QStringLiteral(", "))));
-            checkEqI(instantOnly, 19, "19 time-series metrics are instant-only — a card, no curve (2026-10-29)");   // +swingPlaneAngle, two held plane angles like swingPlane   // +spineBackLine, +hipDepthButt: read per P-frame, no curve   // 18 → 16: forward bend and trail-knee bend draw for the Posture preset (card.curve)   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
+            checkEqI(instantOnly, 20, "20 time-series metrics are instant-only — a card, no curve (2026-11-13)");   // +leadArmFlexion3d (D2: read at the top; a sparse curve of measured elbows)   // +swingPlaneAngle, two held plane angles like swingPlane   // +spineBackLine, +hipDepthButt: read per P-frame, no curve   // 18 → 16: forward bend and trail-knee bend draw for the Posture preset (card.curve)   // +trailForearmAngle   // 19 → 17: the two forearm rotations keep their curve with a PEAK over P1→P2
             for (const char *k : { "leadKneeFlexion", "leadUpperArmToChest", "plumbBobDistance", "lagAngle",
                                    "clubheadSpeed", "pelvisSway", "headSway", "leadWristFlexExt",
                                    "forearmRotation", "hm.forearmRotation" })

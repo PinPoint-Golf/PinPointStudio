@@ -445,7 +445,7 @@ QVariantMap slotMap(const DeliverySlot &s)
              { QStringLiteral("outside"), out }, { QStringLiteral("text"), s.text } };
 }
 
-// One standfirst per position: what the plane was there, against where it was set and the slot.
+// One standfirst per position: what the plane was there, against where it was set and the on-plane window.
 QVariantList standfirstsOf(const DeliveryShotInput &in)
 {
     QVariantList out;
@@ -459,7 +459,7 @@ QVariantList standfirstsOf(const DeliveryShotInput &in)
         } else if (p == 0) {
             s.append(QStringLiteral("At address the plane is ")).figure(deliveryDeg(v));
             if (fin(sh)) s.append(QStringLiteral(", your shoulders' ")).figure(deliveryDeg(sh))
-                          .append(QStringLiteral(": a slot ")).figure(deliveryDeg(std::round(sh) - std::round(v))).append(QStringLiteral(" wide."));
+                          .append(QStringLiteral(": an on-plane window ")).figure(deliveryDeg(std::round(sh) - std::round(v))).append(QStringLiteral(" wide."));
             else s.append(QStringLiteral("."));
         } else {
             s.append(QStringLiteral("At %1 the plane was ").arg(when)).figure(deliveryDeg(v));
@@ -558,7 +558,7 @@ QVariantList pendingStillsOf(const QVariantMap &picture)
 }
 
 // Each frame's note, from the plane story (the presenter's own numbers, never the picture's): the address frame names
-// the two lines, the top and P6 the plane there and where it sat against them — "plane 65° · inside the slot".
+// the two lines, the top and P6 the plane there and where it sat against them — "plane 65° · inside the on-plane window".
 QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const DeliverySlot &slot)
 {
     QVariantList groups = pic.value(QStringLiteral("groups")).toList();
@@ -575,7 +575,7 @@ QVariantMap withFrameNotes(QVariantMap pic, const DeliveryShotInput &in, const D
             } else if (pos >= 0 && pos < kPos && fin(in.plane[size_t(pos)])) {
                 parts << QStringLiteral("plane %1").arg(deliveryDeg(in.plane[size_t(pos)]));
                 if (slot.available) {
-                    QString where = QStringLiteral("inside the slot");
+                    QString where = QStringLiteral("inside the on-plane window");
                     for (const DeliverySlotMark &m : slot.outside) if (m.pos == pos) where = m.words;
                     parts << where;
                 }
@@ -752,7 +752,7 @@ QVariantMap plotLayersOf(Ctx &c)
         layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("band") }, { QStringLiteral("t"), QVariantList{ t0, t1 } },
                                    { QStringLiteral("lo"), QVariantList{ std::min(address, shoulders), std::min(address, shoulders) } },
                                    { QStringLiteral("hi"), QVariantList{ std::max(address, shoulders), std::max(address, shoulders) } },
-                                   { QStringLiteral("role"), QStringLiteral("slot") }, { QStringLiteral("label"), QStringLiteral("the slot") } });
+                                   { QStringLiteral("role"), QStringLiteral("slot") }, { QStringLiteral("label"), QStringLiteral("the on-plane window") } });
     for (size_t i = 0; i < spans.size(); ++i)
         layers.append(QVariantMap{ { QStringLiteral("k"), QStringLiteral("span") }, { QStringLiteral("t0"), spans[i].t0Ms },
                                    { QStringLiteral("t1"), spans[i].t1Ms }, { QStringLiteral("role"), QStringLiteral("hands") },

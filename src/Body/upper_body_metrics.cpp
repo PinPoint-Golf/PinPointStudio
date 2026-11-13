@@ -23,7 +23,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <optional>
+#include <utility>
 
 namespace pinpoint::analysis {
 namespace {
@@ -189,6 +191,36 @@ double angleBetweenDeg(const QPointF &u, const QPointF &v)
     return std::acos(c) * kRadToDeg;
 }
 
+// σ (deg) of the face-on lead ELBOW BEND, 180° − θ with θ the angle at the elbow E between u = S − E
+// (toward the lead shoulder) and v = W − E (toward the lead wrist). σ_b = σ_θ, and θ is the difference
+// of the two segments' DIRECTION angles, so to first order
+//     ∂θ/∂S = n̂_u/|u|    ∂θ/∂W = n̂_v/|v|    ∂θ/∂E = n̂_u/|u| − n̂_v/|v|
+// (n̂ the unit normals; the signs of the first two do not matter in quadrature). THE ELBOW IS IN BOTH
+// SEGMENTS, so its two terms are combined as vectors before squaring rather than summed as two
+// independent variances — |n̂_u/|u| − n̂_v/|v||² = 1/|u|² + 1/|v|² − 2·cos θ/(|u||v|), since the angle
+// between the normals is θ. With each keypoint's σ isotropic (exact here, see FrameGeom):
+//     σ_b = sqrt( σ_S²/|u|² + σ_W²/|v|² + σ_E²·(1/|u|² + 1/|v|² − 2·cos θ/(|u||v|)) ) · 180/π
+// A straight arm (θ = 180°, cos θ = −1) puts the elbow's whole jitter on the bend, (1/|u| + 1/|v|)·σ_E:
+// the elbow is the hinge both levers turn about. Three DISTINCT keypoints, so no other covariance.
+// ⚠ THE PUBLISHED BEND IS UNSIGNED (acos), folded at 0° like the wrist sensors' flexion magnitude, so
+// on a near-straight arm (b within about 2σ of 0) the reading is biased away from 0 and this σ is the
+// spread of the unfolded angle, not of the folded number. On the library the arm at impact images
+// 9–22° bent (golfer medians) against a σ near 2.7°, so the fold is rarely in reach where the fold
+// after impact is measured from; see upper_body_face_on_metrics.md §4.
+double elbowBendSigmaDeg(const QPointF &S, const QPointF &E, const QPointF &W,
+                         double sigS, double sigE, double sigW)
+{
+    if (!(sigS > 0.0) || !(sigE > 0.0) || !(sigW > 0.0))
+        return 0.0;                               // an incomplete budget is unknown, not small
+    const double lu = lengthOf(E, S), lv = lengthOf(E, W);
+    if (lu <= kEps || lv <= kEps) return 0.0;
+    const double cosT = std::clamp(((S.x() - E.x()) * (W.x() - E.x()) + (S.y() - E.y()) * (W.y() - E.y()))
+                                       / (lu * lv), -1.0, 1.0);
+    const double var = (sigS * sigS) / (lu * lu) + (sigW * sigW) / (lv * lv)
+                       + sigE * sigE * (1.0 / (lu * lu) + 1.0 / (lv * lv) - 2.0 * cosT / (lu * lv));
+    return std::sqrt(std::max(var, 0.0)) * kRadToDeg;
+}
+
 // Everything one frame can offer, resolved once. Each group carries its OWN validity: the shoulder
 // line needs both shoulders, the axis tilt needs the spine, the drift needs both ankles and the
 // chest. A frame that supplies some but not all contributes to the channels it can and is absent
@@ -240,6 +272,15 @@ struct FrameGeom {
     double leadAnkleSig    = 0.0, trailAnkleSig    = 0.0;
     // The three DERIVED points compose theirs from their own inputs — see the end of resolveFrame.
     double neckSig = 0.0, pelvisSig = 0.0, thoraxSig = 0.0;
+
+    // ── Is the lead arm really SEEN? (D5 round 3, the face-on elbow's occlusion gate) ─────────────
+    // The pose model's RAW confidence for the lead shoulder, elbow and wrist (pose.frames, never the
+    // smoother's: a predicted point is floored at 0.5 there, pose_smoother.cpp), and the centre of the
+    // head's confident keypoints (nose, eyes, ears) in pixels. Set in trackUpperBody, which holds both
+    // tracks; headValid false when no head keypoint was confident.
+    float   leadShoulderRaw = 0.f, leadElbowRaw = 0.f, leadWristRaw = 0.f;
+    bool    headValid = false;
+    QPointF head;
 };
 
 // `aux` is the smoother's per-keypoint honesty record for THIS frame, or nullptr on a track that was
@@ -313,7 +354,7 @@ FrameGeom resolveFrame(const PxFrame &px, bool leadIsLeft, double confMin, const
 }
 
 // What a whole-reference refusal takes down (trust stage 6: one cascade record, on the first
-// reading it refused — secondaryAxisTilt — naming the rest). All ten: both refusals return before
+// reading it refused — secondaryAxisTilt — naming the rest). All eleven: both refusals return before
 // any channel is pushed.
 QStringList upperBodyCovers()
 {
@@ -321,7 +362,7 @@ QStringList upperBodyCovers()
              QStringLiteral("shoulderPlaneAngle"), QStringLiteral("elbowAlignment"),
              QStringLiteral("trailElbowHeight"), QStringLiteral("leadHandWidth"),
              QStringLiteral("leadUpperArmToChest"), QStringLiteral("leadArmToTorso"),
-             QStringLiteral("trunkRise") };
+             QStringLiteral("trunkRise"), QStringLiteral("leadArmFlexion") };
 }
 
 int countWithin(const std::vector<int64_t> &ts, int64_t fromUs, int64_t toUs)
@@ -345,6 +386,12 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     res.minShoulderSpanRatio = cfg.minShoulderSpanRatio;
     res.minElbowSpanPx       = cfg.minElbowSpanPx;
     res.minHipSpanRatio      = cfg.minHipSpanRatio;
+    res.minUpperArmRatio     = cfg.minUpperArmRatio;
+    res.maxUpperArmRatio     = cfg.maxUpperArmRatio;
+    res.minForearmRatio      = cfg.minForearmRatio;
+    res.maxForearmRatio      = cfg.maxForearmRatio;
+    res.headRadiusRatio      = cfg.headRadiusRatio;
+    res.minRawConf           = cfg.minRawConf;
     if (frameW <= 0 || frameH <= 0)
         return res;
 
@@ -366,10 +413,37 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     std::vector<FrameGeom> geom;
     geom.reserve(frames.size());
     res.grid.reserve(frames.size());
+    // The pose model's RAW confidences (D5 round 3). On a smoothed track they are the raw frames', which
+    // the smoother keeps parallel to its output; a predicted point's smoothed confidence is floored at 0.5
+    // and says nothing about whether the model saw it. On an unsmoothed track the frames ARE the raw ones.
+    // A raw track that is not parallel (a hand-built pair) falls back to the measured track's own scores.
+    const bool rawParallel = !pose.smoothed.empty() && pose.frames.size() == frames.size();
+    const int iSh = rolePrimaryIndex(AnatomyRole::LeadShoulder, leadIsLeft);
+    const int iEl = rolePrimaryIndex(AnatomyRole::LeadElbow, leadIsLeft);
+    const int iWr = rolePrimaryIndex(AnatomyRole::LeadWrist, leadIsLeft);
     for (size_t i = 0; i < frames.size(); ++i) {
         geom.push_back(resolveFrame(toPx(frames[i], frameW, frameH), leadIsLeft, cfg.confMin,
                                     haveAux ? &pose.smoothedAux[i] : nullptr));
         res.grid.push_back(frames[i].t_us);
+        FrameGeom &g = geom.back();
+        const bool rawHere = pose.smoothed.empty() || (rawParallel && pose.frames[i].t_us == frames[i].t_us);
+        if (!rawHere) ++res.rawConfFallbackFrames;   // judged on the smoothed score: warned by the stage
+        const PoseFrame2D &raw = (rawHere && !pose.smoothed.empty()) ? pose.frames[i] : frames[i];
+        const auto rawOf = [&](int k) { return (k >= 0 && k < kWholeBodyJoints) ? raw.conf[size_t(k)] : 0.f; };
+        g.leadShoulderRaw = rawOf(iSh);
+        g.leadElbowRaw    = rawOf(iEl);
+        g.leadWristRaw    = rawOf(iWr);
+        // The head: the COCO head keypoints 0–4 (nose, eyes, ears) the model scored at least confMin on
+        // its raw confidence, at the measured track's positions. Handedness-free.
+        double hx = 0.0, hy = 0.0;
+        int    nh = 0;
+        for (int k = 0; k <= 4; ++k) {
+            if (rawOf(k) < float(cfg.confMin)) continue;
+            hx += frames[i].kp[size_t(k)].x() * frameW;
+            hy += frames[i].kp[size_t(k)].y() * frameH;
+            ++nh;
+        }
+        if (nh > 0) { g.headValid = true; g.head = QPointF(hx / nh, hy / nh); }
     }
 
     // Robust (median) address reference, over the confident frames inside the Address-event window;
@@ -423,6 +497,12 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     // midpoint), the same two derived points secondaryAxisTilt reads. Conditional on the hips for the
     // reason hipDx is, and over the same reference frames, so the ratio's two ends are measured alike.
     std::vector<double> trunkLens;
+    // The lead upper arm's address length, leadArmToTorso's gate denominator. Unconditional: the
+    // admission test asks for the lead arm, so every reference frame has one.
+    std::vector<double> upperArmLens;
+    // The lead forearm's address length, the face-on lead elbow's forearm-gate denominator. Conditional
+    // on the wrist, as armLens is: the admission test does not ask for it.
+    std::vector<double> forearmLens;
     for (const FrameGeom *g : ref) {
         // % shoulder width means the EUCLIDEAN shoulder separation, because that is what it already
         // means in the shipped `stanceWidth` metric (foot_metrics' shoulderWidthPxAt). % stance
@@ -441,6 +521,9 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
             hipDx.push_back(std::abs(g->trailHip.x() - g->leadHip.x()));
         if (g->spineValid)
             trunkLens.push_back(lengthOf(g->neck, g->pelvis));
+        upperArmLens.push_back(lengthOf(g->leadShoulder, g->leadElbow));
+        if (g->leadHandValid)
+            forearmLens.push_back(lengthOf(g->leadElbow, g->leadHand));
     }
 
     res.ref.shoulderSpanPx = medianOfCopy(shoulderSpans);
@@ -449,6 +532,8 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     res.ref.shoulderDxPx   = medianOfCopy(shoulderDx);
     res.ref.hipDxPx        = medianOfCopy(hipDx);      // 0 when address hips were never confident
     res.ref.trunkLenPx     = medianOfCopy(trunkLens);  // likewise
+    res.ref.leadUpperArmLenPx = medianOfCopy(upperArmLens);
+    res.ref.leadForearmLenPx  = medianOfCopy(forearmLens);   // 0 when no address wrist was confident
 
     // Which image direction the lead side is, resolved from the address geometry rather than
     // assumed — a camera can be mirrored and an operator can flip the preview.
@@ -504,11 +589,16 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
     //   thoraxLateralDrift   ÷ the Euclidean ankle-line length, × the address ankle |dx|
     //   leadHandWidth        ÷ the address lead-arm length
     //   leadUpperArmToChest  ÷ the address Euclidean shoulder span (distToSegment is a length)
-    //   leadArmToTorso       ÷ two Euclidean vector lengths (angleBetweenDeg's own guard)
     //
     // Those channels are still distorted by the projection of a turn — that is a phase-DOMAIN
     // question, answered one layer up in the descriptor — but they are not divisions by a vanishing
     // separation, and gating them would withhold measurements that were actually made.
+    //
+    // leadArmToTorso (÷ two Euclidean vector lengths) WAS on that list, and since 13 Nov 2026 it is
+    // gated for a different reason: not a vanishing divisor but two DIRECTIONS that stop being
+    // measured. Its torso direction starts at the shoulder midpoint, which is guesswork once the
+    // shoulders overlap (the shoulder-line ratio, as trunkRise), and its arm direction is noise once
+    // the upper arm points along the view ray (the upper-arm length band). See its block below.
     //
     // ⚠ THE ELBOW LINE TAKES A PIXEL FLOOR, NOT A RATIO, and that is a correction rather than an
     // inconsistency. A ratio needs an address span that represents the line at its WIDEST; the elbows
@@ -798,11 +888,36 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
         // and the honest reading is that the quantity as published is not a symmetric ±σ quantity.
         // What would fix it is a SIGNED lead-arm-to-torso angle, which is a producer change and a
         // content change, not an uncertainty one.
+        //
+        // ⚠ GATED ON BOTH ITS DIRECTIONS (13 Nov 2026, plane stack FA), and a refused instant goes on
+        // gatedArmTorso, never a silent drop:
+        //   * THE TORSO: `Neck` is the shoulder midpoint, and once the shoulders foreshorten toward one
+        //     image column which keypoint is which — and so where their midpoint sits — is guesswork.
+        //     The shoulder-line ratio (upperBody.minShoulderSpanRatio, 0.40), as trunkRise. At a
+        //     correctly timed P8 the reading had been mostly measuring chest turn (ρ −0.76 with the
+        //     shoulder-span ratio, arm-readings report).
+        //   * THE ARM: its image length against its address length must lie in
+        //     [upperBody.minUpperArmRatio, upperBody.maxUpperArmRatio] (0.45 … 1.4). Below it the
+        //     upper arm points along the view ray and its image direction is keypoint noise — on
+        //     Jess's late P8s it imaged 13–43 px against ~110 at address and read anything from 2° to
+        //     179°; above it the elbow has jumped off the arm.
+        // A frame that passes both reads exactly what it read before.
         if (g.leadArmValid && g.spineValid) {
-            const QPointF armDir(g.leadElbow.x() - g.leadShoulder.x(),
-                                 g.leadElbow.y() - g.leadShoulder.y());
-            const QPointF torsoDir(g.pelvis.x() - g.neck.x(), g.pelvis.y() - g.neck.y());
-            res.leadArmToTorso.push(g.t_us, angleBetweenDeg(armDir, torsoDir));
+            const double armLen   = lengthOf(g.leadShoulder, g.leadElbow);
+            const double armRatio = res.ref.leadUpperArmLenPx > kEps ? armLen / res.ref.leadUpperArmLenPx : 0.0;
+            const bool   armInView = armRatio >= cfg.minUpperArmRatio && armRatio <= cfg.maxUpperArmRatio;
+            if (g.shoulderLineValid && armInView) {
+                const QPointF armDir(g.leadElbow.x() - g.leadShoulder.x(),
+                                     g.leadElbow.y() - g.leadShoulder.y());
+                const QPointF torsoDir(g.pelvis.x() - g.neck.x(), g.pelvis.y() - g.neck.y());
+                res.leadArmToTorso.push(g.t_us, angleBetweenDeg(armDir, torsoDir));
+            } else {
+                res.gatedArmTorso.push_back(g.t_us);
+                res.gatedArmTorsoShoulderRatio.push_back(
+                    res.ref.shoulderDxPx > kEps
+                        ? std::abs(g.trailShoulder.x() - g.leadShoulder.x()) / res.ref.shoulderDxPx : 0.0);
+                res.gatedArmTorsoArmRatio.push_back(armRatio);
+            }
         }
 
         // trunkRise — the trunk chord's image length against its address length, % (see the header).
@@ -823,6 +938,65 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
         // The address reference's own noise is left out, as pelvisLift leaves its out
         // (lower_body_metrics.cpp carries the size of that omission) — the same reference rule, the
         // same omission.
+        // leadArmFlexion, the faceOn rung (13 Nov 2026, plane stack D5) — the LEAD ELBOW BEND, 180° − the
+        // angle at the lead elbow between the lead shoulder and the lead wrist. 0 = a straight arm, + =
+        // more bend: the sign and the unsigned magnitude of the wrist sensors' route (metric_extractor.cpp
+        // flexRad, acos of the upper-arm and forearm axes), so one corridor means one thing on both rungs.
+        // Mark, 13 Nov: chicken wing "should be easily visible from the face-on camera".
+        //
+        // GATED ON BOTH ARM SEGMENTS AND NOTHING ELSE. A segment pointing toward or away from the camera
+        // images short and HIDES the bend (a folded arm seen end-on reads straight), so the upper arm
+        // (shoulder → elbow) must image within [minUpperArmRatio, maxUpperArmRatio] of its address length
+        // — leadArmToTorso's band — and the forearm (elbow → wrist) within [minForearmRatio,
+        // maxForearmRatio] of its own. There is NO shoulder-line half: the reading never uses the shoulder
+        // midpoint, so a chest turned edge-on to the camera does not refuse it. A refused instant goes on
+        // gatedLeadElbow with both ratios, never a silent drop.
+        //
+        // σ: the three keypoints through the angle — elbowBendSigmaDeg above carries the derivation,
+        // including the elbow's shared term and the caveat on the fold at 0°.
+        if (g.leadArmValid && g.leadHandValid) {
+            res.leadElbowSeenUs.push_back(g.t_us);
+            // OCCLUSION FIRST (D5 round 3): a point that is not really seen places no bend, whatever its
+            // segment lengths say. The model's own detection of a hidden joint lands somewhere plausible
+            // — on Jess's chin when her head covers her lead shoulder after impact — so the detector's
+            // say-so is not enough: a point on the head, or one the model scored low on its RAW
+            // confidence, is unseen. See tuned::upperBody::kHeadRadiusRatio / kMinRawConf.
+            uint8_t why = 0;
+            if (g.headValid) {
+                const double r = cfg.headRadiusRatio * res.ref.shoulderSpanPx;
+                if (lengthOf(g.leadShoulder, g.head) < r) why |= hidden_why::kShoulderOnHead;
+                if (lengthOf(g.leadElbow, g.head) < r)    why |= hidden_why::kElbowOnHead;
+                if (lengthOf(g.leadHand, g.head) < r)     why |= hidden_why::kWristOnHead;
+            }
+            const float rawMin = float(cfg.minRawConf);
+            if (g.leadShoulderRaw < rawMin || g.leadElbowRaw < rawMin || g.leadWristRaw < rawMin)
+                why |= hidden_why::kLowConfidence;
+            if (why != 0) {
+                res.hiddenLeadElbow.push_back(g.t_us);
+                res.hiddenLeadElbowWhy.push_back(why);   // one list per instant
+            } else {
+            const double upper = lengthOf(g.leadShoulder, g.leadElbow);
+            const double fore  = lengthOf(g.leadElbow, g.leadHand);
+            const double uRatio = res.ref.leadUpperArmLenPx > kEps ? upper / res.ref.leadUpperArmLenPx : 0.0;
+            const double fRatio = res.ref.leadForearmLenPx > kEps ? fore / res.ref.leadForearmLenPx : 0.0;
+            const bool inView = uRatio >= cfg.minUpperArmRatio && uRatio <= cfg.maxUpperArmRatio
+                             && fRatio >= cfg.minForearmRatio && fRatio <= cfg.maxForearmRatio;
+            if (inView) {
+                const QPointF toShoulder(g.leadShoulder.x() - g.leadElbow.x(), g.leadShoulder.y() - g.leadElbow.y());
+                const QPointF toWrist(g.leadHand.x() - g.leadElbow.x(), g.leadHand.y() - g.leadElbow.y());
+                pushS(res.leadElbowFlex, res.sigma.leadElbowFlex, g.t_us,
+                      180.0 - angleBetweenDeg(toShoulder, toWrist),
+                      elbowBendSigmaDeg(g.leadShoulder, g.leadElbow, g.leadHand,
+                                        g.leadShoulderSig, g.leadElbowSig, g.leadWristSig));
+            } else {
+                res.gatedLeadElbow.push_back(g.t_us);
+                res.gatedLeadElbowArmRatio.push_back(uRatio);
+                res.gatedLeadElbowForearmRatio.push_back(fRatio);
+            }
+            }
+        }
+
+        if (g.leadArmValid && g.spineValid) res.armTorsoSeenUs.push_back(g.t_us);
         if (g.shoulderLineValid && g.spineValid && toPctTrunk > 0.0) {
             pushS(res.trunkRise, res.sigma.trunkRise, g.t_us,
                   (lengthOf(g.neck, g.pelvis) * toPctTrunk) - 100.0,
@@ -882,7 +1056,7 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
                           const QString &unit,
                           const std::vector<int64_t> &gated = kNoneGated,
                           const std::vector<Phase> &sampleAt = defaultPhaseSamples(),
-                          bool p1toP7Domain = false) {
+                          bool p1toP7Domain = false, const char *routeId = nullptr) {
         MetricSeries m = buildChannelSeries(res.grid, ch, QString::fromLatin1(key),
                                             QString::fromUtf8(label), unit, phases,
                                             sampleAt, res.maxBridgeUs,
@@ -914,6 +1088,10 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
             if (const std::optional<double> sg = medianSigmaOverValid(m, ch.t_us, chSigma))
                 m.sigma = *sg;
         }
+        // The producer route, stated only on a key another producer also writes (leadArmFlexion: the
+        // wrist sensors' elbow beside this face-on one), so applyLeadElbowSensorPrecedence and the
+        // wrist assessment can tell the two apart. Every other channel keeps its bytes.
+        if (routeId && !m.key.isEmpty()) m.routeId = QString::fromLatin1(routeId);
         appendIfProduced(out, std::move(m));
     };
 
@@ -943,14 +1121,26 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
          "leadUpperArmToChest", "Lead arm connection",     pctSh);
     // NO σ TRACK: leadArmToTorso propagates none on purpose — see the block above its push in
     // trackUpperBody, and UpperBodySigma. An empty vector leaves the series' sigma unset.
+    // Refused where the shoulder line or the upper arm is out of view (body.armTorsoLines).
     push(res.leadArmToTorso,   nullptr,
-         "leadArmToTorso",      "Lead arm to torso angle", deg);
+         "leadArmToTorso",      "Lead arm to torso angle", deg,
+         res.gatedArmTorso);
     // trunkRise reads the shoulder MIDPOINT, which stops being one point when the shoulder line
     // collapses, so it is refused on the shoulder line's instants; and it is an ADDRESS->IMPACT
     // quantity (posture_metrics_design.md §3.2) — past impact the chord is turning out of the image.
     push(res.trunkRise,        &res.sigma.trunkRise,
          "trunkRise",           "Trunk rise",              QStringLiteral("%"),
          res.gatedShoulderLine, kP1toP7Samples, /*p1toP7Domain=*/true);
+    // leadArmFlexion's faceOn rung: refused where either arm segment is foreshortened
+    // (body.leadElbowLines). The WHOLE SWING, not domain-masked — the fold after impact is its reading.
+    // Estimated, not Direct (routeDirect stays false): a projection of a 3-D angle.
+    // Both of its gates' instants: a foreshortened segment and a point not seen (D5 round 3).
+    std::vector<int64_t> elbowRefused = res.gatedLeadElbow;
+    elbowRefused.insert(elbowRefused.end(), res.hiddenLeadElbow.begin(), res.hiddenLeadElbow.end());
+    std::sort(elbowRefused.begin(), elbowRefused.end());
+    push(res.leadElbowFlex,    &res.sigma.leadElbowFlex,
+         "leadArmFlexion",      "Lead arm (elbow), face-on", deg,
+         elbowRefused, defaultPhaseSamples(), /*p1toP7Domain=*/false, "faceOn");
     return out;
 }
 
@@ -983,6 +1173,177 @@ std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::ve
             fromUs, toUs, "minRatio", res.minShoulderSpanRatio);
     summary(PP_GATE("body.elbowLine"), "elbowAlignment", res.gatedElbowLine, res.elbowsSeenUs,
             fromUs, toUs, "minPx", res.minElbowSpanPx);
+    // leadArmToTorso (body.armTorsoLines): the Masked summary over the whole swing — the channel is
+    // not domain-masked, like trailElbowHeight — then a REFUSED record at each instant its grade
+    // reads where the gate leaves the grader nothing. A Masked record names no reason for a missing
+    // grade (gate_catalogue.h primaryRecord: "a masked band refuses nothing"); this one does.
+    // The instants are the catalogue's (metric_catalogue_manifest.cpp `.phases`: Impact and P8 —
+    // m_leadArmToTorso is the change P7 → P8), and "nothing" is the grader's own rule: fewer than
+    // sampler::kMinValidSamples ungated frames within ±sampler::kWindowHalfUs (measure_sample.cpp).
+    {
+        const auto withThresholds = [&](QVariantMap ev) {
+            ev.insert(QStringLiteral("minRatio"), res.minShoulderSpanRatio);
+            ev.insert(QStringLiteral("minArmRatio"), res.minUpperArmRatio);
+            ev.insert(QStringLiteral("maxArmRatio"), res.maxUpperArmRatio);
+            return ev;
+        };
+        const QVariantMap ev = maskEvidence(res.gatedArmTorso, countWithin(res.armTorsoSeenUs, INT64_MIN, INT64_MAX),
+                                            impactUs);
+        if (!ev.isEmpty())
+            gates.fire(PP_GATE("body.armTorsoLines"), QStringLiteral("leadArmToTorso"), GateEffect::Masked,
+                       withThresholds(ev));
+        const int64_t h = tuned::sampler::kWindowHalfUs;
+        for (const auto &[phase, code] : { std::pair{ Phase::Impact, "P7" },
+                                           std::pair{ Phase::ShaftParallelThrough, "P8" } }) {
+            const std::optional<int64_t> t = phaseTimeOpt(phases, phase);
+            if (!t) continue;
+            const int nGated = countWithin(res.gatedArmTorso, *t - h, *t + h);
+            if (nGated == 0) continue;
+            // The frames that COULD have read (lead arm and spine confident), as the Masked summary
+            // counts them — not every grid frame: an unreadable frame pushes no value and is not
+            // gated, so the grader has nothing there either.
+            const int nFrames = countWithin(res.armTorsoSeenUs, *t - h, *t + h);
+            if (nFrames - nGated >= tuned::sampler::kMinValidSamples) continue;
+            QVariantMap at = maskEvidence(res.gatedArmTorso, nFrames, impactUs, *t - h, *t + h);
+            if (at.isEmpty()) continue;
+            // The two ratios at the refused frame nearest the instant: which half refused it.
+            size_t best = 0;
+            for (size_t i = 1; i < res.gatedArmTorso.size(); ++i)
+                if (std::llabs(res.gatedArmTorso[i] - *t) < std::llabs(res.gatedArmTorso[best] - *t)) best = i;
+            at.insert(QStringLiteral("phase"), QString::fromLatin1(code));
+            at.insert(QStringLiteral("shoulderRatio"), res.gatedArmTorsoShoulderRatio[best]);
+            at.insert(QStringLiteral("armRatio"), res.gatedArmTorsoArmRatio[best]);
+            gates.fire(PP_GATE("body.armTorsoLines"), QStringLiteral("leadArmToTorso"), GateEffect::Refused,
+                       withThresholds(at));
+        }
+    }
+    // leadArmFlexion's faceOn rung has TWO gates: body.leadElbowLines (a segment foreshortened) and, since
+    // D5 round 3, body.leadArmHidden (a point on the head, or scored low by the pose model). Each leaves:
+    //   * a Masked summary over the whole swing;
+    //   * a REFUSED record at Impact (phase P7) — the instant m_leadElbowFoldAfterImpact is measured from —
+    //     when the two gates together leave fewer than sampler::kMinValidSamples readable frames within
+    //     ±sampler::kWindowHalfUs (FA's rule), from the gate that refused the most frames there;
+    //   * a REFUSED record for the span after impact (phase afterImpact, tuned::upperBody::kElbowFoldSpanUs)
+    //     when the frames the gates left there leave a stretch longer than tuned::reduce::kMsSpanMaxGapUs
+    //     unread, ends included — the grader's own coverage rule (measure_sample.cpp), so the record names
+    //     the reason the fold is not assessable — from the gate that refused the most frames in the span.
+    // "Left" means every grid frame neither gate refused: a frame the detector lost is bridged by the
+    // series, as the grader sees it.
+    {
+        std::vector<int64_t> refusedAll = res.gatedLeadElbow;
+        refusedAll.insert(refusedAll.end(), res.hiddenLeadElbow.begin(), res.hiddenLeadElbow.end());
+        std::sort(refusedAll.begin(), refusedAll.end());
+        const auto refusedAt = [&](int64_t t) { return std::binary_search(refusedAll.begin(), refusedAll.end(), t); };
+        const int64_t h = tuned::sampler::kWindowHalfUs;
+        // Impact: does the grader have a reading there?
+        bool impactEmpty = false;
+        if (impT) {
+            const int nFrames = countWithin(res.leadElbowSeenUs, *impT - h, *impT + h);
+            const int nRefused = countWithin(refusedAll, *impT - h, *impT + h);
+            impactEmpty = nRefused > 0 && nFrames - nRefused < tuned::sampler::kMinValidSamples;
+        }
+        // The span after impact: the longest stretch with no frame the gates left.
+        double gapMs = 0.0;
+        if (impT) {
+            const int64_t lo = *impT, hi = *impT + tuned::upperBody::kElbowFoldSpanUs;
+            int64_t prev = lo, worst = 0;
+            for (int64_t t : res.grid) {
+                if (t < lo || t > hi || refusedAt(t)) continue;
+                worst = std::max(worst, t - prev);
+                prev = t;
+            }
+            worst = std::max(worst, hi - prev);
+            gapMs = double(worst) / 1000.0;
+        }
+        const bool spanUncovered = impT && gapMs * 1000.0 > double(tuned::reduce::kMsSpanMaxGapUs);
+        // ONE GATE NAMES EACH REFUSAL: the one that refused the most frames in that stretch, ties to
+        // body.leadArmHidden (it is checked first per frame, and an unseen arm is the likelier cause).
+        // primaryRecord keeps the first of equal rank, so firing both would let the order of these calls,
+        // not the frames, decide which reason a golfer reads (review, D5 round 3).
+        const auto ownerOf = [&](int64_t lo, int64_t hi) {
+            return countWithin(res.hiddenLeadElbow, lo, hi) >= countWithin(res.gatedLeadElbow, lo, hi)
+                       ? QStringLiteral("body.leadArmHidden") : QStringLiteral("body.leadElbowLines");
+        };
+        const QString impactOwner = impT ? ownerOf(*impT - h, *impT + h) : QString();
+        const QString spanOwner   = impT ? ownerOf(*impT, *impT + tuned::upperBody::kElbowFoldSpanUs) : QString();
+
+        const auto fireGate = [&](const QString &gate, const std::vector<int64_t> &mine,
+                                  const std::function<void(QVariantMap &, size_t)> &atNearest,
+                                  const std::function<void(QVariantMap &)> &thresholds) {
+            QVariantMap ev = maskEvidence(mine, countWithin(res.leadElbowSeenUs, INT64_MIN, INT64_MAX), impactUs);
+            if (ev.isEmpty()) return;
+            thresholds(ev);
+            gates.fire(gate, QStringLiteral("leadArmFlexion"), GateEffect::Masked, ev);
+            if (!impT) return;
+            const auto nearest = [&](int64_t t) {
+                size_t best = 0;
+                for (size_t i = 1; i < mine.size(); ++i)
+                    if (std::llabs(mine[i] - t) < std::llabs(mine[best] - t)) best = i;
+                return best;
+            };
+            if (impactEmpty && gate == impactOwner && countWithin(mine, *impT - h, *impT + h) > 0) {
+                QVariantMap at = maskEvidence(mine, countWithin(res.leadElbowSeenUs, *impT - h, *impT + h), impactUs,
+                                              *impT - h, *impT + h);
+                at.insert(QStringLiteral("phase"), QStringLiteral("P7"));
+                atNearest(at, nearest(*impT));
+                thresholds(at);
+                gates.fire(gate, QStringLiteral("leadArmFlexion"), GateEffect::Refused, at);
+            }
+            const int64_t hi = *impT + tuned::upperBody::kElbowFoldSpanUs;
+            if (spanUncovered && gate == spanOwner && countWithin(mine, *impT, hi) > 0) {
+                QVariantMap sp = maskEvidence(mine, countWithin(res.leadElbowSeenUs, *impT, hi), impactUs, *impT, hi);
+                sp.insert(QStringLiteral("phase"), QStringLiteral("afterImpact"));
+                sp.insert(QStringLiteral("gapMs"), gapMs);
+                sp.insert(QStringLiteral("maxGapMs"), double(tuned::reduce::kMsSpanMaxGapUs) / 1000.0);
+                // the refused frame nearest the middle of the span: the stretch the fold is read in
+                atNearest(sp, nearest(*impT + tuned::upperBody::kElbowFoldSpanUs / 2));
+                thresholds(sp);
+                gates.fire(gate, QStringLiteral("leadArmFlexion"), GateEffect::Refused, sp);
+            }
+        };
+        fireGate(PP_GATE("body.leadElbowLines"), res.gatedLeadElbow,
+                 [&](QVariantMap &ev, size_t i) {
+                     ev.insert(QStringLiteral("armRatio"), res.gatedLeadElbowArmRatio[i]);
+                     ev.insert(QStringLiteral("forearmRatio"), res.gatedLeadElbowForearmRatio[i]);
+                 },
+                 [&](QVariantMap &ev) {
+                     ev.insert(QStringLiteral("minArmRatio"), res.minUpperArmRatio);
+                     ev.insert(QStringLiteral("maxArmRatio"), res.maxUpperArmRatio);
+                     ev.insert(QStringLiteral("minForearmRatio"), res.minForearmRatio);
+                     ev.insert(QStringLiteral("maxForearmRatio"), res.maxForearmRatio);
+                 });
+        // body.leadArmHidden's evidence: how many of its frames each reason refused (a frame may have
+        // several), and at the record's frame, the code of the first reason (shoulder on the head first:
+        // it is the case the gate exists for).
+        const auto countWhy = [&](uint8_t bit, int64_t lo, int64_t hi) {
+            int n = 0;
+            for (size_t i = 0; i < res.hiddenLeadElbow.size(); ++i)
+                if (res.hiddenLeadElbow[i] >= lo && res.hiddenLeadElbow[i] <= hi && (res.hiddenLeadElbowWhy[i] & bit)) ++n;
+            return n;
+        };
+        fireGate(PP_GATE("body.leadArmHidden"), res.hiddenLeadElbow,
+                 [&](QVariantMap &ev, size_t i) {
+                     const uint8_t w = res.hiddenLeadElbowWhy[i];
+                     ev.insert(QStringLiteral("code"),
+                               (w & hidden_why::kShoulderOnHead) ? QStringLiteral("shoulderOnHead")
+                               : (w & (hidden_why::kElbowOnHead | hidden_why::kWristOnHead)) ? QStringLiteral("armOnHead")
+                                                                                             : QStringLiteral("lowConfidence"));
+                 },
+                 [&](QVariantMap &ev) {
+                     // the reasons' counts over the record's own stretch (the whole swing for the summary)
+                     const QString ph = ev.value(QStringLiteral("phase")).toString();
+                     int64_t lo = INT64_MIN, hi = INT64_MAX;
+                     if (impT && ph == QLatin1String("P7"))          { lo = *impT - h; hi = *impT + h; }
+                     if (impT && ph == QLatin1String("afterImpact")) { lo = *impT; hi = *impT + tuned::upperBody::kElbowFoldSpanUs; }
+                     const auto put = [&](const char *key, int n) { if (n > 0) ev.insert(QString::fromLatin1(key), n); };
+                     put("shoulderOnHead", countWhy(hidden_why::kShoulderOnHead, lo, hi));
+                     put("elbowOnHead",    countWhy(hidden_why::kElbowOnHead, lo, hi));
+                     put("wristOnHead",    countWhy(hidden_why::kWristOnHead, lo, hi));
+                     put("lowConfidence",  countWhy(hidden_why::kLowConfidence, lo, hi));
+                     ev.insert(QStringLiteral("headRadius"), res.headRadiusRatio);
+                     ev.insert(QStringLiteral("minRawConf"), res.minRawConf);
+                 });
+    }
     {
         // Either line may refuse spineSideBend; the evidence carries both thresholds.
         QVariantMap ev = maskEvidence(res.gatedSideBend, countWithin(res.trunkSeenUs, fromUs, toUs), impactUs,
@@ -994,6 +1355,42 @@ std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::ve
         }
     }
     return gates.take();
+}
+
+int applyLeadElbowSensorPrecedence(std::vector<MetricSeries> &series, std::vector<GateRecord> &gates)
+{
+    const auto isCamera = [](const MetricSeries &m) {
+        return m.key == QLatin1String("leadArmFlexion") && m.routeId == QLatin1String("faceOn");
+    };
+    const bool sensor = std::any_of(series.begin(), series.end(), [&](const MetricSeries &m) {
+        return m.key == QLatin1String("leadArmFlexion") && !isCamera(m);
+    });
+    if (!sensor) return 0;
+    const auto before = series.size();
+    series.erase(std::remove_if(series.begin(), series.end(), isCamera), series.end());
+    // The 3-D fit's measured lead elbow (leadArmFlexion3d, Skeleton3dBodyStage; plane stack D2) is the rung
+    // between the two: wristImus > 3-D > face-on. It writes no records of its own.
+    // bent_lead_arm's change from the address hold (leadElbowBendChange3d, D6) is built from it and goes with it.
+    series.erase(std::remove_if(series.begin(), series.end(),
+                                [](const MetricSeries &m) {
+                                    return m.key == QLatin1String("leadArmFlexion3d")
+                                        || m.key == QLatin1String("leadElbowBendChange3d");
+                                }),
+                 series.end());
+    const int dropped = int(before - series.size());
+    // The camera's records stop speaking for the key the sensor now answers — WHETHER OR NOT a face-on
+    // series was written: a face-on address refusal (body.upperAddress / body.shoulderSpan) writes no
+    // series and still covers leadArmFlexion, and must not stand beside the sensors' graded value (the
+    // shape W4 fixed for the trunk sensors).
+    gates.erase(std::remove_if(gates.begin(), gates.end(), [](const GateRecord &g) {
+                    return g.gate == QLatin1String("body.leadElbowLines")
+                        || g.gate == QLatin1String("body3d.leadElbowUnmeasured");   // D6: the 3-D change's refusal
+                }),
+                gates.end());
+    for (GateRecord &g : gates)
+        if (g.gate == QLatin1String("body.upperAddress") || g.gate == QLatin1String("body.shoulderSpan"))
+            g.covers.removeAll(QStringLiteral("leadArmFlexion"));
+    return dropped;
 }
 
 } // namespace pinpoint::analysis

@@ -260,6 +260,7 @@ History:
 | `lenSchedule` | 138 | LIVE | Rule 5: one drawn length, ρ̂_D·L̂_D. |
 | `refuseLateEscape` | 142 | LIVE | Rule 6: a post-P8 corridor escape is not published. |
 | `corridor.enabled` | 146 | LIVE | D5 face-on corridor cost. |
+| `ball.shadowAreaByRadius` | 338 | LIVE | The ball's shadow crescent is gated at `ball.shadowAreaMinFrac`–`MaxFrac` (0.08–4) × the ball's imaged disc π·r², not 12–400 px × (frame width / 512)². Off restores the frame rule (ablation); with no scene scale the frame rule applies anyway. Plane stack FC, 13 Nov 2026, `kDtlShaftStageVersion` 7. |
 | `synth3d.enabled` / `useEta` | `dtl_shaft_synth3d.h:73–74` | LIVE (preview) | 3-D synth shaft projected into the DTL tile, rotated by η(t). |
 | `dtlPosture.enabled` | `dtl_posture.h:92` | LIVE | DTL posture metrics (379bbfbe, 09-21). |
 

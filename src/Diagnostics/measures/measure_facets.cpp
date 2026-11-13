@@ -274,6 +274,36 @@ static ReducerCheck checkReducerShape(const Reducer &r)
 {
     ReducerCheck c;
 
+    // A WINDOW IN MILLISECONDS AFTER THE ANCHOR (metric_reducer.h `windowMs`). Checked first, because
+    // with it the phase window is unused and the phase rules below would judge a field nobody read.
+    // Only a peak or a change can read a span; it needs the anchor it is timed from; and the span
+    // runs FORWARD from it — a negative start would reach before the anchor, which is a phase window's
+    // job, and a reversed or empty span searches nothing.
+    if (r.windowMs.has_value()) {
+        const auto [startMs, endMs] = *r.windowMs;
+        if (r.kind != ReducerKind::Extremum && r.kind != ReducerKind::Delta) {
+            c.reason = QStringLiteral("A window in milliseconds is read by a peak or a change, not by a "
+                                      "%1.").arg(reducerKindName(r.kind));
+            return c;
+        }
+        if (!r.anchor.has_value()) {
+            c.reason = QStringLiteral("A window in milliseconds needs the phase it is timed from.");
+            return c;
+        }
+        if (startMs < 0 || endMs < 0) {
+            c.reason = QStringLiteral("A window in milliseconds runs forward from its phase, so neither "
+                                      "end can be negative (%1 to %2 ms).").arg(startMs).arg(endMs);
+            return c;
+        }
+        if (endMs <= startMs) {
+            c.reason = QStringLiteral("A window in milliseconds must end after it starts (%1 to %2 ms).")
+                           .arg(startMs).arg(endMs);
+            return c;
+        }
+        c.valid = true;
+        return c;
+    }
+
     if (r.kind == ReducerKind::At) {
         if (!r.anchor.has_value()) {
             c.reason = QStringLiteral("Reading a value needs a phase to read it at.");
@@ -342,6 +372,12 @@ ReducerCheck validateReducer(const Reducer &r, const PhaseDomain &domain)
     if (r.kind == ReducerKind::At)
         return phaseInDomain(domain, *r.anchor) ? c : refuse(*r.anchor, "phase it reads at");
 
+    // A millisecond window touches one phase, its anchor; the span after it is not a phase. A metric
+    // masked past the end of its domain (applyPhaseDomainMask) has no valid sample there, so a span
+    // that runs past the domain reads nothing rather than reading outside it.
+    if (r.windowMs.has_value())
+        return phaseInDomain(domain, *r.anchor) ? c : refuse(*r.anchor, "phase its window is timed from");
+
     if (r.kind == ReducerKind::Delta || r.kind == ReducerKind::Rate) {
         if (!phaseInDomain(domain, *r.anchor))
             return refuse(*r.anchor, "phase it starts from");
@@ -370,9 +406,27 @@ QString canonicalSeriesLabel(const Series &s)
         .arg(roleLabel(s.what), quantityLabel(s.quantity), roleLabel(s.reference));
 }
 
+QString reducerMsWindowLabel(const Reducer &r)
+{
+    if (!r.windowMs.has_value()) return QString();
+    return QStringLiteral("%1 +%2 to %3 ms").arg(phaseLabel(r.anchor.value_or(Phase::Address)))
+        .arg(r.windowMs->first).arg(r.windowMs->second);
+}
+
 QString canonicalMeasureLabel(const Series &s, const Reducer &r)
 {
     const QString base = canonicalSeriesLabel(s);
+
+    // "peak P7 +0 to 100 ms from P7": the span, then the value it is measured from, as a phase window
+    // reads "peak P5 to P6 from P1".
+    if (r.windowMs.has_value()) {
+        const QString a = phaseLabel(r.anchor.value_or(Phase::Address));
+        if (r.kind == ReducerKind::Delta)
+            return QStringLiteral("%1, change %2 +%3 ms to +%4 ms").arg(base, a)
+                .arg(r.windowMs->first).arg(r.windowMs->second);
+        const QString word = (r.sense == ExtremumSense::Min) ? QStringLiteral("lowest") : QStringLiteral("peak");
+        return QStringLiteral("%1, %2 %3 from %4").arg(base, word, reducerMsWindowLabel(r), a);
+    }
 
     switch (r.kind) {
     case ReducerKind::At:
@@ -405,6 +459,13 @@ QString canonicalSeriesId(const Series &s)
 QString canonicalMeasureId(const Series &s, const Reducer &r)
 {
     const QString base = canonicalSeriesId(s);
+
+    // A millisecond window names its anchor and both bounds, so two spans after one phase never collide.
+    if (r.windowMs.has_value()) {
+        const QString kind = r.kind == ReducerKind::Delta ? QStringLiteral("delta") : extremumSenseName(r.sense);
+        return QStringLiteral("%1_%2_%3_%4ms_%5ms").arg(base, kind, phaseToken(r.anchor.value_or(Phase::Address)))
+            .arg(r.windowMs->first).arg(r.windowMs->second);
+    }
 
     switch (r.kind) {
     case ReducerKind::At:

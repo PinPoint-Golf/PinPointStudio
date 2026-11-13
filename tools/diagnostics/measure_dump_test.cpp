@@ -25,9 +25,13 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMap>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -205,6 +209,48 @@ int main(int argc, char **argv)
         check(missing > 0, "sparse_noclub has measures that do not read");
         check(badCells == 0, "every unread row has empty value and z cells and names its refusal");
         check(nanText == 0, "no cell reads nan or inf");
+    }
+
+    // 6. A `windowMs` measure reads (plane stack D5): the dump builds the pack's millisecond spans, as
+    //    LiveMeasureSource(dir, pack) does. A face-on lead elbow at 15° to impact (500 ms), then rising
+    //    14° over 60 ms and held, so m_leadElbowFoldAfterImpact (P7 + 0…100 ms, from P7) is exactly 14.
+    std::printf("\n6. a millisecond-window measure reads\n");
+    {
+        const QString sessC = tmp.filePath(QStringLiteral("athlete/sessC"));
+        const QString swingC = sessC + QStringLiteral("/swing_0001");
+        QJsonArray t, v;
+        for (int ms = 0; ms <= 1000; ++ms) {
+            t.append(qint64(ms) * 1000);
+            v.append(ms <= 500 ? 15.0 : 15.0 + 14.0 * std::min(1.0, (ms - 500) / 60.0));
+        }
+        const auto ph = [](Phase p, qint64 us) {
+            return QJsonObject{ { QStringLiteral("phase"), int(p) }, { QStringLiteral("t_us"), us }, { QStringLiteral("conf"), 0.9 } };
+        };
+        const QJsonObject an{
+            { QStringLiteral("phases"), QJsonArray{ ph(Phase::Address, 100'000), ph(Phase::Top, 300'000),
+                                                    ph(Phase::Impact, 500'000), ph(Phase::Finish, 900'000) } },
+            { QStringLiteral("metrics"), QJsonArray{ QJsonObject{
+                  { QStringLiteral("key"), QStringLiteral("leadArmFlexion") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                  { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v }, { QStringLiteral("routeId"), QStringLiteral("faceOn") } } } } };
+        bool wrote = QDir().mkpath(swingC);
+        {
+            QFile o(swingC + QStringLiteral("/swing.json"));
+            const QByteArray bytes = QJsonDocument(QJsonObject{ { QStringLiteral("analysis"), an } }).toJson(QJsonDocument::Compact);
+            wrote = wrote && o.open(QIODevice::WriteOnly | QIODevice::Truncate) && o.write(bytes) == bytes.size();
+        }
+        check(wrote, "a swing with a face-on lead elbow staged");
+        const QString id = QStringLiteral("m_leadElbowFoldAfterImpact");
+        const QMap<QString, QByteArray> beforeC = snapshot(sessC);
+        const std::vector<measure_dump::Row> rows = measure_dump::readSwing(sessC, swingC, pack, norms, { id }, policy);
+        const measure_dump::Row *row = nullptr;
+        for (const measure_dump::Row &r : rows)
+            if (r.measure == id) row = &r;
+        std::printf("  dump: %s\n", row ? qPrintable(measure_dump::csvNumber(row->value)) : "(no row)");
+        check(row && std::fabs(row->value - 14.0) < 1e-9, "the dump reads the fold after impact (14°)");
+        check(snapshot(sessC) == beforeC, "…without writing a sidecar");
+        const LiveMeasureSource values(swingC, pack);
+        const std::optional<IMeasureValueSource::Value> app = values.value(id);
+        check(app && row && sameNumber(row->value, app->value), "…and agrees with the app's reader");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");

@@ -456,7 +456,7 @@ static void reportContentEditing(ModelBrowser &m)
                 || r.value(QStringLiteral("type")).toString() != gates)
                 missing << w.id;
         }
-        check(coreGateWordSet().subjects.size() == 10, "ten readings ship");
+        check(coreGateWordSet().subjects.size() == 11, "eleven readings ship");   // +position.p8 (2026-11-13, plane stack D6: the phase positions.p8Refused refuses)
         for (const QString &id : missing) std::printf("      no reading row: %s\n", qPrintable(id));
         check(missing.isEmpty(), "…and each is a row of kind Reading on the Gates page");
         check(!pinpoint::gates::gateEntry(QStringLiteral("ks.pelvis")),

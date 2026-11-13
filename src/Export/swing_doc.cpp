@@ -342,6 +342,8 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             v.insert(QStringLiteral("hipInternalRotation"), QJsonObject{ { QStringLiteral("code"), a.versions.hipInternalRotation } });
         if (a.versions.shoulderTiltVsBend > 0)
             v.insert(QStringLiteral("shoulderTiltVsBend"), QJsonObject{ { QStringLiteral("code"), a.versions.shoulderTiltVsBend } });
+        if (a.versions.clubSlotTop > 0)
+            v.insert(QStringLiteral("clubSlotTop"), QJsonObject{ { QStringLiteral("code"), a.versions.clubSlotTop } });
         o[QStringLiteral("versions")] = v;
     }
     o[QStringLiteral("tier")]   = a.tier;
@@ -796,6 +798,12 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
             { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
             { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
             { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
+        // Why the tracker found no P8 (plane stack D6), only when it found none: a reused track keeps it.
+        if (a.shaft.p8Refusal) {
+            QJsonObject dg = clubObj.value(QStringLiteral("diag")).toObject();
+            dg.insert(QStringLiteral("p8Refusal"), QString::fromLatin1(analysis::shaftP8RefusalName(a.shaft.p8Refusal)));
+            clubObj.insert(QStringLiteral("diag"), dg);
+        }
         if (a.shaft.refusedReason)
             clubObj.insert(QStringLiteral("refused"),
                            QString::fromLatin1(analysis::shaftRefusedReasonName(a.shaft.refusedReason)));

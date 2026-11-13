@@ -130,7 +130,7 @@ PpChSection {
                 visible: !ds.replay && ds.slot.available === true
                 width: parent.width
                 spacing: ds.has ? ds.ty.g(10) : 0
-                Text { text: "Slot"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
+                Text { text: "On-plane window"; font: ds.has ? ds.ty.fKicker : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { text: "address"; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }
                 Text { text: ds.slot.addressText || "-"; font: ds.has ? ds.ty.fFigS : Qt.application.font; color: ds.has ? ds.ty.ink : "black" }
                 Text { text: "shoulders"; font: ds.has ? ds.ty.fSmall : Qt.application.font; color: ds.has ? ds.ty.ink3 : "grey" }

@@ -584,6 +584,83 @@ int main()
         check(hasError(validatePack(p), "badReducer"), "a malformed reducer is rejected");
     }
 
+    // ── A window in milliseconds after the anchor (windowMs, plane stack D5) ───────────────────
+    {
+        const auto withReducer = [](const Reducer &r) {
+            CharacteristicPack p = goodPack();
+            p.measures.front().reducer = r;
+            return validatePack(p);
+        };
+        Reducer ok;
+        ok.kind = ReducerKind::Extremum;  ok.anchor = Phase::Impact;  ok.sense = ExtremumSense::Max;
+        ok.window = { Phase::Impact, Phase::Impact };  ok.windowMs = std::pair<int, int>{ 0, 100 };
+        check(!hasError(withReducer(ok), "badReducer"), "windowMs: [0, 100] after P7 on a peak is valid");
+        Reducer delta = ok;  delta.kind = ReducerKind::Delta;
+        check(!hasError(withReducer(delta), "badReducer"), "windowMs: …and on a change");
+        Reducer neg = ok;  neg.windowMs = std::pair<int, int>{ -20, 100 };
+        check(hasError(withReducer(neg), "badReducer"), "windowMs: a negative start is refused");
+        Reducer rev = ok;  rev.windowMs = std::pair<int, int>{ 100, 50 };
+        check(hasError(withReducer(rev), "badReducer"), "windowMs: a reversed window is refused");
+        Reducer empty = ok;  empty.windowMs = std::pair<int, int>{ 50, 50 };
+        check(hasError(withReducer(empty), "badReducer"), "windowMs: an empty window is refused");
+        Reducer noAnchor = ok;  noAnchor.anchor.reset();
+        check(hasError(withReducer(noAnchor), "badReducer"), "windowMs: a window with no anchor is refused");
+        for (const ReducerKind k : { ReducerKind::At, ReducerKind::Rate }) {
+            Reducer r = ok;  r.kind = k;
+            check(hasError(withReducer(r), "badReducer"), k == ReducerKind::At ? "windowMs: refused on `at`"
+                                                                               : "windowMs: refused on `rate`");
+        }
+
+        // The JSON: round-trips, and is refused beside a phase `window` (the struct cannot hold both,
+        // so the loader is the one place that sees it).
+        const auto measureJson = [](const QJsonObject &red) {
+            QJsonObject root  = savePack(goodPack());
+            QJsonArray  ms    = root.value(QStringLiteral("measures")).toArray();
+            QJsonObject first = ms.at(0).toObject();
+            first.insert(QStringLiteral("reducer"), red);
+            ms.replace(0, first);
+            root.insert(QStringLiteral("measures"), ms);
+            return root;
+        };
+        QJsonObject red{ { QStringLiteral("kind"), QStringLiteral("extremum") }, { QStringLiteral("anchor"), QStringLiteral("p7") },
+                         { QStringLiteral("windowMs"), QJsonArray{ 0, 100 } }, { QStringLiteral("sense"), QStringLiteral("max") } };
+        const PackLoadResult res = loadPack(measureJson(red), QStringLiteral("windowMs"));
+        const Reducer &got = res.pack.measures.front().reducer;
+        check(res.loaded && got.windowMs && got.windowMs->first == 0 && got.windowMs->second == 100
+                  && got.anchor == Phase::Impact && !hasError(res.report, "badReducer"),
+              "windowMs: read from JSON");
+        const QJsonObject written = savePack(res.pack).value(QStringLiteral("measures")).toArray().at(0).toObject()
+                                        .value(QStringLiteral("reducer")).toObject();
+        check(written.value(QStringLiteral("windowMs")).toArray() == QJsonArray{ 0, 100 }
+                  && !written.contains(QStringLiteral("window")),
+              "windowMs: written back, with no phase window beside it");
+        const PackLoadResult back = loadPack(savePack(res.pack), QStringLiteral("windowMs2"));
+        check(back.pack.measures.front().reducer.windowMs == got.windowMs, "windowMs: …and round-trips");
+        QJsonObject both = red;  both.insert(QStringLiteral("window"), QJsonArray{ QStringLiteral("p7"), QStringLiteral("p8") });
+        check(hasError(loadPack(measureJson(both), QStringLiteral("both")).report, "badReducer"),
+              "windowMs: a phase window beside it is refused");
+        QJsonObject frac = red;  frac.insert(QStringLiteral("windowMs"), QJsonArray{ 0, 99.5 });
+        check(hasError(loadPack(measureJson(frac), QStringLiteral("frac")).report, "badReducer"),
+              "windowMs: a fraction of a millisecond is refused");
+        QJsonObject negJ = red;  negJ.insert(QStringLiteral("windowMs"), QJsonArray{ -10, 100 });
+        check(hasError(loadPack(measureJson(negJ), QStringLiteral("negJ")).report, "badReducer"),
+              "windowMs: a negative window in JSON is refused by the validator");
+        // A span after a phase is not a reading AT that phase (the chart's measure-at-phase join).
+        {
+            CharacteristicPack q = goodPack();
+            Measure fold = providedMeasure("m_fold", "leadArmFlexion", "°");
+            fold.reducer = ok;
+            Measure atImpact = providedMeasure("m_atImpact", "leadArmFlexion", "°");
+            q.measures.push_back(fold);
+            q.measures.push_back(atImpact);
+            const std::vector<const Measure *> at = measuresForMetricAtPhase(q, QStringLiteral("leadArmFlexion"), Phase::Impact);
+            check(at.size() == 1 && at.front()->id == QStringLiteral("m_atImpact"),
+                  "windowMs: not offered as a reading at its anchor (the `at` one is)");
+        }
+        check(canonicalMeasureLabel(res.pack.measures.front().series, got).contains(QStringLiteral("P7 +0 to 100 ms")),
+              "windowMs: the canonical label names the span");
+    }
+
     // ── Schema version ──────────────────────────────────────────────────────────
     {
         QJsonObject root = savePack(goodPack());

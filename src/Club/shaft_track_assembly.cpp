@@ -665,6 +665,10 @@ ShaftV3Config ShaftV3Config::fromOverrides(const QVariantMap& ov)
     apply(ov, "positions.p1StillWindow", c.positions.p1StillWindow);
     apply(ov, "positions.p1ClubQuietSigma", c.positions.p1ClubQuietSigma);   // W3 club-quiet gate
     apply(ov, "positions.p6LastCrossing", c.positions.p6LastCrossing);       // P6 = last transit pre-impact
+    apply(ov, "positions.p8MinAfterImpactUs", c.positions.p8MinAfterImpactUs); // P8 window (findP8Crossing)
+    apply(ov, "positions.p8MaxAfterImpactUs", c.positions.p8MaxAfterImpactUs);
+    apply(ov, "positions.p8StallBandDeg", c.positions.p8StallBandDeg);       // P8 vertical-stall refusal
+    apply(ov, "positions.p8StallMinUs", c.positions.p8StallMinUs);
     // Layer B milestone fit (B2): "positions.*" keys → PositionsConfig::fit.
     apply(ov, "positions.fitEnabled", c.positions.fit.fitEnabled);
     apply(ov, "positions.skipMeasuredConf", c.positions.fit.skipMeasuredConf);
@@ -4032,8 +4036,11 @@ ShaftTrack2D decideTrack(const FrameSource& frameAt, const std::vector<int64_t>&
         // positions keep the legacy bound; only the Impact EVENT is fixed
         // below).
         const int impLocate = impactRefFrame > pm.top ? impactRefFrame : pm.impact;
+        P8Refusal p8Why = P8Refusal::None;
         std::vector<PTime> pts =
-            locatePTimes(tUs, rec.thetaOut, phiS, p1Frame, pm.top, impLocate, pm.fin0, cfg.positions);
+            locatePTimes(tUs, rec.thetaOut, phiS, p1Frame, pm.top, impLocate, pm.fin0, cfg.positions, &p8Why);
+        // Why there is no P8, kept on the track (plane stack D6): the readings that need P8 name it.
+        out.p8Refusal = uint8_t(p8Why);
         // The geometry decided the P7 instant sub-frame (override: the frame-
         // quantized at-or-before time can sit a whole coverage gap early;
         // retime: the corroborated anchor's trigger bias). Keep locatePTimes'

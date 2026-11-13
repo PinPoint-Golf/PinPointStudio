@@ -1412,6 +1412,12 @@ As face-on, the ball at address and impact is the best witness. From behind it h
 **The shadow cue** (for a blown-white mat, 11 June). A white ball on a saturated white mat has no visible edge at all. What *is* visible is its contact **shadow**, a small dark crescent at its base.
 
 1. In a median image from a period when the club is up and away from the ball, look for small, compact dark patches on bright mat inside the ball region.
+   - **How small is sized by the ball** (13 Nov 2026, `kDtlShaftStageVersion` 7). A patch's area must be 0.08–4 × the ball's imaged disc π·r², with r the ball's radius from the scene scale (`shaft.dtl.ball.shadowAreaMinFrac` / `shadowAreaMaxFrac`, defaults in `tuned::dtlBall`). The crescent is a piece of the ball's own rim, so it grows with the ball, not with the frame.
+   - The old gate was 12–400 px × (frame width / 512)². On Chris Marriott's 24 Oct session (976 px wide, ball radius 8.9–9.9 px) that floor was 43.6 px. His crescents measure 27–46 px, so 6 of his 8 swings lost the ball.
+   - With no ball there is no witness for the still club at address, so the track is unseen from address to about 190 ms after it, and the takeaway reading is lost with it.
+   - Measured as a share of the disc: 0.34–0.53 on the 11 June swings the cue was built on, 0.17–0.30 on Jess's and 0.10–0.25 on Nick's 20 Oct sessions, and 0.11–0.18 on Chris's. The floor sits under the smallest.
+   - With no scene scale the radius is only a guess (0.012 × frame height), so the frame rule still applies there. `shaft.dtl.ball.shadowAreaByRadius` false restores the frame rule everywhere, for an ablation.
+   - The reason text names the gate it used, for example `area gate 20.4–1018 px by the ball (r=9.0)`.
 2. The discriminator: the same pixels must **brighten by at least 40 grey levels after the ball is struck**. A scuff or tee hole stays dark.
 3. If more than one patch passes, the clearest must beat the next by 1.5×, or the cue abstains.
 4. The ball's centre is placed one radius above the crescent.

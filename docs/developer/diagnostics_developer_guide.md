@@ -150,6 +150,16 @@ same goes for a test fixture built in code: its measures must say `Live`.
 Three fields carry more weight than their size suggests:
 
 - **`reducer` is where the phase lives.** There is no phase field. `At{p7}` is impact; `Delta{p1→p4}` is the change to the top; `Extremum{p5..p6, Min}` is a trough across a stretch. Two measures over one metric with different reducers are *related, not duplicates* — that is the whole point of the split, and `m_leadWristAtImpact` (absolute) versus `m_leadWristFlexExt_p7` (Δ from address) is the case that proves it.
+- **`windowMs` reads a span no phase bounds** (13 Nov 2026, plane stack D5). `"windowMs": [startMs, endMs]` is a span in whole milliseconds after the reducer's `anchor`: `[t(anchor) + startMs, t(anchor) + endMs]`, where `t(anchor)` is the instant of the metric's own value at that phase. It exists because some readings sit between phases that are unreliable: `m_leadElbowFoldAfterImpact` reads the 100 ms after impact because P8 is often mistimed.
+  - `extremum` with `windowMs`: the windowed-mean extreme over the span **less the value at the anchor**, the same signed deviation an anchored phase-window extremum reports (`m_spineBendDive`). So `{ "kind": "extremum", "anchor": "p7", "windowMs": [0, 100], "sense": "max" }` is "the most it reached in the 100 ms after impact, beyond its value at impact".
+  - `delta` with `windowMs`: `value(t(anchor) + endMs) − value(t(anchor) + startMs)`, each a ±15 ms median; at `startMs` 0 the start is the anchor's own value.
+  - The validator (`badReducer`) refuses a negative or reversed or empty span, a span on `at` or `rate`, a span with no `anchor`, and a fraction of a millisecond. The loader refuses `windowMs` written beside a phase `window` (the struct cannot hold both, so the loader is the one place that sees it). The domain check reads only the anchor: a metric masked past its domain has no valid sample there, so the span reads nothing rather than reading outside it.
+  - A missing anchor phase leaves the measure not assessable, as an unsegmented phase-window end does; a span with nothing valid in it likewise.
+  - **Coverage (D5 round 3).** A span reads only when its valid samples cover it: no stretch longer than `reduce.msSpanMaxGapUs` (30 ms) unread, its two ends included (`PhaseGridMsSpan::maxGapUs`, applied when read through `PhaseGridConfig::msSpanMaxGapUs`). Otherwise the measure is not assessable with `MissingKind::WindowNotCovered` ("too little of the moment it is read over could be seen"), never a value built from what is left. This is a gap rule, not a percentage, because a share of frames can be met by the frames before a hidden peak.
+  - σ: an extremum's is the span's σ (the larger of the series σ and the anchor value's) ⊕ the anchor's; a delta's is the start's (the anchor's at `startMs` 0, else the series σ) ⊕ the end's (the series σ). An instant between phases has no labelled σ of its own.
+  - **The phase grid has to be asked for the span.** A phase window is exact by aggregation over the cached adjacent-phase spans; a millisecond span is not, so `buildPhaseGrid` computes the spans named in `PhaseGridConfig::msWindows` and stores them per metric (`msSpans`, and `source.ms_windows` in the sidecar). `LiveMeasureSource(dir, pack)` and the model browser add the pack's spans themselves (`msWindowsOf`). The sidecar guard is a **subset** test: a reader naming no span accepts any grid, a reader naming a span the sidecar lacks rebuilds it with the **union**, so two packs' readers cannot keep overwriting each other; a reader that may not fat-parse (`writeSidecar` false) is served the held grid without that span, so only the span's measures go missing, never the swing. Every sidecar written before the field lacks the shipped span, so the first pack read of each swing re-parses it once (as a re-analysis does anyway). No schema bump: a sidecar from before the field holds no spans, which every reader that names none accepts. A grid built without the span answers nothing for it.
+  - A `windowMs` measure is placed at its anchor (`condition_reading.h`), is never matched as a reading AT a phase (below), and is named "peak P7 +0 to 100 ms from P7" (`canonicalMeasureLabel`) and "max P7 +0 to 100 ms" in the model browser's reducer column.
+- **A phase the swing does not have is explained by a record on the phase** (13 Nov 2026, plane stack D6). A measure whose reducer needs a phase (its `anchor`, or either end of its phase `window`) with no value there is not assessable with `MissingKind::PhaseNotSegmented`. Where the swing's records refuse that phase itself — today only `positions.p8Refused` on `position.p8`, fired when FA's bounded P8 was refused (`Club/p8_refusal_gate.h`) — `LiveMeasureSource::gateCause` names that record, before any record on the measure's keys, so the cell reads "P8 (the shaft level after impact) not timed" rather than "not segmented". The record covers no metric key on purpose: the keys a P8 measure reads also read at other positions. `gates::phaseSubject` maps a phase to its record subject.
 - **`highMeans` is a correctness mechanism, not decoration.** It is the sentence an author reads *instead of* picking "High" or "Low" when attaching a signal. Three signals shipped inverted because someone picked a direction against a sign convention that was unstated or the opposite of what they assumed — and an inverted signal fires happily, on the wrong swings, with correct-sounding consequence text attached. The measure picker refuses to mint a measure without one.
 
 ### Signal — the rule that watches
@@ -365,6 +375,7 @@ A measure matches a phase **through its reducer**, because that is where the pha
 | `At` | its anchor phase |
 | `Delta` / `Rate` | the window's END phase — the measure IS the change observed there |
 | `Extremum` | **never**. "The lowest lag angle between P5 and P6" is not a reading at P5 or at P6 |
+| any reducer with `windowMs` | **never**. A span after a phase is not a reading at that phase |
 
 Preference order is **absolute before change**, because a corridor keyed on a phase means the absolute reading there. Both `m_leadWristAtTop` (at P4) and the Δ cell name P4 on one metric; the absolute one wins.
 
@@ -674,7 +685,7 @@ conjunction: a conjunction cannot be commoner than its rarer part.
 
 **The two axes answer different questions.** `group` says what moves; `kind` says what sort of thing it
 is. They agree on three groups (`setup` is all Setup, `ballFlight` all Outcome,
-and every `delivery` row is Delivery) but not on the rest: `planePath` splits 11 Fault / 7 Delivery, so the Delivery
+and every `delivery` row is Delivery) but not on the rest: `planePath` splits 13 Fault / 7 Delivery (plane stack D2, 13 Nov 2026: +`arms_swing_around`, +`arms_lift`), so the Delivery
 kind spans two groups, and `golfer` holds three kinds (17 Capacity, 10 Intent, 1 Equipment), which include
 every physical screen and every intent node in the library.
 
@@ -693,6 +704,8 @@ records the date its search was made**:
 a proposed row back to satisfy it is the laundering it was written to prevent.
 Groups (recounted 8 Nov 2026, with the two side-bend conditions: 188 conditions, later than the figures above): setup 25,
 posture 16, lateral 20, rotation 29, arms 8, wrists 14, planePath 18, delivery 10, ballFlight 20, golfer 28.
+Since then (13 Nov 2026, plane stack): D1 retired two planePath rows and added two; D2 added `arms_swing_around` and
+`arms_lift` to planePath, which now holds 20 (192 conditions).
 
 **Norms** (`norms.json`) — 156 rows: 99 at `any`, 8 + 8 at the two archetypes, and 13 / 2 / 13 / 13 at driver / fairway wood / iron / wedge. **Every row is `source: heuristic` with `n = 0`**; 56 carry explicit monitor bounds (the migrated wrist grid + tempo), 50 carry a citation. Those citations are **notes, not identifiers** — `citation` is documented as "DOI/PMID, or the note explaining a provisional figure", and many of them name the paper the figure should be re-seated FROM. Nothing moved to `source: literature` in the 2026-07-27 pass, deliberately: that tier asserts the mu and sigma came off a results table, and nobody read one. See `docs/implementation/provenance_log.md` §6.
 

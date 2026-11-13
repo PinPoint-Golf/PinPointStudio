@@ -12,7 +12,8 @@ measures' bindings changed. A session's ledger regrades when it is next opened (
 |---|---|---|---|
 | `swingPlaneCurve` | Swing plane | Plane through the target line and the shaft, frame by frame, from the down-the-line view; hands stand in where the shaft defines no plane | Main plot and card: Address, P3, Top, P6, Impact |
 | `handPlaneCurve` | Hand plane | Plane through the ball line and the hands | Second line on the plot |
-| `shoulderPlane` | Shoulder plane at address | Ball to trail shoulder at address, the steep edge of the slot | Line on the plot, tile on the Swing plane card |
+| `shoulderPlane` | Shoulder plane at address | Ball to trail shoulder at address, the upper edge of the on-plane window | Line on the plot, tile on the Swing plane card |
+| `clubSlotTop` | Club in the on-plane window at P3 | The climb from address to P3 as a share of the window: 0 on the address plane, 1 on the shoulder plane at address (since 13 Nov 2026) | Own card, at P3 |
 | `swingPlaneAngle` | Fitted plane | Best-fit 3-D plane through the two-camera shaft direction, one per half, to the ground | Card: back, down |
 | `swingPlane` | Fitted plane vs address | The same two, less the address plane | Tiles on the Fitted plane card, with Δ PLANE |
 | `handPathLoop` | Hand path loop | Hands' downswing path against their backswing path, % of hand rise | Over-the-top card |
@@ -33,10 +34,23 @@ The eight plane conditions moved from the two-camera fit to the curve, with thei
 
 | Measure | Reads | Conditions |
 |---|---|---|
-| `m_backswingPlaneAngle` | curve at P3 | `backswing_plane_too_upright`, `backswing_plane_too_flat` |
+| `m_backswingPlaneAngle` | curve at P3 | none since 13 Nov 2026: `backswing_plane_too_upright`, `backswing_plane_too_flat` retired (shown, not graded; `plane_stack_design.md` §11 D1) |
 | `m_downswingPlaneAngle` | curve at P6 | `downswing_plane_too_steep`, `downswing_plane_too_flat` |
-| `m_shaftPlaneBackswing` | curve, P1→P3 | `steep_backswing_plane`, `flat_backswing_plane` |
+| `m_shaftPlaneBackswing` | curve, P1→P3 | none since 13 Nov 2026 (shown, not graded; the pair moved to `m_clubSlotTop`) |
+| `m_clubSlotTop` | `clubSlotTop` at P3 | `flat_backswing_plane` (Club under plane halfway back), `steep_backswing_plane` (Club above plane halfway back), since 13 Nov 2026 |
 | `m_shaftPlaneDelivery` | curve, P1→P6 | `steep_downswing_shaft`, `under_plane_stuck` |
+
+**Since 13 Nov 2026 (plane stack D1, `docs/design/plane_stack_design.md` §11):** `backswing_plane_too_upright` and
+`backswing_plane_too_flat` are retired. `m_backswingPlaneAngle` stays live and is shown against the club's corridor, but
+it grades nothing. A new measure, `m_takeawayPlane` (the curve, P1→P2), grades `flat_takeaway` and `steep_takeaway`.
+
+**The club halfway back is graded against its on-plane window since 13 Nov 2026 (plane stack D3, `plane_stack_design.md` §3.3 and §11 D3).** The pair keeps its ids
+and is relabelled ("slot" is a downswing term, so the names say "halfway back"): `flat_backswing_plane` is **Club under plane halfway back** ("halfway back, the club sits below the plane you set at
+address") and `steep_backswing_plane` is **Club above plane halfway back** ("halfway back, the club climbs above the line through your
+trail shoulder"). Both read `m_clubSlotTop`, the club's climb to P3 as a share of the window between the address plane and the shoulder
+plane at address. The norm is μ 0.5, tolerance 0.25: amber outside 0.25–0.75, firing below 0 (under the window) and above 1
+(above it). The climb in degrees, `m_shaftPlaneBackswing`, stays live and shown and grades nothing. It reads only where
+the shoulder plane does, which needs the down-the-line ball: 156 of 283 library swings have both edges and a P3 plane.
 
 Why: the curve reads P3 and P6 on 96 % of down-the-line swings, the fit gets both halves on 45 %, and within a session
 the curve at P6 follows the launch monitor's club path at least as well (Mark r −0.78 against −0.70 for the fitted
@@ -80,7 +94,7 @@ path. That gives 18:
 |---|---|
 | Takeaway | `inside_takeaway`, `outside_takeaway` |
 | Shaft at the top | `across_the_line`, `laid_off`, `overswing`, `club_short_of_parallel` |
-| Plane | the eight above, plus `over_the_top` (hand path loop) and `shallowing` (transition plane delta) |
+| Plane | the eight above (the pair on `m_clubSlotTop` since 13 Nov 2026), plus `over_the_top` (hand path loop) and `shallowing` (transition plane delta) |
 | Path | `in_to_out_path`, `out_to_in_path` |
 
 The Consistency table reads the area over every span, P1-P2 to P7-P8.

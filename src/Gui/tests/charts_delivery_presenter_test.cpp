@@ -202,7 +202,7 @@ private slots:
         QCOMPARE(pos[3].toMap().value(QStringLiteral("seekUs")).toLongLong(), kImpactUs - 600000);
 
         const QVariantMap slot = t.value(QStringLiteral("slot")).toMap();
-        QCOMPARE(slot.value(QStringLiteral("text")).toString(), QStringLiteral("inside the slot"));
+        QCOMPARE(slot.value(QStringLiteral("text")).toString(), QStringLiteral("inside the on-plane window"));
         QCOMPARE(slot.value(QStringLiteral("widthText")).toString(), QStringLiteral("10° wide"));
 
         const QVariantMap flight = t.value(QStringLiteral("flight")).toMap();
@@ -244,7 +244,7 @@ private slots:
         p.setPlayheadUs(kImpactUs - 1200000);
         QCOMPARE(p.selected(), 0);
         QCOMPARE(p.standfirst().value(QStringLiteral("text")).toString(),
-                 QStringLiteral("At address the plane is 58°, your shoulders' 68°: a slot 10° wide."));
+                 QStringLiteral("At address the plane is 58°, your shoulders' 68°: an on-plane window 10° wide."));
     }
 
     void plotLayersAndTheScopeSwitch()

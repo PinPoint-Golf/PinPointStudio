@@ -86,7 +86,11 @@ namespace pinpoint::analysis {
 //     gone. The crescent must have LOST its darkness there. A shoe scuff or a
 //     tee hole fails that by construction, and that is the whole discriminator.
 // `scalePxPerMm` sizes the ball (42.7 mm) so the centre can be placed one radius
-// above the crescent; NaN ⇒ 0.012 × frameH is used instead and said so. The
+// above the crescent, and so the crescent's AREA gates are fractions of that
+// ball's imaged disc (shaft.dtl.ball.shadowAreaMinFrac / MaxFrac; since 13 Nov
+// 2026 — they had scaled with frameW, which refused Chris's 27–46 px crescents
+// at 976 px wide). NaN ⇒ 0.012 × frameH places the centre instead, said so, and
+// the area gates fall back to the frame rule (12–400 px × (frameW/512)²). The
 // bright cue is unchanged and still decides wherever it finds a ball; the shadow
 // cue is measured either way so the two can be compared in a trace.
 DtlBall dtlFindBall(const FrameSource& frameAt,

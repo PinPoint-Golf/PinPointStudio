@@ -59,7 +59,7 @@
 //            when ("address" | "the top" | "P6"), caption, note ("" — the presenter fills it from the plane story),
 //            tUs, seekUs, frameUs, frameIndex, width, height, frameWidth, frameHeight, crop, src, imageWhy, still, marks }
 //  MARK  = { kind ("polyline" | "poly"), role "coach", set "plane", label ("address line" | "shoulder plane" |
-//            "address shaft line" | "the slot"), dash ("" | "dash"), hueKey "", pts: [[x, y], …] }
+//            "address shaft line" | "the on-plane window"), dash ("" | "dash"), hueKey "", pts: [[x, y], …] }
 //          "poly" is a filled polygon (the slot's wash).
 
 #include <QHash>

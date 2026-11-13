@@ -2490,6 +2490,57 @@ FitResult fitSkeleton(const FitInput &in)
         if (it == 0 || it == 4 || it == 10) swapPass(it);
     });
 
+    // ── the two views of a shoulder or hip that disagree (FB, 13 Nov 2026; FitConfig::crossViewMissMm) ──
+    // At the top the shoulder line points almost at the face-on camera, and the face-on trail shoulder,
+    // hidden behind the chest, is placed ~5 cm low: its two rays miss by 42–67 mm. With the shoulder
+    // width held, the robust loss throws ONE view away, and which one was a coin toss — on 6 of Chris's 8
+    // swings the down-the-line view, and the tilt collapsed. Here each frame's shoulder (5/6) and hip
+    // (11/12; FitConfig::crossViewHips) keypoints are triangulated through the cameras stage 2 has settled (the stage-1 cameras
+    // are the canned start: on the synthetic swing every marker's rays missed by centimetres there),
+    // and where the rays miss by more than crossViewMissMm the LOWER-confidence view's σ is multiplied
+    // by miss / crossViewMissMm, at most crossViewSigmaCap — the less certain view gives way. Equal
+    // confidences inflate neither. Once, after the label swaps (none run later), from the observations'
+    // own σ (kept in sigma0 for the honest tiers). A pass that inflated anything is followed by its own
+    // LM pass, so the fit settles on the weights it now has; one that inflated nothing changes nothing.
+    std::array<std::vector<std::array<double, kMarkerCount>>, 2> sigma0;
+    for (int view = 0; view < (P.hasDtl ? 2 : 1); ++view) {
+        const std::vector<ViewObs> &V = view == 0 ? P.fo : P.dtl;
+        sigma0[size_t(view)].resize(size_t(T));
+        for (int t = 0; t < T; ++t)
+            for (int m = 0; m < kMarkerCount; ++m) sigma0[size_t(view)][size_t(t)][size_t(m)] = V[size_t(t)].kp[size_t(m)].sigma;
+    }
+    if (P.hasDtl && in.cfg.crossViewMissMm > 0 && in.cfg.crossViewSigmaCap > 1.0) {
+        const Cameras cm = camFromSv(S.sv, L);
+        const CamFrame cfF = camFrame(cm, 0, in.foW, in.foH), cfD = camFrame(cm, 1, in.dtlW, in.dtlH);
+        const auto ray = [](const CamFrame &cf, const KpObs &o) {
+            return (cf.fwd + cf.right * ((o.u - cf.cx) / cf.f) + cf.down * ((o.v - cf.cy) / cf.f)).unit();
+        };
+        const double thrM = in.cfg.crossViewMissMm / 1000.0;
+        for (int t = 0; t < T; ++t) {
+            bool any = false;
+            for (int m : { 5, 6, 11, 12 }) {
+                if (m >= 11 && !in.cfg.crossViewHips) continue;
+                KpObs &f = P.fo[size_t(t)].kp[size_t(m)], &d = P.dtl[size_t(t)].kp[size_t(m)];
+                if (f.sigma <= 0 || d.sigma <= 0 || leadToeHeld(P, t, m)) continue;
+                // The closest approach of the two rays (both in front of their cameras).
+                const V3 d1 = ray(cfF, f), d2 = ray(cfD, d), w = cfF.c - cfD.c;
+                const double a = d1.dot(d1), b = d1.dot(d2), c = d2.dot(d2), dd = d1.dot(w), e = d2.dot(w);
+                const double den = a * c - b * b;
+                if (!(den > 1e-9)) continue;                     // near-parallel rays: no depth to compare
+                const double s = (b * e - c * dd) / den, u = (a * e - b * dd) / den;
+                if (s <= 0 || u <= 0) continue;
+                const double miss = ((cfF.c + d1 * s) - (cfD.c + d2 * u)).norm();
+                if (!(miss > thrM) || f.conf == d.conf) continue;
+                const double k = std::min(in.cfg.crossViewSigmaCap, miss / thrM);
+                if (f.conf < d.conf) { f.sigma *= k; ++res.nCrossViewFo; }
+                else                 { d.sigma *= k; ++res.nCrossViewDtl; }
+                any = true;
+            }
+            if (any) ++res.nCrossViewFrames;
+        }
+        if (res.nCrossViewFrames > 0) res.iterations += levenbergMarquardt(P, S, std::max(4, in.cfg.stage2Iters / 2), cost2);
+    }
+
     // ── the club's depth branch where the DTL is blind (skeleton3d_shaft_branch_design.md) ──
     const int leadHandJ = in.leadIsLeft ? ybot::LeftHand : ybot::RightHand;
     auto shaftDirs = [&](const State &X) {
@@ -2852,7 +2903,8 @@ FitResult fitSkeleton(const FitInput &in)
     };
     std::array<std::vector<int>, Rig::N> wit;
     for (int j = 0; j < Rig::N; ++j) wit[size_t(j)] = witnesses(j);
-    auto seenIn = [&](const std::vector<ViewObs> &V, int t, int j) {
+    // A keypoint there at all (the view could have seen the joint): what keeps a joint from TierAbsent.
+    auto presentIn = [&](const std::vector<ViewObs> &V, int t, int j) {
         for (int m : wit[size_t(j)]) if (V[size_t(t)].kp[size_t(m)].sigma > 0) return true;
         return false;
     };
@@ -2932,6 +2984,35 @@ FitResult fitSkeleton(const FitInput &in)
             poses[size_t(t)] = pz;
         }
     }
+    // HONEST TIERS (FB, 13 Nov 2026; FitConfig::tierSeenSigmas): a view SAW a joint at a frame only where
+    // the output pose — the hands' lock included — projects one of the joint's witness markers within
+    // max(tierSeenSigmas × the keypoint's own σ (sigma0: before the cross-view pass), tierSeenFloorPx) of
+    // that keypoint — the floor because the real fits' typical miss (3–8 px) is several σ. A
+    // keypoint the fit sits 57–114 px from (the library's poorly seen elbows) no longer makes the joint
+    // "measured". Only the measured tier reads it; a joint with any keypoint near in time stays at
+    // least constrained or inferred by its σ, exactly as before.
+    std::array<std::vector<std::array<uint8_t, kMarkerCount>>, 2> agree;
+    for (int view = 0; view < (P.hasDtl ? 2 : 1); ++view) {
+        const std::vector<ViewObs> &V = view == 0 ? P.fo : P.dtl;
+        const CamFrame cf = camFrame(cm, view, view == 0 ? in.foW : in.dtlW, view == 0 ? in.foH : in.dtlH);
+        agree[size_t(view)].assign(size_t(T), {});
+        for (int t = 0; t < T; ++t)
+            for (int m = 0; m < kMarkerCount; ++m) {
+                const KpObs &o = V[size_t(t)].kp[size_t(m)];
+                const double s0k = sigma0[size_t(view)][size_t(t)][size_t(m)];
+                if (o.sigma <= 0 || s0k <= 0) continue;
+                if (in.cfg.tierSeenSigmas <= 0) { agree[size_t(view)][size_t(t)][size_t(m)] = 1; continue; }
+                double u, v;
+                if (!project(cf, markerWorld(poses[size_t(t)], R.markers[size_t(m)].joint, markerOffset(P, S.sv, m)), u, v, nullptr))
+                    continue;
+                agree[size_t(view)][size_t(t)][size_t(m)] =
+                    std::hypot(u - o.u, v - o.v) <= std::max(in.cfg.tierSeenSigmas * s0k, in.cfg.tierSeenFloorPx);
+            }
+    }
+    auto seenIn = [&](int view, int t, int j) {
+        for (int m : wit[size_t(j)]) if (agree[size_t(view)][size_t(t)][size_t(m)]) return true;
+        return false;
+    };
     for (int t = 0; t < T; ++t) {
         const Pose &pz = poses[size_t(t)];
         // Written as the RIG's angles (θ = M·q): the documents, the viewer and the tests keep all 48.
@@ -2948,18 +3029,26 @@ FitResult fitSkeleton(const FitInput &in)
             const double var = (Jq * Sig * Jq.transpose()).trace() / 3.0;
             const double sig = std::sqrt(std::max(0.0, var));
             res.sigmaM[size_t(t)][size_t(j)] = float(sig);
-            // Seen in which views, within ±100 ms?
+            // Seen in which views, within ±100 ms? (honest: the fit lands on the keypoint), and is there
+            // a keypoint at all within ±100 ms in either view (what keeps the joint from absent).
             int views = 0;
+            bool present = false;
             for (int view = 0; view < (P.hasDtl ? 2 : 1); ++view) {
                 const std::vector<ViewObs> &V = view == 0 ? P.fo : P.dtl;
                 bool seen = false;
-                for (int u = t; u >= 0 && in.t_us[size_t(t)] - in.t_us[size_t(u)] <= 100000 && !seen; --u) seen = seenIn(V, u, j);
-                for (int u = t + 1; u < T && in.t_us[size_t(u)] - in.t_us[size_t(t)] <= 100000 && !seen; ++u) seen = seenIn(V, u, j);
-                const bool now = seenIn(V, t, j);
+                for (int u = t; u >= 0 && in.t_us[size_t(t)] - in.t_us[size_t(u)] <= 100000 && !(seen && present); --u) {
+                    seen = seen || seenIn(view, u, j);
+                    present = present || presentIn(V, u, j);
+                }
+                for (int u = t + 1; u < T && in.t_us[size_t(u)] - in.t_us[size_t(t)] <= 100000 && !(seen && present); ++u) {
+                    seen = seen || seenIn(view, u, j);
+                    present = present || presentIn(V, u, j);
+                }
+                const bool now = seenIn(view, t, j);
                 if (now) views += 2; else if (seen) views += 1;
             }
             uint8_t tier;
-            if (views == 0) tier = TierAbsent;
+            if (!present) tier = TierAbsent;
             else if (views >= 4 && sig <= in.cfg.measuredSigmaM * s0) tier = TierMeasured;
             else if (sig <= in.cfg.constrainedSigmaM * s0) tier = TierConstrained;
             else tier = TierInferred;

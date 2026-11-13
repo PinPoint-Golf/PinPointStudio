@@ -306,7 +306,9 @@ before/after dumps). Try-out: `build/run-me/wrist-tab-tryout.sh` (+ `.md`).
   swings until the directed capture sets real corridors.
 - **Casting** reads the lead-wrist hinge at P6 first (`detection: first`), lag angle otherwise. On a swing
   with both, a cast that only the lag angle shows no longer fires.
-- **One judge:** a `domain: wrist` tag on 15 conditions; `scoreWristDomain` (header-only, weights from the
+- **One judge:** a `domain: wrist` tag on 15 conditions (14 since 13 Nov 2026: `chicken_wing`, the lead arm folding
+  after impact, left for the arms, `plane_stack_design.md` §11 D6; the engine's `chicken_wing` rule is the one fault rule
+  whose heir is outside the domain, `wristDomainExemptEngineRules`); `scoreWristDomain` (header-only, weights from the
   engine's rule table, pinned by a test) gives the Wrist tab's score. Findings use the session's tier
   words (pattern / watching); cells keep their band grades, and the caption says which is which.
 - **Charts:** a `ShotSeries::wrist` payload (session-wide band override), the Reference ★ on every metric

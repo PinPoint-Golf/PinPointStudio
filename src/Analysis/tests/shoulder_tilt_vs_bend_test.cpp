@@ -34,6 +34,9 @@
 //      reading too, so the shown "not judged" reason (LiveMeasureSource::gateCause, on the written
 //      document) is the half's real refusal, e.g. posture.address — never "metric not produced"
 //      (W7 review). A missing half with no such record touches nothing.
+//   §8 the backstop (FB, 13 Nov 2026): −22° gets body.tiltBendOutOfRange (Downgraded, on the reading and the
+//      3-D tilt), −18° does not; idempotent; the floor is a knob. The cameras' shoulder record on the tilt
+//      (body3d.shoulderViewsDisagree) is inherited by the reading.
 
 #include "../../Body/shoulder_tilt_vs_bend.h"
 #include "../../Diagnostics/measures/measure_sample.h"
@@ -50,6 +53,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <tuple>
 #include <vector>
 
 using namespace pinpoint;
@@ -484,6 +488,65 @@ int main()
         bool same = g4.size() == before.size();
         for (size_t i = 0; same && i < g4.size(); ++i) same = g4[i].covers == before[i].covers && g4[i].subject == before[i].subject;
         check(!o4.produced && o4.recordsExplaining == 0 && same, "a missing half with no record on it: no record touched");
+    }
+
+    // ── §8: the backstop (FB, plane stack, 13 Nov 2026) ─────────────────────────────────────────────────
+    // Below −20° (body3d.tiltBendFloorDeg) no turn can make the reading: kept, judged, and Downgraded with
+    // body.tiltBendOutOfRange on it and on the 3-D tilt. And the cameras' shoulder record on the tilt is
+    // inherited by the reading, as every Downgraded record on a half is.
+    std::printf("-- 8. the backstop below −20°, and the cameras' shoulder record --\n");
+    {
+        const QString T = tb::tiltKey();
+        const auto run = [&](double tilt, std::vector<GateRecord> g = {}) {
+            std::vector<MetricSeries> s{ curve("shoulderPlaneAngle3d", "faceOn+dtl", [](int64_t) { return 0.0; }, { Phase::Top }, 4.0),
+                                         curve("spineForwardBend", "", [](int64_t) { return 36.0; }, { Phase::Address }, 3.0) };
+            for (double &v : s[0].value) v = tilt;
+            s[0].phaseSamples[0].value = tilt;
+            const tb::Outcome o = deriveShoulderTiltVsBend(s, g, ladder());
+            return std::make_tuple(o, s, g);
+        };
+        {
+            const auto [o, s, g] = run(36.0 - 22.0);
+            const GateRecord *r = gate(g, "body.tiltBendOutOfRange");
+            const MetricSeries *m = find(s, K);
+            check(o.produced && o.outOfRange && m && near(m->phaseSamples[0].value, -22.0, 1e-9),
+                  "−22°: the reading is kept, value −22");
+            check(r && r->effect == GateEffect::Downgraded && r->subject == K
+                      && r->covers == QStringList({ K, T })
+                      && near(r->evidence.value(QStringLiteral("valueDeg")).toDouble(), -22.0, 1e-9)
+                      && near(r->evidence.value(QStringLiteral("floorDeg")).toDouble(), -20.0, 1e-9),
+                  "…with body.tiltBendOutOfRange: Downgraded, subject the reading, covering it and the 3-D tilt, valueDeg / floorDeg");
+            const gates::GateEntry *e = gates::gateEntry(QStringLiteral("body.tiltBendOutOfRange"));
+            const QString t = e && r ? gates::evidenceText(*e, r->evidence) : QString();
+            std::printf("    \"%s\"\n", qPrintable(t));
+            check(e && e->effects == std::vector<GateEffect>{ GateEffect::Downgraded } && t.contains(QStringLiteral("−22°"))
+                      && t.contains(QStringLiteral("−20°")) && !t.contains(QLatin1Char('{')),
+                  "…catalogued Downgraded only, its sentence filled");
+        }
+        {
+            const auto [o, s, g] = run(36.0 - 18.0);
+            check(o.produced && !o.outOfRange && !gate(g, "body.tiltBendOutOfRange"), "−18°: no backstop");
+        }
+        {
+            std::vector<GateRecord> g;
+            std::vector<MetricSeries> s{ curve("shoulderPlaneAngle3d", "faceOn+dtl", [](int64_t) { return 14.0; }, { Phase::Top }, 4.0),
+                                         curve("spineForwardBend", "", [](int64_t) { return 36.0; }, { Phase::Address }, 3.0) };
+            deriveShoulderTiltVsBend(s, g, ladder());
+            deriveShoulderTiltVsBend(s, g, ladder());
+            int n = 0;
+            for (const GateRecord &r : g) n += r.gate == QLatin1String("body.tiltBendOutOfRange");
+            check(n == 1, "…a second call leaves one backstop record");
+            deriveShoulderTiltVsBend(s, g, ladder(), -25.0);
+            check(!gate(g, "body.tiltBendOutOfRange"), "…and a floor of −25° (body3d.tiltBendFloorDeg) takes it away");
+        }
+        {
+            const GateRecord cams{ QStringLiteral("body3d.shoulderViewsDisagree"), T, GateEffect::Downgraded,
+                                   { { QStringLiteral("medianDeg"), 12.0 } }, {}, {}, { T, QStringLiteral("shoulderLineYaw") } };
+            const auto [o, s, g] = run(30.0, { cams });
+            const GateRecord *r = gate(g, "body3d.shoulderViewsDisagree");
+            check(o.produced && r && r->covers.contains(K) && o.recordsExtended >= 1,
+                  "the cameras' shoulder record on the 3-D tilt covers shoulderTiltVsBend too (inherited)");
+        }
     }
 
     std::printf("\n=== %s (%d failures) ===\n", g_fail ? "FAILURES PRESENT" : "ALL PASS", g_fail);

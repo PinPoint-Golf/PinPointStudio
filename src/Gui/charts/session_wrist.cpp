@@ -114,6 +114,7 @@ QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QV
         if (!dof) continue;
         const MetricSeries *m = shot.metric(k);
         if (!m || m->tUs.empty()) continue;
+        if (pa::isCameraWristDofSeries(m->routeId)) continue;   // the face-on elbow is not the sensors' grid
         pa::MetricSeries s;
         s.key = k;
         s.t_us.assign(m->tUs.begin(), m->tUs.end());

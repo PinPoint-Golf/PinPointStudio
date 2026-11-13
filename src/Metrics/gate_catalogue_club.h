@@ -189,6 +189,85 @@ inline void appendClubGates(std::vector<GateEntry> &c)
         { GateEffect::Masked }, pipeProd, fusionDoc)
         .tuning = { tune("shaft.fusion.minCond", 0.26, "") };
 
+    // ── Why there is no P8 (p8_refusal_gate.h; plane stack D6, 13 Nov 2026) ─────────────────────────
+    // REFUSED, on the PHASE (subject position.p8): the readings that need P8 are not produced, and a measure
+    // whose reducer needs P8 names this record through gates::phaseSubject (LiveMeasureSource::gateCause).
+    // Fired after the run only where the document's ladder has no P8 and the face-on tracker said why.
+    {
+        namespace PO = tuned::positions;
+        GateEntry &e = add(c, "positions.p8Refused", club, "P8 not timed", "not timed",
+            QStringLiteral("P8 is the moment after impact when the shaft comes back up through level, the "
+                           "follow-through's mirror of shaft-parallel going back. It is looked for only a short "
+                           "time after impact, it must be the club rising through level, and it is refused after "
+                           "the tracked shaft sat upright for a while first, which is the tracker holding a bright "
+                           "upright line in the background rather than the club. Where none of that is met there "
+                           "is no P8, and the readings that need it (the lead knee and the lead arm against the "
+                           "body after impact, and the changes from address read at P8) are not judged, rather "
+                           "than read at a moment that was not the follow-through."),
+            "No P8: {code:code}.",
+            { GateEffect::Refused }, "src/Club/p8_refusal_gate.h", "docs/design/plane_stack_design.md §11 D6");
+        e.tuning = { tune("positions.p8MinAfterImpactUs", double(PO::kP8MinAfterImpactUs), "µs"),
+                     tune("positions.p8MaxAfterImpactUs", double(PO::kP8MaxAfterImpactUs), "µs"),
+                     tune("positions.p8StallBandDeg", PO::kP8StallBandDeg, "°"),
+                     tune("positions.p8StallMinUs", double(PO::kP8StallMinUs), "µs") };
+        e.codes = {
+            { QStringLiteral("noCrossing"),
+              QStringLiteral("after impact the shaft was never seen coming back up through level from {minAfterMs:ms} on") },
+            { QStringLiteral("late"),
+              QStringLiteral("the shaft first came back up through level more than {maxAfterMs:ms} after impact, too "
+                             "late to be the follow-through; the tracker was most likely on a bright line in the "
+                             "background rather than the club") },
+            { QStringLiteral("wrongSense"),
+              QStringLiteral("the first time the shaft crossed level after impact it was going down, not up: the club "
+                             "track had turned end for end") },
+            { QStringLiteral("verticalStall"),
+              QStringLiteral("the tracked shaft sat within {stallBandDeg:deg} of upright for {stallMinMs:ms} before it "
+                             "crossed level: the tracker was on something upright in the background, not the club") } };
+    }
+
+    // ── The club's climb placed in the on-plane window halfway back (club_slot_top.h; plane stack D3) ──
+    // REFUSED: clubSlotTop is a ratio, so it needs all three of its parts and a window wide enough to divide by.
+    // The ids keep "slot" (stored records); every word a reader sees says "on-plane window" / "halfway back",
+    // because the golf "slot" is a DOWNSWING position (Mark, 13 Nov 2026).
+    // Fired only on a swing with a down-the-line plane at all; a part's own refusal (club.trackRefused) also
+    // covers the reading and comes first, so this is the reason given only where nothing else refused.
+    {
+        GateEntry &e = add(c, "club.slotUnread", club, "Plane halfway back not read", "not read",
+            QStringLiteral("Where the club sits halfway back is read against your own on-plane window: the wedge "
+                           "between the plane the club was set on at address and the plane from the ball up "
+                           "through your trail shoulder. With the lead arm level with the ground, 0 is on the "
+                           "plane you set and 1 on the line through your trail shoulder. It needs the swing plane "
+                           "at address and at that point, and the shoulder plane at address, which needs the ball "
+                           "and your trail shoulder seen from down the line. A window only a few degrees wide is "
+                           "too narrow to place the club in: a degree of camera error would move the reading by a "
+                           "large part of it, so none is given."),
+            "{code:code}.",
+            { GateEffect::Refused }, "src/Club/club_slot_top.h", "docs/design/plane_stack_design.md §3.3");
+        e.tuning = { tune("club.slotMinWidthDeg", tuned::clubSlot::kMinWidthDeg, "°") };
+        e.codes = {
+            { QStringLiteral("noAddressPlane"),  QStringLiteral("No swing plane at address") },
+            { QStringLiteral("noP3Plane"),       QStringLiteral("No swing plane with the lead arm level going back") },
+            { QStringLiteral("noShoulderPlane"), QStringLiteral("No shoulder plane at address: it needs the ball and the trail shoulder seen from down the line") },
+            { QStringLiteral("narrow"),          QStringLiteral("The shoulder plane sat {widthDeg:deg} above the plane the club was set on; the window between them must be at least {minWidthDeg:deg} wide") } };
+    }
+
+    // ── The on-plane window halfway back with the camera assumed (club_slot_top.h; plane stack D6 round 2) ──
+    // DOWNGRADED, never refused: the reading is kept and judged with its ⚠ while the down-the-line camera is
+    // uncalibrated (the flag club3d.cameraAssumed reads). It lifts when a measured calibration reaches the job.
+    add(c, "club.slotCameraAssumed", club, "Plane halfway back read with an uncalibrated camera", "camera position assumed",
+        QStringLiteral("The two edges of the on-plane window halfway back, the plane the club was set on and the plane "
+                       "from the ball through your "
+                       "trail shoulder, and the club's plane going back are all lines in the down-the-line "
+                       "picture. A camera turned a few degrees moves them little, but a camera standing "
+                       "somewhere else, higher or nearer the hands, moves them by different amounts, and the "
+                       "club's place between them does not cancel that. Until the camera is calibrated the reading is kept and "
+                       "judged a step lower in trust: compare it within a session, where the camera stayed put, "
+                       "not between sessions. The takeaway is not affected the same way: it compares the club's "
+                       "own plane at two moments, which a camera move shifts alike."),
+        "The down-the-line camera is uncalibrated, so where it stands can move the edges of this {widthDeg:deg} window; compare "
+        "the reading within a session.",
+        { GateEffect::Downgraded }, "src/Club/club_slot_top.h", "docs/design/plane_stack_design.md §11 D6");
+
     // ── Where the shaft points (shaft_direction_series.h, for ShaftDirectionStage) ───────────────
     // DOWNGRADED, never refused: both readings are shown and judged, a step lower in trust, with the
     // warning. The camera record lifts when a measured calibration reaches the job.

@@ -57,6 +57,8 @@
 #include "../measures/live_measure_source.h"
 #include "../norms/norm_provider.h"
 #include "../packs/pack_provider.h"
+#include "../../Club/p8_refusal_gate.h"     // why there is no P8 (plane stack D6)
+#include "../../Metrics/gate_catalogue.h"   // its catalogue entry and sentence
 
 #include <QCoreApplication>
 #include <QDir>
@@ -71,6 +73,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iterator>
 #include <memory>
 
 using namespace pinpoint::analysis;
@@ -244,7 +247,7 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
 
     std::printf("  club %s -> context %s (session %s)\n", qPrintable(d.club),
                 qPrintable(d.contextId), qPrintable(src.sessionId()));
-    std::printf("  COVERAGE: %d of 190 conditions assessable on %s"
+    std::printf("  COVERAGE: %d of 192 conditions assessable on %s"
                 "  (%d evaluated, %d fired, %d unavailable)\n",
                 cov.assessable, label, cov.findings, cov.fired, cov.unavailable);
     // The denominator is COUNTED, not written down. It was the literal 109 while the pack carried
@@ -282,8 +285,9 @@ static Coverage runFixture(const QString &dir, const CharacteristicPack &pack,
     // 145 -> 153 on 2026-10-22: the eight posture conditions (posture_metrics_design.md §7.2).
     // 153 -> 154 the same day: lead_knee_folds_backswing (posture_chart_design.md D7).
     // 160 -> 162 on 2026-11-08: fade and draw (shot_outcomes_design.md §3.4).
-    check(cov.findings == 162,
-          "detect() asked all 162 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
+    // 162 -> 164 on 2026-11-13: arms_swing_around, arms_lift (plane stack D2).
+    check(cov.findings == 164,
+          "detect() asked all 164 non-latent, non-withdrawn conditions (the shipped pack binds none)");   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +2 lie tails (2026-10-01)   // +7 kinematic-sequence checks (2026-10-14)   // +5 peak-against-impact faults (2026-10-15)
 
     // (d) Where a norm resolved, the corridor on the evidence is a real band and z is finite.
     bool corridorsOk = true;
@@ -326,7 +330,7 @@ int main(int argc, char **argv)
     // reverse_tilt_at_address.
     // 181 -> 182 on 2026-10-22: lead_knee_folds_backswing, the lead knee folding going back
     // (posture_chart_design.md D7).
-    check(pack.conditions.size() == 190, "the shipped pack carries 190 conditions");   // +fade, +draw (2026-11-08)   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
+    check(pack.conditions.size() == 192, "the shipped pack carries 192 conditions");   // +arms_swing_around, +arms_lift (2026-11-13, plane stack D2)   // +fade, +draw (2026-11-08)   // +4 absolute swing-plane tails (2026-10-29)   // +club_before_arms, D27 (2026-10-17)   // +5 peak-against-impact faults (2026-10-15)   // +7 kinematic-sequence checks (2026-10-14, design §10.4)   // +lie_steep_at_impact, +lie_flat_at_impact (2026-10-01)
     // 130 -> 135 with the plumb-bob work: hipLineTilt gained an impact reading and an
     // address-to-impact delta, and plumbBobDistance arrived with three of its own.
     //
@@ -363,7 +367,7 @@ int main(int argc, char **argv)
     // 203 -> 206 on 2026-10-22: m_spineBackLine_p3/_p4/_p5 — the back line's change from address at P3–P5,
     // drawn as the trunk-bend row's second reading under its own ⚠ (posture_chart_design.md §2.3); no signal
     // reads them and they carry no band of their own.
-    check(pack.measures.size() == 213, "…and 213 measures");   // +m_shoulderTiltVsBend (2026-11-13, W7: the shoulder tilt at P4 less the forward bend at P1; the flat/steep faults read it)   // +m_carryShortfall, +m_ballSpeedShortfall (2026-11-08)   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
+    check(pack.measures.size() == 218, "…and 218 measures");   // +m_clubSlotTop (2026-11-13, plane stack D3: the climb to P3 placed in the on-plane window halfway back; the slot pair reads it)   // +m_armLiftTop, +m_leadElbowBendTop3d (2026-11-13, plane stack D2: the lead upper arm against the shoulder turn at P4; bent_lead_arm's 3-D elbow)   // +m_leadElbowFoldAfterImpact (2026-11-13, plane stack D5: the lead elbow's added bend in the 100 ms after impact; chicken_wing reads it)   // +m_takeawayPlane (2026-11-13, plane stack D1: the swing plane at P2 against address; flat/steep_takeaway read it)   // +m_shoulderTiltVsBend (2026-11-13, W7: the shoulder tilt at P4 less the forward bend at P1; the flat/steep faults read it)   // +m_carryShortfall, +m_ballSpeedShortfall (2026-11-08)   // +m_backswingPlaneAngle, +m_downswingPlaneAngle (2026-10-29)   // +m_headRiseBackDtl (2026-10-22, standing up going back from down the line)   // +11 kinematic-sequence measures (2026-10-14)   // +m_shaftLieDelta
     check(!norms->norms().norms.empty(), "the shipped norm set loaded");
 
     QTemporaryDir tmp;
@@ -617,7 +621,11 @@ int main(int argc, char **argv)
         // here — the producer landing is the only reason the count fell. metric_catalogue_test's
         // planned count moved with them (12 -> 9); diagnostics_catalogue_integrity_test pins no count
         // here and asserts the two zero-sums (no overclaim, no understatement), which still hold.
-        check(planned == 6, "6 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
+        // 6 -> 14 on 2026-11-13 (plane stack D5): the eight m_leadElbowFlex_p1…p8 are HELD. leadArmFlexion
+        // gained a face-on route, and their corridors came from the wrist sensors' grid; on the library the
+        // face-on elbow at the top reads ~37° above address, so they would have graded bent_lead_arm on every
+        // camera swing. This fixture carries no leadArmFlexion at all, so none of the eight produces here.
+        check(planned == 14, "14 shipped measures are not live yet");   // 16 -> 14 on 2026-10-14: m_ksOrderShare, m_ksTimingSpread went live on the session reducer (scope: session — still no per-swing value, which `wrong` below confirms)
         check(wrong == 0, "…and not one of them produced a value");
     }
 
@@ -695,7 +703,10 @@ int main(int argc, char **argv)
     // assessable here: the impact and top ones read too little of their weight face-on without
     // trunkRise (which this older fixture lacks), and the setup one requires the down-the-line trunk
     // hinge. All three report compositeCoverage, which is the refusal working.
-    check(cRich.assessable == 57, "rich_7iron: 57 of 190 conditions assessable (observed)");
+    // 57 -> 56 on 2026-11-13 (plane stack D5): chicken_wing. It reads the lead elbow's fold after impact
+    // (leadArmFlexion, a millisecond window after P7) instead of m_leadArmToTorso, and this fixture was
+    // analysed before the face-on elbow existed, so it carries no leadArmFlexion; a re-analysis writes it.
+    check(cRich.assessable == 56, "rich_7iron: 56 of 192 conditions assessable (observed)");
     // HOW MANY OF THOSE ANSWERS RESTED ON EVIDENCE THE CAPTURE DID NOT HAVE. A conjunction
     // settled by one known-false term is a real negative, but it is a different kind of "no"
     // from one where every term was read, and it can only ever be a no. Pinned because the
@@ -771,9 +782,9 @@ int main(int argc, char **argv)
     // and m_clubheadSpeedImpact, each now reading its monitor rung. m_ballSpeed resolves too but is
     // held, so it is not counted, and ball_speed_deficit stays Unavailable: no norm to judge it by.
     // 23 -> 25 on 2026-11-08: fade and draw read the spin axis this fixture reports.
-    check(cLm.assessable   == 25, "lm_7iron: 25 of 190 conditions assessable (observed)");
+    check(cLm.assessable   == 25, "lm_7iron: 25 of 192 conditions assessable (observed)");
     check(cLm.measures     == 30, "lm_7iron: 30 live measures resolved (observed)");
-    check(cSparse.assessable == 2, "sparse_noclub: 2 of 190 conditions assessable (observed)");
+    check(cSparse.assessable == 2, "sparse_noclub: 2 of 192 conditions assessable (observed)");
     check(cSparse.measures   == 1, "sparse_noclub: 1 live measure resolved (observed)");
     check(cRich.assessable > cSparse.assessable,
           "a richer capture assesses strictly more than a degraded one");
@@ -1136,6 +1147,564 @@ int main(int argc, char **argv)
         check(d.find(QStringLiteral("c_mixed"))
                   && d.find(QStringLiteral("c_mixed"))->state == FindingState::Unavailable,
               "a camera thorax over an IMU pelvis is Unavailable: two scales");
+    }
+
+    // ── The takeaway against the set-up (plane_stack_design.md §3.1, D1) ───────────────────
+    //
+    // m_takeawayPlane is the swing plane at P2 LESS the plane at P1, on the shipped pack and the
+    // shipped norms. No corpus fixture carries swingPlaneCurve yet (rich_7iron predates it), so the
+    // curve is synthetic: flat plateaus about each phase instant, so the ±15 ms windowed median at
+    // each is the plateau's value and the expected numbers are plain arithmetic: 58° at address, the
+    // case's value at shaft-parallel back, 66° at lead-arm parallel (a climb of 8° by P3).
+    std::printf("\nthe takeaway against the set-up (m_takeawayPlane)\n");
+    {
+        auto phaseAt = [](Phase ph, qint64 tUs) {
+            QJsonObject o;
+            o.insert(QStringLiteral("phase"), int(ph));
+            o.insert(QStringLiteral("t_us"),  tUs);
+            return o;
+        };
+        // (t ms, value) knots; plateaus of ±40 ms about P1 (100 ms), P2 (300 ms) and P3 (450 ms).
+        auto curve = [](double atP1, double atP2, double atP3, bool maskP2) {
+            const double knots[][2] = { { 0, atP1 },   { 140, atP1 }, { 260, atP2 }, { 340, atP2 },
+                                        { 410, atP3 }, { 490, atP3 }, { 600, atP3 + 4.0 } };
+            QJsonArray t, v, valid;
+            for (int ms = 0; ms <= 600; ms += 5) {
+                double y = knots[0][1];
+                for (std::size_t k = 1; k < std::size(knots); ++k)
+                    if (ms <= knots[k][0]) {
+                        const double f = (ms - knots[k - 1][0]) / (knots[k][0] - knots[k - 1][0]);
+                        y = knots[k - 1][1] + f * (knots[k][1] - knots[k - 1][1]);
+                        break;
+                    }
+                t.append(qint64(ms) * 1000);
+                v.append(y);
+                valid.append((maskP2 && ms >= 200 && ms <= 400) ? 0 : 1);   // bridged round P2
+            }
+            QJsonObject o;
+            o.insert(QStringLiteral("key"),   QStringLiteral("swingPlaneCurve"));
+            o.insert(QStringLiteral("unit"),  QStringLiteral("°"));
+            o.insert(QStringLiteral("t_us"),  t);
+            o.insert(QStringLiteral("value"), v);
+            if (maskP2) o.insert(QStringLiteral("valid"), valid);
+            return o;
+        };
+        auto analysis = [&](double atP1, double atP2, double atP3, bool maskP2 = false) {
+            QJsonObject an;
+            an.insert(QStringLiteral("phases"),
+                      QJsonArray{ phaseAt(Phase::Address, 100'000), phaseAt(Phase::ShaftParallelBack, 300'000),
+                                  phaseAt(Phase::MidBackswing, 450'000), phaseAt(Phase::Top, 560'000) });
+            an.insert(QStringLiteral("metrics"), QJsonArray{ curve(atP1, atP2, atP3, maskP2) });
+            return an;
+        };
+        const auto stateOf = [](const LiveDetection &d, const char *id) {
+            const Finding *f = d.result.find(QLatin1String(id));
+            return f ? f->state : FindingState::Unavailable;
+        };
+
+        const Measure *tm = pack.measure(QStringLiteral("m_takeawayPlane"));
+        check(tm && tm->status == MeasureStatus::Live && tm->metricKey == QLatin1String("swingPlaneCurve")
+                  && tm->reducer.kind == ReducerKind::Delta && tm->reducer.anchor == Phase::Address,
+              "m_takeawayPlane ships live: swingPlaneCurve, delta anchored at P1");
+
+        // THE FIRING EDGES ARE −2 / +3 (Mark, 13 Nov 2026 evening; plane stack D6): sigmaLo 1, sigmaHi 1.5, so
+        // under the shipped `standard` policy (a fault fires past the Good band, 2 tolerances out) flat fires
+        // below −2 and steep above +3, and the amber corridor the finding is shown against, the norm's claim
+        // mu − sigmaLo … mu + sigmaHi, is −1 … +1.5. (Until D6: corridor −2 … +3, firing below −4 / above +6.)
+        // Flat: 4.5° under the address plane.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 53.5, 66.0)), pack);
+            checkValue(src, "m_takeawayPlane",       -4.5);   // P2 − P1
+            checkValue(src, "m_shaftPlaneBackswing",  8.0);   // P3 − P1, the climb, unchanged
+            checkValue(src, "m_backswingPlaneAngle", 66.0);   // P3 itself: shown, grades nothing
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_takeaway") == FindingState::Fired,
+                  "−4.5° under the address plane fires flat_takeaway (past −2)");
+            check(stateOf(d, "steep_takeaway") == FindingState::NotFired, "…and not steep_takeaway");
+            const Finding *f = d.result.find(QStringLiteral("flat_takeaway"));
+            check(f && f->evidence.hasCorridor && near(f->evidence.corridorLo, -1.0) && near(f->evidence.corridorHi, 1.5),
+                  "…shown against the asymmetric amber corridor −1 … +1.5 (sigmaLo 1, sigmaHi 1.5)");
+            check(!d.result.find(QStringLiteral("backswing_plane_too_flat"))
+                      && !d.result.find(QStringLiteral("backswing_plane_too_upright")),
+                  "the retired absolute pair is no longer asked");
+        }
+        // −2.5°, just past the flat edge (Mark's library median is −3.1°, so it now fires on him).
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 55.5, 66.0)), pack);
+            checkValue(src, "m_takeawayPlane", -2.5);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_takeaway") == FindingState::Fired
+                      && stateOf(d, "steep_takeaway") == FindingState::NotFired,
+                  "−2.5° is past the −2 firing edge: flat_takeaway fires (it did not before D6)");
+        }
+        // −1.5°: in the amber band (−2 … −1), so not a fault.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 56.5, 66.0)), pack);
+            checkValue(src, "m_takeawayPlane", -1.5);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_takeaway") == FindingState::NotFired
+                      && stateOf(d, "steep_takeaway") == FindingState::NotFired,
+                  "−1.5° is amber, inside the −2 firing edge: neither fires");
+        }
+        // Just above: +2.5° is amber on the steep side (+1.5 … +3), which reaches further.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 60.5, 66.0)), pack);
+            checkValue(src, "m_takeawayPlane", 2.5);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_takeaway") == FindingState::NotFired
+                      && stateOf(d, "steep_takeaway") == FindingState::NotFired,
+                  "+2.5° (just above the plane it was set on) is inside the +3 firing edge: neither fires");
+        }
+        // Steep: +3.5° above, past the +3 edge.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 61.5, 66.0)), pack);
+            checkValue(src, "m_takeawayPlane", 3.5);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "steep_takeaway") == FindingState::Fired
+                      && stateOf(d, "flat_takeaway") == FindingState::NotFired,
+                  "+3.5° above the address plane fires steep_takeaway only (past +3)");
+        }
+        // The curve bridged round P2 (Chris's masked club track): no takeaway reading, the climb
+        // still reads, and both takeaway faults are not assessable rather than graded on interpolation.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(58.0, 55.0, 66.0, true)), pack);
+            check(!src.value(QStringLiteral("m_takeawayPlane")).has_value(),
+                  "a curve bridged round P2 gives no takeaway reading");
+            checkValue(src, "m_shaftPlaneBackswing", 8.0);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_takeaway") == FindingState::Unavailable
+                      && stateOf(d, "steep_takeaway") == FindingState::Unavailable,
+                  "…so both takeaway faults are not assessable");
+        }
+    }
+
+    // ── The arm lift at the top and bent_lead_arm's 3-D elbow (plane stack D2) ──────────────────────
+    //
+    // armLiftTop is ONE reading at the top (a phase sample, no curve), as both producers write it; the
+    // shipped norm is mu 5, sigmaLo 8, sigmaHi 7: corridor −3 … +12, firing below −11 (arms_swing_around)
+    // and above +19 (arms_lift). leadArmFlexion3d is read at the top; its norm is a ceiling at 15,
+    // tolerance 8: amber from 23, firing above 31.
+    std::printf("\nthe arm lift at the top (m_armLiftTop) and bent_lead_arm's 3-D elbow (D2)\n");
+    {
+        const auto phaseAt = [](Phase ph, qint64 tUs) {
+            return QJsonObject{ { QStringLiteral("phase"), int(ph) }, { QStringLiteral("t_us"), tUs } };
+        };
+        const auto atTop = [](const char *key, double value, const char *route) {
+            QJsonObject ps{ { QStringLiteral("phase"), int(Phase::Top) }, { QStringLiteral("t_us"), 560'000 },
+                            { QStringLiteral("value"), value } };
+            QJsonObject o;
+            o.insert(QStringLiteral("key"),          QString::fromLatin1(key));
+            o.insert(QStringLiteral("unit"),         QStringLiteral("°"));
+            o.insert(QStringLiteral("t_us"),         QJsonArray{});
+            o.insert(QStringLiteral("value"),        QJsonArray{});
+            o.insert(QStringLiteral("phaseSamples"), QJsonArray{ ps });
+            o.insert(QStringLiteral("routeId"),      QString::fromLatin1(route));
+            return o;
+        };
+        const auto analysis = [&](const QJsonArray &metrics) {
+            QJsonObject an;
+            an.insert(QStringLiteral("phases"), QJsonArray{ phaseAt(Phase::Address, 100'000), phaseAt(Phase::Top, 560'000),
+                                                            phaseAt(Phase::Impact, 900'000) });
+            an.insert(QStringLiteral("metrics"), metrics);
+            return an;
+        };
+        const auto stateOf = [](const LiveDetection &d, const char *id) {
+            const Finding *f = d.result.find(QLatin1String(id));
+            return f ? f->state : FindingState::Unavailable;
+        };
+        const Measure *am = pack.measure(QStringLiteral("m_armLiftTop"));
+        check(am && am->status == MeasureStatus::Live && am->metricKey == QLatin1String("armLiftTop")
+                  && am->reducer.kind == ReducerKind::At && am->reducer.anchor == Phase::Top
+                  && am->golferName.contains(QStringLiteral("measured to the elbow")),
+              "m_armLiftTop ships live: armLiftTop at P4, its golfer name says it is measured to the elbow");
+        struct Case { double v; FindingState around, lift; const char *what; };
+        const Case cases[] = {
+            { -12.0, FindingState::Fired,    FindingState::NotFired, "−12° (under the shoulder line) fires arms_swing_around (past −11)" },
+            {  -5.0, FindingState::NotFired, FindingState::NotFired, "−5° is outside the corridor, inside the Good band: neither fires" },
+            {   6.0, FindingState::NotFired, FindingState::NotFired, "+6° (the one-plane-to-two-plane middle) is clean" },
+            {  17.0, FindingState::NotFired, FindingState::NotFired, "+17° (a two-plane arm) is outside the corridor, inside the Good band: neither fires" },
+            {  20.0, FindingState::NotFired, FindingState::Fired,    "+20° fires arms_lift (past +19)" },
+        };
+        for (const Case &c : cases) {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ atTop("armLiftTop", c.v, "dtl") })), pack);
+            checkValue(src, "m_armLiftTop", c.v);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "arms_swing_around") == c.around && stateOf(d, "arms_lift") == c.lift, c.what);
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ atTop("armLiftTop", 20.0, "dtl") })), pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            const Finding *f = d.result.find(QStringLiteral("arms_lift"));
+            check(f && f->evidence.hasCorridor && near(f->evidence.corridorLo, -3.0) && near(f->evidence.corridorHi, 12.0),
+                  "…shown against the corridor −3 … +12 (mu 5, sigmaLo 8, sigmaHi 7)");
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{})), pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "arms_swing_around") == FindingState::Unavailable && stateOf(d, "arms_lift") == FindingState::Unavailable,
+                  "no arm lift ⇒ both arm faults are not assessable");
+        }
+        // bent_lead_arm: its 3-D signal reads leadElbowBendChange3d (D6); m_leadElbowFlex_p4 stays held (D5), so on a
+        // camera swing the 3-D elbow is its one signal.
+        const Measure *bm = pack.measure(QStringLiteral("m_leadElbowBendTop3d"));
+        const Measure *p4 = pack.measure(QStringLiteral("m_leadElbowFlex_p4"));
+        check(bm && bm->status == MeasureStatus::Live && p4 && p4->status == MeasureStatus::Held,
+              "m_leadElbowBendTop3d ships live; m_leadElbowFlex_p4 stays held");
+        // A CHANGE FROM THE ADDRESS HOLD (D6, Mark 13 Nov 2026 evening): leadElbowBendChange3d, ONE reading at the
+        // top that the 3-D body stage derives (the measured top bend less the hold's median), mu 0, tolerance 8:
+        // amber from +8, firing above +16.
+        check(bm && bm->metricKey == QLatin1String("leadElbowBendChange3d") && bm->reducer.kind == ReducerKind::At
+                  && bm->reducer.anchor == Phase::Top && bm->shape == Shape::Ceiling,
+              "m_leadElbowBendTop3d reads leadElbowBendChange3d at P4, a ceiling");
+        struct Bend { double change; FindingState s; const char *what; };
+        const Bend bends[] = {
+            { 18.0, FindingState::Fired,    "+18° more bend at the top than in the hold fires bent_lead_arm (past +16)" },
+            { 12.7, FindingState::NotFired, "+12.7° (Mark's median) is amber (past +8), not a fault" },
+            {  2.0, FindingState::NotFired, "+2° (an arm as straight as at address) is clean" },
+            { -3.0, FindingState::NotFired, "−3° (straighter than at address) is clean: a ceiling" },
+        };
+        for (const Bend &b : bends) {
+            QJsonArray ms{ atTop("leadElbowBendChange3d", b.change, "faceOn+dtl") };
+            // A face-on leadArmFlexion beside it (bent 40° more at the top than at address, D5's projection):
+            // held, it grades nothing.
+            QJsonObject fo = atTop("leadArmFlexion", 50.0, "faceOn");
+            QJsonArray fps = fo.value(QStringLiteral("phaseSamples")).toArray();
+            fps.append(QJsonObject{ { QStringLiteral("phase"), int(Phase::Address) }, { QStringLiteral("t_us"), 100'000 },
+                                    { QStringLiteral("value"), 10.0 } });
+            fo.insert(QStringLiteral("phaseSamples"), fps);
+            ms.append(fo);
+            const LiveMeasureSource src(buildPhaseGrid(analysis(ms)), pack);
+            checkValue(src, "m_leadElbowBendTop3d", b.change);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "bent_lead_arm") == b.s, b.what);
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ atTop("leadElbowBendChange3d", 18.0, "faceOn+dtl") })), pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            const Finding *f = d.result.find(QStringLiteral("bent_lead_arm"));
+            check(f && f->evidence.hasCorridor && near(f->evidence.corridorHi, 8.0),
+                  "…shown against the ceiling's amber edge, +8° from the address arm");
+        }
+        // No measured elbow at one end: the stage writes no reading and the Refused body3d.leadElbowUnmeasured,
+        // which is the reason bent_lead_arm's measure gives (D6 round 2) — not "not segmented".
+        for (const char *code : { "top", "address", "both" }) {
+            QJsonObject an = analysis(QJsonArray{ atTop("leadArmFlexion3d", 30.0, "faceOn+dtl") });
+            an.insert(QStringLiteral("gatesVersion"), kGatesVersion);
+            an.insert(QStringLiteral("gates"), gateRecordsToJson({ GateRecord{
+                QStringLiteral("body3d.leadElbowUnmeasured"), QStringLiteral("leadElbowBendChange3d"), GateEffect::Refused,
+                QVariantMap{ { QStringLiteral("code"), QString::fromLatin1(code) } }, {}, {},
+                { QStringLiteral("leadElbowBendChange3d") } } }));
+            const LiveMeasureSource src(buildPhaseGrid(an), pack);
+            check(!src.value(QStringLiteral("m_leadElbowBendTop3d")).has_value(),
+                  qPrintable(QStringLiteral("%1: no change reading").arg(QLatin1String(code))));
+            const LiveMeasureSource::GateCause gc = src.gateCause(QStringLiteral("m_leadElbowBendTop3d"));
+            check(gc.gate == QLatin1String("body3d.leadElbowUnmeasured") && gc.clause.endsWith(QStringLiteral("lead elbow not seen by both cameras")),
+                  qPrintable(QStringLiteral("%1: …and bent_lead_arm's measure names body3d.leadElbowUnmeasured (\"%2\")")
+                                 .arg(QLatin1String(code), gc.clause)));
+            check(stateOf(detectForSwing(src, pack, norms), "bent_lead_arm") == FindingState::Unavailable,
+                  qPrintable(QStringLiteral("%1: …so bent_lead_arm is not assessable").arg(QLatin1String(code))));
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{})), pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "bent_lead_arm") == FindingState::Unavailable,
+                  "no measured elbow (and the face-on route held) ⇒ bent_lead_arm is not assessable");
+        }
+    }
+
+    // ── The club's climb placed in the on-plane window halfway back (plane stack D3) ─────────────────────────────────────────
+    //
+    // clubSlotTop is ONE reading at P3 (a phase sample, no curve), as club_slot_top.h writes it: 0 on the plane
+    // the club was set on at address, 1 on the shoulder plane at address. The shipped norm is mu 0.5, sigma
+    // 0.25: corridor 0.25 … 0.75 (amber outside), firing below 0 (flat_backswing_plane, club under plane halfway back)
+    // and above 1 (steep_backswing_plane, club above plane halfway back). The climb in degrees, m_shaftPlaneBackswing,
+    // stays live and shown, and grades neither.
+    std::printf("\nthe club in the on-plane window at P3 (m_clubSlotTop, D3)\n");
+    {
+        const auto phaseAt = [](Phase ph, qint64 tUs) {
+            return QJsonObject{ { QStringLiteral("phase"), int(ph) }, { QStringLiteral("t_us"), tUs } };
+        };
+        const auto slotAt = [](double value) {
+            QJsonObject ps{ { QStringLiteral("phase"), int(Phase::MidBackswing) }, { QStringLiteral("t_us"), 450'000 },
+                            { QStringLiteral("value"), value } };
+            QJsonObject o;
+            o.insert(QStringLiteral("key"),          QStringLiteral("clubSlotTop"));
+            o.insert(QStringLiteral("unit"),         QStringLiteral("ratio"));
+            o.insert(QStringLiteral("t_us"),         QJsonArray{});
+            o.insert(QStringLiteral("value"),        QJsonArray{});
+            o.insert(QStringLiteral("phaseSamples"), QJsonArray{ ps });
+            o.insert(QStringLiteral("routeId"),      QStringLiteral("dtl"));
+            return o;
+        };
+        // A swing plane climbing 20° from address to P3: in degrees a big climb, but no slot reading beside it.
+        const auto climb = [] {
+            QJsonArray t, v;
+            for (int ms = 0; ms <= 600; ms += 5) {
+                t.append(qint64(ms) * 1000);
+                v.append(ms <= 140 ? 58.0 : ms >= 410 ? 78.0 : 58.0 + 20.0 * (ms - 140) / 270.0);
+            }
+            return QJsonObject{ { QStringLiteral("key"), QStringLiteral("swingPlaneCurve") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v } };
+        };
+        const auto analysis = [&](const QJsonArray &metrics) {
+            QJsonObject an;
+            an.insert(QStringLiteral("phases"), QJsonArray{ phaseAt(Phase::Address, 100'000), phaseAt(Phase::MidBackswing, 450'000),
+                                                            phaseAt(Phase::Top, 560'000) });
+            an.insert(QStringLiteral("metrics"), metrics);
+            return an;
+        };
+        const auto stateOf = [](const LiveDetection &d, const char *id) {
+            const Finding *f = d.result.find(QLatin1String(id));
+            return f ? f->state : FindingState::Unavailable;
+        };
+        const Measure *sm = pack.measure(QStringLiteral("m_clubSlotTop"));
+        check(sm && sm->status == MeasureStatus::Live && sm->metricKey == QLatin1String("clubSlotTop")
+                  && sm->reducer.kind == ReducerKind::At && sm->reducer.anchor == Phase::MidBackswing,
+              "m_clubSlotTop ships live: clubSlotTop at P3");
+        const Signal *sf = pack.signal(QStringLiteral("sig_flatBackswingPlane"));
+        const Signal *ss = pack.signal(QStringLiteral("sig_steepBackswingPlane"));
+        check(sf && ss && sf->measures == QStringList{ QStringLiteral("m_clubSlotTop") } && sf->direction == Direction::Low
+                  && ss->measures == QStringList{ QStringLiteral("m_clubSlotTop") } && ss->direction == Direction::High,
+              "the pair's signals read m_clubSlotTop, low and high");
+        const Condition *cf = pack.condition(QStringLiteral("flat_backswing_plane"));
+        const Condition *cu = pack.condition(QStringLiteral("steep_backswing_plane"));
+        check(cf && cu && cf->label == QStringLiteral("Club under plane halfway back") && cu->label == QStringLiteral("Club above plane halfway back")
+                  && cf->golfer == QStringLiteral("halfway back, the club sits below the plane you set at address")
+                  && cu->golfer == QStringLiteral("halfway back, the club climbs above the line through your trail shoulder"),
+              "…relabelled: Club under / above plane halfway back, with the golfer lines");
+        struct Case { double v; FindingState under, above; const char *what; };
+        const Case cases[] = {
+            { -0.2, FindingState::Fired,    FindingState::NotFired, "−0.2 (below the address plane) fires flat_backswing_plane (under plane halfway back)" },
+            {  0.1, FindingState::NotFired, FindingState::NotFired, "0.1 (amber, low in the window) fires neither" },
+            {  0.5, FindingState::NotFired, FindingState::NotFired, "0.5 (the middle of the window) is clean" },
+            {  0.9, FindingState::NotFired, FindingState::NotFired, "0.9 (amber, high in the window) fires neither" },
+            {  1.2, FindingState::NotFired, FindingState::Fired,    "1.2 (above the shoulder plane) fires steep_backswing_plane (above plane halfway back)" },
+        };
+        for (const Case &c : cases) {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ slotAt(c.v) })), pack);
+            checkValue(src, "m_clubSlotTop", c.v);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_backswing_plane") == c.under && stateOf(d, "steep_backswing_plane") == c.above, c.what);
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ slotAt(1.2) })), pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            const Finding *f = d.result.find(QStringLiteral("steep_backswing_plane"));
+            check(f && f->evidence.hasCorridor && near(f->evidence.corridorLo, 0.25) && near(f->evidence.corridorHi, 0.75),
+                  "…shown against the corridor 0.25 … 0.75 (mu 0.5, sigma 0.25)");
+        }
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(QJsonArray{ climb() })), pack);
+            checkValue(src, "m_shaftPlaneBackswing", 20.0);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "flat_backswing_plane") == FindingState::Unavailable
+                      && stateOf(d, "steep_backswing_plane") == FindingState::Unavailable,
+                  "a 20° climb with no window reading: m_shaftPlaneBackswing still reads (shown), and the pair is not assessable");
+        }
+    }
+
+    // ── chicken_wing reads the lead elbow's fold in the 100 ms after impact (plane stack D5) ─────
+    //
+    // A face-on leadArmFlexion at 15° to impact (500 ms), then rising by `fold` over 60 ms and held.
+    // The fold measure is the windowed-mean peak over [P7, P7 + 100 ms] less the ±15 ms median at P7,
+    // so on this curve it is exactly `fold`. The norm: ceiling, mu 0, tolerance 5, so it fires past
+    // +10 (two tolerances) and is implausible past +90.
+    {
+        std::printf("\n── chicken_wing (D5) ──\n");
+        const auto phaseAt = [](Phase p, qint64 us) {
+            return QJsonObject{ { QStringLiteral("phase"), int(p) }, { QStringLiteral("t_us"), us }, { QStringLiteral("conf"), 0.9 } };
+        };
+        const auto analysis = [&](double atImpact, double fold) {
+            QJsonArray t, v;
+            for (int ms = 0; ms <= 1000; ++ms) {
+                const double y = ms <= 500 ? atImpact : atImpact + fold * std::min(1.0, (ms - 500) / 60.0);
+                t.append(qint64(ms) * 1000);
+                v.append(y);
+            }
+            const QJsonObject elbow{ { QStringLiteral("key"), QStringLiteral("leadArmFlexion") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                     { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v },
+                                     { QStringLiteral("routeId"), QStringLiteral("faceOn") } };
+            return QJsonObject{ { QStringLiteral("phases"), QJsonArray{ phaseAt(Phase::Address, 100'000), phaseAt(Phase::Top, 300'000),
+                                                                        phaseAt(Phase::Impact, 500'000), phaseAt(Phase::Finish, 900'000) } },
+                                { QStringLiteral("metrics"), QJsonArray{ elbow } } };
+        };
+        const PhaseGridConfig cfg = withMsWindows({}, msWindowsOf(pack.measures));
+        const auto stateOf = [](const LiveDetection &d, const char *id) {
+            const Finding *f = d.result.find(QLatin1String(id));
+            return f ? f->state : FindingState::Unavailable;
+        };
+        const Measure *fm = pack.measure(QStringLiteral("m_leadElbowFoldAfterImpact"));
+        check(fm && fm->status == MeasureStatus::Live && fm->metricKey == QLatin1String("leadArmFlexion")
+                  && fm->reducer.kind == ReducerKind::Extremum && fm->reducer.anchor == Phase::Impact
+                  && fm->reducer.windowMs == std::pair<int, int>{ 0, 100 } && fm->shape == Shape::Ceiling,
+              "m_leadElbowFoldAfterImpact ships live: leadArmFlexion, max over P7 + 0…100 ms from P7, ceiling");
+        const Signal *sg = pack.signal(QStringLiteral("sig_chickenWing"));
+        check(sg && sg->measures == QStringList{ QStringLiteral("m_leadElbowFoldAfterImpact") } && sg->direction == Direction::High,
+              "sig_chickenWing reads that one measure, high");
+        bool allHeld = true;
+        for (int p = 1; p <= 8; ++p) {
+            const Measure *e = pack.measure(QStringLiteral("m_leadElbowFlex_p%1").arg(p));
+            allHeld = allHeld && e && e->status == MeasureStatus::Held && !e->gapReason.isEmpty();
+        }
+        check(allHeld, "m_leadElbowFlex_p1…p8 are held, each with its reason");
+        const Measure *lat = pack.measure(QStringLiteral("m_leadArmToTorso"));
+        check(lat && lat->status == MeasureStatus::Live, "m_leadArmToTorso stays live (shown)");
+
+        // A fold of 14°: past the firing edge.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(15.0, 14.0), cfg), pack);
+            checkValue(src, "m_leadElbowFoldAfterImpact", 14.0);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            check(stateOf(d, "chicken_wing") == FindingState::Fired, "a 14° fold after impact fires chicken_wing (past +10)");
+            check(stateOf(d, "bent_lead_arm") != FindingState::Fired && stateOf(d, "locked_lead_arm") != FindingState::Fired,
+                  "…and the held elbow measures grade neither bent_lead_arm nor locked_lead_arm");
+        }
+        // A fold of 7°: amber, not a fault.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(15.0, 7.0), cfg), pack);
+            checkValue(src, "m_leadElbowFoldAfterImpact", 7.0);
+            check(stateOf(detectForSwing(src, pack, norms), "chicken_wing") == FindingState::NotFired,
+                  "a 7° fold (inside two tolerances) does not fire");
+        }
+        // A straight arm through the ball: clean.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(3.0, 0.0), cfg), pack);
+            checkValue(src, "m_leadElbowFoldAfterImpact", 0.0);
+            check(stateOf(detectForSwing(src, pack, norms), "chicken_wing") == FindingState::NotFired,
+                  "a straight lead arm through impact is clean");
+        }
+        // A wrist keypoint swept across the elbow (+120°): not a swing, not judged.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(15.0, 120.0), cfg), pack);
+            check(stateOf(detectForSwing(src, pack, norms), "chicken_wing") == FindingState::Unavailable,
+                  "a 120° fold is implausible (past 90): not assessable rather than fired");
+        }
+        // THE WINDOW RULE (D5 round 3): the fold rises to +14° by +60 ms, but the frames from +40 to +100 ms
+        // are masked (the lead arm hidden). The span is not covered — 60 ms unread against a 30 ms limit —
+        // so the fold is NOT ASSESSABLE, with its own reason, never the +7° the remaining frames would say.
+        {
+            const auto masked = [&](int fromMs, int toMs) {
+                QJsonObject an = analysis(15.0, 14.0);
+                QJsonArray ms = an.value(QStringLiteral("metrics")).toArray();
+                QJsonObject elbow = ms.at(0).toObject();
+                QJsonArray valid;
+                for (int t = 0; t <= 1000; ++t) valid.append((t >= 500 + fromMs && t <= 500 + toMs) ? 0 : 1);
+                elbow.insert(QStringLiteral("valid"), valid);
+                ms.replace(0, elbow);
+                an.insert(QStringLiteral("metrics"), ms);
+                return an;
+            };
+            const LiveMeasureSource src(buildPhaseGrid(masked(40, 100), cfg), pack);
+            check(!src.value(QStringLiteral("m_leadElbowFoldAfterImpact")).has_value(),
+                  "a fold whose last 60 ms are hidden is not assessable (not read from what is left)");
+            check(src.missingKind(QStringLiteral("m_leadElbowFoldAfterImpact")) == MissingKind::WindowNotCovered,
+                  "…with its own reason: too little of the moment could be seen (not an unsegmented phase)");
+            check(stateOf(detectForSwing(src, pack, norms), "chicken_wing") == FindingState::Unavailable,
+                  "…so chicken_wing is not assessable");
+            // 25 ms hidden (+50 … +74) leaves the rest within 30 ms of each other: covered, and read.
+            const LiveMeasureSource ok(buildPhaseGrid(masked(50, 74), cfg), pack);
+            check(ok.value(QStringLiteral("m_leadElbowFoldAfterImpact")).has_value(), "25 ms hidden: covered, read");
+        }
+        // The producer's "not judged" record covers the same span the grader reads.
+        check(fm && fm->reducer.windowMs
+                  && int64_t(fm->reducer.windowMs->second - fm->reducer.windowMs->first) * 1000
+                         == pinpoint::tuned::upperBody::kElbowFoldSpanUs
+                  && fm->reducer.windowMs->first == 0,
+              "m_leadElbowFoldAfterImpact's span is tuned::upperBody::kElbowFoldSpanUs after impact");
+
+        // The reading's own path: with no span asked for the grid has nothing, so a reader that does
+        // not name the pack's spans cannot grade it — LiveMeasureSource(dir, pack) names them itself.
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(15.0, 14.0)), pack);
+            check(!src.value(QStringLiteral("m_leadElbowFoldAfterImpact")).has_value(),
+                  "a grid built without the pack's spans has no fold reading");
+        }
+    }
+
+    // ── Why there is no P8 (plane stack D6, Club/p8_refusal_gate.h) ────────────────────────────────────────
+    //
+    // FA bounded P8; where findP8Crossing refuses, the readings that need P8 have nothing to read. The record
+    // positions.p8Refused sits on the PHASE (subject position.p8, covers nothing), and a measure whose reducer
+    // needs P8 and whose reading has no value there names it — the real reason, not "not segmented".
+    std::printf("\nwhy there is no P8 (positions.p8Refused, D6)\n");
+    {
+        const auto phaseAt = [](Phase ph, qint64 tUs) {
+            return QJsonObject{ { QStringLiteral("phase"), int(ph) }, { QStringLiteral("t_us"), tUs } };
+        };
+        const auto curve = [](const char *key, double base) {
+            QJsonArray t, v;
+            for (int ms = 0; ms <= 1200; ms += 5) { t.append(qint64(ms) * 1000); v.append(base + 0.01 * ms); }
+            return QJsonObject{ { QStringLiteral("key"), QString::fromLatin1(key) }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v } };
+        };
+        // A ladder with no P8 (or with one), the two P8 readings' keys as curves, and the records.
+        const auto analysis = [&](bool withP8, const std::vector<GateRecord> &gates) {
+            QJsonArray ph{ phaseAt(Phase::Address, 100'000), phaseAt(Phase::Top, 560'000), phaseAt(Phase::Impact, 900'000) };
+            if (withP8) ph.append(phaseAt(Phase::ShaftParallelThrough, 1'000'000));
+            QJsonObject an;
+            an.insert(QStringLiteral("phases"), ph);
+            an.insert(QStringLiteral("metrics"), QJsonArray{ curve("leadKneeFlexion", 20.0), curve("leadArmToTorso", 40.0) });
+            an.insert(QStringLiteral("gatesVersion"), kGatesVersion);
+            an.insert(QStringLiteral("gates"), gateRecordsToJson(gates));
+            return an;
+        };
+        const PositionsConfig pc;
+        const std::vector<PhaseEvent> noP8{ PhaseEvent{ Phase::Address, 100'000 }, PhaseEvent{ Phase::Impact, 900'000 } };
+        std::vector<PhaseEvent> withP8 = noP8;
+        withP8.push_back(PhaseEvent{ Phase::ShaftParallelThrough, 1'000'000 });
+
+        struct Cause { P8Refusal why; const char *code; const char *words; };
+        const Cause causes[] = {
+            { P8Refusal::NoCrossing,    "noCrossing",    "never seen coming back up through level" },
+            { P8Refusal::Late,          "late",          "too late to be the follow-through" },
+            { P8Refusal::WrongSense,    "wrongSense",    "going down, not up" },
+            { P8Refusal::VerticalStall, "verticalStall", "of upright for" },
+        };
+        namespace gates = pinpoint::gates;
+        const gates::GateEntry *entry = gates::gateEntry(QStringLiteral("positions.p8Refused"));
+        check(entry && entry->effects.size() == 1 && entry->effects.front() == GateEffect::Refused,
+              "positions.p8Refused is catalogued, Refused");
+        for (const Cause &c : causes) {
+            const std::optional<GateRecord> r = p8RefusalRecord(uint8_t(c.why), noP8, pc);
+            check(r && r->gate == QLatin1String("positions.p8Refused") && r->subject == QLatin1String("position.p8")
+                      && r->effect == GateEffect::Refused && r->covers.isEmpty()
+                      && r->evidence.value(QStringLiteral("code")).toString() == QLatin1String(c.code),
+                  qPrintable(QStringLiteral("%1: a Refused record on the phase, code %1, covering no key").arg(QLatin1String(c.code))));
+            const QString sentence = entry ? gates::evidenceText(*entry, r ? r->evidence : QVariantMap{}) : QString();
+            check(sentence.startsWith(QStringLiteral("No P8: ")) && sentence.contains(QString::fromUtf8(c.words)),
+                  qPrintable(QStringLiteral("%1: its sentence names the cause (\"%2\")").arg(QLatin1String(c.code), sentence)));
+            const LiveMeasureSource src(buildPhaseGrid(analysis(false, { *r })), pack);
+            for (const char *mid : { "m_leadKneeFlex", "m_leadArmToTorso", "m_leadKneeFlex_p8" }) {
+                const QString id = QString::fromLatin1(mid);
+                check(!src.value(id).has_value() && src.missingKind(id) == MissingKind::PhaseNotSegmented,
+                      qPrintable(QStringLiteral("%1 / %2: no P8, no reading").arg(QLatin1String(c.code), id)));
+                const LiveMeasureSource::GateCause gc = src.gateCause(id);
+                check(gc.gate == QLatin1String("positions.p8Refused") && gc.subject == QLatin1String("position.p8")
+                          && gc.clause == QStringLiteral("P8 (the shaft level after impact) not timed"),
+                      qPrintable(QStringLiteral("%1 / %2: …and its reason is the P8 record (\"%3\")").arg(QLatin1String(c.code), id, gc.clause)));
+            }
+            // The same keys read fine at the positions they do have: nothing is refused there.
+            check(src.value(QStringLiteral("m_leadKneeFlex_p4")).has_value(),
+                  qPrintable(QStringLiteral("%1: leadKneeFlexion still reads at the top").arg(QLatin1String(c.code))));
+        }
+        // No record where nothing was refused, where the cause was no impact, or where the ladder has a P8
+        // (the IMU segmenter's, say) — and then a missing P8 reading names no phase reason.
+        check(!p8RefusalRecord(uint8_t(P8Refusal::None), noP8, pc) && !p8RefusalRecord(uint8_t(P8Refusal::NoImpact), noP8, pc)
+                  && !p8RefusalRecord(uint8_t(P8Refusal::Late), withP8, pc),
+              "no record for None, for NoImpact, or with a P8 on the ladder");
+        {
+            const LiveMeasureSource src(buildPhaseGrid(analysis(false, {})), pack);
+            (void)src.value(QStringLiteral("m_leadKneeFlex"));
+            check(src.gateCause(QStringLiteral("m_leadKneeFlex")).gate.isEmpty(),
+                  "with no record, a missing P8 reading names no gate (\"not segmented\" stands)");
+        }
+        // The persisted names round-trip (analysis.club.diag.p8Refusal).
+        bool names = true;
+        for (const Cause &c : causes)
+            names = names && QLatin1String(shaftP8RefusalName(uint8_t(c.why))) == QLatin1String(c.code)
+                 && shaftP8RefusalFromName(QString::fromLatin1(c.code)) == uint8_t(c.why);
+        check(names && shaftP8RefusalName(0)[0] == '\0' && shaftP8RefusalFromName(QString()) == 0,
+              "the causes' persisted names round-trip, None writes nothing");
     }
 
     std::printf("\n%s\n", g_fail == 0 ? "ALL PASS" : "FAILURES");

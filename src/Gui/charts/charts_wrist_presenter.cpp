@@ -322,6 +322,8 @@ std::shared_ptr<ShotSeries> wristShotFromDetail(const QVariantMap &d, const QStr
         MetricSeries m;
         m.key = s.value(QStringLiteral("key")).toString();
         if (m.key.isEmpty() || !pa::dofForMetricKey(m.key) || sh->metrics.contains(m.key)) continue;
+        // the face-on elbow (routeId faceOn) is a camera reading, not the sensors' grid (wrist_assessment_types.h)
+        if (pa::isCameraWristDofSeries(s.value(QStringLiteral("routeId")).toString())) continue;
         m.label = s.value(QStringLiteral("label")).toString();
         m.unit = s.value(QStringLiteral("unit")).toString();
         for (const QVariant &t : s.value(QStringLiteral("t_us")).toList()) m.tUs.push_back(t.toLongLong());

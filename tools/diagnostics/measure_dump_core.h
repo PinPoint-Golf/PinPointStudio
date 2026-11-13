@@ -102,7 +102,11 @@ QStringList selectMeasures(const pinpoint::analysis::CharacteristicPack &pack, c
 
 // The phase grid exactly as readPhaseGrid() builds it, but never writing the sidecar. `rootOut`
 // receives the full document when it had to be parsed (empty when the sidecar answered).
-pinpoint::analysis::SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut = nullptr);
+// `cfg` carries the millisecond spans to build (measure_sample.h PhaseGridMsWindow): readSwing passes
+// the pack's own (msWindowsOf), as LiveMeasureSource(dir, pack) does, so a `windowMs` measure reads. A
+// sidecar lacking one of them is not served; the grid is built from the document instead (read-only).
+pinpoint::analysis::SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut = nullptr,
+                                                    const pinpoint::analysis::PhaseGridConfig &cfg = {});
 
 // Every row for one swing directory. Read-only.
 std::vector<Row> readSwing(const QString &sessionDir, const QString &swingDir,

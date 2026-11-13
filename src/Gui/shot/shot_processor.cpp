@@ -576,6 +576,13 @@ QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
             { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
             { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
             { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
+        // Mirrors swing_doc.cpp's analysis.club.diag.p8Refusal (plane stack D6).
+        if (a.shaft.p8Refusal) {
+            QVariantMap dg = clubMap.value(QStringLiteral("diag")).toMap();
+            dg.insert(QStringLiteral("p8Refusal"),
+                      QString::fromLatin1(pinpoint::analysis::shaftP8RefusalName(a.shaft.p8Refusal)));
+            clubMap.insert(QStringLiteral("diag"), dg);
+        }
         if (a.shaft.refusedReason)
             clubMap.insert(QStringLiteral("refused"),
                            QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(a.shaft.refusedReason)));

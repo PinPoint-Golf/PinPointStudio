@@ -24,6 +24,8 @@
 //   (c) identifiability: lengths and camera geometry recovered from a wrong start
 //   (d) ablation: each constraint switched off in turn — printed as a table
 //   (e) face-on only
+//   (FB) the two views of the shoulders disagree at the top (the cross-view pass), honest tiers, and the
+//        fit's runtime with and without them
 //   plus a Jacobian check and the timing.
 //
 //   cmake --build build/tests --target skeleton3d_test
@@ -1468,6 +1470,196 @@ int main()
                     rL.reprojMedPxFo, rL.reprojMedPxDtl);
         check(!rF.dtlUsed && !rF.dtlDropReason.empty(), "(DS) fixed rule: the fit drops the DTL camera and says why");
         check(rL.valid && rL.dtlUsed && rL.dtlDropReason.empty(), "(DS) local gap: the fit keeps the DTL camera");
+    }
+
+    // (FB) the two views of a shoulder disagree at the top; honest tiers (plane stack FB, 13 Nov 2026).
+    // At the top the face-on trail shoulder is hidden and placed low, and the face-on lead shoulder is
+    // read toward the target: the face-on view is the less confident one there. The cross-view pass must
+    // let the down-the-line camera decide; a keypoint the fit cannot land on must not make its joint
+    // "measured". The same observations as (b) without the label swap, so a perturbed marker is the one named.
+    std::printf("(FB) the two views of the shoulders disagree at the top; honest tiers\n");
+    {
+        const Rig &R = rig();
+        const FitInput base = observe(T, 2.0, 0.02, true, 11, false);
+        auto topIdx = [&](const FitResult &r) {
+            size_t k = 0;
+            for (size_t i = 0; i < r.t_us.size(); ++i)
+                if (std::llabs(r.t_us[i] - T.topUs) < std::llabs(r.t_us[k] - T.topUs)) k = i;
+            return k;
+        };
+        // The shoulder line's inclination, + = the trail (right) shoulder higher (body3d shoulderPlaneDeg).
+        auto tiltOf = [](const V3 &lead, const V3 &trail) {
+            const V3 d = trail - lead;
+            return std::atan2(d.z, std::hypot(d.x, d.y)) / kDeg;
+        };
+        auto truthTilt = [&](size_t i) {
+            Pose p;
+            forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+            return tiltOf(p.pos[ybot::LeftArm], p.pos[ybot::RightArm]);
+        };
+        auto fitTilt = [&](const FitResult &r, size_t i) { return tiltOf(r.joints[i][ybot::LeftArm], r.joints[i][ybot::RightArm]); };
+        // The fit's down-the-line trail-shoulder residual (marker 6), median over top ± 15 ms.
+        auto dtlTrailResid = [&](const FitResult &r, const FitInput &in) {
+            std::vector<double> e;
+            for (size_t i = 0; i < r.t_us.size(); ++i) {
+                if (std::llabs(r.t_us[i] - T.topUs) > 15000) continue;
+                const KpObs &o = in.dtl[i].kp[6];
+                if (o.sigma <= 0) continue;
+                Pose p;
+                std::array<double, GroupCount> sc = r.scale;
+                forwardKinematics(R, r.theta[i].data(), sc.data(), p);
+                const V3 w = markerWorld(p, R.markers[6].joint, V3 { r.markerOffset[6][0], r.markerOffset[6][1], r.markerOffset[6][2] });
+                double u, v;
+                if (projectPoint(r.cam, 1, in.dtlW, in.dtlH, w, u, v)) e.push_back(std::hypot(u - o.u, v - o.v));
+            }
+            std::sort(e.begin(), e.end());
+            return e.empty() ? 1e9 : e[e.size() / 2];
+        };
+        auto off = [](FitInput x) { x.cfg.crossViewMissMm = 0; x.cfg.tierSeenSigmas = 0; return x; };
+
+        // The control, with FB and without: nothing disagrees, so nothing moves.
+        const FitResult rC = fitSkeleton(base), rC0 = fitSkeleton(off(base));
+        const size_t iT = topIdx(rC);
+        std::printf("      control: top tilt %.2f° (truth %.2f°), pre-FB %.2f°; cross-view σ inflated %d/%d on %d frames; "
+                    "%.0f ms, %d iterations (pre-FB %.0f ms, %d iterations)\n",
+                    fitTilt(rC, iT), truthTilt(iT), fitTilt(rC0, iT), rC.nCrossViewFo, rC.nCrossViewDtl, rC.nCrossViewFrames,
+                    rC.ms, rC.iterations, rC0.ms, rC0.iterations);
+        check(std::fabs(fitTilt(rC, iT) - fitTilt(rC0, iT)) <= 0.5, "(FB) the unperturbed control's top tilt is unchanged within 0.5°");
+
+        // The perturbed top: over top ± 120 ms the face-on trail shoulder 5 cm low and the face-on lead
+        // shoulder 8 cm toward the target, both at confidence 0.6 (σ × confSigmaFactor, as observePose does).
+        FitInput pert = base;
+        const double kConf = 0.6, kRef = pert.cfg.confSigmaRef;
+        for (size_t i = 0; i < T.t.size(); ++i) {
+            if (std::llabs(T.t[i] - T.topUs) > 120000) continue;
+            Pose p;
+            forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+            for (const auto &[m, shift] : { std::pair { 6, V3 { 0, 0, -0.05 } }, std::pair { 5, V3 { 0.08, 0, 0 } } }) {
+                KpObs &o = pert.fo[i].kp[size_t(m)];
+                if (o.sigma <= 0) continue;
+                const V3 w = markerWorld(p, R.markers[size_t(m)].joint, T.off[size_t(m)]);
+                double u0, v0, u1, v1;
+                if (!projectPoint(T.cam, 0, T.foW, T.foH, w, u0, v0) || !projectPoint(T.cam, 0, T.foW, T.foH, w + shift, u1, v1)) continue;
+                o.u += u1 - u0; o.v += v1 - v0;               // the same noise, on the moved point
+                o.conf = kConf;
+                o.sigma *= confSigmaFactor(kConf, kRef);
+            }
+        }
+        const FitResult rP = fitSkeleton(pert), rP0 = fitSkeleton(off(pert));
+        const size_t iP = topIdx(rP);
+        const double eP = std::fabs(fitTilt(rP, iP) - truthTilt(iP)), eP0 = std::fabs(fitTilt(rP0, iP) - truthTilt(iP));
+        const double dP = dtlTrailResid(rP, pert), dP0 = dtlTrailResid(rP0, pert);
+        std::printf("      perturbed: top tilt %.2f° (truth %.2f°, error %.2f°; pre-FB %.2f°, error %.2f°); DTL trail-shoulder "
+                    "residual %.1f px (pre-FB %.1f px); cross-view σ inflated %d/%d on %d frames; %.0f ms, %d iterations "
+                    "(pre-FB %.0f ms, %d iterations)\n",
+                    fitTilt(rP, iP), truthTilt(iP), eP, fitTilt(rP0, iP), eP0, dP, dP0, rP.nCrossViewFo, rP.nCrossViewDtl,
+                    rP.nCrossViewFrames, rP.ms, rP.iterations, rP0.ms, rP0.iterations);
+        check(rP.nCrossViewFo > 0 && rP.nCrossViewDtl == 0, "(FB) the cross-view pass inflates the face-on (lower-confidence) view only");
+        check(eP <= 3.0, "(FB) perturbed top: the top tilt is within 3° of the truth");
+        check(dP < 5.0, "(FB) perturbed top: the down-the-line trail-shoulder residual is under 5 px");
+        // The same misses (the perturbed run inflated 29 keypoints, so > 30 mm), but the two views equally
+        // confident: neither gives way.
+        {
+            FitInput tie = pert;
+            for (size_t i = 0; i < tie.fo.size(); ++i)
+                for (int m : { 5, 6 }) { tie.fo[i].kp[size_t(m)].conf = 0.9; tie.dtl[i].kp[size_t(m)].conf = 0.9; }
+            const FitResult rT = fitSkeleton(tie);
+            check(rP.nCrossViewFo > 0 && rT.nCrossViewFo == 0 && rT.nCrossViewDtl == 0 && rT.nCrossViewFrames == 0,
+                  "(FB) equal confidences with a real miss over 30 mm inflate neither view");
+        }
+
+        // The hips are OUT of the pass by default, and body3d.crossViewHips puts them in: the face-on trail
+        // hip 6 cm low over top ± 60 ms at confidence 0.6.
+        {
+            FitInput hip = base;
+            for (size_t i = 0; i < T.t.size(); ++i) {
+                if (std::llabs(T.t[i] - T.topUs) > 60000) continue;
+                Pose p;
+                forwardKinematics(R, T.th[i].data(), T.scale.data(), p);
+                KpObs &o = hip.fo[i].kp[12];
+                if (o.sigma <= 0) continue;
+                const V3 w = markerWorld(p, R.markers[12].joint, T.off[12]);
+                double u0, v0, u1, v1;
+                if (!projectPoint(T.cam, 0, T.foW, T.foH, w, u0, v0) || !projectPoint(T.cam, 0, T.foW, T.foH, w + V3 { 0, 0, -0.06 }, u1, v1)) continue;
+                o.u += u1 - u0; o.v += v1 - v0; o.conf = kConf; o.sigma *= confSigmaFactor(kConf, kRef);
+            }
+            FitInput withHips = hip;
+            withHips.cfg.crossViewHips = true;
+            const FitResult rN = fitSkeleton(hip), rH = fitSkeleton(withHips);
+            std::printf("      trail hip 6 cm low on the face-on view: cross-view σ inflated %d/%d by default, %d/%d with the hips switched in\n",
+                        rN.nCrossViewFo, rN.nCrossViewDtl, rH.nCrossViewFo, rH.nCrossViewDtl);
+            check(!FitConfig{}.crossViewHips && rN.nCrossViewFrames == 0 && rH.nCrossViewFo > 0,
+                  "(FB) the hips are out of the cross-view pass by default, and body3d.crossViewHips puts them in");
+        }
+
+        // Honest tiers: the face-on lead elbow (marker 7) 100 px off over top ± 25 ms.
+        FitInput elb = base;
+        for (size_t i = 0; i < T.t.size(); ++i)
+            if (std::llabs(T.t[i] - T.topUs) <= 25000 && elb.fo[i].kp[7].sigma > 0) elb.fo[i].kp[7].u += 100.0;
+        const FitResult rE = fitSkeleton(elb);
+        int nTop = 0, eTier2 = 0, cTier3 = 0, others = 0, othersCtl = 0;
+        for (size_t i = 0; i < rE.t_us.size() && i < rC.t_us.size(); ++i) {
+            // "There": the top frames where both cameras have the lead elbow keypoint (2 % dropout).
+            const bool inTop = std::llabs(rE.t_us[i] - T.topUs) <= 25000 && elb.fo[i].kp[7].sigma > 0
+                            && elb.dtl[i].kp[7].sigma > 0;
+            if (inTop) {
+                ++nTop;
+                eTier2 += rE.tier[i][ybot::LeftForeArm] == TierConstrained;
+                cTier3 += rC.tier[i][ybot::LeftForeArm] == TierMeasured;
+                if (rC.tier[i][ybot::LeftForeArm] != TierMeasured || rE.tier[i][ybot::LeftForeArm] != TierConstrained)
+                    std::printf("        lead elbow at %+.0f ms: tier %d (control %d, pre-FB control %d), σ %.1f cm (control %.1f cm)\n",
+                                (rE.t_us[i] - T.topUs) * 1e-3, int(rE.tier[i][ybot::LeftForeArm]),
+                                int(rC.tier[i][ybot::LeftForeArm]), int(rC0.tier[i][ybot::LeftForeArm]),
+                                100.0 * rE.sigmaM[i][ybot::LeftForeArm], 100.0 * rC.sigmaM[i][ybot::LeftForeArm]);
+            }
+            for (int j = 0; j < Rig::N; ++j) {
+                if (j == ybot::LeftForeArm) continue;
+                if (rE.tier[i][size_t(j)] != rC.tier[i][size_t(j)]) {
+                    ++others;
+                    if (others <= 4)
+                        std::printf("        joint %s at %.3f s: tier %d (control %d)\n", ybot::kJoints[j].name,
+                                    rE.t_us[i] * 1e-6, int(rE.tier[i][size_t(j)]), int(rC.tier[i][size_t(j)]));
+                }
+                othersCtl += rC.tier[i][size_t(j)] != rC0.tier[i][size_t(j)];
+            }
+        }
+        int measuredC = 0, measuredC0 = 0, all = 0;
+        for (size_t i = 0; i < rC.t_us.size(); ++i)
+            for (int j = 0; j < Rig::N; ++j) {
+                ++all;
+                measuredC += rC.tier[i][size_t(j)] == TierMeasured;
+                measuredC0 += rC0.tier[i][size_t(j)] == TierMeasured;
+            }
+        std::printf("      elbow 100 px off on %d top frames: tier 2 on %d (control tier 3 on %d); other joints' tiers "
+                    "changed on %d joint-frames; control measured %d of %d joint-frames (pre-FB %d), %d changed\n",
+                    nTop, eTier2, cTier3, others, measuredC, all, measuredC0, othersCtl);
+        // Which joints the honest rule took from measured on the clean control (noise past 3σ, a fit miss).
+        std::printf("      control, measured → constrained by joint:");
+        for (int j = 0; j < Rig::N; ++j) {
+            int n = 0;
+            for (size_t i = 0; i < rC.t_us.size(); ++i)
+                n += rC0.tier[i][size_t(j)] == TierMeasured && rC.tier[i][size_t(j)] == TierConstrained;
+            if (n) std::printf(" %s %d", ybot::kJoints[j].name, n);
+        }
+        std::printf("\n");
+        check(nTop >= 3 && eTier2 == nTop, "(FB) a lead elbow keypoint the fit sits 100 px from is constrained (tier 2) there, not measured");
+        check(cTier3 == nTop, "(FB) …and measured (tier 3) on the control");
+        check(others == 0, "(FB) …and no other joint's tier changes");
+        // …while a keypoint 10 px off is within the 15 px floor (body3d.tierSeenFloorPx): still measured.
+        {
+            FitInput near10 = base;
+            for (size_t i = 0; i < T.t.size(); ++i)
+                if (std::llabs(T.t[i] - T.topUs) <= 25000 && near10.fo[i].kp[7].sigma > 0) near10.fo[i].kp[7].u += 10.0;
+            const FitResult r10 = fitSkeleton(near10);
+            int n10 = 0, m10 = 0;
+            for (size_t i = 0; i < r10.t_us.size(); ++i) {
+                if (std::llabs(r10.t_us[i] - T.topUs) > 25000 || near10.fo[i].kp[7].sigma <= 0 || near10.dtl[i].kp[7].sigma <= 0) continue;
+                ++n10;
+                m10 += r10.tier[i][ybot::LeftForeArm] == TierMeasured;
+            }
+            std::printf("      elbow 10 px off on %d top frames: measured on %d\n", n10, m10);
+            check(n10 >= 3 && m10 == n10, "(FB) a lead elbow keypoint 10 px off (inside the 15 px floor) stays measured");
+        }
     }
 
     // Timing at a real cadence.

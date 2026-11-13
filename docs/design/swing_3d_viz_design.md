@@ -147,6 +147,11 @@ a robust loss (Cauchy), so one mislabelled keypoint cannot drag the body.
 | **r_limit** | the barriers above | — |
 | **r_prior** | lengths, offsets and camera parameters against their priors | — |
 
+**The observation's σ carries the detector's confidence, and two views that disagree give way by
+confidence** (v18, §18). The smoothed track's σ is multiplied by max(1, 0.8 / conf), and where a
+shoulder keypoint's two rays miss by more than 30 mm the lower-confidence view's σ is inflated by the
+miss ratio (at most ×5). The hips can be put in (`crossViewHips`); they are out by default.
+
 **Label swaps** are handled inside the fit, not before it. When the face-on shoulder/hip
 labels flip at the top, the swapped assignment for that view and frame is tried as well,
 and the lower-cost one is kept and flagged `labelSwap`. A rigid body makes the wrong
@@ -208,7 +213,7 @@ Per joint, per frame, from σ and from which terms contributed:
 
 | Tier | Rule (initial thresholds, set by §8) | Drawn as |
 |---|---|---|
-| `measured` | σ ≤ 2 cm and both views contributed | Solid |
+| `measured` | σ ≤ 2 cm and both views SAW it now: since v18 (§18) a view saw a joint only where the fit lands within max(3σ, 15 px) of one of its keypoints, not merely where a keypoint exists | Solid |
 | `constrained` | σ ≤ 5 cm | Solid, with a "constrained" chip on the panel |
 | `inferred` | σ > 5 cm | Ghosted, 40 % |
 | `absent` | no term within 100 ms | Not drawn |
@@ -1222,3 +1227,77 @@ floor, stance line or angle buttons. Library pass: 33 two-camera swings fitted, 
 them `dtlDropped`, 07-03 s2), and every metric value and kinematic sequence identical to v14. The
 solver tests keep exercising face-on-only fits with `requireDtl` off, and `(2C)` checks the refusal.
 Issues #47 and #48 (face-on-only depth and tilt) closed as no longer applying.
+
+## 18. Two views that disagree, confidence in σ, and honest tiers (13 November 2026) — skeleton3d v18
+
+From the plane stack's diagnosis of Chris's shoulder line (`plane_stack_design.md` §6.1 and §11 FB,
+where the library numbers are). At the top the shoulder line points almost at the face-on camera: the
+face-on trail shoulder is hidden behind the chest, and its keypoint sits 5–6 cm low. With the shoulder
+width held, the Cauchy loss kept one view and threw the other away, and on 6 of Chris's 8 swings it
+threw away the down-the-line view (21–33 px off at σ ~1.5 px), so the tilt collapsed.
+
+**The cross-view pass** (`FitConfig::crossViewMissMm` 30, `crossViewSigmaCap` 5, `crossViewHips`; the
+override keys are `body3d.*`, as the plane-stack design names them).
+- Once, straight after the stage-2 LM and its label swaps, through the cameras stage 2 has fitted.
+  The stage-1 cameras are the canned start (DTL square and level at a guessed distance), where every
+  marker's rays miss by centimetres.
+- Per frame, for the shoulders (5/6), the closest approach of the face-on and DTL rays through the
+  keypoint. The hips (11/12) only with `crossViewHips`, OFF by default: on the stored library fits
+  Mark's trail hip's rays miss by a median 79 mm over the whole swing (> 30 mm on 94 % of frames), the
+  hip keypoint's placement differing between a front and a side view. That is a definition offset, not
+  the occlusion the pass is for, and down-weighting it would move the pelvis turn without evidence. Past 30 mm, the lower-confidence view's σ × miss / 30 mm, at most × 5;
+  equal confidences, neither.
+- If anything was inflated, one more LM pass (stage2Iters / 2) before the plane and grip passes.
+- `diagnostics.nCrossViewFo` / `nCrossViewDtl` / `nCrossViewFrames` count it.
+
+**Confidence in the 2-D σ** (`Skeleton3DStage::observePose`, `confSigmaFactor`). The smoothed track's
+σ ignored the detector's confidence: an occluded 0.36-confidence shoulder came in at 2.4–2.9 px against
+1.5 px at 0.9. It is now × max(1, 0.8 / conf) (`body3d.confSigmaRef`), and `KpObs::conf` carries the
+confidence (the lower of the DTL bracket's two) for the pass and the shoulder check.
+
+**Honest tiers** (`FitConfig::tierSeenSigmas` 3, `tierSeenFloorPx` 15, §3.7). A view saw a joint at a
+frame only where the output pose (after the hands' lock) projects one of the joint's witness markers
+within max(3σ, 15 px) of that keypoint, σ being the observation's own before the cross-view pass. Before, any keypoint counted, so
+elbows the fit sits 57–114 px from were "seen by both cameras". It decides measured against
+constrained only: absent still means no keypoint within ±100 ms in either view.
+- The floor: on real swings the 2-D σ (1.5 px floor) is well under the fit's typical residual
+  (3–8 px), so 3σ alone demoted 49–99 % of measured joint-frames. 15 px sits above that and well below
+  the poorly seen elbows' 57–114 px. Even so, many knee and trail-side frames go to constrained
+  (`plane_stack_design.md` §11 FB has the table). Consumers of tier ≥ 2 are unaffected; the 3-D
+  panel's frame chip is what changes.
+
+**After the fit** (`Skeleton3DStage::run`): `body3d::shoulderViewsAtTop` compares the DTL keypoints'
+shoulder line with the fit's at the top and fires `body3d.shoulderViewsDisagree` past 7°
+(`plane_stack_design.md` §11 FB).
+
+**Synthetic** (`skeleton3d_test` (FB)):
+- The control fit is unchanged (top tilt 26.17° either way).
+- The brief's top perturbation is caught (face-on keypoints inflated only) and fitted to 0.23° of the
+  truth tilt. The fit without the pass also gets it right, so the synthetic swing does not reproduce
+  the library's collapse.
+- A face-on lead elbow 100 px off at the top goes from measured to constrained there, and nothing else
+  moves; 10 px off it stays measured. The clean control's tiers are unchanged.
+- Runtime: 571 against 568 ms on the control; +25 ms (+4 %) on a swing the pass inflates.
+
+## 19. Two readings off the fit's lead arm (13 November 2026) — skeleton3dBody v4, plane stack D2
+
+`Skeleton3dBodyStage` (`skeleton3d_body_series.h`) reads two new things off the fit's joints. Neither
+changes the fit.
+
+- **`armLiftTop`, the 3-D route:** asin(â · n̂) at the top, â the lead shoulder (`LeftArm`) → lead ELBOW
+  (`LeftForeArm`) — never the wrist: a bent lead arm makes the arm look lifted — and n̂ the spine (hip
+  midpoint → shoulder midpoint) with its component along the shoulder line removed. Joints at tier ≥ 2;
+  σ first order through the five joints. The shoulder line it is measured against is the one FB's check
+  compares, so on a swing where `body3d.shoulderViewsDisagree` fired the stage does not build it
+  (`SwingAnalysis::skeleton3dShoulderViewsDisagree` carries the fact from `Skeleton3DStage`, because the
+  executor splices gate records only after every stage). While the cameras are uncalibrated it only fills
+  where the down-the-line picture has no reading (`plane_stack_design.md` §3.2, §11 D2).
+- **`leadArmFlexion3d`:** the lead elbow's bend, read ONLY on frames whose lead elbow is TierMeasured
+  (FB's honest tier: the fit lands within max(3σ, 15 px) of the elbow keypoint in both views). On the
+  stored library fits that rule keeps Mark's lead elbow on 53 % of his top frames, Jess's on 12 %,
+  Paddy's on 5 %, and Nick's and Chris's on none: their face-on elbow misses are 57–114 px. It is
+  `bent_lead_arm`'s camera reading (§11 D2). Since D6 (13 Nov 2026) `bent_lead_arm` grades
+  **`leadElbowBendChange3d`** instead: the measured bend at the top less the median of the measured bend
+  over the address hold (P1 − 150 ms … P1), one reading at the top, not built where either end has no
+  measured elbow (Refused `body3d.leadElbowUnmeasured`); 79 library swings read it
+  (`plane_stack_design.md` §11 D6).

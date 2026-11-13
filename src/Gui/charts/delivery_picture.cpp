@@ -293,7 +293,7 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
         why << QStringLiteral("The club was not measured down the line at address: the address line is not drawn.");
     else if (!doc.hasBall)
         why << QStringLiteral("The ball was not found down the line: the address line is drawn along the shaft, and the shoulder plane "
-                              "and the slot are not drawn.");
+                              "and the on-plane window are not drawn.");
     if (doc.hasBall && !doc.hasShoulder)
         why << sentence(QStringLiteral("no shoulder plane: ") + (doc.shoulderWhy.isEmpty() ? QStringLiteral("not measured") : doc.shoulderWhy)
                         + (doc.shoulderMetric ? QString() : QStringLiteral(". Re-analyse it to add it")));
@@ -321,7 +321,7 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
         QVariantList marks;
         if (sized) {
             // the wash under the lines; the address line, then the shoulder plane (dashed, as on the plot)
-            if (slot) marks.append(markOf(QStringLiteral("poly"), QStringLiteral("the slot"), QString(), wash, px));
+            if (slot) marks.append(markOf(QStringLiteral("poly"), QStringLiteral("the on-plane window"), QString(), wash, px));
             if (addressLine.size() == 2) marks.append(markOf(QStringLiteral("polyline"), addressLabel, QString(), addressLine, px));
             if (shoulderLine.size() == 2) marks.append(markOf(QStringLiteral("polyline"), QStringLiteral("shoulder plane"), QStringLiteral("dash"), shoulderLine, px));
         }
@@ -354,7 +354,7 @@ QVariantMap deliveryPicture(const DeliveryPictureDoc &doc, const DeliveryPicture
     QString legend;
     if (!parts.isEmpty()) {
         legend = QStringLiteral("Your lines at address, frozen on every frame: ") + parts.join(QStringLiteral(", ")) + QLatin1Char('.');
-        if (slot) legend += QStringLiteral(" The shaded wedge between them is the slot.");
+        if (slot) legend += QStringLiteral(" The shaded wedge between them is your on-plane window.");
     }
     return { { QStringLiteral("available"), sized }, { QStringLiteral("swingDir"), doc.swingDir }, { QStringLiteral("ordinal"), opt.ordinal },
              { QStringLiteral("legend"), sized ? legend : QString() }, { QStringLiteral("why"), why }, { QStringLiteral("pending"), pending },

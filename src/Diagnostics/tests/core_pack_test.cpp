@@ -126,14 +126,14 @@ int main()
     {
         std::map<ConditionGroup, int> byGroup;
         for (const Condition &c : p.conditions) ++byGroup[c.group];
-        check(p.conditions.size() == 190, "190 conditions in the shipped pack");
+        check(p.conditions.size() == 192, "192 conditions in the shipped pack");   // +arms_swing_around, +arms_lift (2026-11-13, plane stack D2)
         check(byGroup[ConditionGroup::Setup] == 25, "setup holds 25");
         check(byGroup[ConditionGroup::Posture] == 16, "posture holds 16");
         check(byGroup[ConditionGroup::Lateral] == 20, "lateral holds 20");
         check(byGroup[ConditionGroup::Rotation] == 29, "rotation holds 29");
         check(byGroup[ConditionGroup::Arms] == 8, "arms holds 8");
         check(byGroup[ConditionGroup::Wrists] == 14, "wrists holds 14");
-        check(byGroup[ConditionGroup::PlanePath] == 18, "planePath holds 18");
+        check(byGroup[ConditionGroup::PlanePath] == 20, "planePath holds 20");   // +arms_swing_around, +arms_lift (2026-11-13, plane stack D2)
         check(byGroup[ConditionGroup::Delivery] == 10, "delivery holds 10");
         check(byGroup[ConditionGroup::BallFlight] == 22, "ballFlight holds 22");
         check(byGroup[ConditionGroup::Golfer] == 28, "golfer holds 28");
@@ -344,7 +344,11 @@ int main()
         // 24 -> 26 with the posture composites (2026-10-22, posture_metrics_design.md §7.3): a chest that cannot turn stands the
         // golfer up, at impact and at the top (loss_of_posture, loss_of_posture_backswing).
         // Practice tier, from the design's edge tables, reviewed by Mark with the design.
-        check(coverage("limited_thoracic_rotation") == 26, "limited thoracic rotation explains 26");
+        // 26 -> 27 with the takeaway against the set-up (2026-11-13, plane_stack_design.md §3.1, D1):
+        // a chest that cannot turn the club away leaves the arms to lift it (steep_takeaway), the plane
+        // twin of its existing weak link to outside_takeaway. Practice tier, weak; the fault needs a
+        // cause to ship (the "everything that can fire has a cause" check below), and §7 named none.
+        check(coverage("limited_thoracic_rotation") == 27, "limited thoracic rotation explains 27");
         // 9 -> 10 with the lead-side audit: the hip that cannot internally rotate cannot accept the
         // load and turn over it, so the rotation stops rather than being slow to start — which is
         // late_pelvis_rotation, a fault it already explained and a different one.
@@ -2126,8 +2130,9 @@ int main()
         static const char *kWrist[] = {
             "cupped_at_top", "bowed_at_top", "open_face_top", "shut_face_top", "early_face_roll",
             "face_held_shut_takeaway", "scooping", "bowed_lead_wrist", "flipping",
-            "face_held_open_impact", "casting", "excessive_lag", "insufficient_set", "over_set",
-            "chicken_wing" };
+            "face_held_open_impact", "casting", "excessive_lag", "insufficient_set", "over_set" };
+        // chicken_wing LEFT the domain on 13 Nov 2026 (plane stack D6, Mark): the lead arm folding after impact
+        // is an arm fault (group arms), not a wrist motion; it now leaves the Wrist tab and its score.
         QSet<QString> want, got;
         for (const char *id : kWrist) want.insert(QLatin1String(id));
         for (const Condition &c : p.conditions) {
@@ -2135,7 +2140,7 @@ int main()
             got.insert(c.id);
             check(isKnownConditionDomain(c.domain), qPrintable(QStringLiteral("'%1' carries a known domain").arg(c.id)));
         }
-        check(got == want, "the wrist domain is exactly the fifteen conditions CONTRACT I1 lists");
+        check(got == want, "the wrist domain is exactly the fourteen conditions CONTRACT I1 lists (chicken_wing left, D6)");
         check(res.report.withCode(QStringLiteral("unknownDomain")).empty(), "no shipped domain is misspelt");
 
         // The rotation readings are wired as ADDITIONAL routes, beside the radioulnar ones they do
@@ -2305,11 +2310,12 @@ int main()
             QStringLiteral("ks.pelvis"),   QStringLiteral("ks.thorax"),     QStringLiteral("ks.leadArm"),
             QStringLiteral("ks.club"),     QStringLiteral("track.club"),    QStringLiteral("track.clubDtl"),
             QStringLiteral("track.club3d"), QStringLiteral("track.impact"), QStringLiteral("track.skeleton3d"),
+            QStringLiteral("position.p8") /* plane stack D6: the phase positions.p8Refused acts on */,
             QStringLiteral("shot") };
         QSet<QString> fileSubjects;
         for (const GateWord &s : gw.pack.subjects) fileSubjects.insert(s.id);
         check(fileSubjects == knownSubjects && gw.pack.subjects.size() == size_t(knownSubjects.size()),
-              "gate words: the subjects are exactly the ten gate subjects, once each");
+              "gate words: the subjects are exactly the eleven gate subjects, once each");
         bool clash = false;
         for (const GateWord &s : gw.pack.subjects) clash = clash || catalogued.contains(s.id) || gw.pack.gate(s.id);
         check(!clash, "gate words: no subject id is also a gate id");

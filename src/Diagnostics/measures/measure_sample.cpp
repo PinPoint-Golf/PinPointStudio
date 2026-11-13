@@ -47,6 +47,44 @@ const PhaseGridValue *MetricPhaseGrid::at(Phase p) const
     return nullptr;
 }
 
+const PhaseGridMsSpan *MetricPhaseGrid::msSpan(Phase anchor, int startMs, int endMs) const
+{
+    const PhaseGridMsWindow w{ anchor, startMs, endMs };
+    for (const PhaseGridMsSpan &s : msSpans)
+        if (s.window == w) return &s;
+    return nullptr;
+}
+
+namespace {
+bool msWindowLess(const PhaseGridMsWindow &a, const PhaseGridMsWindow &b)
+{
+    if (a.anchor != b.anchor) return int(a.anchor) < int(b.anchor);
+    if (a.startMs != b.startMs) return a.startMs < b.startMs;
+    return a.endMs < b.endMs;
+}
+void addUnique(std::vector<PhaseGridMsWindow> &into, const PhaseGridMsWindow &w)
+{
+    if (std::find(into.begin(), into.end(), w) == into.end()) into.push_back(w);
+}
+} // namespace
+
+std::vector<PhaseGridMsWindow> msWindowsOf(const std::vector<Measure> &measures)
+{
+    std::vector<PhaseGridMsWindow> out;
+    for (const Measure &m : measures)
+        if (m.reducer.windowMs && m.reducer.anchor)
+            addUnique(out, { *m.reducer.anchor, m.reducer.windowMs->first, m.reducer.windowMs->second });
+    std::sort(out.begin(), out.end(), msWindowLess);
+    return out;
+}
+
+PhaseGridConfig withMsWindows(PhaseGridConfig cfg, const std::vector<PhaseGridMsWindow> &extra)
+{
+    for (const PhaseGridMsWindow &w : extra) addUnique(cfg.msWindows, w);
+    std::sort(cfg.msWindows.begin(), cfg.msWindows.end(), msWindowLess);
+    return cfg;
+}
+
 const MetricPhaseGrid *SwingPhaseGrid::metric(const QString &key) const
 {
     if (key.isEmpty())
@@ -327,6 +365,51 @@ SwingPhaseGrid buildPhaseGrid(const QJsonObject &analysis, const PhaseGridConfig
             mg.spans.push_back(sp);
         }
 
+        // ── Millisecond spans after a phase (PhaseGridConfig::msWindows, metric_reducer.h `windowMs`) ──
+        //
+        // Timed from the metric's OWN value at the anchor, so the span starts where the reading it is
+        // measured from was taken. Searched on the curve exactly as a phase span is — reduceExtremum
+        // over the closed interval, each candidate scored over its own centred window, bridged samples
+        // neither candidates nor support — so a span here and the chart's selection over the same
+        // instants agree. The two ends are ±15 ms medians like a phase value; at startMs 0 the start is
+        // the anchor's grid value itself, so a Delta from the anchor subtracts the very number an `at`
+        // reading of the anchor reports. A metric with no curve answers no span: there is nothing
+        // between its labelled samples to search.
+        if (view.n > 0) {
+            for (const PhaseGridMsWindow &w : cfg.msWindows) {
+                const PhaseGridValue *a = mg.at(w.anchor);
+                if (!a || w.endMs <= w.startMs || w.startMs < 0) continue;
+                const int64_t lo = a->tUs + int64_t(w.startMs) * 1000;
+                const int64_t hi = a->tUs + int64_t(w.endMs) * 1000;
+                PhaseGridMsSpan ms;
+                ms.window = w;
+                const Reduced mn = reduceExtremum(view, lo, hi, /*wantMax=*/false, rc);
+                const Reduced mx = reduceExtremum(view, lo, hi, /*wantMax=*/true,  rc);
+                if (mn.ok && mx.ok) { ms.haveExtremes = true; ms.min = mn.value; ms.max = mx.value; }
+                const auto at = [&](int64_t t) {
+                    const Reduced r = fitted ? reduceInstant(view, t) : reduceAt(view, t, rc);
+                    return r.ok ? reading(r.value) : std::numeric_limits<double>::quiet_NaN();
+                };
+                ms.atStart = w.startMs == 0 ? a->value : at(lo);
+                ms.atEnd   = at(hi);
+                // Coverage (D5 round 3): the longest stretch of [lo, hi] with no valid sample, ends included.
+                {
+                    int64_t prev = lo, worst = 0;
+                    for (std::size_t k = 0; k < view.n; ++k) {
+                        if (view.t[k] < lo || view.t[k] > hi || !view.isValid(k)) continue;
+                        worst = std::max(worst, view.t[k] - prev);
+                        prev = view.t[k];
+                    }
+                    ms.maxGapUs = std::max(worst, hi - prev);
+                }
+                if (!ms.haveExtremes && !std::isfinite(ms.atStart) && !std::isfinite(ms.atEnd)) continue;
+                for (const auto &[sg, src] : { std::pair<double, SigmaSource>{ a->sigma, a->sigmaSrc },
+                                               std::pair<double, SigmaSource>{ mg.seriesSigma, mg.seriesSigmaSrc } })
+                    if (std::isfinite(sg) && (!std::isfinite(ms.sigma) || sg > ms.sigma)) { ms.sigma = sg; ms.sigmaSrc = src; }
+                mg.msSpans.push_back(ms);
+            }
+        }
+
         if (!mg.values.empty())
             grid.metrics.push_back(std::move(mg));
     }
@@ -342,6 +425,30 @@ std::optional<double> reduceOverGrid(const SwingPhaseGrid &grid, const QString &
     const MetricPhaseGrid *mg = grid.metric(metricKey);
     if (!mg)
         return std::nullopt;
+
+    // A SPAN IN MILLISECONDS AFTER THE ANCHOR (metric_reducer.h `windowMs`). The anchor must have been
+    // read — no anchor value, no span, and the measure is not assessable for the anchor's reason, as a
+    // phase window with an unsegmented end is. A span this grid was not built for is absent too:
+    // readPhaseGrid builds the spans the reading pack names (msWindowsOf).
+    if (r.windowMs.has_value()) {
+        if (!r.anchor.has_value()) return std::nullopt;
+        const PhaseGridValue *a = mg->at(*r.anchor);
+        const PhaseGridMsSpan *sp = a ? mg->msSpan(*r.anchor, r.windowMs->first, r.windowMs->second) : nullptr;
+        if (!sp) return std::nullopt;
+        // NOT COVERED, NOT READ (D5 round 3): a span that lost a stretch longer than the limit to the mask
+        // would report whatever the remaining samples say — a fold read before a hidden peak.
+        if (sp->maxGapUs > grid.config.msSpanMaxGapUs) return std::nullopt;
+        if (r.kind == ReducerKind::Extremum) {
+            if (!sp->haveExtremes) return std::nullopt;
+            // the SIGNED deviation from the anchor, as a phase-window extremum with an anchor reads
+            return ((r.sense == ExtremumSense::Min) ? sp->min : sp->max) - a->value;
+        }
+        if (r.kind == ReducerKind::Delta) {
+            if (!std::isfinite(sp->atStart) || !std::isfinite(sp->atEnd)) return std::nullopt;
+            return sp->atEnd - sp->atStart;
+        }
+        return std::nullopt;                           // validateReducer refuses At / Rate with one
+    }
 
     switch (r.kind) {
     case ReducerKind::At: {
@@ -480,6 +587,23 @@ std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, con
     out.direct = mg->routeDirect;
     out.withheld = mg->withheld;
     Budget b;
+    if (r.windowMs.has_value()) {
+        // Same value walk as reduceOverGrid's, which has already succeeded, so both exist.
+        const PhaseGridValue  *a  = mg->at(*r.anchor);
+        const PhaseGridMsSpan *sp = mg->msSpan(*r.anchor, r.windowMs->first, r.windowMs->second);
+        if (a && sp) {
+            if (r.kind == ReducerKind::Extremum) {
+                b.add(sp->sigma, sp->sigmaSrc, a->grossRisk);
+                b.add(a->sigma, a->sigmaSrc, a->grossRisk);
+            } else {
+                if (r.windowMs->first == 0) b.add(a->sigma, a->sigmaSrc, a->grossRisk);
+                else                        b.add(mg->seriesSigma, mg->seriesSigmaSrc, -1.f);
+                b.add(mg->seriesSigma, mg->seriesSigmaSrc, -1.f);
+            }
+        }
+        b.into(out);
+        return out;
+    }
     switch (r.kind) {
     case ReducerKind::At:
         if (const PhaseGridValue *a = r.anchor ? mg->at(*r.anchor) : nullptr)
@@ -530,6 +654,20 @@ std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, con
     return out;
 }
 
+bool msSpanUncovered(const SwingPhaseGrid &grid, const Measure &m)
+{
+    const Reducer &r = m.reducer;
+    if (!r.windowMs || !r.anchor) return false;
+    for (const QString &key : measureKeyLadder(m)) {
+        const MetricPhaseGrid *mg = grid.metric(key);
+        if (!mg || !mg->at(*r.anchor)) continue;
+        const PhaseGridMsSpan *sp = mg->msSpan(*r.anchor, r.windowMs->first, r.windowMs->second);
+        if (sp && (sp->maxGapUs > grid.config.msSpanMaxGapUs || (r.kind == ReducerKind::Extremum && !sp->haveExtremes)))
+            return true;
+    }
+    return false;
+}
+
 std::optional<GridReading> reduceOverGridReading(const SwingPhaseGrid &grid, const Measure &m)
 {
     if (m.metricKey.isEmpty() && m.preferKeys.isEmpty())
@@ -562,6 +700,14 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
     src.insert(QStringLiteral("window_half_us"),     qint64(grid.config.windowHalfUs));
     src.insert(QStringLiteral("extremum_window_us"), qint64(grid.config.extremumWindowUs));
     src.insert(QStringLiteral("min_valid_samples"),  grid.config.minValidSamples);
+    // The millisecond spans this grid answers (loadPhaseGrid's subset test). Written only when there
+    // are any, so a grid built without them serialises as it did before they existed.
+    if (!grid.config.msWindows.empty()) {
+        QJsonArray ws;
+        for (const PhaseGridMsWindow &w : grid.config.msWindows)
+            ws.append(QJsonArray{ int(w.anchor), w.startMs, w.endMs });
+        src.insert(QStringLiteral("ms_windows"), ws);
+    }
     root.insert(QStringLiteral("source"), src);
 
     root.insert(QStringLiteral("session"),  grid.sessionId);
@@ -612,6 +758,30 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
         }
         mo.insert(QStringLiteral("spans"), spans);
 
+        if (!m.msSpans.empty()) {
+            QJsonArray mss;
+            for (const PhaseGridMsSpan &s : m.msSpans) {
+                QJsonObject so;
+                so.insert(QStringLiteral("anchor"),  int(s.window.anchor));
+                so.insert(QStringLiteral("startMs"), s.window.startMs);
+                so.insert(QStringLiteral("endMs"),   s.window.endMs);
+                if (s.haveExtremes) {
+                    so.insert(QStringLiteral("min"), s.min);
+                    so.insert(QStringLiteral("max"), s.max);
+                }
+                if (std::isfinite(s.atStart)) so.insert(QStringLiteral("atStart"), s.atStart);
+                if (std::isfinite(s.atEnd))   so.insert(QStringLiteral("atEnd"), s.atEnd);
+                if (s.maxGapUs != std::numeric_limits<int64_t>::max())
+                    so.insert(QStringLiteral("maxGapUs"), qint64(s.maxGapUs));
+                if (std::isfinite(s.sigma)) {
+                    so.insert(QStringLiteral("sigma"), s.sigma);
+                    so.insert(QStringLiteral("sigmaSrc"), int(s.sigmaSrc));
+                }
+                mss.append(so);
+            }
+            mo.insert(QStringLiteral("msSpans"), mss);
+        }
+
         metrics.append(mo);
     }
     root.insert(QStringLiteral("metrics"), metrics);
@@ -623,7 +793,8 @@ QJsonObject savePhaseGrid(const SwingPhaseGrid &grid, qint64 sourceSize, qint64 
 }
 
 SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 sourceMtimeMs,
-                             bool *guardOk, const PhaseGridConfig &cfg)
+                             bool *guardOk, const PhaseGridConfig &cfg,
+                             std::vector<PhaseGridMsWindow> *storedMsWindows)
 {
     if (guardOk) *guardOk = false;
     SwingPhaseGrid grid;
@@ -650,11 +821,30 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     if (!sameGridReduction(had, cfg))
         return grid;
 
+    // The millisecond spans: a SUBSET test (PhaseGridConfig::msWindows). What the sidecar holds is
+    // reported either way, so a refusal here can be rebuilt with the union rather than the reader's
+    // spans alone — which would refuse the next reader of the other pack, and so on for ever.
+    std::vector<PhaseGridMsWindow> held;
+    for (const QJsonValue &wv : src.value(QStringLiteral("ms_windows")).toArray()) {
+        const QJsonArray w = wv.toArray();
+        if (w.size() != 3) continue;
+        held.push_back({ static_cast<Phase>(w.at(0).toInt()), w.at(1).toInt(), w.at(2).toInt() });
+    }
+    // A missing span refuses the guard but NOT the content: every number the sidecar holds is current,
+    // so the grid is still filled, and a caller that may not fat-parse (readPhaseGrid, writeSidecar
+    // false) can serve it — the measures reading the missing span are then unavailable, not the swing.
+    bool missingSpan = false;
+    for (const PhaseGridMsWindow &w : cfg.msWindows)
+        if (std::find(held.begin(), held.end(), w) == held.end())
+            missingSpan = true;
+    grid.config.msWindows = held;   // what this grid actually answers
+
     grid.sessionId   = root.value(QStringLiteral("session")).toString();
     grid.club        = root.value(QStringLiteral("club")).toString();
     grid.ordinal     = root.value(QStringLiteral("ordinal")).toInt();
     grid.wallclockMs = root.value(QStringLiteral("wallclock_ms")).toVariant().toLongLong();
 
+    std::vector<PhaseGridMsWindow> noGap;   // spans stored with no coverage (round-2 sidecars)
     for (const QJsonValue &mv : root.value(QStringLiteral("metrics")).toArray()) {
         const QJsonObject mo = mv.toObject();
         MetricPhaseGrid   mg;
@@ -692,6 +882,23 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
             readSigma(so, sp.sigma, sp.sigmaSrc);
             mg.spans.push_back(sp);
         }
+        for (const QJsonValue &sv : mo.value(QStringLiteral("msSpans")).toArray()) {
+            const QJsonObject so = sv.toObject();
+            PhaseGridMsSpan ms;
+            ms.window = { static_cast<Phase>(so.value(QStringLiteral("anchor")).toInt()),
+                          so.value(QStringLiteral("startMs")).toInt(), so.value(QStringLiteral("endMs")).toInt() };
+            ms.haveExtremes = so.contains(QStringLiteral("min")) && so.contains(QStringLiteral("max"));
+            if (ms.haveExtremes) {
+                ms.min = so.value(QStringLiteral("min")).toDouble();
+                ms.max = so.value(QStringLiteral("max")).toDouble();
+            }
+            if (so.contains(QStringLiteral("atStart"))) ms.atStart = so.value(QStringLiteral("atStart")).toDouble();
+            if (so.contains(QStringLiteral("atEnd")))   ms.atEnd   = so.value(QStringLiteral("atEnd")).toDouble();
+            if (so.contains(QStringLiteral("maxGapUs"))) ms.maxGapUs = so.value(QStringLiteral("maxGapUs")).toVariant().toLongLong();
+            else noGap.push_back(ms.window);   // written before the coverage rule: not held (rebuilt)
+            readSigma(so, ms.sigma, ms.sigmaSrc);
+            mg.msSpans.push_back(ms);
+        }
         if (!mg.values.empty())
             grid.metrics.push_back(std::move(mg));
     }
@@ -699,7 +906,19 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
     grid.gatesVersion = root.value(QStringLiteral("gatesVersion")).toInt();
     grid.gates        = gateRecordsFromJson(root.value(QStringLiteral("gates")).toArray());
 
-    if (guardOk) *guardOk = true;
+    // A span stored without its coverage (written before the rule) is not held: a reader asking for it
+    // rebuilds, rather than reading it as uncovered for ever.
+    if (!noGap.empty()) {
+        held.erase(std::remove_if(held.begin(), held.end(), [&](const PhaseGridMsWindow &w) {
+                       return std::find(noGap.begin(), noGap.end(), w) != noGap.end();
+                   }),
+                   held.end());
+        grid.config.msWindows = held;
+        for (const PhaseGridMsWindow &w : cfg.msWindows)
+            if (std::find(held.begin(), held.end(), w) == held.end()) missingSpan = true;
+    }
+    if (storedMsWindows) *storedMsWindows = held;
+    if (guardOk) *guardOk = !missingSpan;
     return grid;
 }
 
@@ -716,6 +935,7 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
 
     const qint64 size    = docInfo.size;
     const qint64 mtimeMs = docInfo.mtimeMs;
+    PhaseGridConfig buildCfg = cfg;   // widened below to the union of millisecond spans
 
     // The cheap path.
     const QString sidePath = phaseGridPath(swingDir);
@@ -723,12 +943,21 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
         QFile sf(sidePath);
         if (sf.open(QIODevice::ReadOnly)) {
             bool ok = false;
+            std::vector<PhaseGridMsWindow> held;
             SwingPhaseGrid cached = loadPhaseGrid(QJsonDocument::fromJson(sf.readAll()).object(),
-                                                 size, mtimeMs, &ok, cfg);
+                                                 size, mtimeMs, &ok, cfg, &held);
             if (ok) {
                 cached.swingDir = swingDir;
                 return cached;
             }
+            // Refused for want of a millisecond span (or stale): rebuild with the UNION of what it held
+            // and what this reader asks for, so the other pack's reader is not refused next time. A
+            // caller that may not fat-parse gets the current grid it holds (only the span is missing).
+            if (!writeSidecar && !cached.isEmpty()) {
+                cached.swingDir = swingDir;
+                return cached;
+            }
+            buildCfg = withMsWindows(cfg, held);
         }
     }
 
@@ -745,7 +974,7 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     if (root.isEmpty())
         return grid;
 
-    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), cfg);
+    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), buildCfg);
     grid.swingDir  = swingDir;
     grid.sessionId = QFileInfo(QFileInfo(swingDir).absolutePath()).fileName();
 

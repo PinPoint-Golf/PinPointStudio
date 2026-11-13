@@ -242,7 +242,7 @@ struct DeliverySlot {
     bool    available = false;     // the address line and the shoulder plane are both read
     double  address = kNaN, shoulders = kNaN;
     std::vector<DeliverySlotMark> outside;
-    QString text;                  // "inside the slot" | "above the shoulder plane at P3 — a steep backswing; …"
+    QString text;                  // "inside the on-plane window" | "above the shoulder plane at P3 — a steep backswing; …"
 };
 DeliverySlot deliverySlotWords(const DeliveryShotInput &in);
 

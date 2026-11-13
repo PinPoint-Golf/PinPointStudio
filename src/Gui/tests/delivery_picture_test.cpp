@@ -192,7 +192,8 @@ private slots:
         QCOMPARE(pic.value(QStringLiteral("defaultSets")).toMap().value(QStringLiteral("plane")).toBool(), true);
         const QVariantMap lines = pic.value(QStringLiteral("lines")).toMap();
         QVERIFY(lines.value(QStringLiteral("address")).toBool() && lines.value(QStringLiteral("shoulders")).toBool() && lines.value(QStringLiteral("slot")).toBool());
-        QVERIFY(pic.value(QStringLiteral("legend")).toString().contains(QStringLiteral("slot")));
+        QVERIFY(pic.value(QStringLiteral("legend")).toString().contains(QStringLiteral("on-plane window")));
+        QVERIFY(!pic.value(QStringLiteral("legend")).toString().contains(QStringLiteral("slot")));   // a downswing term in golf
         const QVariantList frames = framesOf(pic);
         QCOMPARE(frames.size(), 3);
         const QStringList tags{ QStringLiteral("P1"), QStringLiteral("P4"), QStringLiteral("P6") };
@@ -212,7 +213,7 @@ private slots:
                 QCOMPARE(m.toMap().value(QStringLiteral("set")).toString(), QStringLiteral("plane"));
             }
             const QVariantMap a = markOf(f, QStringLiteral("address line")), s = markOf(f, QStringLiteral("shoulder plane"));
-            const QVariantMap w = markOf(f, QStringLiteral("the slot"));
+            const QVariantMap w = markOf(f, QStringLiteral("the on-plane window"));
             QVERIFY(!a.isEmpty() && !s.isEmpty() && !w.isEmpty());
             QCOMPARE(a.value(QStringLiteral("dash")).toString(), QString());
             QCOMPARE(s.value(QStringLiteral("dash")).toString(), QStringLiteral("dash"));
@@ -271,7 +272,7 @@ private slots:
         QVERIFY(!markOf(f, QStringLiteral("address line")).isEmpty());
         const QString why = pic.value(QStringLiteral("why")).toStringList().join(QLatin1Char(' '));
         QVERIFY2(why.contains(QStringLiteral("before the shoulder plane was measured")) && why.contains(QStringLiteral("Re-analyse")), qPrintable(why));
-        QVERIFY(!pic.value(QStringLiteral("legend")).toString().contains(QStringLiteral("slot")));
+        QVERIFY(!pic.value(QStringLiteral("legend")).toString().contains(QStringLiteral("on-plane window")));
     }
 
     // No down-the-line camera: nothing at all. No document: said.
@@ -349,8 +350,8 @@ private slots:
             QVERIFY(QFileInfo::exists(QUrl(fv.toMap().value(QStringLiteral("src")).toString()).toLocalFile()));
         // the notes are the plane story's: the two lines at address; the plane and where it sat at the top and P6
         QCOMPARE(frames[0].toMap().value(QStringLiteral("note")).toString(), QStringLiteral("address line 59°  ·  shoulder plane 69°"));
-        QCOMPARE(frames[1].toMap().value(QStringLiteral("note")).toString(), QStringLiteral("plane 68°  ·  inside the slot"));
-        QCOMPARE(frames[2].toMap().value(QStringLiteral("note")).toString(), QStringLiteral("plane 65°  ·  inside the slot"));
+        QCOMPARE(frames[1].toMap().value(QStringLiteral("note")).toString(), QStringLiteral("plane 68°  ·  inside the on-plane window"));
+        QCOMPARE(frames[2].toMap().value(QStringLiteral("note")).toString(), QStringLiteral("plane 65°  ·  inside the on-plane window"));
 
         // a shot whose document is not there: no frames, said
         p.setPictureDocumentForTest(kDir, QString());

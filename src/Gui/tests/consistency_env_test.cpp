@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// The Consistency env on the real manifest, conditions and norms: the 28 readings placed by hand
+// The Consistency env on the real manifest, conditions and norms: the 29 readings placed by hand
 // (consistency_design.md Appendix B), the walk over the conditions against the tally's own area column,
 // its tie-break on a pack made here, and the norm sigma rule (CONTRACT "Norm sigma of a reading").
 
@@ -52,6 +52,9 @@ const QHash<QString, QString> &handPlacements()
         { "thoraxAngularSpeed", "rotation" },    { "xFactor", "rotation" },
         { "tempoBackswing", "rotation" },
         { "thoraxRotationSigned", "rotation" },  { "elbowAlignment", "arms" },
+        // 13 Nov 2026 (plane stack D5): chicken_wing reads the elbow's fold now, so no condition detects on
+        // the arm-to-torso angle; it keeps the Arms home its condition used to give it.
+        { "leadArmToTorso", "arms" },
         { "handPlaneCurve", "planePath" },
         { "shoulderPlaneAngle", "rotation" },    { "handPlaneSteepening", "planePath" },
         { "swingPlane", "planePath" },           { "swingPlaneAngle", "planePath" },
@@ -154,7 +157,7 @@ private slots:
         pa::MetricCatalogue catalogue;
         pa::installMetricManifest(catalogue);
 
-        QCOMPARE(int(handPlacements().size()), 28);
+        QCOMPARE(int(handPlacements().size()), 29);
         for (auto it = handPlacements().constBegin(); it != handPlacements().constEnd(); ++it) {
             const pa::MetricDescriptor *d = catalogue.descriptor(it.key());
             QVERIFY2(d, qPrintable(it.key()));
@@ -169,7 +172,7 @@ private slots:
             QVERIFY2(tableAreas().contains(d->consistencyArea), qPrintable(d->key));
             QVERIFY2(pa::areaGroupOrder().contains(d->consistencyArea), qPrintable(d->key));
         }
-        QCOMPARE(carried, 28);
+        QCOMPARE(carried, 29);
     }
 
     // Appendix B says no condition detects on these. The hand placement wins here and the walk wins in the

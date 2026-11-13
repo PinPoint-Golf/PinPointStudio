@@ -324,6 +324,20 @@ struct DtlShaftConfig {
         // construction: at a 316–338 px grip→ball distance a 6 px error in the
         // centre is 0.6° in θ_ball, inside a ±20° gate.
         double shadowToCentreR = 1.0;
+        // shadowAreaByRadius / shadowAreaMinFrac / shadowAreaMaxFrac — the
+        // crescent's AREA gates, as fractions of the ball's own imaged disc π·r²
+        // (r from the scene scale, the same radius shadowToCentreR uses). The
+        // crescent is a piece of the ball's rim, so it scales with the BALL, not
+        // with the frame: the old 12–400 px × (frameW / 512)² floor was 43.6 px
+        // on Chris's 976-px frames, where his crescents measure 27–46 px. The
+        // fractions and their measurements are in pp_tuned_constants.h
+        // (tuned::dtlBall). With no scene scale the radius is a guess, and the
+        // frame rule still applies; false restores the frame rule everywhere
+        // (the ablation: the same ball as before 13 Nov 2026; only the reason
+        // text, which now names the gate it used, differs).
+        bool   shadowAreaByRadius = true;
+        double shadowAreaMinFrac  = tuned::dtlBall::kShadowAreaMinFrac;
+        double shadowAreaMaxFrac  = tuned::dtlBall::kShadowAreaMaxFrac;
 
         // ── where a ball can be: the address shaft's direction ───────────────
         // grip→ball IS the address shaft in this view (the head is at the ball),
@@ -513,6 +527,9 @@ struct DtlShaftConfig {
         tn::apply(ov, "shaft.dtl.ball.shadowDrop",       c.ball.shadowDrop);
         tn::apply(ov, "shaft.dtl.ball.shadowLaunchRise", c.ball.shadowLaunchRise);
         tn::apply(ov, "shaft.dtl.ball.shadowToCentreR",  c.ball.shadowToCentreR);
+        tn::apply(ov, "shaft.dtl.ball.shadowAreaByRadius", c.ball.shadowAreaByRadius);
+        tn::apply(ov, "shaft.dtl.ball.shadowAreaMinFrac",  c.ball.shadowAreaMinFrac);
+        tn::apply(ov, "shaft.dtl.ball.shadowAreaMaxFrac",  c.ball.shadowAreaMaxFrac);
         tn::apply(ov, "shaft.dtl.ball.dirMinDeg",        c.ball.dirMinDeg);
         tn::apply(ov, "shaft.dtl.ball.dirMaxDeg",        c.ball.dirMaxDeg);
         tn::apply(ov, "shaft.dtl.ball.contrastMin",      c.ball.contrastMin);
@@ -599,6 +616,8 @@ inline QString dtlConfigHash(const DtlShaftConfig& c)
     i(c.snap.corridorHalfPx); n(c.snap.coarseStepPx); n(c.snap.coarseStepDeg);
     n(c.snap.fineHalfPx); n(c.snap.fineHalfDeg);
     i(c.snap.skipAddr); i(c.snap.skipTakeawayUs); i(c.snap.skipBlur);
+    // The shadow cue's area gates by the ball's radius (13 Nov 2026, kDtlShaftStageVersion 7).
+    i(c.ball.shadowAreaByRadius); n(c.ball.shadowAreaMinFrac); n(c.ball.shadowAreaMaxFrac);
     // The uncertainty pass adds σ to the frames; it enters the fingerprint only when on, so an
     // uncertainty-off run hashes exactly as before the design existed.
     if (c.unc.enabled) { i(1); n(c.unc.rho); }

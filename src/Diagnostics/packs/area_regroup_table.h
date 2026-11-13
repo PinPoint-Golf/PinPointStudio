@@ -48,8 +48,6 @@ inline constexpr AreaRegroupRow kAreaRegroupTable[] = {
     { "attack_too_shallow", "delivery", "impact" },
     { "attack_too_steep", "delivery", "impact" },
     { "backing_off_the_ball", "posture", "posture" },
-    { "backswing_plane_too_flat", "planePath", "swingPlane" },
-    { "backswing_plane_too_upright", "planePath", "swingPlane" },
     { "ball_back", "setup", "setup" },
     { "ball_forward", "setup", "setup" },
     { "ball_speed_deficit", "ballFlight", "ballFlight" },

@@ -931,7 +931,11 @@ pp_add_test(shaft_direction_test SOURCES shaft_direction_test.cpp)
 # thigh turns on synthetic joint sets — values, signs (a left-hander mirrored), σ against Monte
 # Carlo, tier gating — the camera-assumed record, the graded value (series_reduce.h reduceAt)
 # agreeing with every stamped phase reading, and the precedence rules. Qt-only, no fixture.
-pp_add_test(skeleton3d_body_metrics_test SOURCES skeleton3d_body_metrics_test.cpp)
+# skeleton3d_fit.cpp for projectPoint: the shoulder-views check (FB) projects the fit's shoulders
+# through its down-the-line camera.
+pp_add_test(skeleton3d_body_metrics_test
+    SOURCES skeleton3d_body_metrics_test.cpp ${SRC}/Skeleton3d/skeleton3d_fit.cpp
+    INCLUDE ${EIGEN_DIR})
 
 # GOLDEN CROSS-CHECK for shaft_plane.h against the corpus reference the research
 # note published (transition_plane_corpus.csv, from `plane_probe.py corpus`).
@@ -1324,6 +1328,20 @@ pp_add_test(shoulder_tilt_vs_bend_test
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
+
+# The club's climb placed in the slot (club_slot_top.h; plane stack D3, 13 Nov 2026): a known address plane,
+# P3 plane and shoulder plane give the slot and its σ; each part read as the grader reads it, through the
+# written document and the diagnostics' own phase grid; not produced (club.slotUnread, its code) with a part
+# missing or a slot under club.slotMinWidthDeg; the parts' records inherited, and a part's own refusal is the
+# reason the measure source gives. Qt-only, synthetic parts.
+pp_add_test(club_slot_top_test
+    SOURCES club_slot_top_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
+            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
+            ${SRC}/Export/swing_doc.cpp ${ANALYSIS}/recorded_products.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${DIAG}/norms/resource_norm_provider.cpp
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS} ${SRC}/LaunchMonitor ${SRC}/Core)
 
 # Measurement uncertainty through the diagnostics DAG (session_diagnostics_design.md §A8): σ through

@@ -728,8 +728,8 @@ int main()
             const QJsonObject vB = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vB[QStringLiteral("skeleton3dBody")].toObject()[QStringLiteral("code")].toInt()
-                      == kSkeleton3dBodyStageVersion && kSkeleton3dBodyStageVersion == 3,
-                  "versions.skeleton3dBody.code == kSkeleton3dBodyStageVersion (3: the 3-D trail knee, and the 3-D side bend beside a trunk sensor's, W5 2026-11-13)");
+                      == kSkeleton3dBodyStageVersion && kSkeleton3dBodyStageVersion == 4,
+                  "versions.skeleton3dBody.code == kSkeleton3dBodyStageVersion (4: the 3-D arm lift at the top and the measured lead elbow, plane stack D2 2026-11-13)");
         }
         check(!vv.contains(QStringLiteral("hipInternalRotation")),
               "HipInternalRotation did not run ⇒ no versions.hipInternalRotation");
@@ -755,8 +755,33 @@ int main()
             const QJsonObject vT = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vT[QStringLiteral("shoulderTiltVsBend")].toObject()[QStringLiteral("code")].toInt()
-                      == kShoulderTiltVsBendVersion && kShoulderTiltVsBendVersion == 1,
-                  "versions.shoulderTiltVsBend.code == kShoulderTiltVsBendVersion (1: the first version, W7 2026-11-13)");
+                      == kShoulderTiltVsBendVersion && kShoulderTiltVsBendVersion == 2,
+                  "versions.shoulderTiltVsBend.code == kShoulderTiltVsBendVersion (2: the −20° backstop, FB 2026-11-13)");
+        }
+        check(!vv.contains(QStringLiteral("clubSlotTop")), "no clubSlotTop written ⇒ no versions.clubSlotTop");
+        // versions.clubSlotTop (2026-11-13, plane stack D3): stamped only when the step after the run wrote the
+        // reading (club_slot_top.h); series only.
+        {
+            SwingAnalysis aS = aD;
+            aS.versions.clubSlotTop = kClubSlotTopVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "clubSlotTop version write ok");
+            const QJsonObject vS = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vS[QStringLiteral("clubSlotTop")].toObject()[QStringLiteral("code")].toInt() == kClubSlotTopVersion
+                      && kClubSlotTopVersion == 1,
+                  "versions.clubSlotTop.code == kClubSlotTopVersion (1: first version, plane stack D3 2026-11-13)");
+        }
+        // versions.skeleton3d (FB, 2026-11-13): 18 — the two views of a shoulder or hip that disagree,
+        // detector confidence in the 2-D σ, honest tiers. Stamped whenever the stage ran; never reused.
+        {
+            SwingAnalysis aK = aD;
+            aK.versions.skeleton3d = kSkeleton3DStageVersion;
+            check(SwingDocWriter::writeSwingJson(dirD, mD, &aK, &derr), "skeleton3d version write ok");
+            const QJsonObject vK = readManifest(dirD)[QStringLiteral("analysis")].toObject()
+                                       [QStringLiteral("versions")].toObject();
+            check(vK[QStringLiteral("skeleton3d")].toObject()[QStringLiteral("code")].toInt()
+                      == kSkeleton3DStageVersion && kSkeleton3DStageVersion == 18,
+                  "versions.skeleton3d.code == kSkeleton3DStageVersion (18: cross-view shoulders, confidence in σ, honest tiers, FB 2026-11-13)");
         }
 
         // posture_chart_design.md §10 stage 4a: the DTL ruler persisted (analysis.dtlRuler) and the
@@ -2304,6 +2329,7 @@ int main()
         // 2026-10-01 robustness self-checks: the diag block and the refusal reason.
         b.shaft.refusedReason = 1; b.shaft.onsetRule = 2; b.shaft.phaseRetries = 1; b.shaft.phaseSuspect = true;
         b.shaft.p1BallDeltaDeg = 31.5f; b.shaft.lenBallRatio = 1.46f;
+        b.shaft.p8Refusal = 3;   // plane stack D6: why no P8 (late)
         for (int i = 0; i < 6; ++i) {
             ShaftSample2D s;
             s.t_us = 300000 + i * 8333; s.gripPx = QPointF(600 + 5 * i, 650 - 3 * i);
@@ -2345,6 +2371,10 @@ int main()
             check(t.refusedReason == 1 && t.onsetRule == 2 && t.phaseRetries == 1 && t.phaseSuspect
                       && near(t.p1BallDeltaDeg, 31.5, 1e-4) && near(t.lenBallRatio, 1.46, 1e-4),
                   "club: diag + refused round-trip (2026-10-01 self-checks)");
+            check(t.p8Refusal == 3
+                      && an2[QStringLiteral("club")].toObject()[QStringLiteral("diag")].toObject()
+                             .value(QStringLiteral("p8Refusal")).toString() == QLatin1String("late"),
+                  "club: diag.p8Refusal written by name and read back (plane stack D6)");
             {
                 const QJsonObject clubJ = an2[QStringLiteral("club")].toObject();
                 check(clubJ.value(QStringLiteral("refused")).toString() == QLatin1String("p1BallConflict"),

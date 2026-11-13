@@ -63,6 +63,7 @@ QString missingReasonText(MissingKind k)
     case MissingKind::SessionScope:             return QStringLiteral("read over the session, never one swing");
     case MissingKind::CompositeCoverage:        return QStringLiteral("too few of its parts read on this shot");
     case MissingKind::ClubBaselineNotEarned:    return QStringLiteral("not enough shots with this club yet");
+    case MissingKind::WindowNotCovered:         return QStringLiteral("too little of the moment it is read over could be seen");
     }
     return QString();
 }
@@ -72,7 +73,8 @@ QString missingReasonText(MissingKind k)
 LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
                                      bool writeSidecar, const PhaseGridConfig &cfg,
                                      SwingStore::LazyDocument *parsed)
-    : m_grid(readPhaseGrid(swingDir, writeSidecar, cfg, parsed)), m_pack(pack)
+    : m_grid(readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed)),
+      m_pack(pack)
 {
     // readPhaseGrid() sets swingDir on every path it returns a grid from, but not on the empty
     // grid it returns for a missing or unreadable document — and a source that cannot say which
@@ -191,7 +193,9 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::value(const QString
         return std::nullopt;
     }
 
-    note(measureId, MissingKind::PhaseNotSegmented);
+    // A span after a phase that read, but lost too much of itself to the masks (D5 round 3): not the
+    // phase's fault, so not "not segmented".
+    note(measureId, msSpanUncovered(m_grid, *m) ? MissingKind::WindowNotCovered : MissingKind::PhaseNotSegmented);
     return std::nullopt;
 }
 
@@ -268,6 +272,30 @@ LiveMeasureSource::GateCause LiveMeasureSource::gateCause(const QString &measure
     }
     if (!m || m_grid.gatesVersion <= 0) return {};
     QStringList keys = measureKeyLadder(*m);
+    // A PHASE THE LADDER LACKS FOR A RECORDED REASON (plane stack D6): a measure the reduction left empty
+    // because a phase it needs has no reading, on a swing whose records refuse that phase itself
+    // (gates::phaseSubject — positions.p8Refused on position.p8), names that record. The phase comes first:
+    // a position the swing does not have cannot be read whatever the key's own records say. Only for a
+    // measure value() found "not segmented", and only where no rung of its reading has a value at that phase.
+    if (missingKind(measureId) == MissingKind::PhaseNotSegmented) {
+        // the phases the reducer reads: its anchor, and a phase window's two ends (a span in ms needs only its anchor)
+        std::vector<Phase> needs;
+        if (m->reducer.anchor) needs.push_back(*m->reducer.anchor);
+        if (m->reducer.kind != ReducerKind::At && !m->reducer.windowMs.has_value()) {
+            needs.push_back(m->reducer.window.first);
+            needs.push_back(m->reducer.window.second);
+        }
+        for (Phase ph : needs) {
+            const QString subj = gates::phaseSubject(ph);
+            if (subj.isEmpty()) continue;
+            bool read = false;
+            for (const QString &key : keys)
+                if (const MetricPhaseGrid *mg = m_grid.metric(key); mg && mg->at(ph)) read = true;
+            if (read) continue;
+            if (const GateRecord *r = gates::primaryRecord(m_grid.gates, subj))
+                return { r->gate, r->subject, gates::notJudgedClause(r->subject, r->gate) };
+        }
+    }
     for (const QString &key : keys) {
         // a sequence node's metric speaks through its node; any other metric through itself, or
         // through the cascade that covers it (a refused club track) — whose subject the reason names

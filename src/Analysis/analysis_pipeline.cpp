@@ -52,6 +52,8 @@
 #include "../Body/skeleton3d_body_series.h" // the readings from the 3-D body (Skeleton3dBodyStage)
 #include "../Body/trunk_sensor_series.h" // hip internal rotation, the trunk sensors' bend precedence
 #include "../Body/shoulder_tilt_vs_bend.h" // the shoulder tilt against the forward bend, after that precedence (W7)
+#include "../Club/club_slot_top.h"       // the club's climb placed in the on-plane window halfway back, after the run (D3)
+#include "../Club/p8_refusal_gate.h"     // why there is no P8, after the run (plane stack D6)
 #include "../Club/dtl_shaft_tracker.h"
 #include "../Club/dtl_shaft_post.h"   // dtlShaftGates (DtlShaftStage, trust stage 6)
 #include "../Timeline/event_refine.h"
@@ -1511,6 +1513,12 @@ struct UpperBodyMetricsStage : AnalysisStage {
             trackUpperBody(ctx.detail->pose2d, int(cfmt->width), int(cfmt->height),
                            ctx.job.handedness != 2, addressUs,
                            UpperBodyConfig::fromOverrides(ctx.job.tuningOverrides));
+        // The face-on elbow's confidence rule reads the pose model's RAW scores; where the raw track was
+        // not parallel to the smoothed one it fell back to the smoothed score (a predicted point floored
+        // at 0.5), so the rule could not fire there. Never in production; said once per swing if it is.
+        if (ub.rawConfFallbackFrames > 0)
+            ppWarn() << "[UpperBodyMetrics] raw pose track not parallel to the smoothed one on"
+                     << ub.rawConfFallbackFrames << "frames: the lead arm's confidence rule read smoothed scores there";
         for (const MetricSeries &m : buildUpperBodySeries(ub, ctx.seg.events))
             ctx.seriesOut().push_back(m);
         ctx.addGates(upperBodyGates(ub, ctx.seg.events));
@@ -2041,7 +2049,8 @@ struct AssessmentStage : AnalysisStage {
             std::array<QString, kNumDof> subjects{};
             for (const MetricSeries &m : ctx.detail->series)
                 if (const std::optional<PpJointDof> dof = dofForMetricKey(m.key))
-                    if (!m.t_us.empty() && !m.value.empty()) subjects[size_t(*dof)] = m.key;
+                    if (!m.t_us.empty() && !m.value.empty() && !isCameraWristDofSeries(m.routeId))
+                        subjects[size_t(*dof)] = m.key;
             ctx.addGates(WristAngleSampler::cellGates(src, subjects, ctx.job.impactUs, acfg.sampling));
             ctx.addGates(std::vector<GateRecord>(ar.gates));
         }
@@ -3291,16 +3300,24 @@ struct Skeleton3DStage : AnalysisStage {
     // local spacing, so a thinned DTL pass (schedule B: 13 ms backswing, 26 ms address at 155 fps)
     // still pairs. The fixed rule paired NOTHING at the address reference instants on 4 of 21
     // corpus swings under schedule A (the first cut), and the fit dropped the DTL camera (6 Oct).
+    //
+    // DETECTOR CONFIDENCE IS IN THE SMOOTHED TRACK'S σ (FB, 13 Nov 2026): × confSigmaFactor(conf,
+    // confSigmaRef) = max(1, 0.8 / conf). The smoother's posterior σ ignores confidence, so an occluded
+    // 0.36-confidence shoulder was handed to the fit at 2.4–2.9 px against 1.5 px at 0.9. The raw path's
+    // 3 / conf already carries it. The confidence itself rides on the observation (the lower of the
+    // bracket's two), for the fit's cross-view pass and the shoulder-views check.
     static void observePose(const PoseTrack2D &trk, int W, int H, int64_t t, pinpoint::skeleton3d::ViewObs &out,
-                            const pinpoint::analysis::BracketRule &rule = {})
+                            const pinpoint::analysis::BracketRule &rule = {},
+                            double confSigmaRef = pinpoint::tuned::body3d::kConfSigmaRef)
     {
         const bool sm = !trk.smoothed.empty() && trk.smoothedAux.size() == trk.smoothed.size();
         const std::vector<PoseFrame2D> &F = sm ? trk.smoothed : trk.frames;
         if (F.empty()) return;
-        auto kpObs = [&](size_t i, int m, double &u, double &v, double &sig) {
+        auto kpObs = [&](size_t i, int m, double &u, double &v, double &sig, double &conf) {
             const PoseFrame2D &f = F[i];
             u = f.kp[size_t(m)].x() * W;
             v = f.kp[size_t(m)].y() * H;
+            conf = double(f.conf[size_t(m)]);
             if (sm) {
                 const PoseKpAux &a = trk.smoothedAux[i];
                 const auto tier = PoseTier(a.tier[size_t(m)]);
@@ -3308,6 +3325,7 @@ struct Skeleton3DStage : AnalysisStage {
                 if (tier == PoseTier::Meas) sig = std::max(1.5, s > 0 ? s : 2.0);
                 else if (tier == PoseTier::Pred) sig = 1.5 * std::max(3.0, s > 0 ? s : 4.0);
                 else sig = f.conf[size_t(m)] >= 0.5f ? 6.0 : 0.0;
+                if (sig > 0) sig *= pinpoint::skeleton3d::confSigmaFactor(conf, confSigmaRef);
             } else {
                 sig = f.conf[size_t(m)] >= 0.3f ? 3.0 / double(f.conf[size_t(m)]) : 0.0;
             }
@@ -3318,11 +3336,11 @@ struct Skeleton3DStage : AnalysisStage {
         const size_t a = br.a, b = br.b;
         const double w = br.w;
         for (int m = 0; m < pinpoint::skeleton3d::kMarkerCount; ++m) {
-            double ua, va, sa, ub, vb, sb;
-            kpObs(a, m, ua, va, sa);
-            kpObs(b, m, ub, vb, sb);
+            double ua, va, sa, ca, ub, vb, sb, cb;
+            kpObs(a, m, ua, va, sa, ca);
+            kpObs(b, m, ub, vb, sb, cb);
             if (sa <= 0 || sb <= 0) continue;
-            out.kp[size_t(m)] = { ua + w * (ub - ua), va + w * (vb - va), std::max(sa, sb) };
+            out.kp[size_t(m)] = { ua + w * (ub - ua), va + w * (vb - va), std::max(sa, sb), std::min(ca, cb) };
         }
     }
 
@@ -3477,7 +3495,7 @@ struct Skeleton3DStage : AnalysisStage {
         dtlRule.nearestGapScale = pinpoint::tuned::pose::kDtlNearestGapScale;
         for (int64_t t : in.t_us) {
             pinpoint::skeleton3d::ViewObs vf, vd;
-            observePose(fo, in.foW, in.foH, t, vf);
+            observePose(fo, in.foW, in.foH, t, vf, {}, cfg.confSigmaRef);
             const bool ownSamples = !(impactInserted && t == impactUs);
             if (const ShaftSample2D *s = ownSamples ? nearestFo(t) : nullptr) {
                 vf.shaftTheta = s->thetaRad;
@@ -3487,7 +3505,7 @@ struct Skeleton3DStage : AnalysisStage {
             }
             in.fo.push_back(vf);
             if (haveDtl) {
-                observePose(dt, in.dtlW, in.dtlH, t, vd, dtlRule);
+                observePose(dt, in.dtlW, in.dtlH, t, vd, dtlRule, cfg.confSigmaRef);
                 if (const DtlSample *s = ownSamples ? nearestDtl(t) : nullptr) {
                     vd.shaftTheta = s->thetaRad;
                     vd.shaftSigma = 3.5 * pinpoint::skeleton3d::kDeg;
@@ -3532,6 +3550,7 @@ struct Skeleton3DStage : AnalysisStage {
             in.dtlBallV = ctx.detail->shaftDtl.ball.y;
         }
 
+        ctx.detail->skeleton3dShoulderViewsDisagree = false;   // set below, once the views are compared
         ctx.detail->skeleton3d = pinpoint::skeleton3d::fitSkeleton(in);
         // The hands are locked together on the grip (Mark, 19 Oct): a fit that could not keep them
         // there is wrong somewhere, and says so.
@@ -3593,7 +3612,26 @@ struct Skeleton3DStage : AnalysisStage {
                  << "(" << QString::fromStdString(r.scaleSource) << "), reprojection median"
                  << r.reprojMedPxFo << "/" << r.reprojMedPxDtl << "px, γ" << r.gammaDeg << "°, r" << r.rRatio
                  << ", swaps" << r.nSwapFo << "/" << r.nSwapDtl << ", limit-held" << r.nLimitHeld
-                 << ", slip p90" << r.footSlipP90Mm << "mm," << r.iterations << "iterations," << r.ms << "ms";
+                 << ", cross-view σ inflated" << r.nCrossViewFo << "/" << r.nCrossViewDtl << "on" << r.nCrossViewFrames
+                 << "frames, slip p90" << r.footSlipP90Mm << "mm," << r.iterations << "iterations," << r.ms << "ms";
+        // THE TWO CAMERAS ABOUT THE SHOULDERS AT THE TOP (FB, 13 Nov 2026; skeleton3d_body_metrics.h
+        // shoulderViewsAtTop): the down-the-line keypoints' shoulder line against the fit's, in that camera.
+        // Past body3d.shoulderViewsDisagreeDeg the Downgraded body3d.shoulderViewsDisagree covers every
+        // reading that may be built on the fit's shoulders; runProfile scopes it to those that stand
+        // (scopeShoulderViewsRecord). Only with the ladder's own Top: no instant, no comparison.
+        if (r.dtlUsed && top) {
+            pinpoint::analysis::body3d::ShoulderViewsConfig svc;
+            tuning::apply(ctx.job.tuningOverrides, "body3d.shoulderViewsDisagreeDeg", svc.limitDeg);
+            const pinpoint::analysis::body3d::ShoulderViews sv =
+                pinpoint::analysis::body3d::shoulderViewsAtTop(r, in.t_us, in.dtl, in.dtlW, in.dtlH, top->t_us, svc);
+            if (sv.frames > 0)
+                ppInfo() << "[WristAnalysis] skeleton3d: the down-the-line shoulder line at the top is" << sv.medianDeg
+                         << "° from the fit's (median of" << sv.frames << "frames; limit" << svc.limitDeg << "°)"
+                         << (sv.disagree ? "— the cameras disagree, the shoulder readings are downgraded" : "");
+            ctx.detail->skeleton3dShoulderViewsDisagree = sv.disagree;   // for Skeleton3dBodyStage (D2)
+            if (std::optional<GateRecord> rec = shoulderViewsRecord(sv, svc.limitDeg))
+                ctx.addGates(std::vector<GateRecord>{ *rec });
+        }
     }
 };
 
@@ -3665,7 +3703,10 @@ struct BodyRotationTriangulatedStage : AnalysisStage {
 //      reads at address AND the top (both ends of every change from address on one route); the 3-D
 //      trail knee otherwise only fills where there is no down-the-line one. It adds the 3-D side bend
 //      only where the face-on one is absent — beside a trunk sensor's, as its fallback
-//      (mergeSkeleton3dBody). It erases a series
+//      (mergeSkeleton3dBody). D2 (13 Nov 2026): the 3-D arm lift at the top (the lead UPPER ARM against
+//      the shoulder-turn plane) fills only where the down-the-line image has none while the cameras are
+//      uncalibrated, and is never built where the two cameras disagree about the shoulders at the top;
+//      the measured lead elbow (leadArmFlexion3d) is published for bent_lead_arm. It erases a series
 //      another stage wrote, so it WRITES detail.series and the executor runs it in order.
 struct Skeleton3dBodyStage : AnalysisStage {
     QString name() const override { return QStringLiteral("Skeleton3dBody"); }
@@ -3688,9 +3729,12 @@ struct Skeleton3dBodyStage : AnalysisStage {
         in.leftHanded = ctx.job.handedness == 2;
         in.calibrated = false;   // skeleton3d solves its own cameras; no calibration reaches the fit yet
         in.withSigma  = UncertaintyConfig::fromOverrides(ctx.job.tuningOverrides).enabled;
+        in.shoulderViewsDisagree = ctx.detail->skeleton3dShoulderViewsDisagree;   // D2: no 3-D armLiftTop then
         in.thigh.addrWindowUs = brc.addrWindowUs;
         in.thigh.addrMaxGapUs = brc.triAddrMaxGapUs;
         in.thigh.scaleFrac    = brc.triScaleFrac;
+        tuning::apply(ctx.job.tuningOverrides, "body3d.elbowHoldUs", in.elbowHoldUs);              // D6
+        tuning::apply(ctx.job.tuningOverrides, "body3d.elbowHoldMinFrames", in.elbowHoldMinFrames);
         Skeleton3dBodyOutput out = buildSkeleton3dBody(in);
         const bool aimBuilt = out.shoulderAim.has_value();
         // Reads AND writes detail.series, so the executor gives it no buffer: this IS detail->series.
@@ -3710,6 +3754,10 @@ struct Skeleton3dBodyStage : AnalysisStage {
                                    ? QStringLiteral("(positions lost %1, gained %2)")
                                          .arg(int(mg.trailKneeLost.size())).arg(int(mg.trailKneeGained.size()))
                                    : QString())
+                 << (mg.armLiftWithheld ? "| arm lift: the cameras disagree about the shoulders at the top, no 3-D reading"
+                     : mg.armLiftReplaced ? "| arm lift from the fit (replaces the down-the-line one)"
+                     : mg.armLiftKeptDtl ? "| arm lift: cameras uncalibrated, the down-the-line one stays"
+                                         : "")
                  << "| camera directions ASSUMED, σ_yaw" << out.yawSigmaDeg << "°";
     }
 };
@@ -4620,24 +4668,72 @@ void runProfile(const SessionProfile &profile, AnalysisContext &ctx)
                      << tp.sensorDropped << "sensor reading(s) withdrawn (face-in, or fewer positions than the camera),"
                      << tp.recordsCleaned << "record(s) taken off those keys";
     }
+    // The lead elbow (leadArmFlexion): the wrist sensors' elbow beats the face-on camera's wherever both
+    // read (upper_body_metrics.h, plane stack D5) — the catalogue ladder's order, made true of the
+    // document whatever order the two producers ran in — and the 3-D fit's measured elbow
+    // (leadArmFlexion3d, D2) goes with it: wristImus > 3-D > face-on.
+    if (ctx.detail) {
+        const int n = applyLeadElbowSensorPrecedence(ctx.detail->series, ctx.detail->gates);
+        if (n > 0) ppInfo() << "[WristAnalysis] lead elbow: the wrist sensors' reading stands;" << n
+                            << "face-on / 3-D series dropped";
+    }
     // A reading one route supplied in place of another's: the failed route's refusals stop speaking
     // for it (route_substitution.h). After the run, so every stage's records have been spliced.
     if (ctx.detail) {
         const int n = reconcileSubstitutedReadings(ctx.detail->gates, ctx.detail->series);
         if (n > 0) ppInfo() << "[WristAnalysis] route substitution:" << n << "refusal(s) moved onto the substitute record";
     }
+    // The two cameras' disagreement about the shoulders at the top (body3d.shoulderViewsDisagree, fired by
+    // Skeleton3DStage before any reading existed) speaks only for the readings that stand and came from the
+    // fit (skeleton3d_body_series.h). After the precedence, so a chest sensor's shoulder plane that won is
+    // not downgraded by the cameras; before the tilt is derived, so the tilt inherits it where it should.
+    if (ctx.detail) scopeShoulderViewsRecord(ctx.detail->series, ctx.detail->gates);
     // The shoulder tilt at the top against the forward bend at address (W7, shoulder_tilt_vs_bend.h): AFTER
     // both clean-ups, so each half is the reading that will be written and graded, from whichever route won,
     // and the records it inherits are the ones that still speak for those halves. Read off the ladder the
     // document carries (detail->phases), which is the grader's.
     if (ctx.detail) {
-        const tilt_vs_bend::Outcome tb = deriveShoulderTiltVsBend(ctx.detail->series, ctx.detail->gates, ctx.detail->phases);
+        double tiltBendFloorDeg = pinpoint::tuned::body3d::kTiltBendFloorDeg;
+        tuning::apply(ctx.job.tuningOverrides, "body3d.tiltBendFloorDeg", tiltBendFloorDeg);
+        const tilt_vs_bend::Outcome tb = deriveShoulderTiltVsBend(ctx.detail->series, ctx.detail->gates, ctx.detail->phases,
+                                                                  tiltBendFloorDeg);
         if (tb.produced) {
             ctx.detail->versions.shoulderTiltVsBend = kShoulderTiltVsBendVersion;
             ppInfo() << "[WristAnalysis] shoulder tilt against posture:" << (tb.tilt.value - tb.bend.value) << "° (tilt"
                      << tb.tilt.value << "from" << qPrintable(tb.tiltRoute) << "− bend" << tb.bend.value << "from"
                      << qPrintable(tb.bendRoute) << ")" << (tb.mixed ? "— mixed instruments" : "") << ","
-                     << tb.recordsExtended << "record(s) extended";
+                     << tb.recordsExtended << "record(s) extended"
+                     << (tb.outOfRange ? "— below the floor a turn can make: probably a misreading" : "");
+        }
+    }
+    // The club's climb placed in the on-plane window halfway back (plane stack D3, club_slot_top.h): the swing plane at P3 against the
+    // plane at address and the shoulder plane at address, each read off the document's ladder exactly as the
+    // grader reads it. After the run, so ShaftFusionStage's curve and shoulder plane and every record that
+    // speaks for them (club.trackRefused) are in hand.
+    if (ctx.detail) {
+        double slotMinWidthDeg = pinpoint::tuned::clubSlot::kMinWidthDeg;
+        tuning::apply(ctx.job.tuningOverrides, "club.slotMinWidthDeg", slotMinWidthDeg);
+        const club_slot::Outcome cs = deriveClubSlotTop(ctx.detail->series, ctx.detail->gates, ctx.detail->phases,
+                                                        slotMinWidthDeg,
+                                                        ShaftFusionStage::configFor(ctx.job).calibrated);   // D6: the ⚠
+        if (cs.produced) {
+            ctx.detail->versions.clubSlotTop = kClubSlotTopVersion;
+            ppInfo() << "[WristAnalysis] club in the on-plane window at P3:" << cs.value << "(" << (cs.p3.value - cs.p1.value)
+                     << "° climb over a" << cs.widthDeg << "° window; σ" << cs.sigma << ")," << cs.recordsExtended
+                     << "record(s) extended";
+        } else if (!cs.code.isEmpty()) {
+            ppInfo() << "[WristAnalysis] club in the on-plane window at P3: not read (" << qPrintable(cs.code) << ")";
+        }
+    }
+    // Why there is no P8 (plane stack D6, Club/p8_refusal_gate.h): the face-on tracker's refusal, named on the
+    // phase, so the readings that need P8 say why they are not judged. After the run, against the ladder the
+    // document carries, so a P8 the IMU segmenter supplied (or none located at all) fires nothing.
+    if (ctx.detail && ctx.detail->shaft.p8Refusal) {
+        const PositionsConfig pc = ShaftV3Config::fromOverrides(ctx.job.tuningOverrides).positions;
+        if (const std::optional<GateRecord> r = p8RefusalRecord(ctx.detail->shaft.p8Refusal, ctx.detail->phases, pc)) {
+            ctx.detail->gates.push_back(*r);
+            ppInfo() << "[WristAnalysis] no P8:" << qPrintable(r->evidence.value(QStringLiteral("code")).toString())
+                     << "— the readings that need P8 name it";
         }
     }
     attachStagePreds(ctx, graph);

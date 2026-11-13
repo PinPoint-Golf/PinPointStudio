@@ -23,12 +23,14 @@ static void check(bool c, const char *label)
     if (!c) ++g_fail;
 }
 
-// Timebase: 200 Hz (dt = 5000 µs), 121 frames. Landmarks: address 10, top 60,
-// impact 110, finish 118, last frame 120. Elevation ≡ angle whenever the angle stays
+// Timebase: 200 Hz (dt = 5000 µs), 161 frames. Landmarks: address 10, top 60,
+// impact 110, finish 158, last frame 160. (121 frames and a finish at 118 until 13 Nov 2026:
+// the follow-through crossed horizontal 25 ms after impact, which the P8 window now refuses —
+// no real follow-through gets there that fast; the library's earliest is 48 ms.) Elevation ≡ angle whenever the angle stays
 // in (−90°,90°) (cos > 0), so the constructed profiles below cross HORIZONTAL exactly
 // where their value passes through 0 — the P-times are hand-placeable.
-static constexpr int    kNf  = 121;
-static constexpr int    kAF  = 10, kTopF = 60, kImpF = 110, kFinF = 118;
+static constexpr int    kNf  = 161;
+static constexpr int    kAF  = 10, kTopF = 60, kImpF = 110, kFinF = 158;
 static constexpr int64_t kDt  = 5000;
 
 static std::vector<int64_t> times()
@@ -39,7 +41,7 @@ static std::vector<int64_t> times()
 }
 
 // θ(t): +80° (down-right) at address → 0 (horizontal, P2≈f35) → −80 (up) at top →
-// 0 (P6≈f85) → +80 at impact → 0 (P8≈f115) → −80 at the last frame. `fullThrough`
+// 0 (P6≈f85) → +80 at impact → 0 (P8≈f132, impact + 110 ms) → −80 at f154, on past it. `fullThrough`
 // false flattens the follow-through at +80 (a punch that never reaches horizontal).
 static std::vector<double> buildTheta(bool fullThrough)
 {
@@ -49,7 +51,7 @@ static std::vector<double> buildTheta(bool fullThrough)
         if (f <= 10)       v = 80.0;
         else if (f <= 60)  v = 80.0 - 160.0 * double(f - 10) / 50.0;   // backswing (P2 @ 35)
         else if (f <= 110) v = -80.0 + 160.0 * double(f - 60) / 50.0;  // downswing (P6 @ 85)
-        else               v = fullThrough ? 80.0 - 160.0 * double(f - 110) / 10.0   // through (P8 @ 115)
+        else               v = fullThrough ? 80.0 - 80.0 * double(f - 110) / 22.0    // through (P8 @ 132)
                                            : 80.0;                                    // punch — stays low
         th[f] = v;
     }
@@ -110,7 +112,7 @@ int main()
         check(within1(find(ps, 3), 45), "P3 arm-parallel (backswing) ≈ f45");
         check(within1(find(ps, 5), 75), "P5 arm-parallel (downswing) ≈ f75");
         check(within1(find(ps, 6), 85), "P6 shaft-parallel (downswing) ≈ f85");
-        check(within1(find(ps, 8), 115), "P8 shaft-parallel (through) ≈ f115");
+        check(within1(find(ps, 8), 132), "P8 shaft-parallel (through) ≈ f132 — a ramp through horizontal at +110 ms");
     }
 
     // ── (2) abbreviated punch: no P8 ──────────────────────────────────────────
@@ -331,6 +333,122 @@ int main()
         const int64_t a = p6Of(locatePTimes(t, mono, {}, kAF, kTopF, kImpF, kFinF, cOff));
         const int64_t b = p6Of(locatePTimes(t, mono, {}, kAF, kTopF, kImpF, kFinF, cOn));
         check(a >= 0 && a == b, "single transit: last == first, byte-identical P6");
+    }
+
+    // ── P8 bounds (13 Nov 2026, plane stack FA) ────────────────────────────────────────────────
+    // P8 is the first DOWN→UP crossing timed impact + 40 … impact + 200 ms, refused after the
+    // shaft sat within ±12° of vertical for 40 ms (from impact + 40 ms). A longer timebase here:
+    // 200 Hz, 300 frames, impact at f110 (550 ms), finish at f290.
+    std::printf("=== P8 bounds: window, sense, vertical stall ===\n");
+    {
+        const int nf = 300, impF = 110, finF = 290;
+        std::vector<int64_t> tl(nf);
+        for (int f = 0; f < nf; ++f) tl[f] = int64_t(f) * kDt;
+        // The swing up to impact is buildTheta's; after impact θ(ms after impact) is `through`.
+        const auto build = [&](auto through) {
+            std::vector<double> th(nf, 0.0);
+            const std::vector<double> base = buildTheta(true);
+            for (int f = 0; f < nf; ++f)
+                th[f] = f <= impF ? base[f] : through(double(f - impF) * double(kDt) / 1000.0);
+            return th;
+        };
+        const auto run = [&](const std::vector<double> &th, P8Refusal &why,
+                             const PositionsConfig &c = PositionsConfig()) {
+            return locatePTimes(tl, th, {}, kAF, kTopF, impF, finF, c, &why);
+        };
+        const int64_t tImp = tl[impF];
+        const auto msAfter = [&](const PTime *p) { return p ? double(p->tUs - tImp) / 1000.0 : -1.0; };
+        // A line from (m0, v0) to (m1, v1), held at the ends.
+        const auto lerp = [](double m, double m0, double v0, double m1, double v1) {
+            if (m <= m0) return v0;
+            if (m >= m1) return v1;
+            return v0 + (v1 - v0) * (m - m0) / (m1 - m0);
+        };
+
+        PositionsConfig dflt;
+        check(dflt.p8MinAfterImpactUs == 40000 && dflt.p8MaxAfterImpactUs == 200000
+                  && dflt.p8StallBandDeg == 12.0 && dflt.p8StallMinUs == 40000,
+              "defaults: window 40–200 ms, stall ±12° for 40 ms");
+
+        // (a) A ramp through horizontal at +110 ms ⇒ P8 at +110 ms ± 1 frame.
+        {
+            P8Refusal why = P8Refusal::NoCrossing;
+            const auto ps = run(build([&](double m) { return lerp(m, 0, 80, 220, -80); }), why);
+            const PTime *p8 = find(ps, 8);
+            std::printf("    (a) P8 at %+.1f ms\n", msAfter(p8));
+            check(p8 && std::fabs(msAfter(p8) - 110.0) <= 5.0 && why == P8Refusal::None,
+                  "ramp through horizontal at +110 ms ⇒ P8 at +110 ms ± 1 frame");
+        }
+        // (b) Jess's bay: the tracker parked on an upright light strip — vertical from +80 to
+        //     +300 ms — and "crossing" at +390 ms when the club wraps at the finish ⇒ no P8.
+        const auto parked = [&](double m) {
+            if (m <= 80.0) return lerp(m, 0, 80, 80, 90);
+            if (m <= 300.0) return 90.0 + 3.0 * std::sin(m);                 // ±3° of tracker jitter
+            return lerp(m, 300, 90, 480, -90);                               // 0 at +390 ms
+        };
+        {
+            P8Refusal why = P8Refusal::None;
+            const auto ps = run(build(parked), why);
+            check(find(ps, 8) == nullptr && why == P8Refusal::Late,
+                  "vertical from +80 to +300 ms, crossing at +390 ms ⇒ no P8 (outside the window)");
+            check(find(ps, 7) && find(ps, 10), "…P7 and P10 (Finish) still located");
+            // The stall refuses it on its own: with the window opened to 450 ms the same crossing is
+            // still refused, because it follows 220 ms of a near-vertical shaft.
+            PositionsConfig wide;
+            wide.p8MaxAfterImpactUs = 450000;
+            const auto pw = run(build(parked), why, wide);
+            check(find(pw, 8) == nullptr && why == P8Refusal::VerticalStall,
+                  "…and with the window opened to +450 ms the vertical stall refuses it");
+        }
+        // (c) The stall inside the window: vertical +45 … +100 ms, then a crossing at +160 ms ⇒ no P8;
+        //     the same crossing with no stall before it is P8.
+        {
+            P8Refusal why = P8Refusal::None;
+            const auto stalled = [&](double m) {
+                if (m <= 45.0) return lerp(m, 0, 80, 45, 88);
+                if (m <= 100.0) return 88.0;
+                return lerp(m, 100, 88, 220, -88);                            // 0 at +160 ms
+            };
+            check(find(run(build(stalled), why), 8) == nullptr && why == P8Refusal::VerticalStall,
+                  "55 ms within 12° of vertical from +45 ms, crossing at +160 ms ⇒ no P8 (stall)");
+            const auto clean = [&](double m) { return lerp(m, 0, 80, 320, -80); };   // 0 at +160 ms
+            const std::vector<PTime> pc = run(build(clean), why);
+            const PTime *p8 = find(pc, 8);
+            check(p8 && std::fabs(msAfter(p8) - 160.0) <= 5.0 && why == P8Refusal::None,
+                  "…the same crossing without the stall is P8 at +160 ms");
+            // A stall shorter than 40 ms does not refuse: near vertical from +40 to +65 ms only.
+            const auto brief = [&](double m) {
+                if (m <= 45.0) return lerp(m, 0, 80, 45, 88);
+                if (m <= 60.0) return 88.0;
+                return lerp(m, 60, 88, 160, -88);                             // 0 at +110 ms
+            };
+            const std::vector<PTime> pbv = run(build(brief), why);
+            const PTime *pb = find(pbv, 8);
+            check(pb && std::fabs(msAfter(pb) - 110.0) <= 5.0 && why == P8Refusal::None,
+                  "…a 25 ms brush with vertical does not refuse it");
+        }
+        // (d) A crossing at +4 ms (the impact-blur flip on three of Nick's shots) ⇒ no P8.
+        {
+            P8Refusal why = P8Refusal::None;
+            const auto ps = run(build([&](double m) { return m <= 0 ? 80.0 : lerp(m, 5, -20, 200, -80); }), why);
+            check(find(ps, 8) == nullptr && why == P8Refusal::NoCrossing,
+                  "a crossing at +4 ms ⇒ no P8 (before the window, and nothing after it)");
+        }
+        // (e) The flip, then the flipped track coming back DOWN through horizontal at +60 ms
+        //     (Nick 10-20 Wrist_01/0003's shape) ⇒ no P8: up→down is not a follow-through.
+        {
+            P8Refusal why = P8Refusal::None;
+            const auto ps = run(build([&](double m) { return m <= 0 ? 80.0 : lerp(m, 5, -30, 90, 15); }), why);
+            check(find(ps, 8) == nullptr && why == P8Refusal::WrongSense,
+                  "flip at +4 ms, then an UP→DOWN crossing at +60 ms ⇒ no P8 (wrong sense)");
+        }
+        // (f) No impact frame ⇒ no P8, and the reason says so.
+        {
+            P8Refusal why = P8Refusal::None;
+            const auto ps = locatePTimes(tl, build([&](double m) { return lerp(m, 0, 80, 220, -80); }), {},
+                                         kAF, kTopF, -1, finF, PositionsConfig(), &why);
+            check(find(ps, 8) == nullptr && why == P8Refusal::NoImpact, "no impact frame ⇒ no P8 (NoImpact)");
+        }
     }
 
     std::printf("\n%s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);

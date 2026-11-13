@@ -149,6 +149,9 @@ int main()
         for (const auto &rule : reg.rules()) {
             if (rule->def().weight <= 0.0) continue;
             bool heir = false;
+            // chicken_wing's heir is an ARM fault, out of the wrist domain since plane stack D6 (13 Nov 2026)
+            for (const char *x : wristDomainExemptEngineRules())
+                if (rule->def().id == QLatin1String(x)) heir = true;
             for (const WristDomainWeight &w : wristDomainWeights())
                 if (rule->def().id == QLatin1String(w.engineRuleId)) heir = true;
             if (!heir) {
@@ -157,7 +160,10 @@ int main()
                             qPrintable(rule->def().id));
             }
         }
-        check(orphaned == 0, "every engine fault rule folded into a wrist condition");
+        check(orphaned == 0, "every engine fault rule folded into a wrist condition (chicken_wing's into an arm one)");
+        check(wristDomainExemptEngineRules().size() == 1
+                  && QLatin1String(wristDomainExemptEngineRules().front()) == QLatin1String("chicken_wing"),
+              "…and only chicken_wing's heir sits outside the domain (plane stack D6)");
     }
 
     std::printf("=== the map and the shipped pack agree on the domain ===\n");
@@ -177,7 +183,12 @@ int main()
             std::printf("        '%s' is in the wrist domain with no weight row\n", qPrintable(id));
         for (const QString &id : mapped - tagged)
             std::printf("        '%s' has a weight row but is not in the wrist domain\n", qPrintable(id));
-        check(tagged.size() == 15, "the pack ships fifteen wrist conditions (CONTRACT I1)");
+        check(tagged.size() == 14, "the pack ships fourteen wrist conditions (CONTRACT I1; chicken_wing left for the arms, D6)");
+        check(!tagged.contains(QStringLiteral("chicken_wing")), "chicken_wing is not a wrist condition (an arm fold, D6)");
+        bool cwArms = false;
+        for (const Condition &c : res.pack.conditions)
+            if (c.id == QLatin1String("chicken_wing")) cwArms = c.group == ConditionGroup::Arms && c.domain.isEmpty();
+        check(cwArms, "…its group is arms and it carries no domain");
         check(tagged == mapped, "every wrist condition has exactly one weight row, and nothing else does");
     }
 

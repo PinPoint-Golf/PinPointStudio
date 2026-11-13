@@ -242,7 +242,7 @@ private slots:
                                              "degrees above it and are back on it by impact; yours is steep from P3."));
         // the slot: swing 7's P3 (72°) is above its shoulder plane (69°); swing 26 stays inside
         QCOMPARE(deliverySlotWords(*s7).text, QStringLiteral("above the shoulder plane at P3 — a steep backswing"));
-        QCOMPARE(deliverySlotWords(*s26).text, QStringLiteral("inside the slot"));
+        QCOMPARE(deliverySlotWords(*s26).text, QStringLiteral("inside the on-plane window"));
 
         // the head (§4.3 rule 1: the plane at P6 is Mark's stronger fit) and the ball-flight line
         const DeliveryShotView v7 = deliveryShot(*s7, m_mark), v26 = deliveryShot(*s26, m_mark);

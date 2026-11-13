@@ -42,6 +42,7 @@
 #include "../Core/figure_format.h"      // every evidence figure and threshold: the app's one formatter
 #include "../Core/pp_tuned_constants.h"
 #include "../Analysis/gate_record.h"
+#include "../Analysis/swing_analysis.h"   // Phase (phaseSubject)
 
 #include <QChar>
 #include <QHash>
@@ -427,6 +428,7 @@ inline QString subjectLabel(const QString &subject)
         { QStringLiteral("track.club3d"),     QStringLiteral("3-D club") },
         { QStringLiteral("track.impact"),     QStringLiteral("Impact camera track") },
         { QStringLiteral("track.skeleton3d"), QStringLiteral("3-D skeleton") },
+        { QStringLiteral("position.p8"),      QStringLiteral("P8 (the shaft level after impact)") },
         { QStringLiteral("shot"),             QStringLiteral("The whole swing") } };
     if (w.contains(subject)) return w.value(subject);
     if (subject.startsWith(QLatin1String("route.")))
@@ -450,6 +452,15 @@ inline QString subjectForMetricKey(const QString &metricKey)
         for (const char *k : kinds)
             if (metricKey == QLatin1String(sg.prefix) + QLatin1String(k)) return QString::fromLatin1(sg.subject);
     return {};
+}
+
+// THE SUBJECT A PHASE IS REFUSED UNDER (plane stack D6): a record on the phase itself, for a position the
+// ladder lacks for a recorded reason — positions.p8Refused on `position.p8` (Club/p8_refusal_gate.h). A
+// measure whose reducer needs that phase, and whose reading has no value there, names the record
+// (LiveMeasureSource::gateCause). "" for a phase no record is ever fired on.
+inline QString phaseSubject(analysis::Phase p)
+{
+    return p == analysis::Phase::ShaftParallelThrough ? QStringLiteral("position.p8") : QString();
 }
 
 // The record a claim about `subject` shows (trust_and_gates_design.md §3.3): of the records that
@@ -578,7 +589,11 @@ inline QString evidenceText(const GateEntry &e, const QVariantMap &evidence)
 inline QString notJudgedClause(const QString &subject, const QString &gateId)
 {
     const GateEntry *e = gateEntry(gateId);
-    const QString who = subjectLabel(subject).toLower();
+    // Lower case to follow in a sentence — except a P-position's own name, which keeps its capital
+    // ("P8 (the shaft level after impact) not timed", plane stack D6).
+    const QString label = subjectLabel(subject);
+    const bool position = label.size() > 1 && label.at(0) == QLatin1Char('P') && label.at(1).isDigit();
+    const QString who = position ? label.left(2) + label.mid(2).toLower() : label.toLower();
     if (!e) return who;
     // a gate that only withholds keeps the reading on screen: "club peak drawn, not judged"
     const bool onlyWithholds = e->effects.size() == 1 && e->effects.front() == GateEffect::Withheld;

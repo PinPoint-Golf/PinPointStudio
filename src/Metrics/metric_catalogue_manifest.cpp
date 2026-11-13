@@ -361,7 +361,10 @@ void installMetricManifest(MetricCatalogue &cat)
             "0° is a perfectly straight arm; larger values mean more bend. A near-straight lead arm "
             "through impact is the goal. A chicken-wing — rising flexion into and past impact — "
             "usually signals an early release or a stalling body and shows up here as a growing "
-            "value. It needs the lead-forearm, hand and upper-arm motion sensors."),
+            "value. The lead-forearm, hand and upper-arm motion sensors measure it in 3-D; without "
+            "them it is read from the face-on camera as the angle at the lead elbow in the picture, "
+            "which is the true bend only while the arm faces the camera — frames where the upper arm "
+            "or forearm points toward the camera are left out."),
         .flexPositive = true,
         .signPositive = QStringLiteral("elbow flexion — a more bent lead arm; 0° is straight"),
         .signNegative = QString(),
@@ -370,12 +373,21 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("wristImus", RM::Inertial, Direct,
                 { .imuRoles = { R::LeadForearm, R::LeadHand, R::LeadUpperArm } },
-                QStringLiteral("the elbow angle between the upper-arm and forearm motion sensors")) },
+                QStringLiteral("the elbow angle between the upper-arm and forearm motion sensors")),
+            // The face-on camera's elbow (13 Nov 2026, plane stack D5; upper_body_metrics.cpp): 180° − the
+            // angle at the lead elbow between the lead shoulder and wrist in the picture. BELOW the
+            // sensors, so they win where worn (applyLeadElbowSensorPrecedence). Projected and Estimated:
+            // the picture's angle is the 3-D bend only while the arm lies across the camera's view, which
+            // is what its gate (body.leadElbowLines, both segments' image length) protects.
+            via("faceOn", RM::Projected, Estimated, { .faceOnCamera = true },
+                QStringLiteral("the angle at the lead elbow in the face-on picture, between the lead "
+                               "shoulder and the lead wrist")) },
         .usedBy = { QStringLiteral("assessment:wrist"),
                     QStringLiteral("chart:review"),
                     QStringLiteral("score:wrist"),
                     QStringLiteral("characteristic:bent_lead_arm"),
-                    QStringLiteral("characteristic:locked_lead_arm") },
+                    QStringLiteral("characteristic:locked_lead_arm"),
+                    QStringLiteral("characteristic:chicken_wing") },
     });
 
     // ── Forearm rotation — ONE SEGMENT, and not an ISB joint angle ───────────────────────────────
@@ -1942,6 +1954,10 @@ void installMetricManifest(MetricCatalogue &cat)
     // area, and what the plane conditions grade, at P3 and P6, since 8 Nov 2026
     // (docs/design/swing_plane_area.md): it reads on 96 % of down-the-line swings, the two-camera fit
     // on 45 %. At P2, the top and most P6s it is the hand plane, because the shaft defines no plane there.
+    // Since 13 Nov 2026 the takeaway pair grades it at P2 against address too (m_takeawayPlane,
+    // docs/design/plane_stack_design.md §3.1), and the absolute plane at P3 is shown, not graded. Since D3
+    // (13 Nov 2026, §3.3) the pair at P3 grades its climb placed in the on-plane window halfway back
+    // (clubSlotTop), not in degrees: m_shaftPlaneBackswing stays shown.
     cat.addDescriptor({
         .key = QStringLiteral("swingPlaneCurve"),
         .type = MetricType::TimeSeries,
@@ -1963,7 +1979,8 @@ void installMetricManifest(MetricCatalogue &cat)
             "there this is the Hand plane. A stretch with neither is bridged and drawn dashed. One "
             "camera, not calibrated, so compare swings on the same camera; and compare like with "
             "like, because it is club-dependent. The swing plane conditions are graded on this "
-            "curve at P3 and P6."),
+            "curve against address at P2 and P6, on its own at P6, and at P3 placed in the on-plane "
+            "window between it and the shoulder plane at address (Club in the on-plane window)."),
         .signPositive = QStringLiteral("a more upright plane"),
         .signNegative = QStringLiteral("a flatter plane"),
         .phases = { P::ArmParallelDown },
@@ -1977,10 +1994,8 @@ void installMetricManifest(MetricCatalogue &cat)
                                "angle in the down-the-line image; the face-on track only says which "
                                "frames to trust")) },
         .usedBy = { QStringLiteral("chart:review"),
-                    QStringLiteral("characteristic:flat_backswing_plane"),
-                    QStringLiteral("characteristic:steep_backswing_plane"),
-                    QStringLiteral("characteristic:backswing_plane_too_upright"),
-                    QStringLiteral("characteristic:backswing_plane_too_flat"),
+                    QStringLiteral("characteristic:flat_takeaway"),
+                    QStringLiteral("characteristic:steep_takeaway"),
                     QStringLiteral("characteristic:steep_downswing_shaft"),
                     QStringLiteral("characteristic:under_plane_stuck"),
                     QStringLiteral("characteristic:downswing_plane_too_steep"),
@@ -2064,7 +2079,7 @@ void installMetricManifest(MetricCatalogue &cat)
     });
 
     // The shoulder plane: the plane through the ball's target line and the TRAIL shoulder at
-    // address (shaft_plane_curve.h), the steep edge of the slot whose flat edge is the swing plane
+    // address (shaft_plane_curve.h), the upper edge of the on-plane window whose lower edge is the swing plane
     // curve's own address value (club_delivery_chart_design.md §2.3). Not the shoulders' aim, and
     // not shoulderPlaneAngle (the shoulder line's tilt, Body rotation), hence "at address" in the
     // label. The golfer's own line, never a norm. A chart reading only.
@@ -2077,10 +2092,10 @@ void installMetricManifest(MetricCatalogue &cat)
         .group = QStringLiteral("Swing plane"),
         .color = QStringLiteral("lavender"),
         .description = QStringLiteral(
-            "The plane from the ball through your trail shoulder at address: the steep edge of the "
-            "slot. Your swing plane at address is the slot's flat edge; a club that travels above "
-            "the shoulder plane is steep, and one that drops below where you set it at address is "
-            "under the plane."),
+            "The plane from the ball through your trail shoulder at address: the upper edge of the "
+            "on-plane window halfway back. Your swing plane at address is its lower edge; a club that "
+            "travels above the shoulder plane is steep, and one that drops below where you set it at "
+            "address is under the plane."),
         .howToRead = QStringLiteral(
             "Degrees above the ground; higher is more upright. Read at Address, from the trail "
             "shoulder the pose finds over the last moments of the address hold (the right shoulder "
@@ -2098,6 +2113,52 @@ void installMetricManifest(MetricCatalogue &cat)
                 QStringLiteral("the image line from the down-the-line ball to the trail shoulder at "
                                "address; the shaft track supplies the ball, the pose the shoulder")) },
         .usedBy = { QStringLiteral("chart:review") },
+    });
+
+    // THE CLUB'S CLIMB PLACED IN THE ON-PLANE WINDOW HALFWAY BACK (plane stack D3, 13 Nov 2026; club_slot_top.h):
+    // the swing plane at P3 less the plane at address, over the shoulder plane at address less the plane at
+    // address — 0 on the plane the club was set on (the window's lower edge), 1 on the shoulder plane (its upper
+    // edge). Each part read as the grader reads it; derived once after the run. What flat_ / steep_backswing_plane
+    // grade. The key keeps "slot"; every word shown says "on-plane window": the golf "slot" is a downswing position.
+    cat.addDescriptor({
+        .key = QStringLiteral("clubSlotTop"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Club in the on-plane window at P3"),
+        .shortLabel = QStringLiteral("Halfway back"),
+        .unit = QStringLiteral("ratio"),
+        .group = QStringLiteral("Swing plane"),
+        .color = QStringLiteral("orchid"),
+        .description = QStringLiteral(
+            "Where the club sits halfway back, with the lead arm level with the ground, inside your own "
+            "on-plane window: the wedge between the plane the club was set on at address and the plane "
+            "from the ball up through your trail shoulder at address. The climb of the swing plane from "
+            "address to that point, as a share of the window's width, so it follows your own set-up: an "
+            "upright set-up has a narrow window and a flat one a wide window."),
+        .howToRead = QStringLiteral(
+            "0 means the club sits on the plane you set at address, the window's lower edge; 1 means it "
+            "sits on the line through your trail shoulder at address, its upper edge; 0.5 is the middle. "
+            "BELOW 0 THE CLUB IS UNDER PLANE HALFWAY BACK, ABOVE 1 IT IS ABOVE IT. This is a backswing "
+            "reading at lead-arm-parallel; it is NOT the downswing \"slot\" coaches teach (halfway "
+            "down, the club approaching from inside with the trail elbow near the trail hip). It is the "
+            "swing plane at P3 less the plane "
+            "at address (the climb, in degrees) divided by the shoulder plane less the plane at "
+            "address, each read as it is graded. One down-the-line camera within one swing, so a "
+            "camera turned a few degrees moves it little. Where the camera STANDS is not yet shown "
+            "to cancel: the three planes are lines in the down-the-line picture, and a camera moved "
+            "in height or toward the hands moves them by different amounts. A frame check is pending. "
+            "Not read when the shoulder plane at address is missing (it needs the ball and your trail "
+            "shoulder seen from down the line), when the swing plane is not read at address or P3, or "
+            "when the window is under 4° wide."),
+        .signPositive = QStringLiteral("the club higher halfway back — toward or above the line through the trail shoulder at address"),
+        .signNegative = QStringLiteral("below the plane the club was set on — under plane halfway back"),
+        .phases = { P::MidBackswing },
+        .card = { .readAt = { { P::MidBackswing, {} } } },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },
+                QStringLiteral("the swing plane curve at address and at P3 and the shoulder plane at "
+                               "address, all from the down-the-line image")) },
+        .usedBy = { QStringLiteral("characteristic:flat_backswing_plane"),
+                    QStringLiteral("characteristic:steep_backswing_plane") },
     });
 
     cat.addDescriptor({
@@ -3953,7 +4014,13 @@ void installMetricManifest(MetricCatalogue &cat)
         .routes = {
             via("faceOn", RM::Projected, Direct, { .faceOnCamera = true },
                 QStringLiteral("the lead arm against the torso line, in the face-on image")) },
-        .usedBy = { QStringLiteral("characteristic:chicken_wing") },
+        // SHOWN, NOT GRADED since 13 Nov 2026 (plane stack D5): chicken_wing reads the lead elbow's fold
+        // after impact (leadArmFlexion, m_leadElbowFoldAfterImpact) instead.
+        .usedBy = {},
+        // PLACED BY HAND in Arms (consistency_design.md Appendix B), because no condition detects on it any
+        // more and the Consistency area used to come from chicken_wing (group arms). It is still read and
+        // shown, the context beside the elbow's fold, so it keeps the home it had, as elbowAlignment does.
+        .consistencyArea = QStringLiteral("arms"),
     });
 
     cat.addDescriptor({
@@ -4353,6 +4420,139 @@ void installMetricManifest(MetricCatalogue &cat)
                                "the same image")) },
         .usedBy = { QStringLiteral("characteristic:disconnection"),
                     QStringLiteral("characteristic:arms_over_connected") },
+    });
+
+    // ── The arm lift at the top (plane stack D2, 13 Nov 2026; plane_stack_design.md §3.2) ────────────────
+    //
+    // Layer 3 of the plane stack: do the arms lift with the shoulder turn, above it, or swing around under it?
+    // MEASURED TO THE ELBOW (Mark, 13 Nov): a bent lead arm is a "cheat" that makes the arms look lifted, and
+    // a fault in its own right (bent_lead_arm), so the lead UPPER ARM is the arm here, never shoulder → wrist.
+    // TWO ROUTES, and the order states TODAY's rule, as the trail knee's does (W5): while the cameras are
+    // uncalibrated — every swing — the down-the-line picture is the answer wherever it reads (the 13 Nov frame
+    // sheet: the 3-D gap between two golfers was mostly the fit's steep 3-D shoulder line), and the 3-D fit
+    // only fills where it has none (body3d.fromFit). Calibrated, Skeleton3dBodyStage lets the fit replace it,
+    // but MetricRequirement cannot say "calibrated cameras", so the 3-D rung sits below; no conflict with the
+    // best-first rule, since the picture's rung is Direct (a difference of two lines in one image, the
+    // handPathLoop rung's standing) and the fit's is Estimated.
+    cat.addDescriptor({
+        .key = QStringLiteral("armLiftTop"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Arm lift at the top"),
+        .shortLabel = QStringLiteral("Arm lift"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("violet"),
+        .description = QStringLiteral(
+            "How high the lead upper arm sits against the shoulder turn at the top of the backswing, measured "
+            "from the lead shoulder to the lead ELBOW. It is measured to the elbow, not the wrist, because a "
+            "bent lead arm folds the forearm up and makes the arms look higher than they are; a bent lead arm "
+            "is graded as its own fault. Arms that sit on the line the shoulders turn on are the one-plane "
+            "style, arms above it the two-plane style; both work, and only the extremes are faults — arms "
+            "swinging round low under the turn, or lifting high above it."),
+        .howToRead = QStringLiteral(
+            "One reading at the top, measured to the ELBOW (a bent lead arm makes the arms look higher than "
+            "they are, and is graded as its own fault). POSITIVE MEANS THE LEAD UPPER ARM SITS ABOVE THE "
+            "SHOULDERS: 0° is the upper arm on the shoulder line, negative is under it. From the down-the-line "
+            "camera it is the angle between the lead shoulder-to-elbow line and the shoulder line in the "
+            "picture, + with the elbow above that line. From the 3-D fit of the body it is the upper arm's "
+            "angle out of the plane the shoulders turn on (square to the spine), + toward the head. While the "
+            "cameras are uncalibrated the down-the-line picture's reading is used wherever it exists; the 3-D "
+            "fit stands in only where it is missing, and is not used at all on a swing where the two cameras "
+            "disagree about the shoulders at the top."),
+        .signPositive = QStringLiteral("the lead UPPER ARM (shoulder → elbow, never the wrist: a bent arm looks lifted) above the shoulders at the top — lifted"),
+        .signNegative = QStringLiteral("under the shoulders — swinging round low"),
+        .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("dtl", RM::Projected, Direct, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the lead shoulder-to-elbow line against the shoulder line in the down-the-line "
+                               "picture at the top — the coach's own check, two lines in one image")),
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the lead upper arm against the shoulder-turn plane, from the two-camera 3-D fit "
+                               "of the body (uncalibrated: the fit solves its own cameras), where the "
+                               "down-the-line reading is missing")) },
+        .usedBy = { QStringLiteral("characteristic:arms_swing_around"),
+                    QStringLiteral("characteristic:arms_lift") },
+    });
+
+    // ── The lead elbow where the 3-D fit MEASURED it (plane stack D2, 13 Nov 2026) ─────────────────────
+    //
+    // bent_lead_arm's camera reading. Its OWN key, not a rung of leadArmFlexion: that key's face-on series is
+    // chicken_wing's reading (D5), and this sparse one would replace it; and leadArmFlexion's m_leadElbowFlex_*
+    // measures are held per measure (D5: the face-on bend at the top reads ~37° above address, a projection),
+    // which a rung could not escape. Only frames where both cameras saw the elbow (TierMeasured, FB's honest
+    // tier) read; the wrist sensors' leadArmFlexion beats it where worn (applyLeadElbowSensorPrecedence).
+    // Shown, not graded since D6: bent_lead_arm grades leadElbowBendChange3d below.
+    cat.addDescriptor({
+        .key = QStringLiteral("leadArmFlexion3d"),
+        .type = MetricType::TimeSeries,
+        .label = QStringLiteral("Lead elbow — flexion (3-D)"),
+        .shortLabel = QStringLiteral("Elbow 3-D"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("mint"),   // leadArmFlexion's hue: the same quantity, read another way
+        .description = QStringLiteral(
+            "How bent the lead arm is at the elbow, from the 3-D fit of the body: 180° less the angle at the "
+            "lead elbow between the lead shoulder and the lead wrist. Read only where both cameras saw the "
+            "elbow, so a frame the fit had to place by its anatomy alone is left out."),
+        .howToRead = QStringLiteral(
+            "0° is a perfectly straight arm; larger values mean more bend. It is read from the 3-D fit of the "
+            "body, only on frames where both cameras saw the lead elbow, so on many golfers it reads on few "
+            "frames or none. Bent lead arm is not graded on this curve but on how much MORE the arm bends at the "
+            "top than in the address hold (lead elbow bend added by the top), because the fit reads a straight "
+            "address arm at 5–19° bent, by golfer. The face-on picture's elbow is not used for it, because an arm "
+            "across the chest looks bent from the front when it is not. Where the lead-arm motion sensors are "
+            "worn this reading is not written."),
+        .flexPositive = true,
+        .signPositive = QStringLiteral("elbow flexion — a more bent lead arm; 0° is straight"),
+        .signNegative = QString(),
+        .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the angle at the lead elbow from the two-camera 3-D fit of the body "
+                               "(uncalibrated: the fit solves its own cameras), only where both cameras saw "
+                               "the elbow")) },
+        .usedBy = {},
+    });
+
+    // ── bent_lead_arm's 3-D reading: the bend ADDED BY THE TOP (plane stack D6, Mark 13 Nov 2026) ─────────────
+    //
+    // The measured bend at the top (leadArmFlexion3d as graded there) less the median of the measured bend over
+    // this swing's ADDRESS HOLD (P1 − 150 ms … P1, where the arm is still). A change because the fit reads a
+    // straight address arm at 5–19° bent, varying by golfer; against the hold, not the ±15 ms at P1, because the
+    // pack has no hold-median reference (skeleton3d_body_series.h). Not built where either end has no measured
+    // elbow: body3d.leadElbowUnmeasured says which.
+    cat.addDescriptor({
+        .key = QStringLiteral("leadElbowBendChange3d"),
+        .type = MetricType::PointInTime,
+        .label = QStringLiteral("Lead elbow bend added by the top (3-D)"),
+        .shortLabel = QStringLiteral("Elbow added"),
+        .unit = QStringLiteral("°"),
+        .group = QStringLiteral("Arms"),
+        .color = QStringLiteral("mint"),   // leadArmFlexion's hue: the same elbow
+        .description = QStringLiteral(
+            "How much more the lead arm is bent at the elbow at the top of the backswing than it was at "
+            "address, from the 3-D fit of the body, read only where both cameras saw the lead elbow. The "
+            "address end is the middle of the bend over the address hold, where the arm is still. Bent lead arm "
+            "is graded on it."),
+        .howToRead = QStringLiteral(
+            "One reading at the top. 0° means the lead arm is as straight at the top as it was at address; "
+            "POSITIVE MEANS MORE BEND AT THE TOP, negative a straighter arm than at address. It is a change "
+            "because the fit reads a perfectly straight address arm at 5–19° bent, by golfer, so each golfer's "
+            "own address arm is the straight one. Not read where both cameras did not see the lead elbow at the "
+            "top or in the address hold."),
+        .flexPositive = true,
+        .signPositive = QStringLiteral("more bend at the top than in the address hold — the lead arm folding going back"),
+        .signNegative = QStringLiteral("straighter at the top than in the address hold"),
+        .phases = { P::Top },
+        .card = { .readAt = { { P::Top, {} } }, .peak = false, .delta = false, .rate = false },
+        .routes = {
+            via("faceOn+dtl", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },
+                QStringLiteral("the angle at the lead elbow from the two-camera 3-D fit of the body "
+                               "(uncalibrated: the fit solves its own cameras) at the top, less its median over "
+                               "the address hold, both only where both cameras saw the elbow")) },
+        .usedBy = { QStringLiteral("characteristic:bent_lead_arm") },
     });
 
     // ---------------------------------------------------- Shaft geometry (club track, DTL)

@@ -29,6 +29,7 @@
 #include <QSet>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 namespace pinpoint::analysis {
@@ -171,6 +172,35 @@ bool readReducer(const QJsonObject &o, Reducer &out, QString &whyNot)
         }
         out.sense = *s;
     }
+
+    // `windowMs`: [startMs, endMs] after the anchor (metric_reducer.h). Refused HERE rather than by the
+    // validator when it comes with a phase `window`, because the struct cannot say which of the two an
+    // author meant — once read, the phase window is unused — so this is the one place both are seen.
+    // The bounds must be whole milliseconds; their order and sign are the validator's (badReducer).
+    if (o.contains(QStringLiteral("windowMs"))) {
+        if (o.contains(QStringLiteral("window"))) {
+            whyNot = QStringLiteral("a reducer reads either a phase window or a window in milliseconds "
+                                    "after its anchor, not both");
+            return false;
+        }
+        const QJsonArray w = o.value(QStringLiteral("windowMs")).toArray();
+        const auto wholeMs = [](const QJsonValue &v, int &ms) {
+            if (!v.isDouble()) return false;
+            const double d = v.toDouble();
+            if (!std::isfinite(d) || d != std::floor(d) || std::fabs(d) > 1.0e6) return false;
+            ms = int(d);
+            return true;
+        };
+        int a = 0, b = 0;
+        if (w.size() != 2 || !wholeMs(w.at(0), a) || !wholeMs(w.at(1), b)) {
+            whyNot = QStringLiteral("windowMs must be two whole numbers of milliseconds, [start, end]");
+            return false;
+        }
+        out.windowMs = std::pair<int, int>{ a, b };
+        // The phase window is not read; pin it to the anchor so nothing downstream can mistake the
+        // struct's Address..Impact default for an authored span.
+        if (out.anchor) out.window = { *out.anchor, *out.anchor };
+    }
     return true;
 }
 
@@ -179,7 +209,9 @@ QJsonObject writeReducer(const Reducer &r)
     QJsonObject o;
     o.insert(QStringLiteral("kind"), reducerKindName(r.kind));
     if (r.anchor.has_value()) o.insert(QStringLiteral("anchor"), phaseToken(*r.anchor));
-    if (reducerUsesWindow(r.kind)) {
+    if (r.windowMs.has_value()) {
+        o.insert(QStringLiteral("windowMs"), QJsonArray{ r.windowMs->first, r.windowMs->second });
+    } else if (reducerUsesWindow(r.kind)) {
         QJsonArray w;
         w.append(phaseToken(r.window.first));
         w.append(phaseToken(r.window.second));
@@ -1017,6 +1049,9 @@ std::vector<const Measure *> measuresForMetricAtPhase(const CharacteristicPack &
         // our `attackAngle` grades both — so a plot of the device's reading has to find it, or the
         // corridor drawn on the chart and the corridor the diagnosis used would be different rows.
         if (!measureKeyLadder(m).contains(metricKey)) continue;
+
+        // A span in milliseconds after a phase is not a reading AT a phase, as a peak is not.
+        if (m.reducer.windowMs.has_value()) continue;
 
         switch (m.reducer.kind) {
         case ReducerKind::At:

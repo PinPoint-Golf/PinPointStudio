@@ -8207,7 +8207,7 @@
   ],
   "together": [
    "On swings where your hips slide further toward the target coming down, your lead knee caves in more at impact. It starts in the backswing. (no clear change yet)",
-   "Probably: On swings where your lead arm pulls away from your body more after impact, you turn your chest further into the finish. It starts around impact. (may be growing)",
+   "Probably: On swings where your lead upper arm moves further from your body just after impact, you turn your chest further into the finish. It starts around impact. (may be growing)",
    "Probably: On swings where your head rises more going back, your head sways further from the target going back. It starts in the backswing. (no clear change yet)",
    "Possibly: On swings where you bend over more at address, your hips turn more going back. It starts at address. (no clear change yet)"
   ]
@@ -8305,7 +8305,7 @@
     true
    ],
    "families": [
-    "swingPlaneCurve"
+    "clubSlotTop"
    ]
   },
   {
@@ -8320,7 +8320,7 @@
     true
    ],
    "families": [
-    "swingPlaneCurve"
+    "clubSlotTop"
    ]
   },
   {
@@ -8385,6 +8385,10 @@
    "drill": "drill.towelUnderArms",
    "when": 7
   },
+  "arms_lift": {
+   "drill": "drill.towelUnderArms",
+   "when": 4
+  },
   "arms_over_connected": {
    "drill": "drill.softArms",
    "when": 3
@@ -8401,6 +8405,10 @@
    "drill": "drill.feetTogether",
    "when": 7
   },
+  "arms_swing_around": {
+   "drill": "drill.mirrorTop",
+   "when": 4
+  },
   "attack_too_shallow": {
    "drill": "drill.lowPointDivot",
    "when": 7
@@ -8412,14 +8420,6 @@
   "backing_off_the_ball": {
    "drill": "drill.hipsToWall",
    "when": 7
-  },
-  "backswing_plane_too_flat": {
-   "drill": "drill.buttToTheLine",
-   "when": 3
-  },
-  "backswing_plane_too_upright": {
-   "drill": "drill.buttToTheLine",
-   "when": 3
   },
   "ball_back": {
    "drill": "drill.stanceGuide",
@@ -8475,7 +8475,7 @@
   },
   "chicken_wing": {
    "drill": "drill.armsLongThrough",
-   "when": 8
+   "when": 7
   },
   "chunk": {
    "drill": "drill.lowPointDivot",
@@ -8616,6 +8616,10 @@
   "flat_shoulder_plane": {
    "drill": "drill.shoulderPlaneClub",
    "when": 4
+  },
+  "flat_takeaway": {
+   "drill": "drill.takeawayStick",
+   "when": 2
   },
   "flat_thoracic_spine": {
    "drill": "drill.postureRod",
@@ -9037,6 +9041,10 @@
    "drill": "drill.shoulderPlaneClub",
    "when": 4
   },
+  "steep_takeaway": {
+   "drill": "drill.takeawayStick",
+   "when": 2
+  },
   "strike_heel": {
    "drill": "",
    "when": 7
@@ -9276,7 +9284,7 @@
    },
    {
     "tier": "probably",
-    "first": "When your lead arm pulls away from your body more after impact",
+    "first": "When your lead upper arm moves further from your body just after impact",
     "second": "you turn your chest further into the finish",
     "startStop": 4,
     "startWords": "starts around impact",

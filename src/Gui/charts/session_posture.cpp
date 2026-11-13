@@ -779,6 +779,8 @@ std::vector<PostureFaultLink> faultLinksOf(const pa::CharacteristicPack &pack)
             if (!m || m->kind == pa::MeasureKind::Composite) continue;
             // anchored at address: the change from address this grid draws (decision 5)
             if (!m->reducer.anchor || *m->reducer.anchor != pa::Phase::Address) continue;
+            // a span in milliseconds after a phase has no P-position window to draw
+            if (m->reducer.windowMs) continue;
             int a = -1, b = -1;
             if (m->reducer.kind == pa::ReducerKind::Delta) {
                 a = b = posOfPhase(m->reducer.window.second);

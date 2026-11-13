@@ -179,6 +179,14 @@ place), keeps a condition judged on no shot visible when a gate is the reason, a
 "pelvis peak out of sight on 6 of 6 shots, so not judged there: …", with each finding's own judged
 count where it varies. No verdict is drawn from a bound yet (open decision 2).
 
+**A phase-level reason (plane stack D6, 13 November 2026).** A record may act on a PHASE rather than a
+reading: `positions.p8Refused`, subject `position.p8`, says why the ladder has no P8. It covers no metric
+key, because the readings that need P8 read keys that also read fine at other positions, and a cascade on
+those keys would mark them refused everywhere. Instead `LiveMeasureSource::gateCause` resolves it from the
+measure's own reducer: a measure left "not segmented" because a phase it needs (anchor, or either end of
+its window) has no value, on a swing whose records refuse that phase (`gates::phaseSubject`), names that
+record before any record on its keys. The clause reads "P8 (the shaft level after impact) not timed".
+
 A Bounded reading may still decide a characteristic when the bound alone settles it (a pelvis peak
 "no earlier than 30 ms after impact" is late whatever its exact time). That is the characteristic's
 call, made explicitly in its measure; the default is "not judged".

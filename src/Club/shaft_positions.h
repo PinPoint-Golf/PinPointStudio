@@ -145,7 +145,16 @@ struct PositionsConfig {
     // truth-labelled P6 within 5 ms; p2/p8 windows keep first-crossing —
     // correct for their geometry).
     bool   p6LastCrossing = true;
-    PositionFitConfig fit;          // B2 milestone fit (ON: fit.fitEnabled defaults true since B4)
+    // P8 BOUNDS (13 Nov 2026; provenance at tuned::positions). P8 is the first DOWN→UP
+    // horizontal crossing with its instant in [impact + p8MinAfterImpactUs, impact +
+    // p8MaxAfterImpactUs], and it is refused when the shaft sat within ±p8StallBandDeg of
+    // vertical for p8StallMinUs or longer between impact + p8MinAfterImpactUs and the
+    // crossing. No P8 rather than a wrong one: every consumer already handles its absence.
+    int64_t p8MinAfterImpactUs = tuned::positions::kP8MinAfterImpactUs;
+    int64_t p8MaxAfterImpactUs = tuned::positions::kP8MaxAfterImpactUs;
+    double  p8StallBandDeg     = tuned::positions::kP8StallBandDeg;
+    int64_t p8StallMinUs       = tuned::positions::kP8StallMinUs;
+    PositionFitConfig fit;        // B2 milestone fit (ON: fit.fitEnabled defaults true since B4)
 };
 
 // One located P-time. `p` is the coaching P-index 1..8, or 10 (Finish) — P9 and a
@@ -297,6 +306,120 @@ inline Crossing findLastHorizontalCrossing(const std::vector<int64_t>& tUs,
 
 } // namespace positions_detail
 
+// Why locatePTimes has no P8 (or None when it has one). Reported for the log line and the tests, and
+// since plane stack D6 (13 Nov 2026) kept on the track (ShaftTrack2D::p8Refusal) so the readings that
+// need P8 can name the cause (positions.p8Refused, Club/p8_refusal_gate.h). Nothing else branches on it.
+enum class P8Refusal : uint8_t {
+    None = 0,      // P8 located
+    NoImpact,      // no impact frame, or impact is the last frame: no window to search
+    NoCrossing,    // the shaft never crossed horizontal at or after impact + p8MinAfterImpactUs
+    Late,          // the first such crossing is after impact + p8MaxAfterImpactUs
+    WrongSense,    // the first such crossing is UP→DOWN: the track is flipped there
+    VerticalStall, // the shaft sat near vertical for p8StallMinUs before the crossing
+};
+// Persisted as its integer (ShaftTrack2D::p8Refusal) and named by shaftP8RefusalName (swing_analysis.h):
+// the values are append-only.
+static_assert(uint8_t(P8Refusal::NoImpact) == 1 && uint8_t(P8Refusal::NoCrossing) == 2 && uint8_t(P8Refusal::Late) == 3
+                  && uint8_t(P8Refusal::WrongSense) == 4 && uint8_t(P8Refusal::VerticalStall) == 5,
+              "P8Refusal is persisted by value (analysis.club.diag.p8Refusal)");
+
+namespace positions_detail {
+
+// THE P8 CROSSING (13 Nov 2026, plane stack FA). The follow-through's first rise of the shaft
+// through horizontal, bounded in time, sensed, and refused after a vertical stall:
+//
+//   * BOUNDED: the crossing instant must lie in [tImpact + minAfterUs, tImpact + maxAfterUs].
+//     The hysteresis state machine runs from the impact frame to the end of the track, so a
+//     crossing just inside either bound can still arm on its far side; only the INSTANT is
+//     bounded. Transitions before the lower bound are passed over (an impact-blur flip at
+//     +4 ms is one), and the first transition at or after it is THE candidate — it is never
+//     passed over in favour of a later one.
+//   * SENSED: a follow-through takes the shaft from below horizontal (head under the grip,
+//     elevation > 0) to above it. A candidate going the other way is a track flipped 180°
+//     (elevationDeg is odd under a flip), and its later crossings are the flipped track's.
+//   * STALL: a run of valid frames from tImpact + minAfterUs up to the crossing with
+//     |elevation| ≥ 90 − stallBandDeg lasting stallMinUs or more refuses the crossing. NaN
+//     frames neither extend nor break a run.
+//
+// Returns not-found with `why` saying which rule refused. No P8 rather than a wrong one.
+inline Crossing findP8Crossing(const std::vector<int64_t>& tUs,
+                               const std::vector<double>& angleDeg,
+                               int impactFrame, int64_t tImpactUs,
+                               double hystDeg, int64_t minAfterUs, int64_t maxAfterUs,
+                               double stallBandDeg, int64_t stallMinUs, P8Refusal& why)
+{
+    Crossing out;
+    why = P8Refusal::NoCrossing;
+    const int n = int(angleDeg.size());
+    if (impactFrame < 0 || impactFrame >= n - 1 || int(tUs.size()) != n) {
+        why = P8Refusal::NoImpact;
+        return out;
+    }
+    const int64_t tLo = tImpactUs + minAfterUs, tHi = tImpactUs + maxAfterUs;
+
+    std::vector<int> vi;
+    for (int i = impactFrame; i < n; ++i)
+        if (!std::isnan(angleDeg[i])) vi.push_back(i);
+    if (int(vi.size()) < 2) return out;
+
+    // The refined zero of one armed transition (vi indices fromA < toA): the steepest
+    // zero-straddling pair, interpolated sub-frame — the siblings' refinement exactly.
+    const auto refine = [&](int fromA, int toA) -> int64_t {
+        double  bestSlope = -1.0;
+        int64_t bestT     = tUs[vi[toA]];   // numerical fallback, as in the siblings
+        for (int a = fromA; a < toA; ++a) {
+            const double ea = elevationDeg(angleDeg[vi[a]]);
+            const double eb = elevationDeg(angleDeg[vi[a + 1]]);
+            const bool straddle = (ea >= 0.0 && eb < 0.0) || (ea <= 0.0 && eb > 0.0);
+            if (!straddle) continue;
+            const double slope = std::abs(ea - eb);
+            if (slope <= bestSlope) continue;
+            bestSlope = slope;
+            const double frac = (ea == eb) ? 0.0 : ea / (ea - eb);
+            const int64_t ta = tUs[vi[a]], tb = tUs[vi[a + 1]];
+            bestT = ta + int64_t(std::llround(frac * double(tb - ta)));
+        }
+        return bestT;
+    };
+
+    // Re-arming state machine (findLastHorizontalCrossing's), stopping at the first transition
+    // whose refined instant is at or after tLo.
+    int armedSign = 0, armA = -1;
+    for (int a = 0; a < int(vi.size()); ++a) {
+        const double e = elevationDeg(angleDeg[vi[a]]);
+        const int sign = e > hystDeg ? 1 : e < -hystDeg ? -1 : 0;
+        if (sign == 0) continue;
+        if (armedSign != 0 && sign != armedSign) {
+            const int64_t tc = refine(armA, a);
+            if (tc >= tLo) {
+                if (tc > tHi)        { why = P8Refusal::Late;       return out; }
+                if (armedSign < 0)   { why = P8Refusal::WrongSense; return out; }   // up → down
+                // The stall: the longest near-vertical run in [tLo, tc].
+                const double vBand = 90.0 - stallBandDeg;
+                int64_t runFrom = -1;
+                for (int i = impactFrame; i < n && tUs[i] <= tc; ++i) {
+                    if (tUs[i] < tLo || std::isnan(angleDeg[i])) continue;
+                    if (std::abs(elevationDeg(angleDeg[i])) >= vBand) {
+                        if (runFrom < 0) runFrom = tUs[i];
+                        if (tUs[i] - runFrom >= stallMinUs) { why = P8Refusal::VerticalStall; return out; }
+                    } else {
+                        runFrom = -1;
+                    }
+                }
+                out.found = true;
+                out.tUs   = tc;
+                why = P8Refusal::None;
+                return out;
+            }
+        }
+        armedSign = sign;
+        armA = a;
+    }
+    return out;   // no transition at or after tLo
+}
+
+} // namespace positions_detail
+
 // P1 instant = the END of the address hold: the last frame at/before bs0 whose
 // trailing p1StillWindow frames all have grip speed < p1StillSpeedPx. bs0 is the
 // phase model's TAKEAWAY-start frame — definitionally motion, and it can fire
@@ -440,7 +563,8 @@ inline int addressHoldEndFrame(const std::vector<double>& gx, const std::vector<
 // follow-through P-model are DEFERRED — for now P10 is simply the Finish milestone
 // so the review timeline carries a marker there (aligned with the Finish station by
 // construction, as Finish is never refined). Windows: P2 ∈ (P1,P4), P6 ∈ (P4,P7),
-// P8 after P7, P3 ∈ (P2,P4), P5 ∈ (P4,P6); a window whose bounding crossing is
+// P8 ∈ [P7 + p8MinAfterImpactUs, P7 + p8MaxAfterImpactUs] (findP8Crossing; `p8Why`, when given,
+// says why there is none), P3 ∈ (P2,P4), P5 ∈ (P4,P6); a window whose bounding crossing is
 // absent omits its dependent P (P3 needs P2, P5 needs P6). Returns the found P-times
 // ORDERED by p (1..8, then 10) and STRICTLY ascending in t_us — P10 (Finish) is
 // emitted only when it is genuinely last in time (see the P10 note below), so both
@@ -450,7 +574,8 @@ inline std::vector<PTime> locatePTimes(const std::vector<int64_t>& tUs,
                                        const std::vector<double>& phiDeg,
                                        int addressFrame, int topFrame, int impactFrame,
                                        int finishFrame,
-                                       const PositionsConfig& cfg)
+                                       const PositionsConfig& cfg,
+                                       P8Refusal* p8Why = nullptr)
 {
     using namespace positions_detail;
     std::vector<PTime> out;
@@ -501,11 +626,18 @@ inline std::vector<PTime> locatePTimes(const std::vector<int64_t>& tUs,
     // P7 — impact landmark.
     if (inRange(impactFrame)) out.push_back({7, tUs[impactFrame]});
 
-    // P8 — shaft parallel after P7.
-    if (inRange(impactFrame) && impactFrame < nf - 1) {
-        const Crossing p8 = findHorizontalCrossing(tUs, thetaDeg, impactFrame, nf - 1, hyst);
+    // P8 — shaft parallel after P7: the first DOWN→UP crossing timed impact + p8MinAfterImpactUs
+    // … impact + p8MaxAfterImpactUs, refused after a vertical stall (findP8Crossing). Until
+    // 13 Nov 2026 nothing bounded it but the end of the track, and a tracker parked on an upright
+    // light strip put it 300–750 ms late — at the finish's wrap, not the follow-through.
+    P8Refusal p8Local = P8Refusal::NoImpact;
+    if (inRange(impactFrame)) {
+        const Crossing p8 = findP8Crossing(tUs, thetaDeg, impactFrame, tUs[impactFrame], hyst,
+                                           cfg.p8MinAfterImpactUs, cfg.p8MaxAfterImpactUs,
+                                           cfg.p8StallBandDeg, cfg.p8StallMinUs, p8Local);
         if (p8.found) out.push_back({8, p8.tUs});
     }
+    if (p8Why) *p8Why = p8Local;
 
     // P10 — finish landmark. P9 and a full follow-through P-model are deferred; for
     // now P10 is simply the Finish milestone so the timeline shows a marker there.

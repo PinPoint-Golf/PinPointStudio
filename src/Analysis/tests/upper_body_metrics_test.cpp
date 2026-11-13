@@ -27,10 +27,12 @@
 // that only holds for a right-hander filmed from one side is not a convention.
 
 #include "../../Body/upper_body_metrics.h"
+#include "../../Metrics/gate_catalogue.h"   // the record's sentence and primaryRecord (§15)
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <vector>
 
 using namespace pinpoint::analysis;
@@ -318,7 +320,7 @@ int main()
     {
         const Upper a = addressPose();
         const auto series = runOn(a, a);
-        CHECK("all ten series produced", series.size() == 10);
+        CHECK("all eleven series produced", series.size() == 11);   // + leadArmFlexion (face-on, D5)
 
         double v = 0.0;
         CHECK("secondaryAxisTilt present", seriesAt(series, "secondaryAxisTilt", Phase::Address, v));
@@ -417,13 +419,13 @@ int main()
     {
         const Upper a = addressPose();
         Upper hang = a;
-        // Lead arm straight down the torso line: shoulder→elbow parallel to neck→pelvis.
-        hang.lSh = QPointF(0.50, 0.30);   hang.rSh = QPointF(0.50, 0.30);
-        hang.lHip = QPointF(0.50, 0.55);  hang.rHip = QPointF(0.50, 0.55);
-        hang.lEl = QPointF(0.50, 0.45);
+        // Lead arm straight down the torso line: shoulder→elbow parallel to neck→pelvis (the neck at
+        // x 0.50, the pelvis at x 0.50 — vertical), the upper arm its address length (0.12 vs 0.122).
+        // Until 13 Nov 2026 this case collapsed the shoulders to one point, pinning that the angle did
+        // not depend on the shoulder line. It does now: its torso starts at the shoulder midpoint,
+        // which is guesswork once the shoulders overlap — §14 pins that refusal.
+        hang.lEl = QPointF(0.42, 0.42);
         double v = 0.0;
-        // Degenerate shoulder/hip lines make the tilts refuse, but the arm-vs-torso angle does not
-        // depend on them — which is itself worth pinning: channels fail independently.
         const auto series = runOn(a, hang);
         CHECK("leadArmToTorso at the top", seriesAt(series, "leadArmToTorso", Phase::Top, v));
         CHECK("arm hanging along the torso reads ~0", near(v, 0.0, 2.0));
@@ -642,6 +644,10 @@ int main()
             // unbounded % shoulder width does not — so it carries shoulderPlaneAngle's mask exactly.
             CHECK("trailElbowHeight is masked on the same run as the shoulder line it divides by",
                   maskedTail(find(series, "trailElbowHeight")));
+            // leadArmToTorso is masked on it too (13 Nov 2026): its torso direction starts at the
+            // shoulder MIDPOINT, which is guesswork once the shoulders overlap in the picture.
+            CHECK("leadArmToTorso is masked on the shoulder line's run (its torso starts at the shoulder midpoint)",
+                  maskedTail(find(series, "leadArmToTorso")));
 
             // The elbows never turned, so their line was never gated.
             const MetricSeries *el = find(series, "elbowAlignment");
@@ -653,7 +659,7 @@ int main()
             // measurement. secondaryAxisTilt divides by the VERTICAL neck→pelvis rise, and the neck
             // is the shoulders' MIDPOINT — which is exactly as well located when they foreshorten.
             for (const char *key : { "secondaryAxisTilt", "thoraxLateralDrift", "leadHandWidth",
-                                     "leadUpperArmToChest", "leadArmToTorso" }) {
+                                     "leadUpperArmToChest" }) {
                 const MetricSeries *m = find(series, key);
                 // Sample count per the metric's DOMAIN — three for the Address→Impact pair at the
                 // front of this list, four for the three that are read at the finish.
@@ -676,7 +682,7 @@ int main()
         // MetricSeries::valid existed. EMPTY means all valid — never an all-ones array.
         {
             const auto series = rotate(false, false);
-            bool untouched = series.size() == 10;
+            bool untouched = series.size() == 11;
             for (const MetricSeries &m : series)
                 untouched = untouched && domainOnly(&m)
                             && m.phaseSamples.size() == expectedPhaseSamples(m.key);
@@ -718,7 +724,7 @@ int main()
             CHECK("a 15 px elbow separation produces NO elbowAlignment at all",
                   !hasSeries(series, "elbowAlignment"));
             CHECK("…and costs nothing else — the shoulder line is untouched",
-                  hasSeries(series, "shoulderPlaneAngle") && series.size() == 9);
+                  hasSeries(series, "shoulderPlaneAngle") && series.size() == 10);
         }
 
         // (b) GATED is not the same as MISSING, mid-track. §10's runs sit at the tail, where the
@@ -966,7 +972,7 @@ int main()
                   && r.sigma.trunkRise.size()        == r.trunkRise.size());
 
         const auto series = buildUpperBodySeries(r, phases);
-        CHECK("all ten series emitted", series.size() == 10);
+        CHECK("all eleven series emitted", series.size() == 11);
 
         const double toDeg  = 57.29577951308232;
         const double q2     = std::sqrt(8.0);          // σ of a difference of two 2 px keypoints
@@ -1034,7 +1040,7 @@ int main()
         const auto phases = phasesAt(20000, 60000, 110000);
         const auto bare = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, {}), kW, kH, true, 20000), phases);
-        bool none = bare.size() == 10;
+        bool none = bare.size() == 11;
         for (const MetricSeries &m : bare)
             none = none && !m.sigma.has_value();
         CHECK("no series carries σ — and none carries 0 either", none);
@@ -1044,7 +1050,7 @@ int main()
         const auto zeros = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, std::vector<double>(12, 0.0)), kW, kH, true, 20000),
             phases);
-        bool zn = zeros.size() == 10;
+        bool zn = zeros.size() == 11;
         for (const MetricSeries &m : zeros)
             zn = zn && !m.sigma.has_value();
         CHECK("σ = 0 on every joint is ABSENT, not a perfect measurement", zn);
@@ -1206,7 +1212,7 @@ int main()
         size_t withSigma = 0;
         for (const MetricSeries &m : series)
             if (m.sigma.has_value()) ++withSigma;
-        CHECK("nine of the ten carry σ on the same track", withSigma == 9);
+        CHECK("ten of the eleven carry σ on the same track", withSigma == 10);
     }
 
     // ── 12g) A TILTED line: Euclidean L, and the sqrt(1+s²) factor ─────────────────────────────
@@ -1387,7 +1393,7 @@ int main()
         const auto series = buildUpperBodySeries(
             trackUpperBody(sigmaTrackOf(poses, std::vector<double>(12, 2.0)), kW, kH, true,
                            20000, off), phases);
-        bool none = series.size() == 10;
+        bool none = series.size() == 11;
         for (const MetricSeries &m : series)
             none = none && m.valid.empty() && !m.sigma.has_value();
         CHECK("no mask and no σ on any series — the switch restores the old bytes whole", none);
@@ -1398,7 +1404,7 @@ int main()
         size_t withSigma = 0;
         for (const MetricSeries &m : on)
             if (m.sigma.has_value()) ++withSigma;
-        CHECK("…while the default run has σ on the nine that propagate one", withSigma == 9);
+        CHECK("…while the default run has σ on the ten that propagate one", withSigma == 10);
     }
 
     // ── 14. trunkRise: forward-bend CHANGE read face-on (posture_metrics_design.md §3.2) ─────────
@@ -1514,6 +1520,628 @@ int main()
             const auto series = buildUpperBodySeries(trackUpperBody(t, kW, kH, true, 20000), trPhases);
             CHECK("hips never seen ⇒ NO trunkRise, while the shoulder line is still produced",
                   !hasSeries(series, "trunkRise") && hasSeries(series, "shoulderPlaneAngle"));
+        }
+    }
+
+    // ── 15. leadArmToTorso is gated on its two directions (13 Nov 2026, plane stack FA) ─────────
+    //
+    // The torso's (the shoulder line, ratio 0.40, as trunkRise) and the upper arm's (its image length
+    // 0.45 … 1.4 × address). Refused instants go on the series' gated list — invalid, never bridged —
+    // and the grade's instants (Impact, P8) get a REFUSED record naming body.armTorsoLines.
+    {
+        std::printf("=== 15) leadArmToTorso: shoulder line and upper-arm gates ===\n");
+        // Six held address frames (0–50 ms), then six test frames (60–110 ms) with Impact at 70 ms
+        // and P8 at 100 ms inside them.
+        const std::vector<PhaseEvent> ph{
+            { Phase::Address,              20000,  1.f, SegmentRole::Unknown },
+            { Phase::Impact,               70000,  1.f, SegmentRole::Unknown },
+            { Phase::ShaftParallelThrough, 100000, 1.f, SegmentRole::Unknown },
+            { Phase::Finish,               110000, 1.f, SegmentRole::Unknown } };
+        // The address window covers the HELD address only (as §11): the shipped 250 ms would take the
+        // reference median over the test frames too, and the ratios' denominators with it.
+        UpperBodyConfig base;  base.addrWindowUs = 30000;
+        const auto runArm = [&](const Upper &test, const UpperBodyConfig &cfg) {
+            std::vector<Upper> poses(6, addressPose());
+            for (int i = 0; i < 6; ++i) poses.push_back(test);
+            return trackUpperBody(trackOf(poses), kW, kH, true, 20000, cfg);
+        };
+        // The gate wide open — the channel as it was before 13 Nov 2026.
+        UpperBodyConfig open = base;
+        open.minShoulderSpanRatio = 0.0;  open.minUpperArmRatio = 0.0;  open.maxUpperArmRatio = 1e9;
+        // Lead shoulder (0.42, 0.30); address upper arm (0.02, 0.12), 121.7 px. Scale it by k.
+        const auto armAt = [](double k) {
+            Upper p = addressPose();
+            p.lEl = QPointF(0.42 + 0.02 * k, 0.30 + 0.12 * k);
+            return p;
+        };
+        const auto atImpact = [&](const UpperBodyResult &r, double &v) {
+            return seriesAt(buildUpperBodySeries(r, ph), "leadArmToTorso", Phase::Impact, v);
+        };
+        const auto refusedAt = [&](const UpperBodyResult &r, const char *phase) {
+            for (const GateRecord &g : upperBodyGates(r, ph))
+                if (g.gate == QStringLiteral("body.armTorsoLines") && g.subject == QStringLiteral("leadArmToTorso")
+                    && g.effect == GateEffect::Refused
+                    && g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String(phase))
+                    return true;
+            return false;
+        };
+        const auto masked = [&](const UpperBodyResult &r) {
+            for (const GateRecord &g : upperBodyGates(r, ph))
+                if (g.gate == QStringLiteral("body.armTorsoLines") && g.effect == GateEffect::Masked
+                    && g.evidence.value(QStringLiteral("frames")).toInt() == 6)
+                    return true;
+            return false;
+        };
+
+        // (a) 0.7 × the address upper arm: the same value as before the gate. The arm's direction is
+        //     unchanged, so atan(0.02 / 0.12) = 9.46° from the vertical torso — and the record is clean.
+        {
+            const UpperBodyResult gated = runArm(armAt(0.7), base), was = runArm(armAt(0.7), open);
+            double v = 0.0, w = 0.0;
+            CHECK("upper arm at 0.7 × address: read at impact", atImpact(gated, v) && atImpact(was, w));
+            std::printf("    0.7×: %.4f° (gate open %.4f°)\n", v, w);
+            CHECK("…the same value as with the gate open (9.46°)", v == w && near(v, 9.46, 0.05));
+            CHECK("…nothing gated, no record", gated.gatedArmTorso.empty() && !masked(gated)
+                                                  && !refusedAt(gated, "P7") && !refusedAt(gated, "P8"));
+        }
+        // (b) 0.15 × and 2.5 ×: no value, gated, refused at both of the grade's instants.
+        for (const double k : { 0.15, 2.5 }) {
+            const UpperBodyResult r = runArm(armAt(k), base);
+            double v = 0.0;
+            const auto series = buildUpperBodySeries(r, ph);
+            const MetricSeries *m = findSeriesU(series, "leadArmToTorso");
+            bool invalid = m && m->valid.size() == m->t_us.size();
+            if (invalid)
+                for (size_t i = 6; i < m->t_us.size(); ++i) invalid = invalid && m->valid[i] == 0u;
+            char lab[5][128];
+            std::snprintf(lab[0], sizeof lab[0], "upper arm at %.2f × address: no value at impact", k);
+            std::snprintf(lab[1], sizeof lab[1], "…%.2f ×: every such frame on the gated list and invalid (never bridged)", k);
+            std::snprintf(lab[2], sizeof lab[2], "…%.2f ×: a Masked record, and a Refused one at P7 and at P8", k);
+            std::snprintf(lab[3], sizeof lab[3], "…%.2f ×: the evidence names the arm, not the shoulders", k);
+            std::snprintf(lab[4], sizeof lab[4], "…%.2f ×: leadUpperArmToChest is still read", k);
+            CHECK(lab[0], !atImpact(r, v));
+            CHECK(lab[1], invalid && r.gatedArmTorso.size() == 6);
+            CHECK(lab[2], masked(r) && refusedAt(r, "P7") && refusedAt(r, "P8"));
+            CHECK(lab[3], !r.gatedArmTorsoArmRatio.empty() && near(r.gatedArmTorsoArmRatio.front(), k, 0.01)
+                              && near(r.gatedArmTorsoShoulderRatio.front(), 1.0, 0.01));
+            // The neighbours that read the same arm are not gated by it.
+            CHECK(lab[4], seriesAt(series, "leadUpperArmToChest", Phase::Impact, v));
+        }
+        // (c) The shoulders collapsed to 0.3 × their address span (a chest turned square to the
+        //     target line): no value, gated, refused — while the arm itself is the address arm.
+        {
+            Upper turned = addressPose();
+            turned.lSh = QPointF(0.476, 0.30);  turned.rSh = QPointF(0.524, 0.30);   // |dx| 48 px of 160
+            const UpperBodyResult r = runArm(turned, base);
+            double v = 0.0;
+            CHECK("shoulders at 0.3 × their address span: no value at impact", !atImpact(r, v));
+            CHECK("…gated, with the shoulder ratio in the evidence",
+                  r.gatedArmTorso.size() == 6 && near(r.gatedArmTorsoShoulderRatio.front(), 0.3, 0.01));
+            CHECK("…refused at P7 and at P8", refusedAt(r, "P7") && refusedAt(r, "P8"));
+            // The record is the one a missing grade names, and its sentence fills.
+            const std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            const GateRecord *primary = pinpoint::gates::primaryRecord(recs, QStringLiteral("leadArmToTorso"));
+            const pinpoint::gates::GateEntry *entry = pinpoint::gates::gateEntry(QStringLiteral("body.armTorsoLines"));
+            CHECK("…the Refused record is the primary record for leadArmToTorso",
+                  primary && primary->gate == QStringLiteral("body.armTorsoLines")
+                      && primary->effect == GateEffect::Refused);
+            if (primary && entry) {
+                const QString text = pinpoint::gates::evidenceText(*entry, primary->evidence);
+                std::printf("    %s\n", qPrintable(text));
+                CHECK("…its sentence names the instant and fills every figure",
+                      text.contains(QStringLiteral("none at impact")) && !text.contains(QLatin1Char('{')));
+            }
+            CHECK("…and the gate open reads it (the old behaviour)", atImpact(runArm(turned, open), v));
+        }
+        // (d) Only the grade's instants are refused: the test frames start at 60 ms, so an Impact at
+        //     30 ms (inside the held address) is read, and only P8 gets a Refused record.
+        {
+            const std::vector<PhaseEvent> early{
+                { Phase::Address,              20000,  1.f, SegmentRole::Unknown },
+                { Phase::Impact,               30000,  1.f, SegmentRole::Unknown },
+                { Phase::ShaftParallelThrough, 100000, 1.f, SegmentRole::Unknown } };
+            const UpperBodyResult r = runArm(armAt(0.15), base);
+            bool p7 = false, p8 = false;
+            for (const GateRecord &g : upperBodyGates(r, early))
+                if (g.gate == QStringLiteral("body.armTorsoLines") && g.effect == GateEffect::Refused) {
+                    p7 = p7 || g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String("P7");
+                    p8 = p8 || g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String("P8");
+                }
+            CHECK("an Impact the gate left alone gets no Refused record; the gated P8 does", !p7 && p8);
+            // No P8 on the ladder ⇒ no P8 record (the grade is then missing for the phase, not the gate).
+            const std::vector<PhaseEvent> noP8{ early[0], early[1] };
+            bool any = false;
+            for (const GateRecord &g : upperBodyGates(r, noP8))
+                any = any || (g.gate == QStringLiteral("body.armTorsoLines") && g.effect == GateEffect::Refused);
+            CHECK("no P8 on the ladder ⇒ no Refused record for it", !any);
+        }
+        // (d2) One gated frame at impact and its neighbours UNREADABLE (the lead elbow lost, e.g. to
+        //      motion blur): the grader has nothing at P7, so the Refused record must still fire.
+        //      Frames 60 / 70 / 80 ms lie in Impact ± 15 ms; 70 is gated (arm 0.15 ×), 60 and 80 have
+        //      no lead elbow. Counting every grid frame would have called that window "two readings".
+        {
+            std::vector<Upper> poses(6, addressPose());
+            for (int i = 0; i < 6; ++i) poses.push_back(addressPose());
+            poses[7] = armAt(0.15);                                  // 70 ms
+            PoseTrack2D tr = trackOf(poses);
+            tr.frames[6].conf[kLEl] = 0.05f;                         // 60 ms: unreadable
+            tr.frames[8].conf[kLEl] = 0.05f;                         // 80 ms: unreadable
+            const UpperBodyResult r = trackUpperBody(tr, kW, kH, true, 20000, base);
+            const GateRecord *p7 = nullptr;
+            const std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            for (const GateRecord &g : recs)
+                if (g.gate == QStringLiteral("body.armTorsoLines") && g.effect == GateEffect::Refused
+                    && g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String("P7"))
+                    p7 = &g;
+            CHECK("one gated frame + unreadable neighbours at impact ⇒ the Refused record at P7 still fires",
+                  r.gatedArmTorso.size() == 1 && p7 != nullptr);
+            CHECK("…its ofFrames counts only the frame that could have read (1 of 1)",
+                  p7 && p7->evidence.value(QStringLiteral("frames")).toInt() == 1
+                      && p7->evidence.value(QStringLiteral("ofFrames")).toInt() == 1);
+            CHECK("…and P8, read normally, gets none", !refusedAt(r, "P8"));
+        }
+        // (e) The two knobs are sweepable.
+        {
+            QVariantMap ov;
+            ov.insert(QStringLiteral("upperBody.minUpperArmRatio"), 0.1);
+            ov.insert(QStringLiteral("upperBody.maxUpperArmRatio"), 3.0);
+            UpperBodyConfig c = UpperBodyConfig::fromOverrides(ov);
+            CHECK("upperBody.minUpperArmRatio / maxUpperArmRatio override",
+                  c.minUpperArmRatio == 0.1 && c.maxUpperArmRatio == 3.0);
+            CHECK("defaults 0.45 / 1.4", UpperBodyConfig().minUpperArmRatio == 0.45
+                                           && UpperBodyConfig().maxUpperArmRatio == 1.4);
+            c.addrWindowUs = base.addrWindowUs;
+            double v = 0.0;
+            CHECK("…and 0.15 × reads with the floor lowered to 0.1", atImpact(runArm(armAt(0.15), c), v));
+        }
+    }
+
+    // ── 16. leadArmFlexion from the face-on camera (13 Nov 2026, plane stack D5) ─────────────────
+    //
+    // 180° − the angle at the lead elbow between the lead shoulder and the lead wrist; 0 = straight,
+    // + = more bend (the wrist sensors' sign). Gated on the upper arm's and the forearm's image length
+    // against address, and on nothing else (no shoulder line). The fixture hangs the lead upper arm
+    // straight DOWN 100 px × kU from the lead shoulder and the forearm 100 px × kF from the elbow,
+    // turned β off the arm's line — so the bend is β by construction, and every σ below is a closed form
+    // written from the fixture's own lengths.
+    {
+        std::printf("=== 16) leadArmFlexion: the face-on lead elbow ===\n");
+        const auto armPose = [](double betaDeg, double kU = 1.0, double kF = 1.0) {
+            Upper p = sigmaUpperPose();
+            const double b = betaDeg / 57.29577951308232;
+            p.lSh = QPointF(0.40, 0.30);
+            p.lEl = QPointF(0.40, 0.30 + 0.10 * kU);
+            p.lWr = QPointF(p.lEl.x() + 0.10 * kF * std::sin(b), p.lEl.y() + 0.10 * kF * std::cos(b));
+            return p;
+        };
+        const std::vector<PhaseEvent> ph{
+            { Phase::Address, 20000,  1.f, SegmentRole::Unknown },
+            { Phase::Impact,  80000,  1.f, SegmentRole::Unknown },
+            { Phase::Finish,  150000, 1.f, SegmentRole::Unknown } };
+        UpperBodyConfig base;  base.addrWindowUs = 30000;   // the held address only, as §15
+
+        // (a) A KNOWN BEND AT EVERY FRAME: six address frames at 10°, then β = 4 + 5·i for i = 0…9.
+        {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 10; ++i) poses.push_back(armPose(4.0 + 5.0 * i));
+            const UpperBodyResult r = trackUpperBody(trackOf(poses), kW, kH, true, 20000, base);
+            const auto series = buildUpperBodySeries(r, ph);
+            const MetricSeries *m = findSeriesU(series, "leadArmFlexion");
+            bool exact = m && m->value.size() == poses.size();
+            double worst = 0.0;
+            for (size_t j = 0; exact && j < poses.size(); ++j) {
+                const double want = j < 6 ? 10.0 : 4.0 + 5.0 * double(j - 6);
+                worst = std::max(worst, std::fabs(m->value[j] - want));
+            }
+            std::printf("    worst |bend − β| over 16 frames: %.2e°\n", worst);
+            CHECK("the bend at every frame is β (to 1e-9°)", exact && worst < 1e-9);
+            double v = 0.0;
+            CHECK("…read at impact (80 ms, β = 14°)", seriesAt(series, "leadArmFlexion", Phase::Impact, v)
+                                                          && near(v, 14.0, 1e-9));
+            CHECK("…published as the faceOn route, Estimated (not Direct)",
+                  m && m->routeId == QStringLiteral("faceOn") && !m->routeDirect);
+            CHECK("…nothing gated, no σ on a track with no smoother record",
+                  r.gatedLeadElbow.empty() && m && !m->sigma.has_value());
+            // The two other routes' sign: a straight arm reads 0, a bent one reads +.
+            const auto straight = buildUpperBodySeries(
+                trackUpperBody(trackOf(std::vector<Upper>(12, armPose(0.0))), kW, kH, true, 20000, base), ph);
+            CHECK("a straight lead arm reads 0°", seriesAt(straight, "leadArmFlexion", Phase::Impact, v) && near(v, 0.0, 1e-6));
+            // A mirrored camera filming a left-handed golfer: the same posture, the same number.
+            std::vector<Upper> mir;
+            for (const Upper &p : poses) mir.push_back(mirrored(p));
+            const auto ms = buildUpperBodySeries(trackUpperBody(trackOf(mir), kW, kH, false, 20000, base), ph);
+            CHECK("…and the mirror of a left-hander reads the same bend",
+                  seriesAt(ms, "leadArmFlexion", Phase::Impact, v) && near(v, 14.0, 1e-9));
+        }
+
+        // (b) σ: the three keypoints through the angle, the elbow's two terms combined as vectors.
+        //     A held pose, β = 30°, upper arm 100 px, forearm 80 px (kF 0.8), so the shoulder and wrist
+        //     terms are told apart; σ_S = 1, σ_E = 3, σ_W = 2 px on the LEAD (left) joints.
+        {
+            const std::vector<Upper> poses(12, armPose(30.0, 1.0, 0.8));
+            const PoseKpAux aux = auxPerJoint(1.0, 1.0, 3.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+            const auto series = buildUpperBodySeries(
+                trackUpperBody(trackWithAux(poses, aux), kW, kH, true, 20000, base), ph);
+            const MetricSeries *m = findSeriesU(series, "leadArmFlexion");
+            const double lu = 100.0, lv = 80.0, cosT = std::cos(150.0 / 57.29577951308232);
+            const double var = 1.0 / (lu * lu) + 4.0 / (lv * lv)
+                               + 9.0 * (1.0 / (lu * lu) + 1.0 / (lv * lv) - 2.0 * cosT / (lu * lv));
+            const double want = std::sqrt(var) * 57.29577951308232;
+            std::printf("    σ = %.4f° (closed form %.4f°)\n", m && m->sigma ? *m->sigma : -1.0, want);
+            CHECK("σ is the propagated closed form (4.043°)", m && m->sigma && nearRel(*m->sigma, want, 1e-6));
+            // Treating the elbow's two terms as independent drops −2·cos θ/(|u||v|)·σ_E², 22 % low here (3.15°).
+            const double naive = std::sqrt(1.0 / (lu * lu) + 4.0 / (lv * lv) + 9.0 * (1.0 / (lu * lu) + 1.0 / (lv * lv)))
+                                 * 57.29577951308232;
+            CHECK("…and not the sum that drops the elbow's shared term", m && m->sigma && std::fabs(*m->sigma - naive) > 0.2);
+            // One unsmoothed lead joint ⇒ no budget at all for the elbow (never a partial one).
+            PoseKpAux dark = aux;  dark.sigma[size_t(kLWr)] = 0.f;
+            const auto noSig = buildUpperBodySeries(
+                trackUpperBody(trackWithAux(poses, dark), kW, kH, true, 20000, base), ph);
+            const MetricSeries *n = findSeriesU(noSig, "leadArmFlexion");
+            CHECK("a lead wrist with no σ leaves the elbow's σ UNSET", n && !n->sigma.has_value());
+        }
+
+        // (c) A FORESHORTENED SEGMENT IS GATED, with the record. Six address frames (β 10°), then six
+        //     test frames (60–110 ms) around Impact at 80 ms with one segment scaled.
+        const auto refusedAtImpact = [&](const UpperBodyResult &r) -> const GateRecord * {
+            static std::vector<GateRecord> recs;
+            recs = upperBodyGates(r, ph);
+            for (const GateRecord &g : recs)
+                if (g.gate == QStringLiteral("body.leadElbowLines") && g.subject == QStringLiteral("leadArmFlexion")
+                    && g.effect == GateEffect::Refused
+                    && g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String("P7"))
+                    return &g;
+            return nullptr;
+        };
+        const auto maskedElbow = [&](const UpperBodyResult &r) {
+            for (const GateRecord &g : upperBodyGates(r, ph))
+                if (g.gate == QStringLiteral("body.leadElbowLines") && g.effect == GateEffect::Masked
+                    && g.evidence.value(QStringLiteral("frames")).toInt() == 6)
+                    return true;
+            return false;
+        };
+        struct Case { const char *what; double kU, kF; };
+        for (const Case &c : { Case{ "upper arm 0.30 ×", 0.30, 1.0 }, Case{ "forearm 0.30 ×", 1.0, 0.30 },
+                               Case{ "forearm 2.0 ×", 1.0, 2.0 } }) {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 6; ++i) poses.push_back(armPose(40.0, c.kU, c.kF));
+            const UpperBodyResult r = trackUpperBody(trackOf(poses), kW, kH, true, 20000, base);
+            const auto series = buildUpperBodySeries(r, ph);
+            const MetricSeries *m = findSeriesU(series, "leadArmFlexion");
+            bool invalid = m && m->valid.size() == m->t_us.size();
+            if (invalid)
+                for (size_t i = 6; i < m->t_us.size(); ++i) invalid = invalid && m->valid[i] == 0u;
+            double v = 0.0;
+            const GateRecord *rec = refusedAtImpact(r);
+            char lab[4][128];
+            std::snprintf(lab[0], sizeof lab[0], "%s: no bend at impact", c.what);
+            std::snprintf(lab[1], sizeof lab[1], "…%s: every such frame gated and invalid (never bridged)", c.what);
+            std::snprintf(lab[2], sizeof lab[2], "…%s: a Masked record, and a Refused one at P7", c.what);
+            std::snprintf(lab[3], sizeof lab[3], "…%s: the evidence carries both segments' ratios", c.what);
+            CHECK(lab[0], !seriesAt(series, "leadArmFlexion", Phase::Impact, v));
+            CHECK(lab[1], invalid && r.gatedLeadElbow.size() == 6);
+            CHECK(lab[2], maskedElbow(r) && rec != nullptr);
+            CHECK(lab[3], rec && near(rec->evidence.value(QStringLiteral("armRatio")).toDouble(), c.kU, 0.01)
+                              && near(rec->evidence.value(QStringLiteral("forearmRatio")).toDouble(), c.kF, 0.01));
+        }
+        // The Refused record is the one a missing grade names, and its sentence fills.
+        {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 6; ++i) poses.push_back(armPose(40.0, 1.0, 0.30));
+            const UpperBodyResult r = trackUpperBody(trackOf(poses), kW, kH, true, 20000, base);
+            const std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            const GateRecord *primary = pinpoint::gates::primaryRecord(recs, QStringLiteral("leadArmFlexion"));
+            const pinpoint::gates::GateEntry *entry = pinpoint::gates::gateEntry(QStringLiteral("body.leadElbowLines"));
+            CHECK("the Refused record is the primary record for leadArmFlexion",
+                  primary && primary->gate == QStringLiteral("body.leadElbowLines") && primary->effect == GateEffect::Refused);
+            if (primary && entry) {
+                const QString text = pinpoint::gates::evidenceText(*entry, primary->evidence);
+                std::printf("    %s\n", qPrintable(text));
+                CHECK("…its sentence names impact, fills every figure and never names the shoulders",
+                      text.contains(QStringLiteral("none at impact")) && !text.contains(QLatin1Char('{'))
+                          && !text.contains(QStringLiteral("shoulders")));
+            }
+        }
+        // (d) NO SHOULDER GATE: the shoulders collapsed to 0.15 × their address span refuse
+        //     leadArmToTorso, and leave the elbow read.
+        {
+            Upper turned = armPose(25.0);
+            turned.rSh = QPointF(0.43, 0.30);    // |dx| 30 px of 200
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 6; ++i) poses.push_back(turned);
+            const UpperBodyResult r = trackUpperBody(trackOf(poses), kW, kH, true, 20000, base);
+            const auto series = buildUpperBodySeries(r, ph);
+            double v = 0.0, w = 0.0;
+            CHECK("shoulders edge-on: the elbow still reads 25°",
+                  seriesAt(series, "leadArmFlexion", Phase::Impact, v) && near(v, 25.0, 1e-9) && r.gatedLeadElbow.empty());
+            CHECK("…where leadArmToTorso is refused", !seriesAt(series, "leadArmToTorso", Phase::Impact, w));
+        }
+        // (e) The forearm knobs are sweepable; the defaults are 0.45 / 1.4.
+        {
+            QVariantMap ov;
+            ov.insert(QStringLiteral("upperBody.minForearmRatio"), 0.2);
+            ov.insert(QStringLiteral("upperBody.maxForearmRatio"), 2.5);
+            UpperBodyConfig c = UpperBodyConfig::fromOverrides(ov);
+            CHECK("upperBody.minForearmRatio / maxForearmRatio override", c.minForearmRatio == 0.2 && c.maxForearmRatio == 2.5);
+            CHECK("defaults 0.45 / 1.4", UpperBodyConfig().minForearmRatio == 0.45 && UpperBodyConfig().maxForearmRatio == 1.4);
+            c.addrWindowUs = base.addrWindowUs;
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 6; ++i) poses.push_back(armPose(40.0, 1.0, 0.30));
+            double v = 0.0;
+            CHECK("…and a 0.30 × forearm reads 40° with the floor lowered to 0.2",
+                  seriesAt(buildUpperBodySeries(trackUpperBody(trackOf(poses), kW, kH, true, 20000, c), ph),
+                           "leadArmFlexion", Phase::Impact, v) && near(v, 40.0, 1e-9));
+        }
+        // (f) THE WRIST SENSORS' ELBOW WINS: with a sensor leadArmFlexion in the document, the face-on
+        //     series is erased and its records stop speaking for the key; with none, nothing moves.
+        {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 6; ++i) poses.push_back(armPose(40.0, 1.0, 0.30));
+            const UpperBodyResult r = trackUpperBody(trackOf(poses), kW, kH, true, 20000, base);
+            std::vector<MetricSeries> series = buildUpperBodySeries(r, ph);
+            std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            GateRecord cascade;  cascade.gate = QStringLiteral("body.upperAddress");
+            cascade.subject = QStringLiteral("secondaryAxisTilt");
+            cascade.covers = { QStringLiteral("spineSideBend"), QStringLiteral("leadArmFlexion") };
+            recs.push_back(cascade);
+            const size_t nSeries = series.size(), nRecs = recs.size();
+            CHECK("no sensor elbow ⇒ the face-on one stays, with its records",
+                  applyLeadElbowSensorPrecedence(series, recs) == 0 && series.size() == nSeries && recs.size() == nRecs);
+            MetricSeries sensor;  sensor.key = QStringLiteral("leadArmFlexion");
+            sensor.t_us = { 0, 10000 };  sensor.value = { 5.0, 6.0 };
+            series.push_back(sensor);
+            const int dropped = applyLeadElbowSensorPrecedence(series, recs);
+            int faceOn = 0, sensors = 0;
+            for (const MetricSeries &m : series)
+                if (m.key == QStringLiteral("leadArmFlexion")) (m.routeId == QStringLiteral("faceOn") ? faceOn : sensors)++;
+            bool noElbowRecord = true, coversClean = false;
+            for (const GateRecord &g : recs) {
+                noElbowRecord = noElbowRecord && g.gate != QStringLiteral("body.leadElbowLines");
+                if (g.gate == QStringLiteral("body.upperAddress"))
+                    coversClean = !g.covers.contains(QStringLiteral("leadArmFlexion")) && g.covers.contains(QStringLiteral("spineSideBend"));
+            }
+            CHECK("a sensor elbow ⇒ the face-on series is dropped and the sensor's stands",
+                  dropped == 1 && faceOn == 0 && sensors == 1);
+            CHECK("…the face-on gate's records go, and the cascade no longer covers the key", noElbowRecord && coversClean);
+        }
+        // (g) A sensor elbow and NO face-on series — the face-on address reference was refused, so the
+        //     camera wrote nothing but its cascade still covers the key. The covers are cleaned anyway.
+        {
+            std::vector<MetricSeries> series;
+            MetricSeries sensor;  sensor.key = QStringLiteral("leadArmFlexion");
+            sensor.t_us = { 0, 10000 };  sensor.value = { 5.0, 6.0 };
+            series.push_back(sensor);
+            std::vector<GateRecord> recs;
+            for (const char *gate : { "body.upperAddress", "body.shoulderSpan" }) {
+                GateRecord g;  g.gate = QLatin1String(gate);  g.subject = QStringLiteral("secondaryAxisTilt");
+                g.effect = GateEffect::Refused;
+                g.covers = { QStringLiteral("spineSideBend"), QStringLiteral("leadArmFlexion") };
+                recs.push_back(g);
+            }
+            const int dropped = applyLeadElbowSensorPrecedence(series, recs);
+            bool clean = recs.size() == 2;
+            for (const GateRecord &g : recs)
+                clean = clean && !g.covers.contains(QStringLiteral("leadArmFlexion")) && g.covers.contains(QStringLiteral("spineSideBend"));
+            CHECK("a sensor elbow with no face-on series: nothing dropped, the address refusals no longer cover the key",
+                  dropped == 0 && series.size() == 1 && clean);
+        }
+        // (h) THE 3-D FIT'S MEASURED ELBOW (leadArmFlexion3d, plane stack D2) sits between the two:
+        //     wristImus > 3-D > face-on. It stands beside the face-on series (a different key, which
+        //     chicken_wing reads), and goes wherever the sensors' elbow reads.
+        {
+            MetricSeries faceOn;  faceOn.key = QStringLiteral("leadArmFlexion");  faceOn.routeId = QStringLiteral("faceOn");
+            faceOn.t_us = { 0, 10000 };  faceOn.value = { 12.0, 14.0 };
+            MetricSeries fit3d;  fit3d.key = QStringLiteral("leadArmFlexion3d");  fit3d.routeId = QStringLiteral("faceOn+dtl");
+            fit3d.t_us = { 0, 10000 };  fit3d.value = { 20.0, 22.0 };
+            std::vector<MetricSeries> series{ faceOn, fit3d };
+            std::vector<GateRecord> recs;
+            CHECK("no sensor elbow ⇒ the 3-D elbow and the face-on one both stand",
+                  applyLeadElbowSensorPrecedence(series, recs) == 0 && series.size() == 2);
+            MetricSeries sensor;  sensor.key = QStringLiteral("leadArmFlexion");
+            sensor.t_us = { 0, 10000 };  sensor.value = { 5.0, 6.0 };
+            series.push_back(sensor);
+            const int dropped = applyLeadElbowSensorPrecedence(series, recs);
+            CHECK("a sensor elbow ⇒ the 3-D elbow goes with the face-on one, the sensor's alone stands",
+                  dropped == 2 && series.size() == 1 && series.front().key == QStringLiteral("leadArmFlexion")
+                      && series.front().routeId.isEmpty());
+            // (h′) D6: bent_lead_arm's 3-D change (leadElbowBendChange3d) and its unmeasured-elbow refusal go too.
+            MetricSeries change;  change.key = QStringLiteral("leadElbowBendChange3d");  change.routeId = QStringLiteral("faceOn+dtl");
+            std::vector<MetricSeries> s2{ sensor, change };
+            std::vector<GateRecord> r2{ GateRecord{ QStringLiteral("body3d.leadElbowUnmeasured"),
+                                                    QStringLiteral("leadElbowBendChange3d"), GateEffect::Refused,
+                                                    {}, {}, {}, { QStringLiteral("leadElbowBendChange3d") } } };
+            CHECK("(D6) a sensor elbow ⇒ the 3-D change and body3d.leadElbowUnmeasured go as well",
+                  applyLeadElbowSensorPrecedence(s2, r2) == 1 && s2.size() == 1 && r2.empty());
+        }
+    }
+
+    // ── 17. The face-on elbow's OCCLUSION gate (13 Nov 2026, plane stack D5 round 3) ──────────────
+    //
+    // A lead shoulder, elbow or wrist on the head (within 0.25 × the address shoulder width of the head
+    // keypoints' centre), or one the pose model scored below 0.40 on its RAW confidence, is not seen. The
+    // fixture is §16's arm (shoulders 200 px apart, so the head radius is 50 px), with the head keypoints
+    // (nose, eyes, ears) set per frame: FAR (centre 180 px from the lead shoulder) or ON the lead shoulder
+    // (centre 28 px from it — Jess's chin over her hidden shoulder).
+    {
+        std::printf("=== 17) leadArmFlexion: the occlusion gate ===\n");
+        const auto armPose = [](double betaDeg) {
+            Upper p = sigmaUpperPose();
+            const double b = betaDeg / 57.29577951308232;
+            p.lSh = QPointF(0.40, 0.30);
+            p.lEl = QPointF(0.40, 0.40);
+            p.lWr = QPointF(0.40 + 0.10 * std::sin(b), 0.40 + 0.10 * std::cos(b));
+            return p;
+        };
+        const auto setHead = [](PoseFrame2D &f, QPointF c) {
+            const QPointF off[5] = { { 0, 0 }, { -0.01, -0.01 }, { 0.01, -0.01 }, { -0.02, 0 }, { 0.02, 0 } };
+            for (int k = 0; k < 5; ++k) { f.kp[size_t(k)] = c + off[k]; f.conf[size_t(k)] = 0.9f; }
+        };
+        const QPointF headFar(0.50, 0.15), headOnShoulder(0.42, 0.28);
+        const std::vector<PhaseEvent> ph{
+            { Phase::Address, 20000,  1.f, SegmentRole::Unknown },
+            { Phase::Impact,  80000,  1.f, SegmentRole::Unknown },
+            { Phase::Finish,  200000, 1.f, SegmentRole::Unknown } };
+        UpperBodyConfig base;  base.addrWindowUs = 30000;
+        // Six address frames (0–50 ms), then fifteen test frames (60–200 ms). `onHead(i)` says which test
+        // frames put the head on the lead shoulder.
+        const auto run = [&](double testBeta, const std::function<bool(int)> &onHead) {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 15; ++i) poses.push_back(armPose(testBeta));
+            PoseTrack2D t = trackOf(poses);
+            for (size_t i = 0; i < t.frames.size(); ++i)
+                setHead(t.frames[i], (i >= 6 && onHead(int(i) - 6)) ? headOnShoulder : headFar);
+            return trackUpperBody(t, kW, kH, true, 20000, base);
+        };
+        const auto hiddenRecord = [&](const UpperBodyResult &r, const char *phase) -> GateRecord {
+            for (const GateRecord &g : upperBodyGates(r, ph))
+                if (g.gate == QStringLiteral("body.leadArmHidden") && g.subject == QStringLiteral("leadArmFlexion")
+                    && g.effect == GateEffect::Refused
+                    && g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String(phase))
+                    return g;
+            return GateRecord{};
+        };
+
+        // (a) A visible straight arm, the head well away: read, ~0°, nothing hidden.
+        {
+            const UpperBodyResult r = run(0.0, [](int) { return false; });
+            double v = -1.0;
+            CHECK("a visible straight arm reads 0° at impact",
+                  seriesAt(buildUpperBodySeries(r, ph), "leadArmFlexion", Phase::Impact, v) && near(v, 0.0, 1e-6));
+            CHECK("…nothing hidden, no body.leadArmHidden record",
+                  r.hiddenLeadElbow.empty() && hiddenRecord(r, "P7").gate.isEmpty());
+        }
+        // (b) The lead shoulder ON THE HEAD on every test frame: refused, with the record and its reason.
+        {
+            const UpperBodyResult r = run(40.0, [](int) { return true; });
+            double v = 0.0;
+            const auto series = buildUpperBodySeries(r, ph);
+            const MetricSeries *m = findSeriesU(series, "leadArmFlexion");
+            bool invalid = m && m->valid.size() == m->t_us.size();
+            if (invalid) for (size_t i = 6; i < m->t_us.size(); ++i) invalid = invalid && m->valid[i] == 0u;
+            CHECK("the lead shoulder on the head: no bend at impact", !seriesAt(series, "leadArmFlexion", Phase::Impact, v));
+            CHECK("…every such frame hidden (not the length gate), invalid and never bridged",
+                  invalid && r.hiddenLeadElbow.size() == 15 && r.gatedLeadElbow.empty()
+                      && (r.hiddenLeadElbowWhy.front() & hidden_why::kShoulderOnHead));
+            const GateRecord rec = hiddenRecord(r, "P7");
+            CHECK("…a Refused body.leadArmHidden record at impact, code shoulderOnHead",
+                  rec.gate == QStringLiteral("body.leadArmHidden")
+                      && rec.evidence.value(QStringLiteral("code")).toString() == QLatin1String("shoulderOnHead")
+                      && rec.evidence.value(QStringLiteral("shoulderOnHead")).toInt() > 0);
+            const std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            const GateRecord *primary = pinpoint::gates::primaryRecord(recs, QStringLiteral("leadArmFlexion"));
+            const pinpoint::gates::GateEntry *entry = pinpoint::gates::gateEntry(QStringLiteral("body.leadArmHidden"));
+            CHECK("…it is the primary record for leadArmFlexion",
+                  primary && primary->gate == QStringLiteral("body.leadArmHidden") && primary->effect == GateEffect::Refused);
+            if (primary && entry) {
+                const QString text = pinpoint::gates::evidenceText(*entry, primary->evidence);
+                std::printf("    %s\n", qPrintable(text));
+                CHECK("…its sentence says the shoulder was behind the head and fills every figure",
+                      text.contains(QStringLiteral("behind the head")) && !text.contains(QLatin1Char('{')));
+            }
+        }
+        // (c) A PREDICTED wrist whose RAW score is 0.3: the smoother lifts it to 0.5, which passes the
+        //     detector gate, but the model never saw it. Refused. At a raw 0.45 it reads.
+        for (const float rawWrist : { 0.3f, 0.45f }) {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 15; ++i) poses.push_back(armPose(20.0));
+            PoseTrack2D t = trackOf(poses);
+            for (PoseFrame2D &f : t.frames) setHead(f, headFar);
+            t.smoothed = t.frames;                                     // the smoother's track, parallel
+            for (size_t i = 6; i < t.frames.size(); ++i) {
+                t.frames[i].conf[size_t(kLWr)]   = rawWrist;           // the model's own score
+                t.smoothed[i].conf[size_t(kLWr)] = std::max(rawWrist, 0.5f);   // pose_smoother's floor
+            }
+            const UpperBodyResult r = trackUpperBody(t, kW, kH, true, 20000, base);
+            double v = 0.0;
+            const bool read = seriesAt(buildUpperBodySeries(r, ph), "leadArmFlexion", Phase::Impact, v);
+            if (rawWrist < 0.4f) {
+                CHECK("a predicted wrist with a raw score of 0.3 is refused (its smoothed 0.5 does not count)",
+                      !read && r.hiddenLeadElbow.size() == 15 && (r.hiddenLeadElbowWhy.front() & hidden_why::kLowConfidence)
+                          && hiddenRecord(r, "P7").evidence.value(QStringLiteral("code")).toString() == QLatin1String("lowConfidence"));
+            } else {
+                CHECK("…and one scored 0.45 reads (20°)", read && near(v, 20.0, 1e-9) && r.hiddenLeadElbow.empty());
+            }
+        }
+        // (d) THE WINDOW RULE: impact reads, but the lead shoulder goes behind the head from +40 to +100 ms
+        //     (120–180 ms). The frames left in [impact, impact + 100 ms] stop at +30 ms, so 70 ms is unread —
+        //     past the 30 ms limit — and the span gets a Refused record naming the gap. No P7 record.
+        {
+            const UpperBodyResult r = run(25.0, [](int i) { const int ms = 60 + 10 * i; return ms >= 120 && ms <= 180; });
+            const GateRecord span = hiddenRecord(r, "afterImpact");
+            double v = 0.0;
+            CHECK("impact reads (25°)", seriesAt(buildUpperBodySeries(r, ph), "leadArmFlexion", Phase::Impact, v) && near(v, 25.0, 1e-9));
+            CHECK("…no Refused record at impact", hiddenRecord(r, "P7").gate.isEmpty());
+            CHECK("…a Refused record for the 100 ms after impact: 70 ms unread, over the 30 ms limit",
+                  span.gate == QStringLiteral("body.leadArmHidden")
+                      && near(span.evidence.value(QStringLiteral("gapMs")).toDouble(), 70.0, 1e-9)
+                      && near(span.evidence.value(QStringLiteral("maxGapMs")).toDouble(), 30.0, 1e-9));
+            // Two hidden frames (+40, +50 ms) leave 30 ms unread: covered, no span record.
+            const UpperBodyResult twoHidden = run(25.0, [](int i) { const int ms = 60 + 10 * i; return ms == 120 || ms == 130; });
+            CHECK("two hidden frames leave 30 ms unread: covered, no span record", hiddenRecord(twoHidden, "afterImpact").gate.isEmpty());
+        }
+        // (d2) ONE GATE NAMES THE REFUSAL (review, round 3): the span after impact loses one frame to the
+        //      length band (+30 ms: a 0.30 × forearm) and six to the head (+40 … +90 ms). The span record
+        //      comes from the gate that refused the most frames there, body.leadArmHidden, and it is the
+        //      primary record — not "arm pointing at the camera" because that gate's records fired first.
+        {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 15; ++i) poses.push_back(armPose(25.0));
+            Upper shortForearm = armPose(25.0);
+            shortForearm.lWr = QPointF(0.40 + 0.03 * std::sin(25.0 / 57.29577951308232),
+                                       0.40 + 0.03 * std::cos(25.0 / 57.29577951308232));
+            poses[6 + 5] = shortForearm;                                   // 110 ms = +30 ms
+            PoseTrack2D t = trackOf(poses);
+            for (size_t i = 0; i < t.frames.size(); ++i) {
+                const int ms = int(i) * 10;
+                setHead(t.frames[i], (ms >= 120 && ms <= 170) ? headOnShoulder : headFar);
+            }
+            const UpperBodyResult r = trackUpperBody(t, kW, kH, true, 20000, base);
+            const std::vector<GateRecord> recs = upperBodyGates(r, ph);
+            int spanHidden = 0, spanLines = 0;
+            for (const GateRecord &g : recs)
+                if (g.effect == GateEffect::Refused && g.evidence.value(QStringLiteral("phase")).toString() == QLatin1String("afterImpact")) {
+                    if (g.gate == QStringLiteral("body.leadArmHidden")) ++spanHidden;
+                    if (g.gate == QStringLiteral("body.leadElbowLines")) ++spanLines;
+                }
+            const GateRecord *primary = pinpoint::gates::primaryRecord(recs, QStringLiteral("leadArmFlexion"));
+            CHECK("six hidden + one foreshortened frame: hidden 6, gated 1",
+                  r.hiddenLeadElbow.size() == 6 && r.gatedLeadElbow.size() == 1);
+            CHECK("…ONE span record, from body.leadArmHidden (the gate with the most frames there)",
+                  spanHidden == 1 && spanLines == 0);
+            CHECK("…and it is the primary record for leadArmFlexion",
+                  primary && primary->gate == QStringLiteral("body.leadArmHidden") && primary->effect == GateEffect::Refused);
+        }
+        // (d3) THE RAW-CONFIDENCE FALLBACK IS COUNTED, NOT SILENT: a smoothed track whose raw track is not
+        //      parallel (a hand-built pair) is judged on the smoothed scores, and the result says on how many
+        //      frames, for UpperBodyMetricsStage's once-per-swing warning. A parallel pair reports none.
+        {
+            std::vector<Upper> poses(6, armPose(10.0));
+            for (int i = 0; i < 15; ++i) poses.push_back(armPose(20.0));
+            PoseTrack2D t = trackOf(poses);
+            for (PoseFrame2D &f : t.frames) setHead(f, headFar);
+            t.smoothed = t.frames;
+            for (size_t i = 6; i < t.frames.size(); ++i) {
+                t.frames[i].conf[size_t(kLWr)]   = 0.3f;     // the model's own score
+                t.smoothed[i].conf[size_t(kLWr)] = 0.5f;     // the smoother's floor
+            }
+            const UpperBodyResult parallel = trackUpperBody(t, kW, kH, true, 20000, base);
+            t.frames.pop_back();                             // no longer parallel
+            const UpperBodyResult skewed = trackUpperBody(t, kW, kH, true, 20000, base);
+            double v = 0.0;
+            CHECK("a parallel raw track: no fallback, the 0.3 wrist refused",
+                  parallel.rawConfFallbackFrames == 0 && parallel.hiddenLeadElbow.size() == 15);
+            CHECK("a non-parallel raw track: every frame counted as a fallback (21), and the rule reads the smoothed 0.5",
+                  skewed.rawConfFallbackFrames == 21 && skewed.hiddenLeadElbow.empty()
+                      && seriesAt(buildUpperBodySeries(skewed, ph), "leadArmFlexion", Phase::Impact, v));
+        }
+        // (e) The knobs are sweepable; the defaults are 0.25 and 0.40.
+        {
+            QVariantMap ov;
+            ov.insert(QStringLiteral("upperBody.headRadiusRatio"), 0.1);
+            ov.insert(QStringLiteral("upperBody.minRawConf"), 0.2);
+            const UpperBodyConfig c = UpperBodyConfig::fromOverrides(ov);
+            CHECK("upperBody.headRadiusRatio / minRawConf override", c.headRadiusRatio == 0.1 && c.minRawConf == 0.2);
+            CHECK("defaults 0.25 / 0.40", UpperBodyConfig().headRadiusRatio == 0.25 && UpperBodyConfig().minRawConf == 0.40);
         }
     }
 

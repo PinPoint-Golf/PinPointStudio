@@ -92,6 +92,10 @@ std::vector<QString> UpperBodyMetricProvider::provides() const
              QStringLiteral("elbowAlignment"),      QStringLiteral("trailElbowHeight"),
              QStringLiteral("leadHandWidth"),       QStringLiteral("leadUpperArmToChest"),
              QStringLiteral("leadArmToTorso"),
+             // The lead elbow's bend in the face-on picture, leadArmFlexion's faceOn rung (13 Nov 2026,
+             // plane stack D5). Also claimed by WristMetricProvider; the sensors' reading wins
+             // (applyLeadElbowSensorPrecedence).
+             QStringLiteral("leadArmFlexion"),
              // The trunk chord's image length against address — forward-bend CHANGE read face-on
              // (posture_metrics_design.md §3.2).
              QStringLiteral("trunkRise") };
@@ -182,6 +186,8 @@ std::vector<QString> DtlPostureProvider::provides() const
              QStringLiteral("handPathLoop"),     QStringLiteral("trailForearmAngle"),
              // The two address angles (posture_metrics_design.md §3.1).
              QStringLiteral("armHang"),          QStringLiteral("headPitch"),
+             // The arm lift at the top, the lead upper arm against the shoulder line (plane stack D2).
+             QStringLiteral("armLiftTop"),
              // The silhouette pair at every P-frame (posture_chart_design.md §10 stage 4a): read by
              // AddressMarksStage off the person mask, through this stage's DTL ruler.
              QStringLiteral("spineBackLine"),    QStringLiteral("hipDepthButt") };
@@ -202,7 +208,10 @@ std::vector<QString> ShaftFusionProvider::provides() const
              QStringLiteral("handPlaneCurve"), QStringLiteral("handPlaneSteepening"), QStringLiteral("shoulderPlane"),
              // Where the fused shaft points against the target line (ShaftDirectionStage,
              // shaft_direction.h), the 3-D skeleton's shaft where fusion has no clean frame (2026-11-12).
-             QStringLiteral("shaftDirection") };
+             QStringLiteral("shaftDirection"),
+             // The club's climb placed in the on-plane window halfway back (plane stack D3, 13 Nov 2026; club_slot_top.h): derived
+             // after the run from this stage's swingPlaneCurve and shoulderPlane.
+             QStringLiteral("clubSlotTop") };
 }
 
 // ------------------------------------------------------------------ Skeleton3dBodyProvider
@@ -215,7 +224,12 @@ std::vector<QString> Skeleton3dBodyProvider::provides() const
              QStringLiteral("leadKneeFlexion"),      QStringLiteral("spineSideBend"),
              // W5 (2026-11-13): the trail knee — where the down-the-line one is missing while the cameras
              // are uncalibrated; calibrated, where the fit reads it at address and the top.
-             QStringLiteral("trailKneeFlexion") };
+             QStringLiteral("trailKneeFlexion"),
+             // D2 (2026-11-13): the arm lift at the top where the down-the-line one is missing (uncalibrated),
+             // and the lead elbow where the fit measured it.
+             QStringLiteral("armLiftTop"),           QStringLiteral("leadArmFlexion3d"),
+             // D6 (2026-11-13): bent_lead_arm's change from the address hold.
+             QStringLiteral("leadElbowBendChange3d") };
 }
 
 // ------------------------------------------------------------------ KinematicSequenceProvider

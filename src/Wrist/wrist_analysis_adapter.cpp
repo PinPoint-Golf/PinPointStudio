@@ -66,6 +66,8 @@ InMemoryWristAngleSource parseAnalysisDetail(const QVariantMap &analysisDetail)
             dofForMetricKey(m.value(QStringLiteral("key")).toString());
         if (!dof)
             continue;                          // not a wrist DOF (or unknown key)
+        if (isCameraWristDofSeries(m.value(QStringLiteral("routeId")).toString()))
+            continue;                          // a camera reading of a sensor DOF (the face-on elbow)
 
         const QVariantList tUs = m.value(QStringLiteral("t_us")).toList();
         const QVariantList val = m.value(QStringLiteral("value")).toList();
@@ -129,6 +131,8 @@ InMemoryWristAngleSource buildWristAngleSource(const std::vector<MetricSeries> &
         const std::optional<PpJointDof> dof = dofForMetricKey(m.key);
         if (!dof)
             continue;                          // not a wrist DOF (or unknown key)
+        if (isCameraWristDofSeries(m.routeId))
+            continue;                          // a camera reading of a sensor DOF (the face-on elbow)
         const int n = static_cast<int>(std::min(m.t_us.size(), m.value.size()));
         if (n == 0)
             continue;

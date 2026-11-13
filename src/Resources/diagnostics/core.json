@@ -913,11 +913,11 @@
       "shape": "ceiling",
       "label": "Lead arm angle from the torso, change P7 to P8",
       "metricKey": "leadArmToTorso",
-      "highMeans": "the lead arm further from the torso after impact",
-      "golferHigh": "your lead arm pulls away from your body more after impact",
-      "golferLow": "your lead arm stays closer to your body after impact",
+      "highMeans": "the lead upper arm angled further from the torso just after impact than at impact, in the face-on picture (the angle between the shoulder-to-elbow line and the torso, change P7 to P8). Shown, not graded: since 2026-11-13 chicken_wing reads the lead elbow's own bend after impact (m_leadElbowFoldAfterImpact)",
+      "golferHigh": "your lead upper arm moves further from your body just after impact",
+      "golferLow": "your lead upper arm stays closer to your body just after impact",
       "golferSign": 1,
-      "golferName": "lead arm pulling away from your body after impact",
+      "golferName": "how far your lead upper arm moves from your body just after impact",
       "unit": "°"
     },
     {
@@ -1517,11 +1517,12 @@
         "kind": "at",
         "anchor": "p1"
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion at P1",
       "golferHigh": "your lead arm is more bent at address",
       "golferLow": "your lead arm is straighter at address",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p2",
@@ -1535,11 +1536,12 @@
           "p2"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P2",
       "golferHigh": "your lead arm is more bent early going back",
       "golferLow": "your lead arm is straighter early going back",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p3",
@@ -1553,11 +1555,12 @@
           "p3"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P3",
       "golferHigh": "your lead arm is more bent halfway back",
       "golferLow": "your lead arm is straighter halfway back",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p4",
@@ -1571,14 +1574,33 @@
           "p4"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P4",
       "unit": "°",
       "golferHigh": "your lead arm is more bent at the top",
       "golferLow": "your lead arm is straighter at the top",
       "highMeans": "more bend in the lead elbow at the top — a narrower, more collapsed arc",
       "golferSign": 1,
-      "golferName": "lead-elbow bend added by the top"
+      "golferName": "lead-elbow bend added by the top",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
+    },
+    {
+      "id": "m_leadElbowBendTop3d",
+      "kind": "provided",
+      "metricKey": "leadElbowBendChange3d",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p4"
+      },
+      "status": "live",
+      "shape": "ceiling",
+      "label": "Lead elbow bend added by P4, 3-D fit (measured elbows only)",
+      "unit": "°",
+      "highMeans": "more bend added to the lead elbow between address and the top, from the two-camera 3-D fit of the body, read only where both cameras saw the elbow: the bend at the top (180 degrees less the angle at the lead elbow) less the middle of the bend over the address hold, where the arm is still, so 0 means the arm is as straight at the top as it was at address. A change from address because the fit reads a straight address arm at 5 to 19 degrees bent, varying by golfer, so a fixed figure at the top gave some golfers a head start; against the whole hold rather than the instant of address so a swing whose elbow was not seen at that instant still reads (plane stack D6). Not read where both cameras did not see the elbow at the top or in the address hold (body3d.leadElbowUnmeasured says which). Where the lead-arm sensors are worn this reading is not written, so bent_lead_arm is not graded there yet",
+      "golferHigh": "your lead arm bends more by the top than it was at address",
+      "golferLow": "your lead arm stays as straight at the top as it was at address",
+      "golferSign": 1,
+      "golferName": "how much your lead arm bends between address and the top"
     },
     {
       "id": "m_leadElbowFlex_p5",
@@ -1592,11 +1614,12 @@
           "p5"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P5",
       "golferHigh": "your lead arm is more bent starting down",
       "golferLow": "your lead arm is straighter starting down",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p6",
@@ -1610,11 +1633,12 @@
           "p6"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P6",
       "golferHigh": "your lead arm is more bent just before impact",
       "golferLow": "your lead arm is straighter just before impact",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p7",
@@ -1628,11 +1652,12 @@
           "p7"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P7",
       "golferHigh": "your lead arm is more bent at impact",
       "golferLow": "your lead arm is straighter at impact",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
     },
     {
       "id": "m_leadElbowFlex_p8",
@@ -1646,11 +1671,35 @@
           "p8"
         ]
       },
-      "status": "live",
+      "status": "held",
       "label": "Lead elbow flexion — change from address at P8",
       "golferHigh": "your lead arm is more bent after impact",
       "golferLow": "your lead arm is straighter after impact",
-      "unit": "°"
+      "unit": "°",
+      "gapReason": "HELD 2026-11-13 (plane stack D5) when leadArmFlexion gained a face-on route. These corridors came from the wrist sensors' reference grid (src/Wrist/reference_bands.cpp, migrated as heuristics) and were never seated on the face-on picture's elbow, which reads very differently: on the library (249 camera swings, read-only) the face-on bend at the top is a median 37 deg more than at address, so m_leadElbowFlex_p4 would fire bent_lead_arm on all 214 swings it could read. Owed before it grades again: corridors seated per route (or a route-restricted measure) — the 3-D route planned for bent_lead_arm in D2 is the place to decide it. No library swing carries the wrist sensors' elbow (0 of 284), so holding it stops no grade that was being made."
+    },
+    {
+      "id": "m_leadElbowFoldAfterImpact",
+      "kind": "provided",
+      "metricKey": "leadArmFlexion",
+      "reducer": {
+        "kind": "extremum",
+        "anchor": "p7",
+        "windowMs": [
+          0,
+          100
+        ],
+        "sense": "max"
+      },
+      "status": "live",
+      "shape": "ceiling",
+      "label": "Lead elbow bend added in the 100 ms after impact",
+      "unit": "°",
+      "highMeans": "the lead elbow bent further in the 100 ms after impact than it was at impact — the arm folding through the ball with the elbow pointing out (chicken wing), instead of staying straight and extending toward the target",
+      "golferHigh": "your lead arm bends more in the moment after impact",
+      "golferLow": "your lead arm stays straighter in the moment after impact",
+      "golferSign": 1,
+      "golferName": "how much your lead arm bends in the moment after impact"
     },
     {
       "id": "m_trailWristFlexExt_p1",
@@ -2334,6 +2383,46 @@
       "golferName": "club past parallel at the top"
     },
     {
+      "id": "m_armLiftTop",
+      "kind": "provided",
+      "metricKey": "armLiftTop",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p4"
+      },
+      "status": "live",
+      "label": "Lead upper arm against the shoulder turn, at P4 (measured to the elbow)",
+      "unit": "°",
+      "highMeans": "the lead upper arm, measured from the lead shoulder to the lead ELBOW, sitting higher above the shoulder turn at the top: above the shoulder line in the down-the-line picture, or out of the plane the shoulders turn on in the 3-D fit; the low side is the upper arm under the shoulders, the arms swinging round. Measured to the elbow, not the wrist, because a bent lead arm folds the forearm up and makes the arms look higher than they are; a bent lead arm is graded as its own fault (bent_lead_arm)",
+      "golferHigh": "your lead upper arm sits higher above your shoulder turn at the top",
+      "golferLow": "your lead upper arm sits lower against your shoulder turn at the top",
+      "golferSign": 1,
+      "golferName": "how high your lead upper arm sits against your shoulder turn at the top (measured to the elbow)",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_takeawayPlane",
+      "kind": "provided",
+      "metricKey": "swingPlaneCurve",
+      "reducer": {
+        "kind": "delta",
+        "anchor": "p1",
+        "window": [
+          "p1",
+          "p2"
+        ]
+      },
+      "status": "live",
+      "label": "Swing plane at P2, against address",
+      "unit": "°",
+      "highMeans": "the club starting back above the plane it was set on at address; the low side is the club starting back under it",
+      "golferHigh": "the club starts back above the plane you set it on",
+      "golferLow": "the club starts back below the plane you set it on",
+      "golferSign": 1,
+      "golferName": "how far above the plane you set it on the club starts back",
+      "viewNeeded": "downTheLine"
+    },
+    {
       "id": "m_shaftPlaneBackswing",
       "kind": "provided",
       "metricKey": "swingPlaneCurve",
@@ -2353,6 +2442,24 @@
       "golferLow": "the club goes back flatter",
       "golferSign": 1,
       "golferName": "how much steeper the club went back than it was set",
+      "viewNeeded": "downTheLine"
+    },
+    {
+      "id": "m_clubSlotTop",
+      "kind": "provided",
+      "metricKey": "clubSlotTop",
+      "reducer": {
+        "kind": "at",
+        "anchor": "p3"
+      },
+      "status": "live",
+      "label": "Club in the on-plane window at P3",
+      "unit": "ratio",
+      "highMeans": "the club sitting higher in the on-plane window halfway back, with the lead arm level going back: 0 is on the plane the club was set on at address, 1 on the plane from the ball through the trail shoulder at address; below 0 is under plane halfway back, above 1 above it",
+      "golferHigh": "halfway back, the club sits higher, toward the line through your trail shoulder",
+      "golferLow": "halfway back, the club sits lower, toward the plane you set at address",
+      "golferSign": 1,
+      "golferName": "where the club sits halfway back, between the plane you set at address and the line through your trail shoulder",
       "viewNeeded": "downTheLine"
     },
     {
@@ -4463,7 +4570,7 @@
       "id": "sig_chickenWing",
       "test": "outsideCorridor",
       "measures": [
-        "m_leadArmToTorso"
+        "m_leadElbowFoldAfterImpact"
       ],
       "direction": "high"
     },
@@ -4806,7 +4913,7 @@
       "id": "sig_steepBackswingPlane",
       "test": "outsideCorridor",
       "measures": [
-        "m_shaftPlaneBackswing"
+        "m_clubSlotTop"
       ],
       "direction": "high"
     },
@@ -4814,25 +4921,41 @@
       "id": "sig_flatBackswingPlane",
       "test": "outsideCorridor",
       "measures": [
-        "m_shaftPlaneBackswing"
+        "m_clubSlotTop"
       ],
       "direction": "low"
     },
     {
-      "id": "sig_backswingPlaneTooUpright",
+      "id": "sig_steepTakeaway",
       "test": "outsideCorridor",
       "measures": [
-        "m_backswingPlaneAngle"
+        "m_takeawayPlane"
       ],
       "direction": "high"
     },
     {
-      "id": "sig_backswingPlaneTooFlat",
+      "id": "sig_flatTakeaway",
       "test": "outsideCorridor",
       "measures": [
-        "m_backswingPlaneAngle"
+        "m_takeawayPlane"
       ],
       "direction": "low"
+    },
+    {
+      "id": "sig_armsSwingAround",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_armLiftTop"
+      ],
+      "direction": "low"
+    },
+    {
+      "id": "sig_armsLift",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_armLiftTop"
+      ],
+      "direction": "high"
     },
     {
       "id": "sig_downswingPlaneTooSteep",
@@ -4879,6 +5002,14 @@
       "test": "outsideCorridor",
       "measures": [
         "m_leadElbowFlex_p4"
+      ],
+      "direction": "high"
+    },
+    {
+      "id": "sig_bentLeadArm3d",
+      "test": "outsideCorridor",
+      "measures": [
+        "m_leadElbowBendTop3d"
       ],
       "direction": "high"
     },
@@ -6873,16 +7004,16 @@
       "id": "chicken_wing",
       "label": "Chicken wing",
       "golfer": "your lead arm folds after impact",
-      "golferWell": "your lead arm stays close to your body after impact",
+      "golferWell": "your lead arm stays straight through impact",
       "golferWhy": "A folding lead arm shortens your swing where it should be longest, so you lose speed and the clubface wanders.",
-      "goal": "Keep your lead arm close to your body after impact",
+      "goal": "Keep your lead arm straight through impact",
       "cue": "Through the ball, feel both arms stay long while your chest keeps turning, so your lead elbow points at the ground as the club passes your lead hip.",
-      "check": "Film face on. Just after impact, when the shaft is level with the ground, both arms should look straight and your lead elbow should point at the ground rather than out toward the target.",
+      "check": "Film face on. In the moment just after impact, your lead arm should stay straight and extend toward the target, not fold with the elbow pointing out.",
       "picture": {
         "kind": "pair",
         "camera": "faceOn",
-        "phase": "P8",
-        "line": "leadUpperArm"
+        "phase": "P7",
+        "line": "leadArm"
       },
       "reportHold": {
         "reason": "We could not measure your lead arm after impact reliably enough from these cameras to call it a habit."
@@ -6892,7 +7023,6 @@
         "wing"
       ],
       "group": "arms",
-      "domain": "wrist",
       "kind": "fault",
       "prominence": "common",
       "observability": "observable",
@@ -8261,6 +8391,170 @@
       }
     },
     {
+      "id": "flat_takeaway",
+      "label": "Flat takeaway",
+      "golfer": "the club starts back below the plane you set it on",
+      "golferWell": "the club starts back on the plane you set it on",
+      "golferWhy": "A club that starts back under its plane has to be lifted or thrown back out later, so it tends to come down over the top and across the ball.",
+      "goal": "Start the club back on the plane you set it on",
+      "cue": "Going back, feel your hands and the clubhead move away together, the clubhead staying in front of your hands rather than working in low behind you.",
+      "check": "Film from down the line and draw a line along the shaft at address, through the ball and up past your hands. Halfway back, when the shaft is level with the ground, your hands and the club should sit on that line or just above it; below it, the club has started back flat.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P2",
+        "line": "shaft"
+      },
+      "aliases": [
+        "under the plane early",
+        "takeaway under the plane",
+        "flat early"
+      ],
+      "axis": "takeaway_plane",
+      "group": "planePath",
+      "kind": "fault",
+      "prominence": "common",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_flatTakeaway"
+      ],
+      "state": "draft",
+      "consequence": "The club drops under the plane it was set on in the first part of the backswing. To get back to the ball it has to be rerouted, most often lifted at the top and thrown out and over coming down, which is why a flatter takeaway tends to go with a bigger loop coming down. Read as the swing plane at shaft-parallel going back against the plane at address: one down-the-line camera within one swing, so the camera's own direction barely moves it. At shaft-parallel the shaft lies along the target line and defines no plane, so the plane through the ball line and the hands stands in there. The takeaway's DIRECTION is a separate reading of the same moment (`inside_takeaway`, on the shaft's direction).",
+      "drills": [
+        "drill.takeawayStick",
+        "drill.buttToTheLine"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "id": "steep_takeaway",
+      "label": "Steep takeaway",
+      "golfer": "the club starts back above the plane you set it on",
+      "golferWell": "the club starts back on the plane you set it on",
+      "golferWhy": "A club lifted above its plane early tends to stay steep to the top, so it comes down steep and contact and direction suffer.",
+      "goal": "Start the club back on the plane you set it on",
+      "cue": "Going back, feel your chest turn the club away low and wide, rather than your hands and arms lifting it up.",
+      "check": "Film from down the line and draw a line along the shaft at address, through the ball and up past your hands. Halfway back, when the shaft is level with the ground, your hands and the club should sit on that line or just above it; well above it, the club has been lifted.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P2",
+        "line": "shaft"
+      },
+      "aliases": [
+        "takeaway above the plane",
+        "steep early",
+        "lifting the club early"
+      ],
+      "axis": "takeaway_plane",
+      "group": "planePath",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_steepTakeaway"
+      ],
+      "state": "draft",
+      "consequence": "The club climbs above the plane it was set on in the first part of the backswing, the arms lifting it rather than the body turning it away, which sets it up to stay above the plane to the top and to come down steep. A little above the address plane is on plane in coaching terms, which is why the corridor reaches further above zero than below. Read as the swing plane at shaft-parallel going back against the plane at address: one down-the-line camera within one swing, so the camera's own direction barely moves it. At shaft-parallel the shaft lies along the target line and defines no plane, so the plane through the ball line and the hands stands in there. The takeaway's DIRECTION is a separate reading of the same moment (`outside_takeaway`, on the shaft's direction).",
+      "drills": [
+        "drill.takeawayStick",
+        "drill.buttToTheLine"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "id": "arms_swing_around",
+      "label": "Arms swing around",
+      "golfer": "your arms sit low against your shoulder turn at the top",
+      "golferWell": "your arms sit with your shoulder turn at the top",
+      "golferWhy": "Arms that swing round under the turn pull the club behind you and flat, so coming down it tends to get stuck behind you and swing out to the right. This is measured on the lead upper arm, from the shoulder to the elbow; a bent lead arm is not part of it and is graded as its own fault. Arms on the shoulder line and arms above it both work; only arms well under the turn are flagged.",
+      "goal": "Let your arms rise with your shoulder turn going back",
+      "cue": "Going back, feel your hands stay in front of your chest and rise as your shoulders turn, rather than your arms swinging round behind you.",
+      "check": "Film from down the line and pause at the top. Draw a line through your two shoulders, and a line from your lead shoulder to your lead elbow. The elbow should sit on the shoulder line or above it; well under it, your arms have swung round. Look at the upper arm only, shoulder to elbow: a bent lead arm makes the arms look higher than they are, and it is not a way to lift them; it is its own fault.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P4",
+        "line": "leadUpperArm"
+      },
+      "aliases": [
+        "arms too flat at the top",
+        "arms behind the body at the top",
+        "arms under the shoulder plane"
+      ],
+      "axis": "arm_lift_top",
+      "group": "planePath",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_armsSwingAround"
+      ],
+      "state": "draft",
+      "consequence": "The lead upper arm finishes the backswing under the plane the shoulders turn on, so the arms and the club sit behind the body and flat at the top. From there the club tends to drop further behind coming down and is swung out to the right, or the body stalls to let the arms catch up. Measured on the upper arm (shoulder to elbow) against the shoulder line in the down-the-line picture, or against the shoulder-turn plane in the 3-D fit where the picture has no reading. Arms on the shoulder line (one-plane) and arms above it (two-plane) are both styles that work; the corridor is wide and only the extreme is a fault.",
+      "drills": [
+        "drill.mirrorTop",
+        "drill.buttToTheLine"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md sections 3.2 and 7, Mark approved 13 Nov 2026): one-plane and two-plane swings, lead arm against the shoulder plane at the top, arm lift measured to the elbow"
+      }
+    },
+    {
+      "id": "arms_lift",
+      "label": "Arms lift",
+      "golfer": "your arms lift high above your shoulder turn at the top",
+      "golferWell": "your arms sit with your shoulder turn at the top",
+      "golferWhy": "Arms that lift well above the turn take the club up steep, and the steep club tends to come back down over the top and across the ball. This is measured on the lead upper arm, from the shoulder to the elbow; bending the lead arm is not a way to lift the arms, it is its own fault, and it does not count here. Arms on the shoulder line and arms above it both work; only arms lifted far above the turn are flagged.",
+      "goal": "Let your arms rise with your shoulder turn, not past it",
+      "cue": "Going back, feel your chest turn the club away and your arms stay in front of it, rather than your arms lifting the club up on their own.",
+      "check": "Film from down the line and pause at the top. Draw a line through your two shoulders, and a line from your lead shoulder to your lead elbow. The elbow should sit on the shoulder line or somewhat above it; far above it, your arms have lifted. Look at the upper arm only, shoulder to elbow: a bent lead arm makes the arms look higher than they are, and it is not a way to lift them; it is its own fault.",
+      "picture": {
+        "kind": "pair",
+        "camera": "dtl",
+        "phase": "P4",
+        "line": "leadUpperArm"
+      },
+      "aliases": [
+        "arms too high at the top",
+        "lifting the arms",
+        "arms above the shoulder plane"
+      ],
+      "axis": "arm_lift_top",
+      "group": "planePath",
+      "kind": "fault",
+      "prominence": "occasional",
+      "observability": "observable",
+      "confirmedBy": "measured",
+      "detectedBy": [
+        "sig_armsLift"
+      ],
+      "state": "draft",
+      "consequence": "The lead upper arm finishes the backswing well above the plane the shoulders turn on, so the arms have lifted the club rather than the turn carrying it. That steepens the club at the top, and from there it tends to come down steep and out over the top. A level shoulder turn is often made up for by lifting the arms. Measured on the upper arm (shoulder to elbow) against the shoulder line in the down-the-line picture, or against the shoulder-turn plane in the 3-D fit where the picture has no reading. Arms on the shoulder line (one-plane) and arms above it (two-plane) are both styles that work; the corridor is wide and only the extreme is a fault.",
+      "drills": [
+        "drill.towelUnderArms",
+        "drill.mirrorTop"
+      ],
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md sections 3.2 and 7, Mark approved 13 Nov 2026): one-plane and two-plane swings, lead arm against the shoulder plane at the top, arm lift measured to the elbow"
+      }
+    },
+    {
       "id": "early_face_roll",
       "label": "Face rolled open early",
       "golfer": "you roll the clubface open going back",
@@ -8479,13 +8773,13 @@
     },
     {
       "id": "steep_backswing_plane",
-      "label": "Steep backswing plane",
-      "golfer": "the club goes back too steep",
-      "golferWell": "the club goes back on plane",
-      "golferWhy": "A steep backswing tends to bring the club down steep and across the ball, so direction is harder to control.",
-      "goal": "Swing the club back on plane",
+      "label": "Club above plane halfway back",
+      "golfer": "halfway back, the club climbs above the line through your trail shoulder",
+      "golferWell": "halfway back, the club sits between the plane you set at address and the line through your trail shoulder",
+      "golferWhy": "A club that climbs above the line through your trail shoulder going back tends to come down steep and across the ball, so direction is harder to control.",
+      "goal": "Keep the club on plane halfway back",
       "cue": "Going back, feel your chest turn the club away while your arms stay in front of it, rather than your hands lifting the club up.",
-      "check": "Film from down the line. When your lead arm is level with the ground, the butt of the club should point at the ball line; pointing in toward your toes means the club has gone back steep.",
+      "check": "Film from down the line. Draw one line along the shaft at address, from the ball up past your hands, and a second from the ball up through your trail shoulder. When your lead arm is level with the ground, the shaft should be angled between the two: no flatter than the first line and no steeper than the second. Steeper than the line through your shoulder means the club has climbed above plane halfway back.",
       "picture": {
         "kind": "pair",
         "camera": "dtl",
@@ -8493,7 +8787,8 @@
         "line": "shaft"
       },
       "aliases": [
-        "too upright going back"
+        "too upright going back",
+        "above plane halfway back"
       ],
       "axis": "backswing_plane",
       "group": "planePath",
@@ -8505,7 +8800,7 @@
         "sig_steepBackswingPlane"
       ],
       "state": "draft",
-      "consequence": "The shaft climbs above the plane it started on, which sets up a steep, out-to-in delivery unless the downswing shallows it deliberately.",
+      "consequence": "The shaft climbs above the plane from the ball through your trail shoulder at address, which sets up a steep, out-to-in delivery unless the downswing shallows it deliberately.",
       "drills": [
         "drill.buttToTheLine"
       ],
@@ -8517,13 +8812,13 @@
     },
     {
       "id": "flat_backswing_plane",
-      "label": "Flat backswing plane",
-      "golfer": "the club goes back too flat",
-      "golferWell": "the club goes back on plane",
-      "golferWhy": "A flat backswing lets the club get trapped behind you, so you rely on your hands to save the shot.",
-      "goal": "Swing the club back on plane",
+      "label": "Club under plane halfway back",
+      "golfer": "halfway back, the club sits below the plane you set at address",
+      "golferWell": "halfway back, the club sits between the plane you set at address and the line through your trail shoulder",
+      "golferWhy": "A club that drops below the plane you set at address gets trapped behind you, so you rely on your hands to save the shot.",
+      "goal": "Keep the club on plane halfway back",
       "cue": "Going back, feel the clubhead stay in front of your hands while your trail arm folds upward, rather than the club swinging around behind you.",
-      "check": "Film from down the line. When your lead arm is level with the ground, the butt of the club should point at the ball line; pointing out beyond the ball means the club has gone back flat.",
+      "check": "Film from down the line. Draw one line along the shaft at address, from the ball up past your hands, and a second from the ball up through your trail shoulder. When your lead arm is level with the ground, the shaft should be angled between the two: no flatter than the first line and no steeper than the second. Flatter than the line along the shaft at address means the club has dropped under plane halfway back.",
       "picture": {
         "kind": "pair",
         "camera": "dtl",
@@ -8532,7 +8827,8 @@
       },
       "aliases": [
         "too flat going back",
-        "round it"
+        "round it",
+        "under plane halfway back"
       ],
       "axis": "backswing_plane",
       "group": "planePath",
@@ -8544,7 +8840,7 @@
         "sig_flatBackswingPlane"
       ],
       "state": "draft",
-      "consequence": "The shaft drops below the plane it started on, which makes it easy to get stuck behind the body coming down and to need the hands to save the shot.",
+      "consequence": "The shaft drops below the plane it was set on at address, which makes it easy to get stuck behind the body coming down and to need the hands to save the shot.",
       "drills": [
         "drill.buttToTheLine"
       ],
@@ -8552,87 +8848,6 @@
         "tier": "practice",
         "searchedOn": "2026-07-27",
         "searchTerms": "swing plane shaft position backswing top of swing golf"
-      }
-    },
-    {
-      "id": "backswing_plane_too_upright",
-      "label": "Backswing plane too upright",
-      "golfer": "the club swings back on too upright a plane for this club",
-      "golferWell": "the club swings back on a plane that suits this club",
-      "golferWhy": "An upright plane going back tends to bring the club down steep, so you tend to pull it, slice it or take a deep divot.",
-      "goal": "Swing the club back on a plane that suits the club",
-      "cue": "Going back, feel your arms swing around your chest as it turns, rather than lifting the club up in front of you.",
-      "check": "Film from down the line. With the lead arm level with the ground, the shaft should point at the ball line. If it points well inside your toes, or the club is standing nearly vertical, the plane is too upright.",
-      "picture": {
-        "kind": "pair",
-        "camera": "dtl",
-        "phase": "P3",
-        "line": "shaft"
-      },
-      "aliases": [
-        "too upright",
-        "swinging it up"
-      ],
-      "axis": "backswing_plane_angle",
-      "group": "planePath",
-      "kind": "fault",
-      "prominence": "occasional",
-      "observability": "observable",
-      "confirmedBy": "measured",
-      "detectedBy": [
-        "sig_backswingPlaneTooUpright"
-      ],
-      "state": "draft",
-      "consequence": "The plane the shaft swings back on stands steeper than a good player's for this club, whatever plane it started on. It usually comes down steep too, unless the golfer drops it flatter in transition.",
-      "drills": [
-        "drill.buttToTheLine",
-        "drill.shoulderPlaneClub"
-      ],
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
-      }
-    },
-    {
-      "id": "backswing_plane_too_flat",
-      "label": "Backswing plane too flat",
-      "golfer": "the club swings back on too flat a plane for this club",
-      "golferWell": "the club swings back on a plane that suits this club",
-      "golferWhy": "A flat plane going back tends to bring the club in from behind you, so you rely on your hands to square the face and tend to push it or hook it.",
-      "goal": "Swing the club back on a plane that suits the club",
-      "cue": "Going back, feel your trail arm fold upward and the club stay in front of your chest, rather than swinging around behind you.",
-      "check": "Film from down the line. With the lead arm level with the ground, the shaft should point at the ball line. If it points well beyond the ball, or the club is lying low around your body, the plane is too flat.",
-      "picture": {
-        "kind": "pair",
-        "camera": "dtl",
-        "phase": "P3",
-        "line": "shaft"
-      },
-      "aliases": [
-        "too flat",
-        "too around",
-        "swinging it around"
-      ],
-      "axis": "backswing_plane_angle",
-      "group": "planePath",
-      "kind": "fault",
-      "prominence": "occasional",
-      "observability": "observable",
-      "confirmedBy": "measured",
-      "detectedBy": [
-        "sig_backswingPlaneTooFlat"
-      ],
-      "state": "draft",
-      "consequence": "The plane the shaft swings back on lies flatter than a good player's for this club. Measured against its own address plane it can still read on plane, because a golfer who sets up flat and swings on that flat plane is flat all the way through.",
-      "drills": [
-        "drill.buttToTheLine",
-        "drill.takeawayStick"
-      ],
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "launch monitor swing plane degrees by club driver irons; shaft plane angle at address by club"
       }
     },
     {
@@ -8842,7 +9057,7 @@
       "golferWhy": "A bent lead arm shortens your swing, so you build less speed and contact is harder to control.",
       "goal": "Keep your lead arm straight at the top",
       "cue": "Feel your lead arm stay long and your hands stay far from your head at the top, as if your trail hand were pushing the club away from you.",
-      "check": "Film face on and pause at the top. Your lead arm should look straight, or very nearly, from shoulder to wrist.",
+      "check": "Swing to the top and hold it, then look at your lead elbow, or have someone look for you from behind and from the side. Your lead arm should be straight, or very nearly, with no fold at the elbow. A photo from the front alone can make an arm that crosses your chest look bent when it is not.",
       "picture": {
         "kind": "change",
         "camera": "faceOn",
@@ -8858,7 +9073,9 @@
       "prominence": "common",
       "observability": "observable",
       "confirmedBy": "measured",
+      "detection": "first",
       "detectedBy": [
+        "sig_bentLeadArm3d",
         "sig_bentLeadArm"
       ],
       "state": "draft",
@@ -15593,17 +15810,6 @@
       }
     },
     {
-      "from": "steep_shoulder_plane",
-      "to": "over_the_top",
-      "type": "corroborates",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-07-28",
-        "searchTerms": "steep shoulder plane over the top downswing same pattern golf"
-      }
-    },
-    {
       "from": "over_the_top",
       "to": "attack_too_steep",
       "type": "causes",
@@ -19121,102 +19327,58 @@
       }
     },
     {
-      "from": "ball_too_close",
-      "to": "backswing_plane_too_upright",
-      "type": "causes",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
-      }
-    },
-    {
       "from": "posture_too_bent",
-      "to": "backswing_plane_too_upright",
+      "to": "steep_backswing_plane",
       "type": "causes",
       "strength": "moderate",
       "provenance": {
         "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; moved from backswing_plane_too_upright (retired); first searched 2026-10-29 on: swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     },
     {
       "from": "steep_shoulder_plane",
-      "to": "backswing_plane_too_upright",
+      "to": "steep_backswing_plane",
       "type": "causes",
       "strength": "moderate",
       "provenance": {
         "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; moved from backswing_plane_too_upright (retired); first searched 2026-10-29 on: swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     },
     {
-      "from": "backswing_plane_too_upright",
+      "from": "steep_backswing_plane",
       "to": "downswing_plane_too_steep",
       "type": "causes",
       "strength": "moderate",
       "provenance": {
         "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
-      }
-    },
-    {
-      "from": "ball_too_far",
-      "to": "backswing_plane_too_flat",
-      "type": "causes",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; moved from backswing_plane_too_upright (retired); first searched 2026-10-29 on: swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     },
     {
       "from": "posture_too_upright",
-      "to": "backswing_plane_too_flat",
+      "to": "flat_backswing_plane",
       "type": "causes",
       "strength": "moderate",
       "provenance": {
         "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; moved from backswing_plane_too_flat (retired); first searched 2026-10-29 on: swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     },
     {
-      "from": "flat_shoulder_plane",
-      "to": "backswing_plane_too_flat",
-      "type": "causes",
-      "strength": "moderate",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
-      }
-    },
-    {
-      "from": "arms_reaching_at_address",
-      "to": "backswing_plane_too_flat",
-      "type": "causes",
-      "strength": "weak",
-      "provenance": {
-        "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
-      }
-    },
-    {
-      "from": "backswing_plane_too_flat",
+      "from": "flat_backswing_plane",
       "to": "downswing_plane_too_flat",
       "type": "causes",
       "strength": "moderate",
       "provenance": {
         "tier": "practice",
-        "searchedOn": "2026-10-29",
-        "searchTerms": "swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; moved from backswing_plane_too_flat (retired); first searched 2026-10-29 on: swing plane too flat too upright causes ball position posture shoulder plane path attack angle"
       }
     },
     {
@@ -19602,6 +19764,171 @@
         "tier": "practice",
         "searchedOn": "2026-11-08",
         "searchTerms": "ball flight strike quality carry distance loss golf"
+      }
+    },
+    {
+      "from": "flat_takeaway",
+      "to": "over_the_top",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "flat_takeaway",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "flat_takeaway",
+      "to": "trail_elbow_deep",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "steep_takeaway",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "steep_takeaway",
+      "to": "disconnection",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_swing_around",
+      "to": "flat_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_swing_around",
+      "to": "under_plane_stuck",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_swing_around",
+      "to": "in_to_out_path",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_lift",
+      "to": "steep_backswing_plane",
+      "type": "causes",
+      "strength": "strong",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_lift",
+      "to": "over_the_top",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "arms_lift",
+      "to": "steep_downswing_shaft",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "flat_shoulder_plane",
+      "to": "arms_lift",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "flat_takeaway",
+      "to": "arms_swing_around",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): arms against the shoulder turn at the top, club under or above plane halfway back"
+      }
+    },
+    {
+      "from": "early_face_roll",
+      "to": "flat_takeaway",
+      "type": "causes",
+      "strength": "moderate",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; rolling the clubface open going back fans the club in and under its address plane; flat takeaway causes"
+      }
+    },
+    {
+      "from": "limited_thoracic_rotation",
+      "to": "steep_takeaway",
+      "type": "causes",
+      "strength": "weak",
+      "provenance": {
+        "tier": "practice",
+        "searchedOn": "2026-11-13",
+        "searchTerms": "plane stack design (docs/design/plane_stack_design.md section 7, Mark approved 13 Nov 2026): takeaway against the address shaft plane, club under or above plane halfway back; limited upper back turn lifting the club with the arms golf takeaway; steep takeaway causes"
       }
     }
   ]

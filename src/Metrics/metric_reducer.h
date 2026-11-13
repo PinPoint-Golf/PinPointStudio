@@ -83,12 +83,29 @@ enum class ExtremumSense { Max, Min };
 // across the downswing, not its value at impact — sampling At(Impact) misses a golfer who moves and
 // recovers before the sample. Extremum also yields *when* the peak occurred, which is a second
 // signal worth having (see ReducedValue::atUs).
+//
+// A WINDOW IN MILLISECONDS AFTER THE ANCHOR (`windowMs`, plane stack D5, 13 Nov 2026). Some readings
+// live in a span no phase bounds: the lead elbow folding is read in the 100 ms after impact, because
+// the next phase (P8) is often mistimed and the fold is visible before it. With `windowMs` set the
+// span is [t(anchor) + startMs, t(anchor) + endMs], the phase `window` is unused (the loader refuses a
+// measure that states both), and the anchor is required:
+//   Extremum: the extremum over that span, minus value(anchor) — the same signed deviation as a
+//             phase-window extremum with an anchor, so anchor p7 with windowMs [0, 100] and sense max
+//             is "the most it reached in the 100 ms after impact, beyond its value at impact";
+//   Delta:    value(t(anchor) + endMs) − value(t(anchor) + startMs), each a ±15 ms windowed median
+//             (startMs 0 reads the anchor's own value).
+// At and Rate do not take one. Both bounds are whole milliseconds, 0 ≤ startMs < endMs: a negative or
+// reversed window is refused by the validator (measure_facets.cpp checkReducerShape).
 struct Reducer {
     ReducerKind                  kind   = ReducerKind::At;
     std::optional<Phase>         anchor;                       // see per-kind semantics above
     std::pair<Phase, Phase>      window{Phase::Address, Phase::Impact};
     ExtremumSense                sense  = ExtremumSense::Max;   // Extremum only
+    std::optional<std::pair<int, int>> windowMs;               // [startMs, endMs] after the anchor
 };
+
+// True when the reducer reads a span in milliseconds after its anchor rather than between phases.
+inline bool reducerUsesMsWindow(const Reducer &r) { return r.windowMs.has_value(); }
 
 // The outcome of applying a Reducer to a series. `valid == false` means the reduction could not be
 // performed (a phase was not segmented, the series had no samples in the window) — which is

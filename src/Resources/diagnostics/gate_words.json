@@ -116,6 +116,18 @@
       "golfer": "your hips or shoulders were edge-on to the camera for part of the swing"
     },
     {
+      "id": "body.armTorsoLines",
+      "golfer": "your shoulders were edge-on to the camera, or your lead upper arm pointed toward it, just there"
+    },
+    {
+      "id": "body.leadElbowLines",
+      "golfer": "your lead upper arm or forearm pointed toward the camera, so the bend in your elbow could not be seen just there"
+    },
+    {
+      "id": "body.leadArmHidden",
+      "golfer": "the face-on camera couldn't clearly see your lead arm here (often your head hides your lead shoulder), so these frames can't show whether your lead arm folds"
+    },
+    {
       "id": "body.rotation",
       "golfer": "a single face-on camera cannot measure how far you turn; a down-the-line camera or a body sensor can"
     },
@@ -150,6 +162,10 @@
     {
       "id": "posture.ballReach",
       "golfer": "the down-the-line camera could not find the ball where your club was soled"
+    },
+    {
+      "id": "posture.armLift",
+      "golfer": "the down-the-line camera could not see both your shoulders and your lead elbow clearly at the top"
     },
     {
       "id": "posture.handLoop",
@@ -192,6 +208,22 @@
       "golfer": "the club's path was not seen clearly enough to fit a plane to it"
     },
     {
+      "id": "body3d.leadElbowUnmeasured",
+      "golfer": "both cameras didn't see your lead elbow clearly at the top or at address, so how much it bends can't be judged"
+    },
+    {
+      "id": "positions.p8Refused",
+      "golfer": "the club could not be followed far enough into the follow-through on this swing to find the moment the shaft is level again after impact, so the readings that need that moment are not judged"
+    },
+    {
+      "id": "club.slotCameraAssumed",
+      "golfer": "where the club sits halfway back was measured with an uncalibrated down-the-line camera: compare it within a session, not between sessions"
+    },
+    {
+      "id": "club.slotUnread",
+      "golfer": "the down-the-line camera could not place both edges of your on-plane window halfway back, the plane you set the club on and the line through your trail shoulder at address, so where the club sat halfway back is not judged"
+    },
+    {
       "id": "club3d.planeScatter",
       "golfer": "the club did not move on one plane that the cameras could measure"
     },
@@ -228,8 +260,24 @@
       "golfer": "your shoulder tilt and your posture were measured by different instruments that haven't been checked against each other, so the comparison is less certain than either reading alone"
     },
     {
+      "id": "body.tiltBendOutOfRange",
+      "golfer": "this shoulder tilt is outside what a full turn can make, so it is probably a misreading"
+    },
+    {
+      "id": "body3d.shoulderViewsDisagree",
+      "golfer": "the two cameras disagree about where your shoulders are at the top, so this reading is less certain"
+    },
+    {
       "id": "body.thighTurnAssumed",
       "golfer": "no sensor is worn on the thigh and the cameras could not read its own turn, so the thigh was taken as not turning and the hip rotation is less certain"
+    },
+    {
+      "id": "body3d.armLiftShoulders",
+      "golfer": "the two cameras disagree about where your shoulders are at the top, and your arm lift is measured against your shoulders, so it could not be read"
+    },
+    {
+      "id": "body3d.armLiftImageCorridor",
+      "golfer": "your arm lift was read from the three-dimensional fit of your body, but the range it is judged against was set from the down-the-line camera, so this verdict is a little less certain"
     },
     {
       "id": "body3d.fromFit",
@@ -520,6 +568,10 @@
     {
       "id": "track.skeleton3d",
       "golfer": "the three-dimensional model of you"
+    },
+    {
+      "id": "position.p8",
+      "golfer": "the moment the shaft is level again just after impact"
     },
     {
       "id": "shot",

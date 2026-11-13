@@ -372,7 +372,7 @@ DeliveryShotInput deliveryInputFromShot(const ShotSeries &shot)
     return in;
 }
 
-// ── the plane story and the slot ────────────────────────────────────────────────────────────────
+// ── the plane story and the on-plane window (once "the slot", a downswing term in golf) ──────────
 
 DeliveryStory deliveryPlaneStory(const DeliveryShotInput &in)
 {
@@ -458,7 +458,7 @@ DeliverySlot deliverySlotWords(const DeliveryShotInput &in)
         words << m.words;
         s.outside.push_back(m);
     }
-    s.text = words.isEmpty() ? QStringLiteral("inside the slot") : words.join(QStringLiteral("; "));
+    s.text = words.isEmpty() ? QStringLiteral("inside the on-plane window") : words.join(QStringLiteral("; "));
     return s;
 }
 

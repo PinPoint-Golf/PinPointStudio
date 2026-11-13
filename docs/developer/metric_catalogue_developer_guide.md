@@ -474,6 +474,7 @@ a magnitude — a carry, a spin rate, a duration.
 | `handPlaneCurve` | ° | live | hands on a more upright plane | hands on a flatter plane |
 | `handPlaneSteepening` | ° | live | the hands came down on a steeper plane — over the top | the hands came down on a flatter plane |
 | `shoulderPlane` | ° | live | a more upright shoulder plane | a flatter shoulder plane |
+| `clubSlotTop` | ratio | live | the club higher halfway back — toward or above the line through the trail shoulder at address | below the plane the club was set on — under plane halfway back |
 | `swingPlane` | ° | live | above the address shaft plane — steeper; Δ = came down steeper than it went back | below it — flatter; Δ = came down flatter than it went back |
 | `swingPlaneAngle` | ° | live | a more upright plane | a flatter plane |
 | `transitionPlaneDelta` | ° | live | the club steepened in transition — the over-the-top direction | the club shallowed in transition |
@@ -521,6 +522,9 @@ a magnitude — a carry, a spin rate, a duration.
 | `leadHandWidth` | % arm length | live | the hands further from the chest — a wider arc | the hands closer to the chest |
 | `armHang` | ° | live | the hands further toward the ball than the shoulders — reaching | the hands tucked in under the body |
 | `leadUpperArmToChest` | % shoulder width | live | a larger gap — the arm further from the chest | *cannot go negative* |
+| `armLiftTop` | ° | live | the lead UPPER ARM (shoulder → elbow, never the wrist: a bent arm looks lifted) above the shoulders at the top — lifted | under the shoulders — swinging round low |
+| `leadArmFlexion3d` | ° | live | elbow flexion — a more bent lead arm; 0° is straight | *cannot go negative* |
+| `leadElbowBendChange3d` | ° | live | more bend at the top than in the address hold — the lead arm folding going back | straighter at the top than in the address hold |
 
 #### Ball flight
 
@@ -903,37 +907,20 @@ study counts named swing faults across a population. It is a prior, and it is re
 
 | Metric | Status | Faults it would unlock | Top rung | Which |
 |---|---|---:|---|---|
-| `swingPlane` | planned | **6** | ubiquitous | *Over the top*, *Steep through delivery*, *Stuck under the plane*, *Shallowing in transition*, *Steep backswing plane*, *Flat backswing plane* |
-| `spineForwardBend` | live (down the line 21 Sep; the chest sensor 12 Nov 2026) | **3** | occasional | *Standing too upright*, *Bent over too much at address*, *Diving into the ball* |
-| `clubPath` | planned | **2** | ubiquitous | *Path too far out-to-in*, *Path too far in-to-out* |
-| `faceToPath` | device | **2** | ubiquitous | *Face open to the path*, *Face closed to the path* |
-| `pelvisThrust` | planned | **2** | ubiquitous | *Early extension*, *Backing away from the ball* |
-| `spinAxis` | device | **2** | ubiquitous | *Slice*, *Hook* |
-| `shaftDirection` | live (12 Nov 2026) | **4** | common | *Club taken inside*, *Club taken outside*, *Across the line at the top*, *Laid off at the top* |
-| `launchDirection` | planned | **2** | common | *Pull*, *Push* |
 | `lumbarExtension` | noProducer | **2** | common | *S-posture*, *Flat lower back at address* |
-| `spinRate` | device | **2** | common | *Too much spin*, *Too little spin* |
-| `strikeLocation` | device | **2** | common | *Heel strike*, *Toe strike* |
 | `thoracicFlexion` | noProducer | **2** | common | *C-posture*, *Flat upper back at address* |
-| `ballSpeed` | planned | **1** | common | *Lost ball speed* |
-| `carryDistance` | device | **1** | common | *Short carry* |
-| `smashFactor` | device | **1** | common | *Poor strike efficiency* |
-| `trailKneeFlexion` | planned | **1** | common | *Trail knee straightens* |
-| `leadKneeFlexion` | live (12 Nov 2026, the 3-D fit) | **3** | occasional | *Sitting too deep*, *Legs too straight*, *Late lead-knee buckle* |
-| `ballBodyDistance` | planned | **2** | occasional | *Ball too close to the body*, *Ball too far from the body* |
-| `launchAngle` | planned | **2** | occasional | *Low ball flight*, *Ballooning* |
+| `pelvisLiftBelt` | noProducer | **1** | uncommon | *Pelvis sinks during the backswing* |
 
-**`swingPlane` tops the list by a distance**, and it is worth seeing why the count is six rather than
-the two you might expect. One metric read at three different phases carries the whole plane story —
-the backswing pair off `m_shaftPlaneBackswing`, the delivery pair off `m_shaftPlaneDelivery`, and
-over-the-top with its shallowing counterpart off the P4→P5 delta. That is `metric_reducer.h` doing
-its job: *where* a reading is taken is a property of the measure, not of the metric, so one producer
-serves six characteristics including the single commonest fault in amateur golf.
-
-**The `device` rows are a different kind of work and are ranked here anyway.** They need a connector,
-not a producer written from our own pixels — but a reader deciding what to build next should see all
-of it in one order, and `faceToPath` sitting third says something real about what a launch-monitor
-integration would be worth.
+*(Regenerated 13 Nov 2026, plane stack D6, from the snippet below.)* Every other metric a
+characteristic reads is now read by a live measure in the pack, so the snippet leaves it out. The
+previous copy had fallen behind the pack: it still ranked 19 metrics, and three of its rows had been
+hand-marked live rather than dropped. Their notes, kept here so the history is not lost:
+`spineForwardBend` "live (down the line 21 Sep; the chest sensor 12 Nov 2026)", `shaftDirection`
+"live (12 Nov 2026)", `leadKneeFlexion` "live (12 Nov 2026, the 3-D fit)". `swingPlane`, which topped
+the old list with six faults, serves none now: the plane faults moved to `swingPlaneCurve` on 8 Nov
+2026, the absolute backswing pair was retired (plane stack D1), and the backswing-plane pair (*Club under
+plane halfway back*, *Club above plane halfway back*) reads `m_clubSlotTop` on `clubSlotTop` (plane
+stack D3), not `m_shaftPlaneBackswing`.
 
 **This table is a JOIN, not a hand-kept list — regenerate it, do not edit it.** The lesson of the
 Capture column below applies with more force here, because this one spans two registries:
@@ -1033,7 +1020,10 @@ presets list them in.
 | `leadWristFlexExt` | live | F+H | MetricExtractor Cardan-1 ✓ | anat+mount | `wrist_angles_test` · per-rig sign ("check your sensors") · (corpus) |
 | `leadWristRadUln` | live | F+H | MetricExtractor Cardan-2 ✓ | anat+mount | `wrist_angles_test` · (corpus; weakest IMU axis ~5°) |
 | `forearmPronation` | live | F+H+U | MetricExtractor twist ✓ | anat+mount | `wrist_angles_test` · (corpus) |
-| `leadArmFlexion` | live | F+H+U | MetricExtractor elbow angle ✓ | anat+mount | `wrist_angles_test` · (corpus) |
+| `leadArmFlexion` | live | F+H+U; FaceCam (13 Nov 2026, the `faceOn` rung, below the sensors) | MetricExtractor elbow angle ✓; `buildUpperBodySeries` angle at the lead elbow in the face-on picture, gated on both arm segments' image length (`body.leadElbowLines`) ✓ | anat+mount; camCal | `wrist_angles_test` · `upper_body_metrics_test` §16 · (corpus) |
+| `leadArmFlexion3d` | live | FaceCam + **DTL** (plane stack D2, 13 Nov 2026) | the two-camera 3-D fit's lead shoulder–elbow–wrist angle (`Skeleton3dBodyStage`), only on frames whose lead elbow is MEASURED (FB's honest tier 3), read at the top; shown, not graded since D6 (`bent_lead_arm` grades `leadElbowBendChange3d`); erased where the wrist sensors' `leadArmFlexion` reads (`applyLeadElbowSensorPrecedence`) ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test` §16 · `upper_body_metrics_test` §16h · `live_measure_source_test` (D2) |
+| `leadElbowBendChange3d` | live | FaceCam + **DTL** (plane stack D6, 13 Nov 2026) | one reading at the top (`Skeleton3dBodyStage`, `skeleton3d_body_series.h`): `leadArmFlexion3d` at the top as graded, less the median of its measured frames over the address hold (P1 − 150 ms … P1); not built where either end has no measured elbow, with the Refused `body3d.leadElbowUnmeasured` (code `top` / `address` / `both`); `bent_lead_arm` grades it; erased with `leadArmFlexion3d` where the wrist sensors read ✓ | fit cameras self-solved | `skeleton3d_body_metrics_test` §16 · `upper_body_metrics_test` §16h′ · `live_measure_source_test` (D2/D6) |
+| `armLiftTop` | live | FaceCam + **DTL** (plane stack D2, 13 Nov 2026) | the DTL lead shoulder → ELBOW line against the shoulder line at the top (`dtl_posture.h`); the 3-D fit's upper arm against the shoulder-turn plane (`Skeleton3dBodyStage`) only where the DTL reading is missing while the cameras are uncalibrated, and never where `body3d.shoulderViewsDisagree` fired ✓ | none for DTL; fit cameras self-solved | `dtl_posture_test` §9 · `skeleton3d_body_metrics_test` §15 · `live_measure_source_test` (D2) |
 | `trailWristFlexExt` | live | FaceCam (WholeBody hand keypoints) | `buildTrailWristSeries` apparent camera-plane angle ✓ | camCal | `pose_wrist_angle_source_test` · (corpus) |
 
 ### Body rotation
@@ -1049,7 +1039,7 @@ Measured for the pelvis / thorax IMUs, so these read as real-but-estimated rathe
 | `xFactorStretch` | live | as `xFactor` (incl. the DTL rung), + a segmented Top | separation minus its value at Top ✓ | camCal / anat+mount | `body_rotation_test` · (corpus: speed correlation owed) |
 | `shoulderPlaneAngle` | live | FaceCam | `buildUpperBodySeries` shoulder-line vs horizontal ✓ | camCal | `upper_body_metrics_test` · (corpus) |
 | `shoulderPlaneAngle3d` | live *(Bridged; Measured with Thx)* | FaceCam + **DTL** (**Thx** upgrades it and wins) | the two-camera 3-D fit's shoulder line, its inclination in its own vertical plane at the top (`Skeleton3dBodyStage`, 12 Nov 2026) ✓; the chest sensor's ML axis against level, the same inclination, which beats it (`thoraxImu`, 13 Nov 2026) ✓ | fit cameras self-solved / anat+mount | `skeleton3d_body_metrics_test`, `trunk_e2e_test` §k · (one-swing check; no worn session) |
-| `shoulderTiltVsBend` | live *(Bridged; Measured with Thx)* | FaceCam + **DTL** (**Thx** upgrades it and wins) | `shoulderPlaneAngle3d` at the top − `spineForwardBend` at address, each read as the grader reads it, derived once after the trunk-sensor precedence (`deriveShoulderTiltVsBend`, `shoulder_tilt_vs_bend.h`, 13 Nov 2026) ✓. Rungs: `trunkImus` (both halves from the chest sensor) · `thoraxImu+dtl` · `faceOn+dtl` (the 3-D fit's tilt, the down-the-line bend) · `trunkImus+faceOn+dtl`; every mixed pair carries `body.tiltBendMixedSources`. Grades `flat_shoulder_plane` / `steep_shoulder_plane` (norm −3 ± 5, heuristic) | as its halves | `shoulder_tilt_vs_bend_test` (the grader's own `at` reading), `trunk_e2e_test` §m · (one-swing check, library sweep; no worn session) |
+| `shoulderTiltVsBend` | live *(Bridged; Measured with Thx)* | FaceCam + **DTL** (**Thx** upgrades it and wins) | `shoulderPlaneAngle3d` at the top − `spineForwardBend` at address, each read as the grader reads it, derived once after the trunk-sensor precedence (`deriveShoulderTiltVsBend`, `shoulder_tilt_vs_bend.h`, 13 Nov 2026) ✓. Rungs: `trunkImus` (both halves from the chest sensor) · `thoraxImu+dtl` · `faceOn+dtl` (the 3-D fit's tilt, the down-the-line bend) · `trunkImus+faceOn+dtl`; every mixed pair carries `body.tiltBendMixedSources`; below −20° `body.tiltBendOutOfRange`, and through its 3-D tilt `body3d.shoulderViewsDisagree` (both Downgraded, FB 13 Nov 2026). Grades `flat_shoulder_plane` / `steep_shoulder_plane` (norm −3 ± 5, heuristic) | as its halves | `shoulder_tilt_vs_bend_test` (the grader's own `at` reading), `trunk_e2e_test` §m · (one-swing check, library sweep; no worn session) |
 | `trailHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: thigh turn − pelvis-sensor turn; the thigh assumed fixed (σ 6°, `body.thighTurnAssumed`) without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
 | `leadHipInternalRotation` | live | Plv (+ **FaceCam + DTL**: the 3-D fit's thigh turn) | `buildHipInternalRotation`: pelvis-sensor turn − thigh turn; the thigh assumed fixed without the fit (12 Nov 2026) ✓ | anat+mount / camCal | `trunk_e2e_test` §j · (no worn session; mocap owed) |
 

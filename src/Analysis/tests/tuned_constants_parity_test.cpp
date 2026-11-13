@@ -89,6 +89,35 @@ int main()
           "ball::activity defaults == (true,9,1.5,5.0) (2026-07-18 freeze)");
     check(t::ball::kTk0AddressOverride == false, "ball::kTk0AddressOverride == false (2026-07-17 freeze)");
     check(t::positions::kP1ClubQuietSigma == 3.0, "positions::kP1ClubQuietSigma == 3.0");
+    // P8 bounds and leadArmToTorso's upper-arm gate (plane stack FA, 13 Nov 2026).
+    check(t::positions::kP8MinAfterImpactUs == 40000 && t::positions::kP8MaxAfterImpactUs == 200000
+          && t::positions::kP8StallBandDeg == 12.0 && t::positions::kP8StallMinUs == 40000,
+          "positions P8 window (40000, 200000) and stall (12, 40000) (2026-11-13)");
+    check(t::upperBody::kMinUpperArmRatio == 0.45 && t::upperBody::kMaxUpperArmRatio == 1.4,
+          "upperBody upper-arm band (0.45, 1.4) (2026-11-13)");
+    // The face-on lead elbow's forearm band (plane stack D5, 13 Nov 2026).
+    check(t::upperBody::kMinForearmRatio == 0.45 && t::upperBody::kMaxForearmRatio == 1.4,
+          "upperBody forearm band (0.45, 1.4) (2026-11-13, D5)");
+    // The face-on elbow's occlusion gate and the millisecond-span coverage rule (D5 round 3).
+    check(t::upperBody::kHeadRadiusRatio == 0.25 && t::upperBody::kMinRawConf == 0.40
+              && t::upperBody::kElbowFoldSpanUs == 100000 && t::reduce::kMsSpanMaxGapUs == 30000,
+          "upperBody occlusion (0.25, 0.40, 100000) and reduce.msSpanMaxGapUs 30000 (2026-11-13, D5 round 3)");
+    // The 3-D fit's cross-view shoulders and hips, confidence in σ, honest tiers, and the two shoulder
+    // warnings (plane stack FB, 13 Nov 2026).
+    check(t::body3d::kCrossViewMissMm == 30.0 && t::body3d::kCrossViewSigmaCap == 5.0
+          && !t::body3d::kCrossViewHips && t::body3d::kConfSigmaRef == 0.8 && t::body3d::kTierSeenSigmas == 3.0
+          && t::body3d::kTierSeenFloorPx == 15.0,
+          "body3d cross-view (30 mm, ×5, hips off), confSigmaRef 0.8, tier reach max(3σ, 15 px) (2026-11-13)");
+    check(t::body3d::kShoulderViewsDisagreeDeg == 7.0 && t::body3d::kShoulderViewsHalfWindowUs == 15000
+          && t::body3d::kShoulderViewsMinConf == 0.7 && t::body3d::kShoulderViewsMinLinePx == 20.0
+          && t::body3d::kTiltBendFloorDeg == -20.0
+          && t::body3d::kElbowHoldUs == 150000 && t::body3d::kElbowHoldMinFrames == 1,   // D6: the address hold
+          "body3d shoulder views (7°, ±15 ms, conf 0.7, 20 px) and the tilt − bend floor −20° (2026-11-13)");
+    // The down-the-line ball's shadow crescent gated by the ball's imaged disc (plane stack FC, 13 Nov 2026).
+    check(t::dtlBall::kShadowAreaMinFrac == 0.08 && t::dtlBall::kShadowAreaMaxFrac == 4.0,
+          "dtlBall shadow area 0.08–4 × π·r² (2026-11-13)");
+    // The narrowest slot the club's climb is placed in (plane stack D3, 13 Nov 2026).
+    check(t::clubSlot::kMinWidthDeg == 4.0, "clubSlot::kMinWidthDeg == 4.0 (2026-11-13, D3)");
 
     // Camera-only Address/Takeaway hardening — FROZEN ON 2026-07-17 (user-
     // approved after the in-app eyeball; 17-swing truth evaluation, Address-

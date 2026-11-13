@@ -83,8 +83,6 @@
   "shut_face_top": { "new": "wrists", "old": "armsAndClub" },
   "steep_backswing_plane": { "new": "planePath", "old": "swingPlane" },
   "flat_backswing_plane": { "new": "planePath", "old": "swingPlane" },
-  "backswing_plane_too_upright": { "new": "planePath", "old": "swingPlane" },
-  "backswing_plane_too_flat": { "new": "planePath", "old": "swingPlane" },
   "downswing_plane_too_steep": { "new": "planePath", "old": "swingPlane" },
   "downswing_plane_too_flat": { "new": "planePath", "old": "swingPlane" },
   "across_the_line": { "new": "planePath", "old": "armsAndClub" },

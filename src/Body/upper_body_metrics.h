@@ -158,6 +158,23 @@ struct UpperBodyConfig {
     // line against its own address reference frames and its own denominator (see
     // LowerBodyState::hipLineValid). One ratio, two references.
     double  minHipSpanRatio      = tuned::lowerBody::kMinHipSpanRatio;      // lowerBody.minHipSpanRatio
+    // leadArmToTorso's UPPER-ARM gate (13 Nov 2026): the lead upper arm's image length against
+    // its address length must lie in [minUpperArmRatio, maxUpperArmRatio]. Below it the arm
+    // points along the view ray and its image direction is keypoint noise (2–179° on Jess's
+    // late P8s); above it the elbow has left the arm. The channel's other half is the shoulder
+    // line (minShoulderSpanRatio): its torso direction starts at the shoulder midpoint.
+    double  minUpperArmRatio     = tuned::upperBody::kMinUpperArmRatio;     // upperBody.minUpperArmRatio
+    double  maxUpperArmRatio     = tuned::upperBody::kMaxUpperArmRatio;     // upperBody.maxUpperArmRatio
+    // The face-on lead elbow's gate (leadArmFlexion's faceOn rung, 13 Nov 2026, plane stack D5): BOTH
+    // arm segments must image within their bands against address — the upper arm by the pair above,
+    // the forearm (elbow → wrist) by this one. A foreshortened segment hides the bend at the elbow.
+    double  minForearmRatio      = tuned::upperBody::kMinForearmRatio;      // upperBody.minForearmRatio
+    double  maxForearmRatio      = tuned::upperBody::kMaxForearmRatio;      // upperBody.maxForearmRatio
+    // The face-on lead elbow's OCCLUSION gate (13 Nov 2026, plane stack D5 round 3): a lead shoulder,
+    // elbow or wrist within headRadiusRatio × the address shoulder width of the head's centre (nose,
+    // eyes, ears), or one the pose model scored below minRawConf on its RAW confidence, is not seen.
+    double  headRadiusRatio      = tuned::upperBody::kHeadRadiusRatio;      // upperBody.headRadiusRatio
+    double  minRawConf           = tuned::upperBody::kMinRawConf;           // upperBody.minRawConf
     // Where a bridge stops being a measurement (metric_channel.h channelValidityMask).
     // Carried in the config, then on the result, so buildUpperBodySeries keeps its signature.
     // NEGATIVE maxBridgeUs = do not mask at all, the pre-mask behaviour.
@@ -175,6 +192,12 @@ struct UpperBodyConfig {
         apply(ov, "upperBody.minShoulderSpanRatio", c.minShoulderSpanRatio);
         apply(ov, "upperBody.minElbowSpanPx",       c.minElbowSpanPx);
         apply(ov, "lowerBody.minHipSpanRatio",      c.minHipSpanRatio);
+        apply(ov, "upperBody.minUpperArmRatio",     c.minUpperArmRatio);
+        apply(ov, "upperBody.maxUpperArmRatio",     c.maxUpperArmRatio);
+        apply(ov, "upperBody.minForearmRatio",      c.minForearmRatio);
+        apply(ov, "upperBody.maxForearmRatio",      c.maxForearmRatio);
+        apply(ov, "upperBody.headRadiusRatio",      c.headRadiusRatio);
+        apply(ov, "upperBody.minRawConf",           c.minRawConf);
         apply(ov, "channel.maxBridgeUs",            c.maxBridgeUs);
         apply(ov, "channel.bridgeSpacingFactor",    c.bridgeSpacingFactor);
         return c;
@@ -216,6 +239,14 @@ struct UpperBodyReference {
     // own reference, still produces hipLineTilt.
     double  shoulderDxPx   = 0.0;
     double  hipDxPx        = 0.0;
+    // |lead shoulder − lead elbow| at address, px — the denominator of leadArmToTorso's
+    // upper-arm gate. Every reference frame has the lead arm (the admission test asks for it),
+    // so this is 0 only on a degenerate pose, and the channel is then refused for the swing.
+    double  leadUpperArmLenPx = 0.0;
+    // |lead elbow − lead wrist| at address, px — the face-on lead elbow's forearm-gate denominator.
+    // Over the reference frames whose lead wrist was confident; 0 when none was, and the elbow
+    // reading is then refused for the swing (a ratio with no denominator is not a measurement).
+    double  leadForearmLenPx  = 0.0;
 };
 
 // The 1σ MEASUREMENT NOISE propagated into each channel's samples, IN THAT CHANNEL'S OWN UNIT and
@@ -234,6 +265,9 @@ struct UpperBodyReference {
 struct UpperBodySigma {
     std::vector<double> axisTilt, sideBend, thoraxDrift, shoulderPlane, elbowLine;
     std::vector<double> trailElbowHeight, leadHandWidth, leadArmGap, trunkRise;
+    // The face-on lead elbow bend (leadArmFlexion): the three keypoints' σ through the angle at the
+    // elbow, derivation at its push in trackUpperBody.
+    std::vector<double> leadElbowFlex;
     // ⚠ THERE IS NO leadArmToTorso ENTRY, and that is a decision with a reason rather than an
     // omission — the block above that channel's push in trackUpperBody carries it in full. In short:
     // the reported value is an UNSIGNED angle, so near the small angles a hanging arm actually
@@ -257,6 +291,10 @@ struct UpperBodyResult {
     MetricChannel leadArmGap;       // leadUpperArmToChest      % shoulder width
     MetricChannel leadArmToTorso;   // leadArmToTorso           °   (unsigned, 0–180)
     MetricChannel trunkRise;        // trunkRise                % of the address trunk chord (+ = more upright)
+    // leadArmFlexion's faceOn rung (13 Nov 2026, plane stack D5): 180° − the angle at the lead elbow
+    // between the lead shoulder and the lead wrist, 0 = straight, + = more bend — the wrist sensors'
+    // sign (metric_extractor.cpp: an unsigned flexion magnitude). Published routeId "faceOn".
+    MetricChannel leadElbowFlex;    // leadArmFlexion           °   (unsigned, 0–180; + = more bend)
 
     // The instants each gated channel's geometry was REFUSED at — the joints were confident and the
     // LINE was not usable. Ascending, one entry per such frame.
@@ -270,6 +308,26 @@ struct UpperBodyResult {
     std::vector<int64_t> gatedShoulderLine;   // shoulderPlaneAngle, trailElbowHeight, trunkRise
     std::vector<int64_t> gatedElbowLine;      // elbowAlignment
     std::vector<int64_t> gatedSideBend;       // spineSideBend — EITHER line refused
+    // leadArmToTorso — the shoulder line refused, OR the lead upper arm outside its length band.
+    // The two ratios at each refused instant ride along (parallel), for the record's evidence:
+    // shoulder |dx| / address |dx|, and upper-arm length / address length (0 = no denominator).
+    std::vector<int64_t> gatedArmTorso;
+    std::vector<double>  gatedArmTorsoShoulderRatio, gatedArmTorsoArmRatio;
+    // leadArmFlexion (face-on) — the lead upper arm OR forearm outside its length band. The two ratios
+    // at each refused instant ride along (parallel), for the record's evidence (0 = no denominator).
+    // No shoulder half: the elbow angle never reads the shoulder midpoint.
+    std::vector<int64_t> gatedLeadElbow;
+    std::vector<double>  gatedLeadElbowArmRatio, gatedLeadElbowForearmRatio;
+    // leadArmFlexion (face-on) — a lead arm point NOT SEEN (D5 round 3): on the head, or scored below
+    // minRawConf by the pose model. Checked before the length band, so a frame is on one list only. The
+    // parallel `hiddenLeadElbowWhy` is a bit set per instant: HiddenWhy below.
+    std::vector<int64_t> hiddenLeadElbow;
+    std::vector<uint8_t> hiddenLeadElbowWhy;
+    // Frames whose RAW confidences could not be read from pose.frames (a smoothed track whose raw track
+    // is not parallel to it, or whose instant differs), so the confidence rule judged the SMOOTHED score
+    // there — where a predicted point is floored at 0.5 and the rule cannot fire. 0 in production (the
+    // smoother keeps the two parallel); UpperBodyMetricsStage warns once per swing when it is not.
+    int rawConfFallbackFrames = 0;
 
     // Per-sample σ, parallel to the channels above. See UpperBodySigma.
     UpperBodySigma sigma;
@@ -289,10 +347,23 @@ struct UpperBodyResult {
     std::vector<int64_t> shouldersSeenUs;   // both shoulders confident — the shoulder line's frames
     std::vector<int64_t> elbowsSeenUs;      // both elbows confident — the elbow line's frames
     std::vector<int64_t> trunkSeenUs;       // shoulders AND hips confident — spineSideBend's frames
+    std::vector<int64_t> armTorsoSeenUs;    // lead arm AND spine confident — leadArmToTorso's frames
+    std::vector<int64_t> leadElbowSeenUs;   // lead shoulder, elbow AND wrist confident — leadArmFlexion's frames
     double minShoulderSpanRatio = tuned::upperBody::kMinShoulderSpanRatio;
     double minElbowSpanPx       = tuned::upperBody::kMinElbowSpanPx;
     double minHipSpanRatio      = tuned::lowerBody::kMinHipSpanRatio;
+    double minUpperArmRatio     = tuned::upperBody::kMinUpperArmRatio;
+    double maxUpperArmRatio     = tuned::upperBody::kMaxUpperArmRatio;
+    double minForearmRatio      = tuned::upperBody::kMinForearmRatio;
+    double maxForearmRatio      = tuned::upperBody::kMaxForearmRatio;
+    double headRadiusRatio      = tuned::upperBody::kHeadRadiusRatio;
+    double minRawConf           = tuned::upperBody::kMinRawConf;
 };
+
+// Why a face-on lead-arm frame was not seen (UpperBodyResult::hiddenLeadElbowWhy), one bit each.
+namespace hidden_why {
+inline constexpr uint8_t kShoulderOnHead = 1, kElbowOnHead = 2, kWristOnHead = 4, kLowConfidence = 8;
+}
 
 // Per-frame upper-body channels from the (smoothed, else raw) pose track.
 //
@@ -303,7 +374,7 @@ struct UpperBodyResult {
 UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, bool leadIsLeft,
                                int64_t addressUs = -1, const UpperBodyConfig &cfg = {});
 
-// Resample the sparse channels onto the full per-frame grid and emit the ten series. Empty when
+// Resample the sparse channels onto the full per-frame grid and emit the eleven series. Empty when
 // the address reference is unresolved or the shoulder span is below its floor — below that the
 // percentages are noise divided by noise, and the honest answer is that nothing was measured.
 //
@@ -312,7 +383,7 @@ UpperBodyResult trackUpperBody(const PoseTrack2D &pose, int frameW, int frameH, 
 // bridge more than res.maxBridgeUs across frames the DETECTOR lost; empty when neither happened. AN
 // INVALID INSTANT EMITS NO PHASE SAMPLE, the same rule an unsegmented phase already obeys.
 //
-// Nine of the ten also carry MetricSeries::sigma when the smoother's per-keypoint posterior was
+// Ten of the eleven also carry MetricSeries::sigma when the smoother's per-keypoint posterior was
 // available: the keypoint σ propagated through THAT channel's own geometry, per frame, then the
 // MEDIAN over the frames the final mask still calls measurements — so a gated run, an over-long
 // bridge and the post-Impact tail cannot set it. ABSENT (never 0) on a track with no `smoothedAux`,
@@ -325,6 +396,27 @@ std::vector<MetricSeries> buildUpperBodySeries(const UpperBodyResult &res,
 // whole-reference refusals, plus one summary record per line gate that fired — the shoulder line
 // (shoulderPlaneAngle and trunkRise over Address..Impact, trailElbowHeight over the swing), the elbow line
 // (elbowAlignment, Address..Impact) and either line under spineSideBend (Address..Impact).
+// leadArmToTorso's gate (body.armTorsoLines) leaves a Masked summary over the swing, and a REFUSED
+// record for each instant its grade reads (Impact, P8) where the gate left fewer than the
+// grader's minimum valid frames within its ±window — the record that names why it is not judged.
+// The face-on lead elbow's two gates — body.leadElbowLines (a foreshortened segment) and
+// body.leadArmHidden (a point on the head or scored low, D5 round 3) — each leave a Masked summary over
+// the swing, a REFUSED record at Impact (the instant m_leadElbowFoldAfterImpact is measured from) when
+// the gates leave the grader nothing there, and a REFUSED record for the span after impact
+// (tuned::upperBody::kElbowFoldSpanUs) when the frames left there leave a stretch longer than
+// tuned::reduce::kMsSpanMaxGapUs unread — the grader's own coverage rule. Each Refused record comes from ONE
+// gate: the one that refused the most frames in that stretch, ties to body.leadArmHidden.
 std::vector<GateRecord> upperBodyGates(const UpperBodyResult &res, const std::vector<PhaseEvent> &phases);
+
+// THE WRIST SENSORS' ELBOW WINS (13 Nov 2026, plane stack D5). leadArmFlexion has two producers: the
+// wrist sensors' elbow (metric_extractor.cpp, the catalogue's wristImus rung, a three-sensor rig) and
+// the face-on camera's (this module, routeId "faceOn", the rung below it). Where both read, the camera
+// series is erased and its records stop speaking for the key: body.leadElbowLines records are dropped,
+// and leadArmFlexion leaves the covers of this module's whole-reference refusals. Run once after every
+// stage, so it holds whatever order the two producers ran in. The records are cleaned whenever a sensor
+// series exists, even when no face-on series was written (an address refusal). Returns the number of
+// series erased. The 3-D fit's measured elbow, leadArmFlexion3d (Skeleton3dBodyStage, plane stack D2), is
+// erased with it wherever the sensors read: wristImus > 3-D > face-on, the order bent_lead_arm reads them in.
+int applyLeadElbowSensorPrecedence(std::vector<MetricSeries> &series, std::vector<GateRecord> &gates);
 
 } // namespace pinpoint::analysis

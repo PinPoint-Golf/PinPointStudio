@@ -142,6 +142,33 @@ unwatched. A face-on-only capture no longer assesses `over_the_top` at all.
 turned 4–9° toward the golfer (§4): some target-line movement leaks into image x. The ratio
 is invariant to distance, not to yaw.
 
+## 3a′. The arm lift at the top — the lead upper arm against the shoulder line (2026-11-13, plane stack D2)
+
+`armLiftTop` (°): at the top only, the angle between the lead UPPER ARM (lead shoulder → lead ELBOW, COCO
+5 → 7 for a right-hander, 6 → 8 for a left-hander) and the shoulder line (lead → trail shoulder) in the
+picture, + with the elbow on the upper side of the shoulder line. **Measured to the elbow, never the wrist**
+(Mark, 13 Nov): a bent lead arm folds the forearm up and makes the arms look lifted; it is graded as its own
+fault (`bent_lead_arm`). It is layer 3 of the plane stack (`plane_stack_design.md` §3.2) and the coach's own
+check from down the line: one-plane with the elbow on the shoulder line, two-plane above it.
+
+- **Read:** the median over the frames within ±15 ms of the Top (the grader's window) where the lead
+  shoulder, trail shoulder and lead elbow all score ≥ `dtlPosture.confMin` on the RAW confidence. One phase
+  sample at the Top, no curve, route `dtl`.
+- **Sign:** by the picture's own up, so neither the way the golfer faces in the image nor the hand turns it.
+  Worked example (`dtl_posture_test` §9): a shoulder line rising 25°, the elbow 80 px out at 37° reads +12;
+  the forearm folded 35° further up puts the wrist 24° above the line, and the reading stays +12.
+- **σ:** each keypoint's smoother σ × max(1, 0.8 / confidence) (`body3d.confSigmaRef`, the 3-D fit's rule
+  for the same keypoints), through the angle, with the lead shoulder in both lines; the frames' median. The
+  trail shoulder at the top, half hidden behind the lead arm, scores ≈ 0.7 and carries 1.1×. On the library
+  the reading's σ is a median 1.1–1.2° (Paddy 2.0°). No σ on a track without the smoother's σ.
+- **Refused:** `posture.armLift` (code `keypoints`, with the frames looked at) when no frame qualifies; the
+  address refusal covers it too.
+- **Precedence:** while the cameras are uncalibrated this reading is the answer wherever it exists; the 3-D
+  fit's (`skeleton3d_body_series.h`) fills only where it is missing (`plane_stack_design.md` §11 D2).
+- **Library (13 Nov, read-only, `docs/research/data/plane_stack/d2_upper_arm.py`):** golfer medians Mark +7.1,
+  Nick −2.4, Jess +15.5, Paddy +5.6, Chris +15.7; within-session SD 3.4°. To the wrist the same frames read
+  12° (Mark) and 15° (Nick) higher.
+
 ## 3b. Shaft lie — the shaft's angle to the ground at address and at impact (2026-10-01)
 
 Mark asked for the lie-like reading a down-the-line frame gives for free: how upright the shaft

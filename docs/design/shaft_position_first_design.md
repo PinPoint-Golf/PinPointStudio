@@ -102,6 +102,47 @@ signals, far more stable than any per-frame measurement:
 - P1/P4/P7 from existing segmentation events (unchanged).
 - P2/P6/P8: image-plane shaft-parallel crossings of the smoothed θ(t) from the
   v3 track (θ crossing horizontal, in the correct swing phase window each).
+- **P8 is bounded (13 Nov 2026, shaft stage 13).** It is the first crossing whose
+  instant lies between impact + 40 ms and impact + 200 ms
+  (`positions.p8MinAfterImpactUs` / `p8MaxAfterImpactUs`), and that crossing is
+  P8 only when:
+  - it goes **down → up** (head below the grip, then above it). Every un-flipped
+    follow-through crosses that way, so this rule can never remove an un-flipped P8.
+    It guards against an incoherent track crossing back after a flip at impact: on
+    Nick 10-20 Wrist_01/0003 the track flips at +6 ms (θ 99° → 211°), then drifts
+    only about 45° in 75 ms, which is not a swinging shaft, and that drift crosses
+    horizontal up → down at +56 ms, inside the window. Its cost: on a track that
+    flips cleanly and stays flipped, the crossing instants are the true ones
+    (elevation changes sign under a flip), so a correctly timed P8 would be dropped
+    too. None of the library's 181 in-range P8s is such a case;
+  - the shaft did **not** sit within ±12° of vertical for 40 ms or more between
+    impact + 40 ms and the crossing (`positions.p8StallBandDeg` /
+    `p8StallMinUs`). Such a run is the tracker parked on something upright.
+  - Otherwise there is **no P8**. The hysteresis still arms from the impact frame,
+    so a crossing just inside a bound is found. Crossings before impact + 40 ms are
+    passed over. The first one at or after it is the only candidate.
+  - Why: until then nothing bounded P8 but the end of the track. On 9 of Jess's 18
+    graded shots it sat 291–743 ms after impact. A vertical light strip in her bay
+    held the tracker (83–100° from +90 to +150 ms), and it only "crossed" when the
+    club wrapped at the finish. Mark had 13 of 159 late, Nick 4 of 36 plus 3 at
+    +4–5 ms (an impact-blur flip), and Chris 1 of 7. Every correct P8 in the library
+    lies 48–179 ms after impact. On the stored tracks the window refuses all 24
+    late ones and three of the four flips (their post-flip transitions fall before
+    +40 ms, and nothing follows). The down → up rule refuses the fourth (Nick
+    0003's +56 ms crossing). None of the 181 in range changes.
+  - No P8 rather than a wrong one. Every consumer handles an absent P8: fusion has
+    no candidate; schedule B falls back to impact + 150 ms; the kinematic-sequence
+    domain ends at impact; the skeleton trim cuts nothing, so the whole
+    follow-through is kept (`analysis_pipeline.cpp`); and the P7 → P8 measures
+    are not assessable.
+  - **The reason is named (plane stack D6, 13 Nov 2026).** The cause
+    (`P8Refusal`) is kept on the track (`ShaftTrack2D::p8Refusal`, persisted as
+    `analysis.club.diag.p8Refusal`). After the run, where the document's ladder has
+    no P8, `positions.p8Refused` (Refused, subject `position.p8`, `code`
+    `noCrossing` / `late` / `wrongSense` / `verticalStall`; `Club/p8_refusal_gate.h`)
+    names it, and every measure that needs P8 and has no value there gives that
+    reason (`LiveMeasureSource::gateCause`) instead of "not segmented". A P8 the IMU
+    segmenter supplied stands, and then nothing is fired; no impact fires nothing.
 - P3/P5: lead-arm-parallel crossings of the pose φ(t) (upgrading P3's existing
   hand-proxy; P5 new).
 New enum values (additive): `ShaftParallelBack = 12 (P2)`,

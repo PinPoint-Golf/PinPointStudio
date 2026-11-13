@@ -93,7 +93,10 @@ int main(int argc, char **argv)
     // (the dip is head_drop_backswing's, on the face-on m_headLiftBack). The lead knee folding going
     // back (m_leadKneeFlex_p4, the same day) is NOT one-sided: its quiet-leg low tail is declared
     // unwatched on the measure instead, so the count stays at nineteen.
-    check(oneSided == 19, "…and one of exactly nineteen one-sided measures in the shipped pack");
+    // 19 -> 21 on 2026-11-13 (plane stack): m_leadElbowFoldAfterImpact is a ceiling (D5: the lead elbow folding
+    // after impact; straightening is not chicken_wing), and m_leadElbowBendTop3d is a ceiling (D2: bent_lead_arm's
+    // 3-D elbow at the top; a straighter arm is not that fault).
+    check(oneSided == 21, "…and one of exactly twenty-one one-sided measures in the shipped pack");
 
     // ── The rows ────────────────────────────────────────────────────────────
     //

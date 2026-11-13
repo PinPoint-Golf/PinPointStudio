@@ -468,7 +468,7 @@ a print one on the Folio aesthetic. No line was added to `design_system_allowlis
 | 8 | P7–P8 lighter, and out of the headline and Home except Finish | Mark, 6 Nov: approved in that package |
 | 9 | Narrow panels use marks on the wash | Mark, 6 Nov: approved in that package. **Superseded 7 Nov:** the grade's figure, ⚠ and "-" |
 | 10 | The Home column's width comes from the Habits bar | Mark, 6 Nov: Habits gives the width. The mock took it from Biggest fault, which cut off two names in Folio |
-| 11 | The 28 hand-placed readings (Appendix B) | Mark, 6 Nov: accepted as written, to be read on the sheets |
+| 11 | The 28 hand-placed readings (Appendix B) | Mark, 6 Nov: accepted as written, to be read on the sheets. `leadArmToTorso` added 13 Nov (D5) in Arms: **CONFIRMED by Mark, 13 Nov 2026** (plane stack D6) |
 | 12 | Charts' Apart moves to the stricter rule (§5) | Mark, 6 Nov: Apart moves |
 | 13 | Print | Mark, 6 Nov: a client report page only; the technical appendix (`PpDiagPrint`) is unchanged |
 | 14 | The ◆ | Mark, 6 Nov: ink (§6) |
@@ -571,7 +571,8 @@ once this design is accepted, as the CSVs hold what the doc quotes.
 ## Appendix B: readings placed by hand
 
 A reading's area normally comes from the conditions that detect on it, taking the group that uses it most (50 of the 82
-readings on 5 Oct). These 28 have no such condition. Mark accepted them as written on 6 Nov, to be read on the sheets:
+readings on 5 Oct). These 29 have no such condition. Mark accepted the first 28 as written on 6 Nov, to be read on the
+sheets; `leadArmToTorso` joined on 13 Nov 2026 (plane stack D5, below the table):
 
 | Area | Readings |
 |---|---|
@@ -579,10 +580,15 @@ readings on 5 Oct). These 28 have no such condition. Mark accepted them as writt
 | Posture | `headTilt`, `trunkRise`, `hipDepthButt`, `headPitch`, `spineBackLine` |
 | Lateral and balance | `plumbBobDistance` |
 | Turn and sequence | `clubAngularSpeed`, `clubheadSpeed`, `handSpeed`, `leadArmAngularSpeed`, `thoraxAngularSpeed`, `xFactor`, `tempoBackswing`, `thoraxRotationSigned`, `shoulderPlaneAngle` |
-| Arms | `elbowAlignment` |
+| Arms | `elbowAlignment`, `leadArmToTorso` |
 | Wrists and release | `trailWristFlexExt` |
 | Plane and path (`swingPlaneCurve` is placed by its conditions) | `handPlaneCurve`, `handPlaneSteepening`, `swingPlane`, `swingPlaneAngle` |
 | Delivery | `attackAngle`, `lowPointFromAttack` |
+
+`leadArmToTorso` (the lead upper arm against the torso, the change P7 to P8) was placed in Arms by `chicken_wing`
+until 13 Nov 2026, when that condition moved to the lead elbow's fold after impact (`plane_stack_design.md` §11 D5). It is
+still read and shown beside the fold, so it keeps the area it had rather than leaving the Consistency table. **Mark
+confirmed it on 13 Nov 2026** (decision 11; `plane_stack_design.md` §11 D6).
 
 `spineSideBend` is not on this list: two conditions detect on it, both in Posture, so it derives Posture. It stays in Posture
 because it is the thorax relative to the pelvis, the shape of the trunk, not the whole-trunk lean `secondaryAxisTilt` reports.

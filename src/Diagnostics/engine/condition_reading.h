@@ -86,7 +86,10 @@ inline ConditionReading measureReading(const CharacteristicPack &pack, const QSt
                 : !m->preferKeys.isEmpty() ? m->preferKeys.first() : QString();
     const Reducer &red = landingMeasureOf(pack, *m)->reducer;   // a composite lands where its parts do
     r.reducer   = red.kind;
-    r.phase     = (red.kind == ReducerKind::At && red.anchor) ? int(*red.anchor) : int(red.window.second);
+    // A span in milliseconds after a phase (metric_reducer.h `windowMs`) is placed at that phase: it
+    // has no phase window, and the instant it is timed from is the one a chart can mark.
+    r.phase     = ((red.kind == ReducerKind::At || red.windowMs) && red.anchor) ? int(*red.anchor)
+                                                                                : int(red.window.second);
     return r;
 }
 

@@ -1210,6 +1210,167 @@ int main()
         check(at("pelvisRotation") == 20.0, "any other curve keeps the ±15 ms median");
     }
 
+    // ── A window in MILLISECONDS after the anchor (windowMs, plane stack D5) ─────────────────────
+    //
+    // The lead elbow at 10° to impact (100 ms), a fold to 25° at +60 ms that relaxes to 12° by +100 ms,
+    // then a LARGER fold to 60° at +150 ms. [0, 100] ms after P7 must take the first and never the
+    // second: the big fold's rise starts at +130 ms, outside every candidate's ±20 ms support.
+    std::printf("\nwindowMs\n");
+    {
+        const auto fold = [](qint64 t) -> double {
+            const double ms = double(t) / 1000.0;
+            if (ms < 100) return 10.0;
+            if (ms < 160) return 10.0 + 15.0 * (ms - 100) / 60.0;
+            if (ms < 200) return 25.0 - 13.0 * (ms - 160) / 40.0;
+            if (ms < 230) return 12.0;
+            if (ms < 250) return 12.0 + 48.0 * (ms - 230) / 20.0;
+            if (ms < 270) return 60.0 - 50.0 * (ms - 250) / 20.0;
+            return 10.0;
+        };
+        QJsonArray t, v;
+        std::vector<int64_t> tv;  std::vector<double> vv;
+        for (qint64 x = 0; x <= 400000; x += 1000) { t.append(x); v.append(fold(x)); tv.push_back(x); vv.push_back(fold(x)); }
+        const QJsonObject elbow{ { QStringLiteral("key"), QStringLiteral("leadArmFlexion") }, { QStringLiteral("unit"), QStringLiteral("°") },
+                                 { QStringLiteral("t_us"), t }, { QStringLiteral("value"), v },
+                                 { QStringLiteral("sigma"), 2.0 }, { QStringLiteral("sigmaKind"), 1 } };
+        const auto analysisWith = [&](bool withImpact) {
+            QJsonArray ph{ phaseEvent(Phase::Address, 20000) };
+            if (withImpact) ph.append(phaseEvent(Phase::Impact, 100000));
+            ph.append(phaseEvent(Phase::Finish, 390000));
+            return QJsonObject{ { QStringLiteral("phases"), ph }, { QStringLiteral("metrics"), QJsonArray{ elbow } } };
+        };
+        Reducer r;
+        r.kind = ReducerKind::Extremum;  r.anchor = Phase::Impact;  r.sense = ExtremumSense::Max;
+        r.window = { Phase::Impact, Phase::Impact };  r.windowMs = std::pair<int, int>{ 0, 100 };
+        Measure m;
+        m.id = QStringLiteral("m_fold");  m.kind = MeasureKind::Provided;  m.metricKey = QStringLiteral("leadArmFlexion");
+        m.reducer = r;
+        const PhaseGridConfig cfg = withMsWindows({}, msWindowsOf({ m }));
+        check(cfg.msWindows.size() == 1 && cfg.msWindows.front() == PhaseGridMsWindow{ Phase::Impact, 0, 100 },
+              "msWindowsOf names the measure's span");
+        const SwingPhaseGrid g = buildPhaseGrid(analysisWith(true), cfg);
+
+        // The reducer's own answer over the same curve and span, minus the ±15 ms median at impact.
+        SeriesView view;
+        view.t = tv.data();  view.v = vv.data();  view.n = tv.size();
+        const Reduced peak = reduceExtremum(view, 100000, 200000, /*wantMax=*/true);
+        const Reduced atImp = reduceAt(view, 100000);
+        const std::optional<double> got = reduceOverGrid(g, m);
+        std::printf("    peak %.4f at %lld ms, impact %.4f\n", peak.value, (long long)(peak.atUs / 1000), atImp.value);
+        check(got.has_value(), "[0, 100] ms after P7: read");
+        near(got.value_or(-999), peak.value - atImp.value, "…the windowed-mean peak inside it, less the value at impact");
+        check(got && *got > 10.0 && *got < 15.0 + 1e-9, "…the fold at +60 ms (≈ 13°), not the 50° one at +150 ms");
+        Measure wide = m;  wide.reducer.windowMs = std::pair<int, int>{ 0, 200 };
+        const std::optional<double> w = reduceOverGrid(buildPhaseGrid(analysisWith(true), withMsWindows({}, msWindowsOf({ wide }))), wide);
+        check(w && got && *w > *got + 10.0, "…while [0, 200] ms does reach the larger fold");
+        check(!reduceOverGrid(buildPhaseGrid(analysisWith(true)), m).has_value(),
+              "a grid built without the span answers nothing for it (the reader names its spans)");
+        check(!reduceOverGrid(buildPhaseGrid(analysisWith(false), cfg), m).has_value(),
+              "no P7 on the ladder ⇒ not assessable");
+
+        // σ: the span's (the larger of the series σ and the anchor's, 2) ⊕ the anchor's (2).
+        const std::optional<GridReading> gr = reduceOverGridReading(g, m);
+        check(gr && std::isfinite(gr->sigma), "the reading carries a σ");
+        near(gr ? gr->sigma : -1.0, std::sqrt(8.0), "…√(2² + 2²): the span's σ and the anchor's in quadrature");
+
+        // Delta over the span: value(+100 ms) − value(+0 ms), both ±15 ms medians (+0 is the anchor's).
+        Measure d = m;  d.reducer.kind = ReducerKind::Delta;
+        const SwingPhaseGrid gd = buildPhaseGrid(analysisWith(true), withMsWindows({}, msWindowsOf({ d })));
+        near(reduceOverGrid(gd, d).value_or(-999), reduceAt(view, 200000).value - atImp.value,
+             "Delta: the value 100 ms after P7 less the value at P7");
+        Measure d2 = d;  d2.reducer.windowMs = std::pair<int, int>{ 50, 100 };
+        const SwingPhaseGrid gd2 = buildPhaseGrid(analysisWith(true), withMsWindows({}, msWindowsOf({ d2 })));
+        near(reduceOverGrid(gd2, d2).value_or(-999), reduceAt(view, 200000).value - reduceAt(view, 150000).value,
+             "Delta: [50, 100] reads +100 ms less +50 ms");
+        const std::optional<GridReading> gdr = reduceOverGridReading(gd2, d2);
+        near(gdr ? gdr->sigma : -1.0, std::sqrt(8.0), "…its σ: the series σ at each end, in quadrature");
+
+        // The validator (measure_facets.cpp): a negative, reversed or empty window, a window on `at` or
+        // `rate`, and a window with no anchor are refused; the domain check reads the anchor.
+        const auto valid = [](Reducer x) { return validateReducer(x).valid; };
+        Reducer bad = r;
+        check(valid(r), "validator: [0, 100] after P7 is valid");
+        bad.windowMs = std::pair<int, int>{ -10, 100 };  check(!valid(bad), "validator: a negative start is refused");
+        bad.windowMs = std::pair<int, int>{ 100, 0 };    check(!valid(bad), "validator: a reversed window is refused");
+        bad.windowMs = std::pair<int, int>{ 40, 40 };    check(!valid(bad), "validator: an empty window is refused");
+        bad = r;  bad.kind = ReducerKind::At;            check(!valid(bad), "validator: refused on `at`");
+        bad = r;  bad.kind = ReducerKind::Rate;          check(!valid(bad), "validator: refused on `rate`");
+        bad = r;  bad.anchor.reset();                    check(!valid(bad), "validator: refused with no anchor");
+        PhaseDomain toImpact;  toImpact.first = Phase::Address;  toImpact.last = Phase::Impact;
+        check(validateReducer(r, toImpact).valid, "validator: an anchor inside the domain is enough");
+
+        // The sidecar: the spans round-trip, and the guard is a SUBSET test.
+        const QJsonObject doc = savePhaseGrid(g, 777, 1700000000000LL);
+        bool ok = false;
+        std::vector<PhaseGridMsWindow> held;
+        const SwingPhaseGrid back = loadPhaseGrid(doc, 777, 1700000000000LL, &ok, cfg, &held);
+        check(ok && held.size() == 1, "sidecar: a reader asking for the stored span loads it");
+        near(reduceOverGrid(back, m).value_or(-999), got.value_or(-998), "sidecar: …and reads the same number");
+        bool okNone = false;
+        loadPhaseGrid(doc, 777, 1700000000000LL, &okNone);
+        check(okNone, "sidecar: a reader naming no span accepts it");
+        bool okOther = true;
+        held.clear();
+        loadPhaseGrid(doc, 777, 1700000000000LL, &okOther, withMsWindows({}, { { Phase::Impact, 0, 50 } }), &held);
+        check(!okOther && held.size() == 1 && held.front() == PhaseGridMsWindow{ Phase::Impact, 0, 100 },
+              "sidecar: a reader asking for another span is refused, told what it held (to rebuild the union)");
+        // A span stored with no coverage (a sidecar written before the coverage rule) is not held: a
+        // reader asking for it is refused and rebuilds, rather than reading it as uncovered for ever.
+        {
+            QJsonObject old = doc;
+            QJsonArray ms = old.value(QStringLiteral("metrics")).toArray();
+            for (qsizetype i = 0; i < ms.size(); ++i) {
+                QJsonObject mo = ms.at(i).toObject();
+                QJsonArray spans = mo.value(QStringLiteral("msSpans")).toArray();
+                for (qsizetype k = 0; k < spans.size(); ++k) {
+                    QJsonObject so = spans.at(k).toObject();
+                    so.remove(QStringLiteral("maxGapUs"));
+                    spans.replace(k, so);
+                }
+                if (!spans.isEmpty()) mo.insert(QStringLiteral("msSpans"), spans);
+                ms.replace(i, mo);
+            }
+            old.insert(QStringLiteral("metrics"), ms);
+            bool okOld = true;
+            std::vector<PhaseGridMsWindow> heldOld{ { Phase::Address, 1, 2 } };
+            loadPhaseGrid(old, 777, 1700000000000LL, &okOld, cfg, &heldOld);
+            check(!okOld && heldOld.empty(), "sidecar: a span stored with no coverage is not held, so it is rebuilt");
+        }
+        const SwingPhaseGrid plain = buildPhaseGrid(analysisWith(true));
+        check(!savePhaseGrid(plain, 777, 1).value(QStringLiteral("source")).toObject().contains(QStringLiteral("ms_windows")),
+              "sidecar: a grid with no span serialises as before");
+
+        // readPhaseGrid rebuilds a sidecar that lacks a span with the UNION, so two packs' readers
+        // do not keep overwriting each other.
+        QTemporaryDir tmp;
+        const QString dir = tmp.filePath(QStringLiteral("2026-11-13_Session_01/swing_0001"));
+        QDir().mkpath(dir);
+        {
+            QFile o(pinpoint::SwingStore::jsonPath(dir));
+            const QByteArray bytes = QJsonDocument(QJsonObject{ { QStringLiteral("analysis"), analysisWith(true) } })
+                                         .toJson(QJsonDocument::Compact);
+            check(o.open(QIODevice::WriteOnly | QIODevice::Truncate) && o.write(bytes) == bytes.size(), "union: a swing on disk");
+        }
+        const PhaseGridConfig cfgB = withMsWindows({}, { { Phase::Impact, 0, 50 } });
+        const SwingPhaseGrid ga = readPhaseGrid(dir, true, cfg);
+        const SwingPhaseGrid gb = readPhaseGrid(dir, true, cfgB);
+        QFile side(phaseGridPath(dir));
+        const QJsonArray stored = side.open(QIODevice::ReadOnly)
+            ? QJsonDocument::fromJson(side.readAll()).object().value(QStringLiteral("source")).toObject()
+                  .value(QStringLiteral("ms_windows")).toArray()
+            : QJsonArray{};
+        check(reduceOverGrid(ga, m).has_value() && gb.config.msWindows.size() == 2 && stored.size() == 2,
+              "union: the second reader's rebuild holds both spans, on disk too");
+        const SwingPhaseGrid again = readPhaseGrid(dir, false, cfg);   // no fat parse allowed: the sidecar must serve
+        check(!again.isEmpty() && reduceOverGrid(again, m).has_value(), "union: …and the first reader is served from it");
+        // A reader that may not fat-parse and asks for a span the sidecar lacks still gets the swing:
+        // every other number is current, only that span is missing.
+        Measure other = m;  other.reducer.windowMs = std::pair<int, int>{ 10, 90 };
+        const SwingPhaseGrid noParse = readPhaseGrid(dir, false, withMsWindows({}, msWindowsOf({ other })));
+        check(!noParse.isEmpty() && reduceOverGrid(noParse, m).has_value() && !reduceOverGrid(noParse, other).has_value(),
+              "no fat parse: the held grid is served, without the span it lacks");
+    }
+
     std::printf("\n%s (%d failures)\n", g_fail ? "FAILED" : "OK", g_fail);
     return g_fail ? 1 : 0;
 }

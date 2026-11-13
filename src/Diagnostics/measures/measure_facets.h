@@ -143,6 +143,9 @@ ReducerCheck validateReducer(const Reducer &r, const PhaseDomain &domain);
 // never the string — the label is for humans and must never be parsed back.
 QString canonicalSeriesLabel(const Series &s);
 QString canonicalMeasureLabel(const Series &s, const Reducer &r);
+// A millisecond window's span in words, "P7 +0 to 100 ms"; empty when the reducer has none. The one
+// spelling the canonical label and the model browser's reducer column share.
+QString reducerMsWindowLabel(const Reducer &r);
 
 // The stable id used as a JSON key and a MetricDescriptor key. Lower-camel, facet-derived, so the
 // same measure minted twice on different machines collides rather than duplicating.

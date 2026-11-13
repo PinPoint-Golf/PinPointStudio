@@ -801,6 +801,36 @@ sighted fraction 0.26–0.35 → 0.57–0.72, `publishedInEndOn` still 0. P3 and
 move by at most 0.5°, which is the grid. On the 07-04 twelve, C5 changes **no
 ladder tile, no angle, no refusal reason and none of the 425 truth pairs.**
 
+**The crescent's size gate follows the ball, not the frame (13 Nov 2026,
+`kDtlShaftStageVersion` 7, plane stack FC).** The shape gates above were
+12–400 px × (frameW / 512)². That sizes the crescent by the frame it was filmed
+in, and the crescent is a piece of the *ball's* rim. On Chris Marriott's 24 Oct
+session (976 px wide, ball radius 8.9–9.9 px) the floor was 43.6 px and his
+crescents measure 27–46 px, so 6 of 8 swings found no ball. At address his
+clubhead hides the ball, so with no ball the still club has no witness: the
+track is UNSEEN from P1 to about +190 ms, and the takeaway reading is lost. The
+area gates are now 0.08–4 × the ball's imaged disc π·r², with r from the scene
+scale (`shaft.dtl.ball.shadowAreaMinFrac` / `MaxFrac`, `tuned::dtlBall`):
+
+| session | frame width | r (px) | crescent (px) | crescent / π·r² |
+|---|---|---|---|---|
+| 06-11, the nine the cue was seated on | 576 | 6.1–7.0 | 52–79 | 0.34–0.53 |
+| Jess 20 Oct, 22 | 976 | 8.2–9.3 | 41–64 | 0.17–0.30 |
+| Nick 20 Oct, 23 | 976 | 8.5–11.8 | 41–58 | 0.10–0.25 |
+| Chris 24 Oct, eight | 976 | 8.9–9.9 | 27–46 | 0.11–0.18 |
+
+The old floor on 06-11's own frames is 15.2 px, or 0.10–0.13 of that ball's
+disc. Carried to Chris's ball, that share is still 24–40 px and still cuts his
+smallest crescents, so the floor is set below the smallest share measured
+(0.08 against 0.104) rather than copied. The share is read through r², so a
+radius read 10 % large reads it 17 % small; the 0.104 is on the largest radius
+in the set (11.8 px). The cap keeps the old cap's share of the
+06-11 ball (506 px ≈ 4 π·r²). The darkness, launch-rise, elongation and prior
+tests are unchanged; the launch rise is still what refuses a scuff. With no
+scene scale the radius is the 0.012 × H guess and the frame rule stays. An
+approximate read-only replay of the cue over every library swing whose ball was not found by
+brightness is in `docs/design/plane_stack_design.md` §11 (FC).
+
 **A published length equal to `ridgeSweep`'s own floor is refused.** §5A already
 named this — "a floor wearing a length's clothes", `rLo + minLenPx` = 98 px
 reported to the digit whenever the ray leaves the club early — and it is now a

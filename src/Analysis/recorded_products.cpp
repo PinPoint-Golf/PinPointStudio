@@ -157,6 +157,7 @@ ShaftTrack2D shaftTrackFromAnalysisJson(const QJsonObject &club, pinpoint::Sourc
         t.handGlitchFixed = dg.value(QStringLiteral("handGlitchFixed")).toInt();
         t.ballSuspect     = dg.value(QStringLiteral("ballSuspect")).toBool();
         t.handsRetried    = dg.value(QStringLiteral("handsRetried")).toBool();
+        t.p8Refusal       = shaftP8RefusalFromName(dg.value(QStringLiteral("p8Refusal")).toString());   // D6
     }
     t.refusedReason = shaftRefusedReasonFromName(club.value(QStringLiteral("refused")).toString());
     for (const QJsonValue &v : club.value(QStringLiteral("wedgeObs")).toArray()) {

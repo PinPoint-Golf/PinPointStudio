@@ -1,0 +1,127 @@
+b_el
+   Mark   127: +7.1 [+4.3, +11.0] p10 +0.6 p90 +14.7
+   Nick   38: -2.4 [-9.1, +0.2] p10 -11.2 p90 +1.7
+   Jess   23: +15.5 [+12.6, +17.9] p10 +7.9 p90 +19.5
+   Paddy  11: +5.6 [+3.2, +7.0] p10 +1.5 p90 +10.4
+   Chris  8: +15.7 [+15.1, +16.8] p10 +14.3 p90 +17.4
+b_wr
+   Mark   127: +19.1 [+17.0, +22.2] p10 +14.0 p90 +23.9
+   Nick   38: +13.7 [+11.9, +14.9] p10 +9.4 p90 +16.0
+   Jess   23: +18.5 [+15.1, +20.1] p10 +12.4 p90 +22.6
+   Paddy  11: +8.3 [+6.8, +9.3] p10 +5.6 p90 +12.8
+   Chris  8: +20.9 [+20.0, +21.3] p10 +19.3 p90 +22.0
+a2_el
+   Mark   127: +4.7 [-0.8, +9.6] p10 -6.4 p90 +15.1
+   Nick   37: +4.1 [+1.2, +7.2] p10 -0.9 p90 +9.1
+   Jess   23: +21.0 [+17.6, +24.1] p10 +14.6 p90 +26.7
+   Paddy  11: +3.6 [+0.4, +8.5] p10 -2.1 p90 +11.4
+   Chris  8: +26.2 [+23.8, +28.1] p10 +18.2 p90 +29.2
+a2_wr
+   Mark   127: +13.9 [+9.6, +17.2] p10 +4.7 p90 +20.5
+   Nick   37: +9.1 [+7.4, +11.8] p10 +4.5 p90 +14.8
+   Jess   23: +22.4 [+19.1, +25.2] p10 +16.0 p90 +26.7
+   Paddy  11: +7.9 [+6.1, +9.4] p10 +4.1 p90 +12.0
+   Chris  8: +25.7 [+23.5, +27.8] p10 +17.9 p90 +28.3
+b_el_sigma
+   Mark   127: +1.2 [+1.1, +1.3] p10 +1.0 p90 +1.4
+   Nick   38: +1.1 [+1.1, +1.6] p10 +1.0 p90 +1.8
+   Jess   23: +1.1 [+1.1, +1.2] p10 +1.0 p90 +1.3
+   Paddy  11: +2.0 [+1.9, +2.1] p10 +1.8 p90 +2.2
+   Chris  8: +1.0 [+1.0, +1.1] p10 +1.0 p90 +1.1
+b_trailConf
+   Mark   127: +0.7 [+0.7, +0.8] p10 +0.7 p90 +0.8
+   Nick   38: +0.7 [+0.7, +0.8] p10 +0.6 p90 +0.8
+   Jess   23: +0.7 [+0.7, +0.8] p10 +0.7 p90 +0.8
+   Paddy  11: +0.7 [+0.7, +0.7] p10 +0.7 p90 +0.8
+   Chris  8: +0.8 [+0.8, +0.9] p10 +0.8 p90 +0.9
+bend3d
+   Mark   127: +31.1 [+27.2, +34.5] p10 +23.7 p90 +38.9
+   Nick   37: +17.6 [+6.8, +33.5] p10 +2.4 p90 +44.5
+   Jess   23: +12.5 [+9.3, +16.4] p10 +5.4 p90 +21.3
+   Paddy  11: +18.5 [+16.0, +24.2] p10 +14.7 p90 +29.2
+   Chris  8: +4.2 [+2.1, +4.9] p10 +1.9 p90 +4.9
+bend3d_t3
+   Mark   81: +28.7 [+25.2, +31.2] p10 +23.6 p90 +33.7
+   Nick   -
+   Jess   3: +13.2 [+11.7, +14.6] p10 +10.8 p90 +15.5
+   Paddy  2: +13.2 [+11.4, +15.1] p10 +10.3 p90 +16.2
+   Chris  -
+bend3d_t3_p1
+   Mark   108: +14.5 [+12.5, +17.0] p10 +9.9 p90 +18.8
+   Nick   28: +4.9 [+3.9, +5.5] p10 +2.6 p90 +5.6
+   Jess   10: +8.5 [+7.4, +10.1] p10 +1.5 p90 +11.1
+   Paddy  11: +6.6 [+4.0, +8.1] p10 +3.2 p90 +9.8
+   Chris  8: +18.6 [+17.6, +19.0] p10 +16.8 p90 +20.3
+svd
+   Mark   97: +0.9 [+0.3, +5.3] p10 +0.2 p90 +9.4
+   Nick   27: +1.5 [+0.8, +3.9] p10 +0.4 p90 +7.5
+   Jess   18: +0.5 [+0.3, +1.2] p10 +0.2 p90 +2.0
+   Paddy  11: +3.5 [+1.8, +4.4] p10 +1.2 p90 +5.6
+   Chris  8: +11.5 [+6.8, +12.8] p10 +1.4 p90 +14.2
+b_el golfer-weighted median +6.0 p10 -3.0 p90 +16.4 p2.5 -11.4 p97.5 +19.6
+a2_el golfer-weighted median +7.2 p10 -2.1 p90 +21.9 p2.5 -12.3 p97.5 +26.8
+b_wr golfer-weighted median +14.6 p10 +6.8 p90 +22.0 p2.5 +4.7 p97.5 +24.3
+a2_wr golfer-weighted median +11.9 p10 +4.8 p90 +24.3 p2.5 +2.0 p97.5 +26.8
+b_el pooled excl Chris 199 p2.5 -10.6 p10 -2.7 med 6.6 p90 15.0 p97.5 18.8
+a2_el pooled excl Chris 198 p2.5 -10.4 p10 -4.0 med 6.0 p90 18.6 p97.5 24.4
+b_el within-session SD median 3.4 over 12 sessions
+a2_el within-session SD median 4.3 over 12 sessions
+b_el - a2_el -1.2754854354807907 [-5.70558469  4.32470243]
+Mark a2_el swings 127 svd fires 17 no svd 30
+Nick a2_el swings 37 svd fires 4 no svd 10
+Jess a2_el swings 23 svd fires 0 no svd 5
+Paddy a2_el swings 11 svd fires 1 no svd 0
+Chris a2_el swings 8 svd fires 6 no svd 0
+Mark swings 204 b_el 127 a2_el 127 image missing but 3d 0 bend t3 81 bend t3 both 67 top frames t3 share 53%
+Nick swings 38 b_el 38 a2_el 37 image missing but 3d 0 bend t3 0 bend t3 both 0 top frames t3 share 0%
+Jess swings 23 b_el 23 a2_el 23 image missing but 3d 0 bend t3 3 bend t3 both 1 top frames t3 share 12%
+Paddy swings 11 b_el 11 a2_el 11 image missing but 3d 0 bend t3 2 bend t3 both 2 top frames t3 share 5%
+Chris swings 8 b_el 8 a2_el 8 image missing but 3d 0 bend t3 0 bend t3 both 0 top frames t3 share 0%
+image 6 6 6 corridor 0..12 fires <-6 >18
+    Mark 127: fire low 2 / high 1; amber 10/23; Nick 38: fire low 13 / high 0; amber 14/0; Jess 23: fire low 0 / high 6; amber 0/12; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+image 5 7 7 corridor -2..12 fires <-9 >19
+    Mark 127: fire low 0 / high 1; amber 4/23; Nick 38: fire low 10 / high 0; amber 13/0; Jess 23: fire low 0 / high 3; amber 0/15; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+image 6 7 6 corridor -1..12 fires <-8 >18
+    Mark 127: fire low 0 / high 1; amber 9/23; Nick 38: fire low 10 / high 0; amber 16/0; Jess 23: fire low 0 / high 6; amber 0/12; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+image 5 8 7 corridor -3..12 fires <-11 >19
+    Mark 127: fire low 0 / high 1; amber 3/23; Nick 38: fire low 5 / high 0; amber 10/0; Jess 23: fire low 0 / high 3; amber 0/15; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+image 4 7 7.5 corridor -3..11.5 fires <-10 >19.0
+    Mark 127: fire low 0 / high 1; amber 3/26; Nick 38: fire low 7 / high 0; amber 8/0; Jess 23: fire low 0 / high 3; amber 0/15; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+image 6 8 7 corridor -2..13 fires <-10 >20
+    Mark 127: fire low 0 / high 1; amber 4/17; Nick 38: fire low 7 / high 0; amber 16/0; Jess 23: fire low 0 / high 2; amber 0/15; Paddy 11: fire low 0 / high 0; amber 0/1; Chris 8: fire low 0 / high 0; amber 0/8
+3d 7 8 8 corridor -1..15 fires <-9 >23
+    Mark 127: fire low 6 / high 0; amber 24/13; Nick 37: fire low 0 / high 0; amber 3/0; Jess 23: fire low 0 / high 8; amber 0/11; Paddy 11: fire low 1 / high 0; amber 1/0; Chris 8: fire low 0 / high 6; amber 0/1
+3d 6 9 9 corridor -3..15 fires <-12 >24
+    Mark 127: fire low 2 / high 0; amber 18/13; Nick 37: fire low 0 / high 0; amber 2/0; Jess 23: fire low 0 / high 6; amber 0/13; Paddy 11: fire low 1 / high 0; amber 0/0; Chris 8: fire low 0 / high 6; amber 0/1
+3d 7 9 9 corridor -2..16 fires <-11 >25
+    Mark 127: fire low 4 / high 0; amber 21/10; Nick 37: fire low 0 / high 0; amber 2/0; Jess 23: fire low 0 / high 4; amber 0/15; Paddy 11: fire low 1 / high 0; amber 1/0; Chris 8: fire low 0 / high 5; amber 0/2
+3d 6 8 9 corridor -2..15 fires <-10 >24
+    Mark 127: fire low 5 / high 0; amber 20/13; Nick 37: fire low 0 / high 0; amber 2/0; Jess 23: fire low 0 / high 6; amber 0/13; Paddy 11: fire low 1 / high 0; amber 1/0; Chris 8: fire low 0 / high 6; amber 0/1
+3d 7 9 8 corridor -2..15 fires <-11 >23
+    Mark 127: fire low 4 / high 0; amber 21/13; Nick 37: fire low 0 / high 0; amber 2/0; Jess 23: fire low 0 / high 8; amber 0/11; Paddy 11: fire low 1 / high 0; amber 1/0; Chris 8: fire low 0 / high 6; amber 0/1
+bend3d ceiling 15 7 fires > 29 {'Mark': 38} amber {'Mark': 41}
+bend3d ceiling 15 8 fires > 31 {'Mark': 21} amber {'Mark': 55}
+bend3d ceiling 12 8 fires > 28 {'Mark': 47} amber {'Mark': 33}
+bend3d ceiling 15 6 fires > 27 {'Mark': 55} amber {'Mark': 24}
+bend3d ceiling 18 6 fires > 30 {'Mark': 29} amber {'Mark': 41}
+within-session rho b_el vs a2_el 0.46038834769050313 196
+Mark b_el - a2_el median 2.0
+Nick b_el - a2_el median -7.4
+Jess b_el - a2_el median -6.2
+Paddy b_el - a2_el median -1.2
+Chris b_el - a2_el median -11.2
+Mark wrist minus elbow: image 11.9  3d 9.2
+Nick wrist minus elbow: image 15.2  3d 4.5
+Jess wrist minus elbow: image 3.0  3d 0.9
+Paddy wrist minus elbow: image 2.4  3d 3.8
+Chris wrist minus elbow: image 4.8  3d -0.4
+b_el 2026-07-04_Mark-Liversedge_Wrist_01 15 14.8
+b_el 2026-10-05_Mark-Liversedge_Wrist_01 29 6.6
+b_el 2026-10-07_Mark-Liversedge_Wrist_01 50 7.1
+b_el 2026-10-08_Mark-Liversedge_Wrist_01 32 6.5
+b_el 2026-10-13_Mark-Liversedge_Wrist_01 1 -3.1
+a2_el 2026-07-04_Mark-Liversedge_Wrist_01 15 15.3
+a2_el 2026-10-05_Mark-Liversedge_Wrist_01 29 -6.0
+a2_el 2026-10-07_Mark-Liversedge_Wrist_01 50 2.7
+a2_el 2026-10-08_Mark-Liversedge_Wrist_01 32 7.7
+a2_el 2026-10-13_Mark-Liversedge_Wrist_01 1 -2.3

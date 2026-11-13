@@ -1597,6 +1597,13 @@ QVariantMap ModelBrowser::measureRow(const Measure &m) const
                      .arg(phaseLabel(m.reducer.window.first), phaseLabel(m.reducer.window.second));
         break;
     }
+    // A span in milliseconds after its anchor (metric_reducer.h `windowMs`) has no phase window, so the
+    // column names the span instead: "max P7 +0 to 100 ms", "Δ P7 +0 to 100 ms".
+    if (m.reducer.windowMs) {
+        const QString span = reducerMsWindowLabel(m.reducer);
+        anchor = m.reducer.kind == ReducerKind::Delta ? QStringLiteral("Δ %1").arg(span)
+               : (m.reducer.sense == ExtremumSense::Min ? QStringLiteral("min %1") : QStringLiteral("max %1")).arg(span);
+    }
 
     QVariantMap nameCell = cell(label);
     editable(nameCell, QStringLiteral("label"), QStringLiteral("text"), m.label);
@@ -7573,6 +7580,10 @@ namespace {
 bool sameReducer(const Reducer &a, const Reducer &b)
 {
     if (a.kind != b.kind) return false;
+    // A millisecond span is its anchor and its bounds (and, on a peak, its sense).
+    if (a.windowMs || b.windowMs)
+        return a.windowMs == b.windowMs && a.anchor == b.anchor
+            && (a.kind != ReducerKind::Extremum || a.sense == b.sense);
     switch (a.kind) {
     case ReducerKind::At:
         return a.anchor.value_or(a.window.first) == b.anchor.value_or(b.window.first);
@@ -8502,8 +8513,10 @@ void ModelBrowser::scanCorridor(const QString &measureId)
                     // The expensive part is reading the phase grid, which is sidecar-cached and
                     // pack-independent — which is exactly why measure_sample caches the grid rather
                     // than measure values.
+                    // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
                     const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing),
-                                                              /*writeSidecar*/ true);
+                                                              /*writeSidecar*/ true,
+                                                              withMsWindows({}, msWindowsOf({ copy })));
                     const std::optional<double> v = reduceOverGrid(grid, copy);
                     if (v) out.append(*v);
                 }
@@ -8552,8 +8565,10 @@ void ModelBrowser::setCurrentSwingDir(const QString &dir)
     // not allowed to be in, and it is the state a reader has no way to detect.
     emitSwingModelChanged();
 
-    m_swingWatcher->setFuture(QtConcurrent::run([dirCopy]() -> SwingPhaseGrid {
-        return readPhaseGrid(dirCopy, /*writeSidecar*/ true);
+    // The pack's millisecond spans (metric_reducer.h windowMs), so a measure reading one shows its value.
+    const PhaseGridConfig cfg = withMsWindows({}, msWindowsOf(pack().measures));
+    m_swingWatcher->setFuture(QtConcurrent::run([dirCopy, cfg]() -> SwingPhaseGrid {
+        return readPhaseGrid(dirCopy, /*writeSidecar*/ true, cfg);
     }));
 }
 

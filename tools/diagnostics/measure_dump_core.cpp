@@ -105,6 +105,7 @@ QString missingKindToken(MissingKind k)
     case MissingKind::LaunchMonitorFieldAbsent: return QStringLiteral("LaunchMonitorFieldAbsent");
     case MissingKind::MetricNotProduced:        return QStringLiteral("MetricNotProduced");
     case MissingKind::PhaseNotSegmented:        return QStringLiteral("PhaseNotSegmented");
+    case MissingKind::WindowNotCovered:         return QStringLiteral("WindowNotCovered");
     case MissingKind::CaptureDataIssue:         return QStringLiteral("CaptureDataIssue");
     case MissingKind::SessionScope:             return QStringLiteral("SessionScope");
     case MissingKind::CompositeCoverage:        return QStringLiteral("CompositeCoverage");
@@ -145,7 +146,7 @@ QStringList selectMeasures(const CharacteristicPack &pack, const Options &opt)
 
 // ── Reading ─────────────────────────────────────────────────────────────────
 
-SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut)
+SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut, const PhaseGridConfig &cfg)
 {
     // readPhaseGrid() (measure_sample.cpp) line for line, minus the QSaveFile at the end.
     SwingPhaseGrid grid;
@@ -157,7 +158,7 @@ SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut)
     if (sf.exists() && sf.open(QIODevice::ReadOnly)) {
         bool ok = false;
         SwingPhaseGrid cached = loadPhaseGrid(QJsonDocument::fromJson(sf.readAll()).object(),
-                                              docInfo.size, docInfo.mtimeMs, &ok, PhaseGridConfig{});
+                                              docInfo.size, docInfo.mtimeMs, &ok, cfg);
         if (ok) {
             cached.swingDir = swingDir;
             return cached;
@@ -168,7 +169,7 @@ SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut)
     if (root.isEmpty()) return grid;
     if (rootOut) *rootOut = root;
 
-    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), PhaseGridConfig{});
+    grid = buildPhaseGrid(root.value(QStringLiteral("analysis")).toObject(), cfg);
     grid.swingDir  = swingDir;
     grid.sessionId = QFileInfo(QFileInfo(swingDir).absolutePath()).fileName();
     grid.ordinal   = root.value(QStringLiteral("swing")).toObject().value(QStringLiteral("index")).toInt();
@@ -223,7 +224,8 @@ std::vector<Row> readSwing(const QString &sessionDir, const QString &swingDir,
     std::vector<Row> rows;
 
     QJsonObject root;
-    SwingPhaseGrid grid = readGridReadOnly(swingDir, &root);
+    // The pack's millisecond spans (m_leadElbowFoldAfterImpact's P7 + 0…100 ms), as the app's reader builds them.
+    SwingPhaseGrid grid = readGridReadOnly(swingDir, &root, withMsWindows(PhaseGridConfig{}, msWindowsOf(pack.measures)));
     if (grid.swingDir.isEmpty()) grid.swingDir = swingDir;
 
     // The app's per-shot construction (SessionDiagnosticsModel::detectShot → detectForSwing).
