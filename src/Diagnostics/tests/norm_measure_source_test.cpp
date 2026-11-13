@@ -727,6 +727,13 @@ int main()
         const auto r3 = s3.read(QStringLiteral("m_held"));
         check(r3 && !r3->hasCorridor && !r3->compositeShort && std::isnan(r3->value) && r3->parts.empty(),
               "a held composite is not composed: no number, no corridor, never a grade");
+        // Through the engine it is refused by the status rule itself, before the source is asked
+        // (#176) — named as not live, where it used to read as a reading with no range to judge it.
+        const DetectionResult d3 = detect(heldComposite, s3);
+        const Finding *f3 = d3.find(QStringLiteral("loss_of_posture"));
+        check(f3 && f3->state == FindingState::Unavailable && f3->refusal == SignalRefusal::NotLive
+                  && f3->missingMeasures.contains(QStringLiteral("m_held")),
+              "…and its family is unavailable as NotLive (rule.diag.notLive), not as no corridor");
     }
 
     std::printf("=== composite: no calibration, no corridor ===\n");

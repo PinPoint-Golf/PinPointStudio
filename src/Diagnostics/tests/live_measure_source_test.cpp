@@ -68,6 +68,7 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -858,6 +859,67 @@ int main(int argc, char **argv)
               "a smash of 1.389 against an iron floor of 1.38 does NOT fire smash_deficit");
         check(smash && smash->evidence.hasCorridor && smash->evidence.highOpen,
               "…and the evidence reports the open high tail rather than a fabricated upper edge");
+    }
+
+    // ── #176: a held plain measure does not grade, on the real stack ───────────────────────
+    //
+    // The issue's own recreation, on the shipped pack and a real swing: the value is produced
+    // either way (LiveMeasureSource answers for it), and only the status decides whether a fault is
+    // judged on it. `sway` reads m_pelvisSwayBack alone and fires on rich_7iron (above).
+    std::printf("\na held measure does not grade (#176)\n");
+    {
+        const auto withStatus = [&](const char *id, MeasureStatus st) {
+            CharacteristicPack k = pack;
+            for (Measure &m : k.measures) if (m.id == QLatin1String(id)) m.status = st;
+            return k;
+        };
+        for (MeasureStatus st : { MeasureStatus::Held, MeasureStatus::Planned }) {
+            const CharacteristicPack k = withStatus("m_pelvisSwayBack", st);
+            const LiveMeasureSource  src(rich, k);
+            const LiveDetection      d = detectForSwing(src, k, norms);
+            const Finding *sway = d.result.find(QStringLiteral("sway"));
+            check(src.value(QStringLiteral("m_pelvisSwayBack")).has_value(),
+                  "the sway reading is still produced on rich_7iron");
+            check(sway && sway->state == FindingState::Unavailable && sway->refusal == SignalRefusal::NotLive
+                      && sway->missingMeasures.value(0) == QLatin1String("m_pelvisSwayBack")
+                      && !sway->evidence.hasEvidence,
+                  QByteArray("…but with the measure ").append(qPrintable(measureStatusName(st)))
+                      .append(", `sway` is not assessable: NotLive, naming it, no value graded").constData());
+        }
+        {
+            const LiveMeasureSource src(rich, pack);
+            const LiveDetection d = detectForSwing(src, pack, norms);
+            const Finding *sway = d.result.find(QStringLiteral("sway"));
+            check(sway && sway->state == FindingState::Fired,
+                  "…and the same swing on the shipped (live) status fires `sway` again");
+        }
+
+        // The shipped held measure with a value: m_ballSpeed reads the monitor's ball speed on
+        // lm_7iron and is held (no corridor yet). Its signal is refused for being held — the true
+        // reason — and the launch-monitor measures that ARE live keep grading on the same swing
+        // (smash_deficit above). No measure in the pack is `externalDevice`; the monitor's are live.
+        {
+            const LiveMeasureSource src(lm, pack);
+            const LiveDetection d = detectForSwing(src, pack, norms, {}, {}, QString(),
+                                                   { QStringLiteral("sig_ballSpeedDeficit") });
+            check(src.value(QStringLiteral("m_ballSpeed")).has_value(),
+                  "lm_7iron: held m_ballSpeed has the monitor's value");
+            check(d.signalOutcomes.size() == 1 && !d.signalOutcomes[0].available
+                      && d.signalOutcomes[0].refusal == SignalRefusal::NotLive,
+                  "…and sig_ballSpeedDeficit is refused as NotLive, not graded and not 'no range'");
+            const Finding *smash = d.result.find(QStringLiteral("smash_deficit"));
+            check(smash && smash->state != FindingState::Unavailable,
+                  "…while smash_deficit, on a live launch-monitor measure, is still judged");
+            int lmNotLive = 0;
+            for (const Measure &m : pack.measures) {
+                QStringList keys = m.preferKeys;
+                keys << m.metricKey;
+                const bool lmKey = std::any_of(keys.cbegin(), keys.cend(),
+                                               [](const QString &k) { return k.startsWith(QLatin1String("lm.")); });
+                if (lmKey && m.status == MeasureStatus::ExternalDevice) ++lmNotLive;
+            }
+            check(lmNotLive == 0, "no launch-monitor measure is marked externalDevice (they are live, so they grade)");
+        }
     }
 
     // ── The launch monitor is the primary source for what it measures ─────────────────────

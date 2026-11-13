@@ -356,6 +356,10 @@
       "golfer": "it is read from several readings taken together, and the cameras saw too few of them to judge it"
     },
     {
+      "id": "rule.diag.notLive",
+      "golfer": "the reading it rests on is not used to judge a fault yet"
+    },
+    {
       "id": "rule.diag.clubBaselineMinShots",
       "golfer": "not enough shots with this club yet"
     },

@@ -1961,6 +1961,152 @@ static void baselineAuthoritySuite(const QTemporaryDir &tmp)
     }
 }
 
+// ── #176: a held measure's row says so, and grades again when live ─────────────────────────────
+//
+// The issue's recreation through the model the app runs: the shipped pack with ONE plain measure set to
+// held (a copy, pointed at by PINPOINT_CORE_PACK for this model only). `sway` reads m_pelvisSwayBack
+// alone and is judged on rich_7iron with the shipped pack; held, its row must be not assessable under
+// rule.diag.notLive with the status, in words that say it is held — never "not measured".
+static QJsonObject rowOf(const QString &sessionDir, const char *conditionId, int shotIndex = 0)
+{
+    const QJsonArray shots = diagnosticsJsonOf(sessionDir).value(QStringLiteral("ledger")).toObject()
+                                 .value(QStringLiteral("shots")).toArray();
+    if (shots.size() <= shotIndex) return QJsonObject();
+    for (const QJsonValue &rv : shots.at(shotIndex).toObject().value(QStringLiteral("rows")).toArray())
+        if (rv.toObject().value(QStringLiteral("conditionId")).toString() == QLatin1String(conditionId))
+            return rv.toObject();
+    return QJsonObject();
+}
+
+static void heldMeasureSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\na held measure is not graded (#176)\n");
+    const QByteArray shipped = qgetenv("PINPOINT_CORE_PACK");
+    QFile in(QString::fromLocal8Bit(shipped));
+    check(in.open(QIODevice::ReadOnly), "the shipped core pack is readable");
+    QJsonObject pack = QJsonDocument::fromJson(in.readAll()).object();
+    QJsonArray measures = pack.value(QStringLiteral("measures")).toArray();
+    bool found = false;
+    for (int i = 0; i < measures.size(); ++i) {
+        QJsonObject m = measures.at(i).toObject();
+        if (m.value(QStringLiteral("id")).toString() != QLatin1String("m_pelvisSwayBack")) continue;
+        check(m.value(QStringLiteral("status")).toString() == QLatin1String("live"), "m_pelvisSwayBack ships live");
+        m.insert(QStringLiteral("status"), QStringLiteral("held"));
+        m.insert(QStringLiteral("gapReason"), QStringLiteral("held for #176's test"));
+        measures.replace(i, m);
+        found = true;
+    }
+    check(found, "m_pelvisSwayBack is in the shipped pack");
+    pack.insert(QStringLiteral("measures"), measures);
+    const QString heldPath = QDir(tmp.path()).filePath(QStringLiteral("core_held_sway.json"));
+    {
+        QFile out(heldPath);
+        check(out.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                  && out.write(QJsonDocument(pack).toJson(QJsonDocument::Compact)) > 0,
+              "a copy of the pack with m_pelvisSwayBack held is written");
+    }
+
+    const QString liveDir = makeSession(tmp, "athlete_held", "session_live");
+    const QString heldDir = makeSession(tmp, "athlete_held", "session_held");
+    check(stageShot(liveDir, 1, "rich_7iron") && stageShot(heldDir, 1, "rich_7iron"), "one swing staged in each");
+    // …and a second, broken one in the held session: the capture-integrity rule must replace the status.
+    check(stageShot(heldDir, 2, "rich_7iron") && injectCaptureHole(heldDir, 2), "a second held-session swing with lost frames");
+
+    {
+        auto m = freshModel();
+        m->activateSession(liveDir);
+        m->ingestShot(1, swingDirFor(liveDir, 1));
+    }
+    qputenv("PINPOINT_CORE_PACK", heldPath.toLocal8Bit());
+    auto heldModel = freshModel();          // reads the pack at construction, so the env can be put back now
+    qputenv("PINPOINT_CORE_PACK", shipped);
+    heldModel->activateSession(heldDir);
+    heldModel->ingestShot(1, swingDirFor(heldDir, 1));
+    heldModel->ingestShot(2, swingDirFor(heldDir, 2));
+
+    const QJsonObject live = rowOf(liveDir, "sway");
+    const QJsonObject held = rowOf(heldDir, "sway");
+    check(!live.isEmpty() && live.value(QStringLiteral("state")).toString() != QLatin1String("notAssessable")
+              && live.value(QStringLiteral("drivingMeasureId")).toString() == QLatin1String("m_pelvisSwayBack")
+              && !live.contains(QStringLiteral("notLiveStatus")),
+          "live: `sway` is judged on m_pelvisSwayBack, with no status on the row");
+    check(!held.isEmpty() && held.value(QStringLiteral("state")).toString() == QLatin1String("notAssessable"),
+          "held: the same swing's `sway` is not assessable");
+    check(held.value(QStringLiteral("notJudgedGate")).toString() == QLatin1String("rule.diag.notLive")
+              && held.value(QStringLiteral("notLiveStatus")).toString() == QLatin1String("held")
+              && held.value(QStringLiteral("notJudgedSubject")).toString().isEmpty(),
+          "…under rule.diag.notLive, with status \"held\" and no Trust-panel subject");
+    check(held.value(QStringLiteral("notAssessableReason")).toString()
+              == QLatin1String("held back until it is trusted to grade"),
+          "…and its reason says it is held, not that it was not measured");
+    check(held.value(QStringLiteral("drivingMeasureId")).toString().isEmpty(),
+          "…with no reading graded behind it");
+
+    // The page for it names the held status, not a planned producer (ghostMark's held branch).
+    const QVariantMap header = heldModel->conditionDetail(QStringLiteral("sway")).value(QStringLiteral("header")).toMap();
+    check(header.value(QStringLiteral("mark")).toString()
+              == QStringLiteral("not graded · held back until it is trusted to grade"),   // UTF-8 "·": not Latin-1
+          "ghost_mark_held: the condition's mark says it is held, not that a producer is planned");
+
+    // A shot whose recording is broken: the integrity gate replaces whatever stopped the row, status included.
+    const QJsonObject broken = rowOf(heldDir, "sway", 1);
+    check(!broken.isEmpty() && broken.value(QStringLiteral("state")).toString() == QLatin1String("notAssessable")
+              && broken.value(QStringLiteral("notJudgedGate")).toString() != QLatin1String("rule.diag.notLive")
+              && !broken.contains(QStringLiteral("notLiveStatus"))
+              && broken.value(QStringLiteral("notAssessableReason")).toString()
+                     == QLatin1String("frames were lost during capture, so this shot is not assessed"),
+          "capture_hole_clears_status: a broken shot's row names the lost frames, and carries no status");
+
+    // ONE OF THE SHOT'S FOURTEEN READINGS HELD: the monitor's launch angle on lm_7iron. detectShot reads the
+    // pack's status into the shot's ungradedReadings, and stores the reading itself unchanged, so it is
+    // still shown while every flight verdict reads it through gradedReadings().
+    QJsonObject lmPack = QJsonDocument::fromJson([&] { QFile f(QString::fromLocal8Bit(shipped)); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }()).object();
+    QJsonArray lmMeasures = lmPack.value(QStringLiteral("measures")).toArray();
+    bool lmFound = false;
+    for (int i = 0; i < lmMeasures.size(); ++i) {
+        QJsonObject m = lmMeasures.at(i).toObject();
+        if (m.value(QStringLiteral("id")).toString() != QLatin1String("m_lmLaunchAngle")) continue;
+        m.insert(QStringLiteral("status"), QStringLiteral("held"));
+        m.insert(QStringLiteral("gapReason"), QStringLiteral("held for #176's test"));
+        lmMeasures.replace(i, m);
+        lmFound = true;
+    }
+    lmPack.insert(QStringLiteral("measures"), lmMeasures);
+    const QString lmHeldPath = QDir(tmp.path()).filePath(QStringLiteral("core_held_launch.json"));
+    {
+        QFile out(lmHeldPath);
+        check(lmFound && out.open(QIODevice::WriteOnly | QIODevice::Truncate)
+                  && out.write(QJsonDocument(lmPack).toJson(QJsonDocument::Compact)) > 0,
+              "a copy of the pack with m_lmLaunchAngle held is written");
+    }
+    const QString lmLiveDir = makeSession(tmp, "athlete_held_lm", "session_live");
+    const QString lmHeldDir = makeSession(tmp, "athlete_held_lm", "session_held");
+    check(stageShot(lmLiveDir, 1, "lm_7iron") && stageShot(lmHeldDir, 1, "lm_7iron"), "lm_7iron staged in each");
+    {
+        auto m = freshModel();
+        m->activateSession(lmLiveDir);
+        m->ingestShot(1, swingDirFor(lmLiveDir, 1));
+    }
+    qputenv("PINPOINT_CORE_PACK", lmHeldPath.toLocal8Bit());
+    auto lmModel = freshModel();
+    qputenv("PINPOINT_CORE_PACK", shipped);
+    lmModel->activateSession(lmHeldDir);
+    lmModel->ingestShot(1, swingDirFor(lmHeldDir, 1));
+    const auto shotOf = [](const QString &dir) {
+        const QJsonArray shots = diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject()
+                                     .value(QStringLiteral("shots")).toArray();
+        return shots.isEmpty() ? QJsonObject() : shots.at(0).toObject();
+    };
+    const QJsonObject lmLive = shotOf(lmLiveDir);
+    const QJsonObject lmHeld = shotOf(lmHeldDir);
+    check(lmLive.value(QStringLiteral("launchAngle")).isDouble() && !lmLive.contains(QStringLiteral("ungradedReadings")),
+          "live: the shot carries its launch angle, and names no held reading");
+    check(lmHeld.value(QStringLiteral("ungradedReadings")).toArray() == QJsonArray{ QStringLiteral("m_lmLaunchAngle") },
+          "held_reading_named: detectShot names the held launch angle in the shot's ungradedReadings, from the pack");
+    check(lmHeld.value(QStringLiteral("launchAngle")).toDouble() == lmLive.value(QStringLiteral("launchAngle")).toDouble(),
+          "…and stores the launch angle unchanged, for display");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -4060,6 +4206,7 @@ int main(int argc, char **argv)
     shotOutcomesSuite(tmp);
     flightCheckedStrikesSuite(tmp);
     baselineAuthoritySuite(tmp);
+    heldMeasureSuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

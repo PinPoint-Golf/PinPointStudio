@@ -103,7 +103,7 @@ QString compositeCombineName(CompositeCombine c);
 bool    compositeCombineFromName(const QString &s, CompositeCombine &out);
 
 enum class MeasureStatus {
-    Live,           // a producer exists today
+    Live,           // a producer exists today — the ONLY status that grades (measureStatusGrades)
     Planned,        // a producer is planned
     NoProducer,     // nothing produces it yet — ROADMAP work, someone could pick this up
     NotCapturable,  // no sensor this product has can ever resolve it — a CAPTURE GAP, not roadmap
@@ -117,6 +117,37 @@ enum class MeasureStatus {
 // explain. It is treated exactly as Planned by everything that grades or counts live measures, and
 // differs only in what it SAYS: "held", with `gapReason` naming what content is owed. Appended, not
 // inserted: the enum's int is used as a sort key.
+//
+// NOTHING GRADES ON A MEASURE THAT IS NOT LIVE, whatever its producer emitted (#176). Until 12 Nov
+// 2026 only composites honoured that: a plain signal read its measure's value straight through, so
+// a held `m_leadKneeFlex` graded `late_buckle` on every shot it was held. The rule now has one
+// definition, measureStatusGrades() below (packMeasureGrades() asks it of a pack), and it is applied
+// on every path a verdict rests on a reading:
+//   * every signal — the engine's read (characteristic_engine.cpp `evaluate`), which every source
+//     passes through (the per-swing NormMeasureSource and the session's SessionMeasureSource alike)
+//     and which alone holds both the pack and the refusal vocabulary. A signal reading a non-live
+//     measure is refused as SignalRefusal::NotLive (rule.diag.notLive), and the ledger row carries
+//     the status ("held back until it is trusted to grade" for held, never "not measured");
+//   * the session model's own reads outside the engine: the placed peak times the session's timing
+//     spread is graded from, and the swing length (a part swing is excused the club-baseline faults);
+//   * the shot's launch-monitor readings (ShotRecord, diagnostic_ledger.h): kept as recorded, with
+//     the non-live ones named in ShotRecord::ungradedReadings, and read through gradedReadings() by
+//     every verdict made from them — the strike and Sky checks against the flight, the session's
+//     usual flight, the flight band, the strike factor, the carry lost, which shots leave the club
+//     distances (shotMishitKind, "far short" included) and the carry block's breakdown.
+// DISPLAY IS THE EXCEPTION, deliberately: a held reading is still SHOWN (show with a warning, never
+// hide) — club distances' reductions, the consistency and delivery charts, the numbers quoted beside
+// an outcome label and the carry block's headline ("short by X", drawn only when carry_deficit fired
+// off the live m_carryShortfall) read the ShotRecord fields plainly. Status is per MEASURE, not per data
+// key: holding m_carryDistance does not hold m_carryShortfall, which reads the same carry. The composite's parts
+// (NormMeasureSource) and the DAG's availability (dag_layout.cpp, which mirrors the engine's read:
+// companions, and an order test's fallback links) use the same predicate.
+//
+// ExternalDevice is NOT an exception. The launch-monitor measures that grade today (`m_lm*`) are
+// marked `live`; their per-shot absence is MissingKind::NoLaunchMonitor, a capture fact. A measure
+// marked `externalDevice` names an integration not yet built, and grades the day it is flipped to
+// live — the same rule the DAG and the composites already applied.
+inline bool measureStatusGrades(MeasureStatus s) { return s == MeasureStatus::Live; }
 
 // The distinction between NoProducer and NotCapturable is the whole reason the roadmap can be
 // trusted as a work queue. NoProducer means "we could build this"; NotCapturable means "a different

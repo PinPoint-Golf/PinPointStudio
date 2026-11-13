@@ -106,7 +106,7 @@ struct Measure {
     QStringList   aliases;
     QString       unit;
     ViewNeeded    viewNeeded;      // FaceOn | DownTheLine | Any
-    MeasureStatus status;          // Live | Planned | NoProducer | NotCapturable | ExternalDevice
+    MeasureStatus status;          // Live | Planned | NoProducer | NotCapturable | ExternalDevice | Held
     QString       gapReason;       // NotCapturable: why, in one line
     QString       highMeans;       // what a HIGH value means, in the measure's own words
 };
@@ -123,6 +123,29 @@ launch monitor" through the same path a missing face-on camera takes, and the da
 `ShotContext::hasLaunchMonitor` the same metric resolves Measured with no content change. A norm on
 one is legitimate — it is what the reading will be graded against — which is why `normNotCapturable`
 stays scoped to `NotCapturable`.
+
+**Only `Live` grades (#176).** `measureStatusGrades()` (`measure_vocabulary.h`) is one definition,
+applied on every path a verdict rests on (`packMeasureGrades()` asks it of a pack). In the engine's read
+(`characteristic_engine.cpp` `evaluate`), a signal reading a measure of any other status — `held` and `externalDevice` included — is refused as
+`SignalRefusal::NotLive` (`rule.diag.notLive`) before the source is asked, on condition signals,
+`evaluateSignal`, order-chain fallback links and `requiresBeforeImpact` companions, for per-swing and
+session-scope sources alike. Outside the engine, `packMeasureGrades()` gates the session model's reads a
+verdict rests on (timing-spread peak times, swing length), and every flight verdict reads a shot's
+launch-monitor readings through `gradedReadings()` (`ShotRecord::ungradedReadings`, schema 15) — the
+strike and Sky checks, the session's usual flight, the flight band, the strike factor, the carry lost,
+which shots leave the club distances (`shotMishitKind`, "far short" included) and the carry block's
+breakdown of a short carry. Display is the named exception: club distances' reductions, the consistency
+and delivery charts, the numbers quoted beside an outcome label and the carry block's headline ("short by
+X", shown only when `carry_deficit` fired — off a live carry measure, or off the live `m_carryShortfall` when the carry itself is held) read the readings plainly, so a
+held one is still shown. Status is per MEASURE, not per data key: holding `m_carryDistance` does not hold
+`m_carryShortfall`, which reads the same carry. The ledger row records the
+status (`notLiveStatus`, schema 15) and reads "held back until it is trusted to grade" for `held`.
+Composite parts and the DAG's availability call the same predicate. The launch-monitor measures grade
+because they are `live`; an `externalDevice` measure grades the day it is flipped.
+
+**Every measure must state its status.** `Measure`'s default is `NoProducer`, so a pack measure with no
+`status` key loads as no-producer and nothing grades on it; the loader warns (`measureNoStatus`). The
+same goes for a test fixture built in code: its measures must say `Live`.
 
 Three fields carry more weight than their size suggests:
 

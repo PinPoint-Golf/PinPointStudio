@@ -447,20 +447,27 @@ inline ShotCarryBlock composeCarryBlock(const ShotRecord &shot, const std::vecto
     b.shortBy = shortBy;
     b.provenance = QStringLiteral("against your usual ") + yardsMeanSdText(usual->carryMean, usual->carrySd);
 
-    const bool haveSpeed = std::isfinite(shot.lmClubSpeed) && std::isfinite(usual->speedMean) && usual->speedMean > 0.0;
-    const double speedRatio = haveSpeed ? shot.lmClubSpeed / usual->speedMean : 1.0;
+    // THE HEADLINE IS DISPLAY, THE BREAKDOWN IS A JUDGEMENT (#176). "Short by X" quotes the carry as recorded
+    // (and is drawn only when carry_deficit fired, off a live carry measure or the live m_carryShortfall); each part below BLAMES a
+    // reading for the loss, so it reads the shot through gradedReadings(): a held club speed, smash or ball
+    // speed drops out of the breakdown and its share folds into the remainder, never onto the strike.
+    ShotRecord gradedScratch;
+    const ShotRecord &g = gradedReadings(shot, gradedScratch);
+
+    const bool haveSpeed = std::isfinite(g.lmClubSpeed) && std::isfinite(usual->speedMean) && usual->speedMean > 0.0;
+    const double speedRatio = haveSpeed ? g.lmClubSpeed / usual->speedMean : 1.0;
 
     if (haveSpeed) {
         const double loss = usual->carryMean * (1.0 - speedRatio);
         if (loss > 0.0)
             b.parts.push_back(ShotCarryPart{ QStringLiteral("speed"), QStringLiteral("Club speed"), loss,
-                                             lmFormat(shot.lmClubSpeed, 0) + QStringLiteral(" vs your ")
+                                             lmFormat(g.lmClubSpeed, 0) + QStringLiteral(" vs your ")
                                                  + lmFormat(usual->speedMean, 0) + QStringLiteral(" mph"),
                                              QStringLiteral("slower club speed") });
     }
 
-    if (std::isfinite(shot.smash) && std::isfinite(usual->smashMean) && usual->smashMean > 0.0) {
-        const double loss = usual->carryMean * speedRatio * (1.0 - shot.smash / usual->smashMean);
+    if (std::isfinite(g.smash) && std::isfinite(usual->smashMean) && usual->smashMean > 0.0) {
+        const double loss = usual->carryMean * speedRatio * (1.0 - g.smash / usual->smashMean);
         if (loss > 0.0) {
             QString name = QStringLiteral("Strike");
             QString words = QStringLiteral("from the strike");
@@ -472,19 +479,19 @@ inline ShotCarryBlock composeCarryBlock(const ShotRecord &shot, const std::vecto
                     break;
                 }
             b.parts.push_back(ShotCarryPart{ QStringLiteral("strike"), name, loss,
-                                             lmFormat(shot.smash, 2) + QStringLiteral(" vs your ")
+                                             lmFormat(g.smash, 2) + QStringLiteral(" vs your ")
                                                  + lmFormat(usual->smashMean, 2) + QStringLiteral(" smash"),
                                              words });
         }
     }
 
     // A ball-only monitor can't split club speed from strike, but it can still say the ball came off slower.
-    if (!haveSpeed && !std::isfinite(shot.smash) && std::isfinite(shot.ballSpeed)
+    if (!haveSpeed && !std::isfinite(g.smash) && std::isfinite(g.ballSpeed)
         && std::isfinite(usual->ballSpeedMean) && usual->ballSpeedMean > 0.0) {
-        const double loss = usual->carryMean * (1.0 - shot.ballSpeed / usual->ballSpeedMean);
+        const double loss = usual->carryMean * (1.0 - g.ballSpeed / usual->ballSpeedMean);
         if (loss > 0.0)
             b.parts.push_back(ShotCarryPart{ QStringLiteral("ball_speed"), QStringLiteral("Ball speed"), loss,
-                                             lmFormat(shot.ballSpeed, 0) + QStringLiteral(" vs your ")
+                                             lmFormat(g.ballSpeed, 0) + QStringLiteral(" vs your ")
                                                  + lmFormat(usual->ballSpeedMean, 0) + QStringLiteral(" mph"),
                                              QStringLiteral("slower ball speed") });
     }

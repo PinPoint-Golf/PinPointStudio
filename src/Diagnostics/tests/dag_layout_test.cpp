@@ -1302,6 +1302,64 @@ int main()
               "with the column pitched at height plus the gap");
     }
 
+    // ── #176: the graph's availability reads what the engine reads ───────────────────────────
+    //
+    // A condition drawn as available must be one the engine can grade: every measure its signal reads
+    // live, the requiresBeforeImpact companion included, and an order test's later event replaceable by
+    // a live fallback link or by impact — exactly the engine's own read.
+    std::printf("Availability matches the engine's read (#176)\n");
+    {
+        const auto avail = [](MeasureStatus later, QStringList fallback, MeasureStatus companion,
+                              bool order) {
+            CharacteristicPack k;
+            k.id = QStringLiteral("a"); k.schemaVersion = kPackSchemaVersion;
+            const auto measure = [&](const char *id, MeasureStatus st) {
+                Measure m; m.id = QString::fromLatin1(id); m.label = m.id; m.status = st;
+                k.measures.push_back(m);
+            };
+            measure("mFirst", MeasureStatus::Live);
+            measure("mLater", later);
+            measure("mArm", MeasureStatus::Live);
+            measure("mArmHeld", MeasureStatus::Held);
+            measure("mPeak", companion);
+            Signal sg;
+            sg.id = QStringLiteral("sig");
+            if (order) {
+                sg.test = SignalTest::Order;
+                sg.measures = { QStringLiteral("mFirst"), QStringLiteral("mLater") };
+                sg.fallback = fallback;
+            } else {
+                sg.test = SignalTest::Threshold;
+                sg.measures = { QStringLiteral("mFirst") };
+                sg.direction = Direction::High; sg.threshold = 1.0;
+                sg.requiresBeforeImpact = QStringLiteral("mPeak");
+            }
+            k.signalDefs = { sg };
+            Condition c;
+            c.id = QStringLiteral("focus"); c.label = c.id;
+            c.confirmedBy = ConfirmedBy::Measured; c.observability = Observability::Observable;
+            c.detectedBy = { QStringLiteral("sig") };
+            k.conditions = { c };
+            const DagLayout l = layoutDag(k, QStringLiteral("focus"));
+            const DagNode *n = nodeById(l, "focus");
+            return n && n->available;
+        };
+        check(avail(MeasureStatus::Live, {}, MeasureStatus::Live, false),
+              "dag_companion_live: a threshold with a live requiresBeforeImpact peak is available");
+        check(!avail(MeasureStatus::Live, {}, MeasureStatus::Held, false),
+              "dag_companion_held: …and with that peak held it is not — the engine refuses it as NotLive");
+        check(avail(MeasureStatus::Live, {}, MeasureStatus::Live, true),
+              "an order on two live measures is available");
+        check(!avail(MeasureStatus::Held, {}, MeasureStatus::Live, true),
+              "dag_order_no_fallback: a held later event with no chain is not");
+        check(avail(MeasureStatus::Held, { QStringLiteral("mArmHeld"), QStringLiteral("mArm") }, MeasureStatus::Live, true),
+              "dag_order_live_fallback: …a live link further down the chain stands in, as in the engine");
+        check(!avail(MeasureStatus::Held, { QStringLiteral("mArmHeld") }, MeasureStatus::Live, true),
+              "…but a chain of held links does not");
+        check(avail(MeasureStatus::Planned, { QStringLiteral("impact") }, MeasureStatus::Live, true),
+              "dag_order_impact: a chain ending at impact always stands in");
+    }
+
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "PASSED" : "FAILED", g_fail,
                 g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;

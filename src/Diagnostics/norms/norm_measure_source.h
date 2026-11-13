@@ -204,10 +204,10 @@ private:
         out.partsWeightRead  = 0.0;
 
         // A COMPOSITE THAT IS NOT LIVE is not graded, the rule every non-live status carries
-        // (measure_vocabulary.h: Held is "treated exactly as Planned by everything that grades"). It
-        // is not composed at all: no number, no corridor, no parts — the engine reports it like any
-        // other measure with nothing to judge it against.
-        if (m.status != MeasureStatus::Live) {
+        // (measure_vocabulary.h measureStatusGrades). It is not composed at all: no number, no
+        // corridor, no parts. The engine never asks for one (it refuses the signal as NotLive before
+        // reading, #176); this answers a caller that reads the source directly just as honestly.
+        if (!measureStatusGrades(m.status)) {
             out.value = std::numeric_limits<double>::quiet_NaN();
             for (const CompositePartSpec &p : spec.parts) out.partsWeightTotal += p.weight;
             return out;
@@ -237,7 +237,7 @@ private:
                 // for the DTL bend and carry a face-on-only swing past the coverage line. The ladder
                 // moves on; if nothing else answers, the part is unread as `notLive` with the status,
                 // so the trust fold can say "trunk rise is held".
-                if (am && am->status != MeasureStatus::Live) {
+                if (am && !measureStatusGrades(am->status)) {
                     lastWhy    = QStringLiteral("notLive");
                     lastStatus = measureStatusName(am->status);
                     continue;

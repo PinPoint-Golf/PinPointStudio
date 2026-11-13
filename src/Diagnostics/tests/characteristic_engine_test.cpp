@@ -12,6 +12,7 @@
 #include "../engine/relation_resolver.h"
 #include "../measures/session_measure_source.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <map>
@@ -110,6 +111,10 @@ static CharacteristicPack fixture()
         m.series         = Series{ AnatomyRole::PelvisCentre, Quantity::Distance, AnatomyRole::TrailAnkle };
         m.reducer.kind   = ReducerKind::At;
         m.reducer.anchor = Phase::Top;
+        // Live, as every measure this fixture's source answers for must be: the engine grades only a
+        // live measure (#176), and Measure's default is NoProducer. mGhost is live too — the source
+        // simply has no value for it, which is the "absent, not a pass" case it exists for.
+        m.status         = MeasureStatus::Live;
         p.measures.push_back(m);
     };
     for (const char *id : { "mSway", "mSlide", "mBuckle", "mGhost" }) measure(id);
@@ -1576,6 +1581,178 @@ int main()
         const Finding *g = dShare.find(QStringLiteral("inconsistent"));
         check(g && g->state == FindingState::Unavailable,
               "a clean share with no spread to read is not assessed (ANY's precedence, stated in the contract)");
+    }
+
+    // ── #176: nothing grades on a measure that is not live ───────────────────────────────────
+    //
+    // Held means "produced, and deliberately not graded yet"; until 12 Nov 2026 only composites
+    // honoured it, and a held m_leadKneeFlex graded late_buckle on every shot. The engine now refuses
+    // every signal reading a non-live measure as NotLive, BEFORE reading it — on a condition's signals,
+    // a signal on its own, an order chain's links, a requiresBeforeImpact companion and a session-scope
+    // source alike — so the same reading graded live and refused held is the whole test.
+    std::printf("\nmeasure status: only a live measure grades (#176)\n");
+    {
+        CharacteristicPack p;
+        p.id            = QStringLiteral("status");
+        p.schemaVersion = kPackSchemaVersion;
+        auto provided = [&](const char *id, MeasureScope scope = MeasureScope::Swing) {
+            Measure m;
+            m.id             = QString::fromLatin1(id);
+            m.kind           = MeasureKind::Provided;
+            m.metricKey      = m.id;
+            m.reducer.kind   = ReducerKind::At;
+            m.reducer.anchor = Phase::Impact;
+            m.status         = MeasureStatus::Live;
+            m.scope          = scope;
+            p.measures.push_back(m);
+        };
+        for (const char *id : { "mA", "mT0", "mT1", "mArm", "mPeak" }) provided(id);
+        provided("mS", MeasureScope::Session);
+
+        Signal a;
+        a.id = QStringLiteral("sigA"); a.test = SignalTest::OutsideCorridor;
+        a.measures = { QStringLiteral("mA") }; a.direction = Direction::High;
+        Signal o;
+        o.id = QStringLiteral("sigOrd"); o.test = SignalTest::Order;
+        o.measures = { QStringLiteral("mT0"), QStringLiteral("mT1") };
+        o.fallback = { QStringLiteral("mArm") };
+        Signal b;
+        b.id = QStringLiteral("sigBrake"); b.test = SignalTest::Threshold;
+        b.measures = { QStringLiteral("mA") }; b.direction = Direction::High; b.threshold = 5.0;
+        b.requiresBeforeImpact = QStringLiteral("mPeak");
+        Signal ss;
+        ss.id = QStringLiteral("sigSess"); ss.test = SignalTest::Threshold;
+        ss.measures = { QStringLiteral("mS") }; ss.direction = Direction::High; ss.threshold = 2.0;
+        p.signalDefs = { a, o, b, ss };
+        auto cond = [&](const char *id, const char *sig) {
+            Condition c;
+            c.id = QString::fromLatin1(id); c.label = c.id;
+            c.observability = Observability::Observable; c.confirmedBy = ConfirmedBy::Measured;
+            c.detectedBy = { QString::fromLatin1(sig) }; c.state = ConditionState::Active;
+            p.conditions.push_back(c);
+        };
+        cond("cA", "sigA");
+        cond("cOrd", "sigOrd");
+        cond("cBrake", "sigBrake");
+        cond("cSess", "sigSess");
+
+        const auto withStatus = [&](const char *id, MeasureStatus st) {
+            CharacteristicPack k = p;
+            for (Measure &m : k.measures) if (m.id == QLatin1String(id)) m.status = st;
+            return k;
+        };
+
+        // One swing's readings: mA far out (fires), hips after chest (out of order), peak before impact.
+        FakeSource src;
+        src.add(QStringLiteral("mA"), 50.0, 0.0, 10.0);
+        src.addWithoutCorridor(QStringLiteral("mT0"), -10.0);
+        src.addWithoutCorridor(QStringLiteral("mT1"), -30.0);
+        src.addWithoutCorridor(QStringLiteral("mArm"), -50.0);
+        src.addWithoutCorridor(QStringLiteral("mPeak"), -40.0);
+
+        const DetectionResult live = detect(p, src);
+        check(live.find("cA") && live.find("cA")->state == FindingState::Fired,
+              "status_live_grades: a live measure 50 against 0..10 fires");
+        check(live.find("cBrake") && live.find("cBrake")->state == FindingState::Fired,
+              "…and its threshold signal, with a live companion peak before impact, fires");
+
+        // Every status that is not live refuses the plain signal path, with the same value on the swing.
+        const struct { MeasureStatus st; const char *name; } nonLive[] = {
+            { MeasureStatus::Held, "held" }, { MeasureStatus::Planned, "planned" },
+            { MeasureStatus::NoProducer, "noProducer" }, { MeasureStatus::NotCapturable, "notCapturable" },
+            { MeasureStatus::ExternalDevice, "externalDevice" },
+        };
+        for (const auto &n : nonLive) {
+            const CharacteristicPack k = withStatus("mA", n.st);
+            const DetectionResult d = detect(k, src);
+            const Finding *f = d.find("cA");
+            check(f && f->state == FindingState::Unavailable && f->refusal == SignalRefusal::NotLive
+                      && f->missingMeasures == QStringList{ QStringLiteral("mA") } && !f->evidence.hasEvidence
+                      && f->readings.empty() && f->pFire < 0.f,
+                  QByteArray("status_").append(n.name)
+                      .append("_not_graded: Unavailable, refused NotLive naming mA, no evidence, no pFire").constData());
+            check(measureStatusName(n.st) == QLatin1String(n.name),
+                  QByteArray("…the status the ledger records reads \"").append(n.name).append("\"").constData());
+            const SignalOutcome so = evaluateSignal(k, QStringLiteral("sigA"), src);
+            check(!so.available && so.refusal == SignalRefusal::NotLive && so.missing == QStringList{ QStringLiteral("mA") },
+                  "…and evaluateSignal (the sequence checks' path) refuses it the same way");
+        }
+        {
+            const DetectionResult d = detect(withStatus("mA", MeasureStatus::Held), src);
+            const Finding *f = d.find("cA");
+            check(f && f->refusal == SignalRefusal::NotLive
+                      && QLatin1String(signalRefusalRuleId(f->refusal)) == QLatin1String("rule.diag.notLive"),
+                  "status_held_rule: the refusal is the catalogued rule rule.diag.notLive");
+        }
+        // NOT LIVE OUTRANKS THE SWING'S OWN REASONS: a held measure the producer also withheld is refused
+        // as not live — true on every swing — not as this swing's withholding.
+        {
+            FakeSource w = src;
+            w.withhold(QStringLiteral("mA"));
+            check(evaluateSignal(p, QStringLiteral("sigA"), w).refusal == SignalRefusal::Withheld,
+                  "a live measure withheld is refused as Withheld");
+            check(evaluateSignal(withStatus("mA", MeasureStatus::Held), QStringLiteral("sigA"), w).refusal
+                      == SignalRefusal::NotLive,
+                  "…and a held one as NotLive, the reason that holds on every swing");
+        }
+
+        // The order chain: a held later link is walked past like an unplaced one; a held subject, or a
+        // chain whose every later link is held, is refused as NotLive.
+        {
+            const SignalOutcome base = evaluateSignal(p, QStringLiteral("sigOrd"), src);
+            check(base.available && base.fired && base.comparedWith.isEmpty(),
+                  "order, all live: hips −10 after chest −30 fires on its own pair");
+            const SignalOutcome past = evaluateSignal(withStatus("mT1", MeasureStatus::Held), QStringLiteral("sigOrd"), src);
+            check(past.available && past.fired && past.comparedWith == QLatin1String("mArm"),
+                  "status_held_chain_link: a held chest is walked past; the hips are compared with the arm");
+            CharacteristicPack both = withStatus("mT1", MeasureStatus::Held);
+            for (Measure &m : both.measures) if (m.id == QLatin1String("mArm")) m.status = MeasureStatus::Planned;
+            const SignalOutcome none = evaluateSignal(both, QStringLiteral("sigOrd"), src);
+            check(!none.available && none.refusal == SignalRefusal::NotLive
+                      && none.missing == QStringList{ QStringLiteral("mT1") },
+                  "…with the fallback link planned too: NotLive, naming the link it wanted first");
+            const SignalOutcome subj = evaluateSignal(withStatus("mT0", MeasureStatus::Held), QStringLiteral("sigOrd"), src);
+            check(!subj.available && subj.refusal == SignalRefusal::NotLive
+                      && subj.missing == QStringList{ QStringLiteral("mT0") },
+                  "a held subject is refused as NotLive — never in order");
+        }
+
+        // A requiresBeforeImpact companion is a reading the verdict rests on: held, the check is not made.
+        {
+            const DetectionResult d = detect(withStatus("mPeak", MeasureStatus::Held), src);
+            const Finding *f = d.find("cBrake");
+            check(f && f->state == FindingState::Unavailable && f->refusal == SignalRefusal::NotLive
+                      && f->missingMeasures == QStringList{ QStringLiteral("mPeak") },
+                  "status_held_companion: a held requiresBeforeImpact peak refuses the check as NotLive");
+        }
+
+        // The session's source goes through the same rule.
+        {
+            SessionMeasureSource sess(p);
+            MeasureReading r;
+            r.value = 3.0;
+            sess.set(QStringLiteral("mS"), r);
+            check(detect(p, sess).find("cSess")->state == FindingState::Fired,
+                  "a live session measure 3.0 over 2.0 fires");
+            const CharacteristicPack k = withStatus("mS", MeasureStatus::Held);
+            SessionMeasureSource sessHeld(k);
+            sessHeld.set(QStringLiteral("mS"), r);
+            const DetectionResult d = detect(k, sessHeld);
+            const Finding *f = d.find("cSess");
+            check(f && f->state == FindingState::Unavailable && f->refusal == SignalRefusal::NotLive,
+                  "status_held_session: a held session measure is refused as NotLive");
+        }
+
+        // A signal naming a measure the pack does not have is a pack bug (the validator's unknownMeasure):
+        // the engine does not invent a status for it, and answers as the source does.
+        {
+            CharacteristicPack k = p;
+            k.measures.erase(std::remove_if(k.measures.begin(), k.measures.end(),
+                                            [](const Measure &m) { return m.id == QLatin1String("mA"); }),
+                             k.measures.end());
+            check(detect(k, src).find("cA")->state == FindingState::Fired,
+                  "a measure not in the pack is read as the source answers (no status to refuse on)");
+        }
     }
 
     std::printf("%s (%d failure%s)\n", g_fail ? "FAILED" : "OK", g_fail, g_fail == 1 ? "" : "s");

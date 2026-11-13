@@ -113,7 +113,22 @@ bool sameScale(const MeasureReading &a, const MeasureReading &b)
     return !a.route.isEmpty() && a.route == b.route;      // one route: its scale error cancels
 }
 
-SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
+// THE ONE PLACE THE STATUS RULE IS ENFORCED (#176, measure_vocabulary.h measureStatusGrades). Every
+// grading path reaches a reading through here — a condition's signals (detect), a signal on its own
+// (evaluateSignal), an order chain's fallback links and a requiresBeforeImpact companion — and every
+// source with them: the per-swing NormMeasureSource and the session's SessionMeasureSource. A source
+// could only answer nullopt, which the engine must call MeasureMissing ("not measured"), a false reason
+// for a series the swing may well carry; and NormMeasureSource's pack is optional. The engine always
+// holds the pack and owns the refusal vocabulary, so the rule lives here and cannot be bypassed.
+//
+// A measure the pack does not have answers as the source says: that is a pack bug the validator
+// refuses (unknownMeasure), and a source with no pack behind it has nothing else to go on.
+bool notLive(const CharacteristicPack &pack, const QString &measureId)
+{
+    return !packMeasureGrades(pack, measureId);
+}
+
+SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src, const CharacteristicPack &pack)
 {
     SignalVerdict v;
 
@@ -127,7 +142,16 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     // same way, and says so in its own words: the parts it could read are real, there were just not
     // enough of them to stand for the whole.
     QStringList shortComposite;
+    // A measure that is not live is NOT READ — held, planned or without a producer, its value (if the
+    // producer emitted one) never reaches a verdict. It is absent like an unplaced link, so an order
+    // chain walks past it, and if nothing stands in for it the refusal is NotLive (rule.diag.notLive).
+    QStringList nonLive;
     for (const QString &mid : sig.measures) {
+        if (notLive(pack, mid)) {
+            nonLive << mid;
+            v.missing << mid;
+            continue;
+        }
         const auto r = src.read(mid);
         if (!r || !r->withheld.isEmpty() || r->compositeShort) {
             if (r && r->compositeShort) shortComposite << mid;
@@ -156,6 +180,7 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
                 v.missing.clear();
                 break;
             }
+            if (notLive(pack, fid)) continue;   // a link that is not live is never compared with
             if (const auto r = src.read(fid); r && r->withheld.isEmpty() && !r->compositeShort) {
                 readings.push_back(*r);
                 v.comparedWith = fid;
@@ -169,8 +194,12 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
             return std::any_of(v.missing.cbegin(), v.missing.cend(),
                                [&](const QString &m) { return which.contains(m); });
         };
+        // NOT LIVE FIRST: it is a fact about the pack, true on every swing however the capture went,
+        // so it is the reason a reader can rely on — the others are this swing's.
         // gate rule: PP_GATE("rule.diag.compositeCoverage")
-        v.refusal = any(withheld)       ? SignalRefusal::Withheld
+        // gate rule: PP_GATE("rule.diag.notLive")
+        v.refusal = any(nonLive)        ? SignalRefusal::NotLive
+                  : any(withheld)       ? SignalRefusal::Withheld
                   : any(shortComposite) ? SignalRefusal::CompositeCoverage
                                         : SignalRefusal::MeasureMissing;
         return v;
@@ -182,6 +211,12 @@ SignalVerdict evaluate(const Signal &sig, const IMeasureSource &src)
     // lateness is a sequence fault in its own right, reported by the hips-before-impact check; here
     // it is the reason this check cannot be read, never a pass.
     if (!sig.requiresBeforeImpact.isEmpty()) {
+        // the companion is a reading the verdict rests on, so it is held to the status rule too
+        if (notLive(pack, sig.requiresBeforeImpact)) {
+            v.missing << sig.requiresBeforeImpact;
+            v.refusal = SignalRefusal::NotLive;
+            return v;
+        }
         const auto t = src.read(sig.requiresBeforeImpact);
         if (!t) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::MeasureMissing; return v; }
         if (!t->withheld.isEmpty()) { v.missing << sig.requiresBeforeImpact; v.refusal = SignalRefusal::Withheld; return v; }
@@ -509,7 +544,7 @@ SignalOutcome evaluateSignal(const CharacteristicPack &pack, const QString &sign
     }
     // THE SAME evaluate() detect() runs for a condition's signal, on whatever source the caller
     // hands in — so a caller that passes detect()'s own source reads the verdict detect() read.
-    const SignalVerdict v = evaluate(*sig, source);
+    const SignalVerdict v = evaluate(*sig, source, pack);
     out.available  = v.available;
     out.fired      = v.available && v.fired;
     out.refusal    = v.available ? SignalRefusal::None : v.refusal;
@@ -589,7 +624,7 @@ DetectionResult detect(const CharacteristicPack &pack, const IMeasureSource &sou
                 continue;
             }
 
-            const SignalVerdict v = evaluate(*sig, source);
+            const SignalVerdict v = evaluate(*sig, source, pack);
             if (!v.available) {
                 // FIRST: an unreadable preferred signal is not a verdict, it is the cue to try the
                 // next one. Only when none can be read is the finding unavailable (below the loop).

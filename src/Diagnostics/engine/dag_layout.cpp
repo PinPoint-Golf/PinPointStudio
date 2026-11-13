@@ -94,10 +94,28 @@ void resolveAvailability(const CharacteristicPack &pack, const Condition &c,
     for (const QString &sid : c.detectedBy) {
         const Signal *s = pack.signal(sid);
         if (!s) continue;
+        // THE ENGINE'S OWN READ (#176, characteristic_engine.cpp evaluate): a condition the graph draws as
+        // available is one the engine can grade. So every measure the signal reads must be live
+        // (measureStatusGrades), its requiresBeforeImpact companion too — except an order test's later
+        // event, which the engine replaces with the first live link of its fallback chain, or with impact
+        // itself, when it cannot read it.
+        const auto orderLinkStandsIn = [&]() {
+            if (s->test != SignalTest::Order) return false;
+            for (const QString &fid : s->fallback) {
+                if (fid == QLatin1String(kImpactLink)) return true;
+                const Measure *fm = pack.measure(fid);
+                if (fm && measureStatusGrades(fm->status)) return true;
+            }
+            return false;
+        };
+        QStringList reads = s->measures;
+        if (!s->requiresBeforeImpact.isEmpty()) reads << s->requiresBeforeImpact;
         bool allLive = true;
-        for (const QString &mid : s->measures) {
+        for (int i = 0; i < reads.size(); ++i) {
+            const QString &mid = reads.at(i);
             const Measure *m = pack.measure(mid);
-            if (m && m->status == MeasureStatus::Live) continue;
+            if (m && measureStatusGrades(m->status)) continue;
+            if (i == 1 && s->test == SignalTest::Order && orderLinkStandsIn()) continue;
             allLive = false;
             if (firstGap.isEmpty() && m)
                 firstGap = QStringLiteral("Needs %1 — %2.")
@@ -476,7 +494,7 @@ DagLayout layoutDag(const CharacteristicPack &pack, const QString &focusId,
                         // `metricKey` said the wrong thing the moment a measure preferred a device
                         // reading over our own estimate: it named the fallback.
                         dm.keyLadder   = measureKeyLadder(*m);
-                        dm.available   = m->status == MeasureStatus::Live;
+                        dm.available   = measureStatusGrades(m->status);
                         if (!dm.available) dm.unavailableReason = m->gapReason;
                         // WHAT THIS SIGNAL ASKS OF IT. Only where the signal authors a number of its
                         // own — a corridor test states none, and printing "outside its normal range"

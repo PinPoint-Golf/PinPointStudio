@@ -79,6 +79,7 @@
 #include <QHash>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 
 #include "../Core/pp_tuned_constants.h"   // tuned::diagUncertainty (§A8)
 #include "../Analysis/det_rng.h"           // the P(Pattern) Monte Carlo
@@ -226,7 +227,16 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // every surface that counts rows counts the checked verdict, and the row still says the monitor DID read it.
 // A file at 13 reads back with every row unflagged, and regrades the same way (the content stamp carries
 // this version): the regrade re-reads each swing's stored readings and never re-runs pose, ball or shaft.
-inline constexpr int kDiagSchemaVersion = 14;
+// 15 (#176, 12 Nov 2026): a measure that is not live (held, planned, no producer…) no longer grades on the
+// plain signal path — only composites honoured that before, so a held m_leadKneeFlex graded late_buckle on
+// every shot. Such a row is NotAssessable under rule.diag.notLive and carries ConditionRow / SignalRow
+// `notLiveStatus` (the measure's status); and ShotRecord::ungradedReadings names the shot's launch-monitor
+// and swing-length readings whose measure is not live, so the flight checks never judge on them
+// (gradedReadings). The row shape gains those fields, and the bump is what makes a
+// stored ledger regrade on first open (the content stamp carries this version), so verdicts graded off a
+// held measure go away. A file at 14 reads back with no status on any row; the regrade re-reads each
+// swing's stored readings and never re-runs pose, ball or shaft.
+inline constexpr int kDiagSchemaVersion = 15;
 
 // Every §4 tunable in one injectable bundle.
 struct LedgerOptions {
@@ -603,6 +613,11 @@ struct ConditionRow {
     // the missing measure (a swing analysed before records existed, or a plain absence).
     QString notJudgedGate;
     QString notJudgedSubject;
+    // Schema 15 (#176): `notJudgedGate` is rule.diag.notLive — the measure that stopped it is not live in
+    // the pack — and this is that measure's status in measureStatusName's spelling ("held", "planned",
+    // "noProducer", …), the same token-plus-status a composite's unread part carries
+    // (CompositeUnreadRow). Empty on every other row.
+    QString notLiveStatus;
 
     // The verdict as a probability (session_diagnostics_design.md §A8.4) — Finding::pFire,
     // grossRisk, quantified. −1 = not formed (a row written before §A8, or NotAssessable). The
@@ -698,6 +713,8 @@ struct SignalRow {
     // Schema 8: as ConditionRow — the gate behind a NotAssessable signal, and the reading it acted on.
     QString   notJudgedGate;
     QString   notJudgedSubject;
+    // Schema 15: as ConditionRow — the status of a measure that is not live (rule.diag.notLive).
+    QString   notLiveStatus;
 };
 
 // One PLACED kinematic-sequence peak instant on one shot (schema 6): the measure it was read as
@@ -745,7 +762,56 @@ struct ShotRecord {
     double  spinAxis       = std::numeric_limits<double>::quiet_NaN();   // schema 13: degrees, + tilted right, never mirrored
     QString swingLength;              // "" = not classified, "full", "partial"
     QString handedness;                 // "", "Left", "Right"
+
+    // Schema 15 (#176): the measures behind the readings above (shotReadingFields) that are NOT LIVE in the
+    // pack this shot was graded with — held, planned… The readings are kept as recorded, because a reading
+    // is still shown (club distances, the consistency and delivery charts); but nothing JUDGES on them:
+    // every verdict made from these fields reads them through gradedReadings(), which hides these. Empty on
+    // every shot whose readings are all live, and on every file older than schema 15.
+    QStringList ungradedReadings;
 };
+
+// The readings above, by the measure each is read from — the ONE table detectShot fills them from
+// and gradedReadings() hides them by, so the two cannot name different measures.
+struct ShotReadingField {
+    const char *measureId;
+    double ShotRecord::*field;
+};
+inline const std::array<ShotReadingField, 14> &shotReadingFields()
+{
+    static const std::array<ShotReadingField, 14> k{ {
+        { "m_carryDistance",     &ShotRecord::carry },
+        { "m_lmTotalDistance",   &ShotRecord::total },
+        { "m_lmOffline",         &ShotRecord::offline },
+        { "m_lmBallSpeed",       &ShotRecord::ballSpeed },
+        { "m_lmClubheadSpeed",   &ShotRecord::lmClubSpeed },
+        { "m_smashFactor",       &ShotRecord::smash },
+        { "m_shaftAngleP4",      &ShotRecord::shaftAngleP4 },
+        { "m_lmLaunchAngle",     &ShotRecord::launchAngle },
+        { "m_lmLaunchDirection", &ShotRecord::startDirection },
+        { "m_attackAngle",       &ShotRecord::attackAngle },
+        { "m_lmDescentAngle",    &ShotRecord::descentAngle },
+        { "m_lmPeakHeight",      &ShotRecord::peakHeight },
+        { "m_spinRate",          &ShotRecord::spinRate },
+        { "m_spinAxis",          &ShotRecord::spinAxis },
+    } };
+    return k;
+}
+
+// THE SHOT'S READINGS AS A VERDICT MAY USE THEM (#176): those whose measure is not live are NaN — "not
+// read", the state every verdict below already handles. Returns `s` itself when nothing is hidden (every
+// shot today), else fills `scratch` and returns that. Every function that judges from these fields — the
+// strike and Sky checks against the flight, the session's usual flight, the flight band, the strike
+// factor, the carry lost, the swing length — reads through this; display reads the fields plainly.
+inline const ShotRecord &gradedReadings(const ShotRecord &s, ShotRecord &scratch)
+{
+    if (s.ungradedReadings.isEmpty()) return s;
+    scratch = s;
+    for (const ShotReadingField &f : shotReadingFields())
+        if (s.ungradedReadings.contains(QLatin1String(f.measureId)))
+            scratch.*(f.field) = std::numeric_limits<double>::quiet_NaN();
+    return scratch;
+}
 
 // The row for `conditionId` on this shot, or nullptr. Linear — a shot carries tens of
 // rows, not thousands.
@@ -2205,6 +2271,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                 ro[QStringLiteral("notJudgedGate")]    = r.notJudgedGate;
                 ro[QStringLiteral("notJudgedSubject")] = r.notJudgedSubject;
             }
+            // Schema 15 — only on a row a non-live measure stopped.
+            if (!r.notLiveStatus.isEmpty()) ro[QStringLiteral("notLiveStatus")] = r.notLiveStatus;
             // §A8.4 — written only when formed, so a ledger with none is byte-identical to before.
             if (r.pFire >= 0.f) {
                 ro[QStringLiteral("pFire")]      = double(r.pFire);
@@ -2261,6 +2329,7 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
                     go[QStringLiteral("notJudgedGate")]    = g.notJudgedGate;
                     go[QStringLiteral("notJudgedSubject")] = g.notJudgedSubject;
                 }
+                if (!g.notLiveStatus.isEmpty()) go[QStringLiteral("notLiveStatus")] = g.notLiveStatus;
                 sa.append(go);
             }
             so[QStringLiteral("signals")] = sa;
@@ -2283,6 +2352,8 @@ inline QJsonObject toJson(const std::vector<ShotRecord> &shots,
         if (std::isfinite(s.spinAxis))       so[QStringLiteral("spinAxis")]       = s.spinAxis;
         if (!s.swingLength.isEmpty())      so[QStringLiteral("swingLength")]  = s.swingLength;
         if (!s.handedness.isEmpty())       so[QStringLiteral("handedness")]   = s.handedness;
+        // Schema 15 — only on a shot with a reading whose measure is not live.
+        if (!s.ungradedReadings.isEmpty()) so[QStringLiteral("ungradedReadings")] = QJsonArray::fromStringList(s.ungradedReadings);
         // Schema 6 — written only when present.
         if (!s.peakTimes.empty()) {
             QJsonArray pa;
@@ -2386,6 +2457,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             r.overruled           = ro.value(QStringLiteral("overruled")).toBool(false);
             r.notJudgedGate       = ro.value(QStringLiteral("notJudgedGate")).toString();
             r.notJudgedSubject    = ro.value(QStringLiteral("notJudgedSubject")).toString();
+            r.notLiveStatus       = ro.value(QStringLiteral("notLiveStatus")).toString();
             for (const QJsonValue &mv : ro.value(QStringLiteral("readings")).toArray()) {
                 const QJsonObject mo = mv.toObject();
                 MeasureRow m;
@@ -2419,6 +2491,7 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
             g.comparedWith = go.value(QStringLiteral("comparedWith")).toString();
             g.notJudgedGate    = go.value(QStringLiteral("notJudgedGate")).toString();
             g.notJudgedSubject = go.value(QStringLiteral("notJudgedSubject")).toString();
+            g.notLiveStatus    = go.value(QStringLiteral("notLiveStatus")).toString();
             s.signalRows.push_back(std::move(g));
         }
         if (const QJsonValue cv = so.value(QStringLiteral("clubheadSpeed")); cv.isDouble())
@@ -2444,6 +2517,8 @@ inline std::vector<ShotRecord> fromJson(const QJsonObject &root, LedgerOptions *
         s.spinAxis       = reading("spinAxis");
         s.swingLength  = so.value(QStringLiteral("swingLength")).toString();
         s.handedness   = so.value(QStringLiteral("handedness")).toString();
+        for (const QJsonValue &uv : so.value(QStringLiteral("ungradedReadings")).toArray())
+            if (uv.isString()) s.ungradedReadings << uv.toString();
         for (const QJsonValue &tv : so.value(QStringLiteral("peakTimes")).toArray()) {
             const QJsonObject to = tv.toObject();
             const QJsonValue v = to.value(QStringLiteral("valueMs"));

@@ -97,7 +97,9 @@ inline QHash<QString, ClubFlightUsual> sessionFlightUsuals(const std::vector<Sho
 {
     struct Pool { std::vector<double> launch, smash, attack, carry; };
     QHash<QString, Pool> pools;
-    for (const ShotRecord &s : shots) {
+    for (const ShotRecord &recorded : shots) {
+        ShotRecord scratch;
+        const ShotRecord &s = gradedReadings(recorded, scratch);   // a held reading never sets a usual (#176)
         if (s.swingLength == QLatin1String("partial")) continue;
         const QString club = canonicalClubId(s.club);
         if (club.isEmpty()) continue;
@@ -132,8 +134,10 @@ inline bool strikeHeightUnread(const ShotRecord &s)
 // The strike the flight points to ("shank", "thin", "top", "chunk"), or "" for none. A reading that's missing
 // rules out only the labels that need it. A high launch is no strike: Sky is a flight result, the flight
 // rule's alone (flightSaysSky), so this never names it.
-inline QString strikeFromFlight(const ShotRecord &s, const ClubFlightUsual &usual)
+inline QString strikeFromFlight(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
+    ShotRecord scratch;
+    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings judge (#176)
     if (s.swingLength == QLatin1String("partial")) return QString();
     if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return QString();
 
@@ -172,8 +176,10 @@ inline QString strikeFromFlight(const ShotRecord &s, const QHash<QString, ClubFl
 // reading missing, or the club with too few full shots this session for a usual) there is no evidence
 // against it, so it stands. Any other condition is not this rule's to judge. Strike height and launch
 // are never mirrored, so a left-hander is judged the same way.
-inline bool measuredStrikeFlightAgrees(const ShotRecord &s, const QString &conditionId, const ClubFlightUsual &usual)
+inline bool measuredStrikeFlightAgrees(const ShotRecord &recorded, const QString &conditionId, const ClubFlightUsual &usual)
 {
+    ShotRecord scratch;
+    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings overrule (#176)
     if (s.swingLength == QLatin1String("partial")) return true;
     if (conditionId == QLatin1String("thin") || conditionId == QLatin1String("top")) {
         if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return true;
@@ -378,8 +384,10 @@ inline double modelledDescentAngle(const ShotRecord &shot)
 
 // The first method the shot can use (the file comment above), or none: no reading, a club in no
 // category, or nothing the shot has that a method reads.
-inline std::optional<FlightReading> classifyFlight(const ShotRecord &shot, const FlightNorms &norms)
+inline std::optional<FlightReading> classifyFlight(const ShotRecord &recorded, const FlightNorms &norms)
 {
+    ShotRecord scratch;
+    const ShotRecord &shot = gradedReadings(recorded, scratch);    // a flight band is a verdict (#176)
     FlightReading r;
     r.category = flightClubCategory(norms, shot.club);
     if (r.category.isEmpty()) return std::nullopt;
@@ -472,8 +480,10 @@ inline bool isSkyClub(const QString &clubId)
 // A High flight skied (by whichever method): a driver, wood or hybrid, an attack at least kSkySteeperAttackDeg steeper (more
 // negative) than the golfer's usual for the club this session, and a carry at most kSkyCarryShare of the
 // usual. Every reading has to be there; with one missing it stays High. `usual` is the shot's own club's.
-inline bool flightSkied(const ShotRecord &shot, const ClubFlightUsual &usual)
+inline bool flightSkied(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
+    ShotRecord scratch;
+    const ShotRecord &shot = gradedReadings(recorded, scratch);    // only live readings call a sky (#176)
     if (!isSkyClub(shot.club)) return false;
     if (!std::isfinite(shot.attackAngle) || !std::isfinite(usual.attack)) return false;
     if (!std::isfinite(shot.carry) || !std::isfinite(usual.carry) || !(usual.carry > 0.0)) return false;

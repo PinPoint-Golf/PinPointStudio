@@ -793,9 +793,11 @@ std::vector<ReportFieldIssue> reportFieldIssues(const Measure &m)
         out.push_back({ QString::fromLatin1(field), QString::fromLatin1(code), sev, message });
     };
 
+    // A reading exists today for a LIVE measure and a HELD one (produced and shown, deliberately not
+    // graded). Not for externalDevice: that status names an integration not built yet (measure_vocabulary.h,
+    // #176) — the launch monitor's own measures are `live` — so, like planned, it has no reading to phrase.
     const bool producesReadings = m.status == MeasureStatus::Live
-                                  || m.status == MeasureStatus::Held
-                                  || m.status == MeasureStatus::ExternalDevice;
+                                  || m.status == MeasureStatus::Held;
     const bool noHigh = m.golferHigh.trimmed().isEmpty();
     const bool noLow  = m.golferLow.trimmed().isEmpty();
     // A COMPOSITE is exempt from the missing-phrase half. Its number is a z with no golfer-facing
@@ -1987,12 +1989,21 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
             m.viewNeeded = deriveViewNeeded(m.series);
         }
 
-        // Absent => Live, and a misspelt token must not land there: `status` is what the roadmap,
-        // the capture-gap classification and `normNotCapturable` all read, so a measure that meant
-        // "notCapturable" and typed "notCaptureable" would carry a norm nothing can ever grade and
-        // report itself as working.
-        if (o.contains(QStringLiteral("status"))
-            && !measureStatusFromName(o.value(QStringLiteral("status")).toString(), m.status))
+        // Absent => noProducer (Measure's default), and a misspelt token must not land anywhere: `status`
+        // is what the roadmap, the capture-gap classification and `normNotCapturable` all read, so a
+        // measure that meant "notCapturable" and typed "notCaptureable" would carry a norm nothing can
+        // ever grade and report itself as working.
+        //
+        // AN ABSENT STATUS IS WARNED (#176). Only a live measure grades, so a measure an author forgot to
+        // mark goes dark on every signal that reads it, silently — the reading is still on the swing and
+        // the fault reads "not graded yet". Not an error: noProducer is a legitimate answer, and the
+        // warning makes the author say it.
+        if (!o.contains(QStringLiteral("status")))
+            warn(r, QStringLiteral("measureNoStatus"), m.id,
+                 QStringLiteral("Measure '%1' declares no status, so it reads as noProducer and no fault "
+                                "is judged on it. Say `live` if a producer exists, or the status that "
+                                "holds.").arg(m.id));
+        else if (!measureStatusFromName(o.value(QStringLiteral("status")).toString(), m.status))
             err(r, QStringLiteral("unknownStatus"), m.id,
                 QStringLiteral("Measure '%1' declares status '%2'; the statuses are live, planned, "
                                "held, noProducer, notCapturable and externalDevice.")

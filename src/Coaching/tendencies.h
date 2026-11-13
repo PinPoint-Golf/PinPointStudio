@@ -200,8 +200,10 @@ inline QHash<int, QString> resolvedShotIntents(QHash<int, QString> explicitInten
 // ── Shared arithmetic ───────────────────────────────────────────────────────────────────────────────
 
 // How far short of the usual this shot carried, 0 when it went past it; NaN when either number is missing.
-inline double shotCarryLoss(const ShotRecord &shot, const ClubBaselineEntry *usual)
+inline double shotCarryLoss(const ShotRecord &recorded, const ClubBaselineEntry *usual)
 {
+    ShotRecord scratch;
+    const ShotRecord &shot = gradedReadings(recorded, scratch);   // a held carry loses nothing it can be judged on (#176)
     if (!usual || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean))
         return std::numeric_limits<double>::quiet_NaN();
     return std::max(0.0, usual->carryMean - shot.carry);

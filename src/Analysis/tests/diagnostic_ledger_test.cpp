@@ -1780,6 +1780,52 @@ int main()
                   "…and a plain absence carries none, and writes no empty key");
         }
 
+        // schema15_notLive_roundtrip (#176): a row a non-live measure stopped carries the engine rule and
+        // the measure's status on both row kinds; every other row writes no status key at all
+        {
+            check(kDiagSchemaVersion == 15, "schema15: the ledger is schema 15 (#176, a held measure no longer grades)");
+            ShotRecord g;
+            g.shotId = 10;
+            ConditionRow cr;
+            cr.conditionId = QStringLiteral("late_buckle");
+            cr.state = ShotState::NotAssessable;
+            cr.notAssessableReason = QStringLiteral("held back until it is trusted to grade");
+            cr.notJudgedGate = QStringLiteral("rule.diag.notLive");
+            cr.notLiveStatus = QStringLiteral("held");
+            g.rows.push_back(cr);
+            SignalRow sr;
+            sr.signalId = QStringLiteral("sig_ballSpeedDeficit");
+            sr.state = ShotState::NotAssessable;
+            sr.reason = QStringLiteral("not graded yet");
+            sr.notJudgedGate = QStringLiteral("rule.diag.notLive");
+            sr.notLiveStatus = QStringLiteral("planned");
+            g.signalRows.push_back(sr);
+            ConditionRow plain;
+            plain.conditionId = QStringLiteral("ball_too_far");
+            plain.state = ShotState::NotAssessable;
+            plain.notAssessableReason = QStringLiteral("metric not produced on this capture");
+            g.rows.push_back(plain);
+            g.launchAngle      = 17.5;
+            g.ungradedReadings = { QStringLiteral("m_lmLaunchAngle"), QStringLiteral("m_smashFactor") };
+            const QJsonObject go = toJson({ g });
+            const auto gb = fromJsonDocument(QJsonDocument::fromJson(QJsonDocument(go).toJson(QJsonDocument::Compact)));
+            check(gb.size() == 1 && gb[0].ungradedReadings == g.ungradedReadings && gb[0].launchAngle == 17.5,
+                  "schema15_ungradedReadings_roundtrip: the shot's held readings are named, and the reading kept");
+            ShotRecord bare;
+            bare.shotId = 11;
+            const QJsonObject bo = toJson({ bare });
+            const auto bb = fromJsonDocument(QJsonDocument::fromJson(QJsonDocument(bo).toJson(QJsonDocument::Compact)));
+            check(bb.size() == 1 && bb[0].ungradedReadings.isEmpty() && !QJsonDocument(bo).toJson().contains("ungradedReadings"),
+                  "…and a shot with none writes no key and reads back empty");
+            check(gb.size() == 1 && gb[0].rows.size() == 2 && gb[0].rows[0].notLiveStatus == QLatin1String("held")
+                      && gb[0].rows[0].notJudgedGate == QLatin1String("rule.diag.notLive")
+                      && gb[0].signalRows.size() == 1 && gb[0].signalRows[0].notLiveStatus == QLatin1String("planned"),
+                  "schema15_notLive_roundtrip: the rule and the status survive on condition and signal rows");
+            check(gb.size() == 1 && gb[0].rows[1].notLiveStatus.isEmpty()
+                      && !QJsonDocument(go).toJson().contains("\"notLiveStatus\": \"\""),
+                  "…and a row no status stopped carries none, and writes no empty key");
+        }
+
         // schema5_file_reads_without_peakTimes
         QJsonObject old = obj;
         QJsonArray shots = old.value(QStringLiteral("shots")).toArray();

@@ -51,6 +51,27 @@ Per-shot output is the existing `DetectionResult`: per condition
 Fired / NotFired / Unavailable, confidence, direction, plus the driving measure's z.
 Nothing at this stage is a diagnosis; it is one observation.
 
+**Only a live measure grades (#176, 12 Nov 2026).** A measure whose pack `status` is not `live`
+(`held`, `planned`, `noProducer`, `notCapturable`, `externalDevice`) is never read by the engine,
+whatever its producer emitted. Every signal that reads one is refused as `NotLive`
+(`rule.diag.notLive`), so its condition is not assessable on that shot. The rule has one definition
+(`measureStatusGrades`, `measure_vocabulary.h`), applied wherever a verdict rests on a reading: the
+engine's read (`characteristic_engine.cpp`), which covers every source (per-swing and session-scope),
+order-chain fallback links and `requiresBeforeImpact` companions; the session model's own reads (the
+peak times the timing spread is graded from, the swing length); and the shot's launch-monitor readings,
+which every flight verdict (the strike and Sky checks, the session's usual flight, the flight band, the
+strike factor, the carry lost, which shots leave the club distances — "far short" included — and the
+carry block's breakdown) reads through `gradedReadings()` — the non-live ones are named in
+`ShotRecord::ungradedReadings`. The ledger row carries the measure's status (`notLiveStatus`, ledger
+schema 15), and the row's reason says "held back until it is trusted to grade" for `held`, "not graded
+yet" otherwise — never "not measured". **Display is the named exception:** a held reading is still
+shown — club distances' reductions, the consistency and delivery charts, the numbers quoted beside an
+outcome label and the carry block's headline ("short by X", drawn only when `carry_deficit` fired off the
+live `m_carryShortfall`) read the shot's readings plainly. Composite parts and the DAG's availability
+(which mirrors the engine's read, companions and order-chain fallbacks included) use the same predicate. Before this, only composites honoured `held`: a held
+`m_leadKneeFlex` graded `late_buckle` on every shot until it went live on 12 Nov. Launch-monitor
+measures grade because they are marked `live`; one marked `externalDevice` waits until it is flipped.
+
 ### A2. The session evidence ledger
 
 The central new data structure. Per condition × per shot, the ledger records:

@@ -161,14 +161,30 @@ QString compositeShareWord(double share)
     return QStringLiteral("a little");
 }
 
+// A measure that is not live (held, planned, no producer…) is not graded at all: say it is held back,
+// which is the honest reason, rather than "not measured" — the series may well be on the swing. ONE
+// sentence for a composite's unread part and a plain row the engine refused as NotLive (#176), so the
+// two can never word the same fact differently. `status` is measureStatusName's spelling.
+QString notLiveWords(const QString &status)
+{
+    return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")
+                                           : QStringLiteral("not graded yet");
+}
+
+// The status of the first measure in `measureIds` the pack does not grade — the one behind a NotLive
+// refusal (the engine names it among the signal's missing measures). Empty when none is non-live.
+QString notLiveStatusOf(const CharacteristicPack &pack, const QStringList &measureIds)
+{
+    for (const QString &mid : measureIds)
+        if (const Measure *m = pack.measure(mid); m && !measureStatusGrades(m->status))
+            return measureStatusName(m->status);
+    return QString();
+}
+
 // Why a composite part was not read (CompositeUnreadRow::reason), in the trust fold's words.
 QString compositeUnreadWords(const QString &reason, const QString &status = QString())
 {
-    // A part whose measure is not live (held, planned) is not graded at all: say it is held back,
-    // which is the honest reason, rather than "not measured" — the series may well be on the swing.
-    if (reason == QLatin1String("notLive"))
-        return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")
-                                               : QStringLiteral("not graded yet");
+    if (reason == QLatin1String("notLive")) return notLiveWords(status);
     if (reason == QLatin1String("notMeasured")) return QStringLiteral("not measured on this swing");
     if (reason == QLatin1String("noCorridor"))  return QStringLiteral("no range to judge it against");
     if (reason == QLatin1String("implausible")) return QStringLiteral("set aside as implausible");
@@ -653,11 +669,21 @@ private:
     std::shared_ptr<IClubBaselineProvider> m_inner;
 };
 
-// The reading a measure records, NaN when the capture had none (absent is never zero).
+// The reading a measure records, NaN when the capture had none (absent is never zero). A PLAIN read, for
+// a number that is shown or stored: it does not ask the measure's status. A read a verdict rests on goes
+// through gradedOrNaN() instead.
 double measuredOrNaN(const LiveMeasureSource &src, const char *measureId)
 {
     const auto v = src.value(QLatin1String(measureId));
     return (v && std::isfinite(v->value)) ? v->value : std::numeric_limits<double>::quiet_NaN();
+}
+
+// THE SAME READ FOR A VERDICT (#176): NaN — "not read" — when the measure is not live in the pack
+// (packMeasureGrades, the engine's own rule), whatever the producer emitted.
+double gradedOrNaN(const LiveMeasureSource &src, const CharacteristicPack &pack, const char *measureId)
+{
+    return packMeasureGrades(pack, QLatin1String(measureId)) ? measuredOrNaN(src, measureId)
+                                                             : std::numeric_limits<double>::quiet_NaN();
 }
 
 QString normaliseHandedness(const QString &raw)
@@ -951,8 +977,8 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // A part swing never sees them either: "short" is judged on full swings only (design §3.3), so
     // a pitch falls through to the duff guard rather than being measured against a full-swing carry.
     if (m_clubBaseline
-        && classifySwingLength(measuredOrNaN(src, "m_shaftAngleP4"), measuredOrNaN(src, "m_lmClubheadSpeed"),
-                               usualFor(src.club()), measuredOrNaN(src, "m_lmBallSpeed")) != QLatin1String("partial"))
+        && classifySwingLength(gradedOrNaN(src, pack, "m_shaftAngleP4"), gradedOrNaN(src, pack, "m_lmClubheadSpeed"),
+                               usualFor(src.club()), gradedOrNaN(src, pack, "m_lmBallSpeed")) != QLatin1String("partial"))
         src.setClubBaselineProvider(m_clubBaseline);
 
     // ⚠ THE INSTANT THE DOCUMENT RECORDS, NOT THE INSTANT THE FILE WAS LAST TOUCHED.
@@ -1043,6 +1069,13 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                 r.notAssessableReason = refusalReason(f.refusal, f.missingMeasures.value(0));
                 r.notJudgedGate       = QString::fromLatin1(rule);
                 r.notJudgedSubject.clear();
+                // A MEASURE THE PACK DOES NOT GRADE (#176): held, planned, no producer. Its value may be on
+                // the swing, so "not produced" would be false; the row says it is held back and carries
+                // the status, the token-plus-status a composite's unread part already carries.
+                if (f.refusal == SignalRefusal::NotLive) {
+                    r.notLiveStatus       = notLiveStatusOf(pack, f.missingMeasures);
+                    r.notAssessableReason = notLiveWords(r.notLiveStatus);
+                }
             } else {
                 // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
                 // standing on a sequence node a gate refused says which gate, in its words, and the row
@@ -1155,6 +1188,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
                 }
                 g.notJudgedGate = QString::fromLatin1(rule);
                 g.notJudgedSubject.clear();
+                if (o.refusal == SignalRefusal::NotLive) {      // as the condition rows above (#176)
+                    g.notLiveStatus = notLiveStatusOf(pack, o.missing);
+                    g.reason        = notLiveWords(g.notLiveStatus);
+                }
             }
         }
         rec.signalRows.push_back(std::move(g));
@@ -1164,6 +1201,9 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     // implausible on this swing is a capture fault, not a reading, and stays out of the spread too.
     for (const SequenceSpreadSegmentDef &seg : sequenceSpreadSegments()) {
         const QString mid = QLatin1String(seg.measureId);
+        // The spread is graded (m_ksTimingSpread), so a peak time the pack does not grade — held,
+        // planned — stays out of it, exactly as the engine refuses it on the order checks (#176).
+        if (!packMeasureGrades(pack, mid)) continue;
         bool implausible = false;
         for (const SignalOutcome &o : d.signalOutcomes)
             if (o.refusal == SignalRefusal::Implausible && o.missing.contains(mid)) implausible = true;
@@ -1187,23 +1227,22 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     }
 
     // Schema 11: the monitor's readings the per-club distances are reduced from, the backswing, and
-    // how far the swing went against this club's frozen usual numbers (Contract E).
-    rec.carry        = measuredOrNaN(src, "m_carryDistance");
-    rec.total        = measuredOrNaN(src, "m_lmTotalDistance");
-    rec.offline      = measuredOrNaN(src, "m_lmOffline");
-    rec.ballSpeed    = measuredOrNaN(src, "m_lmBallSpeed");
-    rec.lmClubSpeed  = measuredOrNaN(src, "m_lmClubheadSpeed");
-    rec.smash        = measuredOrNaN(src, "m_smashFactor");
-    rec.shaftAngleP4 = measuredOrNaN(src, "m_shaftAngleP4");
+    // how far the swing went against this club's frozen usual numbers (Contract E). Read PLAINLY and kept
+    // as recorded, from the one table (shotReadingFields: carry, total, offline, ball and club speed,
+    // smash, the P4 shaft angle; schema 12/13 launch, start direction, attack, descent, apex in feet,
+    // spin and its axis), so a reading is shown whatever its measure's status; one whose measure is not
+    // live is named in ungradedReadings (schema 15), and every verdict reads them through gradedReadings().
+    for (const ShotReadingField &f : shotReadingFields()) {
+        rec.*(f.field) = measuredOrNaN(src, f.measureId);
+        if (!packMeasureGrades(pack, QLatin1String(f.measureId))) rec.ungradedReadings << QLatin1String(f.measureId);
+    }
     rec.handedness   = normaliseHandedness(summary.handedness);
-    rec.launchAngle    = measuredOrNaN(src, "m_lmLaunchAngle");
-    rec.startDirection = measuredOrNaN(src, "m_lmLaunchDirection");
-    rec.attackAngle    = measuredOrNaN(src, "m_attackAngle");
-    rec.descentAngle   = measuredOrNaN(src, "m_lmDescentAngle");
-    rec.peakHeight     = measuredOrNaN(src, "m_lmPeakHeight");     // feet, the monitor's unit
-    rec.spinRate       = measuredOrNaN(src, "m_spinRate");
-    rec.spinAxis       = measuredOrNaN(src, "m_spinAxis");
-    rec.swingLength  = classifySwingLength(rec.shaftAngleP4, rec.lmClubSpeed, usualFor(rec.club), rec.ballSpeed);
+    {
+        // The swing length decides what may be judged (a part swing is never short), so it is a verdict's input.
+        ShotRecord scratch;
+        const ShotRecord &g = gradedReadings(rec, scratch);
+        rec.swingLength = classifySwingLength(g.shaftAngleP4, g.lmClubSpeed, usualFor(rec.club), g.ballSpeed);
+    }
 
     // Data-integrity exclusion. A shot whose recording is known broken — frames lost
     // during capture (captureIntegrity), or an IMU record that does not reproduce
@@ -1231,6 +1270,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             r.notAssessableReason = missingReasonText(MissingKind::CaptureDataIssue);
             r.notJudgedGate       = shotGate.gate;
             r.notJudgedSubject    = shotGate.subject;
+            r.notLiveStatus.clear();
         }
         for (SignalRow &g : rec.signalRows) {
             g.state            = ShotState::NotAssessable;
@@ -1239,6 +1279,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
             g.reason           = missingReasonText(MissingKind::CaptureDataIssue);
             g.notJudgedGate    = shotGate.gate;
             g.notJudgedSubject = shotGate.subject;
+            g.notLiveStatus.clear();
         }
         rec.peakTimes.clear();
     }
@@ -5312,7 +5353,7 @@ void SessionDiagnosticsModel::buildChains()
 // outcome. The launch-monitor clause is the same clause in both cases, because it is the same
 // fact — this session carried a monitor, so a ball-flight claim is verifiable rather than
 // authored. The recurrence line beside it carries the count ("N of M measurable shots").
-// WHY THERE IS NO READING HERE — and it is FIVE answers, not one.
+// WHY THERE IS NO READING HERE — and it is several answers, not one (held is its own since #176).
 //
 // ⚠ THIS USED TO SAY "ghost · measure planned" ABOUT EVERY NODE THAT WAS NOT ASSERTED, and that
 // is a claim about the MODEL made out of a fact about the CAPTURE. NodeSpec::measurable means
@@ -5343,7 +5384,7 @@ QString SessionDiagnosticsModel::ghostMark(const QString &id, const NodeSpec *ns
     const CharacteristicPack &pack = m_packProv->pack();
     const Condition *c = pack.condition(id);
 
-    bool anyLive = false, anyExternal = false, anyNotCapturable = false, anySignal = false;
+    bool anyLive = false, anyExternal = false, anyNotCapturable = false, anyHeld = false, anySignal = false;
     if (c) {
         for (const QString &sid : c->detectedBy) {
             const Signal *sig = pack.signal(sid);
@@ -5356,7 +5397,7 @@ QString SessionDiagnosticsModel::ghostMark(const QString &id, const NodeSpec *ns
                 case MeasureStatus::Live:           anyLive = true;          break;
                 case MeasureStatus::ExternalDevice: anyExternal = true;      break;
                 case MeasureStatus::NotCapturable:  anyNotCapturable = true; break;
-                case MeasureStatus::Held:
+                case MeasureStatus::Held:           anyHeld = true;          break;
                 case MeasureStatus::Planned:
                 case MeasureStatus::NoProducer:     break;
                 }
@@ -5373,6 +5414,11 @@ QString SessionDiagnosticsModel::ghostMark(const QString &id, const NodeSpec *ns
         return why.isEmpty() ? QStringLiteral("measured today · not answered on this capture")
                              : QStringLiteral("measured today · %1").arg(why);
     }
+    // HELD IS NOT ROADMAP (#176). A producer exists and its reading may be on screen; the pack
+    // deliberately does not grade it yet. "A producer is planned" would tell the golfer the reading
+    // they can see does not exist. The words are the row's own (notLiveWords).
+    if (anyHeld)
+        return QStringLiteral("not graded · %1").arg(notLiveWords(QStringLiteral("held")));
     if (anyExternal)
         return QStringLiteral("no measure · needs a device this session did not carry");
     if (anyNotCapturable)

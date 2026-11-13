@@ -27,6 +27,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <limits>
 #include <vector>
@@ -462,6 +464,50 @@ int main()
         const std::vector<ClubSessionPool> pools = poolSessionByClub(day, norms);
         check(pools.size() == 1 && pools[0].shots.size() == 8 && pools[0].mishits.empty(),
               "every shot counts in the usual carry: no mishit");
+
+        // #176: A HELD READING NEVER MOVES A VERDICT. The same eight thins with the monitor's launch angle
+        // held (ShotRecord::ungradedReadings): the readings are kept as recorded (they are still shown),
+        // but the flight check reads through gradedReadings(), so there is no launch to judge a strike
+        // against and every measured thin stands as detected.
+        {
+            std::vector<ShotRecord> held;
+            for (int i = 0; i < 8; ++i) {
+                ShotRecord s = iron(i + 1, -12.0 - 0.5 * i, launches[i], 150.0 + 2.0 * i);
+                s.ungradedReadings = { QStringLiteral("m_lmLaunchAngle") };
+                held.push_back(s);
+            }
+            const int nh = checkStrikesAgainstFlight(held, norms);
+            const bool allStand = std::all_of(held.begin(), held.end(), [&row](const ShotRecord &s) {
+                const ConditionRow &r = row(s, "thin");
+                return r.state == ShotState::Fired && !r.overruled;
+            });
+            check(nh == 0 && allStand, "held_flight_reading: a held launch angle overrules no thin — every one stands");
+            check(held[0].launchAngle == 17.0, "…and the launch angle itself is kept as recorded, for display");
+            const QHash<QString, ClubFlightUsual> hu = sessionFlightUsuals(held);
+            check(hu.size() == 1 && !std::isfinite(hu.constBegin()->launch) && std::isfinite(hu.constBegin()->carry),
+                  "…the session's usual launch is not formed from held readings; the live carry still is");
+
+            // A held reading reaching the swing length: the model classifies from the graded view, so a held
+            // P4 shaft angle and club speed cannot make a full swing "partial" (which would excuse it from the
+            // club-baseline faults).
+            ClubBaselineEntry usual;
+            usual.shaftAngleP4Mean = 90.0;
+            usual.speedMean        = 80.0;
+            usual.ballSpeedMean    = 110.0;
+            ShotRecord pitchy = iron(9, -12.0, 18.0);
+            pitchy.shaftAngleP4 = 30.0;
+            pitchy.lmClubSpeed  = 50.0;
+            pitchy.ballSpeed    = 108.0;
+            check(classifySwingLength(pitchy.shaftAngleP4, pitchy.lmClubSpeed, &usual, pitchy.ballSpeed) == QStringLiteral("partial"),
+                  "a short turn and slow club read live: partial");
+            pitchy.ungradedReadings = { QStringLiteral("m_shaftAngleP4"), QStringLiteral("m_lmClubheadSpeed") };
+            ShotRecord scratch;
+            const ShotRecord &g = gradedReadings(pitchy, scratch);
+            check(classifySwingLength(g.shaftAngleP4, g.lmClubSpeed, &usual, g.ballSpeed) == QStringLiteral("full")
+                      && pitchy.shaftAngleP4 == 30.0,
+                  "held_swing_length: the same readings held do not decide it — full, from the live ball speed");
+            check(&gradedReadings(aug[0], scratch) == &aug[0], "…and a shot with nothing held is read in place, uncopied");
+        }
 
         // An overruled thin is read, so a low launch can't be read as a thin from the flight in its place.
         ShotRecord bothUnread = aug[0];

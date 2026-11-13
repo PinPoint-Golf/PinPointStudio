@@ -123,6 +123,11 @@ inline void appendRules(std::vector<GateEntry> &c)
                         "cameras saw too few of them — less than half of what the finding weighs, or not the one "
                         "it cannot do without — the check is not made. A part that was not seen is never counted "
                         "as fine."), engine, "docs/design/posture_metrics_design.md §4.6");
+    rule(c, "rule.diag.notLive", diag, "Not graded yet", "not graded yet",
+         QStringLiteral("A fault is judged only on readings that are ready for it. Some are held back while they "
+                        "are checked; others are not built yet. A fault that rests on one is not judged — never "
+                        "passed — on any shot."),
+         engine, "docs/design/session_diagnostics_design.md §A1");
     rule(c, "rule.diag.clubBaselineMinShots", diag, "Not enough shots with this club",
          "not enough shots with this club yet",
          QStringLiteral("Short carry and lost ball speed are judged against this golfer's own usual numbers with "

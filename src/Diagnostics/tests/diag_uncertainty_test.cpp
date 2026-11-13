@@ -87,6 +87,7 @@ static CharacteristicPack pack()
         Measure m; m.id = QString::fromLatin1(id); m.kind = MeasureKind::Composed;
         m.series = Series{ AnatomyRole::PelvisCentre, Quantity::Distance, AnatomyRole::TrailAnkle };
         m.reducer = at(Phase::Top);
+        m.status = MeasureStatus::Live;   // only a live measure grades (#176); Measure defaults to NoProducer
         p.measures.push_back(m);
         Signal s; s.id = QStringLiteral("sig_") + m.id; s.test = SignalTest::OutsideCorridor;
         s.measures = { m.id }; s.direction = Direction::High;

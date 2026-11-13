@@ -286,7 +286,9 @@ inline ShotFactors shotFactors(const ShotRecord &shot, const ShotOutcome &outcom
         const ShotConditionFacts *facts = outcomeFacts(pack, id);
         return facts && facts->layer == ShotConditionLayer::Ball ? facts->family : QString();
     };
-    bool strikeAssessed = std::isfinite(shot.smash), directionAssessed = false;
+    // a smash whose measure is not live is no strike reading (#176, gradedReadings)
+    ShotRecord scratch;
+    bool strikeAssessed = std::isfinite(gradedReadings(shot, scratch).smash), directionAssessed = false;
     for (const ConditionRow &r : shot.rows) {
         // A row the flight overruled was read: the monitor gave its height, the flight just disagreed.
         if (r.state == ShotState::NotAssessable && !r.overruled) continue;

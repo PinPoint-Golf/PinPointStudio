@@ -1517,7 +1517,7 @@ These are not part of the swing document, but someone reading a library will fin
 
 | Level | File | Schema / version key | Written by |
 |---|---|---|---|
-| session | `diagnostics.json` | envelope `schemaVersion` 1; nested `ledger.schemaVersion` 14 (the row shape) | `SessionDiagnosticsModel::persist` (`session_diagnostics_model.cpp`; `diagnostic_ledger.h`) |
+| session | `diagnostics.json` | envelope `schemaVersion` 1; nested `ledger.schemaVersion` 15 (the row shape; 15 added `notLiveStatus` on rows a non-live measure stopped, and `ungradedReadings` on a shot whose launch-monitor readings include one, #176) | `SessionDiagnosticsModel::persist` (`session_diagnostics_model.cpp`; `diagnostic_ledger.h`) |
 | session | `club_baseline.json` | — | `SessionDiagnosticsModel`: the per-club baseline the session was graded against, frozen once written |
 | session | `work_ons.json` | `schemaVersion` 3 | `WorkOnsController` (`work_ons_controller.cpp`; `work_ons.h`) |
 | session | `report/report_meta.json` + `report/<date>_<golfer>_session-report.pdf` | `schema` int 1 | `writeReportMeta` (`src/Gui/report/report_meta.h`) |

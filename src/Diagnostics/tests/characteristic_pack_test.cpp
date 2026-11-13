@@ -680,6 +680,27 @@ int main()
         check(hasError(measureWith(QStringLiteral("status"),
                                    QStringLiteral("notCaptureable")).report, "unknownStatus"),
               "a misspelt status is refused, not read as Live");
+        // An ABSENT status is noProducer, and since only a live measure grades (#176) that silently darks
+        // every signal on it — so it loads, and is warned, never refused.
+        {
+            QJsonObject root     = savePack(goodPack());
+            QJsonArray  measures = root.value(QStringLiteral("measures")).toArray();
+            QJsonObject first    = measures.at(0).toObject();
+            first.remove(QStringLiteral("status"));
+            measures.replace(0, first);
+            root.insert(QStringLiteral("measures"), measures);
+            const PackLoadResult noStatus = loadPack(root, QStringLiteral("status-absent"));
+            const QString id = first.value(QStringLiteral("id")).toString();
+            const std::vector<ValidationIssue> w = noStatus.report.withCode(QStringLiteral("measureNoStatus"));
+            check(!w.empty() && w.front().subject == id && w.front().severity == IssueSeverity::Warning
+                      && !hasError(noStatus.report, "measureNoStatus"),
+                  "measure_no_status_warned: a measure with no status loads with a warning that it will not grade");
+            const Measure *m = noStatus.pack.measure(id);
+            check(m && m->status == MeasureStatus::NoProducer, "…and reads as noProducer");
+            check(loadPack(savePack(goodPack()), QStringLiteral("status-present")).report
+                      .withCode(QStringLiteral("measureNoStatus")).empty(),
+                  "…while a measure that states its status is not warned");
+        }
 
         // The other half of the regime, and the half a test has to state: an ABSENT key is not an
         // error. Every fixture in this file that writes a condition by hand relies on it, and so

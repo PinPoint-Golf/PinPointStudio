@@ -120,6 +120,19 @@ int main()
         check(pools[0].mishits[0].kind == QStringLiteral("shank"), "the shank is named from the flight");
         check(pools[0].mishits[1].kind == QStringLiteral("short"), "the other is only far short");
 
+        // #176: "far short" is a judgement, so a carry whose measure is not live never calls it. The same
+        // shot with its carry held keeps its carry as recorded, and is not taken out of the usual for it.
+        {
+            ClubDistanceSession heldCarry = s;
+            for (ShotRecord &shot : heldCarry.shots)
+                if (shot.shotId == 21) shot.ungradedReadings = { QStringLiteral("m_carryDistance") };
+            const std::vector<ClubSessionPool> hp = poolSessionByClub(heldCarry);
+            bool anyShort = false;
+            for (const auto &m : hp[0].mishits) anyShort = anyShort || m.kind == QStringLiteral("short");
+            check(hp.size() == 1 && hp[0].mishits.size() == 1 && hp[0].mishits[0].kind == QStringLiteral("shank") && !anyShort,
+                  "held_carry_never_very_short: a held carry is never 'far short'; only the shank goes");
+        }
+
         ClubDistanceSession fixedSession = s;
         fixedSession.corrections[21] = { ShotCorrection{ QStringLiteral("strike"), QString(), QString() } };
         check(poolSessionByClub(fixedSession)[0].mishits.size() == 1, "the golfer's word keeps the far-short shot in");
@@ -140,7 +153,9 @@ int main()
 
     std::printf("ledger schema round trip:\n");
     {
-        check(kDiagSchemaVersion == 14, "the ledger is schema 14");
+        // 14 -> 15 (#176): rows a non-live measure stopped carry notLiveStatus, and the bump regrades
+        // stored ledgers so verdicts graded off a held measure go away. Nothing this test reads moved.
+        check(kDiagSchemaVersion == 15, "the ledger is schema 15");
 
         ShotRecord s = shotWith(1, k7i, 137.8);
         s.swingLength = QStringLiteral("full");

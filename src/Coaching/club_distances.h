@@ -170,9 +170,13 @@ inline bool isClubDistanceMishit(const QString &conditionId)
 // club's usual flight this session) lets the flight name the strike; with `norms` too, a shot the flight rule
 // calls Sky goes out as a sky (flightSaysSky: driver, woods and hybrids only); and a carry far under the usual
 // goes out as "short": a fat shot a ball-only monitor can't name would otherwise drag the usual down.
-inline QString shotMishitKind(const ShotRecord &shot, const std::vector<ShotCorrection> &corrections,
+inline QString shotMishitKind(const ShotRecord &recorded, const std::vector<ShotCorrection> &corrections,
                               const ClubFlightUsual *flight = nullptr, const FlightNorms *norms = nullptr)
 {
+    // Which shots leave the usual is a JUDGEMENT, so every reading below is the graded one (#176): a carry,
+    // launch or smash whose measure is not live never calls a shot short, thin or skied.
+    ShotRecord scratch;
+    const ShotRecord &shot = gradedReadings(recorded, scratch);
     QString corrected;
     QStringList removed;
     for (const ShotCorrection &c : corrections) {

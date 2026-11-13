@@ -347,9 +347,12 @@ enum class SignalRefusal {
     Withheld,                // a reading its producer marked drawn-but-not-judged (`missing` names it)
     CompositeCoverage,       // a composite whose parts read carry too little of its weight, or miss a
                              // required one (MeasureReading::compositeShort; `missing` names it)
+    NotLive,                 // a measure it reads is not live in the pack — held, planned, no producer,
+                             // … (measureStatusGrades) — so it is never read at all, whatever its
+                             // producer emitted (#176). `missing` names it; its status is the pack's.
 };
 
-// THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Six refusals are decisions the engine makes on
+// THE RULE BEHIND A REFUSAL (trust stage 6 session 2). Seven refusals are decisions the engine makes on
 // every read — no gate record stands behind them, so each is catalogued as a RULE (Metrics/
 // gate_catalogue_rules.h, `rule.diag.*`) and a surface names it by this id. Null for the rest: a missing
 // or withheld measure speaks through the swing's gate records instead, and a malformed or unknown signal
@@ -363,6 +366,7 @@ inline const char *signalRefusalRuleId(SignalRefusal r)
     case SignalRefusal::NonPositiveDenominator: return "rule.diag.nonPositiveDenominator";
     case SignalRefusal::PeakAfterImpact:        return "rule.diag.peakAfterImpact";
     case SignalRefusal::CompositeCoverage:      return "rule.diag.compositeCoverage";
+    case SignalRefusal::NotLive:                return "rule.diag.notLive";
     default:                                    return nullptr;
     }
 }
@@ -375,8 +379,8 @@ struct Finding {
     QStringList  missingMeasures;   // Unavailable: exactly which measures were absent, for the UI
     // Unavailable: WHY the first signal that could not be read was refused (the one whose measure heads
     // `missingMeasures`), so a refusal the engine made on a reading it HAD — no corridor, a reading not
-    // believed, two scales, no ratio, a peak after impact — is not reported as a measure that was never
-    // produced. None on every other state, and on a condition with no signals.
+    // believed, two scales, no ratio, a peak after impact, a measure the pack does not grade (NotLive) —
+    // is not reported as a measure that was never produced. None on every other state, and on a condition with no signals.
     SignalRefusal refusal   = SignalRefusal::None;
     Direction    direction  = Direction::High;   // which tail; meaningful when Fired
 

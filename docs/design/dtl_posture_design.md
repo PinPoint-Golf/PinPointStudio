@@ -84,7 +84,9 @@ from this camera.
 **12 November 2026.** `m_leadKneeFlex` is `live`. On a two-camera shot with a valid 3-D fit it reads
 the fit's lead knee, which **replaces** this series wherever the fit reads the knee through
 Impact → P8 (`Skeleton3dBodyStage`, `body_rotation_estimation.md` §7.3). Elsewhere it reads this
-series, as `late_buckle` already did in practice (the plain signal path did not honour `held`).
+series, as `late_buckle` already did in practice (the plain signal path did not honour `held`; since
+#176 it does — a non-live measure is refused as `rule.diag.notLive`, and the ledger schema went to 15
+so stored verdicts regrade).
 The catalogue's `dtl` rung for the lead knee is Estimated, below the fit's `faceOn+dtl` rung.
 
 With the heuristic norms as they stand, this golfer's 8.6 cm of thrust is ~2σ

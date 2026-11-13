@@ -514,6 +514,17 @@ const Measure *measureForMetricAtPhase(const CharacteristicPack &pack,
 // with no signals.
 bool isSessionScopeCondition(const CharacteristicPack &pack, const QString &conditionId);
 
+// THE STATUS RULE AGAINST A PACK (#176, measureStatusGrades): may a verdict rest on this measure's reading?
+// False for a measure the pack holds at any status but live. True for an id the pack does not have — a
+// pack bug the validator refuses (unknownMeasure), with no status to refuse on; such a measure has no value
+// either. The engine's read (characteristic_engine.cpp) and every read the session model makes outside the
+// engine that feeds a verdict (the timing spread's peaks, the shot's flight readings) call this one function.
+inline bool packMeasureGrades(const CharacteristicPack &pack, const QString &measureId)
+{
+    const Measure *m = pack.measure(measureId);
+    return !m || measureStatusGrades(m->status);
+}
+
 bool measureIsDeltaFromAddress(const Measure &m);
 
 // ── Shared evidence (posture_metrics_design.md §6.5) ─────────────────────────

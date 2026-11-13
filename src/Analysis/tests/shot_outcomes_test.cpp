@@ -205,6 +205,22 @@ int main()
               "the glance line");
         check(o.carry.provenance == QStringLiteral("against your usual 162 ± 7 yd"), "a modelled distance carries its provenance");
 
+        // #176: the breakdown BLAMES readings, so it reads them graded. The same shot with its smash held:
+        // the headline is unchanged (it quotes the carry, and shows only because carry_deficit fired), but
+        // no part blames the strike — its share folds into the remainder.
+        {
+            ShotRecord held = s;
+            held.ungradedReadings = { QStringLiteral("m_smashFactor") };
+            const ShotOutcome oh = composeShotOutcome(held, {}, QString(), &usual, pack, session);
+            bool strikePart = false;
+            for (const ShotCarryPart &p : oh.carry.parts) strikePart = strikePart || p.id == QStringLiteral("strike");
+            check(oh.carry.present && near(oh.carry.shortBy, o.carry.shortBy, 1e-9) && !strikePart
+                      && oh.carry.parts.size() == 2 && oh.carry.parts[0].id == QStringLiteral("speed")
+                      && oh.carry.residual > 1.0 && oh.carry.residualShown,
+                  "held_smash_carry_block: a held smash drops out of the breakdown — speed and curve, the rest unexplained");
+            check(held.smash == s.smash, "…and the smash itself is kept as recorded");
+        }
+
         // A smash shortfall as an extra label is implied by the fat and drops from the words.
         ShotRecord withSmash = s;
         withSmash.rows.push_back(rowOf("smash_deficit"));
