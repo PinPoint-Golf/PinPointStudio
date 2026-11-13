@@ -41,7 +41,7 @@ Item {
     readonly property real cw: (width - (cols - 1) * g) / cols
     readonly property int per: Math.ceil(list.length / cols)
     readonly property var slices: { const o = []; for (let c = 0; c < cols; ++c) o.push(list.slice(c * per, (c + 1) * per)); return o }
-    readonly property int nShots: readout ? readout.shotCount : (list.length && list[0].ticks ? list[0].ticks.length : 0)
+    readonly property int nShots: readout && readout.shotCount !== undefined ? readout.shotCount : (list.length && list[0].ticks ? list[0].ticks.length : 0)
 
     implicitHeight: row.implicitHeight
     height: implicitHeight

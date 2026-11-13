@@ -215,7 +215,7 @@ QtObject {
     }
     // ordinals: "Shot N of M" is the ORDINAL (shotIndex + 1), never the shot id (ids survive a deleted swing).
     // A shot readout here is anything with shotIndex / shotId / shotCount (/ club for sessionMeta).
-    function shotNo(readout) { return readout ? (readout.shotIndex !== undefined && readout.shotIndex >= 0 ? readout.shotIndex + 1 : readout.shotId) : 0 }
+    function shotNo(readout) { return readout ? (readout.shotIndex !== undefined && readout.shotIndex >= 0 ? readout.shotIndex + 1 : (readout.shotId !== undefined ? readout.shotId : 0)) : 0 }
     function shotCountOf(readout, ticks) { return readout && readout.shotCount !== undefined ? readout.shotCount : (ticks || []).length }
     function shotOfText(readout) { return readout ? "shot " + shotNo(readout) + " of " + readout.shotCount : "" }
     // the index of a shot id in a run of ticks (the column to shade), or -1

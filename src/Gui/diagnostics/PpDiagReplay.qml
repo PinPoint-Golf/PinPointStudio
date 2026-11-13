@@ -273,7 +273,7 @@ Item {
                 width: sc.width
                 roles: ro; brush: br
                 source: root.source; outcome: root.outcome
-                shotId: root.shot ? root.shot.shotId : -1
+                shotId: root.shot && root.shot.shotId !== undefined ? root.shot.shotId : -1
                 shotNo: ro.shotNo(root.shot)
                 interactive: root.interactive
                 whyEnabled: root.interactive && !root.cast && !!root.body && typeof root.body._openShotWhy === "function"
@@ -588,7 +588,7 @@ Item {
         id: br
         cards: root.cards || []
         shotLog: (root.source && root.source.shotLog) || []
-        pickedShot: ss.shot ? ss.shot.shotId : -1
+        pickedShot: ss.shot && ss.shot.shotId !== undefined ? ss.shot.shotId : -1
         pickedCondition: ""
     }
 }
