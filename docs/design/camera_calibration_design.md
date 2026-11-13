@@ -10,7 +10,8 @@ and no edit to either host.
 each camera's geometry and focus — across Aravis, Spinnaker, USB and a PPCP phone — and how that
 fits the flow of starting a session. ⚠ It deliberately covers the operator who has a printed
 ChArUco board, the one who has a golf ball and a tape measure, **and the one who has two alignment
-sticks and no intention of printing anything** (§4.4–§4.7).
+sticks and no intention of printing anything** (§4.4–§4.7) — ⭐ and, since 2026-11-13, **the one who
+has one stick, a sheet of paper and a ball** (§3b), which is now the default path.
 **Not in scope:** clock synchronisation (PPCP owns it, §6.3), colour, and the analysis-side question
 of which metrics may be computed at which tier — named here, decided elsewhere.
 **Revised 2026-09-09:** a board-free geometry path. The first draft ran intrinsics and pose up one
@@ -44,6 +45,21 @@ cameras, need different ceremonies: **no** — one ceremony of seven steps, para
 the two tables in §3a.3 and §3a.4 as the whole of the difference, and §3a.5 saying which steps a
 change re-opens, and §3a.6 the two-camera pass (face-on + DTL as one layout, two focus walks, one
 capture). §5.6 gains the back-focus finding from the face-on Chameleon3.
+**Revised 2026-11-13:** §3b is new — **the everyday kit: one alignment stick, one sheet of A4 or
+Letter (or a scorecard), one golf ball** — for a face-on camera alone or with an optional DTL, and
+for N. The changes it makes elsewhere:
+- **The lens step is new (I2e):** the sheet waved, and the stick held across the frame as a plumb
+  line. A simulation of this cabin (§3b.7) shows that a typed focal length on the 4–5 mm lenses puts
+  ~50 mm of error into every triangulated point and 15–21 mm into the face-on ground map. The design
+  had no lens step without a board.
+- **The floor needs one stick, not three or four,** because the sheet supplies the perpendicular
+  and the scale.
+- **The upright pays only when plumbed with a phone level.**
+- **The ball itself is the wand.**
+- **A face-on-only bay is calibrated too** (`TriangulatePage` gating, §3b.6).
+- **Corrections:** §4.4's claim about a plane and focal length (§3b.1 item 3); scale on a stick of
+  unstated length (§4.2); and a G tier on an unsolved wide lens, which is capped at G1 (§3b.5).
+- **The board stays** as the upgrade to I2 and G4/G5 proper, for the sub-millimetre club metrics.
 
 ---
 
@@ -153,6 +169,7 @@ records its rung on both.**
 |---|---|---|---|---|
 | **I0** | — | nothing | pixel measurements only | scale, distortion, pose |
 | **I1** | `factory` / `per_frame` | what the device states about itself at enumeration: a phone's per-format field of view, a machine-vision camera's pixel pitch **plus a typed lens focal length** (§3.4) | `f`, `cx/cy`, per format | distortion, an error bar better than the vendor's |
+| **I2e** | `solved` | ⭐ *added 2026-11-13* — **an A4 or Letter sheet waved in front of the lens, and the alignment stick held across the frame as a plumb line** (§3b.3 step L) | `f` ±~1 %, `cx/cy` ±~10 px, `k1, k2`; mean ray error ~0.55° on a wide lens (§3b.7) | a ChArUco solve's precision: I2 supersedes it and keeps it as the cross-check |
 | **I2** | `solved` | a printed ChArUco or checkerboard, **once** per camera + lens | `f`, `cx/cy`, distortion, reprojection RMS | — |
 
 ⭐ A phone is born at I1 and never needs the board unless a metric demands distortion. A FLIR with a
@@ -160,6 +177,12 @@ fixed C-mount lens reaches I1 the moment the operator types the lens's focal len
 to I2 once and cached forever — **per-session intrinsics are pointless for a lens that cannot
 move.** Where both exist, they cross-check (§8.1). §3.4 says exactly when each is fetched, where it
 is stored and how it is used.
+
+⚠ *2026-11-13:* **"never needs the board" is right for a phone and wrong for a wide C-mount.** On the
+4–5 mm lenses this cabin needs (§4.1.1), an I1 lens leaves 2.7° of mean ray error (7.3° at the
+corners), and every G figure in the next table assumes better than that. ⛔ **A G tier is
+conditional on its I tier:** a geometry solve on an I0 or I1 lens whose distortion is unknown
+records G1 at most (§3b.5). The everyday route past that is I2e.
 
 ### 3.4 ⭐ Intrinsics — fetched at enumeration, bound on connect, verified at session start
 
@@ -252,6 +275,13 @@ to within its uncertainty. Disagreement is reported, never averaged away.
 | **G3** | `solved` | G2 **+ one vertical stick**, a measured camera height, and gravity on a phone (§4.5) | as G2 with position ±5–10 mm | sub-mm 3-D |
 | **G4** | `solved` | a ChArUco board left at the ball, seen by each camera in turn (§6.1) | position ±1–4 mm *at the board*, degrading with distance from it | the volume; a joint solve |
 | **G5** | `solved` | G2 **+ a ball wand** swept through the hitting volume (§4.6) | a joint bundle over every camera, < 0.3 px RMS, sub-mm through the volume the swing actually occupies | — |
+
+⭐ *2026-11-13:* the everyday rungs **G2e, G3e and G5e** — one stick, a sheet, a ball, an upright
+checked with a phone level, and the ball waved by hand — sit beside these, defined in §3b.5 with
+their simulated uncertainties. ⚠ The G2–G5 figures above assume a solved lens and **perfectly
+placed** references. With the protocol's realistic placement (±0.25–0.3°), even G3 on a perfect
+lens triangulates at ~5 mm, not ~1 mm (§3b.7). Treat the figures as optimistic until §11 item 20 is
+measured.
 
 ⛔ **Every swing records `(I, G)`.** A metric that needs scale reads G ≥ 1 and refuses otherwise; a
 metric that needs the volume reads G ≥ 3; a metric that needs sub-degree 3-D — club path,
@@ -466,14 +496,253 @@ Everything else was only ever per camera on paper.
 
 ---
 
+## 3b. ⭐ The everyday kit — one stick, one sheet, one ball
+
+*Added 2026-11-13 against two requirements: **(R1)** the calibration serves one face-on camera, or a
+face-on plus an optional down-the-line camera, and therefore N; **(R2)** it uses only what every
+golfer owns: one alignment stick, a sheet of paper or a scorecard, and a golf ball. The board (§4.1)
+becomes an upgrade, not a precondition. The numbers come from a Monte Carlo of this cabin
+(§3b.7, `tools/calsim/`). They are **provisional** until §11 items 17–22 are measured.*
+
+### 3b.1 What the design as written gets wrong against R1 and R2
+
+1. **Too many sticks.** §4.4 asks for two in a T. `camera_pose_sticks.h` as built needs three floor
+   lines (target, a parallel hands line, and a cross stick) and refuses with fewer. The two-camera
+   protocol lays four sticks plus a spirit level. Golfers own one or two.
+2. **Without a board there is no lens rung, and on this cabin's lenses that decides everything.**
+   I1 on a FLIR is a typed focal length with distortion ignored, and a USB webcam is I0. The 4–5 mm
+   C-mounts this cabin needs (§4.1.1) have real barrel distortion. On a typed lens (±3 %) the
+   design's own G2 and G3 layouts give **1–2.5° of camera rotation, 110–180 mm of camera position
+   and ~53 mm RMS of triangulation error** through the swing volume (§3b.7). §3.3 claims ~0.15° and
+   ±5–10 mm, but those numbers hold only on a solved lens. §4.8 already says that a lens shorter
+   than ~6 mm needs I2 before its G record can be trusted. **So an enthusiast without a board never
+   had a trusted G record.** A G tier is conditional on its I tier, and §3.3 should say so.
+3. **§4.4's "one view of a plane does not constrain focal length" is too strong.** One view of a
+   known plane gives two constraints on the intrinsics (Zhang's method). The degenerate cases are a
+   plane seen nearly face-on and vanishing points that run to infinity. A floor T seen by a face-on
+   or DTL camera is one of those, which is why floor sticks cannot be the lens source. A known
+   rectangle held up at several tilts is not, and that is the everyday lens (§3b.3, step L).
+4. **A face-on-only bay is never calibrated.** `TriangulatePage` is in the plan only when both
+   perspectives are connected, and the stub calls itself "stereo". A single face-on camera still
+   needs its lens, its ground plane and its scale. Without them the plane overlay, the target-line
+   reference and every speed are wrong: a typed wide lens maps the hitting area 15–21 mm wrong,
+   against 1.4–2 mm on a solved lens (§3b.7).
+5. **Scale rests on the stick, and the stick has no standard length.** 1.219 m (48 in) is common,
+   but collapsible, 47 in and cut-down sticks all exist. A4 is specified by ISO 216 and Letter by
+   ANSI. Their aspect ratios differ (1.414 against 1.294), so the sheet identifies which one it is.
+6. **A solver that is missing a reference still converges** (found in the simulation). With a
+   narrower lens the sheet fell out of the face-on frame, and the solve returned a confident pose
+   19° wrong. ⛔ **Capture is enabled only when every required reference is found in every camera,
+   with a tick shown per reference on each tile.** Each solve also reports the condition of its
+   covariance, so the check does not depend on the reference list alone.
+7. **Human placement, not pixels, limits any static floor layout.** Lay the design's sticks as well
+   as the protocol asks (parallel ends matched to ±5 mm, i.e. ±0.25°; the cross squared by 3-4-5 to
+   ±0.3°) and give it a perfect lens, and G3's triangulation error still rises from **1.4 mm** with
+   perfectly placed sticks to **5.4 mm**. One stick, a sheet and a ball reach **6.5 mm** under the
+   same conditions. Better floor objects do not fix this. A reference the person cannot misplace
+   does, and that is the ball wave (§3b.3, step W).
+
+### 3b.2 Each object does the job it is best at
+
+| Object | Jobs | Not used for |
+|---|---|---|
+| **Alignment stick** | the **target-line direction** (a line fit over ~600 px); the **lens distortion** (a plumb line: a straight 1.2 m object held across the frame); the **vertical** (stood upright, checked with a phone level) | scale: its length is not standard, and its ends localise to 5–15 px |
+| **Sheet** (A4 or Letter) | the **lens** `f` and principal point (waved, Zhang's method, with its four edges also used as lines); the **ground scale** and the **perpendicular** (laid flat at the ball); its **fold crease marks the ball spot** | — |
+| **Scorecard** | the lens only. Its right angles are known but its size is not, so its aspect is solved | scale, unless measured with a ruler and typed in. In the simulation its `f` is ~1.6× worse than A4's |
+| **Ball** | the **origin**; G1 scale (§4.2); the per-shot verifier (§4.3); in a bay with two or more cameras, **the wand** (step W) | the primary scale |
+| **Phone** (optional) | a level app for plumbing the upright stick to ±0.3° | — |
+
+### 3b.3 The ceremony
+
+The steps are those of §3a. The references are the kit above. The order matters, because the sheet
+is first a lens target and then a floor reference.
+
+**F — Focus (§5).** Ball on the spot and the stick on the floor beside it, as the sharpness ROI.
+Focus comes first because the lens solve is valid only at this ring position (§5.4).
+
+**L — Lens. Once per camera and lens, about two minutes per camera.** For a phone this step is
+optional (§3b.7: its declared field of view plus distortion corrected on the phone gets within
+~30 % of the waved result). For a wide C-mount it is **mandatory**, and so is it for any USB camera.
+1. *The sheet.* Tape it to a hardback book or a clipboard so it stays flat to about ±0.5 mm.
+   Stand 1–1.5 m from the lens. Hold the sheet so it fills roughly a quarter of the frame, tilt it
+   20–45°, and move it around. The tile paints the coverage: the frame's corners and edges must be
+   visited, because that is where the distortion is. A view is accepted when all four edges are
+   found. Aim for 12–20 views.
+2. *The stick.* Hold it 1.2–1.8 m from the lens, straight across the frame, in about eight places:
+   near each edge and along both diagonals. The tile paints straight-line coverage. Hold it near the
+   middle with your hands well apart, because a fibreglass rod held by one end sags.
+3. *Solve:* `f, cx, cy, k1, k2` jointly from the sheet corners, the sheet edges as lines, and the
+   stick as plumb lines. Recorded as **I2e** (§3b.5), with its uncertainty taken from the solve's
+   covariance. Simulated: **f ±1.1 %, principal point ±9 px, mean ray error 0.56° (worst 0.95°)**,
+   against 2.7° (worst 7.3°) for the typed lens.
+
+**1 — Lay out. One trip to the mat.** Lay the stick on the target line, just outside the ball. Fold
+the sheet in half and unfold it; the crease marks the ball spot. Lay the sheet flat on the golfer's
+side with one long edge butted against the stick and the crease at the ball. Put the ball on the
+crease, touching the stick. If the sheet curls, weigh its corners with tees or coins. Tap the target
+end on any tile. ⚠ **The sheet goes on the golfer's side,** further from the face-on lens, because
+on the camera side it drops out of the bottom of a narrower face-on frame (§3b.1 item 6).
+
+**C — Capture A, the floor. One button, every camera.** For each camera: rotation from the stick
+line and the sheet's edges; scale and the perpendicular from the sheet; the origin from the ball;
+G1 and the reference ball diameter (§4.3). With two or more cameras, the same capture puts them all
+in one frame by construction, and they cross-check each other: the sheet's size as each camera
+measures it, the ball's height, the angle between the sheet and the stick (§3a.6).
+
+**U — Capture B, the upright. Optional, about 30 s.** The golfer stands the stick upright at its
+target end, checks it against a phone level app (±0.3°), holds it there and keeps clear of the sheet
+and ball. One more capture. ⚠ **Plumbing by eye (±1.5°) gains nothing in the simulation. Plumbing
+by phone level is what pays** (§3b.7). This is the "golfer standing straight with a stick" mode
+that the September notes asked for.
+
+**W — The ball wave. Two or more cameras, optional, 20–30 s.** Pick the ball up, hold it in your
+fingertips at arm's length, and trace slowly through the space the club and body occupy: from mat
+height to above the head, on both sides of the ball. All cameras record in sync (FLIR trigger, PPCP
+clock, §4.6). Then one joint least squares over everything seen: both lenses, both poses, captures
+A and B, and the wave points. This is §4.6's wand with nothing to build. Its limits are finger
+occlusion of the ball, and rolling shutter on a phone, which calls for slow movement (§4.6).
+
+**V — Leave the verifier.** Pick up the stick and the sheet, and leave the ball on its spot (§4.3).
+§7.1's printed tag becomes an upgrade. The everyday bump check is a **registered patch of static
+background** (the net edge, a mat corner) stored at capture A and correlated per session. It needs
+no printing and catches a moved camera, though it measures focus less purely than a tag does.
+
+### 3b.4 One camera, two cameras, N
+
+| Bay | Operator steps | What it gets | What is withheld |
+|---|---|---|---|
+| **Face-on only** | F, L, 1, C (U optional) | lens, ground plane, target line and scale at the ball; straight 2-D overlays; the ground mapped to ~1.5–2 mm over ±0.5 m of the hitting area | anything 3-D, because one camera has no second view — a limit of the bay, not of the calibration |
+| **Face-on + DTL** | F, L once per camera, 1 once, C once, U and W optional | both cameras in one bay frame from one capture, with the cross-camera checks; triangulation ~9 mm RMS (floor only) → ~7 mm (+U) → **~6 mm (+U +W), ~3.4 mm in shape** | sub-mm 3-D: face-to-path and club path stay at G5 proper, on a board-solved lens |
+| **N cameras** (a second face-on, the elevated DTL, a rear diagonal) | one layout, one lens step per camera, one capture, one wave | as above, with every camera in the same frame | as above |
+
+⭐ **What that accuracy is good for.** Pose keypoints localise to ±20–30 mm (§4.5), so 5–9 mm of
+calibration error sits well inside the noise of the 3-D skeleton. The everyday path therefore
+unlocks body 3-D, the plane, sequencing, the ground and the overlays. It does **not** unlock the
+metrics that need sub-millimetre geometry at the club. For those, the board and the wand together
+earn their cost — which is the "upgrade when a diagnostic demands it" framing of §4.
+
+### 3b.5 Tiers
+
+Two everyday tiers are added to §3.3 below I2:
+
+| Tier | Method | Reference | Gives (simulated, this cabin, wide FLIR-class lens) |
+|---|---|---|---|
+| **I2e** | `solved` | the sheet waved, with the stick as plumb lines | `f` ±1.1 %, `cx, cy` ±9 px, `k1, k2`; mean ray error ~0.55°. Superseded by an I2 board solve, which keeps I2e as its cross-check (§3.4) |
+| **G2e** | `solved` | one stick + the sheet + the ball, flat (capture A), on I2e | rotation ~0.7–0.8°, position ~15–25 mm per camera; ground map ~2 mm; triangulation ~9 mm |
+| **G3e** | `solved` | G2e + the upright stick plumbed with a phone (capture B) | rotation ~0.5–0.6°; triangulation ~7 mm |
+| **G5e** | `solved` | G3e + the ball wave, two or more cameras, joint with the lenses | triangulation ~6 mm absolute, ~3.4 mm in shape |
+
+⛔ **Rule: a geometry solve on an unsolved lens whose distortion is unknown** (I1 or I0, with the
+focal length under ~6 mm or the horizontal field of view over ~60°) **records G1 at most, and says
+why.** On a typed lens the simulated ground map is 15–21 mm wrong. That is a wrong number, not a
+lower tier, and §2 principle 6 says to degrade explicitly instead.
+
+The `e` tiers sit beside the existing ones. They are not part of one ladder: G3e is not "better
+than G3 and worse than G4". Each tier carries the uncertainty it delivered, and the metric gates of
+§3.3 read that uncertainty. The tier names are for people.
+
+### 3b.6 What changes in the code
+
+- **`camera_pose_sticks.h`.** The closed form needs three lines, two of them parallel. Keep it as
+  the initialiser wherever those lines exist, and add the **general ground solve**: one small least
+  squares (6 pose unknowns, plus up to 4 nuisance unknowns for the sheet's placement and the
+  upright's tilt) over whatever references were found. Its residuals are the stick lines as
+  point-to-line distances, the sheet's corners and edges, the ball, the target end, and the upright
+  with its prior. It is initialised from the sheet by IPPE (`cv::solvePnP`, `SOLVEPNP_IPPE`), which
+  needs `opencv_calib3d` (stage 3). If the file's pure-std rule is to hold, so that swinglab and
+  shaftlab share its arithmetic, a Gauss–Newton loop of that size is simple to write in plain C++.
+- **The lens solve (I2e) is new.** `cv::calibrateCamera` cannot take line constraints. Use it on
+  the corners for the initial estimate, then refine with a least squares over corners, edges and
+  plumb lines. The same solver later takes ChArUco corners, so I2 and I2e are one solver with
+  different inputs.
+- **Detectors.** The **sheet**: a bright quadrilateral on a dark mat, found as a contour, then a
+  line fit to each edge, with corners at the line intersections. The **stick**: the ridge evidence
+  of the DTL shaft tracker (top-hat plus bottom-hat, contrast-agnostic) is the same problem. The
+  **ball** already exists.
+- **The flow.** `CameraCalibrationFlow` becomes the real flow. ⛔ **`TriangulatePage` joins the
+  plan whenever any connected camera lacks a valid record**, not only when both perspectives are
+  connected. It is renamed *Calibrating your cameras*, and the wording drops "stereo" and "ChArUco".
+
+### 3b.7 The evidence: a simulation of this cabin
+
+*`tools/calsim/` — `sim.py` (models and solvers) and `run.py`, `intr2.py`, `intr3.py` (the studies).
+Pure numpy and scipy. Every solve is a least squares on the stated observations.*
+
+**Set-up.** A FLIR-class camera: 1280 × 1024 px, `f` = 900 px (~4.3 mm on 4.8 µm pixels),
+`k1` = −0.28, `k2` = 0.09, principal point (8, −6) px off-centre. The face-on lens is 1.4 m from the
+ball and 0.9 m up. The DTL is 2.0 m behind on the hands line, 1.1 m up. Noise: 0.5 px per point
+along a line, 0.4 px on a sheet corner, 0.7 px on the ball, 5 px on a stick end, and 0.5 mm of sheet
+flatness. Placement errors are as stated in each row, and the solver assumes the placement is
+perfect. **Triangulation** is the RMS 3-D error over a grid that fills the swing volume (x ±0.9 m,
+y −0.2 to 0.8 m, z 0 to 2 m) and that both cameras see, computed from noise-free observations. It is
+therefore the error the calibration alone puts into every triangulated point. **Shape** is the
+same error after the best rigid alignment, i.e. how wrong the geometry is, regardless of where the
+world frame landed. All values are medians.
+
+**The lens** (15 trials per row; 12 trials for the edge rows):
+
+| Lens source | `f` (RMS) | `cx, cy` (RMS) | Ray error, mean / worst |
+|---|---|---|---|
+| typed focal length, distortion ignored (I1) | 3 % (assumed) | 10 px (assumed at centre) | **2.7° / 7.3°** |
+| A4 waved ×12, corners only | 1.6 % | 28 px | 1.2° / 1.9° |
+| + stick as plumb lines ×8 | 1.6 % | 12 px | 0.68° / 1.0° |
+| ⭐ + the sheet's edges as lines (**I2e**) | 1.1 % | 9 px | **0.56° / 0.95°** |
+| the same with 20 sheet views | 0.9 % | 16 px | 0.60° / 0.85° |
+| scorecard 200 × 120 mm, size unknown, edges + stick | 1.75 % | 14 px | 0.73° / 1.7° |
+
+Fixing the principal point at the centre instead of solving for it made `f` worse (2.4 %), not
+better.
+
+**The geometry** (40 trials; 14 for the waved-lens rows; 6 for the wave):
+
+| Layout, lens | FO rot | FO pos | DTL rot | DTL pos | FO ground | Triangulation (p95) |
+|---|---|---|---|---|---|---|
+| Design G2 (3 floor sticks), typed lens | 0.91° | 183 mm | 2.55° | 109 mm | 21 mm | 53 (80) mm |
+| Design G3 (+ plumbed 4th stick), typed lens | 2.32° | 114 | 2.59° | 107 | 17 | 54 (102) |
+| Design G3, perfect lens, **perfect placement** | 0.07° | 3.5 | 0.08° | 3.2 | 0.6 | **1.4** (2.2) |
+| Design G3, perfect lens, **protocol placement** | 0.26° | 8.3 | 0.46° | 18 | 1.1 | **5.4** (8.6) |
+| E1: one stick + sheet + ball, typed lens | 3.33° | 179 | 2.33° | 141 | 15 | 45 (70) |
+| E1, perfect lens | 0.36° | 12 | 0.39° | 13 | 2.1 | 6.5 (10.7) |
+| E1 + upright plumbed by eye, perfect lens | 0.38° | 12 | 0.36° | 11 | 1.7 | 6.4 (11.1) |
+| E1 + upright plumbed by phone, perfect lens | 0.25° | 7.3 | 0.21° | 10 | 1.3 | **5.0** (8.3) |
+| E3: one stick moved to three places with the sheet as a jig, perfect lens | 0.31° | 9.9 | 0.42° | 22 | 1.8 | 7.3 (12.2) |
+| **G2e** — E1 on I2e | 0.68° | 15 | 0.82° | 24 | 1.9 | 8.8 (15.5) · shape 5.2 |
+| **G3e** — E1 + phone-level upright on I2e | 0.52° | 15 | 0.62° | 24 | 1.4 | 7.3 (12.9) · shape 4.9 |
+| **G5e** — G3e + ball wave, lenses refined jointly | — | — | — | — | — | **5.6** (9.3) · shape **3.4** |
+| G2e + ball wave, lenses refined jointly | — | — | — | — | — | 7.1 (12.2) · shape 3.9 |
+
+**What it says.**
+- ⭐ **On a wide lens, the lens step is the whole game:** 45–54 mm becomes 7–9 mm. Nothing laid on
+  the floor substitutes for it.
+- **With the lens solved, one stick, a sheet and a ball are as good as four sticks and a spirit
+  level** (6.5 against 5.4 mm on a perfect lens). Adding the phone-levelled upright brings it to
+  5.0, which is better than the design's G3 as placed in practice.
+- **Moving one stick to imitate three gains nothing (E3),** and neither does plumbing by eye:
+  placement error eats what the extra lines would add.
+- **The wave buys ~20–25 % in absolute error and ~30 % in shape,** and stops there. What remains is
+  the I2e lens. A board-solved lens plus the wave is still the route to G5 proper. In this
+  simulation, refining the lenses inside the wave solve made a small difference either way (an
+  equal-noise run without the refinement gave 6.6 and 5.8 mm).
+- **Phone** (a separate run: `f` = 1100 px, `k1` = −0.03, design layouts placed perfectly, so
+  optimistic for the design; 24 trials): design G3 on the declared field of view, 9.0 mm; E1 on the
+  declared field of view, 9.3 mm; E1 on a waved lens, 7.1 mm. **For a phone the lens step is
+  optional**, which is why step L says so.
+- ⚠ **What it does not model:** detection failures, real stick bow beyond 1 mm, sheet curl beyond
+  0.5 mm, the bias of fingers on the waved ball beyond 1 mm, lighting, and a mat that is not flat.
+  §11 items 17–22 replace the assumptions with measurements.
+
+---
+
 ## 4. The reference object
 
 The ceremony is the same shape whatever the operator owns; only the reference differs. The flow
 asks, once: **what have you got?** — and presents the answer as two setups rather than a parts list:
 
-- **Quick setup** — two alignment sticks, a typed camera height, and gravity from a phone. Unlocks
-  overlays, the plane, sequencing and approximate speeds. Metrics needing sub-degree geometry stay
-  greyed out **with the reason shown.**
+- **Quick setup** — ⭐ *since 2026-11-13* **one alignment stick, a sheet of paper and a ball**
+  (§3b), plus a phone level if there is a phone. Unlocks overlays, the plane, sequencing, body 3-D
+  and approximate speeds. Metrics needing sub-degree geometry at the club stay greyed out **with
+  the reason shown.** *(Was: two alignment sticks, a typed camera height and gravity from a phone.
+  These remain accepted inputs to the same solve, §3b.6.)*
 - **Precise setup** — a printed ChArUco, or the wand for 3-D. ⚠ A board is not expensive: an A3
   print glued to card. Its cost is *faff*, not money, and the choice should be framed to the
   operator that way, so they upgrade when a diagnostic they want demands it — not before.
@@ -602,6 +871,11 @@ The operator nominates something of known size at the hitting plane and draws ac
   exactly the plane that matters; and **it is present in every single shot.**
 - an alignment stick (1.2 m), an A4 sheet (210 × 297 mm), a club of measured length, or a tape
   measure laid on the mat.
+- ⚠ *2026-11-13:* **an alignment stick's length is common, not standard.** 48 in is usual, but 47 in,
+  collapsible and cut-down sticks all exist, so the stick is a scale only once its length is
+  confirmed. **The sheet is the dimensionally specified object** (A4 to ISO 216, Letter to ANSI),
+  and its aspect ratio (1.414 against 1.294) tells the two apart, so the app need not ask. §3b
+  takes scale from the sheet and direction from the stick.
 
 Uncertainty comes from the detection: a ball ~40 px across measured to ±1 px is ±2.5 % scale. That
 is a real number and it must be carried, not rounded away.
@@ -630,6 +904,15 @@ is an acceptable fallback *if the user types a length*, and its uncertainty says
 a plane does not constrain focal length. `f` must come from the intrinsics ladder — the phone's
 declared field of view, a typed lens focal length or a one-off board on a FLIR (§3.4). That is not a weakness of the path; it is the
 split that makes the path work.
+
+⚠ *Corrected 2026-11-13.* **"One view of a plane does not constrain focal length" is too strong.**
+One view of a known plane gives two constraints on the intrinsics. What fails is *this* plane seen
+from *these* cameras: a floor T at grazing incidence, with one vanishing point running to infinity,
+which is the degenerate case. The conclusion stands — floor sticks are not the lens source — but
+the reason matters, because a known rectangle held up at several tilts is *not* degenerate. That is
+how §3b gets a lens solve without a board: the sheet waved, and **the stick held across the frame,
+where it is the best plumb line in the building.** So the stick does give intrinsics after all —
+the distortion — just not while it lies on the floor.
 
 **Design to the primitives, not to the endpoints.** The T offers four geometric primitives of
 wildly different quality, and the solve must be built around the good ones:
@@ -1153,6 +1436,13 @@ instantiated twice:
 
 So **implementing the flow lights up both slots and touches neither host.**
 
+⚠ *2026-11-13:* the wizard has since been retired into the setup flow. The full-layout host is now
+`src/Gui/setup/pages/TriangulatePage.qml`, which ports Panel 2 unchanged, and the validity flags
+are `SetupContext`'s `stereoCalibrationValid` and `triangulationValid`. ⛔ **That page is in the plan
+only when both perspectives are connected, so a face-on-only bay never reaches calibration.**
+§3b.6 changes the gate to "any connected camera without a valid record", and the page's wording
+from "stereo" to *Calibrating your cameras*.
+
 ⚠ And the wizard has already reasoned about this further than expected. Beside that step sits a
 `CheckRow` labelled *Triangulation* bound to `root._todo_triangulationValid` — a placeholder waiting
 for exactly the extrinsics validity of §6 — and it is marked:
@@ -1210,14 +1500,15 @@ Each stage is independently useful, and nothing later is needed for something ea
 | **2** | **Calibration record + per-bay store**, shaped on 5.9, **and the I1 fetch of §3.4**: pixel-pitch lookup at enumeration, per-format field of view from the phone's declare, a focal-length field and an intrinsics cell in the Cameras panel. | Where focus lives, and the first thing that gives a camera a tier. No ceremony. |
 | **3** | **Link `opencv_calib3d` and `opencv_objdetect`.** | ⚠ PinPointStudio deliberately links only core/imgproc/imgcodecs to keep VTK out of the bundle — but VTK comes from `opencv_viz`, not these. Say so in the comment or someone will "fix" it back. |
 | **4** | **G1 known-size flow** — nominate an object, draw across it, store scale + uncertainty. | Smallest thing that gives a real answer, and it serves the operator with no board. |
+| **4a** | ⭐ *2026-11-13* **The everyday lens (I2e, §3b.3 step L)** — sheet detector (a quadrilateral, with a line fit per edge and corners at the intersections), stick-as-plumb-line detector, coverage painting on the tile, and a joint least squares over corners, edges and plumb lines. A4 and Letter told apart by aspect. | **Before 9, and mandatory for a wide C-mount or a USB camera** — without it every G figure on those lenses is fiction (§3b.7). Optional for a phone. The same solver takes ChArUco corners at stage 7. |
 | **5** | **Focus: sweep for class A, guide-and-verify for class B**, stored as `kind: focus`. | Delivers the original ask. ⚠ Do stage 1 first — it may show the fix is smaller than this. |
 | **6** | **Fiducial + ball continuous verification**, and the session health check of §9. | The part that keeps it true. |
 | **7** | **ChArUco intrinsics solve** for local cameras. | I2. Once per camera + lens, cached. |
 | **8** | **PPCP on-device solve** and `calibration_update` consumption. | Largest; do it once the shape is proven locally. |
-| **9** | **Ground-stick geometry (G2)** — detect two sticks in a T, vanishing-point rotation, intersection origin, endpoint scale, role + target-end declaration; runs on a full-resolution capture for every backend. | ⭐ **The first thing that supplies `ScreenSessionWizard`'s `_todo_triangulationValid`** and puts every camera in one frame — with no board. Needs `f` from the bound I1 record of §3.4 — a phone's declared field of view, or a FLIR's typed focal length — so it can precede 7 and 8. |
+| **9** | ⚠ *Revised 2026-11-13:* **the general ground solve (G2e/G3e, §3b.6)** — one least squares over whatever references were found: one stick, the sheet, the ball, an upright with a phone-level prior, and, where they exist, a T or three sticks, with `camera_pose_sticks.h`'s closed form as the initialiser. Capture is gated on every required reference being found in every camera. *Originally:* **Ground-stick geometry (G2)** — detect two sticks in a T, vanishing-point rotation, intersection origin, endpoint scale, role + target-end declaration; runs on a full-resolution capture for every backend. | ⭐ **The first thing that supplies `ScreenSessionWizard`'s `_todo_triangulationValid`** and puts every camera in one frame — with no board. Needs `f` from the bound I1 record of §3.4 — a phone's declared field of view, or a FLIR's typed focal length — so it can precede 7 and 8. |
 | **10** | **Break the plane (G3)** — a vertical stick, a typed camera height, and gravity consumed from the phone's metadata stream. | Small increments on 9; the vertical stick is the one that pays. |
 | **11** | **Board extrinsics (G4)** — the §6.1 ceremony. | Now a modest increment on 7 + 9, for the operator who owns a board and wants ±mm at the ball. |
-| **12** | **Wand + bundle adjustment (G5)**, shaft/limb-length refinement, per-shot residual health. | The real unlock for 3-D fusion of pose and shaft. Needs the printed collars and a sync check (§4.6). |
+| **12** | **Wand + bundle adjustment (G5)**, shaft/limb-length refinement, per-shot residual health. | The real unlock for 3-D fusion of pose and shaft. Needs the printed collars and a sync check (§4.6). ⭐ *2026-11-13:* **ship the hand-waved ball first (G5e, §3b.3 step W)** — the same bundle with the lenses free, and no collars. The printed wand becomes an upgrade. |
 | **13** | **Impact camera card calibration (§4.8)**, placement A (face-on floor) first. The card is detected in a calibration clip, the pose solved against the bound I1 record, the reference ball diameter at address stored, and one 30 mm tag registered. Then placement B (a tripod at 1–2 m on the face-on side, looking down; card flat plus a target-line stick; path solved jointly with A). | Needs only 2 and 3, so it can **precede 4–12**. The impact camera's speeds and angles gate on it, and nothing else in the bay does. |
 | **14** | **Impact per-clip checks (§4.8):** the ball diameter ratio and its offset, the tag pose against the record, time-base gaps, blur anisotropy, and the launch-monitor residual where a monitor is present. Each is recorded on the swing beside the verdict. | The impact camera's §7. Without it a knocked tripod is invisible, which is the failure the first attempt had. |
 
@@ -1276,6 +1567,24 @@ Each stage is independently useful, and nothing later is needed for something ea
       with the calibration's own σ beside them.
 
 ---
+
+*Added 2026-11-13 for the everyday kit (§3b). These are the inputs §3b.7 assumed:*
+
+17. **Sheet corner and edge localisation on the real mat** at 1.5–2 m, both cameras, under the cabin
+    light — and how far a sheet curls on that mat unweighted and weighted. Assumed 0.4 px and 0.5 mm.
+18. **A waved-sheet lens session, timed on a real operator:** views accepted per minute, the
+    coverage reached, and the I2e uncertainty that results. Assumed 12 views and 8 stick views in
+    about two minutes.
+19. **Stick bow** — a real fibreglass stick held by its middle, measured against a straight edge.
+    Assumed 1 mm. It bounds what the plumb line can say about distortion.
+20. **Human placement, five repeats each:** the sheet butted to the stick (angle), the crease to
+    the ball (mm), and the upright plumbed with a phone level (°). Assumed ±0.4°, ±5 mm and ±0.3°.
+    These set the floor limit of every static layout, the design's four sticks included (§3b.1
+    item 7).
+21. **Ball-wave detection,** with fingertips on the ball at 150 fps: the hit rate, the centre σ,
+    and the centre bias from the fingers, plus the FLIR-trigger sync residual. Assumed 1 px and 1 mm.
+22. **I2e against I2** — the same lens solved both ways once the board is in hand. The gap is
+    I2e's real uncertainty, and the number §3b.5 should carry.
 
 ## 12. Open questions
 
