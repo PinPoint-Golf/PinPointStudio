@@ -1,0 +1,138 @@
+{
+  "about": "Hand-kept evidence behind docs/validation/release_status.md (regenerate it with tools/metrics/gen_release_status.py). One entry per catalogue metric key. 'verified' = the code is unit-tested AND the reading was checked on real swings (one-swing re-run, frame sheet or library consistency check). 'validated' = compared against an independent reference (a device, hand-marked frames, an instrumented club or worn sensors) with the agreement measured. 'syntheticOnly' = tested only against a simulated body or signal. Record the date, the evidence and where it is written up. Never mark validated without a measured agreement against a reference.",
+  "prefixes": {
+    "lm.": {
+      "validated": {
+        "date": null,
+        "reference": "the launch monitor itself",
+        "note": "Launch-monitor readings are the reference: graded as the device reports them."
+      }
+    },
+    "hm.": {
+      "validated": {
+        "date": null,
+        "reference": "HackMotion wG3",
+        "note": "HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference."
+      }
+    }
+  },
+  "metrics": {
+    "clubheadSpeed": {
+      "validated": {
+        "date": null,
+        "reference": "launch monitor",
+        "note": "Camera clubhead speed against the launch monitor: bias about −1.7, limits of agreement narrowed from ±20 to ±10 (memory: clubhead-speed-vs-lm-agreement)."
+      }
+    },
+    "impactShaftLean": {
+      "validated": {
+        "date": "2026-10-01",
+        "reference": "30 hand-marked impact frames",
+        "note": "Shaft lean σ calibrated: 63 % / 90 % coverage at 1σ / 2σ, bias +0.7° (docs/design/shaft_uncertainty_propagation_design.md)."
+      }
+    },
+    "shoulderTiltVsBend": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "One-swing re-run before and after the 3-D shoulder fix (Chris −26.1° → −11.9°, Mark −24.9° → −3.0°) and two library sweeps.",
+        "where": "docs/design/plane_stack_design.md §11 FB"
+      }
+    },
+    "shoulderPlaneAngle3d": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "Re-fit on real swings after the cross-view shoulder fix; the fit's shoulder line agrees with the down-the-line image to 0.1–1.6°.",
+        "where": "docs/design/plane_stack_design.md §11 FB"
+      },
+      "syntheticOnly": {
+        "date": "2026-11-13",
+        "note": "The chest-sensor route is tested on a simulated body only; needs the worn session (#109)."
+      }
+    },
+    "trailKneeFlexion": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "Frame sheet (4 July swing 8): the down-the-line reading matches the visible knee at impact; the uncalibrated 3-D fit does not, so the camera stays the answer.",
+        "where": "docs/design/plane_stack_design.md §11 W5"
+      }
+    },
+    "leadKneeFlexion": {
+      "verified": {
+        "date": "2026-11-12",
+        "evidence": "One-swing check: the 3-D route reads 20.1° at impact against 19.9° down the line.",
+        "where": "docs/design/planned_metrics_promotion.md §2"
+      }
+    },
+    "leadArmFlexion": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "Face-on elbow fold after impact: frame sheet of four flagged swings showed all four were occlusion artefacts; the visibility gate now refuses them. Library audit: 217 of 244 swings gradeable.",
+        "where": "docs/design/plane_stack_design.md §11 D5"
+      }
+    },
+    "armLiftTop": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "Frame sheet (Jess against Nick, 20 Oct): the down-the-line image angle reproduces what the eye sees; the 3-D gap was mostly a steep 3-D shoulder line.",
+        "where": "docs/design/plane_stack_design.md §3.2, §11 D2"
+      }
+    },
+    "clubSlotTop": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "Frame sheet (Mark 4 July, 7 and 8 Oct): lines reproduce the stored values, but the reading moves with the down-the-line camera's set-up; it carries a camera warning until calibration.",
+        "where": "docs/design/plane_stack_design.md §11 D3"
+      }
+    },
+    "swingPlaneCurve": {
+      "verified": {
+        "date": "2026-11-13",
+        "evidence": "The takeaway (plane at P2 − address) is steady across four camera set-ups (Mark −2.6 to −4.0°) and predicts the hand-path loop within a session (ρ −0.51, 168 swings).",
+        "where": "docs/research/data/plane_stack/RESULTS.md"
+      }
+    },
+    "shaftDirection": {
+      "verified": {
+        "date": "2026-11-12",
+        "evidence": "One-swing check; the P2-outside / top-laid-off pair is the signature of the uncalibrated down-the-line camera's turn, so it carries ±9°.",
+        "where": "docs/design/planned_metrics_promotion.md"
+      }
+    },
+    "spineForwardBend": {
+      "syntheticOnly": {
+        "date": "2026-11-12",
+        "note": "The trunk-sensor route is tested on a simulated body only (#109). The camera routes are unaffected."
+      }
+    },
+    "spineSideBend": {
+      "syntheticOnly": {
+        "date": "2026-11-12",
+        "note": "The trunk-sensor route is tested on a simulated body only (#109)."
+      }
+    },
+    "hipLineTilt": {
+      "syntheticOnly": {
+        "date": "2026-11-13",
+        "note": "The hip-sensor route is tested on a simulated body only (#109)."
+      }
+    },
+    "secondaryAxisTilt": {
+      "syntheticOnly": {
+        "date": "2026-11-13",
+        "note": "The chest-sensor route is tested on a simulated body only (#109)."
+      }
+    },
+    "trailHipInternalRotation": {
+      "syntheticOnly": {
+        "date": "2026-11-12",
+        "note": "Hip sensor minus the 3-D thigh turn; simulated body only (#109)."
+      }
+    },
+    "leadHipInternalRotation": {
+      "syntheticOnly": {
+        "date": "2026-11-12",
+        "note": "Hip sensor minus the 3-D thigh turn; simulated body only (#109)."
+      }
+    }
+  }
+}

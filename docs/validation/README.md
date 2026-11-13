@@ -5,6 +5,7 @@ protocol for the corpus you are capturing (the *how*).
 
 | Document | Role | Audience |
 |---|---|---|
+| [`release_status.md`](release_status.md) | **Release dashboard (generated)**: every metric's stage (planned, built, verified, validated), whether it is live, and its norm basis, with the release gaps listed. Regenerate with `python3 tools/metrics/gen_release_status.py` after any catalogue, fault-model, norm or evidence change (`--check` fails when stale). Evidence lives in [`metric_evidence.json`](metric_evidence.json). | Mark, anyone judging progress to release |
 | [`pipeline_validation_and_tuning.md`](pipeline_validation_and_tuning.md) | **Reference / methodological backbone** — validity hierarchy, reliability≠agreement≠accuracy, per-stage V&V&T along the pipeline, the three-corpus progression, and **sample-size / statistical power** | analysts, reviewers, anyone deciding *what counts as proof* |
 | [`tunable_parameters_reference.md`](tunable_parameters_reference.md) | **Parameter catalog + developer guide** — every tunable knob (`seg./shaft./assembly./score./sampler./rules./bands./filter.*`), what each one moves, the statistic + N that validates it, and **how the injection + sweep machinery works in code** | analysts (Part I) + developers wiring a knob or running a sweep (Part II) |
 | [`corpus1_collection_protocol.md`](corpus1_collection_protocol.md) | **Corpus 1** capture protocol — IMU-only; internal consistency, reliability, known-groups (HackMotion = pilot) | data collection team |
