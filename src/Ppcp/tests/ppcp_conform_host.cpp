@@ -545,7 +545,7 @@ bool writeSummary(const Seen &s, const std::string &path)
 // library can make for an embedding, so they are here.
 //
 // ⚠ THE APPLICATION DOES NOT YET MAKE THEM.  Nothing in `src/` calls
-// `liveSession().open()` — §7.2 of docs/ppcp-conformance.md has said so since
+// `liveSession().open()` — §7.2 of docs/conformance/ppcp-conformance.md has said so since
 // H5 — so these three calls are the HARNESS's, and every row that depends on a
 // Session is evidence about `PpcpLiveSession` rather than about a screen.  That
 // distinction is recorded in the claim rather than smoothed over.

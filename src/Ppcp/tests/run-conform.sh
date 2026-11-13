@@ -10,7 +10,7 @@
 #
 #   run-conform.sh <ppcp_conform_host> <ppcp-conform> <workdir>
 #
-# The profile set is the CLAIM (docs/ppcp-conformance.md §1): seven of the
+# The profile set is the CLAIM (docs/conformance/ppcp-conformance.md §1): seven of the
 # eight, with Mint withheld — this host parses `authority: device` and never
 # originates it.  Passing it here and claiming it there would be two claims.
 # CT-I6 is the negative row that asserts exactly that, and since libppcp's S5
@@ -59,7 +59,7 @@ cat "$WORK/pps-conform.md" >&2 || true
 
 # ⚠ EVERY ROW IS RUN AND EVERY ROW IS RECORDED.  `pps-conform.md` and
 # `pps-conform.json` beside this script are the claim, verbatim, and
-# docs/ppcp-conformance.md reproduces them unedited.
+# docs/conformance/ppcp-conformance.md reproduces them unedited.
 #
 # ── F-H8-6 IS CLOSED, AND THE EXCUSE THAT STOOD HERE IS GONE ────────────────
 #

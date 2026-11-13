@@ -6,7 +6,7 @@
 |---|---|
 | Implementation | PinPointStudio, `role: host` |
 | Against | `PPCP-CORE` revision 9, `PPCP-MSG`, `PPCP-ENC`, `PPCP-CONF` 1.0; `PPCP-RV` revision 8 |
-| Companion | [`libppcp/docs/conformance/matrix.md`](../../libppcp/docs/conformance/matrix.md) — the programme-wide record this file feeds |
+| Companion | [`libppcp/docs/conformance/matrix.md`](../../../libppcp/docs/conformance/matrix.md) — the programme-wide record this file feeds |
 | Status | **In progress.** Sessions S1–S3: work packages H0, H1, H2, H3 and H4 |
 | Date | 22 August 2026 |
 
@@ -79,7 +79,7 @@ The `K_tls` these tests use is the `PPCP-RV` §10.1 vector, hardcoded **in the t
 
 ## 4. PPCP-RV tests — `RV` §9
 
-Row format is that of [`matrix.md` §5](../../libppcp/docs/conformance/matrix.md#5-ppcp-rv-tests--rv-9). Only the **PinPointStudio** column is asserted here; the other two are reproduced from the matrix as they stood at the end of S1 and are their own teams' to move.
+Row format is that of [`matrix.md` §5](../../../libppcp/docs/conformance/matrix.md#5-ppcp-rv-tests--rv-9). Only the **PinPointStudio** column is asserted here; the other two are reproduced from the matrix as they stood at the end of S1 and are their own teams' to move.
 
 | Test | Method | Asserts | Work packages | `libppcp` | PinPointStudio | PinPointCapture |
 |---|---|---|---|---|---|---|
@@ -179,7 +179,7 @@ The **static half** — the vectors reproducing byte-for-byte, and the identity 
 
 ## 5. Core, encoding and message tests
 
-Row format is that of [`matrix.md` §1](../../libppcp/docs/conformance/matrix.md). Only the **PinPointStudio** column is claimed here.
+Row format is that of [`matrix.md` §1](../../../libppcp/docs/conformance/matrix.md). Only the **PinPointStudio** column is claimed here.
 
 | Test | Invariant | Method | Work packages | PinPointStudio | Command |
 |---|---|---|---|---|---|
@@ -692,7 +692,7 @@ malformed frame or one past the ENC §8 limit, a held relation spanning two cloc
 
 ### 10.5 CT-I6 — the excluded row, and how it stopped being one
 
-**Closed 23 Aug 2026. `run-conform.sh` no longer excuses any row, and `docs/ppcp-conformance.md` no
+**Closed 23 Aug 2026. `run-conform.sh` no longer excuses any row, and `docs/conformance/ppcp-conformance.md` no
 longer explains one away.**
 
 For two sessions this claim carried an exclusion. CT-I6 is a **negative** row (`CONF` §1d): this

@@ -20,7 +20,7 @@
 
 // THE OWNER.  Work package H-compose.
 //
-// Until this file existed, `docs/ppcp-conformance.md` §7.2 read: "Nothing in
+// Until this file existed, `docs/conformance/ppcp-conformance.md` §7.2 read: "Nothing in
 // this application constructs a `PpcpHostPeer`.  H1's transport and H2's peer
 // are built and tested; no screen, service or controller starts one."  Three
 // joins were named in the code and had no caller, all for the same reason —

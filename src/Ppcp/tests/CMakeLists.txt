@@ -250,7 +250,7 @@ pp_add_test(ppcp_clip_filer_test
 # ⚠ AND tools/ppcp-sim (libppcp L13) DOES NOT EXIST YET.  When it does these
 # rows move from a same-process pair to a real independent implementation,
 # which is what CONF §5's pairings ask for.  Until then this is the strongest
-# available evidence and docs/ppcp-conformance.md says so.
+# available evidence and docs/conformance/ppcp-conformance.md says so.
 pp_add_test(ppcp_live_session_test
     SOURCES ppcp_live_session_test.cpp
             ${PPCP}/ppcp_live_session.cpp

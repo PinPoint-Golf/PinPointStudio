@@ -217,7 +217,7 @@ Two reasons, different in kind. The distinction matters because only one was a d
 ### 4.1 The receiving end was parked on purpose, with reasons
 
 `ppcp_host_service.cpp:195` states it plainly — *"clipReady() IS DELIBERATELY NOT CONNECTED, AND
-THAT IS NOT AN OVERSIGHT"* — and `docs/ppcp-conformance.md` repeats it in §7.2 and §9.4. The
+THAT IS NOT AN OVERSIGHT"* — and `docs/conformance/ppcp-conformance.md` repeats it in §7.2 and §9.4. The
 reason is an identity clash:
 
 - **PPCP identity is opaque.** A Capture is identified by `Capture.id`, scoped by `Session.id`
@@ -242,7 +242,7 @@ proposal to merge the two identity schemes.
 
 ### 4.2 The asking end fell through unrecorded
 
-`docs/ppcp-conformance.md` keeps an explicit register of joins that exist in code with no
+`docs/conformance/ppcp-conformance.md` keeps an explicit register of joins that exist in code with no
 caller. It names three: `registerPpcpPeer()`, the offset seam, and `clipReady()`. Two were
 closed in H-compose. `clipReady` is openly parked.
 

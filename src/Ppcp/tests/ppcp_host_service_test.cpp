@@ -620,7 +620,7 @@ TEST_F(HostServiceClock, APhoneThatDialsInBecomesARememberedDeviceRow)
 //
 // ⚠ WHAT CAN BE ASSERTED HERE IS THAT THE BROWSER IS WIRED, AND NOT THAT IT
 // FINDS ANYTHING.  There is nothing on a build machine's network advertising
-// `_ppcp._tcp`, which is why docs/ppcp-conformance.md §9.4 records
+// `_ppcp._tcp`, which is why docs/conformance/ppcp-conformance.md §9.4 records
 // `DNSServiceBrowse` as unexercised; `parseTxtRecord`, `pvAcceptsMajor`,
 // `instanceNameMatchesRid` and `decideDial` are covered by
 // ppcp_rendezvous_test. What was missing until now was a CALLER — the browser

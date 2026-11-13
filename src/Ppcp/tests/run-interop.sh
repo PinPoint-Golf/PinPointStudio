@@ -18,7 +18,7 @@
 #
 # Exit 0 is the row passing.  1 is the row failing — and a failing row is a
 # finding against the host, the simulator, the library or the specification,
-# which `docs/ppcp-conformance.md` §11 has to say which of.  2 is a bad
+# which `docs/conformance/ppcp-conformance.md` §11 has to say which of.  2 is a bad
 # invocation.
 set -eu
 
@@ -36,7 +36,7 @@ WORK="$5"
 # the bundles ITS device wrote, which is what makes IOP-3 an interoperability
 # row rather than this host reading its own output; the second is libppcp's
 # `tests/fixtures/`, which is a fallback and is recorded AS a fallback in
-# docs/ppcp-conformance.md §11 rather than passed off as the real pairing.
+# docs/conformance/ppcp-conformance.md §11 rather than passed off as the real pairing.
 DEVDIR="${6:-}"
 FIXDIR="${7:-}"
 
