@@ -33,6 +33,11 @@
 //   Test 5  a newer schema → read-only (the document's, or the block's); a block without a schema
 //           → read-only and the legacy context.
 //   Test 6  the club review as stored (correction = review.clubOverride, declared = review.club).
+//   Test 7  the shot kind (step 1.8; R-REC-8): a new capture (with streams) and a new standalone
+//           device-only shot write it; the analysis-only header and the placeholder do not (today's rule reads them);
+//           later writes keep it; an old file of each kind (no shotKind) is classified by the
+//           repository's reader as today's rule did, and nothing writes it back; the loaded
+//           Recording carries it.
 //
 //   cmake --build build/tests --target recording_store_test -j 6
 //   ctest --test-dir build/tests -R '^recording_store_test$' --output-on-failure
@@ -287,10 +292,11 @@ void testOneHeader()
           "no context known: no block (the document reads as the legacy context)");
 
     // The phone-clip placeholder: nothing known, nothing invented.
+    // No shot kind either (step 1.8): it has no stream yet, so it is read by today's content rule.
     const QJsonObject placeholder = recordingHeaderJson(RecordingHeader{}, QJsonArray{});
     check(placeholder.keys() == QStringList({ QStringLiteral("schema"), QStringLiteral("streams") })
               && placeholder.value(QStringLiteral("streams")).toArray().isEmpty(),
-          "the placeholder: schema and an empty streams[] only");
+          "the placeholder: schema and an empty streams[] only (no shot kind)");
 
     // The device-only shot: the same writer, the canonical keys (session.dir, window.start_us/end_us).
     QTemporaryDir dir;
@@ -495,6 +501,120 @@ void testClubReview()
           "the loader hands the review over beside the Recording");
 }
 
+// ── Test 7 ────────────────────────────────────────────────────────────────────────────────────
+// THE SHOT KIND (refactor step 1.8; R-REC-8; DEC-44, DEC-87): written by the one header writer at
+// creation, never changed, and a document without it classified once by the repository's reader
+// exactly as today's rule did.
+
+// Today's rule, as SwingDocWriter::isDeviceOnlySwing applied it before step 1.8.
+bool todaysDeviceOnly(const QJsonObject &root)
+{
+    return root.value(QStringLiteral("streams")).toArray().isEmpty()
+        && !root.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
+}
+
+void testShotKind()
+{
+    std::printf("[Test 7] the shot kind\n");
+    SwingDocWriter::DeviceOnlyMeta meta;
+    meta.swingId = QStringLiteral("swing_0002"); meta.swingIndex = 2;
+    meta.standalone = true;   // the standalone shot: the only device-only one that records its kind
+    meta.sessionId = QStringLiteral("2026-11-14_Test_Swing_01");
+    meta.athleteName = QStringLiteral("Test"); meta.athleteUuid = QStringLiteral("uuid-t");
+    meta.wallclockMs = 1'763'100'000'000LL;
+    const QByteArray csv = "Shot ID, Club, Club head Speed (m/s), Ball Speed (m/s)\r\n902, Drv, 45.0, 66.0\r\n";
+    const auto reading = lm::parseLastShotCsv(csv);
+    check(reading.has_value(), "a launch-monitor reading parses");
+    if (!reading) return;
+    RecordingRepository &repo = testdoc::repo();
+
+    // A new capture: the exporter's header (with streams, the exporter sets the kind captured:
+    // swing_exporter.cpp), created through the repository as the live join does.
+    const SwingExportJob j = exportJob();
+    const QJsonArray streams{ QJsonObject{ { QStringLiteral("kind"), QStringLiteral("video") },
+                                           { QStringLiteral("alias"), QStringLiteral("FaceOn") } } };
+    RecordingHeader capHeader = recordingHeaderFor(j, 5'000'000, 3'000'000);
+    check(!capHeader.kind, "recordingHeaderFor leaves the kind unset (the analysis-only header has none)");
+    capHeader.kind = rec::ShotKind::Captured;   // as SwingExporter::run, for a manifest with streams
+    QTemporaryDir capDir;
+    check(testdoc::writeSwingJson(capDir.path(), recordingHeaderJson(capHeader, streams), nullptr),
+          "a camera shot is created");
+    const QJsonObject cap = SwingStore::load(capDir.path());
+    check(cap.value(QStringLiteral("shotKind")).toString() == QStringLiteral("captured")
+              && readShotKind(cap).recorded && readShotKind(cap).kind == rec::ShotKind::Captured
+              && !repo.isDeviceOnly(capDir.path()),
+          "new capture: shotKind \"captured\" written, read back as recorded");
+
+    // The analysis-only shot (no media) writes no kind: it could still become either by content, so
+    // it is read by today's rule (captured; device-only once a reading lands), exactly as before.
+    QJsonObject analysisOnly = recordingHeaderJson(recordingHeaderFor(j, 5'000'000, 3'000'000), QJsonArray{});
+    check(!analysisOnly.contains(QStringLiteral("shotKind")) && !readShotKind(analysisOnly).recorded
+              && readShotKind(analysisOnly).kind == rec::ShotKind::Captured,
+          "the analysis-only header: no kind written; captured by today's rule");
+    analysisOnly[QStringLiteral("launchMonitor")] = QJsonObject{ { QStringLiteral("kind"), QStringLiteral("gcquad") } };
+    check(!readShotKind(analysisOnly).recorded && readShotKind(analysisOnly).kind == rec::ShotKind::DeviceOnly
+              && todaysDeviceOnly(analysisOnly),
+          "no media and a reading: device-only, as today");
+
+    // A new standalone device-only shot.
+    QTemporaryDir devDir;
+    check(testdoc::writeDeviceOnlySwing(devDir.path(), *reading, meta), "a device-only shot is created");
+    const QJsonObject dev = SwingStore::load(devDir.path());
+    check(dev.value(QStringLiteral("shotKind")).toString() == QStringLiteral("deviceOnly")
+              && readShotKind(dev).recorded && readShotKind(dev).kind == rec::ShotKind::DeviceOnly
+              && repo.isDeviceOnly(devDir.path()),
+          "device-only: shotKind \"deviceOnly\" written, read back as recorded");
+
+    // The kind never changes: the later writes keep it as created.
+    check(testdoc::updateReview(devDir.path(), 4, QStringLiteral("good"), QString())
+              && testdoc::updateLaunchMonitor(capDir.path(), *reading),
+          "later writes (a review, a late reading)");
+    check(SwingStore::load(devDir.path()).value(QStringLiteral("shotKind")).toString() == QStringLiteral("deviceOnly")
+              && SwingStore::load(capDir.path()).value(QStringLiteral("shotKind")).toString() == QStringLiteral("captured"),
+          "the kind is unchanged by them");
+
+    // An old file of each kind (no shotKind): classified once, by the repository's reader, as today.
+    const QJsonObject liveDoc = SwingStore::load(capDir.path());   // a camera shot, a reading attached
+    for (const QJsonObject &recorded : { liveDoc, dev }) {
+        QJsonObject old = recorded;
+        old.remove(QStringLiteral("shotKind"));
+        QTemporaryDir oldDir;
+        QString err;
+        check(SwingStore::save(oldDir.path(), old, &err), "an old document saved as written before step 1.8");
+        const ShotKindRead k = readShotKind(old);
+        const bool today = todaysDeviceOnly(old);
+        check(!k.recorded && (k.kind == rec::ShotKind::DeviceOnly) == today
+                  && repo.isDeviceOnly(oldDir.path()) == today
+                  && k.kind == readShotKind(recorded).kind,
+              today ? "an old device-only file: device-only, as today's rule"
+                    : "an old camera file: captured, as today's rule");
+        check(!SwingStore::load(oldDir.path()).contains(QStringLiteral("shotKind")),
+              "reading never writes the kind back");
+    }
+    // Today's rule's edge: an old document with no streams and no reading is captured (as before),
+    // and so is one whose kind is spelled in a way this build does not know.
+    check(readShotKind(QJsonObject{ { QStringLiteral("streams"), QJsonArray{} } }).kind == rec::ShotKind::Captured,
+          "an old file with no streams and no reading: captured, as today");
+    QJsonObject unknown = dev;
+    unknown[QStringLiteral("shotKind")] = QStringLiteral("someNewKind");
+    check(!readShotKind(unknown).recorded && readShotKind(unknown).kind == rec::ShotKind::DeviceOnly,
+          "an unknown spelling: classified by today's rule");
+    check(!repo.isDeviceOnly(QTemporaryDir().path()), "no document: not device-only (as before)");
+
+    // The Recording carries it: the loader reads the recorded kind (and an old camera file's).
+    QTemporaryDir synth;
+    check(writeSyntheticSwing(synth.path(), liveRecording(kDiskCam, kDiskImu)), "a synthetic camera swing");
+    const LoadedRecording lr = loadRecording(synth.path());
+    check(lr.ok && lr.recording.kind == rec::ShotKind::Captured, "the loaded Recording is captured");
+    QTemporaryDir synthOld;
+    check(writeSyntheticSwing(synthOld.path(), liveRecording(kDiskCam, kDiskImu)), "the same swing, old");
+    QJsonObject oldSynth = SwingStore::load(synthOld.path());
+    oldSynth.remove(QStringLiteral("shotKind"));
+    check(SwingStore::save(synthOld.path(), oldSynth), "its kind removed");
+    const LoadedRecording lrOld = loadRecording(synthOld.path());
+    check(lrOld.ok && lrOld.recording.kind == rec::ShotKind::Captured, "an old camera file loads as captured");
+}
+
 } // namespace
 
 int main()
@@ -505,6 +625,7 @@ int main()
     testLegacyContext();
     testNewerSchema();
     testClubReview();
+    testShotKind();
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "ALL PASSED", g_fail, g_fail == 1 ? "" : "s");
     return g_fail ? 1 : 0;
 }

@@ -18,6 +18,7 @@
 
 #include "swing_store_repository.h"
 
+#include "recording_header.h"   // readShotKind
 #include "swing_doc.h"
 #include "swing_store.h"
 
@@ -159,7 +160,9 @@ WriteResult SwingStoreRecordingRepository::backfillAnalysisContext(const QString
 
 bool SwingStoreRecordingRepository::isDeviceOnly(const QString &swingDir)
 {
-    return SwingDocWriter::isDeviceOnlySwing(SwingStore::load(swingDir));
+    // The one classification (recording_header.h): the recorded shot kind, else, for a document
+    // older than the field, today's content rule. No document reads as captured (not device-only).
+    return readShotKind(SwingStore::load(swingDir)).kind == recording::ShotKind::DeviceOnly;
 }
 
 } // namespace pinpoint

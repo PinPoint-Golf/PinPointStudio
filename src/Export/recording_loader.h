@@ -27,6 +27,8 @@
 //                               the review's ClubReview { correction, declared }, … }
 //
 // What it reads, all of it window-relative (the store's own clock; the Recording's t0Us is 0):
+//   shotKind         the shot kind (readShotKind, recording_header.h: the recorded field, else the
+//                    one classification of an older document)
 //   streams[]        video (raw sidecar preferred, else the MP4, decoded one frame at a time into
 //                    one reusable buffer per camera: memory stays one frame per camera, never the
 //                    window), imu (samples in RAM), ball (the recorded stream)

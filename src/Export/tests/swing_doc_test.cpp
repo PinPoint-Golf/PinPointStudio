@@ -3,6 +3,7 @@
 //   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
 #include "../swing_doc.h"
+#include "../recording_header.h"   // readShotKind
 #include "swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../swing_paths.h"
 #include "../swing_store.h"
@@ -1860,7 +1861,10 @@ int main()
         // ── Its rows rebuilt from the reading it holds (refreshLaunchMonitorRows) ──
         // A launch-monitor-only swing is never re-analysed, so a derivation that changed after it
         // was written reached it only through this. Fresh, it is current: nothing is written.
-        check(SwingDocWriter::isDeviceOnlySwing(root), "it is a launch-monitor-only swing");
+        // Not standalone (meta.standalone false), so no kind is recorded: the content rule says so.
+        check(pinpoint::readShotKind(root).kind == pinpoint::recording::ShotKind::DeviceOnly
+                  && !pinpoint::readShotKind(root).recorded,
+              "it is a launch-monitor-only swing (by the content rule: no kind recorded off the standalone path)");
         bool changed = true;
         QString rerr;
         check(pinpoint::testdoc::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed,

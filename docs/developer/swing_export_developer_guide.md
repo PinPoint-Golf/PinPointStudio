@@ -404,7 +404,7 @@ void CameraManager::maybeFinishSwing()
 
 Schema identifier: **`pinpoint.swing/2`** — the one schema constant `kSwingDocSchema`
 (`recording_header.h`; before step 1.2 the raw manifest said `/1` in memory and the
-writer restamped it). The header (`schema`, `swing`, `athlete`, `session`, `clock`,
+writer restamped it). The header (`schema`, `shotKind`, `swing`, `athlete`, `session`, `clock`,
 `window`, `thumbnail`, `capture`, `analysisContext`) comes from the one header writer. All stream timestamps are **relative µs offsets from
 `t0`** (small, exact); `t0_us` is the absolute capture-clock value. A new stream
 type later is just another element of `streams[]` — readers must ignore unknown
@@ -482,7 +482,7 @@ writer's one-entry just-written cache, so it is safe from workers.
 | Method | Does | Callers |
 |---|---|---|
 | `create(dir, NewRecording{header, analysis, reviewClub}, PersistOptions)` | the first write: header + streams (+ analysis), `review.club` seeded | phone-clip placeholder, swinglab's scratch/result documents (the live join in 1.5) |
-| `create(dir, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded | `LaunchMonitorController` |
+| `create(dir, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded; `shotKind: "deviceOnly"` only when `meta.standalone` (the rescue of a failed camera shot's folder records no kind: a phone clip may still join it) | `LaunchMonitorController` |
 | `completeCapture(dir, reading, followedClub, &clubReplaced)` | a late LM reading (IM-4: capture writes in stages); follow-club may replace `capture.club` | `LaunchMonitorController`, `lm_repair` |
 | `completeCapture(dir, StreamArrival)` | a phone clip's stream origin, then its file, frames and clock | `PpcpClipFiler` |
 | `writeAnalysis(dir, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `persistReanalysis` (the app, swinglab `--write-back`), `lm_repair` |
@@ -490,7 +490,7 @@ writer's one-entry just-written cache, so it is safe from workers.
 | `convert(dir, deleteJson)` | JSON era → `swing.ppsw`, proven first | `LibraryConverter`, `pps_convert_library`, `SessionArchiver` |
 | `writeSummarySidecar(PersistedShot)` | the JSON-era `swing_summary.json` | `SessionReviewController` |
 | `backfillAnalysisContext(dir, AthleteRecordFacts, PersistOptions)` | the step-1 backfill (DEC-34, a one-off migration): writes `analysisContext` into a document with none, from its legacy fields and the record's height and club set; `Unchanged` when it already has a block or the facts add nothing; `dryRun` honoured | `tools/migrate/backfill_analysis_context` |
-| `isDeviceOnly(dir)` | a read | `ReanalysisController`, `reanalyseAndPersist` |
+| `isDeviceOnly(dir)` | a read: the shot kind (step 1.8), the document's `shotKind` through `readShotKind()`, else, for a document older than the field, today's rule (no streams and a `launchMonitor` block) | `ReanalysisController`, `reanalyseAndPersist` |
 
 Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, `Failed`
 + the reason).

@@ -46,11 +46,19 @@
 //           writes nothing; a recorded block, or facts that add nothing, are never written; a height
 //           the document recorded wins; a junior is decided on the swing's date
 //
+//   Test 14 the shot kind (step 1.8, round 2): an analysis-only shot (no media; no kind written) that
+//           later gets a launch-monitor reading re-analyses exactly as today — classified device-only
+//           by the content rule, not analysed, its launch monitor rows kept. And the RESCUE path
+//           (round 3): a device-only document written into a failed camera shot's folder records no
+//           kind; a phone clip's stream then joins it, and it reads captured and re-analyses as a
+//           capture, as today; a standalone one records deviceOnly
+//
 //   cmake --build build/tests --target recording_repository_test -j 6
 //   ctest --test-dir build/tests -R '^recording_repository_test$' --output-on-failure
 
 #include "../swing_store_repository.h"
-#include "../recording_header.h"                  // analysisContextJson (Test 12)
+#include "../recording_header.h"                  // analysisContextJson (Test 12), the header (Test 14)
+#include "../swing_exporter.h"                    // SwingExportJob (Test 14)
 #include "../../Core/club_standards.h"            // standardClub (Test 12)
 #include "../../LaunchMonitor/lm_inferred_reads.h" // lmLowPointFromAttack (Test 12)
 #include "../swing_doc.h"
@@ -64,7 +72,9 @@
 
 #include <QDir>
 #include <QFile>
+#include <QDateTime>
 #include <QJsonArray>
+#include <QTimeZone>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -896,6 +906,74 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
 
 } // namespace
 
+// ── Test 14 ───────────────────────────────────────────────────────────────────────────────────
+void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
+{
+    std::printf("[Test 14] an analysis-only shot that later gets a reading re-analyses as today\n");
+    // The live join's degraded persist: the one header writer's analysis-only header (no media), with
+    // the analysis — what SwingExporter::analysisOnlyHeader hands RecordingRepository::create.
+    SwingExportJob job;
+    job.swingId = QStringLiteral("swing_0003"); job.swingIndex = 3;
+    job.sessionId = QStringLiteral("2026-11-14_Test_Swing_01");
+    job.clubName = QStringLiteral("7 IRON");
+    job.wallclockAnchorUtc = QDateTime::fromMSecsSinceEpoch(1'763'100'000'000LL, QTimeZone::UTC);
+    const analysis::SwingAnalysis captured = poseAnalysis(55);
+    NewRecording rec;
+    rec.header   = recordingHeaderJson(recordingHeaderFor(job, 5'000'000, 3'000'000), QJsonArray{});
+    rec.analysis = &captured;
+    QTemporaryDir t;
+    check(repo.create(t.path(), rec).ok(), "an analysis-only shot");
+    check(!doc(t.path()).contains(QStringLiteral("shotKind")) && !repo.isDeviceOnly(t.path()),
+          "no kind written; not device-only (no reading yet), as today");
+
+    check(repo.completeCapture(t.path(), reading(80.0), QJsonObject{}, nullptr).ok(), "a late reading lands");
+    const QJsonObject withLm = doc(t.path());
+    const bool today = withLm.value(QStringLiteral("streams")).toArray().isEmpty()
+                    && !withLm.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
+    check(today && repo.isDeviceOnly(t.path()) && hasMetric(withLm, QStringLiteral("lm.clubheadSpeed")),
+          "now device-only by today's content rule, its lm. rows written");
+
+    g_reanalysisCalls = 0;
+    const analysis::PersistedReanalysis p = analysis::reanalyseAndPersist(repo, t.path(), PersistOptions{});
+    check(p.ok() && p.deviceOnly && !p.analysed && g_reanalysisCalls == 0
+              && p.write.status == WriteResult::Status::Unchanged,
+          "re-analysis: not analysed, its launch monitor rows checked (current) — as today");
+    check(hasMetric(doc(t.path()), QStringLiteral("lm.clubheadSpeed")) && !doc(t.path()).contains(QStringLiteral("shotKind")),
+          "the rows kept; still no kind written");
+
+    // The rescue path: the launch monitor fills a failed camera shot's folder, then the phone files
+    // its clip into the same folder (main.cpp: both on ShotProcessor::shotFailed).
+    QTemporaryDir rescue;
+    DeviceOnlyMeta meta;
+    meta.swingId = QStringLiteral("swing_0004");   // standalone false: the rescue
+    check(repo.create(rescue.path(), reading(75.0), meta).ok(), "a rescued device-only document");
+    check(!doc(rescue.path()).contains(QStringLiteral("shotKind")) && repo.isDeviceOnly(rescue.path()),
+          "the rescue records no kind; device-only by the content rule, as today");
+    StreamArrival clip;
+    clip.alias            = QStringLiteral("phoneWide");
+    clip.origin.transport = QStringLiteral("ppcp");
+    clip.origin.transfer  = QStringLiteral("requested");
+    check(repo.completeCapture(rescue.path(), clip).ok(), "the phone clip joins it");
+    check(!repo.isDeviceOnly(rescue.path()) && !doc(rescue.path()).contains(QStringLiteral("shotKind")),
+          "now it has a stream: captured, as today");
+    g_reanalysis = analysis::ReanalyzeResult{};
+    g_reanalysis.error = QStringLiteral("no video streams in swing.json");   // the clip has not landed
+    g_reanalysisCalls = 0;
+    const analysis::PersistedReanalysis r = analysis::reanalyseAndPersist(repo, rescue.path(), PersistOptions{});
+    check(g_reanalysisCalls == 1 && !r.deviceOnly,
+          "re-analysis takes the capture path (the analyzer is called), as today");
+
+    // The standalone shot records its kind, and the content rule agrees for its whole life.
+    QTemporaryDir standalone;
+    DeviceOnlyMeta own;
+    own.swingId    = QStringLiteral("swing_0005");
+    own.standalone = true;
+    check(repo.create(standalone.path(), reading(75.0), own).ok()
+              && doc(standalone.path()).value(QStringLiteral("shotKind")).toString() == QLatin1String("deviceOnly")
+              && repo.isDeviceOnly(standalone.path()),
+          "a standalone device-only shot records shotKind \"deviceOnly\"");
+}
+
 int main()
 {
     std::printf("=== RecordingRepository (step 1.4) ===\n");
@@ -907,6 +985,7 @@ int main()
     testEditReview(repo);
     testCompleteCapture(repo);
     testDeviceOnly(repo);
+    testAnalysisOnlyShotGetsAReading(repo);
     testConvertAndSidecar(repo);
     testReadOnlyRefused(repo);
     testReanalyseAndPersist(repo);

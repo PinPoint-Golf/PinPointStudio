@@ -189,9 +189,11 @@ private:
     // `existingShotId` >= 0 points an EXISTING carousel row at the folder instead of
     // adding one — the rescue path, where the processor already made a row for a shot
     // that produced nothing. -1 adds a row, which is the standalone path.
+    // `standalone` records the shot kind (DeviceOnlyMeta::standalone): true only for the
+    // standalone path, whose folder no phone clip can join.
     bool writeDeviceOnly(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r,
                          const QString &swingId, int swingIndex, const QString &sessionId,
-                         int existingShotId);
+                         int existingShotId, bool standalone = false);
     // Write to swing.json and refresh the carousel row. Returns false (and logs) when
     // the document cannot be updated.
     bool applyToSwing(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r);

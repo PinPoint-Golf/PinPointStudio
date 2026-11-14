@@ -914,6 +914,11 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
     RecordingHeader header = recordingHeaderFor(job, t0, durationUs);
     if (!result.thumbnailPath.isEmpty())
         header.thumbnail = RecordingHeader::Thumbnail{ QStringLiteral("thumb.jpg"), thumbTsUs - t0 };
+    // The shot kind (R-REC-8): captured, written only when the manifest carries streams, so it is
+    // true now and stays true (no write removes a stream). With none it stays unwritten and the
+    // document is read by today's content rule (recording_header.h).
+    if (!streams.isEmpty())
+        header.kind = recording::ShotKind::Captured;
     const QJsonObject root = recordingHeaderJson(header, streams);
 
     // swing.json is NOT written here. The worker returns its raw manifest and the GUI

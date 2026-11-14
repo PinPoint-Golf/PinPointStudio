@@ -181,8 +181,8 @@ public:
     // only slower.
     static QJsonObject takeJustWritten(const QString &swingDir);
 
-    // A swing the launch monitor alone recorded: no streams, and a raw `launchMonitor` block.
-    static bool isDeviceOnlySwing(const QJsonObject &root);
+    // (The shot kind — captured or device-only — is read by readShotKind, recording_header.h: the
+    // document's recorded `shotKind`, else the one content rule for a document older than it.)
 
     // Is this document read-only to this build — saved by a newer one (its schema, or its
     // analysisContext block's, is newer than this build reads)? Every write below asks first, and a

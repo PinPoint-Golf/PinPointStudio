@@ -430,9 +430,12 @@ void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &rea
 bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
                                               const LaunchMonitorReading &r,
                                               const QString &swingId, int swingIndex,
-                                              const QString &sessionId, int existingShotId)
+                                              const QString &sessionId, int existingShotId,
+                                              bool standalone)
 {
     pinpoint::DeviceOnlyMeta meta;
+    // Only a standalone shot records its kind (DeviceOnlyMeta::standalone): its folder is its own.
+    meta.standalone = standalone;
     // The rescue path is handed a folder somebody else allocated, so it reads the
     // identity back off the path rather than being told: <session>/<swing_NNNN>.
     const QDir dir(swingDir);
@@ -527,7 +530,7 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
     }
 
     return writeDeviceOnly(alloc.swingDir, reading, alloc.swingId, alloc.swingIndex,
-                           alloc.sessionId, /*existingShotId*/ -1);
+                           alloc.sessionId, /*existingShotId*/ -1, /*standalone*/ true);
 }
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)

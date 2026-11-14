@@ -116,6 +116,8 @@ QJsonObject recordingHeaderJson(const RecordingHeader &h, const QJsonArray &stre
 {
     QJsonObject root;
     root[QStringLiteral("schema")] = QString::fromLatin1(kSwingDocSchema);
+    if (h.kind)
+        root[QStringLiteral("shotKind")] = QString::fromLatin1(rec::shotKindName(*h.kind));
     if (h.swing)
         root[QStringLiteral("swing")] = QJsonObject{
             { QStringLiteral("index"), h.swing->index },
@@ -460,6 +462,21 @@ AnalysisContextRead readAnalysisContext(const QJsonObject &root)
                                                 "Studio (analysisContext schema %1, this build reads up to %2)")
                                      .arg(v).arg(kAnalysisContextSchemaVersion);
     }
+    return out;
+}
+
+ShotKindRead readShotKind(const QJsonObject &root)
+{
+    ShotKindRead out;
+    if (rec::shotKindFromName(root.value(QStringLiteral("shotKind")).toString(), &out.kind)) {
+        out.recorded = true;
+        return out;
+    }
+    // No recorded kind: the content rule every reader used before the field (the former
+    // SwingDocWriter::isDeviceOnlySwing), so an old document is classified exactly as before.
+    const bool deviceOnly = root.value(QStringLiteral("streams")).toArray().isEmpty()
+                         && !root.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
+    out.kind = deviceOnly ? rec::ShotKind::DeviceOnly : rec::ShotKind::Captured;
     return out;
 }
 

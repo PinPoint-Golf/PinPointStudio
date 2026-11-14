@@ -30,6 +30,14 @@
 //
 //   schema           kSwingDocSchema — THE ONE SCHEMA CONSTANT ("pinpoint.swing/2"), read back by
 //                    swingDocSchemaVersionOf(); a document newer than this build is read-only
+//   shotKind         "captured" | "deviceOnly" — the shot kind (R-REC-8; DEC-44, DEC-87), written only
+//                    where it is TRUE at creation (the kind never changes): the exporter's manifest
+//                    with its streams (captured), the STANDALONE device-only shot (deviceOnly: its
+//                    folder is its own, so no stream can join it). Not written where the shot could
+//                    still become the other kind by content: the analysis-only shot, the phone-clip
+//                    placeholder, and the device-only RESCUE of a failed camera shot's folder (a
+//                    phone clip may still be filed into it). Those read by today's rule, as an older
+//                    document does. Read back by readShotKind() (below)
 //   swing            { index, id }
 //   athlete          { name, uuid, handedness, heightM (when known) }
 //   session          { dir }
@@ -79,6 +87,7 @@
 #include <optional>
 
 #include "../Recording/analysis_context.h"
+#include "../Recording/recording.h"      // recording::ShotKind
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
 
 namespace pinpoint {
@@ -107,6 +116,11 @@ struct RecordingHeader {
     struct Window { int64_t startUs = 0; int64_t endUs = 0; };
     struct Thumbnail { QString file; int64_t tUs = -1; };
 
+    // The shot kind, set only by a caller for which it is true at creation and no later write can
+    // make it false: the exporter with streams (Captured), writeDeviceOnlySwing for a standalone shot
+    // (DeviceOnly; DeviceOnlyMeta::standalone). Unset = not written (see the file header):
+    // recordingHeaderFor leaves it unset, so the analysis-only header has none; nor does a rescue.
+    std::optional<recording::ShotKind> kind;
     std::optional<Identity>  swing;
     std::optional<Athlete>   athlete;
     std::optional<QString>   sessionDir;
@@ -187,6 +201,22 @@ struct AnalysisContextRead {
 // The one reader: the block when present (schema-checked), else the legacy context; the document's
 // own schema checked against kSwingDocSchemaVersion.
 AnalysisContextRead readAnalysisContext(const QJsonObject &root);
+
+// ── The shot kind: on disk ────────────────────────────────────────────────────────────────────
+// THE ONE CLASSIFICATION of a document's kind (R-REC-8; DEC-44, DEC-87), the repository's reader's
+// (SwingStoreRecordingRepository::isDeviceOnly, the Recording loader):
+//   `shotKind` recorded ("captured" / "deviceOnly")  → that kind (recorded = true)
+//   no `shotKind` (every document before step 1.8), or a spelling this build does not know
+//                                                     → today's rule, by content: device-only when
+//                                                       `streams` is empty AND the document has a
+//                                                       raw `launchMonitor` block; else captured
+//                                                       (recorded = false)
+// Reading never writes the kind back (R-REC-1: only an approved migration would). Pure: JSON in.
+struct ShotKindRead {
+    recording::ShotKind kind = recording::ShotKind::Captured;
+    bool                recorded = false;   // true = the document's own `shotKind`
+};
+ShotKindRead readShotKind(const QJsonObject &root);
 
 // The golfer's two club edits on the shot's review block, as stored, for effectiveContext():
 // correction = review.clubOverride (the LM board's), declared = review.club (the popover's).

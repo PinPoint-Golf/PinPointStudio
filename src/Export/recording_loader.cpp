@@ -318,6 +318,9 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
     out.analysisOriginUs = analysisReadOriginUs(root);
 
     rec::Recording &r = out.recording;
+    // The shot kind: the recorded `shotKind`, else the one classification of an older document
+    // (readShotKind, recording_header.h; R-REC-8).
+    r.kind = readShotKind(root).kind;
     auto src = std::make_unique<SwingDiskSource>();
     std::vector<IndexEntry> entries;
     QHash<QString, SourceId> imuSerialToId;

@@ -67,6 +67,27 @@ inline Perspective perspectiveFromCode(int code)
 }
 inline int perspectiveCode(Perspective p) { return static_cast<int>(p); }
 
+// ── The shot kind (R-REC-8; Mark, 14 Nov 2026: DEC-44, DEC-87) ────────────────────────────────
+// Which kind of shot the Recording is: CAPTURED (cameras / IMU saw it: it has, or had, streams) or
+// DEVICE-ONLY (a launch monitor alone saw it: no streams, only the reading). An LM-only shot IS a
+// Recording. The kind is the Shot's own fact: the one header writer writes it when the shot is created
+// (the swing file's `shotKind`) wherever no later write can make it false, and it never changes. A
+// document without the field (older, or one whose kind a later stream or reading could still decide)
+// is classified once, by the repository's reader (readShotKind, src/Export/recording_header.h).
+enum class ShotKind : int { Captured = 0, DeviceOnly = 1 };
+
+// The one spelling on disk ("captured" / "deviceOnly"); fromName → false on any other text.
+inline const char *shotKindName(ShotKind k)
+{
+    return k == ShotKind::DeviceOnly ? "deviceOnly" : "captured";
+}
+inline bool shotKindFromName(const QString &name, ShotKind *out)
+{
+    if (name == QLatin1String("captured"))   { *out = ShotKind::Captured;   return true; }
+    if (name == QLatin1String("deviceOnly")) { *out = ShotKind::DeviceOnly; return true; }
+    return false;
+}
+
 // ── Sources by role ───────────────────────────────────────────────────────────────────────────
 // One camera stream in the window, in the order the capture (or the file) lists them. Which camera
 // is face-on, impact or down the line is decided from `perspective` by the job builder's one rule.
@@ -129,6 +150,7 @@ struct Recording {
     const pinpoint::SwingWindow *window = nullptr;
     int64_t                      t0Us   = 0;      // the window's start on its own clock (0 loaded)
 
+    ShotKind         kind = ShotKind::Captured;  // the shot kind (above); never changes
     RecordingSources sources;
     CaptureFacts     capture;
     BallInputs       ball;

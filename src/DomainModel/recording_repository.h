@@ -42,7 +42,9 @@
 //   backfillAnalysisContext  THE STEP-1 BACKFILL (D4; DEC-34): a one-off migration Mark approves
 //                     (R-REC-1, R-PERS-7) that records the analysis context of a document older than
 //                     the block, with the height and club set its capture never wrote
-//   isDeviceOnly      a read: did the launch monitor alone record this shot?
+//   isDeviceOnly      a read: did the launch monitor alone record this shot? The shot kind
+//                     (R-REC-8; DEC-44, DEC-87): the one header writer records it at creation, and
+//                     a document older than the field is classified here, once, by today's rule
 //
 // ⛔ EVERY WRITE REFUSES A READ-ONLY DOCUMENT: one saved by a newer PinPoint Studio (its schema, or
 // its analysisContext block's, is newer than this build reads). Such a file is never rewritten
@@ -127,6 +129,11 @@ struct DeviceOnlyMeta {
     QString club;                 // the app's selected club, not the device's code
     int     sessionType = -1;
     qint64  wallclockMs = 0;      // when the reading was taken
+    // A STANDALONE shot: the launch monitor's own, in a folder it allocated, which no capture or
+    // phone clip files into — so its kind is device-only for its whole life and the document records
+    // it (`shotKind`, R-REC-8). False for the rescue path (a failed camera shot's folder, which a phone
+    // clip may still join): no kind is recorded there, and the content rule reads it.
+    bool    standalone = false;
 };
 
 // ── completeCapture ──────────────────────────────────────────────────────────────────────────────

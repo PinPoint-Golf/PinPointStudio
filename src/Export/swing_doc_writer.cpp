@@ -862,12 +862,6 @@ static bool sameJson(const QJsonValue &a, const QJsonValue &b)
     return a == b;
 }
 
-bool SwingDocWriter::isDeviceOnlySwing(const QJsonObject &root)
-{
-    return root.value(QStringLiteral("streams")).toArray().isEmpty()
-        && !root.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
-}
-
 WriteResult SwingDocWriter::refreshLaunchMonitorRows(const QString &swingDir, bool dryRun)
 {
     QJsonObject root;
@@ -922,6 +916,11 @@ WriteResult SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
 
     // The header: the ONE header writer (recording_header.h), with what a device-only shot knows.
     RecordingHeader header;
+    // The shot kind (R-REC-8; DEC-44, DEC-87), recorded only for a standalone shot: nothing can file
+    // a stream into its folder later, so device-only is true for good. A rescue (a failed camera shot's
+    // folder) may still gain a phone clip, so its kind is left to the content rule (recording_header.h).
+    if (meta.standalone)
+        header.kind = recording::ShotKind::DeviceOnly;
     header.swing   = RecordingHeader::Identity{ meta.swingId, meta.swingIndex };
     // No handedness, no height: the meta does not carry them, and none is invented.
     header.athlete = RecordingHeader::Athlete{ meta.athleteName, meta.athleteUuid, std::nullopt, 0.0 };
