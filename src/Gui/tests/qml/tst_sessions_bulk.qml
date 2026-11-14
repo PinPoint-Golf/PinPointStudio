@@ -103,6 +103,7 @@ Item {
     }
     QtObject { id: archiver
         property bool busy: false; property string status: ""; property real progress: 0
+        property bool failed: false            // ArchiveController.failed: how the last job ended
         property var archivedSet: ({})
         property var log: []
         property bool failNext: false          // the next job ends "… was not archived: no space"
@@ -110,11 +111,12 @@ Item {
         function _run(d, archive) {
             if (archiver.busy) return false
             archiver.log = archiver.log.concat([(archive ? "archive " : "restore ") + d])
-            archiver.busy = true; archiver.status = "Working…"; archiver.changed()
+            archiver.busy = true; archiver.status = "Working…"; archiver.failed = false; archiver.changed()
             Qt.callLater(() => {
                 archiver.busy = false
                 if (archiver.failNext) {
                     archiver.failNext = false
+                    archiver.failed = true
                     archiver.status = d + " was not archived: no space"
                 } else {
                     const s = Object.assign({}, archiver.archivedSet); s[d] = archive

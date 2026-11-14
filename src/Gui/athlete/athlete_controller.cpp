@@ -462,7 +462,8 @@ QVariantList AthleteController::sexOptions() const
     auto opt = [](const char *value, const char *label) {
         QVariantMap m;
         m.insert(QStringLiteral("value"), QString::fromLatin1(value));
-        m.insert(QStringLiteral("label"), label ? QObject::tr(label) : QString());
+        // AthleteController::tr, the context QT_TR_NOOP below files these under.
+        m.insert(QStringLiteral("label"), label ? tr(label) : QString());
         return QVariant(m);
     };
     return { opt("female",   QT_TR_NOOP("Female")),

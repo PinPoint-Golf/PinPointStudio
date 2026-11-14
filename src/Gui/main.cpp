@@ -44,6 +44,7 @@
 
 #include "pp_debug.h"
 #include "app_settings.h"
+#include "app_translations.h"
 #include "notification_center.h"
 #ifdef HAVE_PPCP_TRANSPORT
 #include "shot/qml_payload.h"
@@ -279,6 +280,31 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+
+    // Settings → General → Language. Installed here — the first line after the settings exist,
+    // ahead of every controller below and of the QML engine — because a translator only reaches
+    // text built after it: tr() strings a model has already cached stay as they were, which is
+    // why the setting says it applies on restart. See app_translations.h.
+    {
+        const QString language = appSettings.language();
+        const AppTranslations::Result translation = AppTranslations::install(app, language);
+        switch (translation.outcome) {
+        case AppTranslations::Outcome::Installed:
+            ppInfo() << "[Language]" << qUtf8Printable(language) << "— translating from"
+                     << qUtf8Printable(translation.catalogue);
+            break;
+        case AppTranslations::Outcome::SourceLanguage:
+            break;
+        case AppTranslations::Outcome::NoCatalogue:
+            ppWarn() << "[Language]" << qUtf8Printable(language)
+                     << "has no translation in this build — the interface stays in English";
+            break;
+        case AppTranslations::Outcome::InvalidTag:
+            ppWarn() << "[Language] General/language is not a language tag — the interface stays in English";
+            break;
+        }
+    }
+
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
     // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.

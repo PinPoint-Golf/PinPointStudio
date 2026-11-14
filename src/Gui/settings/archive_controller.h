@@ -46,6 +46,10 @@ class ArchiveController : public QObject {
     Q_PROPERTY(QVariantList sessions     READ sessions     NOTIFY changed)
     Q_PROPERTY(bool         busy         READ busy         NOTIFY changed)
     Q_PROPERTY(QString      status       READ status       NOTIFY changed)
+    // Whether the operation that last ended did NOT do what it was asked ("… was not archived").
+    // False while one runs. A caller that must know (the session list's bulk jobs) reads this, not
+    // the words of `status`: those are for the golfer, and are in the golfer's language.
+    Q_PROPERTY(bool         failed       READ failed       NOTIFY changed)
     Q_PROPERTY(double       progress     READ progress     NOTIFY changed)   // 0..1 of the operation in hand
     Q_PROPERTY(double       freeBytes    READ freeBytes    NOTIFY changed)
     Q_PROPERTY(double       swingBytes   READ swingBytes   NOTIFY changed)   // measured mean; 0 = unknown
@@ -61,6 +65,7 @@ public:
     QVariantList sessions() const { return m_sessions; }
     bool    busy()      const { return m_busy; }
     QString status()    const { return m_status; }
+    bool    failed()    const { return m_failed; }
     double  progress()  const { return m_progress; }
     double  freeBytes() const { return m_freeBytes; }
     double  swingBytes() const { return m_swingBytes; }
@@ -95,8 +100,16 @@ signals:
 
 private:
     struct Scan;
-    bool startJob(const QString &what, std::function<QString(ArchiveController *self,
-                                                                std::shared_ptr<std::atomic_bool>)> job,
+    // What a job came to: the words for the status line, and whether it did what it was asked. A
+    // job that cannot fail returns just its words.
+    struct JobOutcome {
+        QString words;
+        bool    ok = true;
+        JobOutcome() = default;
+        JobOutcome(const QString &w, bool didIt = true) : words(w), ok(didIt) {}
+    };
+    bool startJob(const QString &what, std::function<JobOutcome(ArchiveController *self,
+                                                                   std::shared_ptr<std::atomic_bool>)> job,
                   const QString &restoredDir = {});
     void applyScan(const Scan &scan);
     void setProgress(double p, const QString &status);
@@ -109,6 +122,7 @@ private:
     QVariantList m_sessions;
     bool    m_busy = false;
     QString m_status;
+    bool    m_failed = false;
     double  m_progress = 0.0;
     double  m_freeBytes = 0.0;
     double  m_swingBytes = 0.0;
@@ -116,6 +130,6 @@ private:
     double  m_trashBytes = 0.0;
     int     m_trashEntries = 0;
     std::shared_ptr<std::atomic_bool> m_abort;
-    QFutureWatcher<QString> m_watcher;
+    QFutureWatcher<JobOutcome> m_watcher;
     QFutureWatcher<void>    m_scanWatcher;
 };

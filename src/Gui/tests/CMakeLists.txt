@@ -342,6 +342,36 @@ pp_add_test(notification_center_test
     INCLUDE ${GUI} ${SRC} ${SRC}/Core
     LINK    Qt6::Qml  AUTOMOC)
 
+# AppTranslations — Settings → General → Language. Which tag installs which catalogue, that an
+# unknown or malformed tag installs nothing, that a language never moves the default QLocale — and
+# then each catalogue's own soundness: nothing unfinished, every placeholder and fragment space
+# intact, "Settings → Studio" said one way, and the compiled .qm answering every message with what
+# the .ts says.
+#
+# The catalogues are the app's ONE list (cmake/PinPointTranslations.cmake), compiled by lrelease
+# into THIS binary at the same :/i18n path the app embeds them at — this project never builds the
+# app, and a test reading a resource the app does not ship would be testing nothing. qt_add_lrelease
+# rather than qt_add_translations: the latter would also declare `update_translations` here, and a
+# refresh run from a test tree would rewrite the .ts from the test's two sources.
+find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
+include(${PP_REPO_ROOT}/cmake/PinPointTranslations.cmake)
+list(TRANSFORM PP_TS_FILES PREPEND "${PP_REPO_ROOT}/" OUTPUT_VARIABLE _pp_ts_abs)
+pp_add_test(app_translations_test
+    SOURCES app_translations_test.cpp
+            ${GUI}/app/app_translations.cpp
+    INCLUDE ${GUI} ${SRC}
+    COMPILE_OPTIONS -DPP_TS_DIR="${PP_REPO_ROOT}/src/Resources/i18n"
+                    -DPP_QML_ROOT="${GUI}")
+qt_add_lrelease(
+    TS_FILES ${_pp_ts_abs}
+    QM_FILES_OUTPUT_VARIABLE _pp_qm_files
+    LRELEASE_TARGET app_translations_test_lrelease
+    NO_GLOBAL_TARGET)
+qt_add_resources(app_translations_test "app_translations_test_i18n"
+    PREFIX "/i18n"
+    BASE   "${CMAKE_CURRENT_BINARY_DIR}"
+    FILES  ${_pp_qm_files})
+
 # markup_truth — the Markup panel's ground-truth sidecars: which camera a swing's
 # swing.json offers (face-on / down-the-line), and the two files those views write.
 # The pair is the point: truth.json is FACE-ON pixel space and always has been, so

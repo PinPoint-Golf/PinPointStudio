@@ -27,6 +27,7 @@
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
@@ -547,12 +548,12 @@ struct TagFacetDef { const char *sortKey; const char *label; };
 static std::vector<TagFacetDef> tagFacetsFor(const QString &type)
 {
     if (type == kMetrics)
-        return { { "needsTags",    QT_TR_NOOP("Needs") },
-                 { "improvesTags", QT_TR_NOOP("Improves with") },
-                 { "stereoTags",   QT_TR_NOOP("A 2nd camera would") } };
+        return { { "needsTags",    QT_TRANSLATE_NOOP("ModelBrowser", "Needs") },
+                 { "improvesTags", QT_TRANSLATE_NOOP("ModelBrowser", "Improves with") },
+                 { "stereoTags",   QT_TRANSLATE_NOOP("ModelBrowser", "A 2nd camera would") } };
     // A gate can do several things to a reading (refuse it on one swing, bound it on another).
     if (type == kGates)
-        return { { "effectTags", QT_TR_NOOP("What it does") } };
+        return { { "effectTags", QT_TRANSLATE_NOOP("ModelBrowser", "What it does") } };
     return {};
 }
 
@@ -1841,7 +1842,9 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             cells.append(cell(d->group));
             // metricNeeds() never returns empty — a metric needing nothing says so — so the cell
             // and the chip read the same words, which is the rule every facet here follows.
-            const bool noKit = needs.size() == 1 && needs.first() == tr("Nothing extra");
+            // QObject::tr, as metricNeeds() says it: compared under ModelBrowser's own context the
+            // two are separate entries in a catalogue, and a translation need not make them agree.
+            const bool noKit = needs.size() == 1 && needs.first() == QObject::tr("Nothing extra");
             cells.append(cell(needs.join(QStringLiteral(" · ")),
                               noKit ? QStringLiteral("dim") : QString()));
             // Toned when there is no better route, because a blank here is a real answer — this is
@@ -3040,36 +3043,36 @@ void appendCitation(QVariantList &sections, const QString &citation, bool onlyWh
 QString pictureTokenLabel(const QString &token)
 {
     static const QHash<QString, const char *> words{
-        { QStringLiteral("change"),       QT_TR_NOOP("Change from address") },
-        { QStringLiteral("pair"),         QT_TR_NOOP("Closest and furthest") },
-        { QStringLiteral("typical"),      QT_TR_NOOP("A typical swing") },
-        { QStringLiteral("none"),         QT_TR_NOOP("No picture") },
-        { QStringLiteral("faceOn"),       QT_TR_NOOP("Face-on") },
-        { QStringLiteral("dtl"),          QT_TR_NOOP("Down the line") },
-        { QStringLiteral("P1"),           QT_TR_NOOP("P1 · Address") },
-        { QStringLiteral("P2"),           QT_TR_NOOP("P2 · Shaft parallel back") },
-        { QStringLiteral("P3"),           QT_TR_NOOP("P3 · Lead arm parallel back") },
-        { QStringLiteral("P4"),           QT_TR_NOOP("P4 · Top") },
-        { QStringLiteral("P5"),           QT_TR_NOOP("P5 · Lead arm parallel down") },
-        { QStringLiteral("P6"),           QT_TR_NOOP("P6 · Shaft parallel down") },
-        { QStringLiteral("P7"),           QT_TR_NOOP("P7 · Impact") },
-        { QStringLiteral("P8"),           QT_TR_NOOP("P8 · Shaft parallel through") },
-        { QStringLiteral("P9"),           QT_TR_NOOP("P9 · Lead arm parallel through") },
-        { QStringLiteral("P10"),          QT_TR_NOOP("P10 · Finish") },
-        { QStringLiteral("head"),         QT_TR_NOOP("Head") },
-        { QStringLiteral("shoulders"),    QT_TR_NOOP("Shoulders") },
-        { QStringLiteral("spine"),        QT_TR_NOOP("Spine") },
-        { QStringLiteral("hips"),         QT_TR_NOOP("Hips") },
-        { QStringLiteral("leadArm"),      QT_TR_NOOP("Lead arm") },
-        { QStringLiteral("leadUpperArm"), QT_TR_NOOP("Lead upper arm") },
-        { QStringLiteral("leadForearm"),  QT_TR_NOOP("Lead forearm") },
-        { QStringLiteral("trailArm"),     QT_TR_NOOP("Trail arm") },
-        { QStringLiteral("leadThigh"),    QT_TR_NOOP("Lead thigh") },
-        { QStringLiteral("trailThigh"),   QT_TR_NOOP("Trail thigh") },
-        { QStringLiteral("leadShin"),     QT_TR_NOOP("Lead shin") },
-        { QStringLiteral("trailShin"),    QT_TR_NOOP("Trail shin") },
-        { QStringLiteral("stance"),       QT_TR_NOOP("Stance") },
-        { QStringLiteral("shaft"),        QT_TR_NOOP("Shaft") },
+        { QStringLiteral("change"),       QT_TRANSLATE_NOOP("QObject", "Change from address") },
+        { QStringLiteral("pair"),         QT_TRANSLATE_NOOP("QObject", "Closest and furthest") },
+        { QStringLiteral("typical"),      QT_TRANSLATE_NOOP("QObject", "A typical swing") },
+        { QStringLiteral("none"),         QT_TRANSLATE_NOOP("QObject", "No picture") },
+        { QStringLiteral("faceOn"),       QT_TRANSLATE_NOOP("QObject", "Face-on") },
+        { QStringLiteral("dtl"),          QT_TRANSLATE_NOOP("QObject", "Down the line") },
+        { QStringLiteral("P1"),           QT_TRANSLATE_NOOP("QObject", "P1 · Address") },
+        { QStringLiteral("P2"),           QT_TRANSLATE_NOOP("QObject", "P2 · Shaft parallel back") },
+        { QStringLiteral("P3"),           QT_TRANSLATE_NOOP("QObject", "P3 · Lead arm parallel back") },
+        { QStringLiteral("P4"),           QT_TRANSLATE_NOOP("QObject", "P4 · Top") },
+        { QStringLiteral("P5"),           QT_TRANSLATE_NOOP("QObject", "P5 · Lead arm parallel down") },
+        { QStringLiteral("P6"),           QT_TRANSLATE_NOOP("QObject", "P6 · Shaft parallel down") },
+        { QStringLiteral("P7"),           QT_TRANSLATE_NOOP("QObject", "P7 · Impact") },
+        { QStringLiteral("P8"),           QT_TRANSLATE_NOOP("QObject", "P8 · Shaft parallel through") },
+        { QStringLiteral("P9"),           QT_TRANSLATE_NOOP("QObject", "P9 · Lead arm parallel through") },
+        { QStringLiteral("P10"),          QT_TRANSLATE_NOOP("QObject", "P10 · Finish") },
+        { QStringLiteral("head"),         QT_TRANSLATE_NOOP("QObject", "Head") },
+        { QStringLiteral("shoulders"),    QT_TRANSLATE_NOOP("QObject", "Shoulders") },
+        { QStringLiteral("spine"),        QT_TRANSLATE_NOOP("QObject", "Spine") },
+        { QStringLiteral("hips"),         QT_TRANSLATE_NOOP("QObject", "Hips") },
+        { QStringLiteral("leadArm"),      QT_TRANSLATE_NOOP("QObject", "Lead arm") },
+        { QStringLiteral("leadUpperArm"), QT_TRANSLATE_NOOP("QObject", "Lead upper arm") },
+        { QStringLiteral("leadForearm"),  QT_TRANSLATE_NOOP("QObject", "Lead forearm") },
+        { QStringLiteral("trailArm"),     QT_TRANSLATE_NOOP("QObject", "Trail arm") },
+        { QStringLiteral("leadThigh"),    QT_TRANSLATE_NOOP("QObject", "Lead thigh") },
+        { QStringLiteral("trailThigh"),   QT_TRANSLATE_NOOP("QObject", "Trail thigh") },
+        { QStringLiteral("leadShin"),     QT_TRANSLATE_NOOP("QObject", "Lead shin") },
+        { QStringLiteral("trailShin"),    QT_TRANSLATE_NOOP("QObject", "Trail shin") },
+        { QStringLiteral("stance"),       QT_TRANSLATE_NOOP("QObject", "Stance") },
+        { QStringLiteral("shaft"),        QT_TRANSLATE_NOOP("QObject", "Shaft") },
     };
     const auto it = words.constFind(token);
     if (it != words.constEnd()) return QObject::tr(it.value());
@@ -7982,8 +7985,10 @@ QVariantList ModelBrowser::gradePolicies() const
     for (const GradePolicyPreset &p : gradePolicyPresets()) {
         QVariantMap m;
         m.insert(QStringLiteral("name"), QString::fromLatin1(p.name));
-        m.insert(QStringLiteral("label"), QString::fromLatin1(p.label));
-        m.insert(QStringLiteral("hint"), QString::fromLatin1(p.hint));
+        // Marked QT_TRANSLATE_NOOP("NormModel", …) where the numbers live (norm.cpp), and
+        // translated here, where they are handed to the panel that shows them.
+        m.insert(QStringLiteral("label"), QCoreApplication::translate("NormModel", p.label));
+        m.insert(QStringLiteral("hint"), QCoreApplication::translate("NormModel", p.hint));
         l.append(m);
     }
     return l;

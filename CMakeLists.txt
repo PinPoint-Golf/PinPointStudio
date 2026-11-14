@@ -216,7 +216,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools GuiPrivate CorePrivate)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Quick3D SerialPort Bluetooth Multimedia Network WebSockets Concurrent ShaderTools LinguistTools GuiPrivate CorePrivate)
 
 qt_standard_project_setup(REQUIRES 6.10)
 
@@ -756,7 +756,8 @@ qt_add_executable(PinPointStudio
     src/Gui/monitor/profiler_controller.h         src/Gui/monitor/profiler_controller.cpp
     src/Gui/app/clipboard_helper.h
     src/Gui/app/app_log.h                    src/Gui/app/app_log.cpp
-    src/Gui/session/session_controller.h       src/Gui/session/session_controller.cpp
+    src/Gui/app/app_translations.h           src/Gui/app/app_translations.cpp
+    src/Gui/session/session_controller.h      src/Gui/session/session_controller.cpp
     src/Gui/review/session_review_controller.h src/Gui/review/session_review_controller.cpp
     src/Gui/review/session_list_model.h        src/Gui/review/session_list_model.cpp
     src/Gui/review/device_filter_model.h       src/Gui/review/device_filter_model.cpp
@@ -1162,6 +1163,33 @@ qt_add_resources(PinPointStudio "app_lm_art"
     PREFIX "/lm"
     BASE   "${CMAKE_CURRENT_SOURCE_DIR}/src/Gui/resources/lm"
     FILES  ${_pp_lm_art_app}
+)
+
+# The interface's translations: one .ts per language in cmake/PinPointTranslations.cmake, compiled
+# by lrelease on every build and embedded at :/i18n/PinPointStudio_<tag>.qm, where
+# AppTranslations (src/Gui/app/app_translations.h) loads the one Settings → General → Language
+# names. Nothing here needs packaging: the catalogues are inside the executable.
+#
+# SOURCE_TARGETS is load-bearing. Without it `update_translations` runs lupdate over every target
+# in the tree — whisper, espeak-ng, OpenCV and the rest of FetchContent — and files their strings
+# in our catalogue. SOURCES adds the files only another platform compiles, so a refresh here does
+# not lose their strings. NO_GENERATE_PLURALS_TS_FILE stops Qt writing a PinPointStudio_en.ts into
+# the source tree: English is the source language and ships no catalogue. "-locations none" keeps
+# file and line numbers out of the .ts, which would otherwise change on every edit to the sources.
+#
+#   cmake --build <build> --target update_translations    # refresh the .ts from the sources
+#
+# docs/developer/translations_developer_guide.md is the how-to, and says what a refresh run on one
+# platform does to the strings that only another platform compiles.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/PinPointTranslations.cmake)
+qt_add_translations(
+    TARGETS         PinPointStudio
+    SOURCE_TARGETS  PinPointStudio
+    TS_FILES        ${PP_TS_FILES}
+    SOURCES         ${PP_TS_EXTRA_SOURCES}
+    RESOURCE_PREFIX "/i18n"
+    NO_GENERATE_PLURALS_TS_FILE
+    LUPDATE_OPTIONS -locations none
 )
 
 # ── Linux: deploy icon + .desktop to user dirs on every build ────────────────

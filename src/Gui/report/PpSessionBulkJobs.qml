@@ -363,9 +363,10 @@ QtObject {
     }
     function _settleArchive() {
         const w = jobs._wait
-        const st = String(jobs.archiver.status || "")
-        const failed = /was not (archived|restored)/.test(st)
-        jobs._itemDone(w.dir, !failed, failed ? st : "")
+        // `failed`, not the words of `status`: the words are translated, and a pattern that reads
+        // English would call a failed archive done in any other language.
+        const failed = jobs.archiver.failed === true
+        jobs._itemDone(w.dir, !failed, failed ? String(jobs.archiver.status || "") : "")
     }
     property Connections _archiveConn: Connections {
         target: jobs.archiver

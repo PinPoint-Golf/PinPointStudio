@@ -219,10 +219,15 @@ SettingsPanelBase {
             Layout.fillWidth: true
             spacing: Theme.gap(16)
 
-            SettingsRowTitle { title: qsTr("Swing detection sensitivity"); subtitle: qsTr("Lower values trigger on slower movements") }
+            SettingsRowTitle { title: qsTr("Swing detection sensitivity"); subtitle: qsTr("Higher values trigger on slower movements") }
 
             PpChipGroup {
-                options:  [qsTr("Low"), qsTr("Medium"), qsTr("High")]
+                // The chip SAYS the translated word and STANDS FOR the stored one. The setting is
+                // "Low" / "Medium" / "High" in every language: ImuManager::impactScaleFor compares
+                // it, and a swing's capture metadata records it.
+                options:  [{ label: qsTr("Low"),    value: "Low" },
+                           { label: qsTr("Medium"), value: "Medium" },
+                           { label: qsTr("High"),   value: "High" }]
                 selected: appSettings.swingDetectionSensitivity
                 onSelectionChanged: (value) => appSettings.swingDetectionSensitivity = value
                 Layout.alignment: Qt.AlignVCenter
@@ -292,7 +297,7 @@ SettingsPanelBase {
             target: motionCaptureProbe
             function onHighModelChanged() {
                 if (mcSection.promptHighDownload && motionCaptureProbe.highModelPresent) {
-                    appSettings.motionCaptureQuality = qsTr("High")
+                    appSettings.motionCaptureQuality = "High"
                     mcSection.promptHighDownload = false
                 }
             }
@@ -312,8 +317,8 @@ SettingsPanelBase {
                 function onStateChanged() {
                     if (motionCaptureProbe.ready
                             && !motionCaptureProbe.highTierSupported
-                            && appSettings.motionCaptureQuality === qsTr("High"))
-                        appSettings.motionCaptureQuality = qsTr("Medium")
+                            && appSettings.motionCaptureQuality === "High")
+                        appSettings.motionCaptureQuality = "Medium"
                 }
             }
 
@@ -337,7 +342,7 @@ SettingsPanelBase {
                         }
                         text: motionCaptureProbe.probing
                                   ? qsTr("Measuring your computer…")
-                              : (appSettings.motionCaptureQuality === qsTr("High")
+                              : (appSettings.motionCaptureQuality === "High"
                                  && !motionCaptureProbe.highTierSupported)
                                   ? motionCaptureProbe.highTierBlockReason
                               : selectedSeconds > 0
@@ -351,15 +356,20 @@ SettingsPanelBase {
                 }
 
                 PpChipGroup {
-                    options:  [qsTr("Medium"), qsTr("High")]
+                    // Label and value apart, as for the sensitivity chips: the stored quality is
+                    // "Medium" / "High" in every language — it selects the pose model
+                    // (pose_model_selection.h), keys motionCaptureProbe.secondsPerSwing and is
+                    // recorded with each swing.
+                    options:  [{ label: qsTr("Medium"), value: "Medium" },
+                               { label: qsTr("High"),   value: "High" }]
                     selected: appSettings.motionCaptureQuality
                     // Grey the High chip until the probe confirms the machine can run it.
-                    disabledOptions: motionCaptureProbe.highTierSupported ? [] : [qsTr("High")]
+                    disabledOptions: motionCaptureProbe.highTierSupported ? [] : ["High"]
                     // Selecting High needs the (unshipped) large model: prompt to
                     // download it first and commit High only once it lands. Every
                     // other tier commits immediately.
                     onSelectionChanged: (value) => {
-                        if (value === qsTr("High") && !motionCaptureProbe.highModelPresent) {
+                        if (value === "High" && !motionCaptureProbe.highModelPresent) {
                             motionCaptureProbe.clearHighModelDownloadError()
                             mcSection.promptHighDownload = true
                         } else {

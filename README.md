@@ -2,6 +2,8 @@
     <img src="src/Resources/icons/pinpointstudio_1024.png" width="150" />
   </p>
 
+**English** · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [简体中文](README.zh-CN.md)
+
 # PinPoint Studio
 
 PinPoint Studio is a free, open-source, cross-platform desktop application for golf swing
@@ -85,7 +87,7 @@ Inside `src/`:
 |---|---|
 | [BUILDING.md](BUILDING.md) | Dependencies, building on each platform, packaging, running the tests |
 | [`docs/user/`](docs/user) | Using the app: [diagnostics guide](docs/user/pinpoint-diagnostics-guide.md), [wrist calibration](docs/user/wristcalibration.md), [phone capture](docs/user/phone_capture.md), UX design |
-| [`docs/developer/`](docs/developer) | Developer guides: [analysis pipeline](docs/developer/analysis_pipeline_developer_guide.md), [testing](docs/developer/testing_developer_guide.md), [SwingLab](docs/developer/swinglab_developer_guide.md), [feature switches](docs/developer/feature_switches_developer_guide.md), event buffer, diagnostics, metrics |
+| [`docs/developer/`](docs/developer) | Developer guides: [analysis pipeline](docs/developer/analysis_pipeline_developer_guide.md), [testing](docs/developer/testing_developer_guide.md), [SwingLab](docs/developer/swinglab_developer_guide.md), [feature switches](docs/developer/feature_switches_developer_guide.md), [translations](docs/developer/translations_developer_guide.md), event buffer, diagnostics, metrics |
 | [`docs/design/`](docs/design) | Design records for each subsystem, and the [QML design system](docs/design/pinpoint_qml_design_system.md) |
 | [`docs/reference/`](docs/reference) | File formats ([`swing.json`](docs/reference/swing_json_schema.md), [swing folders](docs/reference/swing_folder_layout.md)), sign conventions, device protocols, normative data |
 | [`docs/validation/`](docs/validation), [`docs/research/`](docs/research) | Validation protocols, corpus results and research notes |
