@@ -21,6 +21,7 @@
 #include "analysis_versions.h"
 #include "../Body/address_marks.h"
 
+#include <QByteArray>
 #include <QHash>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -653,14 +654,18 @@ struct ImpactTrack2D {
 // job. `path` is resolved to absolute by the loader; `roi` is full-frame normalized
 // (the box B covers); `fps` is PROVENANCE ONLY — the offline tracker re-measures its
 // own pushed-frame rate (plan risk R2). cv-free by design (Qt-only header).
+// LIVE (refactor step 1.5, D5): the capture's Recording carries the same baseline the live detector
+// learned, IN MEMORY (`bytes`), because the analysis runs before the export writes the blob — so the
+// live path follows the re-analysis ball rule too. The bytes are exactly what the exporter writes.
 struct BallBaselineRef {
-    QString path;               // absolute path to the .ballbase.f32 blob
+    QString    path;            // absolute path to the .ballbase.f32 blob (a recorded swing)
+    QByteArray bytes;           // the blob itself, w*h*4 bytes (the live capture); wins over `path`
     int     w = 0, h = 0;       // ROI px dims B was seeded over
     QRectF  roi;                // full-frame normalized ROI
     double  rHat   = 0.0;       // radiusForWidth at seed time (provenance)
     double  fps    = 0.0;       // NOT used to build the tracker (see above)
     double  noise0 = 1.0;       // robustNoise fallback for the tracker
-    bool isValid() const { return !path.isEmpty() && w > 0 && h > 0 && !roi.isEmpty(); }
+    bool isValid() const { return (!path.isEmpty() || !bytes.isEmpty()) && w > 0 && h > 0 && !roi.isEmpty(); }
 };
 
 // Widened uint8_t → uint16_t at Layer C (shaft_position_first §4): the byte was

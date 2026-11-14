@@ -41,8 +41,6 @@
 #include <QStringList>
 #include <QVariantMap>
 
-class ShotProcessor;   // Gui/shot: the live join, a writer until step 1.5 (SwingDocWriter's friends)
-
 namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; struct PoseTrack2D; }
 
 namespace pinpoint {
@@ -108,7 +106,7 @@ QVariantMap liveAnalysisDetail(const analysis::SwingAnalysis &a, qint64 windowT0
 //
 // ⚠ nullptr REMOVES THE KEY, AND THAT IS THE WHOLE POINT. Before this existed the
 // block was written once at capture and then rode through every re-analysis
-// verbatim (writeSwingJson replaces only schema/review/analysis), so a verdict
+// verbatim (the document write replaces only schema/review/analysis), so a verdict
 // reached by a build that could not yet tell a host-fused lane from a wG3 became
 // permanent — the ⚠ badge on eleven perfectly good 2026-08-18 wrist swings. A
 // caller that could not establish the capture-time filter, or found no checkable
@@ -158,9 +156,9 @@ void insertDtlTopOutOfView(QVariantMap &detail, double handsFromTopPx, double cl
 //
 // ⛔ ITS WRITES ARE PRIVATE (refactor step 1.4). Every write of a swing file goes through
 // RecordingRepository (src/DomainModel/recording_repository.h), implemented by
-// SwingStoreRecordingRepository (swing_store_repository.h), the only friend that writes. The one
-// other friend is the live join, ShotProcessor, until step 1.5 moves it onto the repository's
-// create(). What stays public here are reads.
+// SwingStoreRecordingRepository (swing_store_repository.h), the only friend that writes — the live
+// join included, which writes through the repository's create() since step 1.5. What stays public
+// here are reads.
 //
 // EVERY WRITE REFUSES A READ-ONLY DOCUMENT — one saved by a newer build (its schema, or its
 // analysisContext block's, is newer than this build reads: readAnalysisContext, recording_header.h).
@@ -193,7 +191,6 @@ public:
 
 private:
     friend class SwingStoreRecordingRepository;   // THE door
-    friend class ::ShotProcessor;                 // the live join, until step 1.5 (create())
 
     // Compose `rawManifest` (the exporter's returned pinpoint.swing tree) with the
     // analyzer's `analysis` (inline, additive "analysis" object) and write atomically.
@@ -214,18 +211,6 @@ private:
     static WriteResult writeDocument(const QString &swingDir, const QJsonObject &rawManifest,
                                      const analysis::SwingAnalysis *analysis,
                                      const QString &club, bool savePose);
-
-    // writeDocument() in the shape the live join calls it (ShotProcessor, until step 1.5).
-    //
-    // `club` sits AFTER `error` deliberately. Ahead of it, a
-    // writeSwingJson(dir, manifest, &analysis, nullptr) call would still compile —
-    // nullptr converts to QString through const char* — and silently mean "no club, drop
-    // the error" instead of failing loudly.
-    static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
-                               const analysis::SwingAnalysis *analysis,
-                               QString *error = nullptr,
-                               const QString &club = QString(),
-                               bool savePose = true);
 
     // Write-through of the golfer's review edits into an existing document: reads the doc, MERGES
     // the edit into the additive "review" block (ReviewEdit, recording_repository.h), atomic

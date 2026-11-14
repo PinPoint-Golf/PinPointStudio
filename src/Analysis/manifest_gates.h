@@ -27,7 +27,8 @@
 // pipeline — at the capture join (ShotProcessor) and again on every re-analysis (swing_reanalyzer)
 // — and persist as the document's top-level `captureIntegrity` / `imuIntegrity` blocks. So their
 // records are DERIVED from those blocks, here, each time the analysis is written
-// (SwingDocWriter::writeSwingJson) and each time the live detail map is built (ShotProcessor): a
+// (SwingDocWriter::writeDocument, behind RecordingRepository) and each time the live detail map is built
+// (liveAnalysisDetail, for the live join): a
 // rebuild, never an accumulation, so a re-write cannot duplicate them and a re-analysis that
 // withdraws a block withdraws its record. SwingAnalysis::gates never holds them.
 //

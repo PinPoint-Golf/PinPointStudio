@@ -918,7 +918,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
     // swing.json is NOT written here. The worker returns its raw manifest and the GUI
     // thread writes ONE unified swing.json (raw + the analyzer's "analysis" block) at the
-    // join — ShotProcessor::maybeJoin() -> SwingDocWriter::writeSwingJson(). The media
+    // join — ShotProcessor::maybeJoin() → capture::writeLiveDocument() → RecordingRepository::create(). The media
     // (MP4s + thumb.jpg) above are still written on this worker.
     result.manifest = root;
     result.ok       = true;

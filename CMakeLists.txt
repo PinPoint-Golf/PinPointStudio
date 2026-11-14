@@ -765,6 +765,7 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_controller.h          src/Gui/shot/shot_controller.cpp
     src/Gui/shot/shot_list_model.h          src/Gui/shot/shot_list_model.cpp
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
+    src/Gui/shot/capture_context.h          src/Gui/shot/capture_context.cpp
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
     src/Gui/shot/current_swing.h
     src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
@@ -2902,6 +2903,14 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_store_repository.h
     src/Analysis/reanalyse_and_persist.h
     src/Analysis/reanalyse_and_persist.cpp
+    # The analysis service and the one integrity rule (refactor step 1.5), the reading interface the
+    # service loads a stored shot through, and the pipeline's one rebase to window time.
+    src/DomainModel/recording_reader.h
+    src/Analysis/analysis_service.h
+    src/Analysis/analysis_service.cpp
+    src/Analysis/recording_integrity.h
+    src/Analysis/recording_integrity.cpp
+    src/Analysis/swing_analysis_rebase.h
     # The Recording contract (refactor step 1): the types, the effective club, the one job
     # builder, and the store side — the one header writer and the Recording loader (1.2).
     src/Recording/recording.h
@@ -3249,6 +3258,8 @@ if(PINPOINT_BUILD_TOOLS)
     set(_pinpoint_offline_sources
         src/Analysis/swing_reanalyzer.cpp
         src/Analysis/reanalyse_and_persist.cpp   # the one re-analysis write-back (step 1.4)
+        src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
+        src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
         src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)

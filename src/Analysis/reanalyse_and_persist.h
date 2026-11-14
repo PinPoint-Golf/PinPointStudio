@@ -31,8 +31,8 @@
 // The in-app ReanalysisController runs the analysis on a worker and calls persistReanalysis on the
 // GUI thread, as it always has — so a rating or a launch monitor reading written on the GUI thread
 // meanwhile is never lost to a write-back that read the document before it. SwingLab's --write-back
-// calls reanalyseAndPersist. Step 1.5 puts the analysis half on the analysis service
-// (load → effective context → analyse); the write half stays this one.
+// calls reanalyseAndPersist (its --save-pose fills PersistOptions::savePose). The analysis half runs on
+// the analysis service (reanalyzeSwingDir → AnalysisService, step 1.5); the write half stays this one.
 //
 // Application ring (src/Analysis): names the repository interface, never the store.
 

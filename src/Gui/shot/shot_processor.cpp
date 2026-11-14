@@ -19,8 +19,8 @@
 #include "shot_processor.h"
 
 #include "app_settings.h"
-#include "athlete_controller.h"
 #include "camera_instance.h"
+#include "capture_context.h"   // the live facts → the Recording, and its first document (step 1.5)
 #include "camera_manager.h"
 #include "device_enumerator.h"
 #include "composite_payload_source.h"
@@ -30,18 +30,13 @@
 #include "ram_payload_source.h"
 #include "imu_instance.h"
 #include "imu_manager.h"
-#include "session_controller.h"
 #include "shot_list_model.h"
 #include "shot_outcome.h"
 #include "../Club/club_length_fusion.h"
-#include "../IMU/imu_refusion_check.h"
-#include "../Analysis/capture_integrity_check.h"
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
-#include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
-#include "../Export/swing_doc.h"              // writeSwingJson; liveAnalysisDetail — the one projection
-#include "../Core/club_vocabulary.h"
+#include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
 #include "pp_version.h"
@@ -555,20 +550,45 @@ void ShotProcessor::finishGatherAndLaunch()
     m_exportOutcome   = Outcome::Pending;
     m_analysisOutcome = Outcome::Pending;
     m_analysisResult  = {};
+    m_integrity.reset();
     m_segmentation    = {};
     m_swingDir.clear();
     m_thumbnailPath.clear();
-    // Per-shot club-length prior stash (Phase 3) — re-resolved from scratch in
-    // buildAnalysisJob() below; stays empty/cold when this shot has no
-    // athlete/club/fixed-in-place face-on camera, which onAnalysisFinished()
-    // reads as "nothing to persist".
-    m_lengthPriorKey.clear();
-    m_lengthPriorState = {};
     setState(State::Processing);
 
     ppInfo() << "[ShotProcessor] window captured —"
              << static_cast<qint64>(m_swingWindow->entries().size()) << "entries,"
              << m_replayTracks.size() << "camera track(s)";
+
+    // ── THE RECORDING, AT THE FREEZE (capture_context.h; refactor step 1.5) ──────────────────────
+    // The athlete, the session and the settings are read ONCE, here, into the shot's Recording: the
+    // analysis job, the export's athlete and club (12–37 s later), the seeded review club and the
+    // integrity verdicts all come from this one value, so what is on disk is what was analysed.
+    {
+        std::vector<pinpoint::capture::CaptureCamera> cams;
+        cams.reserve(m_replayTracks.size());
+        for (const ReplayTrack &track : m_replayTracks) {
+            pinpoint::capture::CaptureCamera c;
+            c.ctrl   = track.ctrl;
+            c.source = track.sourceId;
+            // The accumulator snapshot frozen above (ReplayTrack::ball), on the ring clock.
+            for (const BallSnapshot::Sample &b : track.ball.samples)
+                c.ball.frames.push_back({ b.tUs, b.found, QPointF(b.x, b.y), b.r, b.conf });
+            if (track.ball.hasLaunch) {
+                c.ball.launchTUs    = track.ball.launchTUs;
+                c.ball.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
+            }
+            cams.push_back(std::move(c));
+        }
+        m_capture = std::make_unique<pinpoint::capture::CaptureSnapshot>(pinpoint::capture::snapshotAtFreeze(
+            *m_swingWindow, cams, m_imuManager, m_appSettings,
+            pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
+            m_sessionType, static_cast<int>(m_shotSource), m_impactUs));
+        // Per-shot club-length prior stash: empty/cold when this shot has no athlete/club/fixed-in-place
+        // face-on camera, which onAnalysisFinished() reads as "nothing to persist".
+        m_lengthPriorKey   = m_capture->lengthPriorKey;
+        m_lengthPriorState = m_capture->lengthPriorState;
+    }
 
     // Corpus capture: when saving raw frames with "skip analysis" on, export the
     // frames only — bypass segmentation + analysis and suppress replay (see
@@ -611,7 +631,32 @@ void ShotProcessor::finishGatherAndLaunch()
     // DiskReplaySource on the persisted Finish event, startReplay() below on
     // the analysed one — which is why a swing.json can hold a 4 s clip and
     // still replay 2.7 s of swing.
-    m_analysisJob = buildAnalysisJob();
+    // THE ONE JOB BUILDER, on the Recording and its effective context: the recorded context with the
+    // club capture seeds into review.club as the declared club (no correction exists yet) — exactly
+    // what re-analysis reads back, so an uncorrected shot gets the same job either way.
+    {
+        pinpoint::analysis::ClubReview review;
+        review.declared = m_capture->athlete.reviewClub;
+        pinpoint::analysis::RunOptions run;
+        run.origin = QStringLiteral("live");
+        // Worker → UI progress marshalling: queued invoke with `this` as context (auto-cancelled if
+        // the processor dies first), throttled to whole-percent steps. ATOMIC since the analysis can
+        // run as a graph (analysis.parallel; analysis_dag.h): two stages may report at once, and a
+        // compare-exchange keeps the bar monotonic.
+        auto lastPct = std::make_shared<std::atomic<int>>(-1);
+        run.progress = [this, lastPct](float p) {
+            const int pct = static_cast<int>(p * 100.0f);
+            int seen = lastPct->load(std::memory_order_relaxed);
+            do {
+                if (pct <= seen)
+                    return;
+            } while (!lastPct->compare_exchange_weak(seen, pct, std::memory_order_relaxed));
+            QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); }, Qt::QueuedConnection);
+        };
+        m_analysisJob = pinpoint::analysis::buildAnalysisJob(
+            m_capture->recording,
+            pinpoint::analysis::effectiveContext(m_capture->recording.context, review), run);
+    }
     const pinpoint::SwingWindow *win = &*m_swingWindow;
     m_segmentationInFlight = true;
     m_segmentationWatcher.setFuture(QtConcurrent::run(
@@ -648,348 +693,31 @@ void ShotProcessor::onSegmentationFinished()
     startAnalysis();
 }
 
-ShotAnalysisJob ShotProcessor::buildAnalysisJob()
-{
-    ShotAnalysisJob job;
-    job.sessionType = m_sessionType;
-    job.shotSource  = static_cast<int>(m_shotSource);
-    job.impactUs    = m_impactUs;
-    // Offline pose-model tier (High -> ViTPose++-L when downloaded, else ViTPose-B).
-    job.motionCaptureQuality = m_appSettings ? m_appSettings->motionCaptureQuality() : QString();
-
-    // Face-on first so analyzers can prefer it without re-sorting; the count
-    // makes "face-on first" verifiable from the worker (0 = none captured).
-    for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn) {
-            job.cameraSources.insert(job.cameraSources.begin(), track.sourceId);
-            ++job.faceOnCameraCount;
-        } else {
-            job.cameraSources.push_back(track.sourceId);
-        }
-        // The impact camera's clip feeds the ImpactRunner (impact_camera_design.md §7).
-        if (track.ctrl->perspective() == CameraInstance::Impact)
-            job.impactSource = track.sourceId;
-        // …and the down-the-line camera feeds the DTL shaft tracker and the paired trunk route
-        // (kinematic_sequence_design.md §5.2). FIRST such track wins and the pick never moves
-        // once made: two cameras aimed down the line is not a configuration we support, and
-        // silently switching between them between shots would make the pair's inter-view angle —
-        // a per-rig constant — jump. Deliberately NOT part of the face-on/else branch above:
-        // `cameraSources` order is load-bearing (face-on first, and `faceOnCameraCount` counts
-        // the prefix), so this only observes the loop, it does not steer it.
-        if (track.ctrl->perspective() == CameraInstance::DownTheLine
-            && job.dtlSource == pinpoint::kInvalidSourceId)
-            job.dtlSource = track.sourceId;
-    }
-
-    // IMU and marker sources discovered from the window's own formats.
-    QSet<pinpoint::SourceId> seen;
-    for (const pinpoint::IndexEntry &e : m_swingWindow->entries()) {
-        if (seen.contains(e.source_id)) continue;
-        seen.insert(e.source_id);
-        const pinpoint::FormatDescriptor &fd = m_swingWindow->formatOf(e.source_id);
-        if (fd.device == pinpoint::DeviceKind::Marker_App)
-            job.markerSourceId = e.source_id;
-        else if (std::holds_alternative<pinpoint::ImuFormat>(fd.format))
-            job.imuSources.push_back(e.source_id);
-    }
-
-    // v3.4 (design §9): face-on ball track for the live analyzer, resolved
-    // from whichever camera's accumulator has data — prefer face-on (the
-    // hitting-area ROI only ever runs there in practice), else any camera
-    // with ball detection enabled. Empty ⇒ ShaftTracker falls back to
-    // BallRunner's offline replay (correct even live: e.g. detection was
-    // enabled mid-swing and the accumulator is still short).
-    // Read from the per-track snapshot frozen at window capture (ReplayTrack::
-    // ball) — NOT live controller state, which by now records post-shot
-    // accumulation, not the swing. Time base: the analyzer consumes everything
-    // in the WINDOW'S NATIVE domain — live SwingWindow entries and job.impactUs
-    // (line above) are absolute buffer-clock, so the ball samples must stay
-    // absolute too (ShaftTracker matches them against entry timestamps; the
-    // offline loader passes window-relative ball + window-relative entries, the
-    // same contract). swing_doc's rel() normalizes on export either way. Do NOT
-    // rebase here — a relative track against absolute entries matches nothing.
-    for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
-        for (const ReplayTrack &track : m_replayTracks) {
-            if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
-                continue;
-            const auto &samples = track.ball.samples;
-            if (samples.empty()) continue;
-            pinpoint::analysis::BallTrack2D bt;
-            bt.camera = track.sourceId;
-            bt.frames.reserve(samples.size());
-            for (const auto &s : samples)
-                bt.frames.push_back({s.tUs, s.found, QPointF(s.x, s.y), s.r, s.conf});
-            if (track.ball.hasLaunch) {
-                bt.launchTUs    = track.ball.launchTUs;
-                bt.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
-            }
-            job.ballTrack = std::move(bt);
-            break;
-        }
-    }
-
-    // Hitting-area ROI for the offline BallRunner fallback (empty accumulator /
-    // detection enabled mid-swing) — prefer the face-on camera so ball search
-    // uses the same box the live detector did, skipping feet/shoe distractors.
-    for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn && !track.ctrl->roi().isEmpty()) {
-            job.ballSearchRoi = track.ctrl->roi();
-            break;
-        }
-    }
-
-    // Athlete handedness (lead-arm sign) and IMU -> segment bindings, resolved
-    // here on the UI thread — the worker can read neither the athlete controller
-    // nor the live ImuInstance calibration (alignA/mountM are session-lifetime).
-    const QString hand = m_athlete ? m_athlete->currentHandedness() : QString();
-    job.handedness = hand.compare(QLatin1String("Left"),  Qt::CaseInsensitive) == 0 ? 2
-                   : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1 : 0;
-    // The skeleton3d fit's scale prior (0 = unknown ⇒ the Y-bot's own proportions).
-    job.athleteHeightM = m_athlete ? m_athlete->currentHeightM() : 0.0;
-
-    // Club length (m) sizes the shaft-tracker search radius. Resolve the session's
-    // active club against the athlete's bag; leave the ShotAnalysisJob default
-    // (driver ≈ 1.12 m) when unset or the club record has no recorded length.
-    if (m_athlete && m_session) {
-        const QString club = m_session->activeClub();
-        if (!club.isEmpty()) {
-            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid())
-                                        .value(club).toMap();
-            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
-            if (lengthMm > 0) {
-                job.clubLengthM = lengthMm / 1000.0;
-                job.clubLengthKnown = true;
-            }
-            // Retro-band geometry for the v3 E1 band matcher. Empty (untaped
-            // club) ⇒ the shaft tracker runs E2 (ray) evidence only, no band tier.
-            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
-            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
-            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
-            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
-            if (hoselMm > 0)
-                job.hoselFromButtMm = hoselMm;
-            // Markerless geometry (steel-segment lock): exposed shaft length and the
-            // hands' end on the grip. 0 = unknown ⇒ the tracker's defaults.
-            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();
-            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
-
-            // Persistent club-length prior (club_length_fusion.h / plan: robust
-            // club length — starry-shimmying-wind). Keyed athleteUuid|clubName|
-            // cameraKey (a px prior is meaningless if the camera moves) and only
-            // trusted while that camera is marked fixed-in-place. Resolve the
-            // face-on camera's cameraKey from the already-frozen replay tracks
-            // (m_replayTracks is populated earlier in captureWindowAndLaunch).
-            job.clubName = club;
-            CameraInstance *faceOnCtrl = nullptr;
-            QString faceOnKey;
-            for (const ReplayTrack &track : m_replayTracks) {
-                if (track.ctrl && track.ctrl->perspective() == CameraInstance::FaceOn) {
-                    faceOnCtrl = track.ctrl;
-                    faceOnKey  = track.ctrl->cameraKey();
-                    break;
-                }
-            }
-            if (!faceOnKey.isEmpty() && m_appSettings
-                && m_appSettings->cameraFixedInPlace().value(faceOnKey).toBool()) {
-                // Stashed even on a cold/absent entry — onAnalysisFinished() still
-                // needs the key to seed a brand-new prior on the first confident fuse.
-                m_lengthPriorKey = m_athlete->currentUuid() + QLatin1Char('|') + club
-                                  + QLatin1Char('|') + faceOnKey;
-                const QVariantMap prior = m_appSettings->clubLenPrior().value(m_lengthPriorKey).toMap();
-                if (!prior.isEmpty()) {
-                    const int entryW = prior.value(QStringLiteral("frameW"), 0).toInt();
-                    const int entryH = prior.value(QStringLiteral("frameH"), 0).toInt();
-                    // Camera-move self-heal: an entry with recorded dims must match
-                    // the live camera's resolved frame size, or a silently-moved
-                    // camera would keep feeding a stale px prior. An entry that
-                    // predates this field (no dims recorded) is trusted as-is —
-                    // there is nothing to compare against.
-                    const bool dimsOk = (entryW <= 0 || entryH <= 0)
-                        || (faceOnCtrl && entryW == faceOnCtrl->frameWidth()
-                                       && entryH == faceOnCtrl->frameHeight());
-                    if (dimsOk) {
-                        m_lengthPriorState.emaPx       = prior.value(QStringLiteral("emaPx"), -1.0).toDouble();
-                        m_lengthPriorState.varPx       = prior.value(QStringLiteral("varPx"), 0.0).toDouble();
-                        m_lengthPriorState.n           = prior.value(QStringLiteral("n"), 0).toInt();
-                        m_lengthPriorState.disagreeRun = prior.value(QStringLiteral("disagreeRun"), 0).toInt();
-                        if (m_lengthPriorState.n > 0 && m_lengthPriorState.emaPx > 0.0) {
-                            job.priorClubLenPx    = m_lengthPriorState.emaPx;
-                            job.priorClubLenVarPx = m_lengthPriorState.varPx;
-                            job.priorClubLenN     = m_lengthPriorState.n;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (m_imuManager) {
-        // ⚠ ROLES COME FROM THE RESOLVER, WITH NO sessionType GATE (design §4.13; memory
-        // note analysis-is-session-agnostic): a pelvis sensor is a pelvis sensor in every
-        // session type. For a classic Wrist setup this yields exactly what the old
-        // segmentRoleForSlot(1, letter) did — A/B/C were migrated to these three roles.
-        const QVariantList insts = m_imuManager->instances();
-        for (const QVariant &v : insts) {
-            auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
-            if (!imu) continue;
-            const pinpoint::SourceId sid = imu->sourceId();
-            if (std::find(job.imuSources.begin(), job.imuSources.end(), sid) == job.imuSources.end())
-                continue;   // this IMU is not a source in the captured window
-            pinpoint::analysis::ImuSegmentBinding b;
-            b.source = sid;
-            b.role   = pinpoint::analysis::segmentRoleForPlacementRole(
-                           m_imuManager->roleForDevice(imu->deviceId()));
-            b.alignA = imu->alignA();
-            b.mountM = imu->mountM();
-            // Calibration status snapshot — persisted into swing.json's
-            // analysis.bindings so SwingLab can filter by provenance.
-            b.anatCalibrated       = imu->anatCalibrated();
-            b.calibrated           = imu->fullyCalibrated();
-            b.mountDeviationDeg    = imu->mountDeviationDeg();
-            b.mountGravityErrorDeg = imu->mountGravityErrorDeg();
-            if (imu->calibratedAtUtc().isValid()) {
-                b.calibratedAtUtc = imu->calibratedAtUtc().toString(Qt::ISODateWithMs);
-                b.calibAgeSec     = imu->calibratedAtUtc()
-                                        .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
-            }
-            // The trunk stand-tall solve's δ tier, σ_δ and gate residuals, when it set A/M
-            // (trunk design §6.8); not present for an arm calibration.
-            b.trunkCalib = imu->trunkCalibProvenance();
-            job.imuBindings.push_back(b);
-        }
-
-        // ── HackMotion, which the loop above cannot see ──────────────────────────
-        //
-        // An HmInstance is a PEER of ImuInstance, not a subclass — both derive
-        // ImuDeviceBase (hm_instance.h:229-235) — so the qobject_cast above returns
-        // null for it and always has. That is why no wG3 has ever produced a wrist
-        // metric: no binding, so the fuser never sees the lane and MetricExtractor
-        // never runs on it. Phase E3 proved the samples arrive and are recorded
-        // honestly; it proved nothing downstream consumed them, because nothing did.
-        //
-        // Written as a second pass rather than folded into the first so the Witmotion
-        // path above is untouched, byte for byte.
-        for (const QVariant &v : insts) {
-            auto *hm = qobject_cast<HmInstance *>(v.value<QObject *>());
-            if (!hm) continue;
-
-            // ⚠ NO FRAME, NO BINDING. Until a directed capture has selected a
-            // candidate, hm_frame::toAnatomical() returns identity by design — a lane
-            // with no anatomical frame must drive nothing rather than drive a plausible
-            // guess. Binding it anyway would feed identity quaternions to the wrist
-            // decomposition and publish the result as a measurement.
-            if (!pinpoint::hm_frame::isSelected()) {
-                ppWarn() << "[ShotProcessor]" << hm->deviceDescription()
-                         << "— no HackMotion frame candidate selected, so this device's"
-                            " lanes are recorded but not bound; no wrist metric will be"
-                            " produced from them.";
-                continue;
-            }
-
-            HmUnit *const units[] = { hm->unitLowerArm(), hm->unitPalm() };
-            for (HmUnit *const unit : units) {
-                if (!unit) continue;
-                const pinpoint::SourceId sid = unit->sourceId();
-                if (sid == pinpoint::kInvalidSourceId)
-                    continue;   // this unit never registered a lane
-                if (std::find(job.imuSources.begin(), job.imuSources.end(), sid)
-                    == job.imuSources.end())
-                    continue;   // this unit is not a source in the captured window
-
-                // ⚠ PLACEMENT IS UNIT-KEYED FOR A HACKMOTION, so the device-level
-                // roleForDevice() the Witmotion path uses answers for the pair, not for
-                // this unit. Rather than respell the "<deviceId>#lowerArm" / "#palm"
-                // format here — a second copy of the spelling is precisely the drift
-                // that would silently orphan a device's placement — ask the canonical
-                // resolver which object holds each role and match on identity.
-                // instanceForRole() returns the HmUnit for a HackMotion, which is the
-                // whole reason HmUnit exists. Every placement role is asked, not only
-                // the arm's, so nothing here assumes where a wG3 may be worn.
-                QString role;
-                for (const QString &r : pinpoint::imu_roles::placementRoleOrder()) {
-                    if (m_imuManager->instanceForRole(r) == static_cast<QObject *>(unit)) {
-                        role = r;
-                        break;
-                    }
-                }
-                if (role.isEmpty())
-                    continue;   // unassigned unit — recorded, but bound to no segment
-
-                pinpoint::analysis::ImuSegmentBinding b;
-                b.source     = sid;
-                b.role       = pinpoint::analysis::segmentRoleForPlacementRole(role);
-                b.hackMotion = true;
-                // A is IDENTITY for this lane by design, not as a placeholder: the
-                // device referenced the pair at its own calibration pose, so there is
-                // no per-session world->anatomical solve to record. M carries the frame
-                // constant. Both are read off the unit rather than recomputed here, so
-                // the binding and the live readout cannot diverge.
-                b.alignA = unit->alignA();
-                b.mountM = unit->mountM();
-                // ⚠ THE MOUNT DEVIATIONS STAY 0.0 BECAUSE THERE IS NO MOUNT SOLVE FOR
-                // THIS DEVICE, not because nobody filled them in. A Witmotion earns
-                // those two numbers from our own two-pose calibration; a wG3 applies
-                // its own and streams the result, so there is no residual to report and
-                // any value here would be an invention. anatCalibrated is the real gate
-                // — it is false unless the device says CALIBRATED and a frame is
-                // selected — and CaptureCapabilities reads `calibrated`, so the two
-                // carry the same honest answer rather than a fabricated composite.
-                b.anatCalibrated = unit->anatCalibrated();
-                b.calibrated     = unit->anatCalibrated();
-                job.imuBindings.push_back(b);
-            }
-        }
-    }
-
-    // Worker → UI progress marshalling: queued invoke with `this` as context
-    // (auto-cancelled if the processor dies first), throttled to whole-percent
-    // steps so per-frame reporting stays a handful of events per second.
-    // ATOMIC since the analysis can run as a graph (analysis.parallel; analysis_dag.h): the
-    // pose, shaft and DTL stages report from whichever pool thread runs them, so two may
-    // call this at once. A compare-exchange keeps the bar monotonic — only the caller that
-    // raises the high-water mark posts — and the post itself is already thread-safe.
-    auto lastPct = std::make_shared<std::atomic<int>>(-1);
-    job.progress = [this, lastPct](float p) {
-        const int pct = static_cast<int>(p * 100.0f);
-        int seen = lastPct->load(std::memory_order_relaxed);
-        do {
-            if (pct <= seen)
-                return;
-        } while (!lastPct->compare_exchange_weak(seen, pct, std::memory_order_relaxed));
-        QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); },
-                                  Qt::QueuedConnection);
-    };
-    return job;
-}
-
 void ShotProcessor::startAnalysis()
 {
-    ShotAnalysisJob job = m_analysisJob;   // resolved in captureWindowAndLaunch
-    job.path.origin = QStringLiteral("live");
-
-    const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage
+    // The analysis service runs the job the one builder made (finishGatherAndLaunch) on this shot's
+    // Recording, and reaches its integrity verdicts with the one rule (integrityFor) — the same code
+    // re-analysis and SwingLab run. The Recording reads the frozen window (stable optional storage).
     m_analysisInFlight = true;
     m_analysisWatcher.setFuture(QtConcurrent::run(
-        [job = std::move(job), win] {
+        [job = m_analysisJob, recording = m_capture->recording, service = m_analysisService] {
             // Name this pooled thread so it shows in the profiler's per-thread
             // CPU table for the duration of the analysis (RAII across all the
             // return paths below).
             pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-            // Exception barrier: anything escaping the worker (e.g. a
-            // cv::Exception on malformed frame geometry) would be rethrown by
-            // QtConcurrent on the GUI thread at result()/waitForFinished()
-            // with no handler — std::terminate. Degrade to a failed analysis
-            // instead; the join still adds the shot and resumes the buffer.
+            // Exception barrier: anything escaping the worker would be rethrown by QtConcurrent on
+            // the GUI thread at result()/waitForFinished() with no handler — std::terminate. The
+            // service already degrades a throwing stage to a failed analysis; this covers the rest.
+            // The join still adds the shot and resumes the buffer.
             try {
-                auto analyzer = makeShotAnalyzer();
-                return analyzer->analyze(*win, job);
+                return service.analyseJob(recording, job);
             } catch (const std::exception &e) {
-                ShotAnalysisResult r;
-                r.error = QString::fromUtf8(e.what());
+                pinpoint::analysis::AnalysedRecording r;
+                r.analysis.error = QString::fromUtf8(e.what());
                 return r;
             } catch (...) {
-                ShotAnalysisResult r;
-                r.error = QStringLiteral("unknown exception in shot analysis");
+                pinpoint::analysis::AnalysedRecording r;
+                r.analysis.error = QStringLiteral("unknown exception in shot analysis");
                 return r;
             }
         }));
@@ -1077,12 +805,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     // buffering) is a separate scope. The exporter serialises whatever is here,
     // so this is forward-compatible — populate it upstream once a producer lands.
 
-    if (m_athlete) {
-        job.athleteName = m_athlete->currentName();
-        job.athleteUuid = m_athlete->currentUuid();
-        job.handedness  = m_athlete->currentHandedness();
-        job.athleteHeightM = m_athlete->currentHeightM();
-    }
+    // ⚠ EVERY RECORDING INPUT THIS JOB WRITES COMES FROM THE SNAPSHOT TAKEN AT THE FREEZE — the
+    // athlete, the club and its prior, the analysis context, each camera's placement / search box /
+    // empty-mat baseline, the pose-quality tier, the host IMU filter, each lane's rate and calibration
+    // (capture_context.h, fillExportFromSnapshot below). This runs after the analysis, 12–37 s later:
+    // by then the ball detector has re-learned its baseline over the empty mat and a setting may have
+    // changed, and the header must record what the analysis consumed (H-02, audit E-01).
+    const pinpoint::capture::CaptureSnapshot *snap = m_capture.get();
 
     // Wallclock anchor: the UTC instant taken when the window end was frozen (beginGather), so
     // wallclock == monotonic endTimestampUs() by construction. NOT currentDateTimeUtc() here:
@@ -1094,32 +823,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.swingDetectionSensitivity = s->swingDetectionSensitivity();
-    job.motionCaptureQuality      = s->motionCaptureQuality();
-    // Club geometry (shaft-tracker E1 band matcher) — persisted into capture.club
-    // so re-analysis recovers the club that was used (mirrors buildAnalysisJob).
-    if (m_athlete && m_session) {
-        const QString club = m_session->activeClub();
-        if (!club.isEmpty()) {
-            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid()).value(club).toMap();
-            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
-            if (lengthMm > 0) job.clubLengthM = lengthMm / 1000.0;
-            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
-            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
-            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
-            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
-            if (hoselMm > 0) job.hoselFromButtMm = hoselMm;
-            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();   // markerless P4
-            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
-        }
-    }
-    // Club-length prior (club_length_fusion.h): reuse the exact values already
-    // resolved into m_analysisJob for THIS shot (buildAnalysisJob, called earlier
-    // in captureWindowAndLaunch) — the prior the live analysis fuse actually used,
-    // so re-analysis can reproduce it byte-for-byte.
-    job.clubName          = m_analysisJob.clubName;
-    job.priorClubLenPx    = m_analysisJob.priorClubLenPx;
-    job.priorClubLenVarPx = m_analysisJob.priorClubLenVarPx;
-    job.priorClubLenN     = m_analysisJob.priorClubLenN;
+    job.motionCaptureQuality      = snap ? snap->recording.capture.motionCaptureQuality : s->motionCaptureQuality();
     job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;
     job.audioDeviceLatencyUs = s->audioDeviceLatencyUs();
     job.micTravelUs          = s->micTravelUs();
@@ -1154,10 +858,17 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.sourceId = track.sourceId;
         cam.alias    = name;
         cam.fileName = name + QStringLiteral(".mp4");   // the extension picks FFmpeg's muxer
-        cam.perspective  = track.ctrl->perspective();
-        cam.mirrored     = track.ctrl->isMirrored();
-        cam.fixedInPlace = s->cameraFixedInPlace()
-                               .value(track.ctrl->cameraKey()).toBool();
+        // Placement, mirroring, fixed-in-place, search box, baseline: the frozen facts.
+        const pinpoint::CaptureCameraFacts *facts =
+            snap ? pinpoint::captureCameraFactsFor(snap->cameraFacts, track.sourceId) : nullptr;
+        if (facts) {
+            pinpoint::applyCaptureCameraFacts(cam, *facts);
+        } else {   // no snapshot (cannot happen once a window exists): today's reads
+            cam.perspective   = track.ctrl->perspective();
+            cam.mirrored      = track.ctrl->isMirrored();
+            cam.fixedInPlace  = s->cameraFixedInPlace().value(track.ctrl->cameraKey()).toBool();
+            cam.ballSearchRoi = track.ctrl->roi();
+        }
         // Timestamp provenance, for EVERY camera (event_buffer_design.md §9): which clock stamped these
         // frames and how the mapping onto ours was doing. A backend with no mapping leaves both out, and
         // the stream reads as arrival-stamped.
@@ -1233,21 +944,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // CamRecord ball-calibration fields keep their defaults (uncalibrated).
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
         // into swing.json is the additive "Provenance v2" follow-up.
-        cam.ballSearchRoi = track.ctrl->roi();   // hitting area — re-analysis ball search box
-        // Learned empty-mat baseline snapshot — cv-free cache, no HAVE_OPENCV
-        // guard needed at this call site. Plain copies on the UI thread; blob
-        // stays empty (valid() false) when nothing has been learned live yet
-        // or a relearn/ROI change invalidated the cache mid-reseed.
-        const auto &baseline = track.ctrl->ballBaseline();
-        if (baseline.valid()) {
-            cam.ballBaselineBlob   = baseline.blob;
-            cam.ballBaselineW      = baseline.w;
-            cam.ballBaselineH      = baseline.h;
-            cam.ballBaselineRoi    = baseline.roi;
-            cam.ballBaselineRHat   = baseline.rHat;
-            cam.ballBaselineFps    = baseline.fps;
-            cam.ballBaselineNoise0 = baseline.noise0;
-        }
+        // The hitting area (the re-analysis ball search box) and the learned empty-mat baseline are
+        // the FROZEN ones (applyCaptureCameraFacts above): the detector re-learns its baseline over the
+        // empty mat after impact, during the analysis, so the camera's cache now is the post-shot one,
+        // not the one the live analysis ran on.
         job.cameras.push_back(std::move(cam));
 
         // v3.4 (design §9.7): this camera's ball stream, window-relative —
@@ -1318,7 +1018,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         pinpoint::SwingImuDeviceInfo info;
         info.outputRateHz      = imuRates.value(dev.id, 200).toInt();
         info.fusionMode        = imuFusion.value(dev.id, s->imuDefaultFusionMode()).toString();
-        info.orientationFilter = s->imuOrientationFilter();
+        // The host filter at the freeze (the integrity rule judges the lanes against it).
+        info.orientationFilter = snap ? snap->imuOrientationFilter : s->imuOrientationFilter();
         // ⚠ placementSlot IS NO LONGER WRITTEN (design §4.13): placement is role-keyed,
         // and the letter carried nothing the role does not. The field and every reader
         // stay — old swings have it — and the exporter omits the key when it is empty.
@@ -1342,7 +1043,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                     info.outputRateHz = imu->outputRateHz();
                     // A/M calibration snapshot baked into the stream — lets an
                     // analysis-skipped corpus swing be re-analysed (no
-                    // analysis.bindings). Mirrors buildAnalysisJob's resolution.
+                    // analysis.bindings). The frozen binding replaces these below.
                     info.hasCalibration = true;
                     info.alignA         = imu->alignA();
                     info.mountM         = imu->mountM();
@@ -1356,6 +1057,16 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                                                    .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
                     }
                     info.trunkCalib = imu->trunkCalibProvenance();   // trunk design §6.8
+                    // A lane in the window: its rate, calibration and role AS THEY STOOD AT THE
+                    // FREEZE (the Recording's binding) — the reads above are only for a device the
+                    // window holds no lane of, which no stream carries.
+                    if (snap) {
+                        for (const pinpoint::analysis::ImuSegmentBinding &bnd : snap->recording.imuBindings)
+                            if (bnd.source == imu->sourceId() && !bnd.hackMotion) {
+                                pinpoint::applyCaptureImuFacts(info, snap->imuOutputRateHz.value(imu->sourceId(), 0), bnd);
+                                break;
+                            }
+                    }
                     break;
                 }
             }
@@ -1512,6 +1223,12 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         job.imuDeviceBySerial.insert(serial, info);
     }
 
+    // The athlete, the club (its geometry and the length prior the live fuse used), the analysis context
+    // and the capture-wide inputs — from the snapshot, over everything listed above (the cameras' and
+    // devices' facts are re-applied from it, which is idempotent).
+    if (snap)
+        pinpoint::capture::fillExportFromSnapshot(job, *snap);
+
     const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
                                                      job.athleteName,
                                                      job.athleteUuid,
@@ -1532,9 +1249,10 @@ QString ShotProcessor::todaySessionDir(int sessionType)
 {
     if (!m_appSettings || !m_athlete)
         return {};
+    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(m_athlete);
     return m_swingPaths.findTodaySessionDir(m_appSettings->athleteLibraryPath(),
-                                            m_athlete->currentName(),
-                                            m_athlete->currentUuid(),
+                                            who.name,
+                                            who.uuid,
                                             m_appSettings->sessionNamingPattern(),
                                             sessionTypeLabel(sessionType));
 }
@@ -1550,11 +1268,12 @@ void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
     // 1 September 2026 with /mnt/swingdata unmounted.  Keep it; the
     // session-start preflight reads it through sessionFolderReady().
     m_sessionFolderReady = false;
+    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(m_athlete);
     if (m_appSettings && m_athlete)
         m_sessionFolderReady =
             !m_swingPaths.beginSession(m_appSettings->athleteLibraryPath(),
-                                       m_athlete->currentName(),
-                                       m_athlete->currentUuid(),
+                                       who.name,
+                                       who.uuid,
                                        m_appSettings->sessionNamingPattern(),
                                        sessionTypeLabel(sessionType),
                                        extend).isEmpty();
@@ -1567,17 +1286,6 @@ void ShotProcessor::endSessionFolder()
     emit activeSessionDirChanged();
 }
 
-QJsonObject ShotProcessor::buildSynthManifest() const
-{
-    // The ONE header writer (recording_header.h), as the exporter calls it, minus the media
-    // (streams, thumbnail) — so a reloaded analysis-only shot is indistinguishable from an
-    // exported one apart from hasVideo=false. writeSwingJson stamps the schema and appends the
-    // "analysis" block.
-    const int64_t t0         = m_swingWindow->startTimestampUs();
-    const int64_t durationUs = m_swingWindow->endTimestampUs() - t0;
-    return pinpoint::SwingExporter::analysisOnlyHeader(m_exportJob, t0, durationUs);
-}
-
 // ---------------------------------------------------------------------------
 // Worker completion → join
 // ---------------------------------------------------------------------------
@@ -1587,7 +1295,11 @@ void ShotProcessor::onAnalysisFinished()
     if (!m_analysisInFlight)
         return;   // already joined blockingly in finishNowBlocking()
     m_analysisInFlight = false;
-    m_analysisResult   = m_analysisWatcher.result();
+    {
+        pinpoint::analysis::AnalysedRecording run = m_analysisWatcher.result();
+        m_analysisResult = std::move(run.analysis);
+        m_integrity      = std::move(run.integrity);
+    }
     m_analysisOutcome  = m_analysisResult.ok ? Outcome::Succeeded : Outcome::Failed;
     setAnalysisProgress(1.0);   // beat any still-queued worker updates to full
     if (m_analysisResult.ok)
@@ -1597,7 +1309,7 @@ void ShotProcessor::onAnalysisFinished()
 
     // Persistent club-length prior update (club_length_fusion.h / plan: robust
     // club length — starry-shimmying-wind) — LIVE path only. m_lengthPriorKey was
-    // stashed by buildAnalysisJob() (empty ⇒ no athlete/club/fixed-in-place
+    // stashed from the capture snapshot (empty ⇒ no athlete/club/fixed-in-place
     // face-on camera this shot, nothing to persist). Folds ONLY the PRIOR-FREE
     // fusedInstant* value into the prior — never the WITH-prior fusedPx, which
     // would self-reinforce (club_length_fusion.h updateLengthPrior comment).
@@ -1670,156 +1382,69 @@ void ShotProcessor::maybeJoin()
     if (!gate.ready)
         return;   // wait for BOTH workers
 
-    const bool analysisOk = gate.analysisOk;
-    const bool exportOk   = gate.exportOk;
-
-    // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its
-    // recorded raw accel+gyro and confirm it reproduces the stored quaternion. A
-    // mismatch means the IMU record is internally inconsistent — the shot can't be
-    // re-analysed offline — so the carousel item is flagged (⚠) and an "imuIntegrity"
-    // block is persisted to swing.json. Only meaningful for the Madgwick default (the
-    // only exactly-warm-startable filter); skip under ESKF to avoid a false warning.
     // ── Everything below runs OFF the GUI thread ───────────────────────────────────────────────────
     //
-    // The two integrity checks and the write of swing.json used to run right here, on the UI thread,
-    // and the user watched the app stop: the document is ~28 MB on a wrist swing (analysis.pose2d
-    // alone is ~13 MB), it is serialised INDENTED, and the library is a network share. The re-fusion
-    // check re-runs a full Madgwick pass over every IMU sample; the capture check walks every frame
-    // timestamp in every lane. None of it needs the GUI thread, and the freeze landed with the replay
-    // on screen, which is the worst moment to stop moving.
+    // The document write used to run right here, on the UI thread, and the user watched the app stop:
+    // the document is ~28 MB on a wrist swing (analysis.pose2d alone is ~13 MB), it is serialised
+    // INDENTED, and the library is a network share. None of it needs the GUI thread, and the freeze
+    // landed with the replay on screen, which is the worst moment to stop moving.
     //
     // Nothing is announced until it returns (onSwingDocWritten): the carousel row, the terminal
     // statement and the replay promotion are all claims about what survives a restart. In flight the UI
     // says nothing; a failed write is surfaced when it lands, as the shot's terminal statement.
     //
-    // The worker borrows the window (checks) and m_analysisResult.detail (write). Both stay alive
-    // because the processor remains in State::Processing until the handler runs — a new shot clears
-    // them and cannot start from here — and finishNowBlocking() joins this watcher on teardown.
-    const bool skipRefusion =
-        m_appSettings
-        && m_appSettings->imuOrientationFilter().compare(QStringLiteral("ESKF"),
-                                                         Qt::CaseInsensitive) == 0;
+    // The worker borrows the Recording (and through it the window) and m_analysisResult.detail (the
+    // write). Both stay alive because the processor remains in State::Processing until the handler
+    // runs — a new shot clears them and cannot start from here — and finishNowBlocking() joins this
+    // watcher on teardown.
     const pinpoint::PersistPath persist = pinpoint::persistPathFor(join);
-    // Resolved on this thread because it reads the session and athlete models: the session's active
-    // club, else the athlete's preferred one, else the stub. It goes into the document AND onto the
-    // carousel row — a club that reached only the row was lost the moment the session reloaded.
-    QString shotClub = m_session ? m_session->activeClub() : QString();
-    if (shotClub.isEmpty() && m_athlete)
-        shotClub = m_athlete->effectivePrimaryClub(m_athlete->currentUuid());
-    if (shotClub.isEmpty())
-        shotClub = pinpoint::clubStub();
-    // A degraded persist (export failed, analysis did not) writes a synthesised header instead of the
-    // exporter's manifest. Built here: it reads members, and it is cheap.
-    const QJsonObject synthManifest = (persist == pinpoint::PersistPath::AnalysisOnlyDocument)
-                                          ? buildSynthManifest() : QJsonObject{};
+
+    // The header the document gets: the exporter's manifest, or — a degraded persist (export failed
+    // or skipped, analysis did not) — the ONE header writer's analysis-only header (recording_header.h),
+    // as the exporter calls it minus the media, so a reloaded analysis-only shot is indistinguishable
+    // from an exported one apart from hasVideo=false.
+    QJsonObject header = m_exportManifest;
+    if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
+        const int64_t t0 = m_swingWindow->startTimestampUs();
+        header = pinpoint::SwingExporter::analysisOnlyHeader(m_exportJob, t0, m_swingWindow->endTimestampUs() - t0);
+    }
 
     // Storage → Save pose keypoints. Read here, with the other settings, not on the worker.
     const bool savePose = m_appSettings ? m_appSettings->savePoseKeypoints() : true;
 
     m_docWriteInFlight = true;
     m_docWriteWatcher.setFuture(QtConcurrent::run(
-        [this, persist, shotClub, synthManifest, skipRefusion, savePose]() -> SwingDocWriteResult {
+        [this, persist, header, savePose]() -> SwingDocWriteResult {
+            // The Recording's integrity verdicts — the IMU re-fusion parity and the frame-timestamp
+            // holes / coverage of each camera lane — by the ONE rule (integrityFor, the analysis
+            // service): reached with the analysis, or here, alone, for a capture that ran none. A
+            // mismatch or a hole flags the carousel item (⚠); the blocks are persisted.
+            pinpoint::analysis::IntegrityVerdicts verdicts;
+            if (m_integrity)
+                verdicts = *m_integrity;
+            else if (m_capture)
+                verdicts = m_analysisService.integrity(m_capture->recording);
+
+            pinpoint::capture::LiveDocumentInput in;
+            in.repository = m_repository;
+            in.swingDir   = m_swingDir;
+            in.persist    = persist;
+            in.header     = header;
+            in.integrity  = &verdicts;
+            in.analysis   = m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr;
+            in.windowT0Us = m_swingWindow ? m_swingWindow->startTimestampUs() : 0;
+            in.reviewClub = m_capture ? m_capture->athlete.reviewClub : QString();
+            in.savePose   = savePose;
+            const pinpoint::capture::LiveDocument doc = pinpoint::capture::writeLiveDocument(in);
+
             SwingDocWriteResult out;
-            out.manifest = m_exportManifest;
-
-            // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its recorded
-            // raw accel+gyro and confirm it reproduces the stored quaternion. A mismatch means the IMU
-            // record is internally inconsistent — the shot cannot be re-analysed offline — so the
-            // carousel item is flagged (⚠) and the block is persisted. Only meaningful for the Madgwick
-            // default (the only exactly-warm-startable filter); skipped under ESKF to avoid a false
-            // warning.
-            if (m_swingWindow && !skipRefusion) {
-                const pinpoint::ImuRefusionVerdict v = pinpoint::checkImuRefusion(*m_swingWindow);
-                if (v.sourcesChecked > 0) {
-                    // Shared with the re-analysis write-back (swing_doc.h) so the two producers of this
-                    // block cannot drift.
-                    out.manifest[QStringLiteral("imuIntegrity")] = pinpoint::imuIntegrityJson(v);
-                    if (v.warns())
-                        ppInfo() << "[ShotProcessor] IMU re-fusion parity FAILED — worst"
-                                 << v.worstMaxDeg << "deg over" << v.sourcesChecked
-                                 << "source(s); shot flagged not re-analysable";
-                }
-            }
-            // Capture data-integrity (frame-timestamp holes in the camera lanes): the host stalled and
-            // frames are missing. m_impactUs is absolute buffer-clock, the live window's own domain, so
-            // the verdict knows whether the swing itself or only the follow-through lost frames.
-            // Persisted beside imuIntegrity; the carousel ⚠ and the session ledger's exclusion both read
-            // the two blocks through dataWarningDetailFrom, so the rule lives in one place.
-            // Each lane is also held to the frozen window it was cut from (issue #53: a clip that
-            // started after impact passed as clean); the impact camera keeps only its band.
-            if (m_swingWindow) {
-                pinpoint::CaptureCoverageSpec cov;
-                cov.judge         = true;
-                cov.windowStartUs = m_swingWindow->startTimestampUs();
-                cov.windowEndUs   = m_swingWindow->endTimestampUs();
-                const pinpoint::CaptureIntegrityVerdict cv =
-                    pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs, cov,
-                                                    { m_analysisJob.impactSource });
-                if (cv.camerasChecked > 0) {
-                    out.manifest[QStringLiteral("captureIntegrity")] =
-                        pinpoint::captureIntegrityJson(cv);
-                    if (cv.holes > 0)
-                        ppWarn() << "[ShotProcessor] capture lost" << cv.framesLost << "frame(s) in"
-                                 << cv.holes << "hole(s), worst" << cv.worstHoleMs << "ms,"
-                                 << (cv.preImpact ? "before impact" : "after impact")
-                                 << "— shot flagged and excluded from the session assessment";
-                    if (cv.clipped())
-                        ppWarn() << "[ShotProcessor] capture cut short —" << cv.missingStartMs
-                                 << "ms missing at the start," << cv.missingEndMs << "ms at the end,"
-                                 << cv.framesBeforeImpact << "frame(s) before impact on the worst camera"
-                                 << (cv.startsAfterImpact ? "— no swing on it: shot flagged and excluded from the session assessment"
-                                                          : "— shot flagged, still assessed");
-                }
-            }
-            out.dataWarningDetail = pinpoint::dataWarningDetailFrom(out.manifest);
-            // The live manifest carries no `analysis` block yet, so the refused-club fact
-            // (swing_doc.cpp dataWarningDetailFrom reads analysis.club.refused on disk) is
-            // added from the in-memory track here — same key, same card tooltip.
-            if (m_analysisResult.detail && m_analysisResult.detail->shaft.refusedReason)
-                out.dataWarningDetail.insert(QStringLiteral("clubRefused"),
-                    QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(
-                        m_analysisResult.detail->shaft.refusedReason)));
-            // … and the down-the-line top-out-of-view fact, for the same reason
-            // (on disk it is analysis.clubDtl.summary.topOutOfView). No capture/imu
-            // key: it carries the ⚠ without excluding the shot.
-            if (m_analysisResult.detail && m_analysisResult.detail->shaftDtl.topOutOfView)
-                pinpoint::insertDtlTopOutOfView(out.dataWarningDetail,
-                    m_analysisResult.detail->shaftDtl.handsFromTopPx,
-                    m_analysisResult.detail->shaftDtl.topClubPx);
-
-            // The shot's detail (the carousel row, the in-window replay): the one projection of the
-            // analysis block this document gets, built here, off the GUI thread, from the manifest it
-            // is written with. Window time — the replay adds nothing; the playhead it is read against
-            // is published in window time (replayPositionUs).
-            const auto liveDetail = [this](const QJsonObject &docManifest) {
-                return m_analysisResult.detail
-                    ? pinpoint::liveAnalysisDetail(*m_analysisResult.detail,
-                                                   m_swingWindow ? m_swingWindow->startTimestampUs() : 0,
-                                                   docManifest)
-                    : QVariantMap{};
-            };
-
-            // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
-            // the export worker wrote only media and returned, and the analyzer returned a value.
-            if (persist == pinpoint::PersistPath::FullDocument) {
-                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
-                    m_swingDir, out.manifest,
-                    m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
-                    &out.error, shotClub, savePose);
-            } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
-                // Degraded persist: export failed/skipped but analysis succeeded — write a minimal,
-                // analysis-only swing.json so the shot reloads after a restart.
-                QJsonObject synth = synthManifest;
-                for (const QString &k : { QStringLiteral("imuIntegrity"),
-                                          QStringLiteral("captureIntegrity") })
-                    if (out.manifest.contains(k))
-                        synth[k] = out.manifest[k];
-                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
-                    m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub, savePose);
-                out.analysisDetail = liveDetail(synth);
-                return out;
-            }
-            out.analysisDetail = liveDetail(out.manifest);
+            out.wrote             = doc.wrote;
+            out.error             = doc.error;
+            out.manifest          = doc.manifest;
+            out.dataWarningDetail = doc.dataWarningDetail;
+            out.analysisDetail    = doc.analysisDetail;
+            out.club              = doc.club;
+            out.documentPath      = doc.documentPath;
             return out;
         }));
 }
@@ -1857,15 +1482,15 @@ void ShotProcessor::onSwingDocWritten()
     QString savedSwingDir;
     if (res.wrote) {
         savedSwingDir = m_swingDir;
-        ppInfo() << "[SwingDoc] wrote" << pinpoint::SwingStore::ppswPath(m_swingDir)
+        ppInfo() << "[SwingDoc] wrote" << res.documentPath
                  << (analysisOk ? "(with analysis)" : "(raw only)");
     } else if (!res.error.isEmpty()) {
         ppError() << "[SwingDoc]" << res.error;
     }
 
-    // The club the document records, read back from it rather than re-resolved: the row and the file
-    // must name the same club, and the worker already settled it.
-    const QString shotClub = pinpoint::swingDocClub(res.manifest);
+    // The club the document records (its seeded review.club, settled at the freeze), not re-resolved:
+    // the row and the file must name the same club.
+    const QString shotClub = res.club;
 
     // ⏱ What this handler costs, per phase, one line per shot. `notify` is the emit below and everything
     // QML does synchronously inside it: the bindings re-evaluate and, on the first read, the detail is
@@ -2020,8 +1645,12 @@ void ShotProcessor::startReplay()
         if (m_analysisResult.ok && m_analysisResult.detail) {
             using pinpoint::analysis::Phase;
             const auto &seg = m_analysisResult.detail->segmentation;
+            // The analysis leaves the pipeline in WINDOW time (its one rebase, step 1.5); the replay
+            // runs on the ring clock, so the window's start is added back here, at the view boundary.
+            const int64_t toRing = m_analysisResult.detail->timeBase == pinpoint::analysis::TimeBase::Window
+                                       ? m_replayT0Us : 0;
             if (const auto *fin = seg.eventFor(Phase::Finish))
-                endUs = fin->t_us + kReplayFinishPadUs;
+                endUs = fin->t_us + toRing + kReplayFinishPadUs;
         }
         const int64_t hi = std::min(m_replayWindowEndUs, endUs);
         if (hi > lo) {
@@ -2143,6 +1772,7 @@ void ShotProcessor::stopReplay(bool thenFinish)
 
 void ShotProcessor::finishShot()
 {
+    m_capture.reset();       // its Recording points into the window
     m_swingWindow.reset();   // both workers returned, replay stopped
     m_replayTracks.clear();
 
@@ -2195,6 +1825,7 @@ void ShotProcessor::finishNowBlocking()
     m_swingSaveInFlight = false;
     m_docWriteInFlight  = false;
 
+    m_capture.reset();
     m_swingWindow.reset();
     m_replayTracks.clear();
     // A gather abandoned on teardown: release the guard the window never adopted

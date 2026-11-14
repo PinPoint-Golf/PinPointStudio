@@ -200,6 +200,8 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
         { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
         { QStringLiteral("Analysis/analysis_job_builder"), Rules },   // the one job builder
+        { QStringLiteral("Analysis/recording_integrity"), Rules },    // the one integrity rule (step 1.5)
+        { QStringLiteral("Analysis/swing_analysis_rebase"), Vocabulary },   // the one rebase, beside windowTimeUs
         { QStringLiteral("Analysis/route_substitution"), Rules },
         { QStringLiteral("Analysis/seg_resolve"), Rules },
         { QStringLiteral("Analysis/stream_trim"), Rules },

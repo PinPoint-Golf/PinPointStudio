@@ -35,7 +35,7 @@
 //   Test 4  double-run analyzer determinism — PipelineAnalyzer::analyze() (the stage
 //           pipeline, analysis_pipeline.cpp) run TWICE over the SAME job with identical
 //           empty overrides must produce byte-identical "analysis" JSON (serialized
-//           through the production SwingDocWriter::writeSwingJson seam, wall-clock
+//           through the production document writer (RecordingRepository::create), wall-clock
 //           "timings" excluded by design), over the SAME RAM window Tests 1-3 built.
 //           Run twice: 4a IMU-only (no camera), 4b camera path (+ face-on cam).
 //   Test 6  re-analysis keeps the wrist assessment (#110/#111) — a swing recorded as a
@@ -43,6 +43,9 @@
 //           reanalyzeSwingDir: same analysis.assessment block, same headline score.
 //   Test 7  stage order — EventRefine before ImpactAnchor, so the address ball is searched for
 //           around the P1 a reused track would hold (#161).
+//   Test 8  the export holds the Recording inputs frozen at capture (step 1.5, H-02): baseline,
+//           search box, placement, pose-quality tier and IMU filter re-read "later" lose to the
+//           frozen ones in the exported file; a LoadedSwing survives being moved.
 //
 // Built as a tools target (PINPOINT_BUILD_TOOLS) in the root CMakeLists, beside
 // swinglab_run, where the Buffer/Export/FFmpeg/OpenCV deps are already wired.
@@ -80,6 +83,9 @@
 
 #include "../../IMU/imu_vision_fuser.h"
 #include "swing_reanalyzer.h"
+#include "recording_integrity.h"
+#include "../../Export/capture_export_facts.h"
+#include "../../Export/recording_loader.h"
 #include "analysis_pipeline.h"
 
 using namespace pinpoint;
@@ -562,8 +568,8 @@ QString firstJsonDiff(const QJsonValue &a, const QJsonValue &b, const QString &p
 }
 
 // Serialize a ShotAnalysisResult through the PRODUCTION swing.json seam
-// (SwingDocWriter::writeSwingJson — the analysis-block builder is anonymous-
-// namespace private to swing_doc.cpp, so writing + re-reading the file is the
+// (RecordingRepository::create → SwingDocWriter::writeDocument — the analysis-block
+// builder is internal to the store, so writing + re-reading the file is the
 // smallest available seam) and return its "analysis" object with the wall-
 // clock-only "timings" key removed (the one expected divergence between two
 // runs of a deterministic pipeline — covered separately by the presence-pattern
@@ -862,6 +868,70 @@ void testBurstStampedGrid()
 
 } // namespace
 
+// ── Test 8 (step 1.5, review round 1 — H-02): the file holds the FROZEN Recording inputs ─────────
+// The live export runs 12–37 s after the window freeze; by then the ball detector has re-learned its
+// empty-mat baseline, the golfer may have moved the search box, and the pose-quality and IMU-filter
+// settings may have changed. The export job is first filled the way a second read would fill it, then
+// given the frozen facts through the production seam (capture_export_facts.h, which ShotProcessor's
+// export calls); the exported document, read back by the Recording loader, holds the frozen values.
+// Also: a LoadedSwing survives being moved (its Recording points at a window that never moves).
+void testExportHoldsFrozenInputs(const RamSwing &ram)
+{
+    std::fprintf(stderr, "Test 8: the export holds the inputs frozen at capture\n");
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    SwingExportJob job = baseExportJob(ram, dir.path(), /*saveRaw=*/true);
+    // What a re-read 12–37 s later would find.
+    SwingExportCamera &cam = job.cameras.front();
+    cam.perspective = 1; cam.mirrored = false; cam.fixedInPlace = false;
+    cam.ballSearchRoi = QRectF(0.1, 0.1, 0.2, 0.2);
+    cam.ballBaselineBlob = QByteArray(4 * 3 * int(sizeof(float)), char(0x11));
+    cam.ballBaselineW = 4; cam.ballBaselineH = 3; cam.ballBaselineRoi = QRectF(0.1, 0.1, 0.2, 0.2);
+    job.motionCaptureQuality = QStringLiteral("Medium");
+    job.imuDeviceBySerial[QString::fromStdString(ram.imuSerial)].orientationFilter = QStringLiteral("ESKF");
+
+    // What the capture froze at the window freeze.
+    CaptureCameraFacts f;
+    f.source = ram.camId; f.perspective = 2; f.mirrored = true; f.fixedInPlace = true;
+    f.searchRoi = QRectF(0.3, 0.6, 0.4, 0.3);
+    f.baselineBlob = QByteArray(8 * 6 * int(sizeof(float)), char(0x42));
+    f.baselineW = 8; f.baselineH = 6; f.baselineRoi = QRectF(0.3, 0.6, 0.4, 0.3);
+    f.baselineRHat = 5.5; f.baselineFps = 150.0; f.baselineNoise0 = 2.0;
+    applyCaptureCameraFacts(cam, f);
+    applyCaptureSettings(job, QStringLiteral("High"), QStringLiteral("Madgwick"));
+
+    CHECK(exportSwing(*ram.window, job));
+    LoadedRecording lr = loadRecording(dir.path());
+    CHECK(lr.ok);
+    if (!lr.ok) return;
+    const recording::Recording &r = lr.recording;
+    CHECK(!r.sources.cameras.empty() && r.sources.cameras.front().perspective == recording::Perspective::FaceOn);
+    CHECK(!r.sources.cameras.empty() && r.sources.cameras.front().mirrored && r.sources.cameras.front().fixedInPlace);
+    CHECK(r.ball.searchRoi == f.searchRoi);
+    CHECK(r.ball.baseline.isValid() && r.ball.baseline.w == 8 && r.ball.baseline.h == 6
+          && r.ball.baseline.roi == f.baselineRoi && r.ball.baseline.noise0 == 2.0);
+    {
+        QFile blob(r.ball.baseline.path);
+        CHECK(blob.open(QIODevice::ReadOnly) && blob.readAll() == f.baselineBlob);
+    }
+    CHECK(r.capture.motionCaptureQuality == QStringLiteral("High"));
+    CHECK(r.integrity.hostOrientationFilter.compare(QStringLiteral("Madgwick"), Qt::CaseInsensitive) == 0);
+
+    // A LoadedSwing moved, and moved again inside a growing vector: the Recording still reads its window.
+    LoadedSwing a = SwingDiskLoader::load(dir.path());
+    CHECK(a.ok && a.window && a.recording.window == a.window.get());
+    const SwingWindow *w = a.window.get();
+    LoadedSwing b = std::move(a);
+    CHECK(b.window.get() == w && b.recording.window == w);
+    std::vector<LoadedSwing> many;
+    many.push_back(std::move(b));
+    for (int i = 0; i < 8; ++i) many.push_back(SwingDiskLoader::load(dir.path()));
+    CHECK(many.front().recording.window == many.front().window.get() && many.front().window.get() == w);
+    CHECK(!many.front().recording.window->entries().empty());
+    const IntegrityVerdicts v = integrityFor(many.front().recording);
+    CHECK(v.capture.has_value() && v.capture->camerasChecked == 1);
+}
+
 int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
@@ -916,6 +986,9 @@ int main(int argc, char** argv)
 
     // ── the address ball is found after P1 has moved (Test 7) ──
     testBallFoundAfterRefine();
+
+    // ── the export holds the inputs frozen at capture; a LoadedSwing survives a move (Test 8) ──
+    testExportHoldsFrozenInputs(ram);
 
     std::fprintf(stderr, "\n%s — %d check failure(s)\n",
                  g_failures == 0 ? "PASS" : "FAIL", g_failures);

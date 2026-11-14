@@ -38,11 +38,13 @@
 #include "hm_instance.h"
 #include "../Club/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
+#include "../Analysis/analysis_service.h"   // the one run + the Recording's integrity verdicts (step 1.5)
 #include "../Export/swing_exporter.h"
 #include "../Export/swing_paths.h"
 #include "shot_outcome.h"
 
-namespace pinpoint { class EventBuffer; }
+namespace pinpoint { class EventBuffer; class RecordingRepository; }
+namespace pinpoint::capture { struct CaptureSnapshot; }
 class AppSettings;
 class AthleteController;
 class CameraInstance;
@@ -56,10 +58,13 @@ class ShotListModel;
 //   shotDetected ─► POSTROLL  per-source delay; the buffer keeps capturing so
 //                             the follow-through lands in the ring
 //                ─► pauseBuffer → captureSwingWindow(4 s trailing ring)
-//                ─► PROCESSING analysis (ShotAnalyzer) ∥ export (SwingExporter)
-//                             — both QtConcurrent workers reading the frozen
-//                             window concurrently (const, zero-copy)
-//                ─► join      ShotListModel::addShot() always; then
+//                ─► the RECORDING of the shot, read once at the freeze
+//                             (capture_context.h: the live facts → the Recording)
+//                ─► PROCESSING analysis (the analysis service, on the ONE job
+//                             builder) then export (SwingExporter) — QtConcurrent
+//                             workers reading the frozen window (const, zero-copy)
+//                ─► join      the first write through RecordingRepository::create;
+//                             ShotListModel::addShot() always; then
 //                ─► REPLAYING ¼× on-screen replay iff analysis AND export
 //                             both succeeded
 //                ─► finish    window destroyed → applyCaptureIntent() → Idle
@@ -128,6 +133,8 @@ public:
         QVariantMap dataWarningDetail;  // dataWarningDetailFrom(manifest) — empty when nothing warns
         QVariantMap analysisDetail;     // the shot's detail: liveAnalysisDetail (swing_doc.h), the one
                                         // projection of the analysis block this document gets — window time
+        QString     club;               // the club the document records (the seeded review.club)
+        QString     documentPath;       // where it went (the log)
     };
 
     ShotProcessor(pinpoint::EventBuffer *buffer,
@@ -139,6 +146,11 @@ public:
                   ShotListModel         *shotModel,
                   QObject               *parent = nullptr);
     ~ShotProcessor() override;
+
+    // THE ONE DOOR to the swing file (RecordingRepository, step 1.4): the live join's first write
+    // goes through it (create). Held by the composition root (main.cpp). Without one, a shot's
+    // document is not written and the join says so.
+    void setRecordingRepository(pinpoint::RecordingRepository *repository) { m_repository = repository; }
 
     QString stateName()   const;
     bool    busy()        const { return m_state != State::Idle; }
@@ -283,15 +295,10 @@ private:
     QVector<HmInstance *> deferredSources() const;
     void beginGather();             // pause the rings, raise the guard, start the wait
     void onGatherPoll();            // deferred sources reported, or the deadline passed
-    void finishGatherAndLaunch();   // compose the backing, construct the window, launch
-    ShotAnalysisJob buildAnalysisJob();   // UI-thread value resolution
+    void finishGatherAndLaunch();   // compose the backing, construct the window, take the Recording, launch
     void startAnalysis();
     void startSwingSave();
     pinpoint::SwingExportJob buildSwingExportJob();
-    // Minimal raw header (athlete/session/clock/window, no streams) synthesised
-    // from the cached export job + the live window — used to persist an
-    // analysis-only swing.json when the media export failed or was skipped.
-    QJsonObject buildSynthManifest() const;
     void maybeJoin();
     void startReplay();
     void stopReplay(bool thenFinish);
@@ -374,10 +381,19 @@ private:
     QFutureWatcher<pinpoint::analysis::Segmentation> m_segmentationWatcher;
     bool                            m_segmentationInFlight = false;
     pinpoint::analysis::Segmentation m_segmentation;   // result for THIS shot
-    ShotAnalysisJob                 m_analysisJob;      // resolved pre-stage, used at launch
+    // THE RECORDING of this shot (capture_context.h): made once at the freeze from the live facts,
+    // the athlete and session read once with it. The analysis job, the export's athlete and club,
+    // the seeded review club and the integrity verdicts all come from it. Its window points into
+    // m_swingWindow, so it is reset with it (finishShot / finishNowBlocking).
+    std::unique_ptr<pinpoint::capture::CaptureSnapshot> m_capture;
+    // The job the ONE builder made from that Recording (buildAnalysisJob): the pre-stage reads its
+    // bindings; the analysis service runs it.
+    ShotAnalysisJob                 m_analysisJob;
+    pinpoint::analysis::AnalysisService m_analysisService;   // stateless (analysis_service.h)
+    pinpoint::RecordingRepository  *m_repository = nullptr;  // the one door (setRecordingRepository)
 
     // Persistent club-length prior (club_length_fusion.h / plan: robust club
-    // length — starry-shimmying-wind). Stashed by buildAnalysisJob() when the
+    // length — starry-shimmying-wind). Stashed from the capture snapshot when the
     // face-on camera is cameraFixedInPlace (else left empty/cold — nothing to
     // update); onAnalysisFinished() folds the recorded fuse's fusedInstant* into
     // m_lengthPriorState and persists it to AppSettings under m_lengthPriorKey.
@@ -389,7 +405,7 @@ private:
     // once BOTH have returned (and replay has stopped) — see maybeJoin()/
     // finishShot()/finishNowBlocking().
     QFutureWatcher<pinpoint::SwingExportResult> m_swingSaveWatcher;
-    QFutureWatcher<ShotAnalysisResult>          m_analysisWatcher;
+    QFutureWatcher<pinpoint::analysis::AnalysedRecording> m_analysisWatcher;
     bool    m_swingSaveInFlight = false;
     bool    m_analysisInFlight  = false;
     // The document writer (SwingDocWriteResult). It borrows &*m_swingWindow for the integrity checks
@@ -406,6 +422,10 @@ private:
     // later from the Shots view.
     bool    m_skipAnalysisCapture = false;
     ShotAnalysisResult m_analysisResult;
+    // The Recording's integrity verdicts, as the analysis service reached them with the analysis
+    // (integrityFor). Unset when no analysis ran (a skip-analysis corpus capture): the document
+    // writer then asks the service for them alone.
+    std::optional<pinpoint::analysis::IntegrityVerdicts> m_integrity;
     QString m_swingDir;          // cached from the export job for the join
     pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip
     QString m_thumbnailPath;     // from SwingExportResult

@@ -811,4 +811,9 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
     return out;
 }
 
+LoadedRecording SwingStoreRecordingReader::load(const QString &swingDir, const RecordingLoadOptions &options)
+{
+    return loadRecording(swingDir, options);
+}
+
 } // namespace pinpoint

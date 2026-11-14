@@ -1,0 +1,74 @@
+/*
+ * Copyright (c) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+#include "analysis_service.h"
+
+#include "swing_window.h"
+
+#include <exception>
+
+namespace pinpoint::analysis {
+
+AnalysedRecording AnalysisService::analyse(const pinpoint::recording::Recording &recording,
+                                           const EffectiveContext &effective, const RunOptions &options) const
+{
+    return analyseJob(recording, buildAnalysisJob(recording, effective, options));
+}
+
+AnalysedRecording AnalysisService::analyseJob(const pinpoint::recording::Recording &recording,
+                                              const ShotAnalysisJob &job) const
+{
+    AnalysedRecording out;
+    if (!recording.window) {
+        out.analysis.error = QStringLiteral("no recorded streams to analyse");
+        return out;
+    }
+    // Exception barrier: anything escaping a stage (e.g. a cv::Exception on malformed frame
+    // geometry) degrades to a failed analysis rather than terminating the caller's thread.
+    try {
+        auto analyzer = makeShotAnalyzer();
+        out.analysis  = analyzer->analyze(*recording.window, job);
+    } catch (const std::exception &e) {
+        out.analysis       = ShotAnalysisResult{};
+        out.analysis.error = QStringLiteral("analyzer threw: %1").arg(QString::fromUtf8(e.what()));
+    } catch (...) {
+        out.analysis       = ShotAnalysisResult{};
+        out.analysis.error = QStringLiteral("analyzer threw an unknown exception");
+    }
+    // The verdicts do not depend on the analysis: they are the Recording's.
+    out.integrity = integrityFor(recording);
+    return out;
+}
+
+IntegrityVerdicts AnalysisService::integrity(const pinpoint::recording::Recording &recording) const
+{
+    return integrityFor(recording);
+}
+
+pinpoint::LoadedRecording AnalysisService::load(const QString &swingDir,
+                                                const pinpoint::RecordingLoadOptions &options) const
+{
+    if (!m_reader) {
+        pinpoint::LoadedRecording none;
+        none.error = QStringLiteral("no Recording reader");
+        return none;
+    }
+    return m_reader->load(swingDir, options);
+}
+
+} // namespace pinpoint::analysis

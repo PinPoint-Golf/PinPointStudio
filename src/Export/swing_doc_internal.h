@@ -39,7 +39,7 @@ namespace pinpoint::swingdoc_detail {
 // swing_doc_analysis.cpp — the whole `analysis` block, composed from the per-block serialisers and
 // stamped `timeBase: "window"`. A TimeBase::Clock analysis is taken to window time against windowT0
 // (the document's clock.t0_us) through windowTimeUs; a TimeBase::Window one is written as it is.
-// Called by SwingDocWriter::writeSwingJson.
+// Called by SwingDocWriter::writeDocument (through analysisBlockFor), behind RecordingRepository.
 QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                               const QString &dtlAlias, const QString &dtlFile);
 

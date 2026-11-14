@@ -22,6 +22,7 @@
 
 #include <QString>
 #include <QVariantMap>
+#include <memory>
 #include <optional>
 
 #include "swing_window.h"
@@ -30,6 +31,8 @@
 #include "capture_integrity_check.h"
 #include "gate_record.h"   // LoadedSwing::loadGates
 #include "effective_context.h"   // ClubReview
+#include "../Recording/recording.h"
+#include "../DomainModel/recording_reader.h"   // the reading interface (step 1.5)
 
 // SwingReanalyzer — re-run the production analyzer OFFLINE on an exported swing folder, the same
 // disk → SwingWindow → analyzer flow the SwingLab runner uses.
@@ -38,8 +41,9 @@
 // disk-backed window that STREAMS camera frames on demand (one reusable buffer per camera, raw
 // sidecar else MP4; IMU samples and the index in RAM), and the Recording that describes it. The
 // job is then made by the ONE builder (buildAnalysisJob, analysis_job_builder.h) from the
-// Recording and its effective context. SwingDiskLoader is that adapter until step 1.5 puts the
-// analysis service in its place.
+// Recording and its effective context, and run through the analysis service (analysis_service.h),
+// which also reaches the two integrity verdicts with the one rule (integrityFor) — the very code the
+// live capture runs. SwingDiskLoader builds the job; reanalyzeSwingDir adds the reuse gate (1.6's).
 //
 // Shared by the in-app re-analyse path (ReanalysisController) and the
 // swinglab_run tool, so both exercise one tested reconstruction.
@@ -64,7 +68,13 @@ struct SwingLoadOptions {
 struct LoadedSwing {
     bool                                 ok = false;
     QString                              error;
-    std::optional<pinpoint::SwingWindow> window;   // disk-backed; streams on demand
+    // Disk-backed; streams on demand. HELD BY POINTER so it never moves: `recording.window` points at
+    // it, and a LoadedSwing is moved around freely (returned, std::move'd) — an inline window would
+    // leave that pointer dangling on the first move (step 1.5, review round 1).
+    std::unique_ptr<pinpoint::SwingWindow> window;
+    // The Recording the job was built from; its window is `window` above (step 1.5: the analysis
+    // service judges the integrity verdicts on it). Stays valid when the LoadedSwing is moved.
+    pinpoint::recording::Recording       recording;
     ShotAnalysisJob                      job;
     bool                                 usedRaw = false;  // any camera used the raw sidecar
     QJsonObject                          analysisIn;       // the recorded analysis block (version-gated reuse)
@@ -117,6 +127,9 @@ public:
     // job (buildAnalysisJob, origin "replay"). Never opens the live EventBuffer. On failure returns
     // { ok=false, error set, window=nullopt }.
     static LoadedSwing load(const QString& swingDir, const SwingLoadOptions& opts = {});
+    // The same, reading the swing through the domain's RecordingReader (SwingLab's composition root).
+    static LoadedSwing load(pinpoint::RecordingReader& reader, const QString& swingDir,
+                            const SwingLoadOptions& opts = {});
 };
 
 struct ReanalyzeOptions {

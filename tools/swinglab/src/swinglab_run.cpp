@@ -18,12 +18,12 @@
 
 // swinglab_run — the SwingLab offline runner (swinglab_impl.md, stage L1).
 //
-// Reconstructs a SwingWindow from a recorded PinPointStudio swing dir and executes
-// the unmodified production analysis pipeline (makeShotAnalyzer). The disk →
-// SwingWindow → analyzer reconstruction is shared with the in-app re-analyse path
-// via SwingDiskLoader (src/Analysis/swing_reanalyzer) — it STREAMS frames from disk
-// rather than rebuilding a full EventBuffer in RAM. Tuning params are injectable
-// from JSON; --trace re-runs the shaft stages with the trace sinks.
+// Reads a recorded PinPointStudio swing's RECORDING through the domain's RecordingReader (its store
+// adapter, SwingStoreRecordingReader), builds the job with the one builder (SwingDiskLoader), and runs
+// it through the analysis service (src/Analysis/analysis_service.h) — the same run, and the same
+// integrity verdicts, as the app's live capture and re-analysis (refactor step 1.5). The window
+// STREAMS frames from disk rather than rebuilding a full EventBuffer in RAM. Tuning params are
+// injectable from JSON; --trace re-runs the shaft stages with the trace sinks.
 //
 //   swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
@@ -31,6 +31,7 @@
 //                [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
+//   swinglab_run <swing_dir> --write-back [--save-pose on|off]
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
@@ -105,6 +106,8 @@
 #include "../../../src/Export/swing_store.h"
 #include "../../../src/Export/swing_store_repository.h"      // the one door to the swing files
 #include "../../../src/Analysis/reanalyse_and_persist.h"     // the one re-analysis write-back
+#include "../../../src/Analysis/analysis_service.h"          // the run + the integrity verdicts (step 1.5)
+#include "../../../src/Export/recording_loader.h"            // SwingStoreRecordingReader — the reading door
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
@@ -681,7 +684,12 @@ int main(int argc, char **argv)
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
-        "Exclusive: every other option except the positional swing dir is ignored.");
+        "Exclusive: every other option except the positional swing dir is ignored "
+        "(and --force, --full-window, --session-type, --params, --pooled, --save-pose).");
+    QCommandLineOption optSavePose("save-pose",
+        "--write-back only: Storage → Save pose keypoints for the write-back, \"on\" (the app's default) "
+        "or \"off\". Off, newly inferred pose tracks are not written back; a reused one always is "
+        "(PersistOptions::savePose, as the in-app re-analysis honours the setting).", "on|off", "on");
     // skeleton3d session pool (swing_3d_viz_design.md §13.2 (C)): pass 2 holds a pool's values for
     // this swing fixed; --pool builds a pool from pass-1 result.json files.
     QCommandLineOption optCalib("skeleton-calib",
@@ -701,7 +709,7 @@ int main(int argc, char **argv)
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
                      optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose });
     cli.process(app);
 
     // ── Pool mode ────────────────────────────────────────────────────────────
@@ -743,11 +751,16 @@ int main(int argc, char **argv)
     // capture/streams/review ride through untouched, and the repository's empty-document
     // guard never replaces a document it could not read back. A launch-monitor-only swing
     // has nothing to re-analyse: its launch monitor rows are rebuilt from the reading it holds.
-    // Pose is kept (PersistOptions' default, the app's "Save pose keypoints" default).
+    // Pose is kept unless --save-pose off (PersistOptions::savePose; the app's "Save pose keypoints").
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
         pinpoint::SwingStoreRecordingRepository repo;   // the composition root's one door
-        const pinpoint::PersistOptions persist;
+        pinpoint::PersistOptions persist;
+        // --save-pose: the app's "Save pose keypoints" for this write-back (default on, the app's default).
+        const QString savePose = cli.value(optSavePose).trimmed().toLower();
+        if (savePose != QLatin1String("on") && savePose != QLatin1String("off"))
+            return fail(QStringLiteral("--save-pose %1: say on or off").arg(cli.value(optSavePose)));
+        persist.savePose = savePose == QLatin1String("on");
         ReanalyzeOptions ropts;
         ropts.forceRerun = cli.isSet(optForce);
         ropts.fullWindow = cli.isSet(optFullWindow);
@@ -820,11 +833,16 @@ int main(int argc, char **argv)
     }
 
     // ── Reconstruct (streaming) + resolve the job from swing.json ─────────────
+    // The composition root of this run: the Recording is read through the domain's RecordingReader
+    // (its store adapter), the job made by the one builder, and run — and judged — by the analysis
+    // service, as the app's live capture and re-analysis are (step 1.5).
+    pinpoint::SwingStoreRecordingReader recordingReader;
+    const AnalysisService analysisService(&recordingReader);
     SwingLoadOptions lopts;
     lopts.faceOnExplicit  = cli.isSet(optFaceOn);
     lopts.faceOnSubstring = cli.value(optFaceOn);
     lopts.tuningOverrides = tuning;   // decode.* (the MP4 readers)
-    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
+    LoadedSwing ls = SwingDiskLoader::load(recordingReader, swingDir, lopts);
     if (!ls.ok)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;
@@ -1121,8 +1139,11 @@ int main(int argc, char **argv)
         job.ballTrackPath = cli.value(optBall);
     if (cli.isSet(optSession) || job.sessionType < 0)
         job.sessionType = cli.value(optSession).toInt();
-    if (cli.isSet(optImpact))
+    if (cli.isSet(optImpact)) {
         job.impactUs = cli.value(optImpact).toLongLong();
+        // The run's impact, on the Recording too: the integrity verdicts are judged against it.
+        ls.recording.capture.impactUs = job.impactUs - ls.recording.t0Us;
+    }
     if (job.impactUs <= 0)
         return fail("no impact instant (no recorded Impact phase; pass --impact-us)");
 
@@ -1209,8 +1230,10 @@ int main(int argc, char **argv)
 
     // ── Run the production pipeline ──────────────────────────────────────────
     const qint64 buildMs = wall.elapsed();
-    auto analyzer = makeShotAnalyzer();
-    ShotAnalysisResult result = analyzer->analyze(window, job);
+    // The analysis service: the production analyzer on the (edited) job, and the Recording's two
+    // integrity verdicts by the one rule — what a write-back of this analysis would store.
+    AnalysedRecording analysed = analysisService.analyseJob(ls.recording, job);
+    ShotAnalysisResult result = std::move(analysed.analysis);
     // gates decided while LOADING the swing (a HackMotion lane that would not bind) belong to its
     // analysis too — reanalyzeSwingDir appends them the same way (trust stage 6)
     if (result.detail && !ls.loadGates.empty())
@@ -1228,28 +1251,19 @@ int main(int argc, char **argv)
     QString werr;
 
     // --doc-blocks: the summary and the two data-integrity verdicts AS A WRITE-BACK WOULD STORE
-    // THEM. The verdicts are reached exactly as reanalyzeSwingDir (swing_reanalyzer.cpp) reaches
-    // them after analyze() — keep the two in step: the IMU re-fusion only when the recording says
-    // Madgwick, the capture check against the recorded window with the impact camera and off-clock
-    // lanes exempt from coverage. The summary is built by the production writer from the whole
-    // source document (its capture, streams, review and launch monitor), so it is written through
-    // writeSwingJson into a scratch folder and read back; nothing here re-derives a field.
+    // THEM. The verdicts are the analysis service's (integrityFor, the one rule every path uses: the
+    // IMU re-fusion only when the recording says Madgwick, the capture check against the recorded
+    // window with the impact camera and off-clock lanes exempt from coverage). The summary is built by
+    // the production writer from the whole source document (its capture, streams, review and launch
+    // monitor), so it is written through RecordingRepository::create into a scratch folder and read
+    // back; nothing here re-derives a field.
     QJsonObject docBlocks;
     if (cli.isSet(optDocBlocks) && result.detail) {
-        std::optional<pinpoint::ImuRefusionVerdict> imuV;
-        if (ls.hostOrientationFilter.compare(QStringLiteral("madgwick"), Qt::CaseInsensitive) == 0)
-            imuV = pinpoint::checkImuRefusion(window);
-        pinpoint::CaptureCoverageSpec cov;
-        cov.judge         = true;
-        cov.windowStartUs = ls.captureWindowStartUs;
-        cov.windowEndUs   = ls.captureWindowEndUs;
-        std::vector<SourceId> exempt = ls.offClockCameras;
-        exempt.push_back(job.impactSource);
-        const pinpoint::CaptureIntegrityVerdict capV =
-            pinpoint::checkCaptureIntegrity(window, job.impactUs, cov, exempt);
+        const std::optional<pinpoint::ImuRefusionVerdict>      &imuV = analysed.integrity.imu;
+        const std::optional<pinpoint::CaptureIntegrityVerdict> &capV = analysed.integrity.capture;
         QJsonObject full = root;
         pinpoint::applyImuIntegrity(full, imuV ? &*imuV : nullptr);
-        pinpoint::applyCaptureIntegrity(full, &capV);
+        pinpoint::applyCaptureIntegrity(full, capV ? &*capV : nullptr);
         const QString docDir = outDir + QStringLiteral("/doc");
         QDir(docDir).removeRecursively();
         QDir().mkpath(docDir);
@@ -1886,7 +1900,7 @@ int main(int argc, char **argv)
                     // Same domain rule as SwingDocWriter's rel(): the analysis
                     // times go out window-relative, and an already-relative value
                     // passes through. t0 is the manifest's clock.t0_us exactly as
-                    // writeSwingJson reads it, so club_dtl.json and result.json
+                    // the document writer reads it, so club_dtl.json and result.json
                     // cannot end up in different time domains.
                     const qint64 t0 = qint64(manifest.value(QStringLiteral("clock")).toObject()
                                                      .value(QStringLiteral("t0_us")).toDouble());

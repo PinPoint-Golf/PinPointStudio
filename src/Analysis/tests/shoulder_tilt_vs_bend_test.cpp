@@ -108,7 +108,7 @@ double tiltF(int64_t t)
 // The forward bend: 40° at address, a small wobble.
 double bendF(int64_t t) { return 40.0 + 0.4 * std::cos(double(t) * 3e-5); }
 
-// THE DOCUMENT THE PIPELINE WRITES, through the real writer (SwingDocWriter::writeSwingJson →
+// THE DOCUMENT THE PIPELINE WRITES, through the real writer (RecordingRepository::create → SwingDocWriter::writeDocument →
 // serializeAnalysis) and read back through the store, so "graded == produced" rests on the writer's own
 // metric shape, not a copy of it. clock.t0_us = 0, so the writer's relative-time shift is the identity.
 QJsonObject document(const std::vector<MetricSeries> &series, const std::vector<PhaseEvent> &phases,

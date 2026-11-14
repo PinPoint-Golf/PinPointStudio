@@ -29,6 +29,10 @@
 //   4. The legacy path: an old document (absolute times, no `timeBase`) reads to the same typed
 //      values as its rebased twin; a document with no `timeBase` whose times are already relative
 //      reads unchanged; reading never rewrites the document.
+//   5. The pipeline's one rebase (step 1.5, swing_analysis_rebase.h): a clock-time analysis rebased
+//      in memory with its t0 and written as it is gives the very block the writer makes from it with
+//      that t0 — every block, the writer-only ones (clubDtl, club3d, skeleton3d, addressMarks)
+//      included — and rebasing twice changes nothing.
 //
 // Frame sizes are powers of two so normalise-then-denormalise is exact in binary floating point.
 
@@ -44,10 +48,12 @@
 #include "../../Kinematics/kinematic_sequence_json.h"
 #include "../../Body/dtl_ruler_json.h"
 #include "analysis_fixture.h"
+#include "../../Analysis/swing_analysis_rebase.h"   // the pipeline's one rebase (step 1.5)
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <algorithm>
 #include <cstdio>
 
 using namespace pinpoint;
@@ -241,6 +247,62 @@ int main()
         const SwingAnalysis relTyped = analysisFromDocument(document(relBlock, kT0));
         checkEqual(minusWriterOnly(writeBlock(relTyped, 0)), minusWriterOnly(writeBlock(typed, 0)),
                    "an unstamped, already-relative document reads unchanged");
+    }
+
+    std::fprintf(stderr, "[5] the pipeline's one rebase (step 1.5)\n");
+    {
+        // A clock-time analysis rebased in memory with its t0 and written as it is == the writer's own
+        // conversion of the clock-time analysis: the rebase takes exactly the instants the writers do.
+        SwingAnalysis reb = clk;
+        rebaseToWindowTime(reb, kT0);
+        check(reb.timeBase == TimeBase::Window, "the rebased analysis says Window");
+        checkEqual(writeBlock(reb, 0), fromClock, "rebased then written == written with t0 (every block)");
+        checkEqual(writeBlock(reb, kT0), fromClock, "a Window analysis ignores the writer's t0");
+        check(reb.segmentation.events.size() == clk.segmentation.events.size()
+                  && std::equal(reb.segmentation.events.begin(), reb.segmentation.events.end(),
+                                clk.segmentation.events.begin(),
+                                [](const PhaseEvent &w, const PhaseEvent &c) { return w.t_us == windowTimeUs(c.t_us, kT0); }),
+              "the ladder's events (the live replay's Finish) are window time too");
+        SwingAnalysis again = reb;
+        rebaseToWindowTime(again, kT0);
+        checkEqual(writeBlock(again, 0), fromClock, "rebasing a Window analysis again changes nothing");
+
+        // The writer-only blocks the fixture leaves empty: clubDtl, club3d, skeleton3d, addressMarks.
+        SwingAnalysis c2 = clk;
+        const auto T = [](int64_t rel) { return kT0 + rel; };
+        c2.versions.shaftDtl = 1;
+        c2.shaftDtl.frameWidth = 1024; c2.shaftDtl.frameHeight = 512;
+        DtlSample ds; ds.t_us = T(1200);
+        c2.shaftDtl.samples = { ds };
+        DtlBand db; db.loUs = T(1000); db.hiUs = T(1400); db.name = QStringLiteral("P2-P3");
+        c2.shaftDtl.bands = { db };
+        DtlSynth3DSample sy; sy.t_us = T(1300);
+        c2.shaftDtl.synth3d = { sy };
+        c2.versions.shaftFusion = 1;
+        fusion::Sample3D s3; s3.t_us = T(1250);
+        c2.shaft3d.samples = { s3 };
+        c2.shaft3d.eta.fitted = true;
+        c2.shaft3d.eta.knotsUs = { T(1000), T(2000) };
+        c2.shaft3d.eta.values = { 1.0, 2.0 };
+        c2.shaft3d.eta.near = { 0, 1 };
+        c2.versions.skeleton3d = 1;
+        c2.skeleton3d.valid = true;
+        c2.skeleton3d.t_us = { T(1100), T(1150) };
+        c2.skeleton3d.theta.resize(2); c2.skeleton3d.joints.resize(2); c2.skeleton3d.tier.resize(2);
+        c2.skeleton3d.sigmaM.resize(2); c2.skeleton3d.flags.resize(2); c2.skeleton3d.grip.resize(2);
+        c2.skeleton3d.shaftDir.resize(2); c2.skeleton3d.shaftTier.resize(2);
+        c2.versions.addressMarks = 3;
+        c2.addressMarks.faceOn.frameTUs = T(500);
+        c2.addressMarks.dtl.frameTUs = T(600);
+        addressmarks::DtlPhaseMarks pm; pm.v.frameTUs = T(700); pm.eventTUs = T(720);
+        c2.addressMarks.dtlPhases = { pm };
+        const QJsonObject c2Clock = writeBlock(c2, kT0);
+        for (const char *k : { "clubDtl", "club3d", "skeleton3d", "addressMarks" })
+            check(c2Clock.contains(QLatin1String(k)), "the writer-only block is written");
+        SwingAnalysis c2reb = c2;
+        rebaseToWindowTime(c2reb, kT0);
+        checkEqual(writeBlock(c2reb, 0), c2Clock,
+                   "clubDtl, club3d, skeleton3d, addressMarks: rebased then written == written with t0");
     }
 
     std::fprintf(stderr, "%s: %d failure(s)\n", g_fail ? "FAIL" : "PASS", g_fail);

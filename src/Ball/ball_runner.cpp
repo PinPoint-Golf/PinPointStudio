@@ -258,8 +258,8 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     const int fw = cfmt->width, fh = cfmt->height;
     const double rHat = radiusForWidth(fw);
 
-    // ── Pre-seeded baseline (re-analysis only): reconstruct the tracker from the
-    //    persisted live empty-mat baseline instead of self-seeding over the
+    // ── Pre-seeded baseline (re-analysis, and live since refactor step 1.5 — D5): reconstruct the
+    //    tracker from the live empty-mat baseline (on disk, or in memory live) instead of self-seeding over the
     //    opening frames, where the ball is already placed (which would bake its
     //    own response into B — the bug this path fixes). B is only valid over its
     //    OWN rect, so the baseline's rect wins over searchRoi/corridor. A dims or
@@ -281,9 +281,12 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             ppWarn() << "[BallRunner] baseline ROI dims" << rw << "x" << rh
                      << "!= persisted" << baseline.w << "x" << baseline.h
                      << "(frame" << fw << "x" << fh << ") — self-seeding instead";
-        } else if (!loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)) {
+        } else if (!(baseline.bytes.isEmpty()
+                         ? loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)
+                         : ballBaselineFromBytes(baseline.bytes, baseline.w, baseline.h, loaded))) {
             ppWarn() << "[BallRunner] baseline blob missing/truncated at"
-                     << baseline.path << "— self-seeding instead";
+                     << (baseline.bytes.isEmpty() ? baseline.path : QStringLiteral("(live, in memory)"))
+                     << "— self-seeding instead";
         } else {
             roiRect   = cv::Rect(rx, ry, rw, rh);
             B         = loaded;

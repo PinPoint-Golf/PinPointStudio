@@ -48,9 +48,9 @@
 // INTERIM (IM-5; Mark, 14 Nov 2026): until step 3 the callers are today's — ShotListModel,
 // ReanalysisController, the launch monitor controller, the phone-clip filer, the archiver, the
 // library converter and the tools — all through this interface; the `Session` takes them over in
-// step 3. The live join (ShotProcessor) moves onto create() in step 1.5, and the loader (`load`:
-// the Recording + the shot's review) joins this interface there with its one caller, the analysis
-// service.
+// step 3. The live join (ShotProcessor) writes through create() since step 1.5. Reading a Recording
+// back is NOT here: it is the separate, small RecordingReader (recording_reader.h, step 1.5), so this
+// write door does not pull frame decoding into every writer of a review.
 //
 // Stateless and safe from worker threads, as the writer underneath is.
 //

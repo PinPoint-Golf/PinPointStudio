@@ -16,7 +16,7 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// swing_doc_writer.cpp — writing a swing document: SwingDocWriter (writeDocument / writeSwingJson,
+// swing_doc_writer.cpp — writing a swing document: SwingDocWriter (writeDocument,
 // updateStreamOrigin, editReview, updateLaunchMonitor, refreshLaunchMonitorRows,
 // writeDeviceOnlySwing, convertToPpsw, takeJustWritten; private since step 1.4, reached through
 // RecordingRepository — swing_store_repository.cpp), the refusal of a read-only document every
@@ -396,16 +396,6 @@ bool SwingDocWriter::refusesWrite(const QJsonObject &root, WriteResult *out)
     return true;
 }
 
-bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
-                                    const analysis::SwingAnalysis *analysis, QString *error,
-                                    const QString &club, bool savePose)
-{
-    const WriteResult r = writeDocument(swingDir, rawManifest, analysis, club, savePose);
-    if (!r.ok() && error)
-        *error = r.error;
-    return r.ok();
-}
-
 WriteResult SwingDocWriter::writeDocument(const QString &swingDir, const QJsonObject &rawManifest,
                                           const analysis::SwingAnalysis *analysis,
                                           const QString &club, bool savePose)
@@ -725,7 +715,7 @@ WriteResult SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
         return refused;
 
     // The club the device named, replacing the one the swing was recorded under (see the header).
-    // review.club is SEEDED by the live save with the session's club (writeSwingJson), so it is the
+    // review.club is SEEDED by the live save with the session's club (RecordingRepository::create), so it is the
     // user's own pick only when it names neither the recorded club nor the device's: then nothing
     // changes. Otherwise both move to the device's club.
     if (!captureClub.isEmpty()) {

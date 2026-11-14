@@ -115,7 +115,7 @@ Exceptions, each described in its own section:
 - **Device-only swings** have `clock.t0_us = 0` and a zero-length window: there is no buffer.
 - **Phone clips** (`frames.clock: "clip"`) count `frames.t_us` from the clip's own first frame, not from the window start.
 - **HackMotion `device.history`** intervals (`delivered`, `gaps`, `selfRecordingGap`, `clockFit.anchorHostUs`) are on the host buffer clock — the `clock.t0_us` domain — not window-relative.
-- **`captureIntegrity.firstHoleUs`** is in whichever domain the check ran in (absolute on a live write, window-relative after re-analysis). Use `firstHoleMs`.
+- **`captureIntegrity.firstHoleUs`** is window-relative on every write since refactor step 1.5 (the one integrity rule, `integrityFor`). A live write before it stored the absolute buffer clock; re-analysis always wrote it window-relative. Prefer `firstHoleMs`.
 - **Durations from impact.** Gate-record `evidence` times and `kinematicSequence.nodes[].probable` times are ms from impact, + after. `kinematicSequence.nodes[].beforeImpactMs` and gate `bound` are ms *before* impact.
 - **`skeleton3d.frames[].t`** is window-relative µs under the name `t`, not `t_us`.
 
@@ -634,7 +634,7 @@ Two verdicts about the **recording**, written beside the manifest blocks on a li
 | `ok` | bool | No hole, and (when coverage was judged) a frame before impact, on every checked lane. `false` withholds the shot from the session assessment. |
 | `camerasChecked` | int | Camera lanes with enough frames to judge. |
 | `holes` / `framesLost` / `worstHoleMs` | int / int / float ms | Gaps longer than `holePeriods` frame periods, the frames they swallowed, the longest. |
-| `firstHoleUs` | float µs | Where the first hole opens (−1 = none), ⚠ in the domain the check ran in — absolute buffer clock on a live write, window-relative after re-analysis. Use `firstHoleMs`. |
+| `firstHoleUs` | float µs | Where the first hole opens (−1 = none), window-relative since refactor step 1.5 (⚠ a live write before it: the absolute buffer clock). Prefer `firstHoleMs`. |
 | `firstHoleMs` | float ms, optional | The same instant in ms from impact (+ after). Only when there is a hole and impact was known. |
 | `preImpact` / `postImpact` | bool | A hole opened at/before impact (or impact unknown) / after it. |
 | `holePeriods` | float | The hole boundary used, in frame periods (`3`). |

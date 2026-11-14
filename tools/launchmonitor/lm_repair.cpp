@@ -23,7 +23,7 @@
 // `launchMonitor` block, and one `lm.`-prefixed row per field inside analysis.metrics[].
 // Only the second has readers — the reload path takes `kind` out of the raw block and
 // nothing else (swing_doc.cpp, readSwingJson), and the session board, the tiles and every
-// `lm.` grade read the metric rows. Until the carry-forward in writeSwingJson, re-analysis
+// `lm.` grade read the metric rows. Until the carry-forward in the document writer, re-analysis
 // rebuilt analysis.metrics[] from the stages alone and dropped every row, because no stage
 // produces one: a reading is paired to a swing AFTER the stages have run. The result was a
 // file that still looked complete and a launch monitor that read as never connected.

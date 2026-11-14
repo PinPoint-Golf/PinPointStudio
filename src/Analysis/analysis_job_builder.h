@@ -38,13 +38,12 @@
 //     driver default stays and the standard length (if any) is handed to the stages that read it.
 //   - The ball (D5, Mark 14 Nov 2026): today's re-analysis rule on every path — a valid empty-mat
 //     baseline makes the BallRunner re-run authoritative, so the recorded stream is not passed.
-//   - markerSourceId is never set (read nowhere).
+//   - The recorded ball stream is the face-on camera's (its camera is the first camera source); the
+//     window's start rides as windowT0Us, which the pipeline rebases the analysis with (step 1.5).
 //
-// NOT YET CALLED BY THE APP. Step 1.5 switches the two old builders' callers onto it and deletes
-// them: ShotProcessor::captureWindowAndLaunch (live; ShotProcessor::buildAnalysisJob goes), and the
-// callers of SwingDiskLoader::load — reanalyzeSwingDir (ReanalysisController) and swinglab_run —
-// through the analysis service (the job half of the loader goes; its Recording half moves to the
-// store in 1.2).
+// THE ONLY BUILDER (since step 1.5): the live capture (ShotProcessor, from its capture-side snapshot,
+// src/Gui/shot/capture_context.h), re-analysis (SwingDiskLoader → reanalyzeSwingDir) and SwingLab
+// all build the job here, and run it through the analysis service (analysis_service.h).
 //
 // Rules ring: pure, no I/O, linkable without ONNX, OpenCV video or Qt Multimedia.
 
@@ -88,5 +87,9 @@ struct RunOptions {
 ShotAnalysisJob buildAnalysisJob(const pinpoint::recording::Recording &recording,
                                  const EffectiveContext &effective,
                                  const RunOptions &options);
+
+// The impact camera of a Recording by the builder's own rule (the last Impact stream), for the
+// integrity rule (recording_integrity.h); kInvalidSourceId when there is none.
+pinpoint::SourceId impactCameraOf(const pinpoint::recording::RecordingSources &sources);
 
 } // namespace pinpoint::analysis

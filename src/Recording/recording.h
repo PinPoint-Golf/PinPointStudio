@@ -30,9 +30,9 @@
 // (whose entries are already relative). The job builder adds t0Us back, because the stages run in
 // the window's own clock; nothing else converts.
 //
-// Who makes it (step 1): the live capture-side snapshot (src/Gui/shot, step 1.5) and the repository's
-// reader (src/Export, step 1.2). Until then the two old job builders still read live objects and the
-// file directly; this header is the contract they move to.
+// Who makes it: the live capture-side snapshot at the window freeze (src/Gui/shot/capture_context.h,
+// step 1.5) and the Recording loader behind the domain's RecordingReader (src/Export, steps 1.2 and
+// 1.5). Both feed the one job builder; there is no other.
 //
 // Vocabulary ring: value types and one code mapping, no rules.
 

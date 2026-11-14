@@ -29,6 +29,7 @@
 #include "analysis_stage.h"
 #include "analysis_dag.h"           // runStagesParallel / buildStageGraph (analysis.parallel)
 #include "analysis_profiling.h"
+#include "swing_analysis_rebase.h"   // the one rebase to window time (step 1.5)
 #include "analysis_tuning.h"
 #include "../Ball/ball_position.h"
 #include "../Ball/ball_runner.h"
@@ -4578,6 +4579,12 @@ ShotAnalysisResult PipelineAnalyzer::analyze(const pinpoint::SwingWindow &window
 
     ShotAnalysisResult r = projectResult(ctx);
     recordAnalysisRun(QStringLiteral("Wrist"), ctx);   // per-stage profiler + run history
+    // THE ONE REBASE (refactor step 1.5; information_model.md §7, R-ANA-6): the stages ran on the
+    // window's own clock; the analysis leaves here in WINDOW time, and says so. The window's start
+    // comes from the Recording (the one builder sets it); a job built by hand carries none, and its
+    // analysis stays on the window's clock for the writer to take across, as before.
+    if (r.detail && job.windowT0Us)
+        rebaseToWindowTime(*r.detail, *job.windowT0Us);
     return r;
 }
 

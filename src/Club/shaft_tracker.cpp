@@ -213,9 +213,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     shaftshared::ShaftProfScope tCache(&prof, "cache");
     const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache, frameLease.store());
     tCache.stop();
-    // Persistent club-length prior (club_length_fusion.h) from the job — filled by
-    // ShotProcessor from AppSettings (live) or SwingDiskLoader from swing.json
-    // (re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null
+    // Persistent club-length prior (club_length_fusion.h) from the job — the one builder
+    // takes it from the Recording's analysis context (resolved from AppSettings at the
+    // freeze live, read from swing.json on re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null
     // otherwise so the E-prior term contributes nothing. Read-only here — the
     // prior UPDATE happens in the caller after out.lengths is populated.
     LengthPriorState lengthPrior;

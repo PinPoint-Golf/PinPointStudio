@@ -76,6 +76,9 @@ void applyClub(const EffectiveClub &club, ShotAnalysisJob &job)
 
 // The ball inputs, rebased onto the window's clock. D5: a valid empty-mat baseline makes the
 // BallRunner re-run authoritative, so the recorded stream is not handed over.
+// The recorded stream is the FACE-ON camera's (the capture snapshot prefers it; the document's ball
+// stream does not name its camera), so it is stamped with the first camera source, as BallRunner's
+// own track and a reused track are: live and reloaded give the same job.
 void applyBall(const rec::BallInputs &ball, int64_t t0Us, ShotAnalysisJob &job)
 {
     job.ballSearchRoi = ball.searchRoi;
@@ -83,6 +86,7 @@ void applyBall(const rec::BallInputs &ball, int64_t t0Us, ShotAnalysisJob &job)
     if (ball.baseline.isValid() || ball.track.frames.empty())
         return;
     job.ballTrack = ball.track;
+    job.ballTrack.camera = job.cameraSources.empty() ? pinpoint::kInvalidSourceId : job.cameraSources.front();
     for (BallSample2D &s : job.ballTrack.frames)
         s.t_us += t0Us;
     if (job.ballTrack.launchTUs >= 0)
@@ -114,6 +118,15 @@ void applyRunOptions(const RunOptions &o, ShotAnalysisJob &job)
 
 } // namespace
 
+pinpoint::SourceId impactCameraOf(const pinpoint::recording::RecordingSources &sources)
+{
+    pinpoint::SourceId out = pinpoint::kInvalidSourceId;
+    for (const rec::CameraStream &c : sources.cameras)
+        if (c.perspective == rec::Perspective::Impact)
+            out = c.source;
+    return out;
+}
+
 ShotAnalysisJob buildAnalysisJob(const pinpoint::recording::Recording &recording,
                                  const EffectiveContext &effective,
                                  const RunOptions &options)
@@ -124,6 +137,7 @@ ShotAnalysisJob buildAnalysisJob(const pinpoint::recording::Recording &recording
     job.sessionType          = cap.sessionType;
     job.shotSource           = cap.shotSource;
     job.impactUs             = cap.impactUs >= 0 ? recording.t0Us + cap.impactUs : -1;
+    job.windowT0Us           = recording.t0Us;
     job.motionCaptureQuality = cap.motionCaptureQuality;
 
     applyCameras(recording.sources, job);

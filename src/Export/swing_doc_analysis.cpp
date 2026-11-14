@@ -37,7 +37,7 @@
 //   clubDtl, club3d,          writer only (their readers build other      Club/dtl_shaft_json.h,
 //   skeleton3d, addressMarks  shapes: the replay payloads, Skeleton3DTrack) Club/shaft_fusion_json.h, …
 //
-// serializeAnalysis (called by SwingDocWriter::writeSwingJson in swing_doc_writer.cpp) writes the
+// serializeAnalysis (called through analysisBlockFor by SwingDocWriter::writeDocument in swing_doc_writer.cpp) writes the
 // whole block; analysisFromDocument reads it back typed. ONE TIME BASE: the document is window
 // time and says so (`analysis.timeBase: "window"`, IM-2); every time goes through windowTimeUs.
 // The writer is swing_doc_writer.cpp, the reader swing_doc_reader.cpp; the public API is swing_doc.h.
@@ -164,7 +164,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
 QJsonObject analysisBlockFor(const analysis::SwingAnalysis &a, qint64 windowT0, const QJsonObject &manifest)
 {
     // The DTL club block names its stream as SwingLab's club_dtl.json does — matched on the recorded
-    // serial against the manifest's own streams[]. No serial ⇒ no name (writeSwingJson's rule).
+    // serial against the manifest's own streams[]. No serial ⇒ no name (the document writer's rule).
     QString dtlAlias, dtlFile;
     if (a.versions.shaftDtl > 0 && !a.shaftDtl.streamSerial.isEmpty())
         analysis::dtlStreamName(manifest, a.shaftDtl.streamSerial, &dtlAlias, &dtlFile);

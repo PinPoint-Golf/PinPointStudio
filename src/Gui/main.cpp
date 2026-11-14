@@ -508,6 +508,7 @@ int main(int argc, char *argv[])
     ShotProcessor             shotProcessor(&eventBuffer, &cameraManager, &imuManager,
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
+    shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
 

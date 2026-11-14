@@ -40,14 +40,21 @@
 //
 // THE ONE BUILDER is buildAnalysisJob() (analysis_job_builder.h): Recording +
 // effective context + run options → this job, the same for live capture and
-// re-analysis (information_model.md §2, the Recording contract). Until step 1.5
-// two older builders still fill it field by field — ShotProcessor::buildAnalysisJob
-// (live) and SwingDiskLoader::load (re-analysis) — and the comments below that
-// name them describe those; 1.5 switches both callers and deletes them.
+// re-analysis (information_model.md §2, the Recording contract). Since step 1.5
+// it is the only builder: the live capture's Recording comes from its capture-side
+// snapshot (src/Gui/shot/capture_context.h), a stored one from the Recording loader.
+// Comments below that say "live" / "re-analysis" name where a fact comes from in
+// the Recording, not a second builder.
 struct ShotAnalysisJob {
     int     sessionType = -1;   // SessionController::Type (Swing 0, Wrist 1, GRF 2, Coach 3)
     int     shotSource  = 0;    // ShotController::Source as int (avoids a Gui header dep)
-    qint64  impactUs    = -1;   // impact instant, EventBuffer::nowMicros() domain
+    qint64  impactUs    = -1;   // impact instant, on the window's own clock (windowT0Us + relative)
+    // THE WINDOW'S START on its own clock — the Recording's t0Us (the ring clock live, 0 for a window
+    // loaded from disk), set by the one builder. PipelineAnalyzer::analyze rebases the finished
+    // analysis to window time with it, once (swing_analysis_rebase.h; refactor step 1.5). Unset (a job
+    // built by hand, e.g. a test's) = the analysis stays on the window's clock and the document writer
+    // takes it to window time with the document's clock.t0_us, as before.
+    std::optional<int64_t> windowT0Us;
 
     std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
     int faceOnCameraCount = 0;  // leading cameraSources entries that are face-on
@@ -66,9 +73,6 @@ struct ShotAnalysisJob {
     // stream ITSELF, since it is then the face-on one).
     pinpoint::SourceId dtlSource = pinpoint::kInvalidSourceId;
     std::vector<pinpoint::SourceId> imuSources;     // IMU sources present in the window
-    // shot_marker_v1 source. READ NOWHERE: only the live builder sets it, and the one
-    // builder never does. Deleted with the live builder in step 1.5.
-    pinpoint::SourceId markerSourceId = pinpoint::kInvalidSourceId;
 
     double clubLengthM = 1.12;  // shaft search radius (driver default until club selection is real)
     // True when clubLengthM came from a club record (athlete club, capture.club.lengthMm, or
@@ -92,7 +96,7 @@ struct ShotAnalysisJob {
     // centres measured from the butt (mm) + shaft type, taken from the athlete's
     // active club record (athlete_controller.h bandCentersMm/shaftType). Empty ⇒
     // untaped club: the shaft tracker runs E2 (ray) evidence only, no band tier.
-    // Filled on the UI thread in shot_processor buildAnalysisJob.
+    // From the effective club's geometry (the Recording's analysis context), by the one builder.
     std::vector<double> bandCentersMm;
     QString             shaftType;   // "steel" | "graphite" | "" (unknown)
     double hoselFromButtMm = 0.0;  // hosel offset from the butt (mm), athlete club record; 0 = unknown
@@ -108,9 +112,10 @@ struct ShotAnalysisJob {
     // canonical club-vocabulary id — half the prior key (athleteUuid|clubName|
     // cameraKey; the rest resolved in ShotProcessor). priorClubLen* carry the
     // persisted LengthPriorState so decideTrack can join E-prior into the fuse:
-    // filled by ShotProcessor from AppSettings on the LIVE path, or by
-    // SwingDiskLoader from the recorded swing.json on RE-ANALYSIS (deterministic,
-    // never AppSettings) — Agent B wires both. Defaults (N=0) ⇒ no prior joins.
+    // taken by the one builder from the Recording's analysis context (club.lengthPrior):
+    // resolved from AppSettings once, at the window freeze, on the LIVE path (the
+    // capture snapshot), read back from swing.json on RE-ANALYSIS (deterministic,
+    // never AppSettings). Defaults (N=0) ⇒ no prior joins.
     QString clubName;
     double  priorClubLenPx    = -1.0;  // LengthPriorState::emaPx (px); <0 ⇒ uninitialised
     double  priorClubLenVarPx = -1.0;  // LengthPriorState::varPx (px²); <0 ⇒ absent
@@ -125,10 +130,10 @@ struct ShotAnalysisJob {
 
     // Motion-capture quality tier ("Medium"/"High") selecting the offline pose
     // model: "High" runs ViTPose++-L when downloaded, everything else runs
-    // ViTPose-B (pose_model_selection.h::useVitPoseLarge). Filled on the UI thread
-    // in ShotProcessor::buildAnalysisJob from AppSettings on the LIVE path, or by
-    // SwingDiskLoader from the recorded swing.json on RE-ANALYSIS (deterministic,
-    // never AppSettings). Empty ⇒ ViTPose-B (legacy/default).
+    // ViTPose-B (pose_model_selection.h::useVitPoseLarge). From the Recording's
+    // capture facts: the setting read once at the window freeze on the LIVE path
+    // (and written to swing.json from that same value), the recorded value on
+    // RE-ANALYSIS (deterministic, never AppSettings). Empty ⇒ ViTPose-B (legacy/default).
     QString motionCaptureQuality;
 
     // Optional progress sink, 0..1 over the whole analysis. Called from the
@@ -196,10 +201,11 @@ struct ShotAnalysisJob {
     // distractors (feet/shoes). Empty ⇒ fall back to the stance corridor.
     QRectF ballSearchRoi;
 
-    // Persisted live empty-mat baseline, resolved from swing.json
-    // setup.ballDetection.baseline. ONLY SwingDiskLoader fills it (live capture
-    // never does) — that scoping is what confines the precedence change to
-    // re-analysis. Empty ⇒ BallRunner self-seeds over the window as before.
+    // The live empty-mat baseline: from swing.json setup.ballDetection.baseline on
+    // re-analysis, from the detector's learned cache (in memory) live — since step
+    // 1.5 both paths (D5: a valid baseline makes the BallRunner re-run authoritative,
+    // and the recorded ball stream is not passed). Empty ⇒ BallRunner self-seeds
+    // over the window as before.
     pinpoint::analysis::BallBaselineRef ballBaseline;
 
     // SwingLab tuning overrides (docs/implementation/swinglab_impl.md):

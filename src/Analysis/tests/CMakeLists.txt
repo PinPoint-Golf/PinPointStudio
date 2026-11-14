@@ -739,12 +739,15 @@ set(PP_RECORDING_STORE_SOURCES
     ${SRC}/Export/swing_paths.cpp                                   # SwingDocReader's session helpers
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)     # the loader reports through the real log
 
-# Step 1.1 + 1.2: the one job builder and the effective-club rule over src/Recording's types —
+# Step 1.1 + 1.2 + 1.5: the one job builder and the effective-club rule over src/Recording's types —
 # live Recording → job equals the reloaded Recording → job, in memory (Test 1) and through the disk
-# (Test 1b: written as capture writes it, read by the Recording loader); a corrected club takes its
-# bag geometry and standard length; undeclared stays undeclared.
+# (Test 1b: written as capture writes it, read by the Recording loader); the live job equals the
+# re-analysis job for an uncorrected shot (Test 1c, H-02); a corrected club takes its bag geometry and
+# standard length; undeclared stays undeclared; one Recording's integrity verdicts are the same live
+# and on re-analysis (Test 8, integrityFor).
 pp_add_test(recording_contract_test
     SOURCES recording_contract_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${ANALYSIS}/recording_integrity.cpp   # step 1.5: the one integrity rule (Test 8)
     INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     STD 20

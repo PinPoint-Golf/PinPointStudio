@@ -20,6 +20,7 @@
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
 #include "analysis_job_builder.h"   // the one job builder
+#include "analysis_service.h"      // the run and the integrity verdicts (step 1.5)
 #include "effective_context.h"
 #include "../Export/recording_loader.h"   // the swing folder → the Recording (step 1.2)
 #include "../Ball/ball_runner.h"
@@ -27,7 +28,6 @@
 
 #include <QJsonObject>
 
-#include <exception>
 #include <utility>
 
 #include "../Core/pp_debug.h"
@@ -36,18 +36,12 @@ using namespace pinpoint;
 
 namespace pinpoint::analysis {
 
-// The Recording loader moved to the store (src/Export/recording_loader.*, step 1.2). What is left
-// here builds the job from the Recording through the ONE builder, so re-analysis and SwingLab
-// already run on buildAnalysisJob. Step 1.5 replaces this adapter with the analysis service.
-LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOptions& opts)
+namespace {
+
+// The job from a loaded Recording, through the ONE builder, and the LoadedSwing around it.
+LoadedSwing fromRecording(LoadedRecording lr)
 {
     LoadedSwing out;
-
-    RecordingLoadOptions ro;
-    ro.faceOnSubstring = opts.faceOnSubstring;
-    ro.faceOnExplicit  = opts.faceOnExplicit;
-    ro.tuningOverrides = opts.tuningOverrides;
-    LoadedRecording lr = loadRecording(swingDir, ro);
     if (!lr.ok) {
         out.error = lr.error;
         return out;
@@ -56,8 +50,8 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     // THE CLUB, AS TODAY'S RE-ANALYSIS USES IT: the declared club (review.club) sets the standard
     // length; the board's override is NOT applied yet. It changes the shaft, ladder and DTL club
     // inputs, which the reuse gate must then see (the input stamp, step 1.6) or a corrected shot
-    // would reuse its old shaft track; the override is applied with that gate (1.5 / 1.6). The
-    // loader hands both over (out.review) so nothing is lost.
+    // would reuse its old shaft track; the override is applied with that gate (1.6). The loader
+    // hands both over (out.review) so nothing is lost.
     ClubReview asToday;
     asToday.declared = lr.review.declared;
     RunOptions run;
@@ -76,11 +70,36 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     out.captureWindowStartUs  = lr.recording.integrity.windowStartUs;
     out.captureWindowEndUs    = lr.recording.integrity.windowEndUs;
     out.offClockCameras       = lr.recording.integrity.offClockCameras;
-    // The Recording pointed into the loader's window; it is not used past this point, so the
-    // window moves out to the caller.
-    out.window.emplace(std::move(*lr.window));
+    // The window's OWNER moves to the caller; the window itself never moves, so the Recording's
+    // pointer into it stays valid however the LoadedSwing is moved afterwards.
+    out.window           = std::move(lr.window);
+    out.recording        = std::move(lr.recording);
+    out.recording.window = out.window.get();
     out.ok = true;
     return out;
+}
+
+RecordingLoadOptions recordingLoadOptions(const SwingLoadOptions& opts)
+{
+    RecordingLoadOptions ro;
+    ro.faceOnSubstring = opts.faceOnSubstring;
+    ro.faceOnExplicit  = opts.faceOnExplicit;
+    ro.tuningOverrides = opts.tuningOverrides;
+    return ro;
+}
+
+} // namespace
+
+// The Recording loader is the store's (src/Export/recording_loader.*, step 1.2); this builds the job
+// from the Recording through the ONE builder.
+LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOptions& opts)
+{
+    return fromRecording(loadRecording(swingDir, recordingLoadOptions(opts)));
+}
+
+LoadedSwing SwingDiskLoader::load(RecordingReader& reader, const QString& swingDir, const SwingLoadOptions& opts)
+{
+    return fromRecording(reader.load(swingDir, recordingLoadOptions(opts)));
 }
 
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts)
@@ -271,54 +290,20 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         return out;
     }
 
-    try {
-        auto analyzer = makeShotAnalyzer();
-        out.analysis  = analyzer->analyze(*ls.window, ls.job);
-        out.ok        = out.analysis.ok;
-        out.error     = out.analysis.error;
-        // The loader's own gate records (a HackMotion lane it could not bind) join the stages'.
-        if (out.analysis.detail && !ls.loadGates.empty())
-            out.analysis.detail->gates.insert(out.analysis.detail->gates.end(),
-                                              ls.loadGates.begin(), ls.loadGates.end());
-    } catch (const std::exception& e) {
-        out.error = QStringLiteral("analyzer threw: %1").arg(QString::fromUtf8(e.what()));
-    } catch (...) {
-        out.error = QStringLiteral("analyzer threw an unknown exception");
-    }
-
-    // ── A FRESH DATA-INTEGRITY VERDICT, NOT THE ONE CAPTURE REACHED ─────────────
-    //
-    // The window is still alive here and its IMU payloads are pure RAM
-    // (RamPayloadSource), so this is one Madgwick pass per host-fused lane and no
-    // disk IO. It runs after analyze() only because there is nothing to gain by
-    // running it earlier; it does not depend on the analysis.
-    //
-    // ⚠ ONLY WHEN THE RECORDING SAYS MADGWICK. Parity is a claim about whether the
-    // stored quaternion is reproducible from the stored vectors, which is a
-    // question one can only ask of a Madgwick host fusion — the sole filter that
-    // warm-starts exactly. Under ESKF, or when the recording does not say, we leave
-    // this nullopt and the write-back REMOVES the block: no claim beats a fabricated
-    // one. A wG3-only swing reaches checkImuRefusion and comes back with
-    // sourcesChecked == 0, which applyImuIntegrity also treats as no claim.
-    if (ls.window
-        && ls.hostOrientationFilter.compare(QStringLiteral("madgwick"), Qt::CaseInsensitive) == 0)
-        out.imuIntegrity = pinpoint::checkImuRefusion(*ls.window);
-
-    // Capture data-integrity (frame-timestamp holes in the camera lanes). The
-    // loader's window is window-relative and so is ls.job.impactUs — the same
-    // domain contract the analyzer follows, so the pre/post-impact split is exact.
-    // The lanes' coverage is judged against the RECORDED window (the document's
-    // `window` block), not the loaded one, which spans only the frames that exist;
-    // the impact camera's band and phone clips (their own clock) are exempt.
-    if (ls.window) {
-        pinpoint::CaptureCoverageSpec cov;
-        cov.judge         = true;
-        cov.windowStartUs = ls.captureWindowStartUs;
-        cov.windowEndUs   = ls.captureWindowEndUs;
-        std::vector<SourceId> exempt = ls.offClockCameras;
-        exempt.push_back(ls.job.impactSource);
-        out.captureIntegrity = pinpoint::checkCaptureIntegrity(*ls.window, ls.job.impactUs, cov, exempt);
-    }
+    // THE ANALYSIS SERVICE: the run, and the Recording's two integrity verdicts by the one rule
+    // (integrityFor: the IMU re-fusion only when the recording says Madgwick; the capture check
+    // against the recorded window, the impact camera and off-clock lanes exempt) — the very code the
+    // live capture runs (step 1.5). A FRESH verdict for this pass, never the one capture reached.
+    AnalysedRecording run = AnalysisService().analyseJob(ls.recording, ls.job);
+    out.analysis = std::move(run.analysis);
+    out.ok       = out.analysis.ok;
+    out.error    = out.analysis.error;
+    // The loader's own gate records (a HackMotion lane it could not bind) join the stages'.
+    if (out.analysis.detail && !ls.loadGates.empty())
+        out.analysis.detail->gates.insert(out.analysis.detail->gates.end(),
+                                          ls.loadGates.begin(), ls.loadGates.end());
+    out.imuIntegrity     = std::move(run.integrity.imu);
+    out.captureIntegrity = std::move(run.integrity.capture);
 
     return out;
 }
