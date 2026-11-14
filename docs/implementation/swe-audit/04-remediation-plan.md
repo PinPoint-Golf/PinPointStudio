@@ -109,6 +109,8 @@ today.
 | 0.9 | The selection cleared on session change; no basename fallback (E-05) | **Fold into step 4** (`AppState` selection) | — |
 | 0.10 | Re-analysis uses the live athlete facts (H-02, A-01) | **Fold into step 1** (the Recording contract) | — |
 | 0.11 | The score pill | **Design question**, filed as an issue | — |
+| 0.13 | Frequency words never claim more than the share; one rule for Your swing and Tendencies | **Keep** (Mark, 14 Nov) | Implemented, in review |
+| 0.14 | Your swing's words say what listed a habit ("…in your latest session"); a set-up can be praised by the same rule as a fault, and for being consistent using the app's existing consistency grade (Mark, 14 Nov: option A; "praise setup, esp. a consistent setup"; "we have consistency grading in the app") | **Keep** (Mark's decisions) | Queued after 0.13 |
 
 **Order:** 0.1 and 0.4 finish, then 0.4b, 0.3, 0.6, 0.12 and 0.8g, two at a time on disjoint files. Stage 0 ends
 with one list of change sets for Mark to test and commit.
@@ -157,6 +159,13 @@ with one list of change sets for Mark to test and commit.
   - QSettings → `athlete.json`;
   - golfer input out of `diagnostics.json`, into the shot `review` block and `session_input.json`.
 - **Folds in 0.7:** athletes are replaced on switch, and an edit is not a switch.
+- **Removes the Stage 0.3 stopgap:** `ShotProcessor::startSwingSave` announcing a moved session folder
+  (`activeSessionDirChanged`). The `Session` owns its location through the `SessionRepository`; capture asks the
+  session where to write; a mid-session library re-point is an explicit application command on the session, emitting
+  a domain event that the views bound to `app.session` follow.
+- **Decision for Mark in this step's brief:** when the library is re-pointed mid-session (a dropped share), should the
+  session continue in the new library (today's behaviour: one session split across two places), or end and start a
+  new session there?
 - **Closes:** E-02, E-03, F-06, F-07/E-06, E-07, H-09, H-12, H-04 (fully).
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
@@ -174,6 +183,10 @@ with one list of change sets for Mark to test and commit.
 
    Each cut-over deletes a private model. `SessionMode.sessionDiagnostics` goes last.
 4. **Always detect:** every live shot is graded, panel or not.
+5. **Praise needs consistency** (Mark, 14 Nov): "What you do well" praises a condition only when it is in range
+   AND its consistency grade is Repeatable or Grooved, for every praise, set-ups and faults alike. The grades are
+   held by `AthleteDiagnostics` and read by the swing-themes reduction (Stage 0.14 could not reach them: today they
+   are computed only in the Home controller, after the themes, and never stored).
 
 - **Closes:** D-01…D-06, D-13, H-03, G-03/C-01, B-02 (one pack snapshot), the session half of E-13, and the
   follow-up noted in 0.5 (Tendencies, Consistency, the kicker and work-on facts honour the board's annotations).
@@ -209,13 +222,16 @@ with one list of change sets for Mark to test and commit.
 - **The flight check becomes a session overlay** on unchanged rows; the stamps include their norms and thresholds.
 - **One direction**, from the pack's corridors.
 - **One handedness gloss.**
+- **The LM board's print layout** (`src/Gui/session/PpLmGraphicsBody.qml`, embedded in the report's appendix)
+  takes its reading names from the one words table (Stage 0.5b), not its own hand-typed list.
 - **Closes:** A-04, A-10, F-05/G-01, G-02, G-04, G-06, G-07, C-02.
 
 ### Step 7 · Rules down, words, namespaces (1–2 days; can overlap step 5)
 
 - **Domain code moves out of `src/Gui`**, about 5,000 lines (F-11, D-09, C-08).
 - **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06).
-- **One words module;** domain reductions persist ids and numbers (C-04, B-10).
+- **One words module;** domain reductions persist ids and numbers (C-04, B-10). The report's own frequency words (`everyWords` in
+  `report_words.h`) fold into the one rule in `frequency_words.h` (Stage 0.13).
 - **One namespace per layer** (C-14, B-15, A-20). `src/Export` is renamed for the Recording contract.
 - **Closes:** most of themes 5 and 6.
 
