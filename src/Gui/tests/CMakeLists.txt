@@ -393,6 +393,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/report_studio_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/report_smtp_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/athlete_session_guard_tests.cmake)   # no athlete switch mid-session (Stage 0.8g)
 include(${CMAKE_CURRENT_LIST_DIR}/replay_score_tests.cmake)   # the stored score through every reader (Stage 0.6)
+include(${CMAKE_CURRENT_LIST_DIR}/analysis_detail_tests.cmake)   # the one projection: live == replay == reload (step 1.3b)
 
 # No binding may subscribe to a dependency it does not USE.
 #

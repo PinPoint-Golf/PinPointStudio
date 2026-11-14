@@ -52,6 +52,7 @@
 #include "analysis_path_json.h"                 // path
 #include "../Analysis/recorded_products.h"         // phases, segmentation, club
 #include "../Analysis/gate_record.h"               // gates
+#include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
 #include "../Pose/pose_track_json.h"               // pose2d, poseDtl
 #include "../Ball/ball_track_json.h"               // ball
 #include "../Ball/impact_track_json.h"             // impact
@@ -160,19 +161,34 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     return o;
 }
 
+QJsonObject analysisBlockFor(const analysis::SwingAnalysis &a, qint64 windowT0, const QJsonObject &manifest)
+{
+    // The DTL club block names its stream as SwingLab's club_dtl.json does — matched on the recorded
+    // serial against the manifest's own streams[]. No serial ⇒ no name (writeSwingJson's rule).
+    QString dtlAlias, dtlFile;
+    if (a.versions.shaftDtl > 0 && !a.shaftDtl.streamSerial.isEmpty())
+        analysis::dtlStreamName(manifest, a.shaftDtl.streamSerial, &dtlAlias, &dtlFile);
+    QJsonObject an = serializeAnalysis(a, windowT0, dtlAlias, dtlFile);
+    // The whole-shot records (manifest_gates.h), re-derived from the manifest's captureIntegrity /
+    // imuIntegrity blocks: serializeAnalysis rebuilt analysis.gates from the stages alone, so appending
+    // cannot accumulate.
+    if (an.contains(QStringLiteral("gatesVersion"))) {
+        QJsonArray g = an.value(QStringLiteral("gates")).toArray();
+        for (const QJsonValue &v : analysis::gateRecordsToJson(analysis::manifestGatesOf(manifest)))
+            g.append(v);
+        an[QStringLiteral("gates")] = g;
+    }
+    return an;
+}
+
 } // namespace swingdoc_detail
 
 qint64 analysisReadOriginUs(const QJsonObject &root)
 {
-    // THE ONE PLACE a document without `analysis.timeBase` is guessed (the legacy path, IM-2). A
-    // stamped document is window time: read as written. An unstamped one is read through the one
-    // rule against its clock.t0_us, which leaves the window-relative values every writer since the
-    // rel() normalisation produced untouched and takes an absolute one (a value at or after the
-    // window's start on the ring clock) to window time. Reading never rewrites the document.
-    const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
-    if (an.value(QStringLiteral("timeBase")).toString() == QLatin1String(analysis::kAnalysisTimeBaseWindow))
-        return 0;
-    return qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble(0));
+    // THE ONE PLACE a document without `analysis.timeBase` is guessed (the legacy path, IM-2) — the
+    // rule itself is inline beside windowTimeUs (swing_analysis.h), so the readers that do not link
+    // this file read the same origin.
+    return qint64(analysis::documentAnalysisOriginUs(root));
 }
 
 analysis::SwingAnalysis analysisFromDocument(const QJsonObject &root)
@@ -218,11 +234,6 @@ analysis::SwingAnalysis analysisFromDocument(const QJsonObject &root)
 QJsonObject poseTrackToJson(const analysis::PoseTrack2D &t, qint64 windowT0)
 {
     return analysis::poseTrackToAnalysisJson(t, windowT0);
-}
-
-QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0)
-{
-    return analysis::impactTrackToAnalysisJson(t, windowT0);
 }
 
 } // namespace pinpoint

@@ -33,7 +33,6 @@ set(DELIVERY_PICTURE_SRC
     ${GUI}/charts/posture_picture.cpp
     ${GUI}/report/report_stills_pure.cpp
     ${GUI}/markup/markup_truth.cpp
-    ${GUI}/shot/dtl_overlay_payload.cpp
     ${SRC}/Body/head_track.cpp)
 pp_add_test(charts_delivery_presenter_test
     SOURCES charts_delivery_presenter_test.cpp

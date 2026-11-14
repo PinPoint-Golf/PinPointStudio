@@ -452,14 +452,24 @@ Three views of one result, produced at the join:
 |---|---|---|
 | Carousel chips | `metrics`: key → `{label, value}` (display string at Impact, e.g. via `wristMetricLabel`) | analyzer (flat tier) |
 | Carousel sparkline | `tracePoints`: ~24 normalised `QPointF` (Wrist: lead-wrist FE from Address→Impact, y-up = more flexion) | analyzer (flat tier) |
-| Replay graph + review | `analysisDetail`: `{tier, overall, series[], phases[]}` `QVariantMap` | `toAnalysisDetail(*detail)` (shot_processor.cpp) |
+| Replay graph + review | `analysisDetail`: `{tier, overall, series[], phases[], …}` `QVariantMap` | `liveAnalysisDetail(*detail, t0, manifest)` (`swing_doc.h`), on the document-write worker |
 
-`toAnalysisDetail` flattens the `SwingAnalysis` for QML: each series becomes
-`{key, label, unit, t_us[], value[], phaseSamples[]}` with **absolute µs**
-timestamps — the same domain as `shotProcessor.replayPositionUs`, so the
-replay graph scrubs with zero conversion. The identical map shape is stored as
-the `ShotListModel` `analysisDetail` role and reconstructed from `swing.json`
-on reload — live and persisted shots are indistinguishable to the UI.
+**One projection (refactor step 1.3b).** The map is built from the *disk form* of the analysis
+block and from nothing else: `analysisDetailFor(analysis, origin)` (`swing_doc.h`,
+`swing_doc_reader.cpp`). Live, the join composes the in-memory `SwingAnalysis` into the block
+the document gets (`analysisBlockFor`: `serializeAnalysis` against the window's start, the DTL
+stream's name, the whole-shot gate records) and projects that; the carousel row
+(`readSwingJson`) and the replay (`DiskReplaySource::load`) project the stored block. So a live,
+a replayed and a reloaded shot carry the same keys, σ and times — `analysis_detail_projection_test`
+holds the three to one another key by key. Each series is the stored `analysis.metrics` entry
+(`{key, label, unit, t_us[], value[], phaseSamples[]}` plus its σ, validity and route keys).
+
+Every instant in the map is **window time** (µs from the capture window's start). The in-window
+replay runs on the ring clock, so `shotProcessor.replayPositionUs` / `replayStartUs` /
+`replayEndUs` / `replayImpactUs` are published minus the window's start (`m_replayT0Us`): the
+one view-boundary offset, and the same domain as `shotReplay.positionUs`. The one difference
+between the live map and the file: with "Save pose keypoints" off the file has no pose tracks,
+the live map does.
 
 The role is for QML: it answers the row's JavaScript object (`QmlPayload`, converted once
 per row). C++ code reads `ShotListModel::analysisDetailMap(row)` — the map itself, free to

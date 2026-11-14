@@ -22,6 +22,8 @@
 #include "../Body/address_marks.h"
 
 #include <QHash>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QMap>
 #include <QMetaType>
 #include <QPointF>
@@ -70,6 +72,21 @@ inline int64_t windowTimeUs(int64_t t, int64_t t0Us) { return t >= t0Us ? t - t0
 // the block (serializeAnalysis and the device-only writeDeviceOnlySwing). A document without the
 // key predates step 1.3a and is read once through the legacy rule (analysisReadOriginUs, swing_doc.h).
 inline constexpr char kAnalysisTimeBaseWindow[] = "window";
+
+// THE ONE PLACE a swing document without `analysis.timeBase` is guessed (the legacy path, IM-2): the
+// origin every reader of the document's analysis times passes to windowTimeUs. A stamped document is
+// window time, read as written: 0. An unstamped one (written before step 1.3a) gives its clock.t0_us,
+// through which the one rule takes an absolute value (at or after the window's start on the ring
+// clock) to window time and leaves a window-relative one alone. Reading never rewrites the document.
+// Inline, beside the rule, so a reader that does not link the document code (the charts, the 3-D
+// panel, the report stills) reads the same origin; analysisReadOriginUs (swing_doc.h) is this.
+inline int64_t documentAnalysisOriginUs(const QJsonObject &root)
+{
+    const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    if (an.value(QStringLiteral("timeBase")).toString() == QLatin1String(kAnalysisTimeBaseWindow))
+        return 0;
+    return int64_t(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble(0));
+}
 
 // Degradation tier, chosen at job-build time from camera-calib + IMU availability.
 enum class ReconstructionTier { Angles2D, Mono3DPlusImu, Stereo3D, ClubInstrumented };

@@ -26,8 +26,10 @@
 //                           insertDtlTopOutOfView, swingDeviceTokens; the summary and its sidecar
 //   swing_doc_analysis.cpp  the `analysis` block, composed from the per-block serialisers beside
 //                           their producers (step 1.3a): serializeAnalysis (internal),
-//                           analysisFromDocument / analysisReadOriginUs, and the two live-detail
-//                           forwarders poseTrackToJson, impactTrackJson
+//                           analysisFromDocument / analysisReadOriginUs, the forwarder
+//                           poseTrackToJson, and analysisBlockFor (internal)
+//   (and the reader)        the one projection of the block for QML (step 1.3b):
+//                           analysisDetailFor, analysisDetailForDocument, liveAnalysisDetail
 // swing_doc_internal.h declares the few helpers more than one of them calls.
 
 #include "launch_monitor_reading.h"
@@ -59,20 +61,10 @@ class  SwingStoreRecordingRepository;   // swing_store_repository.h — the one 
 // window, and `sourcesChecked` is the field that says how many that was.
 QJsonObject imuIntegrityJson(const ImuRefusionVerdict &v);
 
-// The impact camera's track (analysis.impact, impact_camera_design.md §7):
-// per-frame ball + club in the clip's normalised coordinates, the departure
-// instant and the fitted path. ONE builder for the doc and the live detail
-// (shot_processor toAnalysisDetail), so the overlay reads one shape: it forwards to
-// the block's serialiser, impactTrackToAnalysisJson (Ball/impact_track_json.h). Times
-// go through the one rule, windowTimeUs: absolute values (≥ windowT0) are made
-// window-relative, already-relative ones pass through; windowT0 = 0 keeps
-// the live domain.
-QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0);
-
 // A pose track in the `analysis.pose2d` shape: { camera, keypointCount, frames,
 // [decode], [cropRect], [smoothed], [adaptFallbacks], [synth] }. ONE builder for
-// the face-on `pose2d` and the down-the-line `poseDtl` blocks, and for the live
-// detail, so every reader parses one shape: it forwards to the block's serialiser,
+// the face-on `pose2d` and the down-the-line `poseDtl` blocks, so every reader
+// parses one shape: it forwards to the block's serialiser,
 // poseTrackToAnalysisJson (Pose/pose_track_json.h). Times go through the one rule,
 // windowTimeUs (absolute ≥ windowT0 made relative, relative passes through; 0 keeps the
 // live domain). The caller skips an empty track — this writes what it is given.
@@ -91,6 +83,25 @@ qint64 analysisReadOriginUs(const QJsonObject &root);
 // the same values. Reading never rewrites the document. Not read back (writer-only blocks):
 // assessment, timings, bindings, clubDtl, club3d, skeleton3d, addressMarks.
 analysis::SwingAnalysis analysisFromDocument(const QJsonObject &root);
+
+// ── The one projection (refactor step 1.3b; audit H-01) ──────────────────────────────────────────
+// The QML map a shot's analysis is shown from — ShotListModel's analysisDetail role, ShotReplay's
+// analysisDetail, ShotProcessor's replayAnalysisDetail — built from the DISK FORM of the analysis
+// block, so a live, a replayed and a reloaded shot read one map, key for key. Window time: `originUs`
+// is analysisReadOriginUs(root), through which every instant goes by windowTimeUs (a stamped
+// document is copied as written). Keys: tier, overall, series (= analysis.metrics), phases, the
+// score's siblings (pattern, blended, resemblance, interval, perRegion, perPhase), segmentation,
+// pose2d, club, ball, impact, bindings, timings, kinematicSequence, gatesVersion + gates,
+// addressMarks, and `dtl` (dtl_overlay_payload.h) — each present when its block is.
+QVariantMap analysisDetailFor(const QJsonObject &analysis, qint64 originUs);
+// The same from a document root; empty when it has no `analysis` block.
+QVariantMap analysisDetailForDocument(const QJsonObject &root);
+// A live shot's map: its in-memory analysis composed into the disk form the document gets
+// (`windowT0Us` = the capture window's start on the analysis' clock; `manifest` names the DTL stream
+// and carries the integrity blocks the whole-shot gate records come from), then the one projection.
+// Equal to the reloaded document's map, except that the "Save pose keypoints" choice drops the pose
+// tracks from the file and not from the live map.
+QVariantMap liveAnalysisDetail(const analysis::SwingAnalysis &a, qint64 windowT0Us, const QJsonObject &manifest);
 
 // Patch a manifest that is about to be written back so its "imuIntegrity" block
 // reflects THIS pass rather than whatever capture concluded.
@@ -395,7 +406,7 @@ struct PersistedShot {
     int         rating = 0;         // 0–5 user stars (from the "review" block)
     QString     note;               // free-text user note (from the "review" block)
     QVariantMap metrics;            // key -> { label, value } at Impact
-    QVariantMap analysisDetail;     // { tier, overall, series, phases } for the graph
+    QVariantMap analysisDetail;     // the one projection (analysisDetailFor): window time, the live map's keys
     bool        dataWarning = false;// an integrity block warns (dataWarningDetailFrom): IMU re-fusion
                                     // parity failed, or frames were lost during capture
     QVariantMap dataWarningDetail;  // the facts behind it (empty when !dataWarning)

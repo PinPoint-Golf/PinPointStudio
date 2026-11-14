@@ -37,12 +37,18 @@
 #include <QSaveFile>
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <initializer_list>
 
 #include "swing_paths.h"
 #include "swing_store.h"
 #include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
-#include "../Analysis/swing_analysis.h"
+#include "../Analysis/swing_analysis.h"          // windowTimeUs — the one time rule
 #include "../Core/club_vocabulary.h"
+#include "../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — the strip's instants
+#include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
+#include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
+#include "../Gui/shot/dtl_overlay_payload.h"       // dtlOverlayDetail — the DTL tile's overlay (header-only)
 
 namespace pinpoint {
 
@@ -503,6 +509,233 @@ QVariantMap SwingDocReader::readLaunchMonitorDetail(const QString &swingDir)
     return detail;
 }
 
+// ── The one projection (refactor step 1.3b; information_model.md §8 "One serialiser per analysis
+//    block", audit H-01) ─────────────────────────────────────────────────────────────────────────
+//
+// The QML map a shot's analysis is shown from, built from the DISK FORM of the `analysis` block, and
+// from nothing else. Before this there were three hand-kept converters — ShotProcessor's
+// toAnalysisDetail (live, from the in-memory analysis, ring-clock times), DiskReplaySource's walk
+// (replay, re-timed) and readSwingJson's (reload, verbatim) — and the same shot carried different
+// keys, σ and times on each path. Where they disagreed the disk form wins: it is the superset (the σ,
+// timing and fusion keys), and it is what survives a restart.
+//
+// ONE TIME BASE. Every instant in the map is window time. `originUs` is analysisReadOriginUs(root): 0
+// for a stamped document — every block is read as written, so the fast path below copies it — and the
+// document's clock.t0_us for one written before step 1.3a, through which each instant goes by the one
+// rule, windowTimeUs. The fields re-timed are the ones the per-block writers take through that rule.
+namespace {
+
+using Retime = std::function<qint64(const QJsonValue &)>;
+
+// The list's objects, each `t_us` re-timed. Identity (a straight copy) at origin 0.
+QVariantList timedList(const QJsonArray &a, qint64 originUs, const Retime &rt)
+{
+    if (originUs == 0)
+        return a.toVariantList();
+    QVariantList out;
+    out.reserve(a.size());
+    for (const QJsonValue &v : a) {
+        QVariantMap m = v.toObject().toVariantMap();
+        if (m.contains(QStringLiteral("t_us")))
+            m.insert(QStringLiteral("t_us"), rt(v.toObject().value(QStringLiteral("t_us"))));
+        out.append(m);
+    }
+    return out;
+}
+
+// A block as a map, with the named object lists and scalar instants re-timed.
+QVariantMap timedBlock(const QJsonObject &o, qint64 originUs, const Retime &rt,
+                       std::initializer_list<const char *> lists, std::initializer_list<const char *> instants)
+{
+    QVariantMap m = o.toVariantMap();
+    if (originUs == 0)
+        return m;
+    for (const char *k : lists) {
+        const QString key = QString::fromLatin1(k);
+        if (o.contains(key))
+            m.insert(key, timedList(o.value(key).toArray(), originUs, rt));
+    }
+    for (const char *k : instants) {
+        const QString key = QString::fromLatin1(k);
+        if (o.contains(key))
+            m.insert(key, rt(o.value(key)));
+    }
+    return m;
+}
+
+// analysis.metrics → the map's `series`: each entry as stored, its t_us[] and phaseSamples[].t_us
+// re-timed. `valid` is index-parallel to t_us, not a time, and passes through.
+QVariantList seriesDetail(const QJsonArray &metrics, qint64 originUs, const Retime &rt)
+{
+    if (originUs == 0)
+        return metrics.toVariantList();
+    QVariantList out;
+    out.reserve(metrics.size());
+    for (const QJsonValue &mv : metrics) {
+        const QJsonObject mo = mv.toObject();
+        QVariantMap m = mo.toVariantMap();
+        QVariantList ts;
+        for (const QJsonValue &t : mo.value(QStringLiteral("t_us")).toArray())
+            ts.append(rt(t));
+        if (mo.contains(QStringLiteral("t_us")))
+            m.insert(QStringLiteral("t_us"), ts);
+        if (mo.contains(QStringLiteral("phaseSamples")))
+            m.insert(QStringLiteral("phaseSamples"),
+                     timedList(mo.value(QStringLiteral("phaseSamples")).toArray(), originUs, rt));
+        out.append(m);
+    }
+    return out;
+}
+
+// analysis.pose2d / analysis.poseDtl (one shape, poseTrackToAnalysisJson).
+QVariantMap poseDetail(const QJsonObject &p, qint64 originUs, const Retime &rt)
+{
+    return timedBlock(p, originUs, rt, { "frames", "smoothed", "synth" }, {});
+}
+
+// analysis.club (shaftTrackToAnalysisJson): the sample series and P-positions, the diagnostic's two
+// instants, and each wedge observation's leading time.
+QVariantMap clubDetail(const QJsonObject &c, qint64 originUs, const Retime &rt)
+{
+    QVariantMap m = timedBlock(c, originUs, rt, { "samples", "predicted", "synth", "positions" }, {});
+    if (originUs == 0)
+        return m;
+    if (c.contains(QStringLiteral("diag"))) {
+        const QJsonObject dg = c.value(QStringLiteral("diag")).toObject();
+        m.insert(QStringLiteral("diag"), timedBlock(dg, originUs, rt, {}, { "onsetTUs", "topTUs" }));
+    }
+    if (c.contains(QStringLiteral("wedgeObs"))) {
+        QVariantList wo;
+        for (const QJsonValue &v : c.value(QStringLiteral("wedgeObs")).toArray()) {
+            QVariantList e = v.toArray().toVariantList();
+            if (!e.isEmpty())
+                e[0] = rt(v.toArray().at(0));
+            wo.append(QVariant(e));
+        }
+        m.insert(QStringLiteral("wedgeObs"), wo);
+    }
+    return m;
+}
+
+// analysis.impact (impactTrackToAnalysisJson): samples, the ball's departure, the fitted path's points.
+QVariantMap impactDetail(const QJsonObject &io, qint64 originUs, const Retime &rt)
+{
+    QVariantMap m = timedBlock(io, originUs, rt, { "samples" }, { "ballLeaveTUs" });
+    if (originUs != 0 && io.contains(QStringLiteral("path")))
+        m.insert(QStringLiteral("path"),
+                 timedBlock(io.value(QStringLiteral("path")).toObject(), originUs, rt, { "points" }, {}));
+    return m;
+}
+
+} // namespace
+
+QVariantMap analysisDetailFor(const QJsonObject &an, qint64 originUs)
+{
+    const Retime rt = [originUs](const QJsonValue &v) -> qint64 {
+        return qint64(analysis::windowTimeUs(int64_t(v.toDouble()), originUs));
+    };
+
+    QVariantMap d{
+        { QStringLiteral("tier"),    an.value(QStringLiteral("tier")).toInt() },
+        { QStringLiteral("overall"), overallScoreFromAnalysis(an) },   // int (/2) or object (/3+)
+        { QStringLiteral("series"),  seriesDetail(an.value(QStringLiteral("metrics")).toArray(), originUs, rt) },
+        { QStringLiteral("phases"),  timedList(an.value(QStringLiteral("phases")).toArray(), originUs, rt) } };
+
+    // The score's siblings (/3): the resemblance estimand, its interval and the adherence
+    // contribution maps, as keys of the map so QML reads detail.pattern / .interval / .perRegion.
+    const QJsonValue scoreVal = an.value(QStringLiteral("score"));
+    if (scoreVal.isObject()) {
+        const QJsonObject so = scoreVal.toObject();
+        for (const char *k : { "pattern", "blended", "resemblance", "interval", "perRegion", "perPhase" }) {
+            const QString key = QString::fromLatin1(k);
+            if (so.contains(key))
+                d.insert(key, so.value(key).toVariant());
+        }
+    }
+
+    if (an.contains(QStringLiteral("segmentation")))
+        d.insert(QStringLiteral("segmentation"),
+                 timedBlock(an.value(QStringLiteral("segmentation")).toObject(), originUs, rt,
+                            {}, { "swingStartUs", "swingEndUs" }));
+    if (an.contains(QStringLiteral("pose2d")))
+        d.insert(QStringLiteral("pose2d"), poseDetail(an.value(QStringLiteral("pose2d")).toObject(), originUs, rt));
+    if (an.contains(QStringLiteral("club")))
+        d.insert(QStringLiteral("club"), clubDetail(an.value(QStringLiteral("club")).toObject(), originUs, rt));
+    if (an.contains(QStringLiteral("ball")))
+        d.insert(QStringLiteral("ball"),
+                 timedBlock(an.value(QStringLiteral("ball")).toObject(), originUs, rt, { "samples" }, { "launchTUs" }));
+    if (an.contains(QStringLiteral("impact")))
+        d.insert(QStringLiteral("impact"), impactDetail(an.value(QStringLiteral("impact")).toObject(), originUs, rt));
+    // No instants in these two (durations in ms; device bindings).
+    if (an.contains(QStringLiteral("bindings")))
+        d.insert(QStringLiteral("bindings"), an.value(QStringLiteral("bindings")).toArray().toVariantList());
+    if (an.contains(QStringLiteral("timings")))
+        d.insert(QStringLiteral("timings"), an.value(QStringLiteral("timings")).toObject().toVariantMap());
+    // The kinematic sequence (kinematic_sequence_json.h): its two instants through the same rule.
+    if (an.contains(QStringLiteral("kinematicSequence")))
+        d.insert(QStringLiteral("kinematicSequence"),
+                 analysis::retimeKinematicSequence(an.value(QStringLiteral("kinematicSequence")).toObject(), rt));
+    // Gate records (gate_record.h): evidence is impact-relative, so they pass through as stored.
+    if (an.contains(QStringLiteral("gatesVersion"))) {
+        d.insert(QStringLiteral("gatesVersion"), an.value(QStringLiteral("gatesVersion")).toInt());
+        d.insert(QStringLiteral("gates"), an.value(QStringLiteral("gates")).toArray().toVariantList());
+    }
+
+    // The down-the-line tile's overlay (dtl_overlay_payload.h), nested under `dtl` so nothing that
+    // reads a top-level pose2d/club as face-on misfires: analysis.poseDtl through the face-on pose
+    // shaping, analysis.clubDtl through the one translator, the face-on P-positions and the Impact
+    // phase already in the map's window time.
+    {
+        const QVariantMap dtlPose = an.contains(QStringLiteral("poseDtl"))
+            ? poseDetail(an.value(QStringLiteral("poseDtl")).toObject(), originUs, rt) : QVariantMap{};
+        const QVariantList foPositions = d.value(QStringLiteral("club")).toMap()
+                                             .value(QStringLiteral("positions")).toList();
+        qint64 impactUs = -1;
+        for (const QVariant &pv : d.value(QStringLiteral("phases")).toList()) {
+            const QVariantMap p = pv.toMap();
+            if (p.value(QStringLiteral("phase")).toInt() == int(analysis::Phase::Impact)) {
+                impactUs = p.value(QStringLiteral("t_us")).toLongLong();
+                break;
+            }
+        }
+        QVariantMap dtl = dtlOverlayDetail(dtlPose, an.value(QStringLiteral("clubDtl")).toObject(),
+                                           foPositions, impactUs, rt);
+        // The coach lines' edges (analysis.addressMarks, address_marks_json.h): the face-on view's
+        // object at the top level, the DTL view's (and, schema /2, its P-frames) under `dtl`.
+        if (an.contains(QStringLiteral("addressMarks"))) {
+            const QJsonObject am = an.value(QStringLiteral("addressMarks")).toObject();
+            d.insert(QStringLiteral("addressMarks"),
+                     analysis::viewMarksPayload(am.value(QStringLiteral("faceOn")).toObject(), rt));
+            if (!dtl.isEmpty()) {
+                dtl.insert(QStringLiteral("addressMarks"),
+                           analysis::viewMarksPayload(am.value(QStringLiteral("dtl")).toObject(), rt));
+                dtl.insert(QStringLiteral("addressMarksPhases"), analysis::dtlPhaseMarksPayload(am, rt));
+            }
+        }
+        // The DTL ruler (analysis.dtlRuler, dtl_ruler_json.h): cm per DTL pixel. No instants in it.
+        if (an.contains(QStringLiteral("dtlRuler")) && !dtl.isEmpty())
+            dtl.insert(QStringLiteral("ruler"),
+                       analysis::dtlRulerPayload(an.value(QStringLiteral("dtlRuler")).toObject()));
+        if (!dtl.isEmpty())
+            d.insert(QStringLiteral("dtl"), dtl);
+    }
+    return d;
+}
+
+QVariantMap analysisDetailForDocument(const QJsonObject &root)
+{
+    if (!root.contains(QStringLiteral("analysis")))
+        return {};
+    return analysisDetailFor(root.value(QStringLiteral("analysis")).toObject(), analysisReadOriginUs(root));
+}
+
+QVariantMap liveAnalysisDetail(const analysis::SwingAnalysis &a, qint64 windowT0Us, const QJsonObject &manifest)
+{
+    // The disk form the document gets (swingdoc_detail::analysisBlockFor), in window time and stamped
+    // so — then the one projection, at origin 0.
+    return analysisDetailFor(swingdoc_detail::analysisBlockFor(a, windowT0Us, manifest), 0);
+}
+
 PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 {
     PersistedShot ps;
@@ -549,75 +782,10 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
 
     if (root.contains(QStringLiteral("analysis"))) {
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-        const QJsonValue scoreVal = an[QStringLiteral("score")];
-        const QJsonObject scoreObj = scoreVal.toObject();   // empty if /2 (a number)
-        const int overall = overallScoreFromAnalysis(an);
 
-        // analysisDetail in the live QML-role shape (metrics→series, score→overall).
-        ps.analysisDetail = QVariantMap{
-            { QStringLiteral("tier"),    an[QStringLiteral("tier")].toInt() },
-            { QStringLiteral("overall"), overall },
-            { QStringLiteral("series"),  an[QStringLiteral("metrics")].toArray().toVariantList() },
-            { QStringLiteral("phases"),  an[QStringLiteral("phases")].toArray().toVariantList() },
-        };
-        // Resemblance estimand + uncertainty interval (/3): surfaced as sibling keys so
-        // QML reads detail.pattern / .resemblance / .interval directly. Absent for /2 or
-        // for adherence (Swing/GRF) scores.
-        if (scoreVal.isObject()) {
-            if (scoreObj.contains(QStringLiteral("pattern")))
-                ps.analysisDetail.insert(QStringLiteral("pattern"),
-                                         scoreObj[QStringLiteral("pattern")].toString());
-            if (scoreObj.contains(QStringLiteral("blended")))
-                ps.analysisDetail.insert(QStringLiteral("blended"),
-                                         scoreObj[QStringLiteral("blended")].toBool());
-            if (scoreObj.contains(QStringLiteral("resemblance")))
-                ps.analysisDetail.insert(QStringLiteral("resemblance"),
-                                         scoreObj[QStringLiteral("resemblance")].toObject().toVariantMap());
-            if (scoreObj.contains(QStringLiteral("interval")))
-                ps.analysisDetail.insert(QStringLiteral("interval"),
-                                         scoreObj[QStringLiteral("interval")].toObject().toVariantMap());
-        }
-        // Adherence contribution maps — surfaced as sibling keys (detail.perRegion /
-        // .perPhase) for the Verdict donut breakdown. Absent for /2 docs, for
-        // resemblance scores, and for any doc written before serializeScore emitted
-        // them; the donut simply renders without segments then.
-        if (scoreVal.isObject()) {
-            if (scoreObj.contains(QStringLiteral("perRegion")))
-                ps.analysisDetail.insert(QStringLiteral("perRegion"),
-                                         scoreObj[QStringLiteral("perRegion")].toObject().toVariantMap());
-            if (scoreObj.contains(QStringLiteral("perPhase")))
-                ps.analysisDetail.insert(QStringLiteral("perPhase"),
-                                         scoreObj[QStringLiteral("perPhase")].toObject().toVariantMap());
-        }
-        // Additive ShaftTracker + segmentation blocks — same variant shapes as
-        // the live toAnalysisDetail (shot_processor.cpp); absent in older files
-        // (missing segmentation = full-window bounds).
-        if (an.contains(QStringLiteral("pose2d")))
-            ps.analysisDetail.insert(QStringLiteral("pose2d"),
-                                     an[QStringLiteral("pose2d")].toObject().toVariantMap());
-        if (an.contains(QStringLiteral("club")))
-            ps.analysisDetail.insert(QStringLiteral("club"),
-                                     an[QStringLiteral("club")].toObject().toVariantMap());
-        if (an.contains(QStringLiteral("ball")))
-            ps.analysisDetail.insert(QStringLiteral("ball"),
-                                     an[QStringLiteral("ball")].toObject().toVariantMap());
-        if (an.contains(QStringLiteral("impact")))
-            ps.analysisDetail.insert(QStringLiteral("impact"),
-                                     an[QStringLiteral("impact")].toObject().toVariantMap());
-        if (an.contains(QStringLiteral("segmentation")))
-            ps.analysisDetail.insert(QStringLiteral("segmentation"),
-                                     an[QStringLiteral("segmentation")].toObject().toVariantMap());
-        if (an.contains(QStringLiteral("bindings")))
-            ps.analysisDetail.insert(QStringLiteral("bindings"),
-                                     an[QStringLiteral("bindings")].toArray().toVariantList());
-        if (an.contains(QStringLiteral("timings")))
-            ps.analysisDetail.insert(QStringLiteral("timings"),
-                                     an[QStringLiteral("timings")].toObject().toVariantMap());
-        // the gate records (trust_and_gates_design.md §6), as the replay source carries them
-        if (an.contains(QStringLiteral("gatesVersion"))) {
-            ps.analysisDetail.insert(QStringLiteral("gatesVersion"), an[QStringLiteral("gatesVersion")].toInt());
-            ps.analysisDetail.insert(QStringLiteral("gates"), an[QStringLiteral("gates")].toArray().toVariantList());
-        }
+        // The shot's detail through the one projection (analysisDetailFor), as the live shot and the
+        // replay carry it: window time, the disk form's keys.
+        ps.analysisDetail = analysisDetailFor(an, analysisReadOriginUs(root));
 
         // Flat metrics: each metric's value at Impact, in its own unit. Shared with the summary
         // sidecar so a row rebuilt either way shows identical chips.

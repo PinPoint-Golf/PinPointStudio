@@ -388,7 +388,7 @@ QVector<StillResult> ReportStills::renderSwing(const QVector<StillRequest> &requ
             continue;
         }
         ctx.analysis = ctx.root.value(QStringLiteral("analysis")).toObject();
-        ctx.t0 = qint64(ctx.root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+        ctx.t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(ctx.root));   // the analysis origin (0 when stamped)
         ctx.leadIsLeft = leadIsLeftFor(ctx.root.value(QStringLiteral("athlete")).toObject()
                                            .value(QStringLiteral("handedness")).toString());
         // Each camera decoded forward: the requests sorted by their instant, so P1 → P4 → P7 is one pass.

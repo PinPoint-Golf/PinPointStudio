@@ -730,7 +730,9 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
     for (const QString &name : folders) {
         const QJsonObject root = pinpoint::SwingStore::loadParts(sessionDir + QLatin1Char('/') + name, kParts);
         const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
-        const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+        // The analysis origin (documentAnalysisOriginUs: 0 for a stamped document) — every instant
+        // below goes through the one rule, windowTimeUs, against it.
+        const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
         sk::SynthSwing s;
         s.id = name;
         s.club = root.value(QStringLiteral("review")).toObject().value(QStringLiteral("club")).toString();
@@ -742,7 +744,7 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
             const int p = po.value(QStringLiteral("p")).toInt();
             const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble(-1));
             if (p < 1 || p > 7 || raw < 0) continue;
-            keys.p[size_t(p - 1)] = raw >= t0 ? raw - t0 : raw;
+            keys.p[size_t(p - 1)] = qint64(pinpoint::analysis::windowTimeUs(raw, t0));
             s.pSource[size_t(p - 1)] = po.value(QStringLiteral("source")).toInt();
         }
         for (size_t k = 0; k < 7; ++k) s.pUs[k] = keys.p[k];
@@ -808,7 +810,9 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     // The records ride out whatever the skeleton's fate: a refused one is exactly what they explain.
     if (gates && an.contains(QStringLiteral("gatesVersion")))
         *gates = an.value(QStringLiteral("gates")).toArray().toVariantList();
-    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    // The analysis origin (documentAnalysisOriginUs: 0 for a stamped document) — the skeleton and
+    // every instant below go through the one rule, windowTimeUs, against it.
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
     const sk::Skeleton3DTrack trk = sk::skeleton3dFromJson(an.value(QStringLiteral("skeleton3d")).toObject(), t0);
     if (!trk.valid) {
         *reason = trk.reason.isEmpty() ? QObject::tr("no 3-D skeleton on this shot") : trk.reason;
@@ -832,7 +836,7 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
         const int phase = po.value(QStringLiteral("phase")).toInt();
         if (phase != kPhaseImpact && phase != kPhaseAddress && phase != kPhaseFinish && phase != kPhaseP8) continue;
         const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble());
-        const qint64 rel = raw >= t0 ? raw - t0 : raw;
+        const qint64 rel = qint64(pinpoint::analysis::windowTimeUs(raw, t0));
         if (phase == kPhaseImpact) P->impactUs = rel;
         else if (phase == kPhaseAddress) P->addressUs = rel;
         else if (phase == kPhaseP8) P->p8Us = rel;
@@ -843,13 +847,13 @@ std::shared_ptr<const SwingRigDriver::Prepared> SwingRigDriver::prepare(const QS
     if (P->endUs >= 0) P->annot.finishUs = P->endUs;      // the annotations' window ends there too
     P->annot.addressUs = P->addressUs;
     P->annot.impactUs = P->impactUs;
-    // P1–P8 from the face-on club track (already window-relative; the ≥ t0 rule is idempotent).
+    // P1–P8 from the face-on club track, through the same rule.
     for (const QJsonValue &pv : an.value(QStringLiteral("club")).toObject().value(QStringLiteral("positions")).toArray()) {
         const QJsonObject po = pv.toObject();
         const qint64 raw = qint64(po.value(QStringLiteral("t_us")).toDouble(-1));
         if (raw < 0) continue;
         P->positions.push_back({ po.value(QStringLiteral("p")).toInt(), po.value(QStringLiteral("source")).toInt(),
-                                 raw >= t0 ? raw - t0 : raw });
+                                 qint64(pinpoint::analysis::windowTimeUs(raw, t0)) });
     }
     std::sort(P->positions.begin(), P->positions.end(),
               [](const Prepared::Position &a, const Prepared::Position &b) { return a.t < b.t; });

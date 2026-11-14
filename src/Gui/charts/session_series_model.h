@@ -77,10 +77,12 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; }
 //    150–220 ms (7.4 s for the 50-shot 7 Oct session). A legacy swing.json has no chunks and
 //    still costs the full parse.
 //
-// 4. ONE CLOCK: THE REPLAY'S. Every time copied out goes through the same window-relative rule
-//    disk_replay_source.cpp's relUs() applies (subtract clock.t0_us only from an absolute time),
-//    and the kinematic sequence through the same retimeKinematicSequence(), so a t_us read off a
-//    ShotSeries can be handed to shotReplay.seekToUs unchanged.
+// 4. ONE CLOCK: THE REPLAY'S. Every time copied out goes through the one rule, windowTimeUs,
+//    against the document's analysis origin (documentAnalysisOriginUs: 0 for a stamped document,
+//    clock.t0_us for one written before step 1.3a), as the one projection the replay shows does
+//    (analysisDetailFor, swing_doc.h), and the kinematic sequence through the same
+//    retimeKinematicSequence(), so a t_us read off a ShotSeries can be handed to
+//    shotReplay.seekToUs unchanged.
 //
 // 5. CACHED BY WHAT WAS READ. A swing is read again only when its document's size or mtime has
 //    moved (SwingStore::info, stamped BEFORE the read, as the diagnostics model stamps its
@@ -225,9 +227,9 @@ public:
     static std::shared_ptr<ShotSeries> extractShot(const QJsonObject &root, const QString &swingDir,
                                                    QString *whyNot = nullptr);
 
-    // The window-relative µs of an analysis time — disk_replay_source.cpp's relUs(), the one
-    // rule every time here goes through (decision 4).
-    static qint64 relUs(const QJsonValue &v, qint64 t0);
+    // The window-relative µs of an analysis time: windowTimeUs (swing_analysis.h), the one rule,
+    // against `originUs` = documentAnalysisOriginUs(root) (decision 4).
+    static qint64 relUs(const QJsonValue &v, qint64 originUs);
 
     // Empty the process-wide shot cache (decision 5). For tests, which rewrite one session's
     // documents between cases; the app never needs it.

@@ -81,8 +81,13 @@ class ShotProcessor : public QObject
     // callback (queued to the UI thread, throttled to ~1% steps).
     Q_PROPERTY(double analysisProgress READ analysisProgress NOTIFY analysisProgressChanged)
     // Replay playhead — the single source of truth both the video tile and the
-    // synced metric graph bind to. EventBuffer::nowMicros() domain, == MetricSeries
-    // t_us, so no conversion. Position fires per ~60 Hz tick; span/impact on start.
+    // synced metric graph bind to. Position fires per ~60 Hz tick; span/impact on start.
+    // ⚠ THE ONE VIEW-BOUNDARY OFFSET (refactor step 1.3b). The replay runs on the ring clock
+    // (EventBuffer::nowMicros(): the frozen window's frames, the pre-stage segmentation), but
+    // replayAnalysisDetail is the one projection of the analysis block, in WINDOW time, like the
+    // disk replay's. So these four are published in window time — µs from the capture window's
+    // start, m_replayT0Us — and the overlays, the graph and the tiles read one domain on both
+    // replays. Nothing in QML converts; nothing in C++ behind these getters does either.
     Q_PROPERTY(qint64  replayPositionUs READ replayPositionUs NOTIFY replayPositionChanged)
     Q_PROPERTY(qint64  replayStartUs    READ replayStartUs    NOTIFY replaySpanChanged)
     Q_PROPERTY(qint64  replayEndUs      READ replayEndUs      NOTIFY replaySpanChanged)
@@ -121,6 +126,8 @@ public:
         QString     error;              // why not, when !wrote
         QJsonObject manifest;           // the manifest WITH the integrity blocks the checks added
         QVariantMap dataWarningDetail;  // dataWarningDetailFrom(manifest) — empty when nothing warns
+        QVariantMap analysisDetail;     // the shot's detail: liveAnalysisDetail (swing_doc.h), the one
+                                        // projection of the analysis block this document gets — window time
     };
 
     ShotProcessor(pinpoint::EventBuffer *buffer,
@@ -136,10 +143,10 @@ public:
     QString stateName()   const;
     bool    busy()        const { return m_state != State::Idle; }
     bool    isReplaying() const { return m_state == State::Replaying; }
-    qint64  replayPositionUs() const { return m_replayPositionUs; }
-    qint64  replayStartUs()    const { return m_replayWindowStartUs; }
-    qint64  replayEndUs()      const { return m_replayWindowEndUs; }
-    qint64  replayImpactUs()   const { return m_impactUs; }
+    qint64  replayPositionUs() const { return m_replayPositionUs    - m_replayT0Us; }   // window time
+    qint64  replayStartUs()    const { return m_replayWindowStartUs - m_replayT0Us; }
+    qint64  replayEndUs()      const { return m_replayWindowEndUs   - m_replayT0Us; }
+    qint64  replayImpactUs()   const { return m_impactUs            - m_replayT0Us; }
     QVariantMap replayAnalysisDetail()   const { return m_replayAnalysisDetail.map(); }   // C++ readers
     QJSValue    replayAnalysisDetailJs() const { return m_replayAnalysisDetail.js(); } // the QML property
     double  analysisProgress() const { return m_analysisProgress; }
@@ -352,7 +359,10 @@ private:
     std::vector<ReplayTrack> m_replayTracks;
     int64_t       m_replayWindowStartUs = 0;
     int64_t       m_replayWindowEndUs   = 0;
-    int64_t       m_replayPositionUs    = 0;   // published playhead (window µs)
+    int64_t       m_replayPositionUs    = 0;   // the playhead, ring clock (published minus m_replayT0Us)
+    // The capture window's start on the ring clock: the one view-boundary offset between the replay's
+    // ring-clock playhead and the window-time detail (see the replay Q_PROPERTYs). Set by startReplay.
+    int64_t       m_replayT0Us          = 0;
     QmlPayload    m_replayAnalysisDetail;      // detail of the shot being replayed (see qml_payload.h)
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;

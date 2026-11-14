@@ -515,9 +515,17 @@ and where its pair lives; a block with no typed reader says why.
 The rule behind `windowTimeUs`: on the window's own clock every real instant lies at or
 after the window's start, so a value below it is an unset marker (−1, 0) and is kept.
 
+The QML side (step 1.3b): every view reads the one projection of the stored block
+(`analysisDetailFor`, `swing_doc.h`), in window time, through the same origin; the live join
+projects the block it is about to write. The in-window replay's playhead is offset to window
+time once, at the view boundary (`ShotProcessor::replayPositionUs` and its span), so no view
+converts. The charts series, the data viewer, the 3-D panel and the report stills read their
+times through `windowTimeUs` against `documentAnalysisOriginUs(root)` (`swing_analysis.h`, the
+inline form of `analysisReadOriginUs`).
+
 Not yet: the pipeline does not rebase its output to window time in memory. That needs the
-job to carry the Recording's `t0Us` (step 1.5's builder) and the live views to add it back
-at the view boundary (step 1.3b); until then the document writer does the one conversion.
+job to carry the Recording's `t0Us` (step 1.5's builder); until then the document writer does
+the one conversion, and the live detail is built from the same conversion.
 
 ### 6.6 Insert into the profile and run the gates
 

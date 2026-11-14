@@ -444,24 +444,14 @@ WriteResult SwingDocWriter::writeDocument(const QString &swingDir, const QJsonOb
         // emit analysis t_us window-relative regardless of the source domain.
         const qint64 t0 = qint64(rawManifest.value(QStringLiteral("clock")).toObject()
                                             .value(QStringLiteral("t0_us")).toDouble());
-        // The DTL club block names its stream as SwingLab's club_dtl.json does — matched
-        // on the recorded serial against this document's own streams[]. No serial ⇒ no name:
-        // dtlStreamName's first-video-stream fall-back is SwingLab's, and here it would name
-        // the face-on camera.
-        QString dtlAlias, dtlFile;
-        if (analysis->versions.shaftDtl > 0 && !analysis->shaftDtl.streamSerial.isEmpty())
-            analysis::dtlStreamName(rawManifest, analysis->shaftDtl.streamSerial, &dtlAlias, &dtlFile);
-        QJsonObject an = serializeAnalysis(*analysis, t0, dtlAlias, dtlFile);
-        // THE WHOLE-SHOT RECORDS (manifest_gates.h; trust stage 6): re-derived on every write from
-        // this manifest's captureIntegrity / imuIntegrity blocks, which both write paths (the live
-        // join, the re-analysis write-back) set fresh before calling here. serializeAnalysis rebuilt
-        // analysis.gates from the stages alone, so appending cannot accumulate.
-        if (an.contains(QStringLiteral("gatesVersion"))) {
-            QJsonArray g = an.value(QStringLiteral("gates")).toArray();
-            for (const QJsonValue &v : analysis::gateRecordsToJson(analysis::manifestGatesOf(rawManifest)))
-                g.append(v);
-            an[QStringLiteral("gates")] = g;
-        }
+        // THE BLOCK, COMPOSED ONCE (swingdoc_detail::analysisBlockFor, swing_doc_analysis.cpp): the DTL
+        // club block's stream named from this manifest's streams[], serializeAnalysis, and the
+        // whole-shot gate records re-derived from this manifest's captureIntegrity / imuIntegrity
+        // blocks, which both write paths (the live join, the re-analysis write-back) set fresh before
+        // calling here. The live shot's detail is projected from the same function (liveAnalysisDetail),
+        // so the live map and this document cannot be composed two ways. What follows is what only a
+        // write has an input for.
+        QJsonObject an = swingdoc_detail::analysisBlockFor(*analysis, t0, rawManifest);
         if (!savePose) {
             // The user chose not to keep pose keypoints (Storage → Save pose keypoints). The
             // setting governs NEWLY INFERRED keypoints only (Mark, 14 Nov 2026): a track that this

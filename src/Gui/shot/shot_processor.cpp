@@ -34,20 +34,13 @@
 #include "shot_list_model.h"
 #include "shot_outcome.h"
 #include "../Club/club_length_fusion.h"
-#include "../Analysis/uncertainty_json.h"
 #include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
-#include "../Analysis/manifest_gates.h"   // the integrity blocks → the live map's gates (shot.*)
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
 #include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
-#include "../Export/swing_doc.h"
-#include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
-#include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
-#include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
-#include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — the clubDtl/1 shape
-#include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
+#include "../Export/swing_doc.h"              // writeSwingJson; liveAnalysisDetail — the one projection
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
@@ -166,518 +159,6 @@ int postRollMsFor(ShotController::Source s)
 // (SourceDescriptor::window_duration, still 5 s) is deliberately left larger so
 // the captured window keeps drain/post-roll headroom inside the ring.
 constexpr std::chrono::milliseconds kWindowDuration{4000};
-
-// Multi-estimator club-length fusion result (club_length_fusion.h), nested as
-// "lengths" under the "club" detail block — identical shape in both parity
-// writers (this live-detail path and swing_doc.cpp's disk-reload path; plan:
-// robust club length — starry-shimmying-wind). Always written, even when the
-// fuse abstained (nEstimators==0, fusedPx<0): readers treat <0 as absent, which
-// is simpler than conditionally omitting the block in only one of the writers.
-QVariantMap toLengthsDetail(const pinpoint::analysis::ClubLengthEstimate &l)
-{
-    return QVariantMap{
-        { QStringLiteral("ballPx"),           l.ballPx },
-        { QStringLiteral("bandPx"),           l.bandPx },
-        { QStringLiteral("headP95Px"),        l.headPx },
-        { QStringLiteral("posePx"),           l.posePx },
-        { QStringLiteral("priorPx"),          l.priorPx },
-        { QStringLiteral("fusedPx"),          l.fusedPx },
-        { QStringLiteral("fusedSigmaPx"),     l.fusedSigmaPx },
-        { QStringLiteral("fusedConf"),        l.fusedConf },
-        { QStringLiteral("fusedInstantPx"),   l.fusedInstantPx },
-        { QStringLiteral("fusedInstantConf"), l.fusedInstantConf },
-        { QStringLiteral("ladderRung"),       l.ladderRung },
-        { QStringLiteral("ladderLenPx"),      l.ladderLenPx },
-        { QStringLiteral("nEstimators"),      l.nEstimators },
-        { QStringLiteral("priorN"),           l.priorN },
-        { QStringLiteral("headMeasN"),        l.headMeasN },
-    };
-}
-
-// Face-on swing-plane transition delta (shaft_plane.h), nested as "plane" under
-// the "club" detail block — identical shape in both parity writers, like
-// toLengthsDetail above. Always written, even when nothing fitted: valid=false
-// with the per-window reject codes set says "the producer ran and found nothing",
-// which a reader must be able to tell from an older file that has no key at all.
-// The two channels' quality fields are NOT interchangeable — see ShaftPlaneChannel.
-QVariantMap toPlaneChannelDetail(const pinpoint::analysis::ShaftPlaneChannel &c)
-{
-    return QVariantMap{
-        { QStringLiteral("fitted"),           c.fitted },
-        { QStringLiteral("iotaBackDeg"),      c.iotaBackDeg },
-        { QStringLiteral("iotaDownDeg"),      c.iotaDownDeg },
-        { QStringLiteral("deltaDeg"),         c.deltaDeg },
-        { QStringLiteral("nodeBackDeg"),      c.nodeBackDeg },
-        { QStringLiteral("nodeDownDeg"),      c.nodeDownDeg },
-        { QStringLiteral("nBack"),            c.nBack },
-        { QStringLiteral("nDown"),            c.nDown },
-        { QStringLiteral("conicResidBack"),   c.conicResidBack },
-        { QStringLiteral("conicResidDown"),   c.conicResidDown },
-        { QStringLiteral("ratioBack"),        c.ratioBack },
-        { QStringLiteral("ratioDown"),        c.ratioDown },
-        { QStringLiteral("splitHalfBackDeg"), c.splitHalfBackDeg },
-        { QStringLiteral("splitHalfDownDeg"), c.splitHalfDownDeg },
-        { QStringLiteral("anchorsBack"),      c.anchorsBack },
-        { QStringLiteral("anchorsDown"),      c.anchorsDown },
-        { QStringLiteral("anchorConfMin"),    double(c.anchorConfMin) },
-        { QStringLiteral("rejectBack"),       c.rejectBack },
-        { QStringLiteral("rejectDown"),       c.rejectDown },
-    };
-}
-
-QVariantMap toPlaneDetail(const pinpoint::analysis::ShaftPlaneEstimate &p)
-{
-    return QVariantMap{
-        { QStringLiteral("valid"),    p.valid },
-        { QStringLiteral("channel"),  p.channel },
-        { QStringLiteral("measured"), toPlaneChannelDetail(p.measured) },
-        { QStringLiteral("synth"),    toPlaneChannelDetail(p.synth) },
-    };
-}
-
-// The pose2d replay block from one PoseTrack2D — the face-on `detail.pose2d`, and the
-// down-the-line `detail.dtl.pose2d` through the same shaping, so the painter reads one
-// shape from either camera. Call only on a track with frames.
-QVariantMap poseTrackToDetail(const pinpoint::analysis::PoseTrack2D &t)
-{
-    using namespace pinpoint::analysis;
-    QVariantList frames;
-    for (const PoseFrame2D &f : t.frames) {
-        QVariantList kp;
-        kp.reserve(kWholeBodyJoints * 3);
-        for (int j = 0; j < kWholeBodyJoints; ++j) {
-            kp.append(f.kp[size_t(j)].x());
-            kp.append(f.kp[size_t(j)].y());
-            kp.append(double(f.conf[size_t(j)]));
-        }
-        frames.append(QVariantMap{
-            { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-            { QStringLiteral("kp"),   kp },
-            { QStringLiteral("lead"),  QVariantList{ f.leadHand.x(),  f.leadHand.y() } },
-            { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
-            { QStringLiteral("handConf"), double(f.handConf) } });
-    }
-    // keypointCount mirrors the swing.json pose2d block (swing_doc.cpp) so
-    // disk and in-memory replay payloads agree; QML consumers index j*3 for
-    // j<17 and are unaffected by the wholebody tail.
-    QVariantMap pose2d{ { QStringLiteral("camera"), int(t.camera) },
-                        { QStringLiteral("keypointCount"), kWholeBodyJoints },
-                        { QStringLiteral("frames"), frames } };
-    // WB1 accuracy-pass provenance — same conditional-presence rule as the
-    // swing.json writer (swing_doc.cpp) so disk and in-memory replay agree.
-    if (t.decode == QLatin1String("dark"))
-        pose2d.insert(QStringLiteral("decode"), t.decode);
-    if (t.cropRect) {
-        const QRectF &r = *t.cropRect;
-        pose2d.insert(QStringLiteral("cropRect"),
-                      QVariantMap{ { QStringLiteral("x"), r.x() },
-                                   { QStringLiteral("y"), r.y() },
-                                   { QStringLiteral("w"), r.width() },
-                                   { QStringLiteral("h"), r.height() } });
-    }
-    // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
-    // kp layout as `frames` (399 doubles: [x,y,c]×133, conf carries the render-
-    // alpha contract), plus per-kp honesty tier[133] (int) / sigma[133] (px). No
-    // lead/trail/handConf — hands are not smoothed. The QML renderer reads
-    // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
-    // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
-    if (!t.smoothed.empty()) {
-        QVariantList smoothed;
-        const size_t n = std::min(t.smoothed.size(), t.smoothedAux.size());
-        for (size_t i = 0; i < n; ++i) {
-            const PoseFrame2D &f = t.smoothed[i];
-            const PoseKpAux   &x = t.smoothedAux[i];
-            QVariantList kp, tier, sigma;
-            kp.reserve(kWholeBodyJoints * 3);
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-                tier.append(int(x.tier[size_t(j)]));
-                sigma.append(double(x.sigma[size_t(j)]));
-            }
-            smoothed.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(f.t_us) },
-                { QStringLiteral("kp"),    kp },
-                { QStringLiteral("tier"),  tier },
-                { QStringLiteral("sigma"), sigma } });
-        }
-        pose2d.insert(QStringLiteral("smoothed"), smoothed);
-    }
-    // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton on a fixed 240 Hz
-    // grid so the body overlays scrub as smoothly as the club fan. Same lean shape the
-    // swing.json writer persists — { t_us, kp[x,y,c]×133 }, no tier/sigma, no hands — and
-    // the same conditional presence, so a live shot and its reloaded self agree
-    // (disk_replay_source.cpp forwards the persisted block the same way). Viz-only: metrics
-    // never read it, and the triangulation work will read `smoothed`, which carries the
-    // per-joint honesty this tier deliberately drops. Until 16 Sept 2026 the analyzer
-    // computed and the writer stored this tier, but neither bridge forwarded it, so the
-    // overlay's dense body mode had never once run — a silent no-op, not a design choice.
-    if (!t.smoothedSynth.empty()) {
-        QVariantList synth;
-        synth.reserve(int(t.smoothedSynth.size()));
-        for (const PoseFrame2D &f : t.smoothedSynth) {
-            QVariantList kp;
-            kp.reserve(kWholeBodyJoints * 3);
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-            }
-            synth.append(QVariantMap{
-                { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-                { QStringLiteral("kp"),   kp } });
-        }
-        pose2d.insert(QStringLiteral("synth"), synth);
-    }
-    return pose2d;
-}
-
-// Convert the analyzer's rich SwingAnalysis into QML-friendly data for the shot's
-// analysisDetail role (the future scrubbable metric graph reads series + phases).
-QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
-{
-    using namespace pinpoint::analysis;
-    QVariantList series;
-    for (const MetricSeries &m : a.series) {
-        QVariantList ts, vs, samples;
-        for (const int64_t t : m.t_us) ts.append(static_cast<qlonglong>(t));
-        for (const double v : m.value) vs.append(v);
-        for (const PhaseSample &ps : m.phaseSamples) {
-            QVariantMap po{ { QStringLiteral("phase"), int(ps.phase) },
-                            { QStringLiteral("t_us"),  static_cast<qlonglong>(ps.t_us) },
-                            { QStringLiteral("value"), ps.value },
-                            { QStringLiteral("band"),  ps.band } };
-            insertPhaseSampleSigma(po, ps);   // per-instant σ (uncertainty design §7), only when set
-            samples.append(po);
-        }
-        QVariantMap sm{ { QStringLiteral("key"),   m.key },
-                        { QStringLiteral("label"), m.label },
-                        { QStringLiteral("unit"),  m.unit },
-                        { QStringLiteral("t_us"),  ts },
-                        { QStringLiteral("value"), vs },
-                        { QStringLiteral("phaseSamples"), samples } };
-        // 1σ measurement noise, ABSENT when the producer never characterised one — the key is
-        // omitted rather than set to 0, because a zero would read as "measured, and perfect".
-        // Mirrored in disk_replay_source.cpp: a live shot and its reloaded self must agree.
-        if (m.sigma)
-            sm.insert(QStringLiteral("sigma"), *m.sigma);
-        if (m.sigmaKind > 0)
-            sm.insert(QStringLiteral("sigmaKind"), int(m.sigmaKind));
-        // Per-sample validity, parallel to t_us (design §5.1): 0 marks a sample the grid
-        // BRIDGED across a gated or absent run — drawn dashed, skipped by every reducer.
-        // Written on the same discipline as `sigma` above: present ONLY when there is
-        // something to say. An all-ones array would appear on every metric of every swing
-        // and mean exactly what its absence already means, so the test is for a real 0
-        // rather than for a non-empty vector — MetricSeries::valid is empty when the
-        // producer had nothing to mark, and this keeps the boundary honest even if one
-        // day it is not. Mirrored in disk_replay_source.cpp (reload) and swing_doc.cpp
-        // (persistence): a live shot, its swing.json and its reloaded self must agree.
-        if (std::find(m.valid.begin(), m.valid.end(), uint8_t(0)) != m.valid.end()) {
-            QVariantList vd;
-            vd.reserve(int(m.valid.size()));
-            for (const uint8_t f : m.valid) vd.append(int(f));
-            sm.insert(QStringLiteral("valid"), vd);
-        }
-        // The producer route (MetricSeries::routeId), present only when stated — swing_doc.cpp's
-        // rule, mirrored in disk_replay_source.cpp.
-        if (!m.routeId.isEmpty())
-            sm.insert(QStringLiteral("routeId"), m.routeId);
-        if (m.routeDirect)
-            sm.insert(QStringLiteral("routeDirect"), true);
-        if (!m.withheld.isEmpty())
-            sm.insert(QStringLiteral("withheld"), m.withheld);
-        if (m.lineAngle)
-            sm.insert(QStringLiteral("lineAngle"), true);
-        series.append(sm);
-    }
-    QVariantList phases;
-    for (const PhaseEvent &e : a.phases)
-        phases.append(QVariantMap{ { QStringLiteral("phase"),   int(e.phase) },
-                                   { QStringLiteral("t_us"),    static_cast<qlonglong>(e.t_us) },
-                                   { QStringLiteral("conf"),    e.conf },
-                                   { QStringLiteral("segment"), int(e.provenance) } });
-    QVariantMap detail{ { QStringLiteral("tier"),    a.tier },
-                        { QStringLiteral("overall"), a.score.overall },
-                        { QStringLiteral("series"),  series },
-                        { QStringLiteral("phases"),  phases } };
-
-    // Resemblance estimand + uncertainty interval (design §B.0a/§B.7) — same sibling-key
-    // shape SwingDocReader reloads, so live and reloaded swings expose identical detail.
-    if (a.score.kind == ScoreKind::Resemblance) {
-        QVariantMap res;
-        for (auto it = a.score.resemblance.constBegin(); it != a.score.resemblance.constEnd(); ++it)
-            res.insert(it.key(), it.value());
-        detail.insert(QStringLiteral("resemblance"), res);
-        detail.insert(QStringLiteral("pattern"), a.score.patternLabel);
-        detail.insert(QStringLiteral("blended"), a.score.blended);
-    }
-    if (a.score.interval.valid())
-        detail.insert(QStringLiteral("interval"),
-                      QVariantMap{ { QStringLiteral("halfWidth"), a.score.interval.halfWidth },
-                                   { QStringLiteral("lo"),        a.score.interval.lo },
-                                   { QStringLiteral("hi"),        a.score.interval.hi } });
-
-    // Adherence contribution maps — the Verdict donut's hover breakdown. Omitted when
-    // empty (a resemblance score has neither), matching serializeScore/SwingDocReader
-    // so a live shot and its reloaded twin expose the same keys.
-    auto insertBuckets = [&detail](const char *name, const QHash<QString,int> &h) {
-        if (h.isEmpty()) return;
-        QVariantMap m;
-        for (auto it = h.constBegin(); it != h.constEnd(); ++it)
-            m.insert(it.key(), it.value());
-        detail.insert(QString::fromLatin1(name), m);
-    };
-    insertBuckets("perRegion", a.score.perRegion);
-    insertBuckets("perPhase",  a.score.perPhase);
-
-    // The kinematic sequence — the strip under the chart's "Kinematic sequence" preset reads
-    // this. Absent when nothing produced a node; identity time mapping (the live map is in the
-    // analysis' own absolute domain, exactly as `series` above). Same helper as swing_doc.cpp and
-    // disk_replay_source.cpp, so the three paths cannot drift.
-    if (a.kinematicSequence.valid)
-        detail.insert(QStringLiteral("kinematicSequence"),
-                      kinematicSequenceToJson(a.kinematicSequence,
-                                              [](int64_t t) { return static_cast<qint64>(t); })
-                          .toVariantMap());
-    // Gate records — the same helper and the same presence rule as swing_doc.cpp.
-    if (a.gatesVersion > 0) {
-        detail.insert(QStringLiteral("gatesVersion"), a.gatesVersion);
-        detail.insert(QStringLiteral("gates"), gateRecordsToJson(a.gates).toVariantList());
-    }
-
-    // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
-    if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
-        detail.insert(QStringLiteral("segmentation"),
-                      QVariantMap{
-                          { QStringLiteral("swingStartUs"),
-                            static_cast<qlonglong>(a.segmentation.swingStartUs) },
-                          { QStringLiteral("swingEndUs"),
-                            static_cast<qlonglong>(a.segmentation.swingEndUs) },
-                          { QStringLiteral("conf"),    double(a.segmentation.conf) },
-                          { QStringLiteral("version"), a.segmentation.version } });
-
-    // ShaftTracker blocks for the replay overlay — IDENTICAL shapes to the
-    // swing.json blocks SwingDocReader reloads (swing_doc.cpp), keypoints and
-    // club grip/head normalized 0..1 so QML never sees pixel spaces.
-    if (!a.pose2d.frames.empty())
-        detail.insert(QStringLiteral("pose2d"), poseTrackToDetail(a.pose2d));
-    // A refused track (2026-10-01) is carried too — valid=false with `refused`/`diag` — so the
-    // live card's ⚠ and the overlay gate see the reason; mirrors swing_doc.cpp.
-    if ((a.shaft.valid || a.shaft.refusedReason) && !a.shaft.samples.empty()
-        && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
-        const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
-        QVariantList samples;
-        for (const ShaftSample2D &s : a.shaft.samples) {
-            QVariantMap sm{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("thetaDot"), s.thetaDotRadS },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                // Stage-2 head confidence + posterior σ (Phase B; −1 = head pass
-                // off) — the overlay scales the measured-head dot alpha by it.
-                { QStringLiteral("headConf"),  double(s.headConf) },
-                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } };
-            // Layer A snap registration (shaft_position_first §2A) — lock-step with
-            // swing_doc.cpp: written only when measured (≥0), absent ⇒ reader −1.
-            if (s.lineConf >= 0.f) sm.insert(QStringLiteral("lineConf"), double(s.lineConf));
-            samples.append(sm);
-        }
-        // R7 predicted series (pure R6 model) for the ghost overlay — same
-        // normalized shape as `samples`; σ_β recoverable from conf for the cone.
-        QVariantList predicted;
-        for (const ShaftSample2D &s : a.shaft.predicted)
-            predicted.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("flags"), int(s.flags) } });
-        // Layer C synthesized series (shaft_position_first §2 Layer C) — lock-step
-        // with swing_doc.cpp; VISUALIZATION-tier interpolation between P-anchors,
-        // each flagged ShaftSynthesized (0x100). Same normalized shape as `samples`
-        // minus lineConf. Written only when non-empty (synth off ⇒ absent). Consumers
-        // EXCLUDE these from metrics/scoring by the flag.
-        QVariantList synth;
-        for (const ShaftSample2D &s : a.shaft.synth)
-            synth.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("thetaDot"), s.thetaDotRadS },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("headConf"),  double(s.headConf) },
-                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } });
-        // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B) — lock-step
-        // with swing_doc.cpp; grip/head normalized 0..1, t_us absolute like this
-        // path's `samples`. Written only when non-empty (extraction off ⇒ absent).
-        QVariantList positions;
-        for (const ShaftPosition &p : a.shaft.positions)
-            positions.append(QVariantMap{
-                { QStringLiteral("p"),     p.p },
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(p.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ p.gripPx.x() * iw, p.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ p.headPx.x() * iw, p.headPx.y() * ih } },
-                { QStringLiteral("theta"), p.thetaRad },
-                { QStringLiteral("lenPx"), p.lenPx },
-                { QStringLiteral("conf"),  double(p.conf) },
-                { QStringLiteral("sigmaThetaDeg"), double(p.sigmaThetaDeg) },
-                { QStringLiteral("sigmaLenPx"),    double(p.sigmaLenPx) },
-                { QStringLiteral("stackN"), p.stackN },
-                { QStringLiteral("source"), int(p.source) } });
-        QVariantMap clubMap{
-            { QStringLiteral("camera"),        int(a.shaft.camera) },
-            { QStringLiteral("valid"),         a.shaft.valid },
-            { QStringLiteral("coverage"),      double(a.shaft.coverage) },
-            { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
-            { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
-            // v3.4 (design §9.4): measured club length in px (grip-to-ball
-            // at address) — mirrors the swing.json club block (swing_doc.cpp)
-            // so the live/in-window detail path carries it too, not just the
-            // disk-reload path. -1 = unmeasured (no ball anchor).
-            { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
-            { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
-            { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
-            // Multi-estimator length fusion (club_length_fusion.h) — see
-            // toLengthsDetail(); mirrors swing_doc.cpp's analysis.club.lengths.
-            { QStringLiteral("lengths"),       toLengthsDetail(a.shaft.lengths) },
-            // Face-on swing plane (shaft_plane.h) — see toPlaneDetail(); mirrors
-            // swing_doc.cpp's analysis.club.plane.
-            { QStringLiteral("plane"),         toPlaneDetail(a.shaft.plane) },
-            { QStringLiteral("samples"),       samples },
-            { QStringLiteral("predicted"),     predicted } };
-        if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
-        if (!synth.isEmpty())     clubMap.insert(QStringLiteral("synth"), synth);
-        if (a.shaft.ballAnchored && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0)
-            clubMap.insert(QStringLiteral("addressBall"),
-                           QVariantList{ a.shaft.addressBallPx.x() / a.shaft.frameWidth,
-                                         a.shaft.addressBallPx.y() / a.shaft.frameHeight });
-        // Mirrors swing_doc.cpp's analysis.club.diag / analysis.club.refused
-        // (2026-10-01 robustness self-checks). Times here are absolute like the
-        // samples' t_us in this map.
-        clubMap.insert(QStringLiteral("diag"), QVariantMap{
-            { QStringLiteral("onsetRule"),      a.shaft.onsetRule },
-            { QStringLiteral("phaseRetries"),   a.shaft.phaseRetries },
-            { QStringLiteral("phaseSuspect"),   a.shaft.phaseSuspect },
-            { QStringLiteral("p1BallDeltaDeg"), double(a.shaft.p1BallDeltaDeg) },
-            { QStringLiteral("lenBallRatio"),   double(a.shaft.lenBallRatio) },
-            { QStringLiteral("onsetTUs"),       double(a.shaft.onsetTUs) },
-            { QStringLiteral("topTUs"),         double(a.shaft.topTUs) },
-            { QStringLiteral("handPairFixed"),  a.shaft.handPairFixed },
-            { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
-            { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
-            { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
-        // Mirrors swing_doc.cpp's analysis.club.diag.p8Refusal (plane stack D6).
-        if (a.shaft.p8Refusal) {
-            QVariantMap dg = clubMap.value(QStringLiteral("diag")).toMap();
-            dg.insert(QStringLiteral("p8Refusal"),
-                      QString::fromLatin1(pinpoint::analysis::shaftP8RefusalName(a.shaft.p8Refusal)));
-            clubMap.insert(QStringLiteral("diag"), dg);
-        }
-        if (a.shaft.refusedReason)
-            clubMap.insert(QStringLiteral("refused"),
-                           QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(a.shaft.refusedReason)));
-        // Mirrors swing_doc.cpp's analysis.club.wedgeObs.
-        if (!a.shaft.wedgeObs.empty()) {
-            QVariantList wo;
-            for (const ShaftWedgeObs &w : a.shaft.wedgeObs)
-                wo.append(QVariantList{ qint64(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
-            clubMap.insert(QStringLiteral("wedgeObs"), wo);
-        }
-        // Mirrors swing_doc.cpp's analysis.club.filter (the club rate filter's diagnostic).
-        if (a.shaft.clubFilter.ran) {
-            const pinpoint::analysis::ClubFilterStats &f = a.shaft.clubFilter;
-            clubMap.insert(QStringLiteral("filter"), QVariantMap{
-                { QStringLiteral("version"),        f.version },
-                { QStringLiteral("nEvidence"),      f.nEvidence },
-                { QStringLiteral("nGated"),         f.nGated },
-                { QStringLiteral("nDownweighted"),  f.nDownweighted },
-                { QStringLiteral("nisMean"),        f.nisMean },
-                { QStringLiteral("residualRmsDeg"), f.residualRmsDeg },
-                { QStringLiteral("rateWobble"),     f.rateWobble },
-                { QStringLiteral("humpsRaw"),       f.humpsRaw },
-                { QStringLiteral("humpsFiltered"),  f.humpsFiltered } });
-        }
-        detail.insert(QStringLiteral("club"), clubMap);
-    }
-    // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
-    // full-frame center + radius, same convention as pose2d/club so QML never
-    // sees pixel spaces. found=false samples mark the post-launch gap (the
-    // circle vanishes at impact). Same shape as the analysis.ball swing.json block.
-    if (!a.ball.frames.empty()) {
-        QVariantList samples;
-        for (const BallSample2D &s : a.ball.frames)
-            samples.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("x"),     s.center.x() },
-                { QStringLiteral("y"),     s.center.y() },
-                { QStringLiteral("r"),     double(s.radiusNorm) },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("found"), s.found } });
-        detail.insert(QStringLiteral("ball"),
-                      QVariantMap{
-                          { QStringLiteral("camera"),    int(a.ball.camera) },
-                          { QStringLiteral("valid"),     true },
-                          { QStringLiteral("launchTUs"), static_cast<qlonglong>(a.ball.launchTUs) },
-                          { QStringLiteral("samples"),   samples } });
-    }
-    // The impact camera's track (impact_camera_design.md §7): the SAME object
-    // the doc writes, absolute t_us (the live playhead's domain), so the
-    // impact overlay reads one shape from both surfaces.
-    if (a.impact.valid)
-        detail.insert(QStringLiteral("impact"), pinpoint::impactTrackJson(a.impact, 0).toVariantMap());
-
-    // The down-the-line tile's overlay (dtl_overlay_payload.h) — nested under `dtl` so
-    // nothing that reads a top-level pose2d/club as face-on misfires. Pose through the
-    // same shaping as face-on; shaft + ball through the ONE clubDtl translator the disk
-    // path uses, fed with t0 = 0 so every time stays in this path's absolute domain.
-    {
-        const QVariantMap dtlPose = a.poseDtl.frames.empty() ? QVariantMap{}
-                                                             : poseTrackToDetail(a.poseDtl);
-        const QJsonObject clubDtl = a.shaftDtl.valid
-            ? dtlShaftTrackToJson(a.shaftDtl, 0, a.shaftDtl.configJson,
-                                  a.shaftDtl.configHash, QString(), QString())
-            : QJsonObject{};
-        qint64 impactUs = -1;
-        for (const PhaseEvent &e : a.phases)
-            if (e.phase == Phase::Impact) { impactUs = static_cast<qint64>(e.t_us); break; }
-        const QVariantList foPositions = detail.value(QStringLiteral("club")).toMap()
-                                               .value(QStringLiteral("positions")).toList();
-        QVariantMap dtl = pinpoint::dtlOverlayDetail(
-            dtlPose, clubDtl, foPositions, impactUs,
-            [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); });
-        // The coach lines' edges (address_marks_json.h): one view's object on each tile's
-        // detail, identity time mapping like everything else on this path.
-        if (a.versions.addressMarks > 0) {
-            const auto ident = [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); };
-            detail.insert(QStringLiteral("addressMarks"),
-                          viewMarksPayload(viewMarksToJson(a.addressMarks.faceOn, 0), ident));
-            if (!dtl.isEmpty()) {
-                dtl.insert(QStringLiteral("addressMarks"),
-                           viewMarksPayload(viewMarksToJson(a.addressMarks.dtl, 0), ident));
-                // The DTL butt line and back line at every P-frame (schema /2), through the
-                // document's own builder so both paths read one shape.
-                dtl.insert(QStringLiteral("addressMarksPhases"),
-                           dtlPhaseMarksPayload(addressMarksToJson(a.addressMarks, 0, a.versions.addressMarks), ident));
-            }
-        }
-        // The DTL ruler (dtl_ruler_json.h): cm per DTL pixel, for centimetres drawn on that frame.
-        if (a.dtlRuler.ran && !dtl.isEmpty())
-            dtl.insert(QStringLiteral("ruler"), dtlRulerPayload(dtlRulerToJson(a.dtlRuler, a.versions.dtlPosture)));
-        if (!dtl.isEmpty())
-            detail.insert(QStringLiteral("dtl"), dtl);
-    }
-    return detail;
-}
 
 // IMU roles come from ImuManager's role resolver (roleForDevice / instanceForRole) and
 // are converted with segmentRoleForPlacementRole (segment_role.h). segmentRoleForSlot
@@ -2306,6 +1787,18 @@ void ShotProcessor::maybeJoin()
                     m_analysisResult.detail->shaftDtl.handsFromTopPx,
                     m_analysisResult.detail->shaftDtl.topClubPx);
 
+            // The shot's detail (the carousel row, the in-window replay): the one projection of the
+            // analysis block this document gets, built here, off the GUI thread, from the manifest it
+            // is written with. Window time — the replay adds nothing; the playhead it is read against
+            // is published in window time (replayPositionUs).
+            const auto liveDetail = [this](const QJsonObject &docManifest) {
+                return m_analysisResult.detail
+                    ? pinpoint::liveAnalysisDetail(*m_analysisResult.detail,
+                                                   m_swingWindow ? m_swingWindow->startTimestampUs() : 0,
+                                                   docManifest)
+                    : QVariantMap{};
+            };
+
             // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
             // the export worker wrote only media and returned, and the analyzer returned a value.
             if (persist == pinpoint::PersistPath::FullDocument) {
@@ -2323,7 +1816,10 @@ void ShotProcessor::maybeJoin()
                         synth[k] = out.manifest[k];
                 out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
                     m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub, savePose);
+                out.analysisDetail = liveDetail(synth);
+                return out;
             }
+            out.analysisDetail = liveDetail(out.manifest);
             return out;
         }));
 }
@@ -2386,21 +1882,9 @@ void ShotProcessor::onSwingDocWritten()
     //
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
-    {
-        QVariantMap liveDetail = (analysisOk && m_analysisResult.detail)
-                                     ? toAnalysisDetail(*m_analysisResult.detail)
-                                     : QVariantMap{};
-        // The whole-shot records (manifest_gates.h), derived from the integrity blocks the worker
-        // just put in the manifest — the same rule writeSwingJson applies to the document, so the
-        // live map and the reload carry the same analysis.gates.
-        if (liveDetail.contains(QStringLiteral("gatesVersion"))) {
-            QVariantList g = liveDetail.value(QStringLiteral("gates")).toList();
-            g.append(pinpoint::analysis::gateRecordsToJson(
-                         pinpoint::analysis::manifestGatesOf(res.manifest)).toVariantList());
-            liveDetail.insert(QStringLiteral("gates"), g);
-        }
-        m_replayAnalysisDetail.set(std::move(liveDetail));
-    }
+    // The map is the one projection of the analysis block the document got (liveAnalysisDetail),
+    // built by the worker beside the write: window time, the reloaded shot's keys.
+    m_replayAnalysisDetail.set(analysisOk ? res.analysisDetail : QVariantMap{});
     const qint64 tDetail = phase.elapsed();
     emit replayAnalysisDetailChanged();
     const qint64 tEmit = phase.elapsed();
@@ -2506,6 +1990,9 @@ void ShotProcessor::startReplay()
     // Anchor to the actual first/last captured entry so replay starts
     // immediately rather than waiting for the (potentially empty) leading
     // portion of the window.
+    // The view boundary: the detail is window time (liveAnalysisDetail against this same start),
+    // so the published playhead, span and impact are offset by it (shot_processor.h).
+    m_replayT0Us          = m_swingWindow->startTimestampUs();
     m_replayWindowStartUs = m_swingWindow->endTimestampUs();
     m_replayWindowEndUs   = m_swingWindow->startTimestampUs();
     for (const ReplayTrack &track : m_replayTracks) {

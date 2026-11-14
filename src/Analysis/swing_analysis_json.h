@@ -151,8 +151,8 @@ inline QJsonObject metricSeriesToJson(const MetricSeries &m, int64_t t0Us)
     // was measured and which was drawn between measurements. Same optional-absence
     // contract as `sigma` directly above — emitted ONLY when at least one sample is
     // actually invalid, so every metric with nothing to mark serialises byte-identically
-    // to before the field existed. The QML bridge (shot_processor.cpp toAnalysisDetail)
-    // and the reload (disk_replay_source.cpp) carry the same key on the same rule.
+    // to before the field existed. Every QML map carries it as stored: the one projection
+    // (analysisDetailFor, swing_doc.h) copies the entry.
     if (std::find(m.valid.begin(), m.valid.end(), uint8_t(0)) != m.valid.end()) {
         QJsonArray vd;
         for (const uint8_t f : m.valid) vd.append(int(f));

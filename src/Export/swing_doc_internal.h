@@ -43,6 +43,15 @@ namespace pinpoint::swingdoc_detail {
 QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                               const QString &dtlAlias, const QString &dtlFile);
 
+// swing_doc_analysis.cpp — the `analysis` block a document written from `manifest` carries: the DTL
+// club block's stream named from the manifest's own streams[] (dtlStreamName), serializeAnalysis
+// against `windowT0` (the window's start on the analysis' clock), and the whole-shot gate records
+// re-derived from the manifest's integrity blocks (manifest_gates.h). Composed ONCE: writeDocument
+// (swing_doc_writer.cpp) writes it, then applies what only a write has an input for (the "Save pose
+// keypoints" rule, the carried launch monitor rows and their gate records); the live shot's detail is
+// projected from it (liveAnalysisDetail, refactor step 1.3b).
+QJsonObject analysisBlockFor(const analysis::SwingAnalysis &a, qint64 windowT0, const QJsonObject &manifest);
+
 // swing_doc_reader.cpp — THE extractor for the session-picker scalars, from a document root.
 // Called by the reader, and by the writer to build the `summary` block it saves with the document.
 SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir);

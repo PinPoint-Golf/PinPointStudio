@@ -773,7 +773,7 @@ qt_add_executable(PinPointStudio
     src/Gui/markup/markup_image_provider.h
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
-    src/Gui/shot/dtl_overlay_payload.h      src/Gui/shot/dtl_overlay_payload.cpp
+    src/Gui/shot/dtl_overlay_payload.h
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
