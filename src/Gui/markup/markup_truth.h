@@ -259,8 +259,9 @@ TruthSummary summarize(const QString &swingDir, MarkupView view = MarkupView::Fa
 
 // One pose sample. `kp` is 17 COCO keypoints × (x, y, conf), normalized [0..1].
 // `lead`/`trail` are the lead/trail hand points (normalized). `relUs` is
-// window-relative (pose t_us is absolute; we subtract clock.t0_us so it shares
-// the face-on frames.t_us domain).
+// window-relative, the face-on frames.t_us domain: the document's analysis times go
+// through the one rule (windowTimeUs against documentAnalysisOriginUs, swing_analysis.h),
+// which leaves an already window-relative t_us alone.
 struct PoseFrame {
     qint64         relUs = 0;
     QVector<float> kp;                 // 51 floats: x0,y0,c0, x1,y1,c1, ...
@@ -273,7 +274,7 @@ struct PoseTrack {
     QVector<PoseFrame> frames;         // ascending by relUs
 };
 
-// Read analysis.pose2d (+ clock.t0_us) from swing.json. ok=false if absent.
+// Read analysis.pose2d from the swing document, in window time. ok=false if absent.
 PoseTrack readPose2d(const QString &swingDir);
 
 // Nearest pose-frame index for a window-relative timestamp (or -1 if empty).

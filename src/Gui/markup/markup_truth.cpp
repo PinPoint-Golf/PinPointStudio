@@ -19,6 +19,7 @@
 #include "markup_truth.h"
 
 #include "../../Export/swing_store.h"   // the swing document, whichever format it is in
+#include "../../Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
 
 #include <QDir>
 #include <QFile>
@@ -373,8 +374,12 @@ PoseTrack readPose2d(const QString &swingDir)
     const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     if (root.isEmpty()) return track;
 
-    const qint64 t0 = root.value(QStringLiteral("clock")).toObject()
-                          .value(QStringLiteral("t0_us")).toInteger();
+    // The analysis origin, by the one rule (swing_analysis.h): 0 for a stamped document, else
+    // clock.t0_us, through which windowTimeUs leaves a window-relative t_us alone. The old
+    // unconditional `t_us - clock.t0_us` pushed every frame of a document whose pose was already
+    // window-relative (all of today's library) about 5e11 us before the window, so the overlay
+    // never found a frame within 40 ms of the playhead (refactor step 1.7).
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
     const QJsonArray frames = root.value(QStringLiteral("analysis")).toObject()
                                   .value(QStringLiteral("pose2d")).toObject()
                                   .value(QStringLiteral("frames")).toArray();
@@ -384,7 +389,7 @@ PoseTrack readPose2d(const QString &swingDir)
     for (const QJsonValue &fv : frames) {
         const QJsonObject f = fv.toObject();
         PoseFrame pf;
-        pf.relUs = f.value(QStringLiteral("t_us")).toInteger() - t0;   // -> window-relative
+        pf.relUs = qint64(pinpoint::analysis::windowTimeUs(f.value(QStringLiteral("t_us")).toInteger(), t0));
         const QJsonArray kp = f.value(QStringLiteral("kp")).toArray();
         pf.kp.reserve(kp.size());
         for (const QJsonValue &x : kp) pf.kp.push_back(float(x.toDouble()));

@@ -343,9 +343,61 @@ static int realSwingRoundTrip(const QString &swingDir)
     return 0;
 }
 
+// ── the recorded pose overlay's time base (refactor step 1.7) ────────────────
+// readPose2d must put pose frames in window time by the document's one rule
+// (documentAnalysisOriginUs + windowTimeUs), whatever era wrote them. Today's library
+// writes pose t_us window-relative under an absolute clock.t0_us (~5e11 us); the old
+// reader subtracted t0 unconditionally and pushed every frame far before the window.
+static QString makePoseSwing(const QString &root, const QString &name, qint64 clockT0,
+                             const QList<qint64> &tUs, bool stamped)
+{
+    const QString dir = QDir(root).filePath(name);
+    QDir().mkpath(dir);
+    QJsonArray frames;
+    for (qint64 t : tUs) {
+        QJsonArray kp;
+        for (int i = 0; i < 51; ++i) kp.append(0.5);
+        frames.append(QJsonObject{ { QStringLiteral("t_us"), t }, { QStringLiteral("kp"), kp } });
+    }
+    QJsonObject an{ { QStringLiteral("pose2d"), QJsonObject{ { QStringLiteral("frames"), frames } } } };
+    if (stamped) an.insert(QStringLiteral("timeBase"), QStringLiteral("window"));
+    const QJsonObject swing{ { QStringLiteral("clock"), QJsonObject{ { QStringLiteral("t0_us"), clockT0 } } },
+                             { QStringLiteral("analysis"), an } };
+    QFile f(QDir(dir).filePath(QStringLiteral("swing.json")));
+    if (!f.open(QIODevice::WriteOnly)) return {};
+    f.write(QJsonDocument(swing).toJson(QJsonDocument::Indented));
+    return dir;
+}
+
+static void poseTimeBaseTests()
+{
+    std::printf("recorded pose overlay: window time by the one rule\n");
+    QTemporaryDir tmp;
+    if (!check(tmp.isValid(), "temp dir")) return;
+    const qint64 T0 = 543961522620;   // a real clock.t0_us (2026-10-20 session)
+
+    // Unstamped, pose already window-relative (every document in today's library).
+    const PoseTrack a = readPose2d(makePoseSwing(tmp.path(), QStringLiteral("rel"), T0, { 87, 80467 }, false));
+    check(a.ok && a.frames.size() == 2 && a.frames[0].relUs == 87 && a.frames[1].relUs == 80467,
+          "unstamped, window-relative pose: read as stored");
+    check(poseIndexForUs(a, 80000) == 1 && std::llabs(a.frames[1].relUs - 80000) <= 40000,
+          "and a playhead in the window finds its frame");
+
+    // Unstamped, pose on the ring clock (an absolute era): rebased once.
+    const PoseTrack b = readPose2d(makePoseSwing(tmp.path(), QStringLiteral("abs"), T0, { T0 + 1000, T0 + 5000 }, false));
+    check(b.ok && b.frames.size() == 2 && b.frames[0].relUs == 1000 && b.frames[1].relUs == 5000,
+          "unstamped, absolute pose: minus clock.t0_us");
+
+    // Stamped (`analysis.timeBase: "window"`): read as written, t0 ignored.
+    const PoseTrack c = readPose2d(makePoseSwing(tmp.path(), QStringLiteral("stamped"), T0, { 87, 80467 }, true));
+    check(c.ok && c.frames.size() == 2 && c.frames[0].relUs == 87 && c.frames[1].relUs == 80467,
+          "stamped document: window time as written");
+}
+
 int main(int argc, char **argv)
 {
     selfTests();
+    poseTimeBaseTests();
     if (g_fails) { std::fprintf(stderr, "%d case(s) FAILED\n", g_fails); return 1; }
 
     // Opt-in: a real swing dir on the command line rewrites that swing's truth.json.

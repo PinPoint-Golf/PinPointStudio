@@ -631,7 +631,7 @@ set(PP_QML_SOURCES
     src/Gui/report/report_stills_pure.cpp
     src/Gui/markup/markup_truth.h
     src/Gui/markup/markup_truth.cpp
-    src/Gui/shot/dtl_overlay_payload.h
+    src/Export/dtl_overlay_payload.h
     src/Body/head_track.h
     src/Body/head_track.cpp
     src/Gui/trust/trust_readings.h

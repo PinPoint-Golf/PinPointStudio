@@ -150,6 +150,13 @@ WriteResult SwingStoreRecordingRepository::writeSummarySidecar(const PersistedSh
     return status(WriteResult::Status::Written);
 }
 
+WriteResult SwingStoreRecordingRepository::backfillAnalysisContext(const QString &swingDir,
+                                                                   const AthleteRecordFacts &facts,
+                                                                   const PersistOptions &options)
+{
+    return SwingDocWriter::recordBackfilledContext(swingDir, facts, options.dryRun);
+}
+
 bool SwingStoreRecordingRepository::isDeviceOnly(const QString &swingDir)
 {
     return SwingDocWriter::isDeviceOnlySwing(SwingStore::load(swingDir));

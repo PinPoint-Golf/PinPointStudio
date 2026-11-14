@@ -32,7 +32,7 @@
 // relative to it, an already-relative one passes through; t0Us = 0 keeps the times as they are.
 //
 // The track builder is INLINE and this header is OpenCV-free on purpose: the
-// swing.json writer (swing_doc.cpp) is linked into targets that carry neither
+// swing.json writer (swing_doc_analysis.cpp) is linked into targets that carry neither
 // OpenCV nor the tracker, and it holds only the track. The config echo is the one
 // part that needs DtlShaftConfig, so it is computed where the track is produced
 // (dtlShaftConfigJson → DtlShaftTrack2D::configJson / configHash) and the
@@ -254,7 +254,7 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
           // The top of the backswing out of view (dtl_shaft_track.h): only when the
           // face-on ladder had a P4 to centre the window on, so a document without
           // one writes the bytes it wrote before. The shot card's ⚠ reads `flag`
-          // through swing_doc.cpp dataWarningDetailFrom.
+          // through dataWarningDetailFrom (swing_doc_reader.cpp).
           if (track.topChecked)
               sm.insert("topOutOfView", QJsonObject{
                   { "flag",           track.topOutOfView },

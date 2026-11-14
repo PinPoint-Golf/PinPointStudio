@@ -48,7 +48,7 @@
 #include "../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — the strip's instants
 #include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
 #include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
-#include "../Gui/shot/dtl_overlay_payload.h"       // dtlOverlayDetail — the DTL tile's overlay (header-only)
+#include "dtl_overlay_payload.h"                    // dtlOverlayDetail — the DTL tile's overlay (header-only)
 
 namespace pinpoint {
 

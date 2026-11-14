@@ -34,6 +34,7 @@
 //                     analysis with PersistOptions::savePose; a launch-monitor-only shot has its
 //                     launch monitor rows derived again instead
 //   convert           SwingStore's verified conversion, in the domain's terms
+//   backfillAnalysisContext  the step-1 backfill (DEC-34): the writer's recordBackfilledContext
 //
 // Adapters ring (src/Export).
 
@@ -61,6 +62,9 @@ public:
     ConversionResult convert(const QString &swingDir, bool deleteJson) override;
 
     WriteResult writeSummarySidecar(const PersistedShot &shot) override;
+
+    WriteResult backfillAnalysisContext(const QString &swingDir, const AthleteRecordFacts &facts,
+                                        const PersistOptions &options = {}) override;
 
     bool isDeviceOnly(const QString &swingDir) override;
 };

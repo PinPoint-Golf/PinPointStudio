@@ -39,7 +39,7 @@ needs them. Swing documents are read only through `tools/pp_swingdoc.py`.
 clock. Both are EventBuffer host-monotonic stamps, and both are made window-relative by
 subtracting the same `t0 = window.startTimestampUs()`:
 - `swing_exporter.cpp:141` sets t0; `:305` applies it to video frames and `:605` to IMU samples.
-- `swing_doc.cpp:1182` (`poseTrackToJson`) uses `rel()` with the same `windowT0`.
+- `poseTrackToJson` (`swing_doc_analysis.cpp`) uses `windowTimeUs()` with the same `windowT0`.
 
 The two stamps mark different events, though. A pose frame's stamp is its video frame's
 **exposure end**; an IMU stamp is the sample's **arrival** at the host. The hop offset is

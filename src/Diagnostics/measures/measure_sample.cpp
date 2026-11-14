@@ -978,7 +978,7 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     grid.swingDir  = swingDir;
     grid.sessionId = QFileInfo(QFileInfo(swingDir).absolutePath()).fileName();
 
-    // Identity fields, spelled exactly as swing_doc.cpp's summaryFromRoot() spells them — that
+    // Identity fields, spelled exactly as swing_doc_reader.cpp's summaryFromRoot() spells them — that
     // function is the authority and this must not drift from it, or the draw-from filter would
     // disagree with the carousel about which swing is which. Read here rather than borrowed from
     // SwingDocReader because Diagnostics must not depend on Export: this module compiles into the

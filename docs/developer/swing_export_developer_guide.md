@@ -489,6 +489,7 @@ writer's one-entry just-written cache, so it is safe from workers.
 | `editReview(dir, ReviewEdit)` | merges rating / note / club / `excluded` / `clubOverride` into `review` (an unset field is left alone) | `ShotListModel`, `SessionArchiver` (restore) |
 | `convert(dir, deleteJson)` | JSON era → `swing.ppsw`, proven first | `LibraryConverter`, `pps_convert_library`, `SessionArchiver` |
 | `writeSummarySidecar(PersistedShot)` | the JSON-era `swing_summary.json` | `SessionReviewController` |
+| `backfillAnalysisContext(dir, AthleteRecordFacts, PersistOptions)` | the step-1 backfill (DEC-34, a one-off migration): writes `analysisContext` into a document with none, from its legacy fields and the record's height and club set; `Unchanged` when it already has a block or the facts add nothing; `dryRun` honoured | `tools/migrate/backfill_analysis_context` |
 | `isDeviceOnly(dir)` | a read | `ReanalysisController`, `reanalyseAndPersist` |
 
 Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, `Failed`

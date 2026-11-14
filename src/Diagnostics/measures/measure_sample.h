@@ -323,7 +323,7 @@ struct SwingPhaseGrid {
 // ── Building ────────────────────────────────────────────────────────────────
 //
 // From the `analysis` object of a swing.json — `metrics[]` (key/unit/t_us[]/value[]) and `phases[]`
-// (phase/t_us/conf), the shapes swing_doc.cpp writes and wrist_analysis_adapter.cpp already reads.
+// (phase/t_us/conf), the shapes swing_doc_analysis.cpp writes and wrist_analysis_adapter.cpp already reads.
 //
 // A metric may also carry `valid[]`, a 0/1 array parallel to `t_us` marking samples that were
 // BRIDGED across a gated or absent run rather than measured (design §5.1). Those enter neither a

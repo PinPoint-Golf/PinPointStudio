@@ -220,8 +220,9 @@ The one rule that has bitten three times, twice silently:
 
 > **Everything serialized, and everything the offline replay window uses, is
 > window-relative (0-based µs).** Only the *live* capture window runs on the absolute
-> EventBuffer clock; `serializeAnalysis` (swing_doc.cpp) subtracts `clock.t0_us` on
-> write, exactly once.
+> EventBuffer clock; the pipeline rebases its result to window time once, at
+> `PipelineAnalyzer::analyze`, and `serializeAnalysis` (`swing_doc_analysis.cpp`) writes it with
+> `analysis.timeBase: "window"` (refactor step 1.3a).
 
 Consequences: injected pose/ball files carry window-relative `t_us`; anything that
 "helpfully" rebases to absolute (`+ clock.t0_us`) produces timestamps that intersect no

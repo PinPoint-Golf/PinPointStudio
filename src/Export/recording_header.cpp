@@ -95,6 +95,14 @@ double standardLengthOf(const QString &clubName, ClubSet set, double heightM)
     return st.valid ? double(st.lengthMm) : 0.0;
 }
 
+// The session's date, read from session.dir's first 10 characters, as today's re-analysis read it
+// (A3: step 2's SessionIdentity becomes the one place). Invalid when the document names no session.
+QDate sessionDateOf(const QJsonObject &root)
+{
+    const QString sessionDir = root.value(QStringLiteral("session")).toObject().value(QStringLiteral("dir")).toString();
+    return QDate::fromString(sessionDir.left(10), Qt::ISODate);
+}
+
 } // namespace
 
 int swingDocSchemaVersionOf(const QJsonObject &root)
@@ -357,8 +365,7 @@ rec::AnalysisContext legacyAnalysisContext(const QJsonObject &root)
     // document, so in practice this is the men's set — "unknown → men's, as today".
     // The session's date is read from its folder name, as today's re-analysis did (A3, step 2's
     // SessionIdentity is the one place).
-    const QString sessionDir = root.value(QStringLiteral("session")).toObject().value(QStringLiteral("dir")).toString();
-    const QDate on = QDate::fromString(sessionDir.left(10), Qt::ISODate);
+    const QDate on = sessionDateOf(root);
     c.clubSet = clubSetOn(ath.value(QStringLiteral("sex")).toString(),
                           QDate::fromString(ath.value(QStringLiteral("dob")).toString(), Qt::ISODate), on);
 
@@ -391,6 +398,28 @@ rec::AnalysisContext legacyAnalysisContext(const QJsonObject &root)
     }
     // The recorded standard length: the trimmed captured name's, only when it names a standard club
     // (HANDOFF, 1.1 review: the empty-popover case then matches today exactly).
+    c.club.standardLengthMm = standardLengthOf(c.club.name, c.clubSet, c.heightM);
+    return c;
+}
+
+rec::AnalysisContext backfilledAnalysisContext(const QJsonObject &root, double heightM,
+                                               const QString &sex, const QString &dobIso)
+{
+    rec::AnalysisContext c = legacyAnalysisContext(root);
+    if (!(c.heightM > 0.0) && heightM > 0.0)
+        c.heightM = heightM;
+
+    const QJsonObject ath = root.value(QStringLiteral("athlete")).toObject();
+    const bool docSays = !ath.value(QStringLiteral("sex")).toString().isEmpty()
+                      || !ath.value(QStringLiteral("dob")).toString().isEmpty();
+    if (!docSays) {
+        // The swing's date: the session's, as the legacy context reads it, else the capture's wallclock.
+        QDate on = sessionDateOf(root);
+        if (!on.isValid())
+            on = QDateTime::fromString(root.value(QStringLiteral("clock")).toObject()
+                                           .value(QStringLiteral("wallclock")).toString(), Qt::ISODateWithMs).date();
+        c.clubSet = clubSetOn(sex, QDate::fromString(dobIso, Qt::ISODate), on);
+    }
     c.club.standardLengthMm = standardLengthOf(c.club.name, c.clubSet, c.heightM);
     return c;
 }

@@ -774,7 +774,6 @@ qt_add_executable(PinPointStudio
     src/Gui/markup/markup_image_provider.h
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
-    src/Gui/shot/dtl_overlay_payload.h
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
@@ -2782,6 +2781,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc_internal.h
+    src/Export/dtl_overlay_payload.h
     src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
     src/Export/swing_doc_reader.cpp
     src/Export/swing_doc_analysis.cpp
@@ -3234,6 +3234,26 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Buffer src/Export src/LaunchMonitor src/Core)
     target_link_libraries(pps_convert_library PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
+
+    # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
+    # every pre-step-1 swing (height and club set from the athlete record) through the one door,
+    # RecordingRepository::backfillAnalysisContext. A dry run unless --write (which needs a
+    # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
+    add_executable(backfill_analysis_context
+        tools/migrate/backfill_analysis_context.cpp
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Export/swing_paths.cpp
+        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Core/pp_log_stream.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(backfill_analysis_context PRIVATE
+        src/Buffer src/Export src/LaunchMonitor src/Core)
+    target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    message(STATUS "Storage tools: backfill_analysis_context enabled")
 endif()
 
 # ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────

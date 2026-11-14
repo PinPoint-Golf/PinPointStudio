@@ -280,6 +280,15 @@ private:
     // A document with no raw block, or no analysis block, is left alone and is not an error.
     static WriteResult refreshLaunchMonitorRows(const QString &swingDir, bool dryRun);
 
+    // THE STEP-1 BACKFILL (D4, DEC-34; RecordingRepository::backfillAnalysisContext): writes the
+    // `analysisContext` block into a document that has none — its legacy context with the athlete
+    // record's height and club set on the swing's date (backfilledAnalysisContext, recording_header.h).
+    // A document that already has a block is never rewritten (Unchanged), nor one whose facts add
+    // nothing to the legacy context it reads today (Unchanged: a block that only froze "unknown"
+    // would stop a later backfill from filling it). Written on a dry run = WOULD be; nothing written.
+    static WriteResult recordBackfilledContext(const QString &swingDir, const AthleteRecordFacts &facts,
+                                               bool dryRun);
+
     // ── CORE §8.5 — where a stream's bytes came from, when they came off a wire ──
     //
     // ⭐ PROVENANCE, AND ONLY PROVENANCE.  This is the swing.json half of the link

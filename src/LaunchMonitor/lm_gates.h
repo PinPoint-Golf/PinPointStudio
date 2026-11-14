@@ -31,7 +31,7 @@
 // A swing whose block has no `dropped` key was imported before the list was kept: it gets no
 // records, and stays unexplained (Mark, 16 Oct 2026). GSPro readings drop nothing.
 //
-// Header-only: swing_doc.cpp and the tests include it with no source-list edits.
+// Header-only: swing_doc_writer.cpp and the tests include it with no source-list edits.
 
 #include "launch_monitor_reading.h"
 #include "../Analysis/gate_record.h"

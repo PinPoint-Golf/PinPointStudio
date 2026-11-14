@@ -160,6 +160,22 @@ recording::AnalysisContext withFollowedClub(const recording::AnalysisContext &co
 // The context for a document with no block: built from its legacy fields (see the file header).
 recording::AnalysisContext legacyAnalysisContext(const QJsonObject &root);
 
+// THE STEP-1 BACKFILL (D4; DEC-34, a one-off migration: R-REC-1, R-PERS-7): the context a document
+// with no block would have recorded had its capture written one — its legacy context, with the
+// athlete facts that capture never wrote taken from the athlete's record:
+//   heightM   the document's own athlete.heightM when it has one (recorded at capture), else the
+//             record's `heightM` (0 = unknown, left unknown)
+//   clubSet   the document's own athlete.sex / athlete.dob when it has either (as the legacy context
+//             reads them), else the record's `sex` / `dobIso`, ON THE SWING'S DATE: the session's
+//             (the first 10 characters of session.dir, as the legacy context reads it), else the
+//             capture's wallclock date
+//   club      the captured club as the legacy context reads it; its standard length again for the
+//             club set and height above (standardLengthOf: 0 when it names no standard club)
+//   bag       empty: the bag at capture was never recorded, and today's is not that one
+// Pure: JSON in, value out. The writer is SwingDocWriter::recordBackfilledContext.
+recording::AnalysisContext backfilledAnalysisContext(const QJsonObject &root, double heightM,
+                                                     const QString &sex, const QString &dobIso);
+
 struct AnalysisContextRead {
     recording::AnalysisContext context;
     bool    recorded = false;     // true = the document's own block; false = the legacy context

@@ -76,6 +76,23 @@ def load_swing(path):
     return _ppswing.load_swing(p)
 
 
+def analysis_origin_us(doc):
+    """The origin every analysis time of `doc` is read against: the C++ documentAnalysisOriginUs
+    (src/Analysis/swing_analysis.h), ported. A stamped document (analysis.timeBase "window") is
+    window time already: 0. An unstamped one gives its clock.t0_us."""
+    an = doc.get("analysis") if isinstance(doc, dict) else None
+    if isinstance(an, dict) and an.get("timeBase") == "window":
+        return 0
+    return int((doc.get("clock") or {}).get("t0_us") or 0)
+
+
+def window_time_us(t, t0):
+    """THE ONE RULE, ported (windowTimeUs, swing_analysis.h): an instant at or after the window's
+    start on its clock comes back to window time; a value below it (already relative, or an unset
+    marker) passes through unchanged."""
+    return t - t0 if t >= t0 else t
+
+
 def find_swing_dirs(root):
     """Every directory under root holding a swing document, sorted — the replacement for
     root.rglob('swing.json'). Dot-directories (.pinpoint-trash) are skipped."""

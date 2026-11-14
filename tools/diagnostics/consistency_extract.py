@@ -18,7 +18,7 @@ four and the consistency layers read none of them. consistency_trim_fixture.py c
 """
 import sys, os, json, glob, math, time, collections
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from pp_swingdoc import load_swing, has_swing
+from pp_swingdoc import load_swing, has_swing, analysis_origin_us, window_time_us
 ROOT = sys.argv[1]
 OUT  = sys.argv[2]
 ONLY = sys.argv[3] if len(sys.argv) > 3 else ""    # one session folder name, for a quick check
@@ -31,9 +31,8 @@ def num(x):                       # a number, or null: a missing reading never b
     return int(x) if x == int(x) else x
 def whole(x):                     # QJsonValue::toInt(-1)
     return int(x) if isnum(x) and x == int(x) else -1
-def rel_us(v, t0):                # SessionSeriesModel::relUs: absolute times come back to the window, relative ones pass
-    t = int(v) if isnum(v) else 0
-    return t - t0 if t >= t0 else t
+def rel_us(v, t0):                # SessionSeriesModel::relUs: the one rule (pp_swingdoc.window_time_us)
+    return window_time_us(int(v) if isnum(v) else 0, t0)
 def text(x):
     return x.strip() if isinstance(x, str) else ""
 def shot_id(wd):                  # SessionSeriesModel::folderShotId
@@ -64,7 +63,7 @@ def shot(d, swing, ordinal):
     ms = a.get("metrics") if isinstance(a, dict) else None
     if not ms: return None
     review = d.get("review") or {}; cap = d.get("capture") or {}
-    t0 = int((d.get("clock") or {}).get("t0_us") or 0)
+    t0 = analysis_origin_us(d)        # documentAnalysisOriginUs: 0 when stamped, else clock.t0_us
     metrics, order = {}, []
     for m in ms:
         k = m.get("key")

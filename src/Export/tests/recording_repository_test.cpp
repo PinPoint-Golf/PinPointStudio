@@ -41,6 +41,10 @@
 //   Test 12 the launch monitor's low point (lowPointFromAttack) takes the EFFECTIVE club and the
 //           RECORDED club set (step 1.6): a board correction moves it; a recorded women's set uses the
 //           women's length; with neither, the declared club, as before.
+//   Test 13 backfillAnalysisContext (the step-1 backfill, D4/DEC-34): a document with no block gets
+//           its legacy context with the record's height and club set on the swing's date; a dry run
+//           writes nothing; a recorded block, or facts that add nothing, are never written; a height
+//           the document recorded wins; a junior is decided on the swing's date
 //
 //   cmake --build build/tests --target recording_repository_test -j 6
 //   ctest --test-dir build/tests -R '^recording_repository_test$' --output-on-failure
@@ -536,6 +540,10 @@ void testReadOnlyRefused(RecordingRepository &repo)
         StreamArrival arrival;
         arrival.alias = QStringLiteral("phoneWide");
         refused(repo.completeCapture(t.path(), arrival), "completeCapture (a stream arrival)");
+        AthleteRecordFacts facts;
+        facts.heightM = 1.80;
+        refused(repo.backfillAnalysisContext(t.path(), facts), "backfillAnalysisContext");
+        refused(repo.backfillAnalysisContext(t.path(), facts, dry), "a dry-run backfillAnalysisContext");
     };
 
     QJsonObject newerSchema = cameraHeader();
@@ -782,6 +790,110 @@ void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
           "...its low point from the women's 7 iron");
 }
 
+
+// ── Test 13 ───────────────────────────────────────────────────────────────────────────────────
+// A pre-step-1 camera shot: no analysisContext block, its session folder dated 20 Oct 2026.
+QJsonObject legacyShot(const QString &club = QStringLiteral("7 IRON"))
+{
+    QJsonObject h = cameraHeader(club);
+    h[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("name"), QStringLiteral("Jess Ratcliffe") },
+                                                { QStringLiteral("handedness"), QStringLiteral("Right") } };
+    h[QStringLiteral("session")] = QJsonObject{ { QStringLiteral("dir"), QStringLiteral("2026-10-20_Jess-Ratcliffe_Wrist_01") } };
+    return h;
+}
+
+void testBackfillAnalysisContext(RecordingRepository &repo)
+{
+    std::printf("[Test 13] the step-1 backfill: height and club set into a document with no block\n");
+    const auto ctxBlock = [](const QString &dir) { return doc(dir).value(QStringLiteral("analysisContext")).toObject(); };
+    PersistOptions dry;
+    dry.dryRun = true;
+
+    QTemporaryDir t;
+    check(SwingStore::save(t.path(), legacyShot()), "a pre-step-1 shot (no analysisContext)");
+    const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
+    AthleteRecordFacts jess;
+    jess.heightM = 1.60;
+    jess.sex     = QStringLiteral("female");
+    const WriteResult d = repo.backfillAnalysisContext(t.path(), jess, dry);
+    check(d.status == WriteResult::Status::Written && bytesOf(SwingStore::ppswPath(t.path())) == before,
+          "a dry run says Written (would be) and leaves the bytes as they were");
+    check(repo.backfillAnalysisContext(t.path(), jess).status == WriteResult::Status::Written, "the backfill is Written");
+    const QJsonObject b = ctxBlock(t.path());
+    const QJsonObject ba = b.value(QStringLiteral("athlete")).toObject();
+    const QJsonObject bc = b.value(QStringLiteral("club")).toObject();
+    check(b.value(QStringLiteral("schema")).toString() == QLatin1String("pinpoint.analysisContext/1"), "...the block schema-tagged");
+    check(std::abs(ba.value(QStringLiteral("heightM")).toDouble() - 1.60) < 1e-12
+              && ba.value(QStringLiteral("clubSet")).toString() == QLatin1String("women")
+              && ba.value(QStringLiteral("handedness")).toString() == QLatin1String("Right"),
+          "...the record's height and the women's set; handedness as the document said");
+    check(bc.value(QStringLiteral("name")).toString() == QLatin1String("7 IRON")
+              && bc.value(QStringLiteral("lengthMm")).toDouble() == 1143.0
+              && bc.value(QStringLiteral("standardLengthMm")).toDouble()
+                     == double(standardClub(QStringLiteral("7 IRON"), ClubSet::Women, 1.60).lengthMm),
+          "...the captured club as recorded, its standard length for the women's set");
+    check(b.value(QStringLiteral("bag")).toObject().isEmpty(), "...no bag (none was recorded)");
+    const AnalysisContextRead read = readAnalysisContext(doc(t.path()));
+    check(read.recorded && !read.readOnly && read.context.clubSet == ClubSet::Women, "...read back as the recorded context");
+    const QByteArray after = bytesOf(SwingStore::ppswPath(t.path()));
+    check(repo.backfillAnalysisContext(t.path(), jess).status == WriteResult::Status::Unchanged
+              && bytesOf(SwingStore::ppswPath(t.path())) == after,
+          "again: Unchanged, a recorded block is never rewritten");
+
+    // A height the document recorded at capture wins over the record's.
+    QTemporaryDir h;
+    QJsonObject withHeight = legacyShot();
+    QJsonObject ath = withHeight.value(QStringLiteral("athlete")).toObject();
+    ath[QStringLiteral("heightM")] = 1.75;
+    withHeight[QStringLiteral("athlete")] = ath;
+    check(SwingStore::save(h.path(), withHeight), "a shot whose document recorded a height");
+    check(repo.backfillAnalysisContext(h.path(), jess).ok()
+              && ctxBlock(h.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("heightM")).toDouble() == 1.75,
+          "...keeps its own 1.75 m, not the record's");
+
+    // Facts that add nothing (no height, a man's set as the legacy context already reads): no block.
+    QTemporaryDir n;
+    check(SwingStore::save(n.path(), legacyShot()), "another pre-step-1 shot");
+    const QByteArray nb = bytesOf(SwingStore::ppswPath(n.path()));
+    AthleteRecordFacts nothing;
+    nothing.sex = QStringLiteral("male");
+    check(repo.backfillAnalysisContext(n.path(), nothing).status == WriteResult::Status::Unchanged
+              && bytesOf(SwingStore::ppswPath(n.path())) == nb,
+          "facts that add nothing: Unchanged, no block frozen at \"unknown\"");
+
+    // A junior is decided on the SWING'S date: 17 on 20 Oct 2026.
+    QTemporaryDir j;
+    check(SwingStore::save(j.path(), legacyShot()), "a junior's pre-step-1 shot");
+    AthleteRecordFacts junior;
+    junior.heightM = 1.50;
+    junior.sex     = QStringLiteral("male");
+    junior.dobIso  = QStringLiteral("2009-06-01");
+    check(repo.backfillAnalysisContext(j.path(), junior).ok()
+              && ctxBlock(j.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("clubSet")).toString()
+                     == QLatin1String("junior")
+              && ctxBlock(j.path()).value(QStringLiteral("club")).toObject().value(QStringLiteral("standardLengthMm")).toDouble()
+                     == double(standardClub(QStringLiteral("7 IRON"), ClubSet::Junior, 1.50).lengthMm),
+          "...the junior set, its standard length from the height");
+    // No session folder: the capture's wallclock date. 18 on 2 Jun 2027 → the men's set.
+    QTemporaryDir w;
+    QJsonObject noSession = legacyShot();
+    noSession.remove(QStringLiteral("session"));
+    QJsonObject clock = noSession.value(QStringLiteral("clock")).toObject();
+    clock[QStringLiteral("wallclock")] = QStringLiteral("2027-06-02T09:00:00.000Z");
+    noSession[QStringLiteral("clock")] = clock;
+    check(SwingStore::save(w.path(), noSession), "a shot with no session folder, captured 2 Jun 2027");
+    check(repo.backfillAnalysisContext(w.path(), junior).ok()
+              && ctxBlock(w.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("clubSet")).toString()
+                     == QLatin1String("men"),
+          "...18 on its wallclock date: the men's set");
+
+    // No document: NoDocument, nothing created.
+    QTemporaryDir e;
+    check(repo.backfillAnalysisContext(e.path(), jess).status == WriteResult::Status::NoDocument
+              && !SwingStore::hasDocument(e.path()),
+          "no document: NoDocument, nothing written");
+}
+
 } // namespace
 
 int main()
@@ -800,6 +912,7 @@ int main()
     testReanalyseAndPersist(repo);
     testPoseReuseKeepsKeypoints(repo);
     testLowPointTakesTheEffectiveClub(repo);
+    testBackfillAnalysisContext(repo);
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;
 }

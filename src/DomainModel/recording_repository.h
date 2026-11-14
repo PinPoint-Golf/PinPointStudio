@@ -39,6 +39,9 @@
 //                     exclusion, club override)
 //   convert           a JSON-era swing → swing.ppsw, proven before the JSON is deleted
 //   writeSummarySidecar  the JSON-era swing_summary.json cache
+//   backfillAnalysisContext  THE STEP-1 BACKFILL (D4; DEC-34): a one-off migration Mark approves
+//                     (R-REC-1, R-PERS-7) that records the analysis context of a document older than
+//                     the block, with the height and club set its capture never wrote
 //   isDeviceOnly      a read: did the launch monitor alone record this shot?
 //
 // ⛔ EVERY WRITE REFUSES A READ-ONLY DOCUMENT: one saved by a newer PinPoint Studio (its schema, or
@@ -191,6 +194,17 @@ struct ConversionResult {
     QString error;     // Failed: what failed (a newer document is refused here too)
 };
 
+// ── backfillAnalysisContext (the step-1 backfill; D4, DEC-34) ────────────────────────────────────
+// The athlete facts the old capture never wrote, as the athlete's record holds them. The store
+// turns them into the context the shot would have recorded (backfilledAnalysisContext,
+// Export/recording_header.h): the legacy context, with the height and the club set ON THE SWING'S
+// DATE. A height the document itself recorded at capture (athlete.heightM) wins over the record's.
+struct AthleteRecordFacts {
+    double  heightM = 0.0;   // standing height from the record; 0 = unknown (left unknown)
+    QString sex;             // the record's spelling ("male" / "female" / ""); "" = unknown
+    QString dobIso;          // yyyy-MM-dd; "" = unknown (no junior set can be decided)
+};
+
 class RecordingRepository {
 public:
     virtual ~RecordingRepository() = default;
@@ -218,6 +232,16 @@ public:
     virtual ConversionResult convert(const QString &swingDir, bool deleteJson) = 0;
 
     virtual WriteResult writeSummarySidecar(const PersistedShot &shot) = 0;
+
+    // A ONE-OFF MIGRATION (R-REC-1: the only other writes of a swing file are migrations Mark
+    // approves one by one; this is DEC-34's). Writes the `analysisContext` block into a document
+    // that has none, built from its legacy fields and `facts`. Written = written (on a dry run:
+    // WOULD be); Unchanged = nothing to record — the document already has a block (capture recorded
+    // it: never rewritten), or the facts add nothing to what its legacy context already reads;
+    // NoDocument / ReadOnly as every write. PersistOptions::dryRun is honoured; savePose is ignored
+    // (no analysis is written).
+    virtual WriteResult backfillAnalysisContext(const QString &swingDir, const AthleteRecordFacts &facts,
+                                                const PersistOptions &options = {}) = 0;
 
     virtual bool isDeviceOnly(const QString &swingDir) = 0;
 };

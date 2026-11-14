@@ -46,15 +46,16 @@
 // address — not a per-frame curve. No dedicated "scalar metric" shape exists
 // anywhere in the codebase (ScoreBreakdown::metrics / ScoredMetric is scorer-
 // internal audit trail and is never serialized to swing.json at all — see
-// swing_doc.cpp's serializeScore(), which has no analogue of `metrics`).
+// scoreToJson() in Analysis/swing_analysis_json.h, which has no analogue of `metrics`).
 // MetricSeries, by contrast, is already the one persisted/consumed shape
-// (swing_doc.cpp, disk_replay_source.cpp, shot_processor.cpp, PpMetricChart),
+// (metricSeriesToJson in Analysis/swing_analysis_json.h, the one projection analysisDetailFor
+// in swing_doc_reader.cpp, PpMetricChart),
 // and every one of those readers/writers loops over `t_us`/`value`/
 // `phaseSamples` generically with no non-empty-curve assumption. So the setup
 // scalars use the representation that contract ALREADY tolerates cleanly: a
 // MetricSeries with an EMPTY `t_us`/`value` curve and a single Address
 // `phaseSamples` entry carrying the one measurement. This needs no
-// reader/writer change anywhere (swing_doc.cpp is explicitly off-limits for
+// reader/writer change anywhere (the swing document code was explicitly off-limits for
 // this packet) and keeps each scalar's own key/label/unit — cramming multiple
 // unrelated quantities into one series' phaseSamples (or inventing a bespoke
 // "setup" block) was rejected as it would corrupt the existing convention that

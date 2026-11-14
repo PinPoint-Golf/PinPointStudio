@@ -35,7 +35,9 @@
 // shots all reach it from the disk form's analysis.clubDtl, in window time. The
 // Charts pictures (posture_picture, delivery_picture) read its club samples too.
 // Header-only so the swing document's reader, which every tool links, needs no
-// extra source. What the translator deliberately does NOT do
+// extra source. It lives here, beside that projection (swing_doc_reader.cpp), and not
+// in src/Gui/shot where it began: the store adapter must not include a UI header
+// (moved in refactor step 1.7; it is plain JSON → QVariant, with no QML type). What the translator deliberately does NOT do
 // (dtl_shaft_tracker_design §5.9): no synth, no prediction, no bridging — a frame
 // that did not publish an angle (tier below RAY) is not a sample, so the shaft
 // visibly disappears across the end-on and occluded bands.

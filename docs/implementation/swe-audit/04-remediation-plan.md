@@ -158,6 +158,14 @@ the LM board is re-analysed with the club they really hit; and a swing file has 
 header writer and one serialiser per analysis block. It is cut into work items 1.0–1.7 (brief §6) that each build,
 test and pass parity on their own.
 
+**Status (14 Nov 2026, item 1.7):** items 1.0–1.6 are committed (`1751cc96`, `3586cd1b`, `d086ceaf`, `186dbf51`,
+`108e7858`, `77ff74a7`, `d07ccebb`, `363925e6`); 1.7 closes the code (the loose ends, the backfill tool, the docs). The
+Mac half of the parity run at `363925e6` agrees with `stageG-aa5aee15` exactly (the diagnostics and athlete dumps); the
+cabin half (the analysis digests) is run separately. Still to do before the step is done: the cabin parity half; the
+live-equals-re-analysis check on three real shots (§5.2 step 2: needs Mark's shots); the backfill's real run, after
+Mark reads its dry-run report (DEC-34); the library re-analysis; and **the shot kind (DEC-44)**, which no work item
+built (reference §11.1, R-REC-8).
+
 - **The Recording** (brief §4.1): the frozen window, the sources by role (one perspective mapping, no magic ints), the
   capture facts, the ball inputs, the IMU bindings, the integrity inputs, each stream's setup, and the **analysis
   context**, built once at the window freeze from a capture-side snapshot. The export writes the same value, so it

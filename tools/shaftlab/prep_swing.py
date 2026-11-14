@@ -4,14 +4,14 @@ lead-forearm extension direction (elbow->grip, image deg). Usage: prep2.py <swin
 import json, sys, os, csv, math
 import numpy as np, cv2
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-from pp_swingdoc import load_swing  # noqa: E402
+from pp_swingdoc import load_swing, analysis_origin_us, window_time_us  # noqa: E402
 
 force_mp4 = '--mp4' in sys.argv
 bilinear = '--bilinear' in sys.argv
 sw, out = [a for a in sys.argv[1:] if not a.startswith('--')][:2]
 os.makedirs(out, exist_ok=True)
 d = load_swing(sw)
-t0 = d['clock']['t0_us']
+t0 = analysis_origin_us(d)   # the analysis origin by the one rule (0 when stamped, else clock.t0_us)
 face = [s for s in d['streams'] if s.get('kind') == 'video'
         and (s.get('setup', {}).get('perspective') == 2 or 'Face' in s.get('alias', ''))][0]
 vt = np.array(face['frames']['t_us'], float)
@@ -31,7 +31,7 @@ if use_raw:
 else:
     W, H = face['encoded']['width'], face['encoded']['height']
 pose = d['analysis']['pose2d']['frames']
-prel = np.array([p['t_us'] - t0 for p in pose], float)
+prel = np.array([window_time_us(p['t_us'], t0) for p in pose], float)
 lead = np.array([p['lead'] for p in pose], float)
 trail = np.array([p['trail'] for p in pose], float)
 grip = 0.5 * (lead + trail)

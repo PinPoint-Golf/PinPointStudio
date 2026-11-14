@@ -712,6 +712,28 @@ WriteResult SwingDocWriter::editReview(const QString &swingDir, const ReviewEdit
     return w;
 }
 
+WriteResult SwingDocWriter::recordBackfilledContext(const QString &swingDir, const AthleteRecordFacts &facts,
+                                                    bool dryRun)
+{
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
+    // Recorded at capture (or by an earlier backfill): a recorded input is never regenerated.
+    if (root.contains(QStringLiteral("analysisContext")))
+        return result(WriteResult::Status::Unchanged);
+    const QJsonObject block = analysisContextJson(backfilledAnalysisContext(root, facts.heightM, facts.sex, facts.dobIso));
+    if (block == analysisContextJson(legacyAnalysisContext(root)))
+        return result(WriteResult::Status::Unchanged);   // nothing to add to what it reads today
+    if (dryRun)
+        return result(WriteResult::Status::Written);     // WOULD be written
+    root[QStringLiteral("analysisContext")] = block;
+    const WriteResult w = saveAs(swingDir, root);
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
+}
+
 WriteResult SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
                                                 const lm::LaunchMonitorReading &reading,
                                                 const QJsonObject &captureClub,

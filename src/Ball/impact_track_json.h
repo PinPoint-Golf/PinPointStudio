@@ -21,8 +21,9 @@
 // THE ONE SERIALISER of `analysis.impact` (the impact camera's track, impact_camera_design.md §7)
 // — the writer and its typed reader side by side, beside the producer (ImpactRunner). Refactor
 // step 1.3a (information_model.md §8 "One serialiser per analysis block"). The document
-// (swing_doc_analysis.cpp) and the live detail (pinpoint::impactTrackJson, swing_doc.h) write
-// through impactTrackToAnalysisJson, so the overlay reads one shape from both surfaces.
+// (swing_doc_analysis.cpp) writes through impactTrackToAnalysisJson, and the live, replay and
+// reload detail are all projected from that disk form (analysisDetailFor, swing_doc_reader.cpp),
+// so the overlay reads one shape from every surface.
 //
 // Coordinates are normalised to the CLIP frame. TIMES go through windowTimeUs (swing_analysis.h):
 // `t0Us` 0 = as written. The path's `kind` is always "synth" and is not read back.

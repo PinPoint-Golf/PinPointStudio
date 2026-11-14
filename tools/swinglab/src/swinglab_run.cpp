@@ -189,9 +189,9 @@ struct RefusionInstants {
 
 RefusionInstants refusionInstants(const QJsonObject &analysisIn, qint64 t0Us, int64_t jobImpactUs)
 {
-    // analysis.phases t_us: absolute on older documents, window-relative on newer ones. The
-    // writer's own domain rule (SwingDocWriter rel()): an absolute value is ≥ clock.t0_us and
-    // has it subtracted; an already-relative value passes through.
+    // analysis.phases t_us: absolute on older documents, window-relative on newer ones. The one
+    // rule (windowTimeUs, swing_analysis.h) against the document's analysis origin
+    // (documentAnalysisOriginUs: 0 when stamped, else clock.t0_us).
     int64_t at[8];
     std::fill(std::begin(at), std::end(at), int64_t(-1));
     for (const QJsonValue &pv : analysisIn[QStringLiteral("phases")].toArray()) {
@@ -200,7 +200,7 @@ RefusionInstants refusionInstants(const QJsonObject &analysisIn, qint64 t0Us, in
         if (ph < 0 || ph > int(Phase::Finish))
             continue;
         const qint64 t = qint64(p[QStringLiteral("t_us")].toDouble(-1));
-        at[ph] = (t0Us > 0 && t >= t0Us) ? t - t0Us : t;
+        at[ph] = windowTimeUs(t, t0Us);
     }
     RefusionInstants in;
     const int64_t a = at[int(Phase::Address)], tp = at[int(Phase::Top)],
@@ -1096,8 +1096,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
                      window.entries().size(), ls.usedRaw ? "raw" : "mp4");
         const double beta = cli.isSet(optRefuseBeta) ? cli.value(optRefuseBeta).toDouble() : -1.0;
-        const qint64 t0Us = qint64(SwingStore::load(swingDir)[QStringLiteral("clock")].toObject()
-                                       [QStringLiteral("t0_us")].toDouble(0));
+        const qint64 t0Us = qint64(documentAnalysisOriginUs(SwingStore::load(swingDir)));
         const RefusionInstants inst = refusionInstants(ls.analysisIn, t0Us, job.impactUs);
         return runRefusionParity(window, job.imuBindings, outDir, beta, tuning, job.impactUs, inst);
     }
@@ -1897,17 +1896,15 @@ int main(int argc, char **argv)
                 // has to survive the round trip as absent rather than as a number
                 // whose meaning depends on the parser.
                 {
-                    // Same domain rule as SwingDocWriter's rel(): the analysis
-                    // times go out window-relative, and an already-relative value
-                    // passes through. t0 is the manifest's clock.t0_us exactly as
-                    // the document writer reads it, so club_dtl.json and result.json
-                    // cannot end up in different time domains.
+                    // The one rule (windowTimeUs, swing_analysis.h), as the document
+                    // writer applies it: the analysis times go out window-relative,
+                    // and an already-relative value passes through. t0 is the
+                    // manifest's clock.t0_us exactly as the writer reads it (a write,
+                    // not a read of a stored document), so club_dtl.json and
+                    // result.json cannot end up in different time domains.
                     const qint64 t0 = qint64(manifest.value(QStringLiteral("clock")).toObject()
                                                      .value(QStringLiteral("t0_us")).toDouble());
-                    const auto rel = [t0](int64_t t) -> qint64 {
-                        const qint64 tt = qint64(t);
-                        return tt >= t0 ? tt - t0 : tt;
-                    };
+                    const auto rel = [t0](int64_t t) -> qint64 { return qint64(windowTimeUs(t, t0)); };
                     const auto jnum = [](double v) -> QJsonValue {
                         return std::isfinite(v) ? QJsonValue(v) : QJsonValue(QJsonValue::Null);
                     };
