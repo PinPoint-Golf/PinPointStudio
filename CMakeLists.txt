@@ -936,6 +936,7 @@ target_compile_definitions(PinPointStudio PRIVATE
 
 target_sources(PinPointStudio PRIVATE
     src/Core/figure_format.h
+    src/Core/height_text.h
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_log_stream.cpp

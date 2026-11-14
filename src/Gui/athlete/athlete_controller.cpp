@@ -22,6 +22,7 @@
 #include "../../Core/pp_debug.h"
 #include "club_vocabulary.h"
 #include "club_standards.h"
+#include "height_text.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include <QDate>
 #include <QDir>
@@ -603,6 +604,11 @@ bool AthleteController::validDob(const QString &text) const
     const QRegularExpressionMatch m = shape.match(t);
     if (!m.hasMatch()) return false;
     return QDate::isValid(m.captured(1).toInt(), m.captured(2).toInt(), m.captured(3).toInt());
+}
+
+double AthleteController::parseHeight(const QString &text, const QString &unit) const
+{
+    return pinpoint::parseHeightText(text, unit);
 }
 
 void AthleteController::setPhotosApproved(const QString &uuid, bool approved)

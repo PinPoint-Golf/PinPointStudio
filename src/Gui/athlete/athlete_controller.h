@@ -219,6 +219,10 @@ public:
     // The form's date-of-birth check. Blank is VALID (the field is optional); otherwise exactly
     // YYYY-MM-DD and a real calendar date ("2026-02-31" is refused).
     Q_INVOKABLE bool validDob(const QString &text) const;
+    // The form's Height field, read into a number in `unit` ("cm", else "ft") for saveAthlete:
+    // 5'11", 5ft 11in, 71 in, 180 cm, 1.80 m, or a bare number in the field's unit (height_text.h has
+    // every spelling). 0 for blank or not a height; the form refuses a non-blank 0 (heightError).
+    Q_INVOKABLE double parseHeight(const QString &text, const QString &unit) const;
     // Tick or untick the photo approval. Ticking stamps today's date unless it was already approved
     // (the date records when consent was GIVEN, not when the box was last pressed); unticking clears it.
     Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);

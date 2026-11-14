@@ -30,6 +30,7 @@ Item {
     // ── Form state ────────────────────────────────────────────────────────────
     property bool   nameError:      false
     property bool   dobError:       false
+    property bool   heightError:    false
     property string handedness:     "Right"
     property string heightUnit:     "ft"
     property string weightUnit:     "lb"
@@ -37,6 +38,29 @@ Item {
     // "" (never answered) | "female" | "male" | "declined". The tokens come from C++ and are never
     // spelled here — see sexOptions below.
     property string sex:            ""
+    // The height as loaded (ft) and the text and unit the field showed for it. Saving with the field
+    // untouched keeps the stored height exactly: the field shows decimal feet to 2 places, so reading
+    // "5.92" back would move a stored 5'11" (5.9167 ft) on every save of an unrelated field.
+    property real   _heightStoredFt:  0
+    property string _heightShownText: ""
+    property string _heightShownUnit: ""
+    // Blank is valid (unknown); anything else must read as a height. A typo is never saved as 0 —
+    // that would quietly wipe a stored height — so the form refuses it, as it refuses a bad date.
+    // Untouched: the field still shows what the form put there for the stored height (on load, or
+    // after a unit toggle of that same value). Save and the toggle then work from the stored height,
+    // never from the rounded text, so neither moves a height nobody retyped.
+    function heightUntouched(): bool {
+        return root._heightStoredFt > 0
+            && heightField.text === root._heightShownText
+            && root.heightUnit === root._heightShownUnit
+    }
+    // The stored height as the field shows it — the one formatting, for load and toggle alike.
+    function heightShownFor(ft: real, unit: string): string {
+        return unit === "cm" ? (ft * 30.48).toFixed(1) : ft.toFixed(2)
+    }
+    function heightOk(text: string): bool {
+        return text.trim() === "" || athleteController.parseHeight(text, root.heightUnit) > 0
+    }
 
     // ── Reports (session report §7.3) ─────────────────────────────────────────
     // Buffered like the rest of the form and written after saveAthlete, through updateAthlete; the
@@ -99,6 +123,10 @@ Item {
         handedness         = "Right"
         heightField.text   = ""
         heightUnit         = "ft"
+        _heightStoredFt    = 0
+        _heightShownText   = ""
+        _heightShownUnit   = ""
+        heightError        = false
         weightField.text   = ""
         weightUnit         = "lb"
         handicapField.text = ""
@@ -135,10 +163,11 @@ Item {
         // saved display-unit preference. Convert the stored value back into that unit
         // so the number and the toggle agree.
         heightUnit = (a.heightUnit === "cm") ? "cm" : "ft"
-        heightField.text = (a.heightValue && a.heightValue > 0)
-            ? (heightUnit === "cm" ? (a.heightValue * 30.48).toFixed(1)
-                                   : a.heightValue.toFixed(2))
-            : ""
+        heightField.text = (a.heightValue && a.heightValue > 0) ? heightShownFor(a.heightValue, heightUnit) : ""
+        _heightStoredFt  = (a.heightValue && a.heightValue > 0) ? a.heightValue : 0
+        _heightShownText = heightField.text
+        _heightShownUnit = heightUnit
+        heightError      = false
 
         weightUnit = (a.weightUnit === "kg") ? "kg" : "lb"
         weightField.text = (a.weightValue && a.weightValue > 0)
@@ -163,12 +192,24 @@ Item {
     function validate(): bool {
         nameError = nameField.text.trim() === ""
         dobError  = !athleteController.validDob(dobField.text)
+        heightError = !root.heightOk(heightField.text)
         emailError = !root.emailShapeOk(reportEmailField.text)
-        return !nameError && !dobError && !emailError
+        return !nameError && !dobError && !heightError && !emailError
     }
 
     function doSave(): string {
-        const hv = parseFloat(heightField.text) || 0.0
+        // 5'11" is five feet eleven: the C++ reader takes every spelling the placeholder invites
+        // (parseFloat stopped at the apostrophe and stored whole feet). Untouched, the stored value.
+        // An untouched height, or one validate() should have refused, keeps the stored height (unset
+        // stays unset). It is handed over in ft, the stored unit, so saveAthlete's cm→ft division never
+        // re-rounds it: the record keeps its exact bits, and the display unit is written on its own
+        // below. Blank is the user clearing the height.
+        const parsedHeight = athleteController.parseHeight(heightField.text, root.heightUnit)
+        const keepStored = root.heightUntouched()
+                        || (heightField.text.trim() !== "" && !(parsedHeight > 0))
+        const hv     = keepStored ? root._heightStoredFt
+                     : heightField.text.trim() === "" ? 0.0 : parsedHeight
+        const hvUnit = keepStored ? "ft" : heightUnit
         const wv = parseFloat(weightField.text) || 0.0
         const hcp = parseFloat(handicapField.text)
         const handicap = isNaN(hcp) ? -999.0 : hcp
@@ -178,7 +219,7 @@ Item {
             root.editUuid,            // "" creates, uuid updates
             nameField.text.trim(),
             handedness,
-            hv, heightUnit,
+            hv, hvUnit,
             wv, weightUnit,
             handicap,
             primaryClub,
@@ -191,6 +232,7 @@ Item {
         // reads them, so they do not belong in the signature every caller of saveAthlete has to
         // thread through.
         if (uuid !== "") {
+            if (hvUnit !== heightUnit) athleteController.updateAthlete(uuid, "heightUnit", heightUnit)
             athleteController.updateAthlete(uuid, "dob", dobField.text.trim())
             athleteController.updateAthlete(uuid, "sex", root.sex)
             // The report's details (§7.3), the same way. The approval goes through setPhotosApproved
@@ -298,6 +340,10 @@ Item {
                                 width:           parent.width - heightUnitToggle.width
                                 placeholderText: root.heightUnit === "ft" ? "e.g. 5'11\"" : "e.g. 180"
                                 inputMethodHints: Qt.ImhFormattedNumbersOnly
+                                hasError:        root.heightError
+                                // As the date: a half-typed height accuses nobody until they leave the field.
+                                onTextChanged:   if (root.heightError && root.heightOk(text)) root.heightError = false
+                                onEditingFinished: root.heightError = !root.heightOk(text)
                             }
                             PpSegmentedControl {
                                 id: heightUnitToggle
@@ -305,8 +351,16 @@ Item {
                                 options:  ["ft", "cm"]
                                 selected: root.heightUnit
                                 onActivated: function(unit) {
-                                    const val = parseFloat(heightField.text)
-                                    if (!isNaN(val) && val > 0) {
+                                    if (unit !== root.heightUnit && root.heightUntouched()) {
+                                        // The stored height in the other unit; the field stays untouched.
+                                        heightField.text      = root.heightShownFor(root._heightStoredFt, unit)
+                                        root._heightShownText = heightField.text
+                                        root._heightShownUnit = unit
+                                        root.heightUnit       = unit
+                                        return
+                                    }
+                                    const val = athleteController.parseHeight(heightField.text, root.heightUnit)
+                                    if (val > 0) {
                                         if (unit === "cm" && root.heightUnit === "ft")
                                             heightField.text = (val * 30.48).toFixed(1)
                                         else if (unit === "ft" && root.heightUnit === "cm")
@@ -315,6 +369,14 @@ Item {
                                     root.heightUnit = unit
                                 }
                             }
+                        }
+                        Text {
+                            visible:        root.heightError
+                            height:         root.heightError ? implicitHeight : 0
+                            text:           qsTr("Use 5'11\", 180 cm or 1.80 m, or leave it blank")
+                            font.family:    Theme.fontData
+                            font.pixelSize: Theme.fontSzMicro
+                            color:          Theme.colorWarn
                         }
                     }
 

@@ -52,6 +52,11 @@ pp_add_test(club_standards_test
     SOURCES club_standards_test.cpp
     INCLUDE ${CORE}  LINK Qt6::Core
     GTEST)
+# The athlete form's Height field (height_text.h) — header-only, Qt Core.
+pp_add_test(height_text_test
+    SOURCES height_text_test.cpp
+    INCLUDE ${CORE}  LINK Qt6::Core
+    GTEST)
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads
