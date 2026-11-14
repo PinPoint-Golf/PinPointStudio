@@ -94,7 +94,10 @@ class ShotProcessor : public QObject
     // (~18 per shot) and froze the studio's GUI for 7.8 s per shot. See qml_payload.h.
     Q_PROPERTY(QJSValue replayAnalysisDetail READ replayAnalysisDetailJs NOTIFY replayAnalysisDetailChanged)
     // The active session folder (absolute path), chosen at session start via
-    // beginSessionFolder(). "" when no explicit session is in progress.
+    // beginSessionFolder(). Also announced when a swing's allocation moves it (startSwingSave): a
+    // library re-pointed mid-session, or the first swing of a session whose folder could not be made
+    // at start. "" when no session is in progress, unless a swing outside a session has had a folder
+    // made for it on demand, which it then names.
     Q_PROPERTY(QString activeSessionDir READ activeSessionDir NOTIFY activeSessionDirChanged)
 
 public:

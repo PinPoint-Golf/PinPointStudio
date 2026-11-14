@@ -145,23 +145,23 @@ public:
 
     // ── Identity, for context resolution ────────────────────────────────────
     //
-    // Both come from the grid, which read them out of the swing doc (measure_sample.cpp). The club
-    // therefore carries the house-wide "DRIVER" stub for a shot whose review block declares none —
-    // swing_doc.cpp's summaryFromRoot() applies the same default, so every surface agrees about
-    // which club a swing was hit with.
-    //
-    // KNOWN LIMITATION, stated rather than buried: that stub means this seam cannot tell an
-    // undeclared club from a declared driver, so `contextId()` never reports the undeclared case
-    // and `NormMeasureSource::contextInferred` never trips through this path. A caller that knows
-    // better — the review panel, which holds the user's own club selection — should pass its own
-    // context id to detectForSwing() instead.
+    // Both come from the grid, which read them out of the swing doc (measure_sample.cpp). The club is
+    // the DECLARED one (swingDocDeclaredClub: review.club, else capture.club.name) and never the
+    // picker's "DRIVER" stub, so it is EMPTY for a shot that declared none — which is how this seam
+    // tells an undeclared club from a declared driver (contextInferred() below).
     QString club() const;
     QString sessionId() const;
     QString swingDir() const;
 
-    // The club as a node of the context tree. Never empty: an unrecognised club resolves to the
-    // default context (context_tree.h).
+    // The club as a node of the context tree. Never empty: an undeclared club resolves to the
+    // default context (context_tree.h), and contextInferred() then says that node was assumed.
     QString contextId() const;
+
+    // True when the swing declared no club, so contextId() is the default by assumption rather than
+    // by the shot's own record. detectForSwing() grades such a shot as an undeclared context: its
+    // corridor readings are marked inferred and the engine demotes them (rule.diag.inferredContext,
+    // "club assumed").
+    bool contextInferred() const;
 
     // True when this shot carries launch-monitor data, evidenced by any `lm.` metric in the grid.
     //
@@ -210,13 +210,19 @@ struct LiveDetection {
     DetectionResult result;
     QString         club;        // as recorded on the swing
     QString         contextId;   // the tree node it was graded at
+    // The node was ASSUMED: the swing declared no club and no override named one, so it was graded at
+    // the default context and every corridor reading carries the inferred-context demotion.
+    bool            contextInferred = false;
     // The signals the caller asked for by id (`signalIds` below), each evaluated on the SAME graded
     // source detect() read, in the order asked — the kinematic sequence checks (§10.6, E4).
     std::vector<SignalOutcome> signalOutcomes;
 };
 
-// `contextIdOverride` wins when non-empty. See LiveMeasureSource::club() for the case that needs
-// it: a caller holding the user's own club selection knows something the swing doc's stub erased.
+// `contextIdOverride` wins when non-empty, and a context it names is a declared one (never inferred):
+// a caller holding the user's own club selection knows the club even where the swing doc does not.
+// Without one, a swing that declared no club (LiveMeasureSource::contextInferred) is graded as an
+// undeclared context — NormMeasureSource's "not declared" case: resolved at the default, marked
+// inferred, demoted by the engine — while the condition bindings still read the default node.
 //
 // The context tree comes from the norm provider, which is the same tree the norms were authored
 // against — a second tree here could make a condition inapplicable at a node the norm resolved at.

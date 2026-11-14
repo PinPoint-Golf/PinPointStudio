@@ -340,6 +340,9 @@ QString LiveMeasureSource::swingDir() const  { return m_grid.swingDir; }
 
 QString LiveMeasureSource::contextId() const { return contextIdForClub(m_grid.club); }
 
+// The same test contextIdForClub() makes before it answers the default: a club that is empty once trimmed.
+bool LiveMeasureSource::contextInferred() const { return m_grid.club.trimmed().isEmpty(); }
+
 bool LiveMeasureSource::hasLaunchMonitor() const
 {
     for (const MetricPhaseGrid &mg : m_grid.metrics)
@@ -356,13 +359,21 @@ LiveDetection detectForSwing(const LiveMeasureSource &values, const Characterist
                              const QString &contextIdOverride, const QStringList &signalIds)
 {
     LiveDetection out;
-    out.club      = values.club();
-    out.contextId = contextIdOverride.isEmpty() ? values.contextId() : contextIdOverride;
+    out.club            = values.club();
+    out.contextId       = contextIdOverride.isEmpty() ? values.contextId() : contextIdOverride;
+    out.contextInferred = contextIdOverride.isEmpty() && values.contextInferred();
 
-    // ONE context id feeds both halves: the norm lookup (which corridor judges the number) and the
+    // ONE context node feeds both halves: the norm lookup (which corridor judges the number) and the
     // condition bindings (whether this kind of shot is asked the question at all). They were always
     // meant to be the same node, and nothing but this function guarantees it.
-    const NormMeasureSource graded(values, norms, out.contextId, policy, &pack, athlete);
+    //
+    // AN UNDECLARED CLUB REACHES THE NORMS AS NO CONTEXT AT ALL (audit B-07). The resolver answers an
+    // empty id at the default node — the very node out.contextId names, so the corridor is the same —
+    // and NormMeasureSource marks every reading graded that way inferred, which is what makes the
+    // engine demote it ("club assumed"). Handing it the default id instead graded the shot exactly as
+    // a declared full swing, at full confidence.
+    const NormMeasureSource graded(values, norms, out.contextInferred ? QString() : out.contextId,
+                                   policy, &pack, athlete);
 
     out.result = detect(pack, graded, norms ? &norms->contexts() : nullptr, out.contextId);
     out.signalOutcomes.reserve(size_t(signalIds.size()));

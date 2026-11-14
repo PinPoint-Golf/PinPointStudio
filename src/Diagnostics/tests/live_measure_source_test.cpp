@@ -456,6 +456,52 @@ int main(int argc, char **argv)
         // resolves to the default context, whose rows were written for a swing of unknown club.
         check(src.club().isEmpty(), "an undeclared club reads as no club at all, never as the stub");
         checkValue(src, "m_impactShaftLean", 163.63672117342375);
+        check(src.contextInferred(), "…and the source says its context is assumed");
+        const LiveDetection d = detectForSwing(src, pack, norms);
+        check(d.contextInferred && d.contextId == kDefaultContextId(),
+              "detectForSwing grades it at the default context, marked inferred");
+    }
+
+    // ── "Club assumed" (rule.diag.inferredContext, audit B-07) ──────────────
+    //
+    // The same swing three ways: as recorded (7 IRON), with its club taken away, and with its club
+    // taken away but the default node named by an override — a DECLARED full swing. The last two are
+    // graded against the very same corridors, so the only difference between them is the demotion:
+    // every assessed finding keeps its state, none gains confidence, and the corridor-graded ones
+    // lose exactly the engine's 0.7.
+    std::printf("\nan undeclared club is graded as an assumed context\n");
+    {
+        const LiveMeasureSource declared(rich, pack);
+        const LiveDetection     dDeclared = detectForSwing(declared, pack, norms);
+        check(!declared.contextInferred() && !dDeclared.contextInferred,
+              "a declared club is not inferred");
+        check(dDeclared.contextId == QLatin1String("iron_7"), "…and grades at its own node");
+
+        SwingPhaseGrid g = declared.grid();
+        g.club.clear();
+        const LiveMeasureSource undeclared(g, pack);
+        const LiveDetection     dAssumed  = detectForSwing(undeclared, pack, norms);
+        const LiveDetection     dNamed    = detectForSwing(undeclared, pack, norms, {}, {}, kDefaultContextId());
+        check(dAssumed.contextInferred && dAssumed.contextId == kDefaultContextId(),
+              "the same swing with no club: the default context, marked inferred");
+        check(!dNamed.contextInferred && dNamed.contextId == kDefaultContextId(),
+              "an override naming the node is a declared context, not an inferred one");
+
+        int  compared = 0, demoted = 0;
+        bool sameStates = dAssumed.result.findings.size() == dNamed.result.findings.size();
+        bool neverMore  = true;
+        for (const Finding &a : dAssumed.result.findings) {
+            const Finding *n = dNamed.result.find(a.conditionId);
+            if (!n || n->state != a.state) { sameStates = false; continue; }
+            if (a.state == FindingState::Unavailable) continue;
+            ++compared;
+            if (a.confidence > n->confidence + 1e-6f) neverMore = false;
+            if (n->confidence > 0.f && std::fabs(a.confidence - 0.7f * n->confidence) < 1e-5f) ++demoted;
+        }
+        std::printf("  %d assessed findings compared, %d demoted by 0.7\n", compared, demoted);
+        check(sameStates, "the demotion moves no finding's state: the same corridors judged it");
+        check(compared > 0 && neverMore, "no finding is trusted more for an assumed club");
+        check(demoted > 0, "the corridor-graded findings carry the engine's 0.7 'club assumed' demotion");
     }
 
     // ── The missing-reason vocabulary ───────────────────────────────────────

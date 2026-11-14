@@ -1516,7 +1516,21 @@ void ShotProcessor::startAnalysis()
 
 void ShotProcessor::startSwingSave()
 {
+    // ⚠ AN ALLOCATION CAN MOVE THE SESSION FOLDER, and must say so. Re-pointing the library mid-session
+    // (the remedy the "Swings are not being saved" notice offers) sends this swing to a new session
+    // folder under the new library (SwingPaths::allocateSwingDir); so does the first swing of a session
+    // whose folder could not be made at start. activeSessionDir moved with it, and every panel that
+    // binds to it (the diagnostics panels on the stage and the cast window, Charts) must re-point
+    // BEFORE this shot's shotProcessed, or each refuses it as another session's swing (audit E-01).
+    // Emitted here, on the GUI thread, before the export starts: shotProcessed comes only from the join.
+    // STOPGAP: ShotProcessor should not be announcing storage changes at all. In the target design the
+    // Session owns its location, and refactor step 2 removes this announce (04-remediation-plan.md).
+    const QString sessionBefore = m_swingPaths.currentSessionDir();
     pinpoint::SwingExportJob job = buildSwingExportJob();
+    if (const QString sessionNow = m_swingPaths.currentSessionDir(); sessionNow != sessionBefore) {
+        ppInfo() << "[SwingExport] the session folder moved with this swing:" << sessionBefore << "->" << sessionNow;
+        emit activeSessionDirChanged();
+    }
     // Cache the job + dir up front: even when there is nothing to encode (no
     // cameras, or an encode failure), an analysis-only swing.json is written
     // from these at the join so the shot still survives a restart.

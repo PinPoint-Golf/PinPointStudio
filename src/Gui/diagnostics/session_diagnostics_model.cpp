@@ -69,6 +69,17 @@ double thresholdOf(const CharacteristicPack &pack, const QString &signalId)
                                                                  : std::numeric_limits<double>::quiet_NaN();
 }
 
+// WHETHER A SWING FOLDER IS ONE OF THIS SESSION'S: its parent is the session folder, compared as
+// cleaned absolute paths (so "…/lib//athlete/…" and "…/lib/athlete/…" agree). False with no session
+// held or no folder. The one rule ingestShot() and regradeShot() both apply (audit E-01): a swing of
+// another session is that session's to grade when it is activated, never a row in this ledger.
+bool swingIsInSession(const QString &swingDir, const QString &sessionDir)
+{
+    if (sessionDir.isEmpty() || swingDir.isEmpty()) return false;
+    return QDir::cleanPath(QFileInfo(swingDir).absolutePath())
+        == QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath());
+}
+
 // The envelope's own schema tag, separate from kDiagSchemaVersion.
 //
 // TWO VERSIONS BECAUSE THERE ARE TWO CONTRACTS. kDiagSchemaVersion tags the ROW shape, which
@@ -83,6 +94,16 @@ constexpr int kEnvelopeVersion = 1;
 // session 2), but a ledger written before did not fill them. Hashed into the content stamp, so such a
 // ledger regrades once on activation.
 constexpr int kRowWordsVersion = 1;
+
+// HOW A ROW IS GRADED, versioned apart from the row shape and the words: a change to what detection
+// decides for a swing, with no new field to fill, would otherwise leave every stored ledger looking
+// current. Hashed into the content stamp, so a ledger graded under an older rule regrades once on
+// activation (re-reading each swing's stored readings; it never re-runs pose, ball or shaft).
+// 1 (14 Nov 2026, audit B-07): a swing that declares no club is graded as an undeclared context — its
+//   corridor readings carry the engine's inferred-context demotion (×0.7, "club assumed") and its rows
+//   ConditionRow::contextInferred. Before, the live path graded it as a declared full swing at full
+//   confidence and every row said not inferred.
+constexpr int kRowGradingVersion = 1;
 
 const QString kDiagnosticsFile = QStringLiteral("diagnostics.json");
 const QString kProfileFile     = QStringLiteral("fault_profile.json");
@@ -834,6 +855,19 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
     // the same 30 MB document twice when a back-fill scan raced a live shotProcessed — which
     // is exactly the moment the app can least afford it.
     if (swingDir.isEmpty()) return;
+    // ONLY THIS SESSION'S SWINGS (audit E-01). Every panel's model hears every shotProcessed, and
+    // the session the app is capturing into need not be the one this ledger holds: a reviewed past
+    // session, or a library re-pointed mid-session, which moves the export folder to a new session
+    // under the new library (ShotProcessor announces that move before the shot, so a live panel has
+    // re-pointed by now). Refused rather than filed: a foreign swing's folder number collides with
+    // this session's own, and its row would be graded into the wrong session's diagnostics.
+    if (!swingIsInSession(swingDir, m_sessionDir)) {
+        ppWarn() << "[Diagnostics] ingestShot refused a swing outside this session:"
+                 << qPrintable(QDir::cleanPath(swingDir)) << "is not in"
+                 << qPrintable(m_sessionDir.isEmpty() ? QStringLiteral("(no session held)")
+                                                      : QDir::cleanPath(m_sessionDir));
+        return;
+    }
     // The folder's number, whatever the caller numbered it (folderShotId above). The caller's id
     // stands only for a folder that carries none.
     if (const int fromFolder = folderShotId(swingDir); fromFolder >= 0) shotId = fromFolder;
@@ -851,11 +885,9 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
 
 void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
 {
-    if (m_sessionDir.isEmpty() || swingDir.isEmpty()) return;
-    const QFileInfo fi(swingDir);
-    if (QDir::cleanPath(fi.absolutePath()) != QDir::cleanPath(QFileInfo(m_sessionDir).absoluteFilePath()))
-        return;
-    const QString name = fi.fileName();
+    // A re-analysis of another session's swing is that session's business: no warning, it is routine.
+    if (!swingIsInSession(swingDir, m_sessionDir)) return;
+    const QString name = QFileInfo(swingDir).fileName();
     bool ok = false;
     const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
     if (!ok || id < 0) return;
@@ -936,6 +968,7 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     // The row shape too: a row written before a field existed regrades to fill it.
     h.addData(QByteArray::number(kDiagSchemaVersion));
     h.addData(QByteArrayLiteral("words") + QByteArray::number(kRowWordsVersion));
+    h.addData(QByteArrayLiteral("grading") + QByteArray::number(kRowGradingVersion));
     // The numbers the rows were graded on: a phase-grid schema bump means the reductions changed (v9:
     // the extremes at a masked end, issue #1), and a row graded on the old ones regrades.
     h.addData(QByteArrayLiteral("grid") + QByteArray::number(kPhaseGridSchemaVersion));
@@ -954,6 +987,12 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     out.from.docMtimeMs = doc.mtimeMs;
     out.from.content    = rowContentStamp();
     if (!m_packProv || !m_norms) return out;
+    // NO DOCUMENT YET, NO SHOT YET: a swing folder is made when the swing is allocated, seconds before
+    // its export writes the document, and an activation in that window (the session folder moving with
+    // the allocation re-points every panel) back-fills it. Not ok, so the reservation is dropped and the
+    // shot's own shotProcessed ingests it, rather than a column of not-assessable rows standing for a
+    // swing nobody read. The id rides along: it is the reservation applyIngested() drops.
+    if (!doc.exists()) { out.record.shotId = shotId; return out; }
 
     const CharacteristicPack &pack = m_packProv->pack();
 
@@ -1031,11 +1070,10 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
         r.quantified       = f.quantified;
         r.contextId        = d.contextId;
         r.firedSignalCount = int(f.firedSignals.size());
-        // LiveMeasureSource::club() applies the house-wide DRIVER stub for a shot that
-        // declares none, so this seam cannot tell an undeclared club from a declared driver
-        // and never trips the inferred-context demotion. Stated rather than faked: a `true`
-        // here would demote every shot's ranking on a fact we do not have.
-        r.contextInferred  = false;
+        // "CLUB ASSUMED" (rule.diag.inferredContext): the swing declared no club, so it was graded at
+        // the default context and detect() already demoted its corridor readings. The row carries
+        // the shot's fact so the ranking demotes it too (rankScores, work_ons.h).
+        r.contextInferred  = d.contextInferred;
 
         switch (f.state) {
         case FindingState::Fired:

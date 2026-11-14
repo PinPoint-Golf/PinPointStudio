@@ -401,6 +401,10 @@ public:
     // already in flight, is ignored — which is what makes it safe to wire straight to
     // ShotProcessor::shotProcessed and to call again from a back-fill scan.
     //
+    // ONLY A SWING OF THE LOADED SESSION: a folder whose parent is not the session folder (or any
+    // folder while no session is loaded) is refused with a warning in the app log naming both — the
+    // rule regradeShot() applies (audit E-01).
+    //
     // NEVER GATED BY CADENCE (brief §5.6). Quiet is a statement about the panel, not about
     // the evidence.
     Q_INVOKABLE void ingestShot(int shotId, const QString &swingDir);

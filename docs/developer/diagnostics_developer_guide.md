@@ -393,8 +393,10 @@ Two fallbacks that look similar and are not:
 
 | Requested | Behaviour |
 |---|---|
-| **empty** | resolves at the default context (`full_swing`); the caller marks the finding *inferred* and the engine demotes its confidence |
+| **empty** | resolves at the default context (`full_swing`); `NormMeasureSource` marks each reading *inferred* and the engine demotes its confidence ×0.7 (`kInferredContextConfidence`, rule `rule.diag.inferredContext`, "club assumed") |
 | **unknown to the tree** | resolves to **nothing**. Grading it against full-swing norms would be a wrong answer wearing a right answer's clothes |
+
+**How a live shot reaches the empty row.** A swing's club is the *declared* one (`swingDocDeclaredClub`: `review.club`, else `capture.club.name`), never the picker's "DRIVER" stub, so it is empty for a swing that declared none. `LiveMeasureSource::contextInferred()` says so, and `detectForSwing()` then hands `NormMeasureSource` no context (it resolves at the default node) while the condition bindings and `LiveDetection::contextId` still read the default node; `LiveDetection::contextInferred` is set. `SessionDiagnosticsModel` copies it onto every row of the shot (`ConditionRow::contextInferred`), and the ranking demotes those rows again (−0.05, `rankScores`, `work_ons.h`). A context named through `detectForSwing`'s override is a declared one and is never inferred. The rule is versioned in the ledger's content stamp (`kRowGradingVersion`), so a ledger graded before it regrades once on activation.
 
 ### The pair, composed (`metric_corridor.h`)
 

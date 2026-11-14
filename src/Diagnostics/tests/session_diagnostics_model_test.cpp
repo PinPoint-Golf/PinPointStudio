@@ -2261,6 +2261,90 @@ static void heldMeasureSuite(const QTemporaryDir &tmp)
           "…and stores the launch angle unchanged, for display");
 }
 
+// ── "Club assumed" (audit B-07) and a swing of another session (audit E-01) ─────────────────
+//
+// A swing that declares no club is graded at the default context with its rows marked inferred, so
+// the engine's demotion and the ranking's both apply; a declared club's rows are not. And a swing
+// folder outside the session the model holds is refused by ingestShot(), by the rule regradeShot()
+// already applied.
+static QJsonObject shotObjectOf(const QString &sessionDir, int shotId)
+{
+    const QJsonArray shots = diagnosticsJsonOf(sessionDir).value(QStringLiteral("ledger")).toObject()
+                                 .value(QStringLiteral("shots")).toArray();
+    for (const QJsonValue &sv : shots)
+        if (sv.toObject().value(QStringLiteral("shotId")).toInt() == shotId) return sv.toObject();
+    return QJsonObject();
+}
+
+static void clubAssumedSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nan undeclared club is graded as assumed; another session's swing is refused\n");
+    const QString dir   = makeSession(tmp, "athlete_assumed", "2026-11-14_M_01");
+    const QString other = makeSession(tmp, "athlete_assumed", "2026-11-14_M_02");
+    check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "sparse_noclub"),
+          "a declared 7 iron and a swing with no club staged");
+    check(stageShot(other, 3, "rich_7iron"), "…and a swing in another session of the same athlete");
+
+    auto m = freshModel();
+    m->activateSession(dir);
+    m->ingestShot(1, swingDirFor(dir, 1));
+    m->ingestShot(2, swingDirFor(dir, 2));
+    check(m->shotCount() == 2, "the session's two swings are in the ledger");
+
+    // Every row of a shot carries the flag the same way: it is a fact about the shot's club.
+    const auto rowsInferred = [](const QJsonObject &shot, bool want) {
+        const QJsonArray rows = shot.value(QStringLiteral("rows")).toArray();
+        if (rows.isEmpty()) return false;
+        for (const QJsonValue &rv : rows)
+            if (rv.toObject().value(QStringLiteral("contextInferred")).toBool() != want) return false;
+        return true;
+    };
+    const QJsonObject declared = shotObjectOf(dir, 1), assumed = shotObjectOf(dir, 2);
+    check(rowsInferred(declared, false), "the declared 7 iron: no row is marked club assumed");
+    check(declared.value(QStringLiteral("contextId")).toString() == QLatin1String("iron_7"),
+          "…and it was graded at its own club's node");
+    check(rowsInferred(assumed, true), "the swing with no club: every row is marked club assumed");
+    check(assumed.value(QStringLiteral("contextId")).toString() == kDefaultContextId(),
+          "…graded at the default context");
+
+    // A swing of another session: refused, and the ledger on disk is untouched by it.
+    const QByteArray before = QJsonDocument(diagnosticsJsonOf(dir)).toJson(QJsonDocument::Compact);
+    int seq = PpMessageLog::instance()->currentSeq();
+    m->ingestShot(3, swingDirFor(other, 3));
+    bool warned = false;
+    for (const PpMessageLog::Entry &e : PpMessageLog::instance()->fetchSince(seq))
+        warned = warned || (e.severity == QLatin1String("WARN")
+                            && e.message.contains(QDir::cleanPath(swingDirFor(other, 3)))
+                            && e.message.contains(QDir::cleanPath(dir)));
+    check(warned, "…with a warning in the app log naming the swing folder and the session folder");
+    check(m->shotCount() == 2 && shotObjectOf(dir, 3).isEmpty(),
+          "ingestShot refuses a swing folder outside the session it holds");
+    check(!before.isEmpty() && QJsonDocument(diagnosticsJsonOf(dir)).toJson(QJsonDocument::Compact) == before,
+          "…and the session's diagnostics.json is not rewritten for it");
+    // The same rule regradeShot() applies: a re-analysis of the other session's swing is not ours either.
+    m->regradeShot(swingDirFor(other, 3));
+    check(m->shotCount() == 2, "regradeShot refuses it by the same rule");
+
+    // A swing folder allocated but not yet written (its export still running) is not a shot yet: an
+    // activation in that window — the session folder moving with the allocation re-points every panel —
+    // takes no row for it, and the shot's own ingest takes it once the document is there.
+    check(QDir().mkpath(swingDirFor(dir, 4)), "a fourth swing folder, allocated with no document yet");
+    auto early = freshModel();
+    early->activateSession(dir);
+    check(early->shotCount() == 2 && shotObjectOf(dir, 4).isEmpty(),
+          "an activation takes no row for a swing folder with no document");
+    check(stageShot(dir, 4, "rich_7iron"), "…its document lands");
+    early->ingestShot(4, swingDirFor(dir, 4));
+    check(early->shotCount() == 3 && !shotObjectOf(dir, 4).isEmpty(),
+          "…and the shot's own ingest then grades it");
+
+    // A model holding no session takes no swing: it has no session for the swing to be in.
+    auto unbound = freshModel();
+    unbound->activateSession(QString());
+    unbound->ingestShot(1, swingDirFor(dir, 1));
+    check(unbound->shotCount() == 0, "a model holding no session refuses every swing");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -2728,10 +2812,12 @@ int main(int argc, char **argv)
 
         // Live: the processor's id is NOT the folder number — the ledger files the shot under
         // the folder's — and the pick can come first.
+        // The model holds the live folder before its first swing exists, as a live panel does: a model
+        // holding no session takes no swing at all (audit E-01, ingestShot's session check).
         const QString live = makeSession(tmp, "athlete_sel", "session_sel_live");
-        check(stageShot(live, 1, "rich_7iron"), "a live session's first swing on disk");
         auto l = freshModel();
-        l->activateSession(QString());
+        l->activateSession(live);
+        check(stageShot(live, 1, "rich_7iron"), "a live session's first swing on disk");
         l->setSelectedSwingDir(swingDirFor(live, 1));
         check(l->selectedShotId() == -1, "picked before it is in the ledger: nothing yet");
         l->ingestShot(57, swingDirFor(live, 1));
@@ -4362,6 +4448,7 @@ int main(int argc, char **argv)
     flightCheckedStrikesSuite(tmp);
     baselineAuthoritySuite(tmp);
     heldMeasureSuite(tmp);
+    clubAssumedSuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");
