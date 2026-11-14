@@ -17,6 +17,7 @@
  */
 
 #include "ball_runner.h"
+#include "ball_track_json.h"   // ballTrackFromAnalysisJson — the ball block's one typed reader
 
 using pinpoint::analysis::BallBaselineRef;
 using pinpoint::analysis::BallSample2D;
@@ -680,30 +681,9 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 
 BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera)
 {
-    BallTrack2D track;
+    // The ball block's one typed reader (ball_track_json.h), bound to the caller's source.
+    BallTrack2D track = pinpoint::analysis::ballTrackFromAnalysisJson(ball);
     track.camera = camera;
-    const QJsonArray samples = ball[QStringLiteral("samples")].toArray();
-    track.frames.reserve(size_t(samples.size()));
-    for (const QJsonValue &fv : samples) {
-        const QJsonObject o = fv.toObject();
-        BallSample2D s;
-        s.t_us       = int64_t(o[QStringLiteral("t_us")].toDouble());
-        s.found      = o[QStringLiteral("found")].toBool();
-        s.center     = QPointF(o[QStringLiteral("x")].toDouble(), o[QStringLiteral("y")].toDouble());
-        s.radiusNorm = float(o[QStringLiteral("r")].toDouble());
-        s.conf       = float(o[QStringLiteral("conf")].toDouble());
-        s.clubActivity = o.contains(QStringLiteral("act")) ? float(o[QStringLiteral("act")].toDouble()) : -1.f;
-        track.frames.push_back(s);
-    }
-    track.launchTUs = ball.contains(QStringLiteral("launchTUs")) ? int64_t(ball[QStringLiteral("launchTUs")].toDouble()) : -1;
-    const QJsonObject launch = ball[QStringLiteral("launch")].toObject();
-    if (!launch.isEmpty())
-        track.launchCenter = QPointF(launch[QStringLiteral("x")].toDouble(), launch[QStringLiteral("y")].toDouble());
-    else if (track.launchTUs >= 0) {
-        // pre-2026-09-09 records carried no launch centre: the last found sample at or before launch
-        for (const BallSample2D &s : track.frames)
-            if (s.found && s.t_us <= track.launchTUs) track.launchCenter = s.center;
-    }
     return track;
 }
 

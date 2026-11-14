@@ -545,11 +545,19 @@ pp_add_test(shot_source_map_test
 # CT-I37 and for the same reason.
 pp_add_test(swing_doc_test
     SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
-            ${ANALYSIS}/recorded_products.cpp   # the club / ladder readers round-trip the writer
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${SRC}/LaunchMonitor
     DEFINES PP_SRC_DIR="${SRC}")
+
+# --- One serialiser per analysis block, one time base (refactor step 1.3a) ---
+# Each block's writer and typed reader round-trip (block -> JSON -> typed -> JSON); a ring-clock
+# analysis and its window-time twin write the same block, stamped timeBase "window"; the document
+# reads back typed; an old absolute-time document reads to the same values as its rebased twin.
+# Header-only per-block serialisers: the composition (swing_doc_analysis.cpp) is the one source.
+pp_add_test(analysis_block_roundtrip_test
+    SOURCES ${SRC}/Export/tests/analysis_block_roundtrip_test.cpp ${SRC}/Export/swing_doc_analysis.cpp
+    INCLUDE ${SRC}/LaunchMonitor)
 
 # --- The swing-document store: swing.ppsw / legacy swing.json (Export) -------
 # The store's own suite: the Qt ↔ libppswing adapter (values AND number kinds), both formats,
@@ -573,7 +581,6 @@ pp_add_test(session_archiver_test
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
-            ${ANALYSIS}/recorded_products.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp        # swing_paths reports through the real log
@@ -1362,7 +1369,7 @@ pp_add_test(measure_sample_test
 pp_add_test(shoulder_tilt_vs_bend_test
     SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${ANALYSIS}/recorded_products.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
@@ -1376,7 +1383,7 @@ pp_add_test(shoulder_tilt_vs_bend_test
 pp_add_test(club_slot_top_test
     SOURCES club_slot_top_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${ANALYSIS}/recorded_products.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp

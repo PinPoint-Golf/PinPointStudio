@@ -28,8 +28,8 @@
 // null, never as a NaN/inf token: those are not JSON, half the readers accept
 // them silently, and "absent" has to survive the round trip as absent.
 //
-// Times follow serializeAnalysis's rule: a value ≥ t0Us is made relative to it,
-// an already-relative one passes through; t0Us = 0 keeps absolute times.
+// Times go through the one rule, windowTimeUs (swing_analysis.h): a value ≥ t0Us is made
+// relative to it, an already-relative one passes through; t0Us = 0 keeps the times as they are.
 //
 // The track builder is INLINE and this header is OpenCV-free on purpose: the
 // swing.json writer (swing_doc.cpp) is linked into targets that carry neither
@@ -49,6 +49,7 @@
 
 #include "../Analysis/analysis_versions.h" // kDtlShaftStageVersion
 #include "dtl_shaft_track.h"     // DtlShaftTrack2D (OpenCV-free)
+#include "../Analysis/swing_analysis.h" // windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 
@@ -73,13 +74,9 @@ inline QJsonObject dtlShaftTrackToJson(const DtlShaftTrack2D& track, int64_t t0U
                                        const QJsonObject& config, const QString& configHash,
                                        const QString& streamAlias, const QString& streamFile)
 {
-    // Same domain rule as SwingDocWriter's rel(): the analysis times go out
-    // window-relative, and an already-relative value passes through.
-    const qint64 t0 = qint64(t0Us);
-    const auto rel = [t0](int64_t t) -> qint64 {
-        const qint64 tt = qint64(t);
-        return tt >= t0 ? tt - t0 : tt;
-    };
+    // The one time rule (windowTimeUs): the analysis times go out window-relative, and an
+    // already-relative value passes through.
+    const auto rel = [t0Us](int64_t t) -> qint64 { return qint64(windowTimeUs(t, t0Us)); };
     // Local, not M_PI: that macro needs _USE_MATH_DEFINES on MSVC.
     constexpr double kDeg2Rad = 3.14159265358979323846 / 180.0;
     const auto jnum = [](double v) -> QJsonValue {

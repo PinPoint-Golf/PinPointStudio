@@ -47,6 +47,7 @@ using pinpoint::analysis::PoseTrack2D;
 #include "pose_model_selection.h"           // useVitPoseLarge (tier -> model)
 #include "pose_crop.h"             // PoseAccuracyConfig / computePoseCropRect (WB1)
 #include "hand_axis.h"             // handCentroid / HandCentroid (shared with the smoothed-grip recompute)
+#include "pose_track_json.h"       // poseTrackFromAnalysisJson — the pose block's one typed reader
 #include "../Club/shaft_track_assembly.h" // estimateSwingSpanUs / ShaftV3Config (Stage B span estimate)
 #include "../Analysis/analysis_tuning.h" // tuning::apply — pose.intraOpThreads resolution
 #include "pose_pipeline.h"          // InstanceCache (session cache) + runOrderedPipeline (producer pool)
@@ -932,41 +933,20 @@ pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &ro
                                                            pinpoint::SourceId camera)
 {
     using namespace pinpoint::analysis;
+    // The pose block's one typed reader (pose_track_json.h), under the REUSE contract this function
+    // has always had: the measured frames and — from a document's `pose2d` member only — the
+    // provenance (decode mode, crop rect), so a reloaded track re-serialises identically to the run
+    // that produced it. The smoothed and synth tiers and adaptFallbacks are dropped: the pose stage
+    // re-derives them from the frames under the current rule. A bare {"frames":[...]} file (an
+    // injected SwingLab track) carries frames only, as it always did.
+    const bool bare = root.contains(QStringLiteral("frames"));
+    PoseTrack2D full = poseTrackFromAnalysisJson(bare ? root : root[QStringLiteral("pose2d")].toObject());
     PoseTrack2D track;
     track.camera = camera;
-    // Provenance written by serializeAnalysis (decode mode when dark, the crop
-    // rect when one was applied) — restored so a reloaded track re-serialises
-    // identically to the run that produced it.
-    if (!root.contains(QStringLiteral("frames"))) {
-        const QJsonObject p2 = root[QStringLiteral("pose2d")].toObject();
-        if (p2.contains(QStringLiteral("decode"))) track.decode = p2[QStringLiteral("decode")].toString();
-        if (p2.contains(QStringLiteral("cropRect"))) {
-            const QJsonObject r = p2[QStringLiteral("cropRect")].toObject();
-            track.cropRect = QRectF(r[QStringLiteral("x")].toDouble(), r[QStringLiteral("y")].toDouble(),
-                                    r[QStringLiteral("w")].toDouble(), r[QStringLiteral("h")].toDouble());
-        }
-    }
-    const QJsonArray frames = (root.contains(QStringLiteral("frames"))
-                                   ? root[QStringLiteral("frames")]
-                                   : root[QStringLiteral("pose2d")]
-                                         .toObject()[QStringLiteral("frames")]).toArray();
-    for (const QJsonValue &fv : frames) {
-        const QJsonObject o = fv.toObject();
-        PoseFrame2D pf;
-        pf.t_us = int64_t(o[QStringLiteral("t_us")].toDouble());
-        const QJsonArray kp = o[QStringLiteral("kp")].toArray();
-        // Bounded by BOTH the array and the struct width: old 51-float files
-        // fill 0–16 and leave the wholebody tail default-initialized.
-        for (int j = 0; j < kWholeBodyJoints && j * 3 + 2 < kp.size(); ++j) {
-            pf.kp[size_t(j)]   = QPointF(kp[j * 3].toDouble(), kp[j * 3 + 1].toDouble());
-            pf.conf[size_t(j)] = float(kp[j * 3 + 2].toDouble());
-        }
-        const QJsonArray lead = o[QStringLiteral("lead")].toArray();
-        const QJsonArray trail = o[QStringLiteral("trail")].toArray();
-        if (lead.size() == 2)  pf.leadHand  = QPointF(lead[0].toDouble(), lead[1].toDouble());
-        if (trail.size() == 2) pf.trailHand = QPointF(trail[0].toDouble(), trail[1].toDouble());
-        pf.handConf = float(o[QStringLiteral("handConf")].toDouble());
-        track.frames.push_back(std::move(pf));
+    track.frames = std::move(full.frames);
+    if (!bare) {
+        track.decode   = full.decode;
+        track.cropRect = full.cropRect;
     }
     return track;
 }

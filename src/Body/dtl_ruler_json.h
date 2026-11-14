@@ -49,6 +49,24 @@ inline QJsonObject dtlRulerToJson(const DtlRuler &r, int stageVersion)
     return o;
 }
 
+// The typed reader (refactor step 1.3a: each analysis block is a writer and its typed reader).
+// Reading a block means the stage ran. `stageVersion` is analysis.versions.dtlPosture's, not the ruler's.
+inline DtlRuler dtlRulerFromJson(const QJsonObject &o)
+{
+    DtlRuler r;
+    if (o.isEmpty()) return r;
+    r.ran = true;
+    const QJsonValue c = o.value(QStringLiteral("cmPerPx"));
+    r.cmPerPx    = c.isDouble() ? c.toDouble() : 0.0;
+    const QString src = o.value(QStringLiteral("source")).toString();
+    r.source     = src == QLatin1String("none") ? QString() : src;
+    r.toward     = o.value(QStringLiteral("toward")).toInt(0);
+    r.scaleRatio = o.value(QStringLiteral("scaleRatio")).toDouble(0.0);
+    r.refused    = o.value(QStringLiteral("refused")).toString();
+    r.reason     = o.value(QStringLiteral("reason")).toString();
+    return r;
+}
+
 // The replay payload's `dtl.ruler`: { cmPerPx (NaN when none), source, toward }.
 inline QVariantMap dtlRulerPayload(const QJsonObject &o)
 {

@@ -1765,6 +1765,11 @@ int main()
         check(!an.contains(QStringLiteral("score")), "no score — nothing scored it");
         check(!an.contains(QStringLiteral("pose2d")) && !an.contains(QStringLiteral("club")),
               "…and no pose or club block to mistake for an empty analysis");
+        // One time base (refactor step 1.3a, IM-2): the device-only writer stamps it too, so every
+        // analysis block written since says which clock it is on.
+        check(an[QStringLiteral("timeBase")].toString() == QStringLiteral("window")
+                  && analysisReadOriginUs(root) == 0,
+              "a launch-monitor-only shot's analysis says timeBase \"window\" (read as written)");
 
         // THE MANUFACTURED IMPACT, and why it has to be there: buildPhaseGrid returns an
         // empty grid on an empty phases[], so without this every reading would persist

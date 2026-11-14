@@ -40,6 +40,7 @@
 
 #include "../Analysis/analysis_tuning.h"
 #include "skeleton3d_fit.h"
+#include "../Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
 #include "skeleton3d_rig.h"
 
 namespace pinpoint::skeleton3d {
@@ -202,7 +203,7 @@ inline QJsonObject skeleton3dToJson(const FitResult &r, int64_t t0Us, int stageV
             // Window-relative whatever domain the fit ran in: subtract t0 only from an ABSOLUTE
             // time (≥ t0). A re-analysed swing is already relative, and subtracting it again wrote
             // −98 s frame times the playhead never reached — the figure sat frozen.
-            { "t", qint64(r.t_us[i] >= t0Us ? r.t_us[i] - t0Us : r.t_us[i]) },
+            { "t", qint64(analysis::windowTimeUs(r.t_us[i], t0Us)) },
             { "d", d }, { "p", p }, { "tier", tier },
             { "g", vec(r.grip[i]) }, { "u", vec(r.shaftDir[i]) },
             { "s", int(r.shaftTier[i]) }, { "f", int(r.flags[i]) } });
@@ -327,7 +328,7 @@ inline Skeleton3DTrack skeleton3dFromJson(const QJsonObject &o, int64_t clockT0U
         const QJsonObject f = fv.toObject();
         Skeleton3DFrame fr;
         fr.t_us = f.value(QStringLiteral("t")).toInteger();
-        if (clockT0Us > 0 && fr.t_us >= clockT0Us) fr.t_us -= clockT0Us;
+        fr.t_us = analysis::windowTimeUs(fr.t_us, clockT0Us);
         fr.dof.assign(size_t(R.dofCount()), 0.0);
         const QJsonArray d = f.value(QStringLiteral("d")).toArray();
         for (int i = 0; i < d.size() && i < int(map.size()); ++i)

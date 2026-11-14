@@ -52,6 +52,25 @@
 // shared_ptr across the QtConcurrent worker boundary.
 namespace pinpoint::analysis {
 
+// ── One time domain (refactor step 1.3a; information_model.md §7 "One time base", IM-2) ─────────
+// Which clock a SwingAnalysis's instants are on. Clock = the analysed window's own clock: the ring
+// clock (EventBuffer::nowMicros) for a live window, already window-relative for a window loaded
+// from disk — what every stage produces. Window = µs from the capture window's start, the swing
+// document's domain (`analysis.timeBase: "window"`): what the per-block typed readers return.
+enum class TimeBase : uint8_t { Clock = 0, Window = 1 };
+
+// THE ONE RULE that takes an instant to window time, used by every per-block writer and reader of
+// the analysis block. `t0Us` is the window's start on the clock `t` is on (0 = already window
+// time: the identity). On that clock every real instant lies at or after the window's start, so a
+// value below it is an unset marker (−1, 0) and is kept as it is — the reason a relative value
+// passes through unchanged. Durations and offsets (ms from impact, dtUs) never go through here.
+inline int64_t windowTimeUs(int64_t t, int64_t t0Us) { return t >= t0Us ? t - t0Us : t; }
+
+// The document's spelling of TimeBase::Window: `analysis.timeBase` (IM-2), stamped by both writers of
+// the block (serializeAnalysis and the device-only writeDeviceOnlySwing). A document without the
+// key predates step 1.3a and is read once through the legacy rule (analysisReadOriginUs, swing_doc.h).
+inline constexpr char kAnalysisTimeBaseWindow[] = "window";
+
 // Degradation tier, chosen at job-build time from camera-calib + IMU availability.
 enum class ReconstructionTier { Angles2D, Mono3DPlusImu, Stereo3D, ClubInstrumented };
 
@@ -821,7 +840,7 @@ struct ShaftPosition {
     // §4.2): Measured when the crossing/milestone sat on a real vision sample
     // (BAND/RAY/WEDGE tier), Proxy when it was resolved on a coasted, IMU-bridged
     // or model-predicted sample. PERSISTED as "timing" in analysis.club.positions
-    // (swing_doc.cpp, read back by recorded_products.cpp); resynthesizeLayerC also
+    // (written and read back by recorded_products.h); resynthesizeLayerC also
     // re-derives it from the straddling samples on a reused track.
     TimingClass timing     = TimingClass::Measured;
 };
@@ -1142,6 +1161,11 @@ struct SwingAnalysis {
     // records existed" — the document writes the version only when it is set.
     std::vector<GateRecord>   gates;
     int                       gatesVersion = 0;
+    // Which clock the instants above are on (TimeBase). The stages produce Clock; the document
+    // writer takes a Clock analysis to window time with the document's clock.t0_us and stamps
+    // `analysis.timeBase: "window"`; a typed read of a document (analysisFromDocument) is Window.
+    // Not persisted as such: the document is always window time.
+    TimeBase                  timeBase = TimeBase::Clock;
 };
 
 } // namespace pinpoint::analysis

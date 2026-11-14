@@ -484,13 +484,40 @@ entries but still gets its own `pp_add_test`.
 
 ### 6.5 Persist the product (only if it needs to survive a restart)
 
-If the stage produces something the replay/review UI reads back, extend the
-unified swing.json **additively** in `src/Export/swing_doc_analysis.cpp` (read back in
-`swing_doc_reader.cpp`): writer emits
-the block only when the product is non-empty, reader tolerates its absence.
-"Absent block ⇒ omitted ⇒ byte-identical to before your change" is the same
-optional-absence contract at the serialization layer — and it's what keeps
-old swing.json files loading forever. Round-trip it in `swing_doc_test`.
+If the stage produces something the replay/review UI or a later re-analysis reads back, give
+it **one serialiser, beside its producer** (refactor step 1.3a; `information_model.md` §8):
+a writer and its typed reader as a pair, in the producer's `*_json.h` (for example
+`Pose/pose_track_json.h`, `Ball/ball_track_json.h`, `Analysis/recorded_products.h`,
+`Analysis/swing_analysis_json.h`). Then add one line to the composition in
+`src/Export/swing_doc_analysis.cpp`: `serializeAnalysis` calls the writer, and
+`analysisFromDocument` calls the reader. The table at the top of that file lists every block
+and where its pair lives; a block with no typed reader says why.
+
+- **Additive.** The writer emits the block only when the product is non-empty; the reader
+  tolerates its absence and gives back the in-memory default. "Absent block ⇒ omitted ⇒
+  byte-identical to before your change" is the optional-absence contract at the
+  serialization layer, and it is what keeps old documents loading forever.
+- **Times: one rule.** Every writer and reader takes `t0Us` and sends each instant through
+  `windowTimeUs` (`swing_analysis.h`). Never write your own `t >= t0 ? t - t0 : t`. Durations
+  and offsets (ms from impact, `dtUs`) do not go through it. See §6.5a.
+- **Test.** Add the block to `analysis_block_roundtrip_test` (block → JSON → typed → JSON,
+  equal, with every optional field set). A frame size that is a power of two keeps
+  normalise-then-denormalise exact.
+
+### 6.5a One time base (A-03, IM-2)
+
+| Where | Clock |
+|---|---|
+| The stages, in memory | the window's own clock: the ring clock live, already window-relative for a window loaded from disk. `SwingAnalysis::timeBase` is `Clock`. |
+| The swing document | window time, stamped `analysis.timeBase: "window"`. `serializeAnalysis` takes a `Clock` analysis there with the document's `clock.t0_us`, through `windowTimeUs`; a `Window` analysis is written as it is. |
+| Reading a document | `analysisReadOriginUs(root)` (`swing_doc.h`) is the one place a missing `timeBase` is decided: a stamped document reads as written (origin 0); an older one reads against its `clock.t0_us`, which takes any absolute value to window time and leaves relative ones alone. Every typed reader takes that origin; reading never rewrites the document. |
+
+The rule behind `windowTimeUs`: on the window's own clock every real instant lies at or
+after the window's start, so a value below it is an unset marker (−1, 0) and is kept.
+
+Not yet: the pipeline does not rebase its output to window time in memory. That needs the
+job to carry the Recording's `t0Us` (step 1.5's builder) and the live views to add it back
+at the view boundary (step 1.3b); until then the document writer does the one conversion.
 
 ### 6.6 Insert into the profile and run the gates
 
@@ -671,7 +698,11 @@ model when its model file, `kPoseStageVersion` and scan scope match what would r
 matches. Since 2026-09-17 the shaft track and the resolved ladder are reloaded too
 (`shaftTrackFromAnalysisJson` / `segmentationFromAnalysisJson`, recorded_products.h) on
 top of a reused pose AND ball when `kShaftStageVersion` matches and no tuning override is
-in play; only the Layer C synth tier is re-synthesised. The down-the-line pose
+in play; only the Layer C synth tier is re-synthesised. Since step 1.3a these readers are the
+blocks' one typed readers (§6.5): the club block's `diag.onsetTUs` / `topTUs` and `filter`
+diagnostic now come back too, so a reused track keeps them instead of writing −1 / nothing.
+`PoseRunner::fromJsonObject` keeps its reuse contract over the pose reader: frames and
+provenance only, the smoothed and synth tiers re-derived. The down-the-line pose
 (`analysis.poseDtl`) is reloaded under the face-on pose's rule against
 `versions.poseDtl` `{code, model}`; the DTL club track always re-runs. `PoseSmooth` and
 everything downstream recompute from the reloaded tracks, so the output is byte-identical

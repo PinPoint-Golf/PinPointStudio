@@ -1,6 +1,6 @@
 # Swing document schema reference (`swing.ppsw`, legacy `swing.json`)
 
-> **Date:** 2026-11-10 · **Applies to:** the per-shot swing document in each swing directory — `swing.ppsw` (written since 2026-09-23), or a legacy `swing.json` (read, never written) for a swing not yet converted · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`, embedded `summary` block `pinpoint.swingsummary/4`
+> **Date:** 2026-11-14 · **Applies to:** the per-shot swing document in each swing directory — `swing.ppsw` (written since 2026-09-23), or a legacy `swing.json` (read, never written) for a swing not yet converted · **Schema:** top-level `pinpoint.swing/2`, embedded `analysis` block `pinpoint.analysis/3`, embedded `summary` block `pinpoint.swingsummary/4`
 
 Every captured shot produces one directory (`<session>/swing_<NNNN>/`) holding the media and one swing document. The document is the same JSON-model tree whichever file holds it: `swing.ppsw` is a binary container for it, and `swing.json` is the old text form. This page documents the tree field by field; the section "On disk" says how the two files relate and how to read either. Snippets are from a real swing — `2026-07-05_Mark-Liversedge_Wrist_02/swing_0006` (a camera-only Wrist shot; "s06" in the shaft-lab corpus) — with IMU-specific blocks taken from an IMU swing, and the down-the-line and 3-D blocks from a two-camera swing, where noted. The snippets are shown as JSON because that is what every reader hands back (`ppsw dump`, `ppswing.load_swing()`, `SwingStore::load()`).
 
@@ -16,7 +16,7 @@ Every captured shot produces one directory (`<session>/swing_<NNNN>/`) holding t
 | `imuIntegrity`, `captureIntegrity` | `src/Export/swing_doc.cpp` `imuIntegrityJson`, `captureIntegrityJson`; set by `shot_processor.cpp` (live) and `applyImuIntegrity` / `applyCaptureIntegrity` (re-analysis, `src/Gui/shot/reanalysis_controller.cpp`) |
 | The one write: stamps the schema, seeds `review.club`, replaces `analysis`, carries the `lm.` rows | `swing_doc.cpp` `SwingDocWriter::writeSwingJson()` |
 | Every write ends in `saveDocument()`, which rebuilds `summary` and calls `SwingStore::save()` | `SwingDocWriter::writeSwingJson` (end of shot, re-analysis, PPCP clip with no document), `updateReview`, `updateShotAnnotations`, `updateLaunchMonitor`, `updateStreamOrigin`, `writeDeviceOnlySwing` — all `swing_doc.cpp` |
-| `analysis` block | `swing_doc.cpp` `serializeAnalysis()`, plus the write-time additions in `writeSwingJson()` |
+| `analysis` block | `swing_doc_analysis.cpp` `serializeAnalysis()`, composed from the per-block serialisers (its header table names each block's file), plus the write-time additions in `writeSwingJson()`; read back typed by `analysisFromDocument()` |
 | `summary` block | `swing_doc.cpp` `summaryFromRoot()` → `summaryJson()`, called by `saveDocument()` |
 | `review` | `swing_doc.cpp` `updateReview()`, `updateShotAnnotations()`; seeded by `writeSwingJson()` |
 | `launchMonitor` (and a follow-club rewrite of `capture.club`) | `swing_doc.cpp` `updateLaunchMonitor()`, `lmRawBlock()`; field table `src/LaunchMonitor/launch_monitor_reading.cpp` |
@@ -104,7 +104,9 @@ The usage text is at the top of `tools/ppsw.cpp`.
 
 All `t_us` values are **microseconds, window-relative** (0-based; `window.start_us` is `0`), matching `capture.impactUs`, the stream frame times, and the window bounds. The **one** absolute value is `clock.t0_us` — the EventBuffer clock instant of the window start. To recover an absolute timestamp: `absolute = clock.t0_us + t_us`.
 
-> **Legacy caveat.** `analysis` timestamps written before 2026-07-07 may be **absolute** (a live capture wrote the EventBuffer clock domain directly; re-analysis always wrote relative). The writer now normalises all `analysis` `t_us` to window-relative regardless of source, and the review readers are domain-aware (`t >= t0 ? t - t0 : t`) so both old and new files render. New files are uniformly window-relative.
+> **`analysis.timeBase` (2026-11-14, refactor step 1.3a).** Every `analysis` block written since says so — an analysed swing's and a device-only swing's alike: `"timeBase": "window"`. Its times are window-relative, read as written.
+>
+> **Legacy caveat.** `analysis` timestamps written before 2026-07-07 may be **absolute** (a live capture wrote the EventBuffer clock domain directly; re-analysis always wrote relative). A block without `timeBase` is read through one rule in one place, `analysisReadOriginUs` (`src/Export/swing_doc.h`): against `clock.t0_us`, a value at or after it is absolute and is made relative, a value below it is already relative (or an unset `-1`) and is kept. Reading never rewrites the document; the next write stamps it.
 
 Exceptions, each described in its own section:
 
@@ -540,7 +542,7 @@ When a reading has no capture to go into, it makes the whole document (`writeDev
 | `thumbnail` | **absent** — an empty block would point at a file never written. |
 | `review` | `{ rating: 0, note: "", club }` when the session had a club. |
 | `launchMonitor` | `lmRawBlock(reading)`, as above. |
-| `analysis` | `schema`, `tier` (`0`), `metrics[]` (the `lm.` readings and the two derived rows), `phases[]` (one Impact entry), `gatesVersion` and `gates` (the import's drops) — **nothing else**: no `score`, `pose2d`, `club`, `bindings`. Omitting them is what stops this being mistaken for an analysed swing whose analysis came out empty. |
+| `analysis` | `schema`, `timeBase` (`"window"`), `tier` (`0`), `metrics[]` (the `lm.` readings and the two derived rows), `phases[]` (one Impact entry), `gatesVersion` and `gates` (the import's drops) — **nothing else**: no `score`, `pose2d`, `club`, `bindings`. Omitting them is what stops this being mistaken for an analysed swing whose analysis came out empty. |
 
 **The Impact phase event is manufactured, and it has to be.** Every `lm.*` measure reduces `at p7`, and `buildPhaseGrid` returns an empty grid when `phases[]` is empty — *"unsegmented: no phase to read anything at, so nothing is producible"* — so without it the readings would persist and then resolve to nothing at all. Its `conf` is `1.0` because the **event** is certain: a ball was struck and the device measured it. What is unknown is the *instant*, and that is carried by `capture.impactUs = -1`, not by pretending the timestamp is good.
 
@@ -658,11 +660,12 @@ It gains:
 
 ## `analysis` (`pinpoint.analysis/3`)
 
-The analysed swing. Re-analysis rebuilds this whole block. Every sub-block is optional except `schema`, `tier`, `score`, `metrics` and `phases`, which are always written (a device-only swing has no `score`; see "Device-only swings"). Many blocks appear only when their stage ran or found something. Absent means "did not run" or "nothing to record", never zero.
+The analysed swing. Re-analysis rebuilds this whole block. Each sub-block has one serialiser, a writer and its typed reader beside the stage that produces it; `src/Export/swing_doc_analysis.cpp` lists them and composes the block. Every sub-block is optional except `schema`, `tier`, `score`, `metrics` and `phases`, which are always written (a device-only swing has no `score`; see "Device-only swings"). Many blocks appear only when their stage ran or found something. Absent means "did not run" or "nothing to record", never zero.
 
 ```json
 "analysis": {
   "schema": "pinpoint.analysis/3",
+  "timeBase": "window",     // since 2026-11-14: the block's times are window-relative (absent = older; see Timestamp domains)
   "path":     { … },        // OPTIONAL: which way each decision went on this run
   "versions": { … },        // OPTIONAL: producer versions; they gate re-analysis reuse
   "tier": 0,

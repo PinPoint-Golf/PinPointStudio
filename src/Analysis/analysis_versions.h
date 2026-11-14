@@ -36,7 +36,8 @@
 //           clubhead_track / the ball anchor change their output). REUSED since
 //           2026-09-17 — see the shaft note below the constant. The club block is
 //           still lossy: onsetFloorFrame, addressPhaseFrame and addrBallTrusted are
-//           not persisted, and diag.onsetTUs/topTUs are written but not read back.
+//           not persisted (diag.onsetTUs/topTUs and the filter diagnostic are read
+//           back since step 1.3a, recorded_products.h).
 //
 // A recorded swing without a versions block (everything before 2026-09-09) never
 // matches, so it re-runs once and is stamped by the write-back.

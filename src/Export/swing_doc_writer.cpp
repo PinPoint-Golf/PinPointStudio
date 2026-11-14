@@ -896,6 +896,9 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
     // swing whose analysis came out empty.
     QJsonObject an;
     an[QStringLiteral("schema")]  = QStringLiteral("pinpoint.analysis/3");
+    // Window time, and it says so (IM-2), as serializeAnalysis does: t0_us is 0 here, so every
+    // time below is already window-relative.
+    an[QStringLiteral("timeBase")] = QString::fromLatin1(analysis::kAnalysisTimeBaseWindow);
     an[QStringLiteral("tier")]    = int(analysis::ReconstructionTier::Angles2D);
     an[QStringLiteral("metrics")] = lmMetricEntries(reading, /*impactUs*/ 0, lmArcRadiusM(root));
     an[QStringLiteral("phases")]  = QJsonArray{ QJsonObject{

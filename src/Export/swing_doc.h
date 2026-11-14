@@ -24,8 +24,10 @@
 //                           applyCaptureIntegrity); the launch monitor blocks and derived rows
 //   swing_doc_reader.cpp    SwingDocReader; dataWarningDetailFrom, overallScoreFromAnalysis,
 //                           insertDtlTopOutOfView, swingDeviceTokens; the summary and its sidecar
-//   swing_doc_analysis.cpp  the `analysis` block serialisers: poseTrackToJson, impactTrackJson
-//                           and serializeAnalysis (internal) / serializeScore (file-local)
+//   swing_doc_analysis.cpp  the `analysis` block, composed from the per-block serialisers beside
+//                           their producers (step 1.3a): serializeAnalysis (internal),
+//                           analysisFromDocument / analysisReadOriginUs, and the two live-detail
+//                           forwarders poseTrackToJson, impactTrackJson
 // swing_doc_internal.h declares the few helpers more than one of them calls.
 
 #include "launch_monitor_reading.h"
@@ -56,8 +58,9 @@ QJsonObject imuIntegrityJson(const ImuRefusionVerdict &v);
 // The impact camera's track (analysis.impact, impact_camera_design.md §7):
 // per-frame ball + club in the clip's normalised coordinates, the departure
 // instant and the fitted path. ONE builder for the doc and the live detail
-// (shot_processor toAnalysisDetail), so the overlay reads one shape. Times
-// follow serializeAnalysis's rule: absolute values (≥ windowT0) are made
+// (shot_processor toAnalysisDetail), so the overlay reads one shape: it forwards to
+// the block's serialiser, impactTrackToAnalysisJson (Ball/impact_track_json.h). Times
+// go through the one rule, windowTimeUs: absolute values (≥ windowT0) are made
 // window-relative, already-relative ones pass through; windowT0 = 0 keeps
 // the live domain.
 QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0);
@@ -65,10 +68,25 @@ QJsonObject impactTrackJson(const analysis::ImpactTrack2D &t, qint64 windowT0);
 // A pose track in the `analysis.pose2d` shape: { camera, keypointCount, frames,
 // [decode], [cropRect], [smoothed], [adaptFallbacks], [synth] }. ONE builder for
 // the face-on `pose2d` and the down-the-line `poseDtl` blocks, and for the live
-// detail, so every reader parses one shape. Times follow serializeAnalysis's
-// rule (absolute ≥ windowT0 made relative, relative passes through; 0 keeps the
+// detail, so every reader parses one shape: it forwards to the block's serialiser,
+// poseTrackToAnalysisJson (Pose/pose_track_json.h). Times go through the one rule,
+// windowTimeUs (absolute ≥ windowT0 made relative, relative passes through; 0 keeps the
 // live domain). The caller skips an empty track — this writes what it is given.
 QJsonObject poseTrackToJson(const analysis::PoseTrack2D &t, qint64 windowT0);
+
+// ── One time base (refactor step 1.3a; information_model.md §7, IM-2) ────────────────────────
+// A swing document's analysis is window time and says so: `analysis.timeBase: "window"`.
+// analysisReadOriginUs is THE ONE PLACE a document without the key (written before step 1.3a)
+// is guessed: 0 for a stamped document (read as written), else its clock.t0_us, through which
+// the one rule (windowTimeUs, swing_analysis.h) takes an absolute value to window time and
+// leaves a relative one alone. Every per-block typed reader takes that origin.
+qint64 analysisReadOriginUs(const QJsonObject &root);
+
+// The document's `analysis` block read back TYPED (TimeBase::Window), through the per-block
+// readers and analysisReadOriginUs — an old absolute-time document and its rebased twin read to
+// the same values. Reading never rewrites the document. Not read back (writer-only blocks):
+// assessment, timings, bindings, clubDtl, club3d, skeleton3d, addressMarks.
+analysis::SwingAnalysis analysisFromDocument(const QJsonObject &root);
 
 // Patch a manifest that is about to be written back so its "imuIntegrity" block
 // reflects THIS pass rather than whatever capture concluded.

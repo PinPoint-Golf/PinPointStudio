@@ -19,7 +19,7 @@
 #pragma once
 
 // The uncertainty fields' JSON / QVariant spelling, in ONE place so the document writer
-// (swing_doc.cpp), the reuse reader (recorded_products.cpp), the live detail bridge
+// (swing_doc_analysis.cpp and the per-block writers), the reuse readers (recorded_products.h), the live detail bridge
 // (shot_processor.cpp) and the reload (disk_replay_source.cpp) cannot drift. Every key is
 // written ONLY when the field was assessed (shaft_uncertainty_propagation_design.md §7), so
 // an uncertainty-off run serialises byte-identically.
@@ -50,6 +50,15 @@ inline void insertPhaseSampleSigma(QJsonObject &o, const PhaseSample &ps)
     if (ps.sigma)          o.insert(QStringLiteral("sigma"), *ps.sigma);
     if (ps.sigmaKind > 0)  o.insert(QStringLiteral("sigmaKind"), int(ps.sigmaKind));
     if (ps.grossRisk >= 0.f) o.insert(QStringLiteral("grossRisk"), double(ps.grossRisk));
+}
+
+// The typed inverse of insertPhaseSampleSigma (swing_analysis_json.h's metrics reader): an absent
+// key reads as "not assessed", exactly the in-memory default.
+inline void readPhaseSampleSigma(const QJsonObject &o, PhaseSample &ps)
+{
+    if (o.contains(QStringLiteral("sigma"))) ps.sigma = o.value(QStringLiteral("sigma")).toDouble();
+    ps.sigmaKind = uint8_t(o.value(QStringLiteral("sigmaKind")).toInt(0));
+    ps.grossRisk = float(o.value(QStringLiteral("grossRisk")).toDouble(-1.0));
 }
 
 inline void insertPhaseSampleSigma(QVariantMap &o, const PhaseSample &ps)

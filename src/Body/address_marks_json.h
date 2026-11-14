@@ -44,6 +44,7 @@
 #include <limits>
 
 #include "address_marks.h"
+#include "../Analysis/swing_analysis.h" // analysis::windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 
@@ -57,7 +58,7 @@ inline QJsonObject viewMarksToJson(const addressmarks::ViewMarks &v, int64_t t0U
     using namespace addressmarks_json_detail;
     QJsonObject o { { "found", v.found } };
     if (!v.found) return o;
-    o["t_us"]      = qint64(v.frameTUs >= t0Us ? v.frameTUs - t0Us : v.frameTUs);
+    o["t_us"]      = qint64(analysis::windowTimeUs(v.frameTUs, t0Us));
     o["rowY"]      = num(v.rowY);
     o["hipLeftX"]  = num(v.hipLeftX);
     o["hipRightX"] = num(v.hipRightX);
@@ -95,7 +96,7 @@ inline QJsonObject dtlPhaseMarksToJson(const addressmarks::DtlPhaseMarks &p, int
 {
     QJsonObject o = viewMarksToJson(p.v, t0Us);
     o["phase"]    = p.phase;
-    o["eventTUs"] = qint64(p.eventTUs >= t0Us ? p.eventTUs - t0Us : p.eventTUs);
+    o["eventTUs"] = qint64(analysis::windowTimeUs(p.eventTUs, t0Us));
     if (!p.v.found || !p.refused.empty()) o["refused"] = QString::fromStdString(p.refused);
     if (p.v.side != 0) o["side"] = p.v.side;   // the frozen rear side, also on a refused frame
     return o;

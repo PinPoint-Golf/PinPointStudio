@@ -988,8 +988,10 @@ src/Export/
 │                                 and integrity blocks
 ├── swing_doc_reader.cpp        SwingDocReader, the summary block and sidecar,
 │                                 dataWarningDetailFrom & the other read helpers
-├── swing_doc_analysis.cpp      the `analysis` block serialisers
-│                                 (serializeAnalysis, pose/impact track builders)
+├── swing_doc_analysis.cpp      the `analysis` block, composed from the per-block
+│                                 serialisers beside their producers (serializeAnalysis,
+│                                 analysisFromDocument, analysisReadOriginUs)
+├── analysis_path_json.h        analysis.path's writer + typed reader
 ├── swing_doc_internal.h        the helpers the three files share (not public)
 │
 ├── swing_zip_exporter.h        Bulk "export selected shots to a zip" (§12)
