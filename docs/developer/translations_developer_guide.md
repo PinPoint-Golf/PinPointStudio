@@ -3,7 +3,7 @@
 **Audience**: Developers adding a language, refreshing a translation, or writing interface text
 **Location**: `src/Resources/i18n/` (the catalogues), `cmake/PinPointTranslations.cmake` (the one list of them), `src/Gui/app/app_translations.h` (the loader), `src/Gui/settings/GeneralPanel.qml` (the Language setting), `src/Gui/tests/app_translations_test.cpp`
 **Language**: Qt Linguist `.ts` (XML), CMake, C++, QML
-**Status**: One catalogue, Simplified Chinese (`zh_CN`). The Language setting also offers French, German, Japanese and Korean, which have no catalogue yet and leave the interface in English.
+**Status**: Every language the Language setting offers has a catalogue: French (`fr_FR`), German (`de_DE`), Japanese (`ja_JP`), Korean (`ko_KR`) and Simplified Chinese (`zh_CN`). The Chinese catalogue was reviewed by native-speaker passes and a 600-message sample audit; the other four have had one review pass per section and the mechanical checks in §7, and would benefit from a fluent golfer reading them in the running app.
 
 ---
 
@@ -17,6 +17,7 @@
 6. [Why the language does not change the locale](#6-why-the-language-does-not-change-the-locale)
 7. [The test](#7-the-test)
 8. [Simplified Chinese: the conventions in use](#8-simplified-chinese-the-conventions-in-use)
+9. [The other languages: the choices that matter](#9-the-other-languages-the-choices-that-matter)
 
 ---
 
@@ -196,7 +197,7 @@ untouched) and then every catalogue in the list:
 It cannot see a string the code looks up under a context lupdate never filed it under: that entry
 is absent, not wrong. lupdate's warnings (§4) are the check for that.
 
-It also prints, without failing, the languages the combo offers that have no catalogue.
+It also prints, without failing, any language the combo offers that has no catalogue (none today).
 
 ## 8. Simplified Chinese: the conventions in use
 
@@ -223,3 +224,32 @@ follow-through 送杆 · finish 收杆 · tempo 节奏 · kinematic sequence 运
 face angle 杆面角 · attack angle 攻角 · dynamic loft 动态杆面倾角 · strike 触球 · norm 常模 ·
 corridor 参考区间 · characteristic 特征 · measure 测量项 · metric 指标 · drill 练习 ·
 face-on 正面 · down the line 目标线后方.
+
+## 9. The other languages: the choices that matter
+
+Each catalogue was written to its own guide. These are the decisions a reviewer is most likely to
+question, and the ones to keep when adding to a catalogue.
+
+| | French | German | Japanese | Korean |
+|---|---|---|---|---|
+| Address the user | vous | du | no pronoun; です／ます in sentences | no pronoun; 합니다체, -(으)세요 for instructions |
+| "Settings → Studio" | `Paramètres → Studio` | `Einstellungen → Studio` | `設定 → スタジオ` | `설정 → 스튜디오` |
+| lead / trail | avant / arrière | vorder- / hinter- | リード側 / トレイル側 | 리드 / 트레일 |
+| Fade, Draw, Slice, Hook, Push, Pull | kept in English | kept in English | フェード, ドロー, スライス, フック, プッシュ, プル | 페이드, 드로우, 슬라이스, 훅, 푸시, 풀 |
+| Session (practice) | séance | Session | セッション | 세션 |
+| Plural forms | 2 (first form for 0 and 1) | 2 (first form for 1) | 1 | 1 |
+
+All four keep the same hard rules as §8: placeholders, edge spaces and glyphs intact, product and
+device names, acronyms and unit symbols untranslated, the seven language names and the spoken
+calibration lines left as they are.
+
+Source strings that no translation can make read well, worth fixing in the code:
+
+- `DataWarningFormat` passes an English plural "s" as `%3` ("%2 hole%3"). It should be one `%n`
+  plural message.
+- Several `ModelBrowser` messages ("%1 already %2 %3.", "A %1 relation has no strength.") insert the
+  engine token (`causes`, `leadsTo`) rather than its translated label.
+- Counts built from fragments (" connected", " of ", "%1 selected") follow English word order and
+  cannot agree in number or case; a whole sentence with placeholders, or a `%n` message, would.
+- `PhonesPanel` tells the user to use "Pair a device" on the home screen, a label that no longer
+  exists (the entry is "Add iPhone as a camera").

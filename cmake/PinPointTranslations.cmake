@@ -21,6 +21,10 @@
 # docs/developer/translations_developer_guide.md says how to add a language and refresh these.
 
 set(PP_TS_FILES
+    src/Resources/i18n/PinPointStudio_de_DE.ts
+    src/Resources/i18n/PinPointStudio_fr_FR.ts
+    src/Resources/i18n/PinPointStudio_ja_JP.ts
+    src/Resources/i18n/PinPointStudio_ko_KR.ts
     src/Resources/i18n/PinPointStudio_zh_CN.ts
 )
 
