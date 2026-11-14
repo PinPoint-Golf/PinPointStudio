@@ -238,13 +238,54 @@ every page alike:
 - a **re-labelled** shot is counted under its effective club: the ball block and Typical rows split per
   effective club (in the board's bag order), and the tables mark it "*". The two marks are explained in
   the same words under "Your numbers" and the appendix tables (`lmMarksNote`).
-The readings are the board's (the analysis' `lm.*` entries, after the import's gates). The numbers table's
-heads and units are `lm::fieldDefs()`'s; the golfer pages print whole units except smash factor and the
+The readings are the board's (the analysis' `lm.*` entries, after the import's gates); the columns and
+units are `lm::fieldDefs()`'s. The golfer pages print whole units except smash factor and the
 club's delivery angles, which keep the board's decimals (`lmGolferDecimals`). The cover and "Your numbers"
 still quote the median, the appendix the mean. Not covered: the kicker, About and the diagnostics pages
 name the session's clubs from the diagnostics ledger, which does not read the board's override; and the
 Consistency and Tendencies pages read the Charts snapshot and the diagnostics ledger, which do not read
 "Leave out" either.
+
+**Launch monitor readings: one name each, the golfer's** (14 November 2026, Mark's decision). The printed
+report is the golfer's document, so it names each launch monitor reading one way, in plain golfer words,
+on these pages: the cover's ball tiles, the "Your numbers" heads, the swing grid's carry row ("Carry,
+yards"), the Consistency page's launch monitor rows under "Swings the launch monitor flagged"
+(`report_consistency.h` `consistencyReportLabel`; the Charts panel keeps the catalogue's words), the
+appendix's shot-table heads and summary rows, and the sign-convention notes under "Your numbers" and the
+shot tables. Two places are not covered yet (below). The names live in one table, `report_words.h` `lmGolferLabels()` /
+`lmLabel(key)`, keyed by `lm::fieldDefs()`' key, so the field list stays that one list (`report_lm_test`
+fails when a field has no name or a name has no field). The board keeps its compact on-screen headings
+(`FieldDef::abbrev`); the report prints neither those nor the catalogue's "(measured)" labels.
+
+| Reading | Name in the report | Reading | Name in the report |
+|---|---|---|---|
+| `lm.carryDistance` | Carry | `lm.launchDirection` | Start direction |
+| `lm.totalDistance` | Total | `lm.lowPointAhead` | Low point |
+| `lm.ballSpeed` | Ball speed | `lm.dynamicLoft` | Dynamic loft |
+| `lm.clubheadSpeed` | Club speed | `lm.spinLoft` | Spin loft |
+| `lm.smashFactor` | Smash | `lm.lieAngle` | Lie angle |
+| `lm.launchAngle` | Launch | `lm.closureRate` | Closure rate |
+| `lm.spinRate` | Spin | `lm.strikeLocation` | Strike location |
+| `lm.clubPath` | Club path | `lm.strikeHeight` | Strike height |
+| `lm.faceAngle` | Face angle | `lm.backSpin` | Back spin |
+| `lm.faceToPath` | Face to path | `lm.sideSpin` | Side spin |
+| `lm.attackAngle` | Attack angle | `lm.spinAxis` | Spin axis |
+| `lm.offline` | Offline | `lm.peakHeight` | Peak height |
+| | | `lm.descentAngle` | Descent angle |
+| | | `lm.distanceToPin` | Distance to pin |
+
+Where the cover already had a word (Smash, Launch, Spin, Club speed) that word is the name everywhere. Names
+are sentence case; the unit is never part of a name (a table sets it under the head).
+
+Not covered (they print other words for some readings):
+- the appendix's embedded launch monitor panel figures (`src/Gui/session/PpLmGraphicsBody.qml`, the board's
+  own view, shared by screen and print) keep the board's tile headings ("Dyn. loft", "Path", "Avg launch",
+  "Avg spin", …). Left for refactor step 6, when the board becomes a presenter and can take its print names
+  from this table;
+- the Club delivery page's scatter axes, "Club path (monitor)" and "Attack angle (monitor)", are the Charts
+  presenter's words (`charts_delivery_presenter.cpp` `yLabel`), kept verbatim by `report_delivery.h`. The
+  names are this table's; "(monitor)" says which instrument measured the y axis against the cameras'
+  plane on the x axis.
 
 **Technical appendix** (optional, off by default, §8): the existing `PpDiagPrint` pages, from a
 fresh page, for the coach's own file or for a golfer who wants everything.

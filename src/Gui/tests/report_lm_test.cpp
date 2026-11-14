@@ -27,7 +27,10 @@
 //   - the cover's ball tiles, the numbers table's Typical row, the swing grid's carry row and the reference swing's
 //     carries leave swing 6 out and count swing 3 under the 8 iron;
 //   - those figures and the appendix agree: the same clubs, the same shots per club, the same lowest and highest carry;
-//   - the tables still LIST the left-out swing ("out") and mark the re-labelled one ("*"), and the notes say so.
+//   - the tables still LIST the left-out swing ("out") and mark the re-labelled one ("*"), and the notes say so;
+//   - every page names a reading the same way, in the golfer's words (report_words.h lmLabel, Mark 14 Nov 2026): the
+//     numbers table's heads are the cover tiles' labels, the appendix's heads and summary rows the same names, and the
+//     table of names covers lm::fieldDefs() exactly.
 // Before F-03 the cover read the raw launchMonitor block of every swing under its ledger club: a 7 iron carry ranging
 // 120–230 over six swings (the misread and the re-labelled 8 iron in it) and an 8 iron of one, beside an appendix of
 // 4 + 2 shots.
@@ -38,6 +41,7 @@
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
 #include "Analysis/swing_analysis.h"
+#include "LaunchMonitor/launch_monitor_reading.h"
 
 #include <QCoreApplication>
 #include <QUrl>
@@ -63,13 +67,18 @@ static void checkStr(const QString &label, const QString &got, const QString &wa
     check(QStringLiteral("%1 (got \"%2\", want \"%3\")").arg(label, got, want), got == want);
 }
 
-// One shot's readings as the writer leaves them: each lm.* a PointInTime sample at Impact.
+// One shot's readings as the writer leaves them: each lm.* a PointInTime sample at Impact. Every reading the cover
+// shows is there, so the numbers table carries a column for each (section H).
 static QVariantMap lmDetailOf(double carry, double ball, double club)
 {
     QVariantList series;
     for (const auto &[key, v] : { std::pair{ "lm.carryDistance", carry }, std::pair{ "lm.ballSpeed", ball },
                                   std::pair{ "lm.clubheadSpeed", club }, std::pair{ "lm.smashFactor", ball / club },
-                                  std::pair{ "lm.closureRate", 2250.0 } }) {
+                                  std::pair{ "lm.closureRate", 2250.0 }, std::pair{ "lm.totalDistance", carry + 10.0 },
+                                  std::pair{ "lm.launchAngle", 20.0 }, std::pair{ "lm.spinRate", 5000.0 },
+                                  std::pair{ "lm.clubPath", 1.0 }, std::pair{ "lm.faceAngle", -1.0 },
+                                  std::pair{ "lm.faceToPath", -2.0 }, std::pair{ "lm.attackAngle", -2.0 },
+                                  std::pair{ "lm.offline", -3.0 } }) {
         const QVariantMap sample{ { QStringLiteral("phase"), int(analysis::Phase::Impact) }, { QStringLiteral("value"), v } };
         series.append(QVariantMap{ { QStringLiteral("key"), QString::fromLatin1(key) },
                                    { QStringLiteral("phaseSamples"), QVariantList{ sample } } });
@@ -155,8 +164,9 @@ int main(int argc, char **argv)
     std::printf("\nC — the numbers table\n");
     const QVariantMap nums = report::lmNumbersBlock(f, true, {}, 0).toMap();
     const QStringList heads = nums.value(QStringLiteral("cols")).toStringList();
-    checkStr(QStringLiteral("C1 heads are the board's (fieldDefs abbrev)"), heads.join(QLatin1Char('|')),
-             QStringLiteral("Swing|Club|Carry|Ball speed|Club speed|Smash fac."));
+    checkStr(QStringLiteral("C1 heads are the golfer's names, never the board's abbreviations"), heads.join(QLatin1Char('|')),
+             QStringLiteral("Swing|Club|Carry|Total|Ball speed|Club speed|Smash|Launch|Spin|Club path|Face angle|Face to path|"
+                            "Attack angle|Offline"));
     const QVariantList rows = nums.value(QStringLiteral("rows")).toList();
     auto cell = [&](int row, int col) { return rows.value(row).toMap().value(QStringLiteral("cells")).toStringList().value(col); };
     checkStr(QStringLiteral("C2 swing 3 marked re-labelled"), cell(2, 0), QStringLiteral("3*"));
@@ -239,6 +249,88 @@ int main(int argc, char **argv)
              QStringLiteral("Typical value (the middle of your nine swings) in large type; the range from lowest to highest beneath. "
                             "Swing 10 is left out, as on the launch monitor panel."));
     checkStr(QStringLiteral("F6 no marks, no sentence"), W::lmMarksNote(false, false), QString());
+
+    std::printf("\nH — one name per reading, the golfer's, on every page\n");
+    {
+        // H1: the table of names covers lm::fieldDefs() exactly — a new field fails here until it has a golfer name
+        QStringList unnamed, stray, notSentence;
+        for (const lm::FieldDef &d : lm::fieldDefs())
+            if (W::lmLabel(QString::fromLatin1(d.key)).isEmpty()) unnamed << QString::fromLatin1(d.key);
+        for (const W::LmGolferLabel &l : W::lmGolferLabels()) {
+            const QString key = QString::fromLatin1(l.key);
+            if (std::none_of(lm::fieldDefs().cbegin(), lm::fieldDefs().cend(), [&](const lm::FieldDef &d) { return key == QLatin1String(d.key); }))
+                stray << key;
+            // sentence case, whole words: a capital first letter, every later word lower case, no abbreviation stop
+            const QString name = QString::fromUtf8(l.label);
+            const QStringList w = name.split(QLatin1Char(' '));
+            bool ok = !name.isEmpty() && name[0].isUpper() && !name.contains(QLatin1Char('.')) && !name.contains(QLatin1Char('('));
+            for (int i = 1; i < w.size(); ++i) ok = ok && !w[i].isEmpty() && w[i][0].isLower();
+            if (!ok) notSentence << name;
+        }
+        checkStr(QStringLiteral("H1 every launch monitor field has a golfer name"), unnamed.join(QLatin1Char(',')), QString());
+        checkStr(QStringLiteral("H2 no golfer name without a field"), stray.join(QLatin1Char(',')), QString());
+        checkStr(QStringLiteral("H3 the names are sentence case, whole words, no unit"), notSentence.join(QLatin1Char(',')), QString());
+    }
+    {
+        // H4: the numbers table's head for every reading the cover shows is the cover tile's label
+        const QStringList numKeys = nums.value(QStringLiteral("keys")).toStringList();
+        QStringList shared, differ;
+        for (const QVariant &gv : ball.toMap().value(QStringLiteral("groups")).toList())
+            for (const QVariant &tv : gv.toMap().value(QStringLiteral("tiles")).toList()) {
+                const QVariantMap t = tv.toMap();
+                const QString key = t.value(QStringLiteral("key")).toString();
+                const int col = numKeys.indexOf(key);
+                if (col < 0) continue;
+                if (!shared.contains(key)) shared << key;
+                if (heads.value(col) != t.value(QStringLiteral("label")).toString())
+                    differ << key + QLatin1Char(':') + heads.value(col) + QStringLiteral(" vs ") + t.value(QStringLiteral("label")).toString();
+            }
+        check(QStringLiteral("H4 the numbers table and the cover share the cover's readings (%1)").arg(shared.size()),
+              numKeys.size() == heads.size() && shared.size() == 8);
+        checkStr(QStringLiteral("H5 every shared reading: numbers head = cover label"), differ.join(QLatin1Char(',')), QString());
+        // every tile of every club group (all eight readings here) is named by lmLabel
+        QStringList tileNames;
+        for (const QVariant &gv : ball.toMap().value(QStringLiteral("groups")).toList())
+            for (const QVariant &tv : gv.toMap().value(QStringLiteral("tiles")).toList())
+                if (tv.toMap().value(QStringLiteral("label")).toString() != W::lmLabel(tv.toMap().value(QStringLiteral("key")).toString()))
+                    tileNames << tv.toMap().value(QStringLiteral("label")).toString();
+        checkStr(QStringLiteral("H6 every cover tile is named by lmLabel"), tileNames.join(QLatin1Char(',')), QString());
+    }
+    {
+        // H7: the appendix's shot-table heads and summary rows use the same names
+        QStringList bad;
+        for (const char *t : { "ball", "club" })
+            for (const QVariant &cv : apx.value(QString::fromLatin1(t)).toMap().value(QStringLiteral("cols")).toList()) {
+                const QVariantMap c = cv.toMap();
+                if (c.value(QStringLiteral("head")).toString() != W::lmLabel(c.value(QStringLiteral("key")).toString()))
+                    bad << c.value(QStringLiteral("head")).toString();
+            }
+        checkStr(QStringLiteral("H7 appendix table heads = lmLabel"), bad.join(QLatin1Char(',')), QString());
+        QStringList names, rowsSeen;
+        for (const W::LmGolferLabel &l : W::lmGolferLabels()) names << QString::fromUtf8(l.label);
+        for (const QVariant &gv : apx.value(QStringLiteral("stats")).toMap().value(QStringLiteral("groups")).toList())
+            for (const QVariant &rv : gv.toMap().value(QStringLiteral("rows")).toList()) {
+                const QVariantMap r = rv.toMap();
+                if (r.contains(QStringLiteral("sub"))) continue;
+                rowsSeen << r.value(QStringLiteral("label")).toString();
+            }
+        QStringList off;
+        for (const QString &n : std::as_const(rowsSeen)) if (!names.contains(n)) off << n;
+        check(QStringLiteral("H8 the appendix summary has rows (%1)").arg(rowsSeen.size()), !rowsSeen.isEmpty());
+        checkStr(QStringLiteral("H9 every appendix summary row is a golfer name"), off.join(QLatin1Char(',')), QString());
+        check(QStringLiteral("H10 the summary says Club speed and Smash, as the cover does"),
+              rowsSeen.contains(QStringLiteral("Club speed")) && rowsSeen.contains(QStringLiteral("Smash")) && !rowsSeen.contains(QStringLiteral("Clubhead speed")));
+    }
+    {
+        // H11–H13: the notes name the signed readings as the heads do; the grid's carry row too
+        checkStr(QStringLiteral("H11 the numbers note"), W::numbersNote(false, 0, 2, false, false),
+                 QStringLiteral("Club path, face angle and offline: positive is right of target, negative left (right-handed golfer)."));
+        checkStr(QStringLiteral("H12 the appendix tables note"), W::lmTablesNote(false, false, false, QString()),
+                 QStringLiteral("As the device reported them. Signed readings: plus is right of the target line (start direction, side spin, "
+                                "spin axis, offline, club path, face angle), up (attack angle, and lie angle, toe up), open (face to path), "
+                                "toward the toe (strike location) and high (strike height); minus the other way."));
+        checkStr(QStringLiteral("H13 the swing grid's carry row"), W::gridCarryLabel(), QStringLiteral("Carry, yards"));
+    }
 
     std::printf("\nG — a session with no launch monitor\n");
     const report::LmFigures none = report::lmFiguresOf({}, dirs, ledgerClubs, QString(), false);

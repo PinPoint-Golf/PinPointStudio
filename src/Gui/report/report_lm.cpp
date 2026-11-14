@@ -65,6 +65,16 @@ QString lmFig(double v, int dp, bool thousands = false)
 }
 // A reading at the golfer pages' precision.
 QString golferFig(double v, const QString &key) { return lmFig(v, lmGolferDecimals(key), thousandsFor(unitOf(key))); }
+// A reading's name on every report page: the golfer's (report_words.h lmLabel, Mark 14 Nov 2026), never the board's
+// compact abbreviation. A field the words module has not named yet (report_lm_test fails on one) falls back to the
+// catalogue's label without its "(measured)" qualifier, so a page never prints a key.
+QString golferLabel(const QString &key)
+{
+    const QString l = W::lmLabel(key);
+    if (!l.isEmpty()) return l;
+    const pinpoint::lm::FieldDef *d = lmDef(key);
+    return d ? QString::fromUtf8(d->label).remove(QStringLiteral(" (measured)")) : key;
+}
 // A reading at the board's own precision (the appendix).
 QString lmCell(double v, const QString &unit) { return lmFig(v, lmDecimals(unit), thousandsFor(unit)); }
 
@@ -77,45 +87,49 @@ QVariantList ballTiles(const LmFigures &f, const QString *club)
         const auto [lo, hi] = std::minmax_element(v.begin(), v.end());
         return golferFig(*lo, key) + QChar(0x2013) + golferFig(*hi, key);
     };
-    // The tile's words are the cover's own (an editorial label); its unit is the catalogue's, a degree set on the value.
-    auto tile = [&](const char *k, const QString &label) {
+    // The tile's words are the reading's golfer name (golferLabel, as every page names it); its unit is the catalogue's,
+    // a degree set on the value. `key` rides along so a check can match a tile to its column.
+    auto tile = [&](const char *k) {
         const QString key = QString::fromLatin1(k);
+        const QString label = golferLabel(key);
         const std::vector<double> v = f.series(key, club);
         if (v.empty()) return;
         const QString unit = shownUnit(key);
         const bool degrees = unit == QStringLiteral("°");
         QString value = golferFig(median(v), key);
         if (degrees) value += unit;
-        tiles << QVariantMap{ { QStringLiteral("label"), label }, { QStringLiteral("value"), value },
+        tiles << QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("label"), label }, { QStringLiteral("value"), value },
                               { QStringLiteral("unit"), degrees ? QString() : unit }, { QStringLiteral("range"), range(v, key) } };
     };
-    tile("lm.carryDistance", QStringLiteral("Carry"));
-    tile("lm.ballSpeed", QStringLiteral("Ball speed"));
-    tile("lm.clubheadSpeed", QStringLiteral("Club speed"));
-    tile("lm.smashFactor", QStringLiteral("Smash"));
-    tile("lm.launchAngle", QStringLiteral("Launch"));
-    tile("lm.spinRate", QStringLiteral("Spin"));
+    tile("lm.carryDistance");
+    tile("lm.ballSpeed");
+    tile("lm.clubheadSpeed");
+    tile("lm.smashFactor");
+    tile("lm.launchAngle");
+    tile("lm.spinRate");
     {
-        const std::vector<double> v = f.series(QStringLiteral("lm.clubPath"), club);
+        const QString key = QStringLiteral("lm.clubPath");
+        const std::vector<double> v = f.series(key, club);
         if (!v.empty()) {
             const double med = median(v);
             // GC Quad's path is + to the right of the target line: in-to-out for a right-hander.
             const bool square = std::fabs(med) < 0.5;
             const bool inToOut = f.leftHanded ? med < 0 : med > 0;
             const auto [lo, hi] = std::minmax_element(v.begin(), v.end());
-            tiles << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Club path") },
+            tiles << QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("label"), golferLabel(key) },
                                   { QStringLiteral("value"), lmFig(std::fabs(med), 0) + QStringLiteral("°") },
                                   { QStringLiteral("unit"), square ? QStringLiteral("square") : inToOut ? QStringLiteral("in-to-out") : QStringLiteral("out-to-in") },
                                   { QStringLiteral("range"), pinpoint::figures::figSigned(*lo, 1) + QStringLiteral(" to ") + pinpoint::figures::figSigned(*hi, 1) } };
         }
     }
     {
-        const std::vector<double> v = f.series(QStringLiteral("lm.offline"), club);
+        const QString key = QStringLiteral("lm.offline");
+        const std::vector<double> v = f.series(key, club);
         if (!v.empty()) {
             double widest = 0.0;
             for (double d : v) widest = std::max(widest, std::fabs(d));
-            tiles << QVariantMap{ { QStringLiteral("label"), QStringLiteral("Offline") }, { QStringLiteral("value"), lmFig(widest, 0) },
-                                  { QStringLiteral("unit"), shownUnit(QStringLiteral("lm.offline")) },
+            tiles << QVariantMap{ { QStringLiteral("key"), key }, { QStringLiteral("label"), golferLabel(key) }, { QStringLiteral("value"), lmFig(widest, 0) },
+                                  { QStringLiteral("unit"), shownUnit(key) },
                                   { QStringLiteral("range"), QStringLiteral("widest, either side") } };
         }
     }
@@ -197,7 +211,8 @@ QVariant lmNumbersBlock(const LmFigures &f, bool typical, const QStringList &hab
 {
     if (!f.has()) return kNull;
     // The readings a golfer reads swing by swing, in this order (an editorial list, like the appendix's two tables);
-    // the head and unit are the board's (lm::fieldDefs()).
+    // the head is the reading's golfer name (golferLabel — the cover's word for it), the unit the catalogue's
+    // (lm::fieldDefs()). `keys` names each column's reading ("" for Swing and Club).
     static const char *kCols[] = { "lm.carryDistance", "lm.totalDistance", "lm.ballSpeed", "lm.clubheadSpeed", "lm.smashFactor",
                                    "lm.launchAngle", "lm.spinRate", "lm.clubPath", "lm.faceAngle", "lm.faceToPath",
                                    "lm.attackAngle", "lm.offline" };
@@ -210,9 +225,9 @@ QVariant lmNumbersBlock(const LmFigures &f, bool typical, const QStringList &hab
         if (std::any_of(f.swings.cbegin(), f.swings.cend(), [&](const LmSwing &s) { return std::isfinite(s.reading(key)); })) cols << key;
     }
 
-    QStringList heads{ QStringLiteral("Swing") }, units{ QString() };
-    if (several) { heads << QStringLiteral("Club"); units << QString(); }
-    for (const QString &c : std::as_const(cols)) { heads << QString::fromUtf8(lmDef(c)->abbrev); units << shownUnit(c); }
+    QStringList heads{ QStringLiteral("Swing") }, units{ QString() }, keys{ QString() };
+    if (several) { heads << QStringLiteral("Club"); units << QString(); keys << QString(); }
+    for (const QString &c : std::as_const(cols)) { heads << golferLabel(c); units << shownUnit(c); keys << c; }
 
     QVariantList rows;
     bool anyOut = false, anyRelabelled = false;
@@ -242,7 +257,8 @@ QVariant lmNumbersBlock(const LmFigures &f, bool typical, const QStringList &hab
             typ << QVariantMap{ { QStringLiteral("cells"), cells } };
         }
     }
-    return QVariantMap{ { QStringLiteral("cols"), heads }, { QStringLiteral("units"), units }, { QStringLiteral("rows"), rows },
+    return QVariantMap{ { QStringLiteral("cols"), heads }, { QStringLiteral("units"), units }, { QStringLiteral("keys"), keys },
+                        { QStringLiteral("rows"), rows },
                         { QStringLiteral("typical"), typ },
                         { QStringLiteral("habitsHead"), habits ? QStringLiteral("Habits") : QString() },
                         { QStringLiteral("note"), W::numbersNote(f.leftHanded, workOnsPerSwing, f.counted, habits, several,
@@ -325,10 +341,6 @@ QVariant lmAppendixBlock(const LmFigures &f, const QVariantMap &g)
     };
     const QStringList ballKeys = keysPresent(kBall, int(std::size(kBall)));
     const QStringList clubKeys = keysPresent(kClub, int(std::size(kClub)));
-    auto labelOf = [](const QString &key) {
-        const pinpoint::lm::FieldDef *d = lmDef(key);
-        return d ? QString::fromUtf8(d->label).remove(QStringLiteral(" (measured)")) : key;
-    };
 
     // the clubs, in the panel's (bag) order; then any club whose shots were all left out
     QStringList groupClubs;
@@ -354,8 +366,8 @@ QVariant lmAppendixBlock(const LmFigures &f, const QVariantMap &g)
         if (keys.isEmpty()) return kNull;
         QVariantList cols;
         for (const QString &k : keys) {
-            const pinpoint::lm::FieldDef *d = lmDef(k);
-            cols << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("head"), QString::fromUtf8(d->abbrev) },
+            // the head is the reading's golfer name, as on the cover and in "Your numbers" (golferLabel)
+            cols << QVariantMap{ { QStringLiteral("key"), k }, { QStringLiteral("head"), golferLabel(k) },
                                  { QStringLiteral("unit"), shownUnit(k) } };
         }
         QVariantList groups;
@@ -407,7 +419,7 @@ QVariant lmAppendixBlock(const LmFigures &f, const QVariantMap &g)
                 const double lo = st.value(QStringLiteral("min")).toDouble(), hi = st.value(QStringLiteral("max")).toDouble();
                 // The row's consistency badge (R4b, a technical-layer pair beside the SD): the club's grade as the panel's
                 // model published it, club-delivery readings only (report_variability.h), else null.
-                part << lmSummaryRow(labelOf(k), shownUnit(k),
+                part << lmSummaryRow(golferLabel(k), shownUnit(k),
                                      QStringList{ QString::number(n),
                                                   lmCell(st.value(QStringLiteral("mean")).toDouble(), u),
                                                   st.value(QStringLiteral("hasSpread")).toBool() ? lmCell(st.value(QStringLiteral("sd")).toDouble(), u) : kNA,

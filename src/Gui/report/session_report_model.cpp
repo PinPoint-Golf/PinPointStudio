@@ -1219,7 +1219,7 @@ void SessionReportModel::build()
             { QStringLiteral("swings"), swingNos }, { QStringLiteral("groups"), groups }, { QStringLiteral("rows"), rows },
             { QStringLiteral("more"), more }, { QStringLiteral("carry"), M::lmGridCarry(x.lm) },
             { QStringLiteral("carryText"), M::lmGridCarryText(x.lm) },
-            { QStringLiteral("carryLabel"), x.hasLm ? QStringLiteral("Carry, yards") : QString() },
+            { QStringLiteral("carryLabel"), x.hasLm ? W::gridCarryLabel() : QString() },
             { QStringLiteral("sessionNote"), sessionNotes.join(QLatin1Char(' ')) },
             { QStringLiteral("best"), ref.index >= 0 ? ref.index + 1 : 0 },
             { QStringLiteral("bestText"), QString() }, { QStringLiteral("bestStills"), QVariantList() }, { QStringLiteral("bestLabels"), QVariantList() } };

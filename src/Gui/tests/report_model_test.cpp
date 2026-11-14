@@ -1076,6 +1076,19 @@ int main(int argc, char **argv)
         check(nt.value(QStringLiteral("table")).isNull(), "no word in the table: no table");
         eq(nt.value(QStringLiteral("key")).toString(), QString(), "and no key");
         eq(nt.value(QStringLiteral("head")).toString(), QStringLiteral("Your swing repeats from shot to shot."), "the head stays");
+
+        // a flagged launch monitor reading is named as the cover and the tables name it (report_words.h lmLabel), not by
+        // the presenter's catalogue label; a reading with no golfer name keeps the presenter's
+        using pinpoint::report::consistencyReportRow;
+        const auto lmRow = [](const char *key, const char *label) {
+            return consistencyReportRow(QVariantMap{ { QStringLiteral("key"), QString::fromLatin1(key) }, { QStringLiteral("label"), QString::fromLatin1(label) } })
+                .value(QStringLiteral("label")).toString();
+        };
+        eq(lmRow("lm.clubheadSpeed", "Clubhead speed"), QStringLiteral("Club speed"), "a flagged club speed row prints Club speed");
+        eq(lmRow("lm.smashFactor", "Smash factor"), QStringLiteral("Smash"), "a flagged smash row prints Smash");
+        eq(lmRow("lm.launchAngle", "Launch angle"), QStringLiteral("Launch"), "a flagged launch row prints Launch");
+        eq(lmRow("lm.spinRate", "Spin rate"), QStringLiteral("Spin"), "a flagged spin row prints Spin");
+        eq(lmRow("swing.kneeFlex", "Trail-knee bend"), QStringLiteral("Trail-knee bend"), "a swing reading keeps the presenter's label");
     }
 
     std::printf("an edit in the Diagnostic Model reaches the next report (#60): goal, an attached drill, a gate's words\n");

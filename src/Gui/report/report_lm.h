@@ -30,9 +30,11 @@
 //   - a shot RE-LABELLED (review.clubOverride, or a specific club-evidence relabel) is counted under its EFFECTIVE club
 //     everywhere, marked "*" in the tables;
 //   - the readings are the board's (the analysis' lm.* entries, as the import's gates left them), not the raw block.
-// Which shots count is LmBoardShot::inFigures() — the board's rule, never restated here. Columns, heads and units come
-// from lm::fieldDefs(); the golfer pages print whole units except smash factor and the club's delivery angles (§0
-// rule 5: "whole units, or the model's own decimals").
+// Which shots count is LmBoardShot::inFigures() — the board's rule, never restated here. Columns and units come from
+// lm::fieldDefs(); every page names a reading by its GOLFER name (report_words.h lmLabel: "Smash", "Launch", "Club
+// path" — the cover's tile, the numbers table's head, the appendix's head and summary row, the notes), never the board's
+// compact on-screen heading (FieldDef::abbrev) — Mark, 14 Nov 2026. The golfer pages print whole units except smash
+// factor and the club's delivery angles (§0 rule 5: "whole units, or the model's own decimals").
 //
 // Pure: no QObject, no file. SessionReportModel::build() fills it; report_lm_test drives it from a real
 // LmSessionModel over an in-memory shot list.
@@ -93,11 +95,13 @@ LmFigures lmFiguresOf(const std::vector<pinpoint::lm::LmBoardShot> &board, const
 // angles, which keep the board's own decimals (lmDecimals).
 int lmGolferDecimals(const QString &key);
 
-// The cover's "The ball" block (§3: eight figures, per club when several) — null without a reading.
+// The cover's "The ball" block (§3: eight figures, per club when several) — null without a reading. Each tile carries
+// its reading's `key` beside its `label`.
 QVariant lmBallBlock(const LmFigures &f);
 
 // "Your numbers" (page 8): a row per swing (left-out swings listed, "out"; re-labelled ones "*" and under their effective
-// club), then a Typical row per club over the swings in the figures when `typical`. `habitsCells[k]`, when given, is
+// club), then a Typical row per club over the swings in the figures when `typical`. `cols` are the heads (golfer names),
+// `keys` the reading under each ("" for Swing and Club). `habitsCells[k]`, when given, is
 // swing k + 1's Habits cell; `workOnsPerSwing` how many work-ons it counts. Null without a reading.
 QVariant lmNumbersBlock(const LmFigures &f, bool typical, const QStringList &habitsCells, int workOnsPerSwing);
 

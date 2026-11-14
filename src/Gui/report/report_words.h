@@ -344,6 +344,59 @@ inline QString targetWords(const SpreadCorridor &c, const QString &unit, int gol
     return withUnit(n(plo) + QStringLiteral(" to ") + n(phi), unit);
 }
 
+// ── Launch monitor readings, in the golfer's words ──────────────────────────────────────────────
+// The printed report is the golfer's document, so it names every launch monitor reading ONE way, in plain golfer
+// words (Mark, 14 Nov 2026): the cover's ball tiles, "Your numbers", the swing grid's carry row, the Consistency page's
+// flagged launch monitor rows (report_consistency.h), the appendix's shot tables, its summary and the notes under them.
+// Not yet: the appendix's embedded board figures and the Club delivery axes (session_report_design.md §3). The launch monitor board keeps its
+// compact on-screen headings (lm::FieldDef::abbrev, "Smash fac.", "Launch ang."); the report never prints those, nor
+// the catalogue's "(measured)" labels.
+// Keyed by lm::fieldDefs()' key, so the field list stays that one list: report_lm_test fails when a field has no
+// name here or a name here has no field. Sentence case in the source (the house content rule); the unit is never part
+// of the name — a table sets it under the head, a tile beside the value. Where the cover already had a word ("Smash",
+// "Launch", "Spin", "Club speed") that word is the name everywhere.
+struct LmGolferLabel { const char *key; const char *label; };
+inline const std::vector<LmGolferLabel> &lmGolferLabels()
+{
+    static const std::vector<LmGolferLabel> labels = {
+        { "lm.clubheadSpeed",   "Club speed" },
+        { "lm.ballSpeed",       "Ball speed" },
+        { "lm.smashFactor",     "Smash" },
+        { "lm.attackAngle",     "Attack angle" },
+        { "lm.clubPath",        "Club path" },
+        { "lm.launchAngle",     "Launch" },
+        { "lm.launchDirection", "Start direction" },
+        { "lm.lowPointAhead",   "Low point" },
+        { "lm.faceAngle",       "Face angle" },
+        { "lm.faceToPath",      "Face to path" },
+        { "lm.dynamicLoft",     "Dynamic loft" },
+        { "lm.spinLoft",        "Spin loft" },
+        { "lm.lieAngle",        "Lie angle" },
+        { "lm.closureRate",     "Closure rate" },
+        { "lm.strikeLocation",  "Strike location" },
+        { "lm.strikeHeight",    "Strike height" },
+        { "lm.spinRate",        "Spin" },
+        { "lm.backSpin",        "Back spin" },
+        { "lm.sideSpin",        "Side spin" },
+        { "lm.spinAxis",        "Spin axis" },
+        { "lm.carryDistance",   "Carry" },
+        { "lm.totalDistance",   "Total" },
+        { "lm.offline",         "Offline" },
+        { "lm.peakHeight",      "Peak height" },
+        { "lm.descentAngle",    "Descent angle" },
+        { "lm.distanceToPin",   "Distance to pin" },
+    };
+    return labels;
+}
+// "Smash" for "lm.smashFactor": the reading's name as a heading or a tile label. "" for a key with no name here.
+inline QString lmLabel(const QString &key)
+{
+    for (const LmGolferLabel &l : lmGolferLabels()) if (key == QLatin1String(l.key)) return QString::fromUtf8(l.label);
+    return QString();
+}
+// "club path": the same name folded into a sentence (the notes' sign conventions).
+inline QString lmWord(const QString &key) { return low1(lmLabel(key)); }
+
 // ── The cover ───────────────────────────────────────────────────────────────────────────────────
 
 // How often the per-swing habits showed, from the LEAST frequent of them (fired / judged): every one on
@@ -405,6 +458,9 @@ inline QString gridTitle(bool everyOnEverySwing, int perSwingHabits, bool clean)
         return QStringLiteral("The same %1, every swing").arg(numberWord(perSwingHabits));
     return QStringLiteral("Your habits, swing by swing");
 }
+
+// The carry row's label: "Carry, yards" (the reading's golfer name; the unit as a word, the row has no unit cell).
+inline QString gridCarryLabel() { return lmLabel(QStringLiteral("lm.carryDistance")) + QStringLiteral(", yards"); }
 
 inline QString gridStandfirst(int swings, bool anyStub)
 {
@@ -922,7 +978,10 @@ inline QString lmMarksNote(bool anyOut, bool anyRelabelled);
 inline QString numbersNote(bool leftHanded, int workOnsPerSwing, int swings, bool habits, bool severalClubs,
                            bool anyOut = false, bool anyRelabelled = false)
 {
-    QString s = QStringLiteral("Path, face and offline: positive is right of target, negative left (%1-handed golfer).")
+    // the three signed readings named as the table's heads name them (lmLabel)
+    const QString signedOnes = andList({ lmWord(QStringLiteral("lm.clubPath")), lmWord(QStringLiteral("lm.faceAngle")),
+                                         lmWord(QStringLiteral("lm.offline")) });
+    QString s = cap1(signedOnes) + QStringLiteral(": positive is right of target, negative left (%1-handed golfer).")
                     .arg(leftHanded ? QStringLiteral("left") : QStringLiteral("right"));
     if (habits && workOnsPerSwing > 0)
         s += workOnsPerSwing == 1 ? QStringLiteral(" Habits: whether your work-on showed on that swing.")
@@ -956,10 +1015,18 @@ inline QString lmClubHeadline(const QString &carry, const QString &spread, int s
 // Under the two shot tables: the sign convention for the golfer's hand, then what the marks mean.
 inline QString lmTablesNote(bool leftHanded, bool anyOut, bool anyRelabelled, const QString &noReading)
 {
-    QString s = QStringLiteral("As the device reported them. Signed readings: plus is right of the target line (start, side spin, "
-                               "spin axis, offline, path, face), up (attack, and lie, toe up), %1 (face to path), toward the toe "
-                               "(strike location) and high (strike height); minus the other way.")
-                    .arg(leftHanded ? QStringLiteral("closed") : QStringLiteral("open"));
+    // every signed reading named as the tables' heads name it (lmLabel)
+    auto words = [](std::initializer_list<const char *> keys) {
+        QStringList w;
+        for (const char *k : keys) w << lmWord(QString::fromLatin1(k));
+        return w.join(QStringLiteral(", "));
+    };
+    QString s = QStringLiteral("As the device reported them. Signed readings: plus is right of the target line (%1), up (%2, and %3, "
+                               "toe up), %4 (%5), toward the toe (%6) and high (%7); minus the other way.")
+                    .arg(words({ "lm.launchDirection", "lm.sideSpin", "lm.spinAxis", "lm.offline", "lm.clubPath", "lm.faceAngle" }),
+                         lmWord(QStringLiteral("lm.attackAngle")), lmWord(QStringLiteral("lm.lieAngle")),
+                         leftHanded ? QStringLiteral("closed") : QStringLiteral("open"), lmWord(QStringLiteral("lm.faceToPath")),
+                         lmWord(QStringLiteral("lm.strikeLocation")), lmWord(QStringLiteral("lm.strikeHeight")));
     s += lmMarksNote(anyOut, anyRelabelled);
     if (!noReading.isEmpty()) s += QStringLiteral(" ") + noReading;
     return s;

@@ -30,7 +30,10 @@
 //   · drops the table when no cell has a word (a table of "-" says nothing the head has not), keeping the head;
 //   · numbers each flagged shot as the report numbers its swings;
 //   · caps the flagged swings and each swing's rows, ball rows first, and words the "N more";
-//   · keeps of each row only what paper prints, and says the same-shot note once, not once a swing.
+//   · keeps of each row only what paper prints, and says the same-shot note once, not once a swing;
+//   · names a launch monitor row (an lm.* key) by its golfer name, as every report page names it (report_words.h
+//     lmLabel: "Club speed", "Smash"), not the presenter's catalogue label ("Clubhead speed", "Smash factor") — the
+//     Charts panel keeps its own words (Mark, 14 Nov 2026).
 //
 //  consistency: {
 //    kicker ("Consistency  ·  31 swings  ·  Gap wedge"), head (the headline's text), headKind, headGrades, headFallback (the
@@ -47,6 +50,8 @@
 //  ROW: { key, label, tag, value ("82 mph"), median ("72"), place, fired, firedWord, cautionText,
 //         typicality (null | the row's typicality `values`, for a golfer-layer badge: the word, no figures) }
 //  See charts/charts_consistency_presenter.h, THE GRADES, for the templates and the headline's kinds.
+
+#include "report_words.h"   // lmLabel — a launch monitor reading's one name in the report
 
 #include <QDir>
 #include <QHash>
@@ -89,9 +94,17 @@ inline QVariant consistencyReportTypicality(const QVariant &payload)
     return p.value(QStringLiteral("values"));
 }
 
+// A row's name on paper: a launch monitor reading's golfer name (lmLabel), else the presenter's label.
+inline QString consistencyReportLabel(const QVariantMap &row)
+{
+    const QString key = row.value(QStringLiteral("key")).toString();
+    const QString golfer = key.startsWith(QLatin1String("lm.")) ? words::lmLabel(key) : QString();
+    return golfer.isEmpty() ? row.value(QStringLiteral("label")).toString() : golfer;
+}
+
 inline QVariantMap consistencyReportRow(const QVariantMap &row)
 {
-    return { { QStringLiteral("typicality"), consistencyReportTypicality(row.value(QStringLiteral("variability"))) }, { QStringLiteral("key"), row.value(QStringLiteral("key")) }, { QStringLiteral("label"), row.value(QStringLiteral("label")) },
+    return { { QStringLiteral("typicality"), consistencyReportTypicality(row.value(QStringLiteral("variability"))) }, { QStringLiteral("key"), row.value(QStringLiteral("key")) }, { QStringLiteral("label"), consistencyReportLabel(row) },
              { QStringLiteral("tag"), row.value(QStringLiteral("tag")) }, { QStringLiteral("value"), row.value(QStringLiteral("valueFigure")) },
              { QStringLiteral("median"), row.value(QStringLiteral("medianText")) }, { QStringLiteral("place"), row.value(QStringLiteral("place")) },
              { QStringLiteral("fired"), row.value(QStringLiteral("fired")).toBool() }, { QStringLiteral("firedWord"), row.value(QStringLiteral("firedWord")) },
