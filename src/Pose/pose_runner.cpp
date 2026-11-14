@@ -903,6 +903,9 @@ PoseTrack2D PoseRunner::run(const pinpoint::SwingWindow &window,
 #include <QJsonDocument>
 #include <QJsonObject>
 
+// Provenance only (pose_runner.h): which model THIS host would run. Re-analysis no longer compares it
+// with a recorded pose's identity (Mark's pose rule, 14 Nov 2026; reuse_gate.h): a pose posed with the
+// Large model on one host is reused on a host without that file, and vice versa.
 QString PoseRunner::modelIdentity(const QString &motionCaptureQuality)
 {
 #if defined(HAVE_OPENCV) && defined(HAVE_VITPOSE) && defined(HAVE_ONNXRUNTIME)

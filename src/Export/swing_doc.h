@@ -257,7 +257,9 @@ private:
     // (launchmonitor/premierFollowClub; IM-4). Replaced only when its name differs from the recorded
     // one, and never over a hand-set review.club: one naming neither the recorded club nor the
     // device's (the live save seeds review.club with the session's club, so a seeded one moves
-    // with capture.club). *clubReplaced says whether it was, so the caller can re-analyse.
+    // with capture.club). The same write replaces the analysisContext block's captured club
+    // (withFollowedClub, recording_header.h; R-REC-2(a), DEC-82) — what re-analysis reads — so the
+    // input stamp marks the analysis stale. *clubReplaced says whether it was, so the caller can re-analyse.
     static WriteResult updateLaunchMonitor(const QString &swingDir,
                                            const lm::LaunchMonitorReading &reading,
                                            const QJsonObject &captureClub,

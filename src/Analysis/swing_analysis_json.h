@@ -221,19 +221,28 @@ inline std::vector<MetricSeries> metricsFromJson(const QJsonArray &a, int64_t t0
 
 // ── analysis.versions ─────────────────────────────────────────────────────────────────────────
 
+// The input stamp's JSON (analysisInputsToJson / analysisInputsFromJson) is analysis_versions.h's,
+// beside its value (step 1.6), so the reuse gate (Rules) reads it without this header.
+
 // Producer versions (analysis_versions.h): what produced pose / ball / shaft. Re-analysis reuses a
-// recorded stage output when these match the code that would run now. Written only when stamped();
-// absent on swings analysed before 2026-09-09. The later stages ONLY when they ran — a
-// single-camera swing's block is byte-identical to before they existed.
+// recorded stage output when these match the code that would run now. The producer half is written
+// only when stamped(); absent on swings analysed before 2026-09-09. The later stages ONLY when they
+// ran — a single-camera swing's block is byte-identical to before they existed. The input stamp
+// (`inputs`, step 1.6) is written whenever it is stamped, so an analysis with no pose (an IMU-only
+// swing) carries `versions: { inputs }` alone.
 inline QJsonObject analysisVersionsToJson(const AnalysisVersions &vs)
 {
-    QJsonObject v{
-        { QStringLiteral("pose"),  QJsonObject{ { QStringLiteral("code"),  vs.pose },
-                                                { QStringLiteral("model"), vs.poseModel },
-                                                { QStringLiteral("scope"), vs.poseScope } } },
-        { QStringLiteral("ball"),  QJsonObject{ { QStringLiteral("code"),  vs.ball } } },
-        { QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  vs.shaft } } },
-        { QStringLiteral("impact"), QJsonObject{ { QStringLiteral("code"), vs.impact } } } };
+    QJsonObject v;
+    if (vs.inputs.stamped())
+        v.insert(QStringLiteral("inputs"), analysisInputsToJson(vs.inputs));
+    if (!vs.stamped())
+        return v;
+    v.insert(QStringLiteral("pose"),  QJsonObject{ { QStringLiteral("code"),  vs.pose },
+                                                   { QStringLiteral("model"), vs.poseModel },
+                                                   { QStringLiteral("scope"), vs.poseScope } });
+    v.insert(QStringLiteral("ball"),  QJsonObject{ { QStringLiteral("code"),  vs.ball } });
+    v.insert(QStringLiteral("shaft"), QJsonObject{ { QStringLiteral("code"),  vs.shaft } });
+    v.insert(QStringLiteral("impact"), QJsonObject{ { QStringLiteral("code"), vs.impact } });
     if (vs.poseDtl > 0)
         v.insert(QStringLiteral("poseDtl"),  QJsonObject{ { QStringLiteral("code"),  vs.poseDtl },
                                                           { QStringLiteral("model"), vs.poseDtlModel } });
@@ -278,6 +287,7 @@ inline AnalysisVersions analysisVersionsFromJson(const QJsonObject &v)
     vs.hipInternalRotation = code("hipInternalRotation");
     vs.shoulderTiltVsBend  = code("shoulderTiltVsBend");
     vs.clubSlotTop         = code("clubSlotTop");
+    vs.inputs              = analysisInputsFromJson(v.value(QStringLiteral("inputs")).toObject());
     return vs;
 }
 

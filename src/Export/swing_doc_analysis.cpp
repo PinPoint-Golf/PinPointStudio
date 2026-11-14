@@ -85,7 +85,7 @@ QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
     o[QStringLiteral("timeBase")] = QString::fromLatin1(kAnalysisTimeBaseWindow);
     if (analysisPathIsWritten(a.path))
         o[QStringLiteral("path")] = analysisPathToJson(a.path);
-    if (a.versions.stamped())
+    if (a.versions.stamped() || a.versions.inputs.stamped())   // the input stamp too (step 1.6)
         o[QStringLiteral("versions")] = analysisVersionsToJson(a.versions);
     o[QStringLiteral("tier")]    = a.tier;
     o[QStringLiteral("score")]   = scoreToJson(a.score);

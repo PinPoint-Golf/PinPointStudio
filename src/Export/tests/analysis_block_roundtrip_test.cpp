@@ -144,6 +144,25 @@ int main()
         checkEqual(j, analysisPathToJson(analysisPathFromJson(j)), "path");
         const QJsonObject v = analysisVersionsToJson(win.versions);
         checkEqual(v, analysisVersionsToJson(analysisVersionsFromJson(v)), "versions");
+        // The input stamp (step 1.6): written beside the producer versions, and alone when no pose ran.
+        AnalysisVersions st = win.versions;
+        st.inputs.version = kAnalysisInputsVersion;
+        st.inputs.club = QStringLiteral("9 IRON");
+        st.inputs.clubLengthMm = 914.0;
+        st.inputs.clubLengthSource = QStringLiteral("bag");
+        st.inputs.heightM = 1.80;
+        st.inputs.clubSet = pinpoint::ClubSet::Women;
+        st.inputs.handedness = pinpoint::recording::Handedness::Left;
+        st.inputs.sessionType = 1;
+        const QJsonObject vi = analysisVersionsToJson(st);
+        checkEqual(vi, analysisVersionsToJson(analysisVersionsFromJson(vi)), "versions (with the input stamp)");
+        check(analysisVersionsFromJson(vi).inputs == st.inputs, "versions.inputs: the typed stamp back");
+        AnalysisVersions only;
+        only.inputs = st.inputs;
+        const QJsonObject vo = analysisVersionsToJson(only);
+        check(vo.size() == 1 && vo.contains(QStringLiteral("inputs"))
+                  && analysisVersionsFromJson(vo).inputs == st.inputs && !analysisVersionsFromJson(vo).stamped(),
+              "versions: the input stamp alone when no producer stamped");
         const QJsonObject f = filterToJson(win.filterImpactStepDeg);
         checkEqual(f, filterToJson(filterFromJson(f)), "filter");
     }

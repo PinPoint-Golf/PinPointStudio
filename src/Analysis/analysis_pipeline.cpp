@@ -664,7 +664,11 @@ struct PoseStage : AnalysisStage {
         }
         ctx.detail->timings.poseMs = int(poseWall.elapsed());
         ctx.detail->versions.pose      = kPoseStageVersion;
-        ctx.detail->versions.poseModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
+        // A reused pose keeps the model identity it was recorded with (provenance; Mark's pose rule
+        // reuses a saved pose whatever model file this host has).
+        ctx.detail->versions.poseModel = !ctx.job.posePreloaded.frames.empty() && !ctx.job.posePreloadedModel.isEmpty()
+                                       ? ctx.job.posePreloadedModel
+                                       : PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
         ctx.detail->versions.poseScope = !ctx.job.posePreloadedScope.isEmpty() ? ctx.job.posePreloadedScope
                                        : ctx.job.fullWindow                    ? QStringLiteral("full")
                                                                                : QStringLiteral("span");
@@ -2430,7 +2434,10 @@ struct DtlPoseStage : AnalysisStage {
         ctx.detail->timings.poseDtlMs = int(dtlWall.elapsed());
         if (!ctx.detail->poseDtl.frames.empty()) {
             ctx.detail->versions.poseDtl      = kDtlPoseStageVersion;
-            ctx.detail->versions.poseDtlModel = PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
+            ctx.detail->versions.poseDtlModel =
+                !ctx.job.poseDtlPreloaded.frames.empty() && !ctx.job.poseDtlPreloadedModel.isEmpty()
+                    ? ctx.job.poseDtlPreloadedModel   // reused: its recorded identity (provenance)
+                    : PoseRunner::modelIdentity(ctx.job.motionCaptureQuality);
         }
         if (schedNote.isEmpty())
             ppInfo() << "[WristAnalysis] dtl pose:" << qlonglong(ctx.detail->poseDtl.frames.size())
@@ -4570,6 +4577,11 @@ ShotAnalysisResult PipelineAnalyzer::analyze(const pinpoint::SwingWindow &window
     AnalysisContext ctx{ CaptureCapabilities::fromJob(job, window), job, &window };
     ctx.detail = std::make_shared<SwingAnalysis>();
     ctx.detail->gatesVersion = kGatesVersion;   // records exist from here on, whichever stages fire
+    // THE INPUT STAMP (step 1.6, R-ANA-5): the effective context the builder made the job from, with the
+    // session type this run used (SwingLab may override it after the builder). A hand-built job has none.
+    ctx.detail->versions.inputs = job.inputs;
+    if (ctx.detail->versions.inputs.stamped())
+        ctx.detail->versions.inputs.sessionType = job.sessionType;
     ctx.wall.start();
 
     runProfile(fullProfile(), ctx);

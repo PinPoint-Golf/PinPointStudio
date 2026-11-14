@@ -697,32 +697,83 @@ as `analysis.versions`:
               "shaft": { "code": 1 } }
 ```
 
-On re-analysis (`reanalyzeSwingDir`) the recorded pose is reloaded
-(`PoseRunner::fromJsonObject` over the recorded `analysis` block) instead of running the
-model when its model file, `kPoseStageVersion` and scan scope match what would run now
-(a `full`-window record covers a `span` request, not the reverse) and no `pose.*` /
-`ball.*` / address-scan tuning override is in play. The recorded ball track is reloaded
-(`BallRunner::fromAnalysisJson`) on top of a reused pose when `kBallStageVersion`
-matches. Since 2026-09-17 the shaft track and the resolved ladder are reloaded too
-(`shaftTrackFromAnalysisJson` / `segmentationFromAnalysisJson`, recorded_products.h) on
-top of a reused pose AND ball when `kShaftStageVersion` matches and no tuning override is
-in play; only the Layer C synth tier is re-synthesised. Since step 1.3a these readers are the
-blocks' one typed readers (§6.5): the club block's `diag.onsetTUs` / `topTUs` and `filter`
-diagnostic now come back too, so a reused track keeps them instead of writing −1 / nothing.
-`PoseRunner::fromJsonObject` keeps its reuse contract over the pose reader: frames and
-provenance only, the smoothed and synth tiers re-derived. The down-the-line pose
-(`analysis.poseDtl`) is reloaded under the face-on pose's rule against
-`versions.poseDtl` `{code, model}`; the DTL club track always re-runs. `PoseSmooth` and
-everything downstream recompute from the reloaded tracks, so the output is byte-identical
-to a fresh run apart from `timings` (verified on 2026-09-09: 14.1 s → 0.96 s).
+On re-analysis (`reanalyzeSwingDir`) **one gate** decides what is reloaded
+(`ReuseGate`, `src/Analysis/reuse_gate.h`, pure and unit-tested by `reuse_gate_test`); the
+reanalyzer then reloads it through the blocks' typed readers. The rules:
+
+| Product | Reloaded when | Otherwise |
+|---|---|---|
+| Face-on pose | `kPoseStageVersion` and the scan scope match (a `full`-window record covers a `span` request, not the reverse), a face-on camera is there, and no `pose.*` / `ball.*` / address-scan tuning override is in play | re-inferred |
+| DTL pose (`analysis.poseDtl`) | the same rule against `versions.poseDtl.code` (`kDtlPoseStageVersion`) and a DTL camera, independently of the face-on pose | re-inferred |
+| Ball | on top of a reloaded pose, `kBallStageVersion` matches | replayed |
+| Shaft track + resolved ladder | on top of a reloaded pose AND ball, `kShaftStageVersion` matches, no tuning override at all, **the club inputs match** (below) and **the lead side matches** (the tracker reads the lead elbow from the handedness, `shaft_tracker.cpp`) | re-tracked (`club changed` / `handedness changed`) |
+| DTL club track, and everything downstream | never | recomputed from the reloaded tracks |
+
+**Mark's pose rule (14 Nov 2026, DEC-64).** Pose re-runs **only** when its stage version
+changes. The recorded model identity (`versions.pose.model`, `name@bytes`) is provenance, not
+a reuse key: a saved pose is reused whatever pose model file this machine has, so a shot posed
+with the Large model on GOLFSIMPC is not re-inferred on a Mac without that file (and vice
+versa). A reused pose keeps the model identity it was recorded with (`posePreloadedModel`). A
+missing pose stamp or an empty recorded track still re-runs, since there is nothing to reuse.
+SwingLab's `--force-rerun`, `--params` and `--full-window` stay explicit overrides.
+
+Since step 1.3a the readers are the blocks' one typed readers (§6.5): the club block's
+`diag.onsetTUs` / `topTUs` and `filter` diagnostic now come back too, so a reused track keeps
+them instead of writing −1 / nothing. `PoseRunner::fromJsonObject` keeps its reuse contract over
+the pose reader: frames and provenance only, the smoothed and synth tiers re-derived.
+`PoseSmooth` and everything downstream recompute from the reloaded tracks, so the output is
+byte-identical to a fresh run apart from `timings` (verified on 2026-09-09: 14.1 s → 0.96 s).
+
+### The input stamp (step 1.6)
+
+Every analysis built by the one job builder carries an **input stamp**,
+`analysis.versions.inputs` (`AnalysisInputs`, `analysis_versions.h`; information_model.md
+R-ANA-5). It names every input the analysis read from the shot's **effective context**
+(`effectiveContext()`: the recorded analysis context with the LM board's club correction applied,
+the popover's club setting the standard length):
+
+```
+"inputs": { "version": 1, "club": "7 IRON", "clubLengthMm": 940, "clubLengthSource": "record",
+            "heightM": 1.8, "clubSet": "men", "handedness": "Right", "sessionType": 1 }
+```
+
+`clubLengthSource` is where the length the job carried came from: `record` (the captured club's
+recorded length), `bag` (a corrected club's length from the bag snapshot), `standard` (no
+recorded length: the standard length the posture and 3-D stages read) or `default` (the job's
+driver default). The builder makes it (`analysisInputsFor`); the pipeline writes it with the
+session type the run used (SwingLab may override the type).
+
+- **Stale.** A shot whose effective context now differs from its stamp, or that has none (every
+  analysis before step 1.6), is stale: `analysisInputsStaleness()` says why (`no input stamp`,
+  `club 7 IRON → 9 IRON`, `handedness`, …). Re-analysis logs it. A change of inputs moves **no**
+  `k*StageVersion` (D6): no stage's code changed. Bump `kAnalysisInputsVersion` only when the
+  stamp's fields change meaning.
+- **The club inputs gate the shaft track.** The shaft track and the ladder are reused only when
+  the recorded stamp's club, length and source equal this run's. So a club the golfer corrected
+  on the LM board re-runs the shaft track and ladder, while pose and ball are reused. A recorded
+  analysis with no stamp was computed with the captured club (no analysis applied a correction
+  before step 1.6), so it matches exactly when this run's club is not a correction. A stamp of
+  another `kAnalysisInputsVersion` is not trusted: the shaft re-runs. Pose and ball never depend
+  on the club, height or session type.
+- **Handedness.** The pose's keypoints do not depend on it, only its lead/trail hand labels
+  (`pose_runner.cpp`: the left hand leads unless the golfer is left-handed). A reused pose (and DTL
+  pose) whose stamp led with the other hand is relabelled, not re-inferred (Mark's pose rule); the
+  shaft track and ladder re-run. Right and unknown lead with the same hand: stale, nothing re-runs.
+- **Follow-club** (a late LM reading naming the club, R-REC-2(a), DEC-82) rewrites
+  `analysisContext.club` (`withFollowedClub`, `recording_header.h`) beside `capture.club`, so
+  re-analysis uses the followed club and the stamp marks the shot stale.
+- **The LM board's override reaches re-analysis.** `SwingDiskLoader` builds the job from
+  `effectiveContext(context, review)` with both of the shot's club edits; the board's override
+  wins. The launch monitor's derived low point (`lowPointFromAttack`, `swing_doc_writer.cpp`
+  `lmArcRadiusM`) reads the same effective club and the recorded club set.
 
 **When you change a producer's output, bump its constant.** `kPoseStageVersion` for
-anything in `pose_runner` / the ViTPose decode, crop or two-pass logic; `kBallStageVersion`
-for `ball_runner`; `kShaftStageVersion` for the shaft tracker, the head pass and the ball
-anchor. A model file change is caught automatically (name and byte size). Swings analysed
-before this date have no block and re-run once; the write-back stamps them.
-`swinglab_run --write-back --full-window` is the library sweep (`--force-rerun` bypasses
-the gate; `ReanalyzeOptions::forceRerun` in code).
+anything in `pose_runner` / the ViTPose decode, crop or two-pass logic, **and for a new pose
+model** (the model file is no longer compared); `kBallStageVersion` for `ball_runner`;
+`kShaftStageVersion` for the shaft tracker, the head pass and the ball anchor. Swings analysed
+before 2026-09-09 have no block and re-run once; the write-back stamps them.
+`swinglab_run --write-back` is the library sweep, span-bounded (`--force-rerun` bypasses the
+gate; `ReanalyzeOptions::forceRerun` in code).
 
 ## 8. Testing
 

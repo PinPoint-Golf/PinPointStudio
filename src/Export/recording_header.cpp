@@ -40,30 +40,11 @@ int schemaVersionOf(const QJsonValue &tag, QLatin1String kind)
     return ok && v > 0 ? v : 0;
 }
 
-QString handednessName(rec::Handedness h)
-{
-    switch (h) {
-    case rec::Handedness::Right: return QStringLiteral("Right");
-    case rec::Handedness::Left:  return QStringLiteral("Left");
-    default:                     return QStringLiteral("unknown");
-    }
-}
-
-QString clubSetName(ClubSet s)
-{
-    switch (s) {
-    case ClubSet::Women:  return QStringLiteral("women");
-    case ClubSet::Junior: return QStringLiteral("junior");
-    default:              return QStringLiteral("men");
-    }
-}
-
-ClubSet clubSetFromName(const QString &s)
-{
-    if (s == QLatin1String("women"))  return ClubSet::Women;
-    if (s == QLatin1String("junior")) return ClubSet::Junior;
-    return ClubSet::Men;
-}
+// handednessName / clubSetName / clubSetFromName: the one spelling, in src/Recording/analysis_context.h
+// (shared with the analysis' input stamp, step 1.6).
+using rec::handednessName;
+using rec::clubSetName;
+using rec::clubSetFromName;
 
 QJsonArray doubles(const std::vector<double> &v)
 {
@@ -351,6 +332,17 @@ rec::AnalysisContext analysisContextFromJson(const QJsonObject &block)
     const QJsonObject bag = block.value(QStringLiteral("bag")).toObject();
     for (auto it = bag.constBegin(); it != bag.constEnd(); ++it)
         c.bag.insert(it.key(), geometryFromJson(it.value().toObject()));
+    return c;
+}
+
+rec::AnalysisContext withFollowedClub(const rec::AnalysisContext &context, const QJsonObject &capturedClub)
+{
+    rec::AnalysisContext c = context;
+    c.club = rec::RecordedClub{};
+    c.club.name     = capturedClub.value(QStringLiteral("name")).toString().trimmed();
+    c.club.geometry = geometryFromJson(capturedClub);
+    c.club.geometry.lengthKnown = c.club.geometry.lengthMm > 0.0;
+    c.club.standardLengthMm = standardLengthOf(c.club.name, c.clubSet, c.heightM);
     return c;
 }
 

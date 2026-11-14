@@ -2917,6 +2917,8 @@ target_sources(PinPointStudio PRIVATE
     src/Recording/analysis_context.h
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
+    src/Analysis/reuse_gate.h
+    src/Analysis/reuse_gate.cpp   # the one reuse gate and the input stamp's staleness (step 1.6)
     src/Analysis/analysis_job_builder.h
     src/Analysis/analysis_job_builder.cpp
     src/Export/recording_header.h
@@ -3194,7 +3196,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Export/swing_paths.cpp
@@ -3220,7 +3222,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
-        src/Export/recording_header.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         src/Export/swing_paths.cpp
         src/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
@@ -3262,6 +3264,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
+        src/Analysis/reuse_gate.cpp         # the one reuse gate (step 1.6)
         src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp

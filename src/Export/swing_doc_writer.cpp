@@ -29,7 +29,7 @@
 
 #include "swing_doc.h"
 #include "swing_doc_internal.h"
-#include "recording_header.h"   // the one header writer; the one schema constant
+#include "recording_header.h"   // the one header writer; the one schema constant; readAnalysisContext / clubReviewOf
 
 #include <QDateTime>
 #include <QDir>
@@ -54,6 +54,7 @@
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
 #include "../Club/dtl_shaft_json.h"                // dtlStreamName — the DTL club block names its stream
 #include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
+#include "../Analysis/effective_context.h"     // lmArcRadiusM — the effective club (step 1.6)
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -241,17 +242,26 @@ const QStringList &lmDerivedKeys()
 }
 
 // The radius the club's head swings through near the bottom, for lmLowPointFromAttack: the standard
-// length of the club this document declares, for the golfer's set, plus the arm term. A club the
-// table does not know — or none — takes the mid-iron default. A junior is read from the men's or
-// women's set: their own lengths need a height this document may not carry, and the σ on R (±10 %)
-// is wider than the difference at the lengths juniors play.
+// length of the club the shot was hit with, for the golfer's RECORDED club set, plus the arm term
+// (step 1.6; step 1 brief §4.3). The club is the EFFECTIVE one — effectiveContext() v1 over the
+// document's analysis context (recorded, or the legacy one for an older document) and its review:
+// the board's override when the golfer corrected the club, else the captured club with the popover's
+// club setting the standard length, exactly as the analysis takes it. So a device-only shot follows
+// the correction too, and the women's set is reachable. A junior with no recorded height has no
+// junior standard; their club is read from the men's set (the set does not say more), as before.
+// A club the table does not know — or none — takes the mid-iron default.
 double lmArcRadiusM(const QJsonObject &root)
 {
-    const QString club = swingDocDeclaredClub(root);
-    const QString sex  = root.value(QStringLiteral("athlete")).toObject()
-                             .value(QStringLiteral("sex")).toString();
-    const pinpoint::ClubStandard st = pinpoint::standardClub(club, pinpoint::clubSetFor(sex, /*junior*/ false));
-    return st.valid ? st.lengthMm / 1000.0 + analysis::kArcArmM : analysis::kArcRadiusDefaultM;
+    const analysis::EffectiveContext e = analysis::effectiveContext(readAnalysisContext(root).context,
+                                                                    clubReviewOf(root));
+    double lengthMm = e.club.standardLengthMm;
+    if (!(lengthMm > 0.0) && e.clubSet == ClubSet::Junior) {
+        // The club the standard length belongs to, by the rule's own precedence.
+        const QString club = e.club.corrected || e.club.declared.isEmpty() ? e.club.name : e.club.declared;
+        const pinpoint::ClubStandard men = pinpoint::standardClub(club, ClubSet::Men);
+        lengthMm = men.valid ? men.lengthMm : 0.0;
+    }
+    return lengthMm > 0.0 ? lengthMm / 1000.0 + analysis::kArcArmM : analysis::kArcRadiusDefaultM;
 }
 
 // The reading back out of the raw `launchMonitor` block (lmRawBlock writes every field under its
@@ -446,8 +456,8 @@ WriteResult SwingDocWriter::writeDocument(const QString &swingDir, const QJsonOb
             // The user chose not to keep pose keypoints (Storage → Save pose keypoints). The
             // setting governs NEWLY INFERRED keypoints only (Mark, 14 Nov 2026): a track that this
             // pass REUSED from the document (analysis.path.reuse "reused" — the version-gated reuse
-            // in swing_reanalyzer.cpp, which re-runs inference only when the pose stage / model
-            // changed) is written back as it came, so re-analysis never deletes keypoints it did
+            // in reuse_gate.h, which re-runs inference only when the pose stage version changed —
+            // Mark's pose rule) is written back as it came, so re-analysis never deletes keypoints it did
             // not re-infer. A newly inferred track is dropped, and with it the superseded one the
             // document held (the analysis block is replaced whole). The stamps go with the tracks:
             // a stamp promising a pose that is not there would send a version-gated re-analysis
@@ -729,6 +739,14 @@ WriteResult SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
         if (!handSet && !named.isEmpty() && named != recorded) {
             cap[QStringLiteral("club")] = captureClub;
             root[QStringLiteral("capture")] = cap;
+            // THE ANALYSIS CONTEXT'S CAPTURED CLUB, which is what analysis reads (R-REC-2(a), DEC-82):
+            // follow-club rewrites analysisContext.club; capture.club above stays its provenance copy
+            // (DEC-24; whether the captured club is a source fact is OPEN, MD-04, so today's write is
+            // kept). A document with no block reads its legacy context from capture.club, so it follows
+            // already. The input stamp then says the analysis is stale (R-ANA-5).
+            const AnalysisContextRead ctx = readAnalysisContext(root);
+            if (ctx.recorded)
+                root[QStringLiteral("analysisContext")] = analysisContextJson(withFollowedClub(ctx.context, captureClub));
             if (!reviewClub.isEmpty()) {
                 review[QStringLiteral("club")] = named;
                 root[QStringLiteral("review")] = review;

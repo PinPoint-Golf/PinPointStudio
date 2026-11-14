@@ -163,6 +163,7 @@ QString firstDiff(const ShotAnalysisJob &a, int64_t t0a, const ShotAnalysisJob &
          && a.ballBaseline.h == b.ballBaseline.h && a.ballBaseline.roi == b.ballBaseline.roi, "ballBaseline");
     DIFF(a.tuningOverrides == b.tuningOverrides, "tuningOverrides");
     DIFF(a.fullWindow == b.fullWindow, "fullWindow");
+    DIFF(a.inputs == b.inputs && a.inputs.stamped(), "inputs (the input stamp, step 1.6)");
 #undef DIFF
     return QString();
 }

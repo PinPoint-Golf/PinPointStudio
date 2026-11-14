@@ -38,6 +38,8 @@
 //     driver default stays and the standard length (if any) is handed to the stages that read it.
 //   - The ball (D5, Mark 14 Nov 2026): today's re-analysis rule on every path — a valid empty-mat
 //     baseline makes the BallRunner re-run authoritative, so the recorded stream is not passed.
+//   - The input stamp (step 1.6): job.inputs = analysisInputsFor(effective, job), last, so it names
+//     what the job carries (the session type after a run's override included).
 //   - The recorded ball stream is the face-on camera's (its camera is the first camera source); the
 //     window's start rides as windowT0Us, which the pipeline rebases the analysis with (step 1.5).
 //
@@ -77,7 +79,9 @@ struct RunOptions {
     // The reuse gate's products (version-gated re-analysis, analysis_versions.h) and its reasons.
     PoseTrack2D                 posePreloaded;
     QString                     posePreloadedScope;
+    QString                     posePreloadedModel;      // the reused pose's recorded model identity
     PoseTrack2D                 poseDtlPreloaded;
+    QString                     poseDtlPreloadedModel;
     BallTrack2D                 ballPreloaded;
     ShaftTrack2D                shaftPreloaded;
     std::optional<Segmentation> ladderPreloaded;
@@ -87,6 +91,13 @@ struct RunOptions {
 ShotAnalysisJob buildAnalysisJob(const pinpoint::recording::Recording &recording,
                                  const EffectiveContext &effective,
                                  const RunOptions &options);
+
+// THE INPUT STAMP of a job the builder made from `effective` (analysis.versions.inputs; step 1.6): the
+// effective club, the length the job carries for it and its source — "record" (the captured club's
+// recorded length), "bag" (a corrected club's length from the bag snapshot), "standard" (no recorded
+// length: the standard length the posture and 3-D stages read), "default" (neither: the job's driver
+// default) — height, club set, handedness and the job's session type. buildAnalysisJob sets it.
+AnalysisInputs analysisInputsFor(const EffectiveContext &effective, const ShotAnalysisJob &job);
 
 // The impact camera of a Recording by the builder's own rule (the last Impact stream), for the
 // integrity rule (recording_integrity.h); kInvalidSourceId when there is none.

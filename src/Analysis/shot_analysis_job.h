@@ -55,6 +55,11 @@ struct ShotAnalysisJob {
     // built by hand, e.g. a test's) = the analysis stays on the window's clock and the document writer
     // takes it to window time with the document's clock.t0_us, as before.
     std::optional<int64_t> windowT0Us;
+    // THE INPUT STAMP (analysis_versions.h AnalysisInputs; refactor step 1.6): the effective context this
+    // job was built from, set by the one builder (analysisInputsFor). The pipeline writes it into
+    // SwingAnalysis::versions.inputs, with the session type the run used. Unstamped (version 0) = a job
+    // built by hand; its analysis carries no stamp.
+    pinpoint::analysis::AnalysisInputs inputs;
 
     std::vector<pinpoint::SourceId> cameraSources;  // exported cameras, face-on first
     int faceOnCameraCount = 0;  // leading cameraSources entries that are face-on
@@ -154,6 +159,10 @@ struct ShotAnalysisJob {
     // The scope the reused pose was recorded with. It describes those frames, so the write-back keeps
     // it: stamping this run's scope would call a full-window pose "span" and re-pose it next time.
     QString posePreloadedScope;
+    // …and the model identity it was recorded with (versions.pose.model): provenance, kept as recorded.
+    // Mark's pose rule reuses a saved pose whatever model file this host has, so stamping this host's
+    // identity would misname the model that made those frames. Empty = stamp this host's identity.
+    QString posePreloadedModel;
     // Where this run came from and what it could reuse. The reanalyzer fills it; a live shot keeps
     // the defaults. The pipeline completes it into SwingAnalysis::path.
     pinpoint::analysis::AnalysisPath path;
@@ -163,6 +172,7 @@ struct ShotAnalysisJob {
     // corpus pass is deterministic (pose inference is not). Precedence: preloaded, then the path,
     // then run the model. Both empty in live capture.
     pinpoint::analysis::PoseTrack2D poseDtlPreloaded;
+    QString                         poseDtlPreloadedModel;   // its recorded model identity (as above)
     QString                         poseDtlTrackPath;
     // The DTL camera's pose relative to the face-on camera, MEASURED (camera_pose_sticks.h
     // on the two-camera protocol's stick clips) — dtl_continuous_track_design_update.md §4

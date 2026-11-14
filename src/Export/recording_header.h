@@ -149,6 +149,14 @@ QJsonObject analysisContextJson(const recording::AnalysisContext &context);
 // The block's fields (unknown keys ignored). The schema is checked by readAnalysisContext.
 recording::AnalysisContext analysisContextFromJson(const QJsonObject &block);
 
+// FOLLOW-CLUB'S LATE PART (R-REC-2(a), DEC-82): the context with its captured club replaced by the
+// club the launch monitor named — `capturedClub` in capture.club's shape ({name, lengthMm, shaftType,
+// bandCentersMm, hoselFromButtMm, shaftLengthMm, handsEndMm}, the one record the follow writes into
+// capture.club as well). Its standard length for the recorded club set and height; NO length prior
+// (the recorded one belongs to the club the shot was captured under). Athlete facts and the bag stay.
+recording::AnalysisContext withFollowedClub(const recording::AnalysisContext &context,
+                                            const QJsonObject &capturedClub);
+
 // The context for a document with no block: built from its legacy fields (see the file header).
 recording::AnalysisContext legacyAnalysisContext(const QJsonObject &root);
 

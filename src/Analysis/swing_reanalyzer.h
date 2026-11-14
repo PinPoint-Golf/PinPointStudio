@@ -43,7 +43,8 @@
 // job is then made by the ONE builder (buildAnalysisJob, analysis_job_builder.h) from the
 // Recording and its effective context, and run through the analysis service (analysis_service.h),
 // which also reaches the two integrity verdicts with the one rule (integrityFor) — the very code the
-// live capture runs. SwingDiskLoader builds the job; reanalyzeSwingDir adds the reuse gate (1.6's).
+// live capture runs. SwingDiskLoader builds the job (the board's club correction applied, step 1.6);
+// reanalyzeSwingDir adds the reuse gate (reuse_gate.h).
 //
 // Shared by the in-app re-analyse path (ReanalysisController) and the
 // swinglab_run tool, so both exercise one tested reconstruction.
@@ -83,9 +84,11 @@ struct LoadedSwing {
     int64_t                              analysisOriginUs = 0;
 
     // The shot's review facts as stored: the board's override and the popover's club. The job
-    // above applies the declared club only, as re-analysis always has; the override is applied
-    // with the reuse gate that sees it (steps 1.5 / 1.6).
+    // above applies both through effectiveContext() (step 1.6): the override is the club the analysis
+    // uses, the declared club sets the standard length.
     ClubReview                           review;
+    // The job's club is the golfer's correction (EffectiveClub::corrected) — for the reuse gate.
+    bool                                 clubCorrected = false;
     // true = the document's own analysisContext block; false = the legacy context (recording_header.h).
     bool                                 contextRecorded = false;
     // The document (or its analysisContext) is newer than this build: reanalyzeSwingDir refuses.
@@ -142,10 +145,11 @@ struct ReanalyzeOptions {
     // explicit re-analyse; SwingLab leaves it false to keep sweeps comparable
     // to production's live-capture bound unless a run opts in.
     bool        fullWindow = false;
-    // Version-gated reuse (analysis_versions.h): when the recorded analysis
-    // block's pose (model + code + scope) matches what would run now, the recorded
-    // pose is reloaded and ViTPose is not run; likewise the ball track when its
-    // version matches AND the pose is reused. true ⇒ always re-run everything.
+    // Version-gated reuse (reuse_gate.h): when the recorded analysis block's pose
+    // (stage version + scope — never the model file, Mark's pose rule) matches what
+    // would run now, the recorded pose is reloaded and ViTPose is not run; likewise
+    // the ball track when its version matches AND the pose is reused, and the shaft
+    // track + ladder when the club inputs match too. true ⇒ always re-run everything.
     bool        forceRerun = false;
     // skeleton3d values held fixed in the fit (swing_3d_viz_design.md §13.7) — SwingLab's
     // --skeleton-calib only. The app never pools: §13.9 measured no benefit.

@@ -52,6 +52,35 @@ inline Handedness handednessFromName(const QString &name)
     return Handedness::Unknown;
 }
 
+// The code → the one spelling the swing file writes ("Right" / "Left" / "unknown"): the
+// analysisContext block and the analysis' input stamp (analysis.versions.inputs) share it.
+inline QString handednessName(Handedness h)
+{
+    switch (h) {
+    case Handedness::Right: return QStringLiteral("Right");
+    case Handedness::Left:  return QStringLiteral("Left");
+    default:                return QStringLiteral("unknown");
+    }
+}
+
+// The club set's spelling in the swing file ("men" / "women" / "junior"), both ways; anything
+// else reads as the men's set, as every reader does today.
+inline QString clubSetName(ClubSet s)
+{
+    switch (s) {
+    case ClubSet::Women:  return QStringLiteral("women");
+    case ClubSet::Junior: return QStringLiteral("junior");
+    default:              return QStringLiteral("men");
+    }
+}
+
+inline ClubSet clubSetFromName(const QString &s)
+{
+    if (s == QLatin1String("women"))  return ClubSet::Women;
+    if (s == QLatin1String("junior")) return ClubSet::Junior;
+    return ClubSet::Men;
+}
+
 // A club's measured geometry, as the athlete's bag records it (athlete_controller.h club record).
 // Every 0 / empty means "not measured"; the tracker then takes its own defaults.
 struct ClubGeometry {

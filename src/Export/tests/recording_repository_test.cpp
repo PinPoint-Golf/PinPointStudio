@@ -38,11 +38,17 @@
 //   Test 11 Save pose keypoints governs newly inferred keypoints only: a reused pose (face-on or DTL)
 //           is written back byte-equal with it off; a re-inferred one is written with it on, and
 //           with it off neither it nor the superseded one stays (Mark, 14 Nov 2026)
+//   Test 12 the launch monitor's low point (lowPointFromAttack) takes the EFFECTIVE club and the
+//           RECORDED club set (step 1.6): a board correction moves it; a recorded women's set uses the
+//           women's length; with neither, the declared club, as before.
 //
 //   cmake --build build/tests --target recording_repository_test -j 6
 //   ctest --test-dir build/tests -R '^recording_repository_test$' --output-on-failure
 
 #include "../swing_store_repository.h"
+#include "../recording_header.h"                  // analysisContextJson (Test 12)
+#include "../../Core/club_standards.h"            // standardClub (Test 12)
+#include "../../LaunchMonitor/lm_inferred_reads.h" // lmLowPointFromAttack (Test 12)
 #include "../swing_doc.h"
 #include "../swing_paths.h"
 #include "../swing_store.h"
@@ -59,6 +65,7 @@
 #include <QJsonObject>
 #include <QTemporaryDir>
 
+#include <cmath>
 #include <cstdio>
 
 // Stub — avoids linking swing_paths.cpp (and its logging deps), as swing_doc_test does.
@@ -703,6 +710,78 @@ void testPoseReuseKeepsKeypoints(RecordingRepository &repo)
           "...no pose and no pose stamps (as a live shot with the setting off)");
 }
 
+// ── Test 12 ───────────────────────────────────────────────────────────────────────────────────
+double lowPointOf(const QString &dir)
+{
+    for (const QJsonValue &v : doc(dir).value(QStringLiteral("analysis")).toObject()
+                                   .value(QStringLiteral("metrics")).toArray()) {
+        const QJsonObject m = v.toObject();
+        if (m.value(QStringLiteral("key")).toString() == QLatin1String("lowPointFromAttack"))
+            return m.value(QStringLiteral("phaseSamples")).toArray().first().toObject()
+                       .value(QStringLiteral("value")).toDouble();
+    }
+    return std::nan("");
+}
+
+double expectedLowPoint(double attackDeg, const QString &club, ClubSet set)
+{
+    const ClubStandard st = standardClub(club, set);
+    return analysis::lmLowPointFromAttack(attackDeg, st.lengthMm / 1000.0 + analysis::kArcArmM).value;
+}
+
+void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
+{
+    std::printf("[Test 12] the LM low point takes the effective club and the recorded club set\n");
+    lm::LaunchMonitorReading r = reading(80.0);
+    r.attackAngle = -4.0;
+    const auto near = [](double a, double b) { return std::abs(a - b) < 1e-9; };
+
+    // A device-only shot declared as a 7 iron, then corrected on the board to a pitching wedge.
+    QTemporaryDir t;
+    DeviceOnlyMeta meta;
+    meta.swingId = QStringLiteral("swing_0004");
+    meta.swingIndex = 4;
+    meta.sessionId = QStringLiteral("2026-11-14_session_01");
+    meta.club = QStringLiteral("7 IRON");
+    check(repo.create(t.path(), r, meta).ok(), "a device-only shot, declared 7 iron");
+    const double lp7 = lowPointOf(t.path());
+    check(near(lp7, expectedLowPoint(-4.0, QStringLiteral("7 IRON"), ClubSet::Men)),
+          "...its low point from the declared 7 iron's standard length (as before)");
+    ReviewEdit board;
+    board.clubOverride = QStringLiteral("PITCHING WEDGE");
+    check(repo.editReview(t.path(), board).ok(), "corrected on the board to a pitching wedge");
+    // Make the rows stale so the re-analysis derives them again (an edit of the review rewrites none).
+    QJsonObject root = doc(t.path());
+    QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    an[QStringLiteral("metrics")] = QJsonArray{};
+    root[QStringLiteral("analysis")] = an;
+    check(SwingStore::save(t.path(), root), "its rows emptied");
+    check(repo.writeAnalysis(t.path(), AnalysisOutcome{}).status == WriteResult::Status::Written,
+          "re-analysed: the rows derived again");
+    const double lpPw = lowPointOf(t.path());
+    check(near(lpPw, expectedLowPoint(-4.0, QStringLiteral("PITCHING WEDGE"), ClubSet::Men)) && !near(lpPw, lp7),
+          "...the low point now from the CORRECTED club's standard length");
+
+    // A camera shot whose recorded analysis context says the women's set.
+    QTemporaryDir w;
+    NewRecording rec;
+    rec.header = cameraHeader(QStringLiteral("7 IRON"));
+    recording::AnalysisContext ctx;
+    ctx.handedness = recording::Handedness::Right;
+    ctx.heightM    = 1.65;
+    ctx.clubSet    = ClubSet::Women;
+    ctx.club.name  = QStringLiteral("7 IRON");
+    ctx.club.standardLengthMm = standardClub(ctx.club.name, ctx.clubSet).lengthMm;
+    rec.header[QStringLiteral("analysisContext")] = analysisContextJson(ctx);
+    const analysis::SwingAnalysis a = poseAnalysis(50);   // the rows go into an analysis block
+    rec.analysis = &a;
+    check(repo.create(w.path(), rec).ok(), "a camera shot, women's set recorded");
+    check(repo.completeCapture(w.path(), r).ok(), "a reading folded in");
+    const double lpW = lowPointOf(w.path());
+    check(near(lpW, expectedLowPoint(-4.0, QStringLiteral("7 IRON"), ClubSet::Women)) && !near(lpW, lp7),
+          "...its low point from the women's 7 iron");
+}
+
 } // namespace
 
 int main()
@@ -720,6 +799,7 @@ int main()
     testReadOnlyRefused(repo);
     testReanalyseAndPersist(repo);
     testPoseReuseKeepsKeypoints(repo);
+    testLowPointTakesTheEffectiveClub(repo);
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;
 }

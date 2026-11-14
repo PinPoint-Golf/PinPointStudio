@@ -87,7 +87,7 @@ else()
         ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
         ${PP_ROOT}/src/Export/swing_doc_reader.cpp
         ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
-        ${PP_ROOT}/src/Export/recording_header.cpp
+        ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
         ${PP_ROOT}/src/Export/swing_paths.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
         # the chest's gap bridge (session_bridge.cpp bridges older swings with it)
@@ -230,7 +230,7 @@ else()
             ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
             ${PP_ROOT}/src/Export/swing_doc_reader.cpp
             ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
-            ${PP_ROOT}/src/Export/recording_header.cpp
+            ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
             ${PP_ROOT}/src/Export/swing_paths.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp

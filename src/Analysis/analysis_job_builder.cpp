@@ -18,6 +18,8 @@
 
 #include "analysis_job_builder.h"
 
+#include <cmath>
+
 namespace pinpoint::analysis {
 
 namespace {
@@ -110,7 +112,9 @@ void applyRunOptions(const RunOptions &o, ShotAnalysisJob &job)
     job.progress           = o.progress;
     job.posePreloaded      = o.posePreloaded;
     job.posePreloadedScope = o.posePreloadedScope;
+    job.posePreloadedModel = o.posePreloadedModel;
     job.poseDtlPreloaded   = o.poseDtlPreloaded;
+    job.poseDtlPreloadedModel = o.poseDtlPreloadedModel;
     job.ballPreloaded      = o.ballPreloaded;
     job.shaftPreloaded     = o.shaftPreloaded;
     job.ladderPreloaded    = o.ladderPreloaded;
@@ -149,7 +153,33 @@ ShotAnalysisJob buildAnalysisJob(const pinpoint::recording::Recording &recording
 
     applyBall(recording.ball, recording.t0Us, job);
     applyRunOptions(options, job);
+    job.inputs = analysisInputsFor(effective, job);
     return job;
+}
+
+AnalysisInputs analysisInputsFor(const EffectiveContext &effective, const ShotAnalysisJob &job)
+{
+    AnalysisInputs in;
+    in.version = kAnalysisInputsVersion;
+    const EffectiveClub &club = effective.club;
+    in.club = club.name;
+    // The length by applyClub's own rule, in the effective context's millimetres (not the job's
+    // metres, so a stamp compares exactly).
+    if (job.clubLengthKnown && club.geometry.lengthKnown && club.geometry.lengthMm > 0.0) {
+        in.clubLengthMm     = club.geometry.lengthMm;
+        in.clubLengthSource = club.corrected ? QStringLiteral("bag") : QStringLiteral("record");
+    } else if (job.standardClubLengthM > 0.0 && club.standardLengthMm > 0.0) {
+        in.clubLengthMm     = club.standardLengthMm;
+        in.clubLengthSource = QStringLiteral("standard");
+    } else {
+        in.clubLengthMm     = std::round(job.clubLengthM * 1000.0);
+        in.clubLengthSource = QStringLiteral("default");
+    }
+    in.heightM     = effective.heightM;
+    in.clubSet     = effective.clubSet;
+    in.handedness  = effective.handedness;
+    in.sessionType = job.sessionType;
+    return in;
 }
 
 } // namespace pinpoint::analysis

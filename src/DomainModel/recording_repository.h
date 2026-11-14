@@ -203,7 +203,8 @@ public:
 
     // A launch monitor reading folded into the shot (idempotent). `followedClub`, when not empty,
     // is the capture.club the device named (follow-club, IM-4): it replaces the recorded club only
-    // when it names another, and never over a hand-set review.club. *clubReplaced says whether it did.
+    // when it names another, and never over a hand-set review.club; analysisContext.club (what
+    // analysis reads) is rewritten with it (R-REC-2(a), DEC-82). *clubReplaced says whether it did.
     virtual WriteResult completeCapture(const QString &swingDir, const lm::LaunchMonitorReading &reading,
                                         const QJsonObject &followedClub = {},
                                         bool *clubReplaced = nullptr) = 0;

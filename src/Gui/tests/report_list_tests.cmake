@@ -22,7 +22,7 @@ pp_add_test(report_list_test
             ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
-            ${SRC}/Export/recording_header.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/session_archiver.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
