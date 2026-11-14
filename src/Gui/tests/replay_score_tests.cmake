@@ -23,7 +23,9 @@ pp_add_test(replay_score_test
             ${GUI}/shot/replay_source.h
             ${GUI}/shot/dtl_overlay_payload.cpp
             ${GUI}/markup/markup_truth.cpp
-            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/Analysis/recorded_products.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp

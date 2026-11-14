@@ -529,7 +529,7 @@ configure time — without it, inject poses with `--pose`).
 
 The target builds the production analysis sources directly into the binary
 (`shot_analyzer.cpp`, `shaft_tracker*.cpp`, `pose_runner.cpp`,
-`swing_doc.cpp`, …) and links `pinpoint_buffer`, OpenCV, ORT, and whisper —
+`swing_doc_*.cpp`, …) and links `pinpoint_buffer`, OpenCV, ORT, and whisper —
 see the `PINPOINT_BUILD_TOOLS` block at the bottom of the root
 `CMakeLists.txt`. **Rebuild `swinglab_run` after any analysis C++ change** —
 it does not happen via the app target.

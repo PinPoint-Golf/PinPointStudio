@@ -84,7 +84,9 @@ else()
         ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-        ${PP_ROOT}/src/Export/swing_doc.cpp
+        ${PP_ROOT}/src/Export/swing_doc_writer.cpp
+        ${PP_ROOT}/src/Export/swing_doc_reader.cpp
+        ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
         ${PP_ROOT}/src/Export/swing_paths.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
         # the chest's gap bridge (session_bridge.cpp bridges older swings with it)
@@ -160,7 +162,7 @@ else()
     # else a fetch), so this suite still configures on a machine that has never built
     # the app. Qt6::Network is the QTcpServer the connector owns.
     pp_require_gspro()
-    pp_require_swingstore()   # swing_doc.cpp: every document read goes through the store
+    pp_require_swingstore()   # swing_doc_*.cpp: every document read goes through the store
     # Quick3D: SwingHullGeometry (swing3d/) is a QQuick3DGeometry, compiled here with the module's
     # other C++ types.
     find_package(Qt6 REQUIRED COMPONENTS Network Quick3D)
@@ -224,7 +226,9 @@ else()
             ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-            ${PP_ROOT}/src/Export/swing_doc.cpp
+            ${PP_ROOT}/src/Export/swing_doc_writer.cpp
+            ${PP_ROOT}/src/Export/swing_doc_reader.cpp
+            ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
             ${PP_ROOT}/src/Export/swing_paths.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp

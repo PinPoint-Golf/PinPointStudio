@@ -485,7 +485,8 @@ entries but still gets its own `pp_add_test`.
 ### 6.5 Persist the product (only if it needs to survive a restart)
 
 If the stage produces something the replay/review UI reads back, extend the
-unified swing.json **additively** in `src/Export/swing_doc.cpp`: writer emits
+unified swing.json **additively** in `src/Export/swing_doc_analysis.cpp` (read back in
+`swing_doc_reader.cpp`): writer emits
 the block only when the product is non-empty, reader tolerates its absence.
 "Absent block ⇒ omitted ⇒ byte-identical to before your change" is the same
 optional-absence contract at the serialization layer — and it's what keeps

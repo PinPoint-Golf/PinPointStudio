@@ -116,7 +116,9 @@ pp_add_test(presenter_pool_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -253,7 +255,9 @@ pp_add_test(tts_phrase_cache_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
@@ -275,7 +279,9 @@ set(PP_LM_BOARD_SOURCES
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_curves.cpp
-            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp

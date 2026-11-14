@@ -19,7 +19,9 @@ pp_add_test(report_list_test
             ${GUI}/report/smtp_message.cpp
             ${GUI}/report/smtp_client.cpp
             ${GUI}/report/mail_credentials.cpp
-            ${SRC}/Export/swing_doc.cpp
+            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/session_archiver.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp

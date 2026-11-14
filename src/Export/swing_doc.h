@@ -18,6 +18,16 @@
 
 #pragma once
 
+// The swing document's public API. Its code is in three files, split by job (14 Nov 2026):
+//   swing_doc_writer.cpp    SwingDocWriter; the imuIntegrity / captureIntegrity blocks
+//                           (imuIntegrityJson, applyImuIntegrity, captureIntegrityJson,
+//                           applyCaptureIntegrity); the launch monitor blocks and derived rows
+//   swing_doc_reader.cpp    SwingDocReader; dataWarningDetailFrom, overallScoreFromAnalysis,
+//                           insertDtlTopOutOfView, swingDeviceTokens; the summary and its sidecar
+//   swing_doc_analysis.cpp  the `analysis` block serialisers: poseTrackToJson, impactTrackJson
+//                           and serializeAnalysis (internal) / serializeScore (file-local)
+// swing_doc_internal.h declares the few helpers more than one of them calls.
+
 #include "launch_monitor_reading.h"
 #include "swing_store.h"
 

@@ -4,7 +4,7 @@
 # pinpoint_swingstore is src/Export/swing_store.cpp + ppsw_qt.cpp: THE door to a swing's
 # document on disk (swing.ppsw, or a legacy swing.json). Every target that reads or writes a
 # document links it — the app, the swinglab/lm_repair tools, and most test suites, which compile
-# swing_doc.cpp and friends straight from source.
+# swing_doc_*.cpp and friends straight from source.
 #
 # It is a library rather than two more sources on every link line because it is the ONLY place
 # libppswing is reached: the ppsw headers stay inside these two files (swing_store.h names no ppsw

@@ -162,7 +162,7 @@ endfunction()
 
 # --- libppswing + pinpoint_swingstore (lazy) -----------------------------------
 # The swing-document store (cmake/PinPointSwingStore.cmake): every suite that compiles a document
-# reader or writer — swing_doc.cpp, measure_sample.cpp, markup_truth.cpp, the replay and re-analysis
+# reader or writer — swing_doc_*.cpp, measure_sample.cpp, markup_truth.cpp, the replay and re-analysis
 # loaders — needs it, which is most of them. pp_add_test therefore links it into every Qt test;
 # a static library costs nothing where nothing calls it.
 #

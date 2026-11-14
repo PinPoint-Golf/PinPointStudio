@@ -2780,7 +2780,10 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_zip_exporter.h
     src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
-    src/Export/swing_doc.cpp
+    src/Export/swing_doc_internal.h
+    src/Export/swing_doc_writer.cpp
+    src/Export/swing_doc_reader.cpp
+    src/Export/swing_doc_analysis.cpp
     src/Export/session_archiver.h
     src/Export/session_archiver.cpp
     src/Analysis/swing_analysis.h
@@ -3162,7 +3165,9 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Export/swing_doc.cpp
+        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Export/swing_paths.cpp
@@ -3185,7 +3190,9 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
-        src/Export/swing_doc.cpp
+        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
         src/Export/swing_paths.cpp
         src/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
@@ -3300,9 +3307,11 @@ if(PINPOINT_BUILD_TOOLS)
         src/Metrics/metric_catalogue_manifest.cpp
         src/Metrics/metric_providers.cpp
         src/Export/frame_decode.cpp
-        src/Export/swing_doc.cpp
+        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
         src/Export/swing_paths.cpp
-        # swing_doc.cpp writes the launchMonitor block by walking lm::fieldDefs(),
+        # swing_doc_writer.cpp writes the launchMonitor block by walking lm::fieldDefs(),
         # so the offline tools need the table itself, not just its header. The
         # PARSER and the monitor stay out: an offline tool replays a recorded
         # swing.json, it never reads a LastShot.CSV or talks to a device.

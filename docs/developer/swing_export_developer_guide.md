@@ -546,7 +546,7 @@ The kinematic sequence (`docs/design/kinematic_sequence_design.md`, schema
 beside `metrics[]`: the ordered peaks over the four segment angular-speed series.
 It is serialised by exactly ONE helper, `src/Kinematics/kinematic_sequence_json.h`
 (`kinematicSequenceToJson` / `retimeKinematicSequence`), which the document
-writer (`swing_doc.cpp`), the live `analysisDetail` map (`shot_processor.cpp`)
+writer (`swing_doc_analysis.cpp`), the live `analysisDetail` map (`shot_processor.cpp`)
 and the reload (`disk_replay_source.cpp`) all call — so a live shot, its
 `swing.json` and its reloaded self expose the same shape, and the two absolute
 instants inside it (`impactUs`, `nodes[].tPeakUs`) are re-based through the same
@@ -982,8 +982,15 @@ src/Export/
 │                                 baseline sidecar, manifest builder
 │
 ├── swing_doc.h                 SwingDocWriter/Reader — the unified swing.json,
-├── swing_doc.cpp                 the review write-through, and the regenerable
+│                                 the review write-through, and the regenerable
 │                                 swing_summary.json index sidecar (§6)
+├── swing_doc_writer.cpp        SwingDocWriter, saveDocument, the launch monitor
+│                                 and integrity blocks
+├── swing_doc_reader.cpp        SwingDocReader, the summary block and sidecar,
+│                                 dataWarningDetailFrom & the other read helpers
+├── swing_doc_analysis.cpp      the `analysis` block serialisers
+│                                 (serializeAnalysis, pose/impact track builders)
+├── swing_doc_internal.h        the helpers the three files share (not public)
 │
 ├── swing_zip_exporter.h        Bulk "export selected shots to a zip" (§12)
 ├── swing_zip_exporter.cpp

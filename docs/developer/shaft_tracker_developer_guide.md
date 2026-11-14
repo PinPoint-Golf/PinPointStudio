@@ -1964,7 +1964,7 @@ The DTL tracker and fusion are never reused; they are cheap enough (about 0.3 s)
 
 ### 9.3 What is stored
 
-**`analysis.club`.** The face-on track, in the swing document (`swing_doc.cpp`). It is written for valid tracks *and* refused ones, so the laboratory can study failures. Positions are normalised to the frame size and times are relative to the swing window. It holds:
+**`analysis.club`.** The face-on track, in the swing document (`swing_doc_analysis.cpp`). It is written for valid tracks *and* refused ones, so the laboratory can study failures. Positions are normalised to the frame size and times are relative to the swing window. It holds:
 
 - the samples, with their flags;
 - the (always empty) predicted series;

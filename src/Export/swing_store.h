@@ -156,7 +156,7 @@ private:
 // heads, when given, receives what swingDeviceTokens() reads, out of the same root chunk:
 // { streams: [ {kind, alias, file, setup, instrument} … ], launchMonitor: { kind } } — each stream
 // trimmed to those keys BEFORE conversion, so its frame stamps and IMU samples are never copied.
-// For a summary block written before it carried `devices` (swing_doc.cpp readSwingSummary).
+// For a summary block written before it carried `devices` (swing_doc_reader.cpp readSwingSummary).
 QJsonObject loadSummaryBlock(const QString &swingDir, QJsonObject *heads = nullptr);
 
 // THE DOCUMENT WITHOUT ITS PER-FRAME TRACKS — everything a reader of the swing's ANALYSIS needs
