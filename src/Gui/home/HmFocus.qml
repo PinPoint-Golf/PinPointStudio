@@ -257,7 +257,7 @@ Item {
                         topRule: true
                         // Wrapped words make the row grow; never below the table row.
                         rowHeight: Math.max(Theme.sp(Theme.rowH),
-                                            Math.max(aimCell.height, faultText.height) + Theme.sp(18))
+                                            Math.max(aimCell.height, faultText.height, freqRow.height) + Theme.sp(18))
                         accessibleName: pairRow.fault ? String(pairRow.fault.text) : ""
 
                         // Aim for: a tick and the ideal.
@@ -298,8 +298,10 @@ Item {
                             width: pairRow.columnWidth(1)
                             text:  itemText
                         }
-                        // …how often, in segments and in words, and which way it is going…
+                        // …how often, in segments and in words, and which way it is going (the words wrap,
+                        // never elide: Mark, 14 Nov 2026, nothing cut at any window size)…
                         Row {
+                            id: freqRow
                             visible: pairRow.hasFault
                             width: pairRow.columnWidth(2)
                             spacing: Theme.gap(12)
@@ -314,6 +316,8 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: Math.min(implicitWidth, Math.max(0, parent.width - meter.width - parent.spacing
                                                                         - (trendChip.visible ? trendChip.width + parent.spacing : 0)))
+                                elide:    Text.ElideNone
+                                wrapMode: Text.WordWrap
                                 text:  pairRow.fault ? pairRow.fault.frequency : ""
                                 color: Theme.colorText3
                             }

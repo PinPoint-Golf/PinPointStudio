@@ -161,7 +161,8 @@ def pipeline(ledgers_dir, pack):
 
     ledgers = ts.read_ledgers(dirs)
     off = ts.whats_off(ts.session_rates_from_ledgers(ledgers), pack)
-    seen_most = [{"id": r["id"], "share": r["share"], "sessionsSeen": r["sessionsSeen"],
+    seen_most = [{"id": r["id"], "share": r["share"], "latestShare": r["latestShare"],
+                  "sessionsSeen": r["sessionsSeen"],
                   "sessionsJudged": r["sessionsJudged"], "trend": r["trend"], "pips": r["pips"]}
                  for r in off]
     all_swings = sum(len(led["shots"]) for _, led in ledgers)

@@ -22,11 +22,12 @@
 //
 //   1. PARITY on the shipped pack: for every condition core.json authors, Your swing's "a fault to
 //      work on" (themeConditionInfo().fault) is the work-on list's (workOnClassFor() == Movement),
-//      and "what you do well" never praises what the list cannot hold (held) or a set-up.
+//      and "what you do well" never praises what the list cannot hold (held); since 14 Nov 2026 it
+//      may praise an unheld set-up (Mark: "yes you can praise setup").
 //   2. The other four projections are unchanged: every kind, held or not, gives the class, layer,
 //      report kind and hold the readers used to compute themselves (the old tables, written out).
-//   3. The shipped pack's own cases: a held fault (chicken_wing) is in none of Your swing's lists; a
-//      Setup habit can be needs work but is never praised.
+//   3. The shipped pack's own cases: a held fault (chicken_wing) is in none of Your swing's lists; an
+//      unheld Setup habit can be needs work and praised; the same set-up held is neither.
 
 #include "../../Coaching/condition_role_pack.h"
 #include "../../Coaching/work_ons_pack.h"
@@ -108,7 +109,7 @@ int main()
                 fact    = fact    && r.fact == legacyFact(k);
                 held    = held    && r.held == h;
                 outcome = outcome && r.isOutcome() == (k == ConditionKind::Outcome);
-                praise  = praise  && r.praisable == (k == ConditionKind::Fault && !h);
+                praise  = praise  && r.praisable == ((k == ConditionKind::Fault || k == ConditionKind::Setup) && !h);
                 themes  = themes  && r.isMovementWorkOn() == (legacyWorkOnClass(c) == WorkOnClass::Movement);
             }
         check(workOn,  "the work-on class (list, areas): as before — Fault/Setup movement, Delivery short list, held excluded");
@@ -116,7 +117,7 @@ int main()
         check(fact,    "the report's kind: as before, held or not");
         check(held,    "held is exactly reportHold");
         check(outcome, "an outcome is exactly ConditionKind::Outcome (the areas' and the composer's test)");
-        check(praise,  "praisable: a Fault that is not held, nothing else");
+        check(praise,  "praisable: a Fault or Setup that is not held, nothing else (Setup since 14 Nov 2026)");
         check(themes,  "a fault to work on is the list's Movement class, held never");
     }
 
@@ -146,7 +147,9 @@ int main()
                             ti == themeInfo.constEnd() ? "absent" : (ti->fault ? "work on" : "not"),
                             listed ? "work on" : "not");
         }
-        if (ti != themeInfo.constEnd() && ti->praisable && (!listed || c.kind != ConditionKind::Fault)) ++praiseBeyondList;
+        if (ti != themeInfo.constEnd() && ti->praisable
+            && (!listed || (c.kind != ConditionKind::Fault && c.kind != ConditionKind::Setup)))
+            ++praiseBeyondList;
 
         // Every reader holds the one role's answer for this condition.
         const ConditionRole r = conditionRoleFor(c);
@@ -158,14 +161,15 @@ int main()
         if (c.kind == ConditionKind::Setup && listed) ++setupWorkOns;
     }
     check(disagree == 0, "parity: for every shipped condition, Your swing's fault-to-work-on is Work-ons' Movement class");
-    check(praiseBeyondList == 0, "\"what you do well\" praises only an unheld Fault — never a held reading or a set-up");
+    check(praiseBeyondList == 0, "\"what you do well\" praises only an unheld Fault or Setup — never a held reading");
     check(readers == 0, "the report's kind and hold and the composer's layer are the role's, for every shipped condition");
     check(held > 0, "the shipped pack holds at least one condition back (the parity covers the hold rule)");
     check(setupWorkOns > 0, "the shipped pack has Setup habits on the work-on list (the parity covers Setup)");
 
     // ── 3. The cases the audit named, on the shipped pack's own conditions ──────────────────────
     // A held fault (chicken_wing, "we could not measure your lead arm after impact", when this was
-    // written) and an unheld Setup habit (ball_too_far, which Mark's library fixture now lists).
+    // written) and an unheld Setup habit (ball_too_far, which Mark's library fixture now lists) —
+    // praisable since 14 Nov 2026 (Mark: "yes you can praise setup") — and that set-up held back.
     {
         const Condition *heldFault = nullptr, *setup = nullptr;
         for (const Condition &c : pack.conditions) {
@@ -183,8 +187,17 @@ int main()
         if (setup) {
             const ThemeConditionInfo ti = themeInfo.value(setup->id);
             std::printf("        setup habit: %s\n", qPrintable(setup->id));
-            check(workOnClassFor(*setup) == WorkOnClass::Movement && ti.fault && !ti.praisable,
-                  "a Setup habit: a work-on, so needs work (and a focus) in Your swing, never praised");
+            check(workOnClassFor(*setup) == WorkOnClass::Movement && ti.fault && ti.praisable,
+                  "an unheld Setup habit: a work-on, so needs work (and a focus) in Your swing, and praisable");
+
+            // The same set-up held back, through the pack marshalling Your swing reads.
+            CharacteristicPack heldPack = pack;
+            for (Condition &c : heldPack.conditions)
+                if (c.id == setup->id) c.reportHold = QStringLiteral("not measured reliably");
+            const Condition *heldSetup = heldPack.condition(setup->id);
+            const ThemeConditionInfo hi = themeConditionInfo(heldPack, DrillSet{}).value(setup->id);
+            check(heldSetup && workOnClassFor(*heldSetup) == WorkOnClass::Excluded && !hi.fault && !hi.praisable,
+                  "a held Setup: not a work-on, and not needs work, a focus or praised in Your swing");
         }
     }
 

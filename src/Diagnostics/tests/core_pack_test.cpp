@@ -912,7 +912,9 @@ int main()
             { "id": "c_jargon", "label": "c", "kind": "fault", "detectedBy": ["s_half"],
               "golfer": "your pelvis slides at P7" },
             { "id": "c_clean", "label": "c", "kind": "setup", "detectedBy": ["s_whole"],
-              "golfer": "your arms extend fully after impact" },
+              "golfer": "your arms extend fully after impact",
+              "golferWell": "you keep your arms wide at the top",
+              "golferWhy": "A narrow swing also has less room to build speed, so it costs you distance." },
             { "id": "c_outcome", "label": "c", "kind": "outcome", "group": "ballFlight",
               "detectedBy": ["s_whole"] } ]
         })";
@@ -948,8 +950,9 @@ int main()
 
     // ── …and golferWell is held to the same lint, plus the negation ban ───────────
     //
-    // Required on a detectable Fault combining Any or First — the rows "What you do well" can name —
-    // and nowhere else: a conjunction has no single ideal, a set-up is not praised. Each banned
+    // Required on a detectable Fault or Setup combining Any or First — the rows "What you do well" can
+    // name (a set-up since 14 Nov 2026, Mark: "yes you can praise setup") — and nowhere else: a
+    // conjunction has no single ideal. Each banned
     // negation fires on its own row (one with a curly apostrophe, as a phone types it), jargon fires
     // here as it does in `golfer`, and words that merely START with "no" must not. The two rows the
     // missing check must stay silent on also carry a clean golferWhy, which is required on the same
@@ -1008,11 +1011,12 @@ int main()
             return false;
         };
         check(lint.loaded, "a pack with missing or negated golferWell phrases still loads");
-        check(flagged("golferPhraseMissing", "w_missing") && flagged("golferPhraseMissing", "w_first"),
-              "golferPhraseMissing: a detectable Any / First fault with no golferWell");
-        check(!flagged("golferPhraseMissing", "w_all") && !flagged("golferPhraseMissing", "w_setup")
+        check(flagged("golferPhraseMissing", "w_missing") && flagged("golferPhraseMissing", "w_first")
+                  && flagged("golferPhraseMissing", "w_setup"),
+              "golferPhraseMissing: a detectable Any / First fault or set-up with no golferWell");
+        check(!flagged("golferPhraseMissing", "w_all")
                   && !flagged("golferPhraseMissing", "w_clean") && !flagged("golferPhraseMissing", "w_dont"),
-              "golferPhraseMissing: silent on a conjunction, a set-up, and rows that have golferWell");
+              "golferPhraseMissing: silent on a conjunction, and rows that have golferWell");
         check(flagged("golferPhraseWording", "w_dont") && flagged("golferPhraseWording", "w_doesnt")
                   && flagged("golferPhraseWording", "w_not") && flagged("golferPhraseWording", "w_never")
                   && flagged("golferPhraseWording", "w_no"),
@@ -1061,7 +1065,8 @@ int main()
             { "id": "y_all", "label": "c", "kind": "fault", "detection": "all",
               "detectedBy": ["s_a", "s_b"], "golfer": "your swing gets narrow at the top" },
             { "id": "y_setup", "label": "c", "kind": "setup", "detectedBy": ["s_a"],
-              "golfer": "you stand too close at address" },
+              "golfer": "you stand too close at address",
+              "golferWell": "your arms hang freely at address" },
             { "id": "y_lower", "label": "c", "kind": "fault", "detectedBy": ["s_a"],
               "golfer": "your swing gets narrow at the top",
               "golferWell": "you keep your arms wide at the top",
@@ -1094,11 +1099,12 @@ int main()
             return false;
         };
         check(lint.loaded, "a pack with missing or badly worded golferWhy sentences still loads");
-        check(flagged("golferPhraseMissing", "y_missing") && flagged("golferPhraseMissing", "y_first"),
-              "golferPhraseMissing: a detectable Any / First fault with no golferWhy");
-        check(!flagged("golferPhraseMissing", "y_all") && !flagged("golferPhraseMissing", "y_setup")
+        check(flagged("golferPhraseMissing", "y_missing") && flagged("golferPhraseMissing", "y_first")
+                  && flagged("golferPhraseMissing", "y_setup"),
+              "golferPhraseMissing: a detectable Any / First fault or set-up with no golferWhy");
+        check(!flagged("golferPhraseMissing", "y_all")
                   && !flagged("golferPhraseMissing", "y_clean") && !flagged("golferPhraseMissing", "y_lower"),
-              "golferPhraseMissing: silent on a conjunction, a set-up, and rows that have golferWhy");
+              "golferPhraseMissing: silent on a conjunction, and rows that have golferWhy");
         check(flagged("golferPhraseWording", "y_lower") && flagged("golferPhraseWording", "y_nostop"),
               "golferPhraseWording: a golferWhy with no capital, and one with no full stop");
         check(flagged("golferPhraseWording", "y_because") && flagged("golferPhraseWording", "y_leads"),

@@ -321,12 +321,13 @@ int main()
             const QJsonObject e = sm.at(i).toObject();
             d.exact(at(i) + QStringLiteral(".id"), r.conditionId, e.value(QStringLiteral("id")).toString());
             d.num(at(i) + QStringLiteral(".share"), r.share, e.value(QStringLiteral("share")), 1e-12);
+            d.num(at(i) + QStringLiteral(".latestShare"), r.latestShare, e.value(QStringLiteral("latestShare")), 1e-12);
             d.exact(at(i) + QStringLiteral(".sessionsSeen"), r.sessionsSeen, e.value(QStringLiteral("sessionsSeen")).toInt());
             d.exact(at(i) + QStringLiteral(".sessionsJudged"), r.sessionsJudged, e.value(QStringLiteral("sessionsJudged")).toInt());
             d.exact(at(i) + QStringLiteral(".trend"), r.trend, e.value(QStringLiteral("trend")).toString());
             d.exact(at(i) + QStringLiteral(".pips"), pips(r.pips), pips(e.value(QStringLiteral("pips"))));
         }
-        d.done("what we see most: the same faults, shares, sessions, trends and pips, in the same order");
+        d.done("what we see most: the same faults, shares, latest-session rates, sessions, trends and pips, in the same order");
     }
     {
         Diff d("doWellCandidates");

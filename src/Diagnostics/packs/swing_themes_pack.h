@@ -30,7 +30,7 @@
 //                            praised — both from the condition's ROLE (conditionRoleFor,
 //                            src/Coaching/condition_role_pack.h), the one projection the work-on
 //                            list reads too, so Your swing follows Work-ons: a held condition is
-//                            neither, a Setup habit can be worked on but is not praised (rule v4) —
+//                            neither, an unheld Setup is worked on and praisable (rule v5) —
 //                            its detection mode and prominence, and its FAMILIES — the metricKey (or
 //                            measure id) of the first measure of each detectedBy signal — the
 //                            root, so a "Signed" key joins its unsigned family — which is
@@ -160,7 +160,7 @@ inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const Characteristi
         info.id         = c.id;
         const ConditionRole role = conditionRoleFor(c);
         info.fault      = role.isMovementWorkOn();     // as the work-on list: Fault or Setup, not held
-        info.praisable  = role.praisable;              // a Fault, not held
+        info.praisable  = role.praisable;              // a Fault or Setup, not held (rule v5)
         info.detection  = c.detection == DetectionMode::All   ? kThemeDetectionAll
                         : c.detection == DetectionMode::First ? kThemeDetectionFirst
                         :                                       kThemeDetectionAny;

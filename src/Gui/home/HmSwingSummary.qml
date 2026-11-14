@@ -331,7 +331,8 @@ Column {
                                     tracking: Theme.trackingMicro
                                 }
                             }
-                            // How often in words, and which way it is going.
+                            // How often in words, and which way it is going. The words wrap, never elide
+                            // (Mark, 14 Nov 2026: nothing cut at any window size); the trend stays beside them.
                             Row {
                                 width: parent.width
                                 spacing: Theme.gap(8)
@@ -339,6 +340,8 @@ Column {
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: Math.min(implicitWidth, parent.width
                                                     - (workChip.visible ? workChip.width + parent.spacing : 0))
+                                    elide:    Text.ElideNone
+                                    wrapMode: Text.WordWrap
                                     text:  workItem.frequencyText
                                 }
                                 PpChip {

@@ -258,12 +258,31 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   here while Work-ons left it out, and a set-up habit (ball too far) could be a work-on but never
   Your focus. Both lists now read one role (`conditionRoleFor`, `src/Coaching/condition_role_pack.h`;
   `swing_themes_pack.h` marshals it into `ThemeConditionInfo::fault`), and `condition_role_test`
-  holds them to one answer for every shipped condition. "What you do well" names only an unheld
-  `Fault` (`ThemeConditionInfo::praisable`): a set-up is read on the panel, not praised, as the
-  pack validator's `golferWell` rule already says, and a held reading reassures no more than it
+  holds them to one answer for every shipped condition. Under rule v4 "what you do well" named only
+  an unheld `Fault` (`ThemeConditionInfo::praisable`), and a held reading reassures no more than it
   warns. `kThemeRuleVersion` 3 → 4, so a cached `swing_themes.json` is re-derived; the golden
   fixture and `tools/themes/theme_summary.py` (`is_work_on_fault`, `is_praisable`) follow the same
   rule.
+- **Set-ups can be praised (rule v5, 14 Nov 2026, Stage 0.14).** Mark: "yes you can praise setup esp.
+  a consistent setup that is the holy grail". "What you do well" now names an unheld `Setup` by the
+  SAME rule as an unheld `Fault` — in the ideal range on most / almost every swing (`wellShare` 0.85
+  recency-weighted, `wellSession` 0.8 in the latest judged session, the same session and swing
+  minimums, prominence and family exclusions). `ConditionRole::praisable` is the one place that says
+  so (`condition_role_pack.h`); a held condition is still never praised. The pack validator's rule
+  follows: a detectable `Setup` combining Any or First needs `golferWell` and `golferWhy` as a fault
+  does (`golferPhraseMissing`; every shipped set-up already has both). `kThemeRuleVersion` 4 → 5, so a
+  cached `swing_themes.json` is re-derived. On the golden fixture no praise appears or disappears:
+  the set-ups in range on almost every swing (posture, knee flex) share a quantity with a needs-work
+  fault, so the family exclusion keeps them out, and the rest are under 0.85.
+  **Planned, not built: praise only what is CONSISTENT (refactor step 3).** Mark also ruled (14 Nov)
+  that every praise — fault or set-up — needs the existing consistency grade at Repeatable (4) or
+  Grooved (5), "Not enough swings" giving none: "there is no point praising something a golfer does
+  not do pretty consistently (it doesn't have to be grooved but should be close)". That grade is the
+  consistency marks' (`WorkOnsController`, CONSISTENCY MARKS), worked out in the GUI after the
+  reduction, kept in memory per (condition, measure) and never stored, with the grader and the norm
+  provider in `src/Gui/variability`; the reduction (`src/Coaching`, pure, fingerprinted on the
+  ledgers) cannot read it. Mark's decision (14 Nov): set-up praise ships now on the in-range rule, and
+  the consistency gate for ALL praise is built in refactor step 3.
 - **How often, in words (14 Nov 2026, Stage 0.13).** One rule says how often a share is seen, for Your
   swing and Tendencies alike (`src/Coaching/frequency_words.h`): "every swing" (≥ 0.995), "almost every
   swing" (≥ 0.9), "most swings" (≥ 0.7), "more than half your swings" (≥ 0.5), then "fairly often"
@@ -279,6 +298,22 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   bare words below half. The words are made at publish from the stored share, so `kThemeRuleVersion`
   does not move and nothing is re-derived; the tendency words did not change, so neither does
   `kTendencyRuleVersion`. `tools/themes/theme_summary.py` (`frequency_band`) follows.
+- **The words describe what listed the row (14 Nov 2026, Stage 0.14).** Mark: "the words describe what
+  selected it". A needs-work row is listed when its latest judged session saw it on half or more
+  (`themeSeenOn`, the one listing test); `seenMostBasis` asks the same test of the row's
+  recency-weighted share. When that passes too, the row is listed on the weighted share and keeps its
+  words (Weighted). When only the latest session passes, the row is there because of that session
+  alone (Latest), and its words are that session's own rate through the same frequency rule, said as
+  that session's: "most swings in your latest session" on a card (`themeFrequency(row)`), "on most
+  swings in your latest session" in the flat lines (`themeHowOften(row)`). Words only, no figures.
+  The row stores the latest session's rate (`SeenMostRow::latestShare`, `kThemeSchemaVersion` 2 → 3).
+  The card's meter is unchanged: it still shows the weighted share, and Mark accepted the latest
+  session's words beside it (14 Nov, after the review sheet). The how-often words on Home's cards
+  (Next on your list, the focus's Right now, Matchups' travel-together faults) wrap and never elide,
+  the trend chip beside them (Mark: nothing cut at any window size); at 1600 × 1000 the longer words
+  had been cut to "more than half y…". Ball too far on the golden fixture (0.39 weighted; 20 of 24 in its latest session) read
+  "sometimes"; it now reads "most swings in your latest session". `theme_summary.py` (`seen_basis`,
+  `row_frequency`, `row_how_often`) follows.
 - **Parity with the prototype.** Both draw their random numbers from mt19937_64 with one seed per
   replicate (`tools/themes/theme_rng.py` is bit-identical to `DetRng`), so
   `swing_themes_golden_test` holds the C++ to the Python on a copy of Mark's five library ledgers

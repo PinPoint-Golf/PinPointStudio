@@ -49,6 +49,7 @@
 #include "Gui/diagnostics/work_ons_controller.h"
 #include "Gui/variability/variability_measures.h"
 #include "Coaching/frequency_words.h"
+#include "Coaching/swing_themes.h"
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
 #include "Export/swing_store.h"
@@ -329,12 +330,30 @@ static bool storedRowMatches(const QJsonArray &rows, const QVariantList &session
     return false;
 }
 
+// The words a stored needs-work row is said in (themeFrequency of the row: its weighted share's, or
+// its latest session's when only that session listed it — Stage 0.14). "" when no row has the id.
+static QString storedFrequency(const QJsonArray &storedSeen, const QString &conditionId)
+{
+    for (const QJsonValue &v : storedSeen) {
+        const QJsonObject o = v.toObject();
+        if (o.value(QStringLiteral("id")).toString() != conditionId) continue;
+        SeenMostRow r;
+        r.share       = o.value(QStringLiteral("share")).toDouble();
+        r.latestShare = o.value(QStringLiteral("latestShare")).toDouble();
+        return themeFrequency(r);
+    }
+    return QString();
+}
+
 // A fault item — the focus's "right now" and "next on your list" alike: exactly its five keys, the
 // values in range, and its share and pips a stored needs-work row's (one pip per judged session).
 static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
 {
     const QVariantMap m = v.toMap();
     const QString freq = m.value(QStringLiteral("frequency")).toString();
+    // The band's words, alone or said as the latest session's (a row only that session listed).
+    QString band = freq;
+    if (band.endsWith(themeLatestSessionWords())) band.chop(themeLatestSessionWords().size());
     const int trend = m.value(QStringLiteral("trend")).toInt();
     return keysAre(m, { QStringLiteral("text"), QStringLiteral("share"), QStringLiteral("frequency"),
                         QStringLiteral("trend"), QStringLiteral("sessions"), QStringLiteral("conditionId"),
@@ -343,10 +362,11 @@ static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
         && m.value(QStringLiteral("text")).toString().at(0).isUpper()
         && m.value(QStringLiteral("share")).typeId() == QMetaType::Double
         && m.value(QStringLiteral("trend")).typeId() == QMetaType::Int && trend >= -1 && trend <= 1
-        && (freq == QStringLiteral("every swing") || freq == QStringLiteral("almost every swing")
-            || freq == QStringLiteral("most swings") || freq == QStringLiteral("more than half your swings")
-            || freq == QStringLiteral("fairly often") || freq == QStringLiteral("sometimes") || freq == QStringLiteral("rarely"))
-        && freq == frequencyWords(m.value(QStringLiteral("share")).toDouble())   // the one rule (frequency_words.h)
+        && (band == QStringLiteral("every swing") || band == QStringLiteral("almost every swing")
+            || band == QStringLiteral("most swings") || band == QStringLiteral("more than half your swings")
+            || band == QStringLiteral("fairly often") || band == QStringLiteral("sometimes") || band == QStringLiteral("rarely"))
+        // the one rule (frequency_words.h), on the evidence that listed the row (seenMostBasis)
+        && freq == storedFrequency(storedSeen, m.value(QStringLiteral("conditionId")).toString())
         && isPips(m.value(QStringLiteral("sessions")))
         && storedRowMatches(storedSeen, m.value(QStringLiteral("sessions")).toList(),
                             m.value(QStringLiteral("share")).toDouble());

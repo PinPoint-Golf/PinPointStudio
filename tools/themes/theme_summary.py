@@ -134,9 +134,9 @@ def is_work_on_fault(c):
 
 
 def is_praisable(c):
-    """"What you do well" may name the golfer being clear of it: a fault that is not held. A set-up
-    is read on the panel, not praised (ConditionRole::praisable)."""
-    return c.get("kind") == "fault" and not is_held(c)
+    """"What you do well" may name the golfer being clear of it: a fault or a set-up that is not held
+    (ConditionRole::praisable; rule v5, Mark 14 Nov 2026: a set-up can be praised)."""
+    return c.get("kind") in ("fault", "setup") and not is_held(c)
 
 
 def condition_info(pack, drills=None):
@@ -236,9 +236,21 @@ def session_rates(session_dirs):
     return session_rates_from_ledgers(read_ledgers(session_dirs))
 
 
+def seen_on(rate):
+    """themeSeenOn(): THE listing test — a session sees a fault on PRESENT_SHARE of what it judged."""
+    return rate >= PRESENT_SHARE
+
+
+def seen_basis(r):
+    """seenMostBasis(): which evidence listed a needs-work row. "weighted" when the recency-weighted
+    share passes the listing test too (the row keeps that share's words); "latest" when only the
+    latest session does — its words are then that session's own rate, said as that session's."""
+    return "weighted" if seen_on(r["share"]) else "latest"
+
+
 def whats_off(rates, pack):
     """Faults to work on (is_work_on_fault: a fault or set-up, never held — rule v4) present in the
-    latest session that judged them, by recency-weighted share, highest first (stable)."""
+    latest session that judged them (seen_on), by recency-weighted share, highest first (stable)."""
     conds = {c["id"]: c for c in pack["conditions"]}
     rows = []
     for cid, per in rates.items():
@@ -249,11 +261,11 @@ def whats_off(rates, pack):
         if not judged:
             continue
         latest = judged[-1]
-        if latest[1] / latest[2] < PRESENT_SHARE:
+        if not seen_on(latest[1] / latest[2]):
             continue
         w = [RECENCY ** (len(judged) - 1 - i) for i in range(len(judged))]
         share = sum(wi * f / a for wi, (_, f, a) in zip(w, judged)) / sum(w)
-        sessions_seen = sum(1 for _, f, a in judged if f / a >= PRESENT_SHARE)
+        sessions_seen = sum(1 for _, f, a in judged if seen_on(f / a))
         trend = ""
         if len(judged) >= 3:
             early = sum(f / a for _, f, a in judged[:-2]) / len(judged[:-2])
@@ -261,8 +273,9 @@ def whats_off(rates, pack):
             trend = ("easing" if late < early - TREND_DELTA
                      else "growing" if late > early + TREND_DELTA else "steady")
         rows.append({"id": cid, "group": c.get("group", ""), "label": c.get("label", cid),
-                     "share": share, "sessionsSeen": sessions_seen, "sessionsJudged": len(judged),
-                     "trend": trend, "pips": [f / a >= PRESENT_SHARE for _, f, a in judged]})
+                     "share": share, "latestShare": latest[1] / latest[2],
+                     "sessionsSeen": sessions_seen, "sessionsJudged": len(judged),
+                     "trend": trend, "pips": [seen_on(f / a) for _, f, a in judged]})
     rows.sort(key=lambda r: -r["share"])
     return rows
 
@@ -300,6 +313,17 @@ def how_often(share):
     return FREQUENCY_WORDS[band]
 
 
+LATEST_SESSION_WORDS = " in your latest session"
+
+
+def row_how_often(r):
+    """themeHowOften(row): the weighted share's words, or the latest session's own rate said as
+    that session's when only it listed the row (seen_basis)."""
+    if seen_basis(r) == "weighted":
+        return how_often(r["share"])
+    return how_often(r["latestShare"]) + LATEST_SESSION_WORDS
+
+
 def seen_most_lines(off, cond_phrase):
     """At most five lines, one per distinct phrase; conditions with no phrase are skipped."""
     lines, told = [], []
@@ -309,7 +333,7 @@ def seen_most_lines(off, cond_phrase):
             continue
         told.append(ph)
         extra = f"; {r['trend']}" if r["trend"] in ("easing", "growing") else ""
-        lines.append(f"{upper_first(ph)} — {how_often(r['share'])}"
+        lines.append(f"{upper_first(ph)} — {row_how_often(r)}"
                      f" ({r['sessionsSeen']} of {r['sessionsJudged']} sessions{extra})")
         if len(lines) == MAX_SEEN_MOST:
             break
@@ -370,7 +394,7 @@ def needs_work_families(info, off):
 
 
 def do_well(counts, info, off):
-    """Rule v1. Candidates: praisable (is_praisable: an unheld fault), detection any / first (all
+    """Rule v1. Candidates: praisable (is_praisable: an unheld fault or set-up, rule v5), detection any / first (all
     is a conjunction: no one reading is the condition), prominence Occasional and up. Judged sessions counted >= MIN_ASSESSED rows;
     at least WELL_MIN_SESSIONS of them and WELL_MIN_SWINGS rows over them. Kept when the
     recency-weighted in-band share is >= WELL_SHARE and the latest judged session's is >=
@@ -534,6 +558,13 @@ def frequency(share):
     return FREQUENCY_WORDS[frequency_band(share)]
 
 
+def row_frequency(r):
+    """themeFrequency(row): as row_how_often, in the bare words."""
+    if seen_basis(r) == "weighted":
+        return frequency(r["share"])
+    return frequency(r["latestShare"]) + LATEST_SESSION_WORDS
+
+
 def counted(n, one, many):
     return f"{n} {one if n == 1 else many}"
 
@@ -545,7 +576,7 @@ REASON_MOST = "Picked first: it shows up on the most of your swings"
 
 
 def needs_work_item(r, phrase):
-    return {"text": upper_first(phrase), "share": r["share"], "frequency": frequency(r["share"]),
+    return {"text": upper_first(phrase), "share": r["share"], "frequency": row_frequency(r),
             "trend": 1 if r["trend"] == "growing" else -1 if r["trend"] == "easing" else 0,
             "pips": list(r["pips"])}
 

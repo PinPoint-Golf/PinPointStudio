@@ -134,8 +134,15 @@ namespace pinpoint::analysis {
 // "sometimes" / "rarely" where "more than half your swings" used to be said (frequency_words.h) — are
 // made at publish from the stored share (swingSummaryView) and never stored, so a rule-4 file is
 // still current and nothing is re-derived.
-inline constexpr int kThemeSchemaVersion = 2;
-inline constexpr int kThemeRuleVersion   = 4;
+// Schema 3 (14 Nov 2026, Stage 0.14): each needs-work row stores the latest judged session's own rate
+// (SeenMostRow::latestShare), which its words describe when that session is what listed it.
+// Rule 5 (14 Nov 2026, Stage 0.14; Mark: "yes you can praise setup esp. a consistent setup"): "what you
+// do well" may praise an unheld Setup by the same in-range rule as an unheld Fault
+// (ConditionRole::praisable). A rule-4 file never praised a set-up, so it is re-derived. (Mark's second
+// half — praise only what is graded Repeatable or Grooved — is NOT in this rule: the consistency grade
+// is the GUI's (WorkOnsController's consistency marks), not reachable from this reduction.)
+inline constexpr int kThemeSchemaVersion = 3;
+inline constexpr int kThemeRuleVersion   = 5;
 
 // One seed per replicate, from a base and a stream, so replicates are independent of each other
 // and of the order they run in. Unsigned arithmetic wraps, which is the "mod 2^64" the Python
@@ -242,8 +249,8 @@ struct ThemeMeasureInfo {
 //   fault       a fault to work on, as the work-on list classes it (ConditionRole::workOn ==
 //               Movement: Fault or Setup, never a held condition): the only conditions "what we
 //               see most", the focus and "next on your list" may name (rule v4)
-//   praisable   a Fault that is not held (ConditionRole::praisable): the only conditions "what you
-//               do well" may name — a set-up is read on the panel, not praised
+//   praisable   a Fault or Setup that is not held (ConditionRole::praisable): the only conditions
+//               "what you do well" may name (rule v5, Mark 14 Nov 2026: a set-up can be praised)
 //   detection   kThemeDetectionAny / All / First (an All conjunction is never praised)
 //   prominence  Rare 0, Uncommon 1, Occasional 2, Common 3, Ubiquitous 4
 //   families    the metricKey root (or the measure id when it has none) of the FIRST measure of
@@ -344,6 +351,7 @@ struct SeenMostRow {
     int     sessionsJudged = 0;
     QString trend;                  // "easing" / "growing" / "steady", or "" under 3 judged sessions
     std::vector<bool> pips;         // per judged session, in order: fired on presentShare or more
+    double  latestShare    = 0.0;   // the latest judged session's own fired / assessed — what listed it
 };
 
 // One fault this golfer is reliably clear of ("what you do well"), clear of every needs-work
@@ -400,6 +408,23 @@ struct SwingThemes {
     std::vector<DoWellRow>   doWell;    // rule v1 after the needs-work exclusion, ranked, uncapped
     std::vector<FocusGroup>  focusOrder;    // every needs-work fault, grouped and ranked (focus rule v1)
 };
+
+// THE LISTING TEST, said once: a session "sees" a fault when it fired on at least presentShare of the
+// swings that session judged. seenMost() lists a fault when its LATEST judged session sees it, and
+// lights a session's pip by it; seenMostBasis() asks it of the weighted share.
+inline bool themeSeenOn(double rate, const ThemeOptions &opt) { return rate >= opt.presentShare; }
+
+// WHICH EVIDENCE LISTED A NEEDS-WORK ROW, so its words describe that (Stage 0.14, Mark 14 Nov 2026:
+// "the words describe what selected it"). Every row was listed by its latest session; when the
+// recency-weighted share over every session would pass the same test it is listed on that too, and
+// keeps the words of that share (Weighted). When only the latest session passes, the row is there
+// because of that session alone (Latest), and its words are that session's own rate, said as such.
+enum class SeenBasis { Weighted, Latest };
+
+inline SeenBasis seenMostBasis(const SeenMostRow &r, const ThemeOptions &opt)
+{
+    return themeSeenOn(r.share, opt) ? SeenBasis::Weighted : SeenBasis::Latest;
+}
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 // The machinery, in its own namespace so its small names cannot collide with the rest of
@@ -1442,8 +1467,8 @@ inline Prepared prepare(const Table &t, const QHash<QString, ThemeMeasureInfo> &
 // ── Layer 1 ──────────────────────────────────────────────────────────────────────────────────────
 
 // theme_summary.whats_off: per session per condition fired / assessed; only `fault` conditions; a
-// session judges a fault on minAssessed swings; present when the latest judged session saw it on
-// presentShare; ranked by the recency-weighted share (stable — ties keep first-seen order).
+// session judges a fault on minAssessed swings; present when the latest judged session saw it
+// (themeSeenOn); ranked by the recency-weighted share (stable — ties keep first-seen order).
 inline std::vector<SeenMostRow> seenMost(const std::vector<const ThemeSessionInput *> &sessions,
                                          const QHash<QString, ThemeConditionInfo> &conditions, const ThemeOptions &opt)
 {
@@ -1478,7 +1503,7 @@ inline std::vector<SeenMostRow> seenMost(const std::vector<const ThemeSessionInp
                 judged.push_back(j);
                 rate.push_back(double(j.fired) / double(j.assessed));
             }
-        if (rate.empty() || rate.back() < opt.presentShare) continue;
+        if (rate.empty() || !themeSeenOn(rate.back(), opt)) continue;
         const int len = int(rate.size());
         double num = 0.0, den = 0.0;
         for (int i = 0; i < len; ++i) {
@@ -1491,10 +1516,11 @@ inline std::vector<SeenMostRow> seenMost(const std::vector<const ThemeSessionInp
         SeenMostRow row;
         row.conditionId    = id;
         row.share          = num / den;
+        row.latestShare    = rate.back();
         row.sessionsJudged = len;
         for (double r : rate) {
-            if (r >= opt.presentShare) ++row.sessionsSeen;
-            row.pips.push_back(r >= opt.presentShare);
+            if (themeSeenOn(r, opt)) ++row.sessionsSeen;
+            row.pips.push_back(themeSeenOn(r, opt));
         }
         if (len >= opt.seenTrendMinJudged) {
             double early = 0.0;
@@ -1537,7 +1563,7 @@ inline int rowInBand(const ConditionRow &r)
 }
 
 // theme_summary.do_well, rule v1. Per session per condition: good = rows in band, counted = rows
-// counted. Candidates are praisable faults, detection Any / First, prominence wellMinProminence and up; a
+// counted. Candidates are praisable conditions (an unheld Fault or Setup, rule v5), detection Any / First, prominence wellMinProminence and up; a
 // session is judged on minAssessed counted rows; wellMinSessions judged sessions and wellMinSwings
 // rows over them; kept when the recency-weighted in-band share reaches wellShare and the latest
 // judged session's reaches wellSession, and the condition's families touch no needs-work
@@ -2031,6 +2057,21 @@ inline QString themeHowOften(double share, const ThemeOptions &opt = {})
     return frequencyWords(b);
 }
 
+// How often a needs-work ROW is seen, from the evidence that listed it (seenMostBasis): the weighted
+// share's words as above, or — listed by the latest session alone — that session's own rate through
+// the same rule, said as the latest session's: "on most swings in your latest session".
+inline const QString &themeLatestSessionWords()
+{
+    static const QString s = QStringLiteral(" in your latest session");
+    return s;
+}
+
+inline QString themeHowOften(const SeenMostRow &r, const ThemeOptions &opt = {})
+{
+    return seenMostBasis(r, opt) == SeenBasis::Weighted ? themeHowOften(r.share, opt)
+                                                        : themeHowOften(r.latestShare, opt) + themeLatestSessionWords();
+}
+
 // Where a theme starts, from its earliest member's swing position.
 inline QString themeStartWords(int startsAt)
 {
@@ -2097,7 +2138,7 @@ inline SwingSummaryLines swingSummaryLines(const SwingThemes &st, const ThemePhr
         if (phrase.isEmpty() || told.contains(phrase)) continue;
         told.append(phrase);
         QString line = QStringLiteral("%1 — %2 (%3 of %4 sessions")
-                           .arg(themeCapitalised(phrase), themeHowOften(r.share, opt))
+                           .arg(themeCapitalised(phrase), themeHowOften(r, opt))
                            .arg(r.sessionsSeen).arg(r.sessionsJudged);
         if (r.trend == QStringLiteral("easing") || r.trend == QStringLiteral("growing"))
             line += QStringLiteral("; ") + r.trend;
@@ -2180,7 +2221,7 @@ struct DoWellItem {
 struct NeedsWorkItem {
     QString text;               // "You stand up through the ball"
     double  share = 0.0;
-    QString frequency;          // themeFrequency(share): "every swing" … "more than half your swings" … "rarely"
+    QString frequency;          // themeFrequency(row): "every swing" … "rarely", or "most swings in your latest session"
     int     trend = 0;          // +1 growing, −1 easing, 0 no change or too few sessions
     std::vector<bool> pips;     // per judged session, oldest first
     QString conditionId;        // the row's condition id (not stored; carried for the GUI)
@@ -2267,6 +2308,15 @@ inline QString themeFrequency(double share, const ThemeOptions &opt = {})
     return frequencyWords(share, opt.frequencyThresholds());
 }
 
+// ...of a needs-work row, from the evidence that listed it (seenMostBasis): the weighted share's words,
+// or the latest session's own rate said as that session's — "most swings in your latest session".
+// The item's `share` (the card's meter) stays the weighted share either way.
+inline QString themeFrequency(const SeenMostRow &r, const ThemeOptions &opt = {})
+{
+    return seenMostBasis(r, opt) == SeenBasis::Weighted ? themeFrequency(r.share, opt)
+                                                        : themeFrequency(r.latestShare, opt) + themeLatestSessionWords();
+}
+
 // "two" .. "nine", else digits — how many of the list the focus covers.
 inline QString themeCountWords(int n)
 {
@@ -2279,7 +2329,7 @@ namespace themes {
 inline NeedsWorkItem needsWorkItem(const SeenMostRow &r, const QString &phrase, const ThemeOptions &opt)
 {
     const int trend = r.trend == QStringLiteral("growing") ? 1 : r.trend == QStringLiteral("easing") ? -1 : 0;
-    return { themeCapitalised(phrase), r.share, themeFrequency(r.share, opt), trend, r.pips, r.conditionId };
+    return { themeCapitalised(phrase), r.share, themeFrequency(r, opt), trend, r.pips, r.conditionId };
 }
 
 // The focus and "next on your list" (theme_summary.focus_view), from the stored groups.
@@ -2569,6 +2619,7 @@ inline QJsonObject toJson(const SwingThemes &st)
         QJsonObject o;
         o[QStringLiteral("id")]             = r.conditionId;
         o[QStringLiteral("share")]          = jsonNumber(r.share);
+        o[QStringLiteral("latestShare")]    = jsonNumber(r.latestShare);
         o[QStringLiteral("sessionsSeen")]   = r.sessionsSeen;
         o[QStringLiteral("sessionsJudged")] = r.sessionsJudged;
         o[QStringLiteral("trend")]          = r.trend;
@@ -2674,6 +2725,7 @@ inline SwingThemes swingThemesFromJson(const QJsonObject &root, bool *ok = nullp
         SeenMostRow r;
         r.conditionId    = o.value(QStringLiteral("id")).toString();
         r.share          = numberFrom(o.value(QStringLiteral("share")));
+        r.latestShare    = numberFrom(o.value(QStringLiteral("latestShare")));
         r.sessionsSeen   = o.value(QStringLiteral("sessionsSeen")).toInt();
         r.sessionsJudged = o.value(QStringLiteral("sessionsJudged")).toInt();
         r.trend          = o.value(QStringLiteral("trend")).toString();

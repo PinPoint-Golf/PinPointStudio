@@ -257,7 +257,8 @@ struct Condition {
     // refuses don't / doesn't / not / never / no here, on top of everything it refuses in `golfer`.
     // Two tails of one measure may share it — flat and steep backswing are both "the club goes back
     // on plane". Required (`golferPhraseMissing`) only where that card can name the row: a detectable
-    // Fault whose signals combine Any or First; a conjunction is never one thing the golfer does well.
+    // Fault or Setup whose signals combine Any or First (a set-up since 14 Nov 2026 — Mark: a set-up
+    // can be praised); a conjunction is never one thing the golfer does well.
     QString                     golferWell;
     // What the fault COSTS the golfer's shots, said the way they would say it — "A straight trail
     // leg lets your hips slide instead of turn, so you lose power and contact gets harder to

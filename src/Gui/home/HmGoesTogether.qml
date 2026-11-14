@@ -187,7 +187,8 @@ Column {
                                         onOpenRequested: (next) => root.openFault = next
                                         onReviewSessionRequested: (dir) => root.reviewSessionRequested(dir)
                                         width: parent ? parent.width : 0
-                                        rowHeight: Math.max(Theme.sp(Theme.itemRowH), faultWords.height + Theme.gap(10))
+                                        rowHeight: Math.max(Theme.sp(Theme.itemRowH),
+                                                            Math.max(faultWords.height, faultFreq.height) + Theme.gap(10))
                                         padH: 0
                                         topRule: true
                                         layout: [{ x: 0, width: faultRow.wordsW, align: "left" },
@@ -203,13 +204,17 @@ Column {
                                             width: faultRow.columnWidth(0)
                                             text:  faultRow.modelData.text
                                         }
+                                        // How often: the words wrap, never elide (Mark, 14 Nov 2026).
                                         Row {
+                                            id: faultFreq
                                             width: faultRow.columnWidth(1)
                                             spacing: Theme.gap(8)
                                             PpCaption {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: Math.min(implicitWidth, parent.width
                                                                 - (faultChip.visible ? faultChip.width + parent.spacing : 0))
+                                                elide:    Text.ElideNone
+                                                wrapMode: Text.WordWrap
                                                 text:  faultRow.modelData.frequency
                                             }
                                             PpChip {

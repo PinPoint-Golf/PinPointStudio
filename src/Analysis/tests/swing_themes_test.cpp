@@ -186,8 +186,9 @@ static std::vector<int> rate(int fired, int total)
 }
 
 // A fault condition per id: prominence Common, detection Any, its own id as its one family. `fault`
-// false is a condition that is neither worked on nor praised; a set-up (worked on, never praised) is
-// fault true with praisable cleared.
+// false is a condition that is neither worked on nor praised (a held one, as swing_themes_pack.h
+// marshals it). An unheld set-up is marshalled exactly as an unheld fault since rule v5 (both worked
+// on, both praisable — condition_role_test pins that on the role itself).
 static ThemeConditionInfo cond(const QString &id, int prominence = 3, int detection = kThemeDetectionAny,
                                QStringList families = {}, bool fault = true)
 {
@@ -530,11 +531,10 @@ int main()
         check(ordered, "ranked by share");
 
         // Rule v4: the marshalled flags, as swing_themes_pack.h sets them from the work-on list's role —
-        // a set-up is worked on (fault) though never praised; a held condition is neither.
+        // a set-up is worked on (fault; praisable too since rule v5); a held condition is neither.
         {
             QHash<QString, ThemeConditionInfo> v4;
-            ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));
-            setupHabit.praisable = false;
+            const ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));
             v4.insert(setupHabit.id, setupHabit);
             v4.insert(QStringLiteral("heldFault"), cond(QStringLiteral("heldFault"), 3, kThemeDetectionAny, {}, false));
             const std::vector<ThemeSessionInput> hs{ ledgerOf("s1", { { "setupHabit", rate(9, 10) }, { "heldFault", rate(9, 10) } }) };
@@ -579,6 +579,71 @@ int main()
         check(swingSummaryLines(SwingThemes{}, ph).seenMost == QStringList{ QStringLiteral("Nothing shows up on most of your swings.") },
               "nothing present: says so");
         allLines << L1.seenMost << L2.seenMost << L3.seenMost;
+
+        // Stage 0.14 (Mark, 14 Nov 2026): the words describe the evidence that listed the row. ONE
+        // test lists a row (themeSeenOn on the latest session); asked of the weighted share it says
+        // which basis the row's words take (seenMostBasis).
+        {
+            // "fresh": absent twice, then 9 of 10 in the latest — listed by the latest session alone,
+            // its weighted share (0.389) under half. "old": 9, 9, then 6 of 10 — the weighted share
+            // lists it too.
+            const std::vector<ThemeSessionInput> bs{
+                ledgerOf("s1", { { "fresh", rate(0, 10) }, { "old", rate(9, 10) } }),
+                ledgerOf("s2", { { "fresh", rate(0, 10) }, { "old", rate(9, 10) } }),
+                ledgerOf("s3", { { "fresh", rate(9, 10) }, { "old", rate(6, 10) } }) };
+            const std::vector<SeenMostRow> br = seenMost(sortedSessions(bs), faultsOf({ "fresh", "old" }), ThemeOptions{});
+            const auto rowOf = [&](const char *id) -> const SeenMostRow * {
+                for (const SeenMostRow &r : br) if (r.conditionId == QLatin1String(id)) return &r;
+                return nullptr;
+            };
+            const SeenMostRow *fresh = rowOf("fresh");
+            const SeenMostRow *old   = rowOf("old");
+            check(fresh && old && near(fresh->latestShare, 0.9, 1e-15) && near(old->latestShare, 0.6, 1e-15),
+                  "each row keeps its latest judged session's own rate");
+            check(fresh && fresh->share < 0.5 && !themeSeenOn(fresh->share, ThemeOptions{}) && themeSeenOn(fresh->latestShare, ThemeOptions{})
+                  && seenMostBasis(*fresh, ThemeOptions{}) == SeenBasis::Latest,
+                  "a row only its latest session lists is on the Latest basis");
+            check(old && seenMostBasis(*old, ThemeOptions{}) == SeenBasis::Weighted,
+                  "a row its weighted share lists too is on the Weighted basis");
+            const ThemeOptions o;
+            check(fresh && themeFrequency(*fresh, o) == frequencyWords(fresh->latestShare, o.frequencyThresholds()) + QStringLiteral(" in your latest session")
+                  && themeFrequency(*fresh, o) == QStringLiteral("almost every swing in your latest session"),
+                  "a latest-listed row's words: the latest session's own rate, through the one frequency rule, named as that session's");
+            check(fresh && themeHowOften(*fresh, o) == themeHowOften(fresh->latestShare, o) + QStringLiteral(" in your latest session")
+                  && themeHowOften(*fresh, o) == QStringLiteral("on almost every swing in your latest session"),
+                  "...and in the \"what we see most\" shape");
+            check(old && themeFrequency(*old, o) == themeFrequency(old->share, o) && themeHowOften(*old, o) == themeHowOften(old->share, o)
+                  && !themeFrequency(*old, o).contains(QStringLiteral("latest")),
+                  "a weighted-basis row keeps today's words, from its weighted share");
+            // A row exactly at the listing threshold is listed by the weighted share too.
+            SeenMostRow edge;
+            edge.share = 0.5;
+            edge.latestShare = 0.95;
+            check(seenMostBasis(edge, o) == SeenBasis::Weighted && themeFrequency(edge, o) == QStringLiteral("more than half your swings"),
+                  "the basis is the listing test itself: a weighted share at presentShare lists the row");
+            // Through the view: the item's words follow the basis, its share (the card's meter) stays weighted.
+            SwingThemes bt;
+            bt.seenMost = br;
+            ThemePhrases bph;
+            bph.condition = [](const QString &id) { return QStringLiteral("your %1 moves").arg(id); };
+            const SwingSummaryView bv = swingSummaryView(bt, bph);
+            const NeedsWorkItem *fi = nullptr;
+            for (const NeedsWorkItem &n : bv.needsWork) if (n.conditionId == QStringLiteral("fresh")) fi = &n;
+            check(fi && fi->frequency == QStringLiteral("almost every swing in your latest session") && fi && near(fi->share, fresh->share, 1e-15),
+                  "a needs-work item: the latest session's words, the weighted share");
+            const SwingSummaryLines bl = swingSummaryLines(bt, bph);
+            check(bl.seenMost.contains(QStringLiteral("Your fresh moves — on almost every swing in your latest session (1 of 3 sessions; growing)")),
+                  "the \"what we see most\" line names the latest session for a latest-listed row");
+            // Stored and read back: the words are made at publish from it.
+            SwingThemes rt;
+            rt.seenMost = br;
+            bool rok = false;
+            const SwingThemes rback = swingThemesFromJson(toJson(rt), &rok);
+            check(rok && rback.seenMost.size() == br.size() && near(rback.seenMost[0].latestShare, br[0].latestShare, 0.0)
+                  && near(rback.seenMost[1].latestShare, br[1].latestShare, 0.0),
+                  "latestShare is stored and read back");
+            allLines << bl.seenMost;
+        }
     }
 
     // ── What you do well: in band BY VALUE ───────────────────────────────────────────────────────
@@ -645,8 +710,8 @@ int main()
         ci.insert(QStringLiteral("rare"), cond(QStringLiteral("rare"), 1));
         ci.insert(QStringLiteral("occasional"), cond(QStringLiteral("occasional"), 2));
         ci.insert(QStringLiteral("setup"), cond(QStringLiteral("setup"), 3, kThemeDetectionAny, {}, false));
-        ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));    // rule v4: worked on, not praised
-        setupHabit.praisable = false;
+        ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));    // worked on, and not praisable:
+        setupHabit.praisable = false;                                           // the flag alone decides
         ci.insert(setupHabit.id, setupHabit);
 
         std::vector<ThemeSessionInput> ls = {
@@ -688,7 +753,27 @@ int main()
         check(!findWell(rows, "conj") && findWell(rows, "first"), "an All conjunction is never praised; a First preference is");
         check(!findWell(rows, "rare") && findWell(rows, "occasional"), "prominence: Occasional and up only");
         check(!findWell(rows, "setup") && !findWell(rows, "unmapped"), "only fault conditions the pack knows");
-        check(!findWell(rows, "setupHabit"), "a condition worked on but not praisable (a set-up) is never praised");
+        check(!findWell(rows, "setupHabit"), "a condition worked on but not praisable is never praised: the flag decides");
+
+        // Rule v5 (Mark, 14 Nov 2026: "yes you can praise setup"): an unheld set-up, marshalled as
+        // conditionRoleFor makes it (worked on AND praisable), is praised by the same in-range rule as
+        // a fault; held, it is marshalled as neither and never praised (condition_role_test pins the
+        // marshalling on the shipped pack).
+        {
+            QHash<QString, ThemeConditionInfo> sc;
+            sc.insert(QStringLiteral("setupInRange"), cond(QStringLiteral("setupInRange")));
+            sc.insert(QStringLiteral("setupHeld"), cond(QStringLiteral("setupHeld"), 3, kThemeDetectionAny, {}, false));
+            sc.insert(QStringLiteral("setupOutOfRange"), cond(QStringLiteral("setupOutOfRange")));
+            std::vector<ThemeSessionInput> ss;
+            for (const char *n : { "s1", "s2" })
+                ss.push_back(wellLedger(QString::fromLatin1(n), { { "setupInRange", inBand(15, 15) }, { "setupHeld", inBand(15, 15) },
+                                                                   { "setupOutOfRange", inBand(10, 15) } }));
+            const std::vector<DoWellRow> sr = doWell(sortedSessions(ss), sc, {}, ThemeOptions{});
+            check(findWell(sr, "setupInRange") && near(findWell(sr, "setupInRange")->share, 1.0, 1e-15),
+                  "an unheld set-up in the ideal range on almost every swing is praised");
+            check(!findWell(sr, "setupHeld"), "a held set-up is never praised, however in range");
+            check(!findWell(sr, "setupOutOfRange"), "a set-up is held to the same in-range rule as a fault (0.67 is under 0.85)");
+        }
 
         bool ranked = true;
         for (size_t i = 1; i < rows.size(); ++i) {
@@ -1331,13 +1416,23 @@ int main()
         QJsonObject rule2 = toJson(fj);
         rule2[QStringLiteral("ruleVersion")] = 2;
         bool ok2 = true;
-        check(kThemeRuleVersion == 4 && swingThemesFromJson(rule2, &ok2).focusOrder.empty() && !ok2,
+        check(kThemeRuleVersion == 5 && swingThemesFromJson(rule2, &ok2).focusOrder.empty() && !ok2,
               "a rule-2 file (no focus groups) is refused, to be re-derived");
         QJsonObject rule3 = toJson(fj);
         rule3[QStringLiteral("ruleVersion")] = 3;
         bool ok3 = true;
         check(swingThemesFromJson(rule3, &ok3).focusOrder.empty() && !ok3,
               "a rule-3 file (faults chosen by kind alone, holds ignored) is refused, to be re-derived");
+        QJsonObject rule4 = toJson(fj);
+        rule4[QStringLiteral("ruleVersion")] = 4;
+        bool ok4 = true;
+        check(swingThemesFromJson(rule4, &ok4).focusOrder.empty() && !ok4,
+              "a rule-4 file (a set-up never praised) is refused, to be re-derived");
+        QJsonObject schema2 = toJson(fj);
+        schema2[QStringLiteral("schemaVersion")] = 2;
+        bool okS = true;
+        check(kThemeSchemaVersion == 3 && swingThemesFromJson(schema2, &okS).focusOrder.empty() && !okS,
+              "a schema-2 file (no latest-session rate) is refused, to be re-derived");
     }
 
     // ── JSON ─────────────────────────────────────────────────────────────────────────────────────

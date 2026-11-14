@@ -8108,6 +8108,7 @@
   {
    "id": "early_extension",
    "share": 1.0,
+   "latestShare": 1.0,
    "sessionsSeen": 4,
    "sessionsJudged": 4,
    "trend": "steady",
@@ -8121,6 +8122,7 @@
   {
    "id": "trail_knee_straighten",
    "share": 0.9723349753694581,
+   "latestShare": 1.0,
    "sessionsSeen": 4,
    "sessionsJudged": 4,
    "trend": "steady",
@@ -8134,6 +8136,7 @@
   {
    "id": "reverse_spine_p4",
    "share": 0.9597635467980296,
+   "latestShare": 0.9375,
    "sessionsSeen": 4,
    "sessionsJudged": 4,
    "trend": "steady",
@@ -8147,6 +8150,7 @@
   {
    "id": "over_the_top",
    "share": 0.9545064039408867,
+   "latestShare": 1.0,
    "sessionsSeen": 4,
    "sessionsJudged": 4,
    "trend": "steady",
@@ -8160,6 +8164,7 @@
   {
    "id": "hips_closed_at_impact",
    "share": 0.855432512315271,
+   "latestShare": 0.90625,
    "sessionsSeen": 4,
    "sessionsJudged": 4,
    "trend": "growing",
@@ -8173,6 +8178,7 @@
   {
    "id": "off_balance_finish",
    "share": 0.7883428571428572,
+   "latestShare": 0.96875,
    "sessionsSeen": 3,
    "sessionsJudged": 4,
    "trend": "growing",
@@ -8186,6 +8192,7 @@
   {
    "id": "sway",
    "share": 0.5976118226600986,
+   "latestShare": 0.65625,
    "sessionsSeen": 3,
    "sessionsJudged": 4,
    "trend": "growing",
@@ -8199,6 +8206,7 @@
   {
    "id": "ball_too_far",
    "share": 0.3884593837535014,
+   "latestShare": 0.8333333333333334,
    "sessionsSeen": 1,
    "sessionsJudged": 4,
    "trend": "growing",
@@ -9339,7 +9347,7 @@
     {
      "text": "You stand too far from the ball",
      "share": 0.3884593837535014,
-     "frequency": "sometimes",
+     "frequency": "most swings in your latest session",
      "trend": 1,
      "pips": [
       false,

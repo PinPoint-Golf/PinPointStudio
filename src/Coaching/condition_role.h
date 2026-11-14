@@ -54,8 +54,9 @@ struct ConditionRole {
     WorkOnClass        workOn    = WorkOnClass::Excluded;
     // Held back (Condition::reportHold): a reading not trusted enough to headline anything.
     bool               held      = false;
-    // "What you do well" may name the golfer being clear of it: a Fault, not held. A set-up is read on
-    // the panel, not praised on the home screen (the pack validator's golferWell rule says the same).
+    // "What you do well" may name the golfer being clear of it: a Fault or a Setup, not held (Mark,
+    // 14 Nov 2026: a set-up can be praised; until then a set-up was read on the panel only). The pack
+    // validator's golferWell rule asks the same set for a golferWell phrase.
     bool               praisable = false;
     ShotConditionLayer layer     = ShotConditionLayer::Root;
     report::FactKind   fact      = report::FactKind::Other;

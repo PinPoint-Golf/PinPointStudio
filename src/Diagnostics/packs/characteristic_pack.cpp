@@ -709,10 +709,13 @@ std::vector<ReportFieldIssue> reportFieldIssues(const Condition &c)
                     .arg(c.id, c.golfer, word));
 
     // "What you do well" can name a fault the golfer is clear of only when "clear of it" is one
-    // thing: a detectable Fault whose signals are alternatives (Any) or a preference (First).
-    // Under All the absence is "not every one of these fired", which is no single ideal to name,
-    // and a set-up is read on the panel, not praised on the home screen.
-    const bool praised = c.kind == ConditionKind::Fault && !c.detectedBy.isEmpty()
+    // thing: a detectable Fault or Setup whose signals are alternatives (Any) or a preference
+    // (First). Under All the absence is "not every one of these fired", which is no single ideal to
+    // name. A set-up held in the ideal range is praised too (Mark, 14 Nov 2026: "yes you can praise
+    // setup"; until then a set-up was read on the panel, not praised on the home screen), so it
+    // needs the same golferWell phrase (and, as the focus can pick it, golferWhy).
+    const bool praised = (c.kind == ConditionKind::Fault || c.kind == ConditionKind::Setup)
+                         && !c.detectedBy.isEmpty()
                          && (c.detection == DetectionMode::Any || c.detection == DetectionMode::First);
     if (praised && c.golferWell.trimmed().isEmpty())
         missing("golferWell",

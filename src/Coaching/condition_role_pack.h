@@ -45,6 +45,9 @@ inline ConditionRole conditionRoleFor(const Condition &c)
         r.workOn = WorkOnClass::Movement;
         r.layer  = ShotConditionLayer::Root;
         r.fact   = report::FactKind::Setup;
+        // Mark, 14 Nov 2026: "yes you can praise setup" — a set-up the golfer holds in the ideal range
+        // is praised by the same rule as a fault they are clear of (swing_themes.h doWell, rule v5).
+        r.praisable = true;
         break;
     case ConditionKind::Delivery:
         r.workOn = WorkOnClass::Delivery;

@@ -166,8 +166,9 @@ inline constexpr int kPackSchemaVersion = 1;
 //   golferPhraseMissing  something the home screen's plain-language summary can name, with no
 //                        golfer words to name it in: a detectable Fault or Setup with no `golfer`,
 //                        or a measure that produces readings (live, held, external device) missing
-//                        `golferHigh` or `golferLow`, or a detectable Fault combining Any or First
-//                        with no `golferWell` or no `golferWhy`. The summary skips it, so it goes
+//                        `golferHigh` or `golferLow`, or a detectable Fault or Setup combining Any
+//                        or First with no `golferWell` or no `golferWhy` (Setup since 14 Nov 2026,
+//                        Mark: a set-up can be praised). The summary skips it, so it goes
 //                        quiet about a fault the golfer has, or about one they have beaten, or
 //                        names the focus without saying what it costs. A warning so a
 //                        user's own pack still loads; `core_pack_test` holds the shipped pack to zero
