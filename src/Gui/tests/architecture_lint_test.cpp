@@ -29,7 +29,7 @@
 //                        the Recording contract's types (§0.1)
 //         2 Rules        pure measurement algorithms, detection, diagnostics engine + packs/norms,
 //                        coaching rules
-//         3 DomainModel  src/DomainModel (arrives in step 3)
+//         3 DomainModel  src/DomainModel (created in step 1 for RecordingRepository)
 //         4 Application  orchestration: the analysis pipeline, re-analysis, AppState, use cases
 //         5 Adapters     devices, the Recording store and other persistence, UI (all of src/Gui)
 //       A file may include its own ring or any ring inside it, never one outside.
@@ -133,6 +133,7 @@ const QVector<QPair<QString, int>> &dirRings()
 {
     static const QVector<QPair<QString, int>> t{
         { QStringLiteral("Metrics/"), Vocabulary },
+        { QStringLiteral("Recording/"), Vocabulary },     // the Recording contract's types (step 1, IM-6)
         { QStringLiteral("Core/"), Vocabulary },          // device / logging files below
         { QStringLiteral("Pose/"), Rules },
         { QStringLiteral("Club/"), Rules },
@@ -145,7 +146,7 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Timeline/"), Rules },
         { QStringLiteral("Diagnostics/"), Rules },
         { QStringLiteral("Coaching/"), Rules },
-        { QStringLiteral("DomainModel/"), DomainModel },
+        { QStringLiteral("DomainModel/"), DomainModel },  // repository interfaces (step 1, IM-6)
         { QStringLiteral("Analysis/"), Application },
         { QStringLiteral("App/"), Application },          // AppState's home in 03 §2 (not created yet)     // the stages' shared types and rules below
         { QStringLiteral("Buffer/"), Adapters },          // the Recording contract's stream types below
@@ -196,6 +197,9 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/uncertainty_json"), Vocabulary },
         { QStringLiteral("Analysis/segment_role"), Vocabulary },
         { QStringLiteral("Analysis/det_rng"), Vocabulary },
+        { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
+        { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
+        { QStringLiteral("Analysis/analysis_job_builder"), Rules },   // the one job builder
         { QStringLiteral("Analysis/route_substitution"), Rules },
         { QStringLiteral("Analysis/seg_resolve"), Rules },
         { QStringLiteral("Analysis/stream_trim"), Rules },

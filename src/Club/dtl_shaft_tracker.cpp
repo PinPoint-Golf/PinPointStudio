@@ -45,7 +45,7 @@
 #include "dtl_shaft_post.h"
 #include "format_descriptor.h"
 #include "shaft_frame_io.h"     // lerpPoseFrame / buildFrameCache (shared with the face-on tracker)
-#include "../Analysis/shot_analyzer.h" // ShotAnalysisJob
+#include "../Analysis/shot_analysis_job.h" // ShotAnalysisJob
 #include "swing_window.h"
 #include "../Core/pp_debug.h"
 

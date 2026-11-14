@@ -308,6 +308,13 @@ pp_norm_env(tuning_overrides_test)
 # includes are type-only on this path (fake stages, window = nullptr), so no extra .cpp.
 pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
 
+# The Recording contract (information_model.md §2; refactor step 1.1): the one job builder
+# (analysis_job_builder) and the effective-club rule (effective_context) over src/Recording's
+# types — live Recording → job equals the reloaded Recording → job; a corrected club takes its bag
+# geometry and standard length; undeclared stays undeclared. Pure: no window, no file, no model.
+pp_add_test(recording_contract_test SOURCES recording_contract_test.cpp
+            ${ANALYSIS}/analysis_job_builder.cpp ${ANALYSIS}/effective_context.cpp)
+
 # The analysis as a dependency graph (analysis_dag.h; analysis_dag_design.md step B): the
 # graph from fake stages' declarations, the pool run, the detail.series splice, the halt and
 # one-reader-per-camera. Header-only like the loop it sits beside.

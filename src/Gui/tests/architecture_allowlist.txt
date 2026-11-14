@@ -13,9 +13,6 @@
 
 # ── A1 includes from an inner ring into an outer one ──
 Analysis/swing_reanalyzer.cpp | A1 | 5 | re-analysis builds its own input from the store, the MP4 and a RAM ring; step 1's one Recording builder hands the analysis service a Recording instead  # step 1
-Club/ball_anchor.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
-Club/dtl_shaft_tracker.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
-Club/shaft_tracker.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
 Gui/shot/reanalysis_controller.cpp | A1 | 2 | re-analysis (an application service, 03 §2) reads the store itself; step 1 builds the same Recording for re-analysis as for live capture  # step 1
 Gui/shot/shot_processor.cpp | A1 | 16 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 moves the analysis-job half out (the store, athlete and session includes go); per D8 (Mark, 14 Nov 2026) what remains is re-tagged when step 1 lands: device and ring includes → the platform refactor (capture), the carousel → step 3, the session folder → step 2  # step 1
 Gui/shot/shot_processor.h | A1 | 4 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 moves the analysis-job half out (the store, athlete and session includes go); per D8 (Mark, 14 Nov 2026) what remains is re-tagged when step 1 lands: device and ring includes → the platform refactor (capture), the carousel → step 3, the session folder → step 2  # step 1

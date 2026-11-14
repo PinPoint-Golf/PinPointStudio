@@ -126,10 +126,22 @@ A **Recording** is everything Analysis is allowed to know about a captured swing
 | **Analysis only ever runs on a Recording**, whether it arrived a second ago or a year ago. Live analysis and re-analysis are the same function: **same Recording + same effective context (the effective club included) → same job.** | Building an analysis job from live objects; Analysis code reaching into device classes, the ring buffer, live controllers, the athlete controller or settings (lint rule A8) |
 | **One builder** makes the analysis job from the Recording and its effective context (the recorded analysis context, with the golfer's club correction applied), for live capture and re-analysis alike. | A second job builder; any context field set on one path only |
 | **Re-analysis uses the effective club** (Mark, 14 Nov 2026): when the golfer has corrected the club, the builder puts the corrected club, its length and its norms into the effective context, because it is what was really hit. A corrected shot re-analyses with its corrected club. The captured club stays in the Recording for provenance. | Re-analysing a corrected shot with the club it was captured under; Analysis reading the shot's `review` block itself |
-| **The correction, until step 6, is the LM board's override** (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. A corrected club takes its geometry from the bag snapshot (when present) and its standard length from the club set and height; it has no length prior (IM-3; Mark, 14 Nov 2026). | Treating the popover's club, or the board's evidence suggestion, as the correction |
+| **The correction, until step 6, is the LM board's override** (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. A corrected club takes its geometry from the bag snapshot (when present) and its standard length from the club set and height; it has no length prior (IM-3; Mark, 14 Nov 2026). Without a correction the geometry and prior stay the captured club's, and the declared club, when set, gives the standard length (Mark, 14 Nov 2026: the popover's club keeps setting the standard length, as today); capture's seed in `review.club` counts as declared, as today, until step 6. | Treating the popover's club, or the board's evidence suggestion, as the correction |
 
 **The name.** The contract's types are vocabulary shared by both sides; its store is an adapter. Both live in a
 directory named for what they are (e.g. `src/Recording`), not `src/Export`.
+
+**In the code** (status: partly — [§11](#11-where-the-code-is-today)):
+
+| Element | Where | Ring |
+|---|---|---|
+| `Recording` (window and `t0Us`, sources by role with the one perspective mapping, capture facts, ball inputs, IMU bindings, integrity inputs; every time window-relative) | `src/Recording/recording.h` | Vocabulary |
+| `AnalysisContext` (handedness, height, club set, the captured club with its geometry, length prior and standard length, the bag snapshot) | `src/Recording/analysis_context.h` | Vocabulary |
+| `effectiveContext()` v1, the club rule above; its inputs are the recorded context and the shot's two club edits (`ClubReview`: the board's override, the popover's club), which the repository's `load` returns beside the Recording | `src/Analysis/effective_context.*` | Rules |
+| `buildAnalysisJob()`, the one builder; `ShotAnalysisJob` | `src/Analysis/analysis_job_builder.*`, `shot_analysis_job.h` | Rules |
+
+Nothing writes or reads the `analysisContext` block yet, and the app still builds its jobs the old two ways; the
+store side and the callers follow in step 1's later items.
 
 ### Studio/Rig (Mark, 14 Nov 2026)
 
@@ -579,17 +591,17 @@ Updated by each refactor step in the commit that changes the status. Step number
 
 | Element | Status | Today | Delivered by |
 |---|---|---|---|
-| Recording contract: one builder, analysis only on a Recording | not yet | live capture and re-analysis build the job separately; `athlete.heightM` not written for a normal capture (H-02, A-01, E-11) | step 1 |
-| Analysis context recorded in the Recording: one `analysisContext` block, club set as the cohort, the bag snapshot (IM-1; Mark, 14 Nov 2026) | not yet | as above; the club set is never written, and readers look for `athlete.sex` / `dob`, which no writer puts in a document | step 1; the old library backfilled once with height and club set (D4: dry run to Mark first, backups on the share) |
+| Recording contract: one builder, analysis only on a Recording | partly | the Recording types (`src/Recording`) and the one builder `buildAnalysisJob()` exist and are tested (`recording_contract_test`); no caller yet — live capture and re-analysis still build the job separately; `athlete.heightM` not written for a normal capture (H-02, A-01, E-11) | step 1 (1.5 switches the callers) |
+| Analysis context recorded in the Recording: one `analysisContext` block, club set as the cohort, the bag snapshot (IM-1; Mark, 14 Nov 2026) | partly | the `AnalysisContext` type exists (`src/Recording/analysis_context.h`); the block is not yet written or read; the club set is never written, and readers look for `athlete.sex` / `dob`, which no writer puts in a document | step 1 (1.2 the block); the old library backfilled once with height and club set (D4: dry run to Mark first, backups on the share) |
 | The input stamp and one time base (IM-2; Mark, 14 Nov 2026) | not yet | stage versions only; the window-time guess `tt >= windowT0 ? tt - windowT0 : tt` in several readers (A-03) | step 1 |
 | Capture writes in stages; the interim writers through `RecordingRepository` (IM-4, IM-5; Mark, 14 Nov 2026) | not yet | 27 write call sites of the swing file (step 1's brief §3.4) | step 1 (the repository); step 3 (the `Session`) |
-| The club correction is the board's override until step 6 (IM-3; Mark, 14 Nov 2026) | not yet | re-analysis never reads `clubOverride` | step 1 (re-analysis); step 6 (one club everywhere) |
+| The club correction is the board's override until step 6 (IM-3; Mark, 14 Nov 2026) | partly | the rule exists, `effectiveContext()` v1 (`src/Analysis/effective_context.*`); re-analysis does not call it yet, so it still never reads `clubOverride` | step 1 (re-analysis); step 6 (one club everywhere) |
 | Norm cohort (sex, age band) not recorded in step 1 (IM-7; Mark, 14 Nov 2026) | — | — | step 3 decides whether grading reads it from the Recording |
 | Same Recording + same effective context → same job; a corrected shot re-analyses with its corrected club | not yet | the board's override is read only by the board (G-07) | step 1 (re-analysis); step 6 (one club everywhere) |
 | `RecordingRepository`, implemented by `SwingStore` | not yet | `SwingStore` exists; no interface | step 1 |
 | One serialiser per analysis block | partly | Stage 0.6: one stored-score reader; hand-kept converters remain (A-02, H-01, E-10, A-03) | step 1 |
 | A swing file written once by capture, then only by its `Session` | not yet | `ShotProcessor` and several readers write the document (E-09) | step 1 (the rule, `RecordingRepository`) |
-| `src/Recording` (Vocabulary) and `src/DomainModel` created (IM-6; Mark, 14 Nov 2026) | not yet | directories do not exist | step 1 |
+| `src/Recording` (Vocabulary) and `src/DomainModel` created (IM-6; Mark, 14 Nov 2026) | partly | `src/Recording` exists, placed in the lint's ring table; `src/DomainModel` has its ring row but no files until `RecordingRepository` | step 1 (1.4: `src/DomainModel`) |
 | `src/Export` renamed for the Recording contract | not yet | — | step 7 (the store only; the types are born in `src/Recording` in step 1) |
 | Studio/Rig | not yet | rig assumptions spread through the code | the platform refactor (capture) |
 | Rings enforced (`architecture_lint_test`, A1–A8); the Platform ring | not yet | the lint and its allowlist are being written (step G) | step G (lint); steps 1–8 shrink its allowlist |

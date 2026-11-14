@@ -782,7 +782,11 @@ Only the orchestration-facing files are listed. The stage headers (there are
 
 ```
 src/Analysis/
-├── shot_analyzer.h             ShotAnalyzer interface, ShotAnalysisJob/Result
+├── shot_analyzer.h             ShotAnalyzer interface, ShotAnalysisResult
+├── shot_analysis_job.h         ShotAnalysisJob — the value one run consumes (Rules ring)
+├── effective_context.{h,cpp}   effectiveContext(): the recorded context + the club correction
+├── analysis_job_builder.{h,cpp} buildAnalysisJob(): the ONE job builder (Recording → job);
+│                                 the app's callers switch to it in refactor step 1.5
 ├── shot_analyzer.cpp           makeShotAnalyzer factory: PipelineAnalyzer (type 1),
 │                                 CameraKinematicsAnalyzer (everything else)
 ├── swing_analysis.h            All value shapes: SegmentRole, ImuSegmentBinding,
@@ -798,6 +802,11 @@ src/Analysis/
 ├── wrist_angles.h              Swing-twist decomposition (header-only, hardware-locked)
 ├── analysis_tuning.h           SwingLab override plumbing onto the config structs
 └── tests/                      80+ targets; per-stage tests + the goldens
+
+src/Recording/                  The Recording contract's types (Vocabulary ring;
+├── recording.h                   information_model.md §2): Recording, its sources,
+│                                 capture facts, ball and integrity inputs
+└── analysis_context.h          AnalysisContext — the athlete facts recorded at capture
 
 src/Gui/shot/
 ├── shot_processor.{h,cpp}      Pipeline orchestration: post-roll, segmentation

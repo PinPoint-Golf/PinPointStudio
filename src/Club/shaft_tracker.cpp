@@ -40,7 +40,7 @@
 #include "../Pose/hand_axis.h"      // handAxisDirection — the WB4 shaft θ prior
 #include "shaft_frame_io.h"         // lerpPoseFrame / decodeGray / buildFrameCache (shared with DTL)
 #include "shaft_hand_clean.h"       // cleanHandTrack (pair consistency + glitch rejection)
-#include "../Analysis/shot_analyzer.h" // ShotAnalysisJob
+#include "../Analysis/shot_analysis_job.h" // ShotAnalysisJob
 #include "swing_window.h"
 #include "format_descriptor.h"
 #include "../Core/pp_debug.h"
