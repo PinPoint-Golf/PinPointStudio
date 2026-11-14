@@ -175,9 +175,11 @@ the `QFuture`.
 Note the last field: the exporter **returns** the raw `pinpoint.swing` manifest
 tree rather than writing it. The unified `swing.json` (manifest + the analyzer's
 `"analysis"` block) is written once, at the join, on the GUI thread — see the
-shot-analyzer guide §9. `SwingExporter::captureBlock(job)` is exposed separately
-so the degraded analysis-only path can synthesise a header with *identical*
-metadata.
+shot-analyzer guide §9. The header is not built here: `run()` and the degraded
+analysis-only path both call **the one header writer** (`src/Export/recording_header.h`,
+step 1.2 — `recordingHeaderFor(job, t0, duration)` + `recordingHeaderJson(header,
+streams)`); `SwingExporter::analysisOnlyHeader(job, t0, duration)` is that header with no
+media, so the two headers are identical but for `streams` and `thumbnail`.
 
 ### Two provenance rules the job encodes
 
@@ -400,24 +402,26 @@ void CameraManager::maybeFinishSwing()
 
 ## 6. The `swing.json` Sidecar
 
-Schema identifier: **`pinpoint.swing/1`**. Built with `QJsonDocument`, written
-atomically with `QSaveFile`. All stream timestamps are **relative µs offsets from
+Schema identifier: **`pinpoint.swing/2`** — the one schema constant `kSwingDocSchema`
+(`recording_header.h`; before step 1.2 the raw manifest said `/1` in memory and the
+writer restamped it). The header (`schema`, `swing`, `athlete`, `session`, `clock`,
+`window`, `thumbnail`, `capture`, `analysisContext`) comes from the one header writer. All stream timestamps are **relative µs offsets from
 `t0`** (small, exact); `t0_us` is the absolute capture-clock value. A new stream
 type later is just another element of `streams[]` — readers must ignore unknown
 `kind`s.
 
 > **This is the exporter's *raw* manifest.** At the analyzer→exporter join,
 > `SwingDocWriter::writeSwingJson()` (§15) composes this tree with the analyzer's
-> output into **one** `swing.json` — bumping the on-disk schema to **`pinpoint.swing/2`**
+> output into **one** `swing.json` — stamping the on-disk schema (`kSwingDocSchema`)
 > and adding inline `analysis` (`pinpoint.analysis/2`: score, tier, metric series,
 > phases) and `review` (user rating/note) blocks, plus a `thumbnail` block. There is
 > no separate `analysis.json`. The raw `streams[]` shown below are preserved verbatim.
 
 ```json
 {
-  "schema": "pinpoint.swing/1",
+  "schema": "pinpoint.swing/2",
   "swing":   { "index": 7, "id": "swing_0007" },
-  "athlete": { "name": "Mark Liversedge", "uuid": "…", "handedness": "Right" },
+  "athlete": { "name": "Mark Liversedge", "uuid": "…", "handedness": "Right", "heightM": 1.80 },
   "session": { "dir": "2026-06-05_session-01" },
   "clock":   { "t0_us": 173456789012345, "unit": "us",
                "wallclock": "2026-06-05T14:22:01.234Z" },
@@ -470,9 +474,15 @@ stop hardcoding assumptions; all additive (absent on legacy swings):
   `shotSource` = `ShotController::Source`, detection sensitivity, the detector
   back-dating latencies) and host provenance (`version`/`gitSha` from the generated
   `pp_version.h`, hostname/platform from `QSysInfo`, `poseBackend` from the first
-  camera's live pose-backend label). Built by `SwingExporter::captureBlock()` —
-  shared with `ShotProcessor::buildSynthManifest()` so the degraded analysis-only
-  path records identical metadata.
+  camera's live pose-backend label). Built by `captureBlockJson()` inside the one
+  header writer (`recording_header.cpp`) — the same call for the degraded
+  analysis-only path (`ShotProcessor::buildSynthManifest()` →
+  `SwingExporter::analysisOnlyHeader()`), so both record identical metadata.
+- **Top-level `analysisContext`** (step 1.2, IM-1) — the analysis context recorded:
+  handedness, height, club set, the captured club with its geometry, prior and
+  standard length, and the bag's geometry. Written when `SwingExportJob::analysisContext`
+  is set (`captureAnalysisContext()`); filling it from the live athlete is step 1.5's
+  capture snapshot. Reference: `docs/reference/swing_json_schema.md` `analysisContext`.
 - **Per-video-stream `setup`** — `perspective`/`perspectiveName` (CameraInstance
   enum: None 0, DownTheLine 1, FaceOn 2, Other 3), `mirrored`, `fixedInPlace`
   (the camera-side "calibrated" signal), and `ballDetection` — the calibrated
@@ -589,7 +599,8 @@ Two API details matter:
 | video `capture.exposureUs` / `exposureSource` / `exposureAuto` | `CameraFormat::exposure_us` / `exposure_source` — stamped from Spinnaker chunk data (`GetChunkData().GetExposureTime()`) or fps-derived; read back via `exposureSourceFromName()` |
 | video `frames.t_us` | Recorded in the encode loop — **written frames only**, so frame *i* in the MP4 corresponds to entry *i* here, always |
 | imu `samples` | Decoded `ImuSample` payloads (40 bytes / 10 floats, schema `imu_sample_v2` — accel, gyro, and quaternion all in the raw sensor frame; see [`imu_frame_contract.md`](../design/imu_frame_contract.md)) |
-| `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread) |
+| `athlete`, `session`, `swing` | The `SwingExportJob` (resolved on the UI thread); `athlete.heightM` when known |
+| `analysisContext` | `SwingExportJob::analysisContext` (unset = not written) |
 
 The `frames.t_us` index is what lets any downstream tool map output frame *i* to
 its true capture instant and cross-reference IMU samples — the MP4 itself carries
@@ -977,7 +988,7 @@ src/Export/
 ├── swing_paths.cpp             sanitise(), per-app-run session policy
 │
 ├── swing_exporter.h            SwingExportJob/Camera/Result, the stream structs,
-├── swing_exporter.cpp            SwingExporter::run + captureBlock(); per-camera
+├── swing_exporter.cpp            SwingExporter::run + analysisOnlyHeader(); per-camera
 │                                 encode loop, thumbnail, IMU/ball streams,
 │                                 baseline sidecar, manifest builder
 │
@@ -994,10 +1005,19 @@ src/Export/
 ├── analysis_path_json.h        analysis.path's writer + typed reader
 ├── swing_doc_internal.h        the helpers the three files share (not public)
 │
+├── recording_header.h/.cpp     THE ONE HEADER WRITER (step 1.2): kSwingDocSchema, the
+│                                 header blocks, captureBlockJson, the analysisContext
+│                                 block's writer/reader, the legacy context, clubReviewOf
+├── recording_loader.h/.cpp     the swing folder → the Recording (disk-backed window,
+│                                 the Recording, the club review); moved out of
+│                                 swing_reanalyzer.cpp in step 1.2
+│
 ├── swing_zip_exporter.h        Bulk "export selected shots to a zip" (§12)
 ├── swing_zip_exporter.cpp
 │
 └── tests/
+    ├── recording_store_test.cpp  The Recording through the disk, the one header,
+    │                               the legacy context, read-only; ANALYSIS SUITE
     └── swing_doc_test.cpp      Document round-trip; BUILT BY THE ANALYSIS SUITE
 
 src/Gui/shot/

@@ -20,6 +20,7 @@
 
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/recording_header.h"   // the one header writer (the placeholder)
 #include "../../Ppcp/ppcp_import_ledger.h"
 #include "../../Ppcp/ppcp_import_sink.h"
 
@@ -254,9 +255,9 @@ void PpcpClipFiler::onClipReady(const PpcpClip &clip)
 static bool ensureSwingDocument(const QString &swingDir)
 {
     if (pinpoint::SwingStore::hasDocument(swingDir)) return true;
-    QJsonObject m;
-    m[QStringLiteral("schema")]  = QStringLiteral("pinpoint.swing/1");
-    m[QStringLiteral("streams")] = QJsonArray{};
+    // The one header writer (recording_header.h) with nothing known: the schema and an empty
+    // streams[]. No athlete, clock or analysis context is invented for a shot the host never saw.
+    const QJsonObject m = pinpoint::recordingHeaderJson(pinpoint::RecordingHeader{}, QJsonArray{});
     QString err;
     if (SwingDocWriter::writeSwingJson(swingDir, m, nullptr, &err)) {
         ppInfo() << "[ppcp] no swing.json for" << swingDir

@@ -27,6 +27,7 @@
 
 #include "swing_doc.h"
 #include "swing_doc_internal.h"
+#include "recording_header.h"   // the one header writer; the one schema constant
 
 #include <QDateTime>
 #include <QDir>
@@ -353,7 +354,7 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
                                     const QString &club, bool savePose)
 {
     QJsonObject root = rawManifest;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/2");
+    root[QStringLiteral("schema")] = QString::fromLatin1(kSwingDocSchema);   // the one schema constant
 
     // The club the session was on when the shot happened, seeded into the review block the
     // same way writeDeviceOnlySwing() seeds it. capture.club.name already records it, and
@@ -834,34 +835,20 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
                                ? QDateTime::fromMSecsSinceEpoch(meta.wallclockMs, QTimeZone::UTC)
                                : QDateTime::currentDateTimeUtc();
 
-    QJsonObject root;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/2");
-
+    // The header: the ONE header writer (recording_header.h), with what a device-only shot knows.
+    RecordingHeader header;
+    header.swing   = RecordingHeader::Identity{ meta.swingId, meta.swingIndex };
+    // No handedness, no height: the meta does not carry them, and none is invented.
+    header.athlete = RecordingHeader::Athlete{ meta.athleteName, meta.athleteUuid, std::nullopt, 0.0 };
+    header.sessionDir = meta.sessionId;   // the session FOLDER name
     // t0_us is 0, not a buffer instant: there IS no buffer. Every t_us in this document
     // is therefore already window-relative, which is the domain every reader expects.
-    root[QStringLiteral("clock")] = QJsonObject{
-        { QStringLiteral("t0_us"),     0 },
-        { QStringLiteral("wallclock"), when.toString(Qt::ISODateWithMs) },
-    };
+    header.clock = RecordingHeader::Clock{ 0, when };
     // A zero-length window. Not a placeholder for a window we failed to capture — there
     // was nothing to capture, and a fabricated span would put a scrubber on a shot with
     // no frames behind it.
-    root[QStringLiteral("window")] = QJsonObject{
-        { QStringLiteral("startUs"), 0 },
-        { QStringLiteral("endUs"),   0 },
-    };
-    root[QStringLiteral("swing")] = QJsonObject{
-        { QStringLiteral("index"), meta.swingIndex },
-        { QStringLiteral("id"),    meta.swingId },
-    };
-    root[QStringLiteral("session")] = QJsonObject{
-        { QStringLiteral("id"), meta.sessionId },
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        { QStringLiteral("uuid"), meta.athleteUuid },
-        { QStringLiteral("name"), meta.athleteName },
-    };
-    root[QStringLiteral("capture")] = QJsonObject{
+    header.window = RecordingHeader::Window{ 0, 0 };
+    header.capture = QJsonObject{
         { QStringLiteral("sessionType"), meta.sessionType },
         // Names the launch monitor as what saw this shot, so a reader never has to infer
         // it from the absence of streams.
@@ -872,11 +859,13 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
         // different questions and collapsing them would hide which one we know.
         { QStringLiteral("impactUs"),    -1 },
     };
-    // EMPTY, and that is the fact rather than a failure. hasVideo is derived from this,
-    // so the picker and the carousel already read it correctly.
-    root[QStringLiteral("streams")] = QJsonArray{};
-    // No thumbnail key at all: an absent block is what summaryFromRoot reads as "no
-    // thumbnail", where an empty one would point at a file that was never written.
+    // No analysis context: the meta carries no athlete facts or bag (the launch monitor's caller
+    // fills one when it has them, step 1.4/1.5), so the shot reads as the legacy context does.
+    // EMPTY streams, and that is the fact rather than a failure. hasVideo is derived from
+    // this, so the picker and the carousel already read it correctly. No thumbnail key at all:
+    // an absent block is what summaryFromRoot reads as "no thumbnail", where an empty one would
+    // point at a file that was never written.
+    QJsonObject root = recordingHeaderJson(header, QJsonArray{});
 
     root[QStringLiteral("launchMonitor")] = lmRawBlock(reading);
 

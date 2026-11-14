@@ -29,15 +29,17 @@
 #include "../IMU/imu_refusion_check.h"
 #include "capture_integrity_check.h"
 #include "gate_record.h"   // LoadedSwing::loadGates
+#include "effective_context.h"   // ClubReview
 
-// SwingReanalyzer — reconstruct a SwingWindow from an exported swing folder and
-// re-run the production analyzer OFFLINE, the same disk → SwingWindow → analyzer
-// flow the SwingLab runner uses, but STREAMING camera frames from disk on demand
-// rather than rebuilding a full EventBuffer (which would hold the whole window —
-// multi-GB at high FPS — in RAM). Frames are read one at a time into a single
-// reusable buffer per camera (raw sidecar offset reads, else cv::VideoCapture);
-// IMU samples and the frame index live in RAM (tiny). Perf is sacrificed for
-// bounded memory — re-analysis is a rare, offline operation.
+// SwingReanalyzer — re-run the production analyzer OFFLINE on an exported swing folder, the same
+// disk → SwingWindow → analyzer flow the SwingLab runner uses.
+//
+// The folder is read by the RECORDING LOADER (src/Export/recording_loader.h, step 1.2): a
+// disk-backed window that STREAMS camera frames on demand (one reusable buffer per camera, raw
+// sidecar else MP4; IMU samples and the index in RAM), and the Recording that describes it. The
+// job is then made by the ONE builder (buildAnalysisJob, analysis_job_builder.h) from the
+// Recording and its effective context. SwingDiskLoader is that adapter until step 1.5 puts the
+// analysis service in its place.
 //
 // Shared by the in-app re-analyse path (ReanalysisController) and the
 // swinglab_run tool, so both exercise one tested reconstruction.
@@ -57,8 +59,8 @@ struct SwingLoadOptions {
 };
 
 // A swing reconstructed into a streaming, disk-backed SwingWindow, plus the
-// ShotAnalysisJob resolved from swing.json (sessionType, face-on-first camera
-// sources, IMU sources, serial-matched A/M bindings, impact, handedness).
+// ShotAnalysisJob the one builder made from its Recording (sessionType, face-on-first camera
+// sources, IMU sources, serial-matched A/M bindings, impact, the analysis context).
 struct LoadedSwing {
     bool                                 ok = false;
     QString                              error;
@@ -66,6 +68,19 @@ struct LoadedSwing {
     ShotAnalysisJob                      job;
     bool                                 usedRaw = false;  // any camera used the raw sidecar
     QJsonObject                          analysisIn;       // the recorded analysis block (version-gated reuse)
+    // The origin the reuse readers take the recorded block's times in (analysisReadOriginUs,
+    // swing_doc.h): 0 for a document stamped timeBase "window", else its clock.t0_us.
+    int64_t                              analysisOriginUs = 0;
+
+    // The shot's review facts as stored: the board's override and the popover's club. The job
+    // above applies the declared club only, as re-analysis always has; the override is applied
+    // with the reuse gate that sees it (steps 1.5 / 1.6).
+    ClubReview                           review;
+    // true = the document's own analysisContext block; false = the legacy context (recording_header.h).
+    bool                                 contextRecorded = false;
+    // The document (or its analysisContext) is newer than this build: reanalyzeSwingDir refuses.
+    bool                                 readOnly = false;
+    QString                              readOnlyReason;
 
     // The host-side orientation filter in force when this swing was CAPTURED, read
     // from streams[].device.orientationFilter of the host-fused lanes (a wG3 fuses
@@ -98,8 +113,9 @@ struct LoadedSwing {
 
 class SwingDiskLoader {
 public:
-    // Reconstruct from <swingDir>/swing.json + its media sidecars. Never opens the
-    // live EventBuffer. On failure returns { ok=false, error set, window=nullopt }.
+    // Reconstruct from <swingDir>/swing.json + its media sidecars (loadRecording), then build the
+    // job (buildAnalysisJob, origin "replay"). Never opens the live EventBuffer. On failure returns
+    // { ok=false, error set, window=nullopt }.
     static LoadedSwing load(const QString& swingDir, const SwingLoadOptions& opts = {});
 };
 
@@ -143,7 +159,8 @@ struct ReanalyzeResult {
 
 // Convenience for the app: load + run makeShotAnalyzer()->analyze().
 // Self-contained — touches no live device. The analyzer call is wrapped so a
-// thrown analyzer degrades to { ok=false, error } rather than propagating.
+// thrown analyzer degrades to { ok=false, error } rather than propagating. A read-only document
+// (LoadedSwing::readOnly: newer than this build) is refused before anything runs.
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts = {});
 
 } // namespace pinpoint::analysis

@@ -29,8 +29,11 @@
 #include <utility>
 #include <vector>
 
+#include <optional>
+
 #include "types.h"
 #include "../IMU/trunk_calib_provenance.h"   // TrunkCalibProvenance
+#include "../Recording/analysis_context.h"   // the analysis context recorded with the swing (IM-1)
 // DeviceClockStats — the camera clock → host clock mapping recorded on every stream
 // (event_buffer_design.md §9).
 #include "device_clock_mapper.h"
@@ -351,6 +354,11 @@ struct SwingExportJob {
 
     QString athleteName, athleteUuid, handedness;
     double  athleteHeightM = 0.0;   // athlete profile height (m), 0 = unknown → athlete.heightM
+    // The analysis context recorded with the swing (IM-1; recording_header.h): the athlete facts
+    // and the club the analysis consumes, frozen at capture into the document's `analysisContext`
+    // block (captureAnalysisContext). Unset = not written: the swing then reads as a document
+    // older than the block (the legacy context).
+    std::optional<pinpoint::recording::AnalysisContext> analysisContext;
     QString sessionId;     // session folder name, e.g. "2026-06-05_Mark-Liversedge_Swing_01"
 
     // Club geometry for the shaft tracker's E1 band matcher, resolved from the
@@ -412,14 +420,18 @@ struct SwingExportResult {
 // alive (buffer Paused) until this returns — enforced by CameraManager's
 // resume gating.  Peak extra memory is one BGR scratch frame plus the
 // encoder's single YUV frame; payloads are read zero-copy from the window.
+// The document's header (schema, swing, athlete, session, clock, window, thumbnail, capture,
+// analysisContext) is NOT built here: run() and the analysis-only shot both call the one header
+// writer (recording_header.h, recordingHeaderFor + recordingHeaderJson), so the two headers are
+// the same but for the media (streams, thumbnail).
 class SwingExporter {
 public:
     static SwingExportResult run(const SwingWindow& window, const SwingExportJob& job);
 
-    // The top-level "capture" block (session context + host provenance) built
-    // from the job's value fields. Shared with ShotProcessor's degraded
-    // analysis-only manifest so both paths record identical metadata.
-    static QJsonObject captureBlock(const SwingExportJob& job);
+    // The analysis-only shot's header (ShotProcessor, until step 1.5's RecordingRepository::create):
+    // the same one header writer run() calls, without the media — no streams, no thumbnail.
+    // `t0Us` / `durationUs` are the window's start (ring clock) and length.
+    static QJsonObject analysisOnlyHeader(const SwingExportJob& job, int64_t t0Us, int64_t durationUs);
 };
 
 } // namespace pinpoint

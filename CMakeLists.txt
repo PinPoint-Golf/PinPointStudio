@@ -2784,6 +2784,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_doc_writer.cpp
     src/Export/swing_doc_reader.cpp
     src/Export/swing_doc_analysis.cpp
+    src/Export/recording_header.cpp
     src/Export/session_archiver.h
     src/Export/session_archiver.cpp
     src/Analysis/swing_analysis.h
@@ -2895,6 +2896,17 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
+    # The Recording contract (refactor step 1): the types, the effective club, the one job
+    # builder, and the store side — the one header writer and the Recording loader (1.2).
+    src/Recording/recording.h
+    src/Recording/analysis_context.h
+    src/Analysis/effective_context.h
+    src/Analysis/effective_context.cpp
+    src/Analysis/analysis_job_builder.h
+    src/Analysis/analysis_job_builder.cpp
+    src/Export/recording_header.h
+    src/Export/recording_loader.h
+    src/Export/recording_loader.cpp
     src/Analysis/mp4_frame_reader.h
     src/Analysis/mp4_frame_reader.cpp
     src/Metrics/metric_type.h
@@ -3167,6 +3179,7 @@ if(PINPOINT_BUILD_LM_REPAIR)
         src/Export/swing_doc_writer.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Export/swing_paths.cpp
@@ -3192,6 +3205,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Export/swing_doc_writer.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp
         src/Export/swing_paths.cpp
         src/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
@@ -3228,6 +3242,9 @@ if(PINPOINT_BUILD_TOOLS)
     # parity test additionally compiles the exporter to build its fixture.
     set(_pinpoint_offline_sources
         src/Analysis/swing_reanalyzer.cpp
+        src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Analysis/effective_context.cpp  # the effective club (step 1.1)
+        src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/analysis_pipeline.cpp
@@ -3308,6 +3325,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Export/swing_doc_writer.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp
         src/Export/swing_paths.cpp
         # swing_doc_writer.cpp writes the launchMonitor block by walking lm::fieldDefs(),
         # so the offline tools need the table itself, not just its header. The

@@ -26,8 +26,9 @@
 //           (window-relative, t0 = 0, the raw sidecar backing). The two jobs are equal field by
 //           field once their times are taken relative to t0Us; only analysis.path differs (origin,
 //           frame backing), as the design says.
-//           THE ROUND TRIP IS IN MEMORY: the analysisContext block's writer and reader are step
-//           1.2's (recording_store_test takes the same Recording through the disk).
+//           This leg is in memory; Test 1b is the same comparison through the disk.
+//   Test 1b live == written and loaded (step 1.2): the swing written as capture writes it (the one
+//           header writer, the analysisContext block) and read by the Recording loader.
 //   Test 2  camera roles from the one perspective mapping (face-on first, last impact, first DTL).
 //   Test 3  the effective club: a correction → its bag geometry and standard length, no prior;
 //           a correction absent from the bag → no geometry, the standard length for the club set;
@@ -47,6 +48,11 @@
 #include "../effective_context.h"
 #include "../../Recording/recording.h"
 #include "../../Core/club_standards.h"
+#include "../../Buffer/swing_window.h"
+#include "../../Export/recording_loader.h"
+#include "recording_fixture.h"
+
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +60,6 @@
 
 using namespace pinpoint;
 using namespace pinpoint::analysis;
-namespace rec = pinpoint::recording;
 
 static int g_fail = 0;
 static void check(bool c, const char *label)
@@ -65,92 +70,9 @@ static void check(bool c, const char *label)
 
 namespace {
 
-// ── swing_window_parity_test's synthetic swing ────────────────────────────────────────────────
-constexpr int64_t kT0       = 1'000'000;
-constexpr int64_t kFrameDt  = 10'000;
-constexpr int     kFrames   = 12;
-constexpr int64_t kImuDt    = 5'000;
-constexpr int     kImu      = 30;
-constexpr int64_t kImpact   = kT0 + 50'000;
-// captureSwingWindow(kT0 - 1, last + 1): the window starts one µs before the first sample.
-constexpr int64_t kWindowStart = kT0 - 1;
-constexpr int64_t kWindowEnd   = std::max(kT0 + (kImu - 1) * kImuDt, kT0 + (kFrames - 1) * kFrameDt) + 1;
-constexpr SourceId kCam = 1;   // registration order in the fixture: the camera, then the IMU
-constexpr SourceId kImuId = 2;
-
-rec::ClubGeometry geometry(double lengthMm, std::vector<double> bands, double hosel = 0.0)
-{
-    rec::ClubGeometry g;
-    g.lengthMm      = lengthMm;
-    g.lengthKnown   = lengthMm > 0.0;
-    g.shaftType     = QStringLiteral("steel");
-    g.bandCentersMm = std::move(bands);
-    g.hoselFromButtMm = hosel;
-    g.shaftLengthMm = hosel > 0.0 ? hosel - 265.0 : 0.0;
-    g.handsEndMm    = hosel > 0.0 ? 180.0 : 0.0;
-    return g;
-}
-
-rec::AnalysisContext syntheticContext()
-{
-    rec::AnalysisContext c;
-    c.handedness = rec::Handedness::Right;
-    c.heightM    = 1.80;
-    c.clubSet    = ClubSet::Men;
-    c.club.name  = QStringLiteral("7 IRON");
-    c.club.geometry = geometry(940.0, { 300.0, 500.0, 700.0 }, 880.0);
-    c.club.lengthPrior.px = 310.0; c.club.lengthPrior.varPx = 25.0; c.club.lengthPrior.n = 6;
-    c.club.standardLengthMm = standardClub(c.club.name, c.clubSet, c.heightM).lengthMm;
-    c.bag.insert(QStringLiteral("7 IRON"), c.club.geometry);
-    c.bag.insert(QStringLiteral("9 IRON"), geometry(914.0, { 290.0, 490.0 }, 855.0));
-    c.bag.insert(QStringLiteral("DRIVER"), geometry(1156.0, {}, 1080.0));
-    c.bag.insert(QStringLiteral("PITCHING WEDGE"), geometry(0.0, { 280.0 }));   // never measured
-    return c;
-}
-
-// The synthetic swing as the live capture holds it at the freeze: every time window-relative,
-// t0Us the window's start on the ring clock.
-rec::Recording liveRecording()
-{
-    rec::Recording r;
-    r.t0Us = kWindowStart;
-    r.sources.cameras.push_back({ kCam, rec::Perspective::FaceOn, false, true, QString() });
-    r.sources.imuLanes = { kImuId };
-    r.capture.sessionType = 1;                       // Wrist
-    r.capture.shotSource  = 4;
-    r.capture.impactUs    = kImpact - kWindowStart;
-    r.capture.motionCaptureQuality = QStringLiteral("High");
-
-    // A face-on ball stream: found from frame 2, launched at frame 6.
-    r.ball.track.camera = kCam;
-    for (int i = 0; i < kFrames; ++i) {
-        BallSample2D s;
-        s.t_us   = kT0 + i * kFrameDt - kWindowStart;
-        s.found  = i >= 2 && i < 6;
-        s.center = QPointF(0.5 + 0.001 * i, 0.8);
-        s.radiusNorm = 0.01f;
-        s.conf   = s.found ? 0.9f : 0.0f;
-        r.ball.track.frames.push_back(s);
-    }
-    r.ball.track.launchTUs    = kT0 + 6 * kFrameDt - kWindowStart;
-    r.ball.track.launchCenter = QPointF(0.505, 0.8);
-    r.ball.searchRoi = QRectF(0.3, 0.6, 0.4, 0.3);
-
-    ImuSegmentBinding fore, hand;
-    fore.source = kImuId; fore.role = SegmentRole::LeadForearm; fore.calibrated = true;
-    hand.source = kImuId; hand.role = SegmentRole::LeadHand;    hand.calibrated = true;
-    fore.alignA = QQuaternion(0.9f, 0.1f, 0.2f, 0.3f).normalized();
-    hand.mountM = QQuaternion(0.8f, -0.1f, 0.4f, 0.1f).normalized();
-    fore.calibratedAtUtc = QStringLiteral("2026-11-14T09:00:00.000Z");
-    fore.calibAgeSec = 600.0;
-    r.imuBindings = { fore, hand };
-
-    r.integrity.hostOrientationFilter = QStringLiteral("madgwick");
-    r.integrity.windowStartUs = 0;
-    r.integrity.windowEndUs   = kWindowEnd - kWindowStart;
-    r.context = syntheticContext();
-    return r;
-}
+// The synthetic swing (constants, liveRecording, syntheticContext, writeSyntheticSwing) is
+// recording_fixture.h, shared with recording_store_test.
+using namespace recording_fixture;
 
 // What a store gives back for that Recording: the same facts, the loaded window's own clock (t0 0,
 // entries window-relative), frames from the raw sidecar. In memory: see the file header.
@@ -285,6 +207,42 @@ void testLiveEqualsReloaded()
           "path.origin from the run options");
     check(jLive.path.framesFaceOn.isEmpty() && jLoaded.path.framesFaceOn == QStringLiteral("raw"),
           "path.framesFaceOn from the stream's backing");
+}
+
+// ── Test 1b ───────────────────────────────────────────────────────────────────────────────────
+// The disk half 1.1 deferred: the same swing written to a folder as capture writes one (the one
+// header writer with its analysisContext block, a raw-sidecar camera, the IMU samples, the ball
+// stream, analysis.bindings) and read back by the Recording loader (step 1.2). The job built from
+// the loaded Recording equals the live one field by field, times relative to t0Us.
+void testLiveEqualsDisk()
+{
+    std::printf("[Test 1b] live Recording -> job == written-to-disk-and-loaded Recording -> job\n");
+    // The ring's ids are the loader's here (it numbers a document's streams from 0, in order);
+    // which id a source gets is not a fact about the swing.
+    rec::Recording live = liveRecording(kDiskCam, kDiskImu);
+    // The recorded ball stream does not say which camera it belongs to, and re-analysis has never
+    // set it (nothing reads ShotAnalysisJob::ballTrack.camera; the analysis' ball block would carry
+    // it). Known live ≠ reload difference, left to step 1.5's capture snapshot; not compared here.
+    live.ball.track.camera = kInvalidSourceId;
+
+    QTemporaryDir dir;
+    QString err;
+    check(dir.isValid() && writeSyntheticSwing(dir.path(), live, {}, &err), "the swing is written to a folder");
+    const LoadedRecording lr = loadRecording(dir.path());
+    if (!lr.ok) std::printf("    load error: %s\n", lr.error.toUtf8().constData());
+    check(lr.ok && lr.window && lr.recording.window == lr.window.get(), "loaded, with its disk-backed window");
+    check(lr.contextRecorded && !lr.readOnly, "the analysisContext block read back, writable");
+
+    const ShotAnalysisJob jLive = buildAnalysisJob(live, effectiveContext(live.context, ClubReview{}), options("live"));
+    const ShotAnalysisJob jDisk = buildAnalysisJob(lr.recording, effectiveContext(lr.recording.context, lr.review),
+                                                   options("reanalysis"));
+    const QString diff = firstDiff(jLive, live.t0Us, jDisk, lr.recording.t0Us);
+    if (!diff.isEmpty()) std::printf("    first difference: %s\n", diff.toUtf8().constData());
+    check(diff.isEmpty(), "every job field equal, times relative to t0Us");
+    check(lr.recording.t0Us == 0 && jDisk.impactUs == kImpact - kWindowStart, "the loaded job is window-relative");
+    check(jDisk.path.framesFaceOn == QStringLiteral("raw"), "frames from the raw sidecar");
+    check(jDisk.athleteHeightM == 1.80 && jDisk.clubLengthKnown && jDisk.priorClubLenN == 6,
+          "height, the club's recorded length and the length prior came through the disk");
 }
 
 // ── Test 2 ────────────────────────────────────────────────────────────────────────────────────
@@ -510,6 +468,7 @@ void testMappings()
 int main()
 {
     testLiveEqualsReloaded();
+    testLiveEqualsDisk();
     testCameraRoles();
     testCorrectedClub();
     testDeclaredClub();

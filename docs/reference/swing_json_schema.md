@@ -11,8 +11,9 @@ Every captured shot produces one directory (`<session>/swing_<NNNN>/`) holding t
 | The one door to a swing's document on disk: which file exists, load, save, convert | `src/Export/swing_store.{h,cpp}` (`pinpoint::SwingStore`) |
 | Qt JSON ↔ libppswing tree (integers stay integers; ndarrays and tables expand to plain arrays) | `src/Export/ppsw_qt.{h,cpp}` |
 | The binary format itself | libppswing (sister repo, MIT): `docs/specification/ppsw-format.md`; built into the app by the top-level `CMakeLists.txt` |
-| Raw manifest — `clock`, `window`, `swing`, `athlete`, `session`, `thumbnail`, `capture`, `streams` | `src/Export/swing_exporter.cpp` (`SwingExporter` export, `captureBlock`, stream serialisation). Returned to the GUI thread, not written. |
-| Header for a shot whose export failed but whose analysis worked | `src/Gui/shot/shot_processor.cpp` `buildSynthManifest()` |
+| THE ONE HEADER WRITER — `schema` (the one schema constant `kSwingDocSchema`), `swing`, `athlete`, `session`, `clock`, `window`, `thumbnail`, `capture`, `analysisContext`, then `streams` | `src/Export/recording_header.{h,cpp}` `recordingHeaderJson()` (step 1.2). Every header builder calls it: the exporter (`recordingHeaderFor` + its streams and thumbnail), the analysis-only shot (`SwingExporter::analysisOnlyHeader`, called by `shot_processor.cpp` `buildSynthManifest()`), the phone-only placeholder (`ppcp_clip_filer.cpp`) and the device-only shot (`writeDeviceOnlySwing`). `capture` is `captureBlockJson()` there too. |
+| Raw manifest — the header above plus the media `streams` | `src/Export/swing_exporter.cpp` (`SwingExporter` export, stream serialisation). Returned to the GUI thread, not written. |
+| `analysisContext` — written by the header writer, read by `readAnalysisContext()` (the block, else the legacy context) | `src/Export/recording_header.{h,cpp}` |
 | `imuIntegrity`, `captureIntegrity` | `src/Export/swing_doc.cpp` `imuIntegrityJson`, `captureIntegrityJson`; set by `shot_processor.cpp` (live) and `applyImuIntegrity` / `applyCaptureIntegrity` (re-analysis, `src/Gui/shot/reanalysis_controller.cpp`) |
 | The one write: stamps the schema, seeds `review.club`, replaces `analysis`, carries the `lm.` rows | `swing_doc.cpp` `SwingDocWriter::writeSwingJson()` |
 | Every write ends in `saveDocument()`, which rebuilds `summary` and calls `SwingStore::save()` | `SwingDocWriter::writeSwingJson` (end of shot, re-analysis, PPCP clip with no document), `updateReview`, `updateShotAnnotations`, `updateLaunchMonitor`, `updateStreamOrigin`, `writeDeviceOnlySwing` — all `swing_doc.cpp` |
@@ -24,7 +25,7 @@ Every captured shot produces one directory (`<session>/swing_<NNNN>/`) holding t
 | Phone clip `streams[]` element (`origin`) | `swing_doc.cpp` `updateStreamOrigin()`; caller `src/Gui/shot/ppcp_clip_filer.cpp` |
 | `archive` block (stubbed swings) | `src/Export/session_archiver.cpp` `stubOf()` |
 | JSON-era → `.ppsw` conversion | `SwingStore::convertDir` via `SwingDocWriter::convertToPpsw`; in-app `src/Gui/settings/library_converter.cpp`, CLI `tools/storage/pps_convert_library.cpp` |
-| Readers | `SwingDocReader::readSwingJson` / `readSwingSummary` / `readLaunchMonitorDetail` (`swing_doc.cpp`), `SwingDiskLoader::load` (`src/Analysis/swing_reanalyzer.cpp`), `disk_replay_source.cpp`, `swing_data_source.cpp`; the charts and report read through `SwingStore::loadAnalysis`, the 3-D panel through `SwingStore::loadParts` (`swing_rig_driver.cpp`) |
+| Readers | `SwingDocReader::readSwingJson` / `readSwingSummary` / `readLaunchMonitorDetail` (`swing_doc.cpp`), the Recording loader `loadRecording` (`src/Export/recording_loader.{h,cpp}`, step 1.2; `SwingDiskLoader::load` in `src/Analysis/swing_reanalyzer.cpp` builds the job from it), `disk_replay_source.cpp`, `swing_data_source.cpp`; the charts and report read through `SwingStore::loadAnalysis`, the 3-D panel through `SwingStore::loadParts` (`swing_rig_driver.cpp`) |
 | Enums (Phase, SegmentRole, ReconstructionTier, ShaftSampleFlags) | `src/Analysis/swing_analysis.h` |
 
 > The writer is still called `writeSwingJson` and the reader `readSwingJson`. The names predate the switch; both go through `SwingStore` and only `swing.ppsw` is written.
@@ -128,6 +129,7 @@ Exceptions, each described in its own section:
   "session": { … },         // owning session folder
   "athlete": { … },         // who
   "capture": { … },         // shot setup + provenance (+ club geometry)
+  "analysisContext": { … }, // OPTIONAL — the analysis context recorded (pinpoint.analysisContext/1)
   "streams": [ … ],         // video, IMU, ball (and phone clips)
   "thumbnail": { … },       // impact still
   "imuIntegrity":     { … },  // OPTIONAL — IMU re-fusion check
@@ -142,13 +144,14 @@ Exceptions, each described in its own section:
 
 | Block | Present | Purpose |
 |---|---|---|
-| `schema` | always | `pinpoint.swing/2`. |
+| `schema` | always | `pinpoint.swing/2` — the one schema constant (`kSwingDocSchema`, `recording_header.h`). A document that says a newer version is **read-only** to this build (re-analysis refuses it). |
 | `clock` | capture, analysis-only, device-only | Absolute anchor (`t0_us`) + wallclock. |
 | `window` | capture, analysis-only, device-only | Window-relative capture span. |
 | `swing` | capture, analysis-only, device-only | Folder name + index in the session. |
 | `session` | capture, analysis-only, device-only | Owning session folder. |
 | `athlete` | capture, analysis-only, device-only | Who, and handedness. |
 | `capture` | capture, analysis-only, device-only | Session type, shot source, impact, latencies, host, club. |
+| `analysisContext` | capture and analysis-only, when capture knew the athlete (step 1.2) | The athlete facts and the club the analysis consumes, frozen at capture. Absent on every document written before step 1.2, and on device-only and phone-only documents: those read as the **legacy context**. |
 | `streams` | always (may be `[]`) | One entry per camera, IMU lane, ball track or phone clip. |
 | `thumbnail` | when a JPEG was written | Impact-frame still. Absent on analysis-only, device-only and phone-only documents, and when no camera gave a frame. |
 | `imuIntegrity` | when an IMU lane could be checked | Re-fusion parity verdict. |
@@ -164,11 +167,11 @@ The document kinds, by writer:
 | Kind | Writer | What it has |
 |---|---|---|
 | Capture | exporter + `writeSwingJson` | Everything above that applies. |
-| Analysis-only | `buildSynthManifest` + `writeSwingJson` (export failed, analysis worked) | Same header, `streams: []`, no `thumbnail`. |
+| Analysis-only | `buildSynthManifest` → `SwingExporter::analysisOnlyHeader` + `writeSwingJson` (export failed, analysis worked) | The same header (the one writer), `streams: []`, no `thumbnail`. |
 | Device-only | `writeDeviceOnlySwing` | See "Device-only swings". |
 | Phone-only | `ppcp_clip_filer.cpp` `ensureSwingDocument` | `schema`, `streams` (the phone clip), `summary` — nothing else. Written when a phone clip lands for a shot whose pipeline wrote no document. |
 
-**Schema id.** Every document on disk says `pinpoint.swing/2`. The exporter's raw manifest and the phone path's minimal manifest say `pinpoint.swing/1`, but neither is ever saved as it is: both go through `writeSwingJson`, which overwrites the id with `/2` before saving. `writeDeviceOnlySwing` writes `/2` itself. The `/1` strings are dead values in an in-memory object; a reader never sees them.
+**Schema id.** Every document on disk says `pinpoint.swing/2`, from ONE constant (`kSwingDocSchema`, `recording_header.h`): the header writer writes it and `writeSwingJson` stamps it. (Before step 1.2 the exporter's raw manifest and the phone path's placeholder said `/1` in memory and `writeSwingJson` overwrote it; no document on disk ever said `/1`.) `swingDocSchemaVersionOf()` reads the version back; a version above `kSwingDocSchemaVersion` makes the document read-only to this build.
 
 ---
 
@@ -186,22 +189,22 @@ The document kinds, by writer:
 | Field | Type | Notes |
 |---|---|---|
 | `clock.t0_us` | int µs | **Absolute** EventBuffer instant of the window start — the only absolute time in the document. `0` on a device-only swing (there is no buffer). |
-| `clock.unit` | str | `"us"`. Not written on a device-only swing. |
+| `clock.unit` | str | `"us"`. (A device-only swing written before step 1.2 lacks it.) |
 | `clock.wallclock` | ISO-8601 ms | UTC wallclock of the **window start**: the UTC instant frozen with the window's end, minus the window's length (`swing_exporter.cpp`, `shot_processor.cpp`). On a device-only swing, when the reading was read. |
-| `window.start_us` / `end_us` | int µs | Window-relative span; `start_us` is always `0`. ⚠ A device-only swing spells these `startUs` / `endUs` (both `0`). |
+| `window.start_us` / `end_us` | int µs | Window-relative span; `start_us` is always `0`. ⚠ A device-only swing written **before step 1.2** spells these `startUs` / `endUs` (both `0`); since, it uses the one header writer's spelling. |
 | `swing.id` / `index` | str / int | Folder name and index within the session. |
-| `session.dir` | str | Session folder name. ⚠ A device-only swing writes `session.id` instead. |
+| `session.dir` | str | Session folder name. ⚠ A device-only swing written **before step 1.2** has `session.id` instead. |
 | `athlete.name` / `uuid` | str | Athlete record. |
 | `athlete.handedness` | `"Right"` \| `"Left"` | Drives lead-arm sign throughout analysis. Not written on a device-only swing. |
-| `athlete.heightM` | float m, optional | **Added 2026-09-26.** Athlete height, so re-analysis scales the 3-D skeleton as the live shot did. Written only by the analysis-only header (`buildSynthManifest`); the exporter's `athlete` block does not write it, so a normal capture lacks it. |
+| `athlete.heightM` | float m, optional | **Added 2026-09-26.** Athlete height. Written when known by the one header writer, so since step 1.2 on every capture (before, only the analysis-only header wrote it and a normal capture lacked it). The analysis reads the height from `analysisContext`; this copy is for older readers and for the legacy context of a document without the block. |
 
-`athlete.sex` is read (the club set for the launch-monitor arc radius; re-analysis club standards) but no writer puts it in a document; every reader takes its absence.
+`athlete.sex` / `athlete.dob` are read (the club set for the launch-monitor arc radius; the legacy context's club set) but no writer puts them in a document; every reader takes their absence (the men's set). The club set a swing was analysed with is recorded in `analysisContext.athlete.clubSet` instead — no sex, no date of birth (IM-7).
 
 ---
 
 ## `capture`
 
-Shot setup and provenance. Built by `SwingExporter::captureBlock`, the same function the analysis-only header uses.
+Shot setup and provenance. Built by `captureBlockJson()` (`recording_header.cpp`), inside the one header writer, for both the exporter and the analysis-only header. Since step 1.2 the analysis reads the club and the athlete facts from `analysisContext`; `capture.club` stays for provenance, for older readers, and as the source of a pre-step-1.2 document's legacy context.
 
 ```json
 "capture": {
@@ -240,6 +243,53 @@ Shot setup and provenance. Built by `SwingExporter::captureBlock`, the same func
 | `club.lengthPrior` | object, optional | **Added 2026-07-10.** The club-length prior the live fuse used for this shot (before this shot's update): `px`, `varPx` (px²), `n`. Re-analysis replays it, never AppSettings — deterministic, cross-host. Omitted when the shot ran without one. |
 
 **`capture.club` can change after capture.** With *follow Premier's club* on (`launchmonitor/premierFollowClub`), when the Premier reading arrives after the shot was analysed under a different club, `updateLaunchMonitor` **replaces the whole `capture.club`** with the device-named club's bag record — the same keys, **without `lengthPrior`** — and moves a seeded `review.club` with it; it never overrides a hand-set `review.club`, and the swing is then re-analysed (`swing_doc.cpp`, `launch_monitor_controller.cpp`). **Added 2026-11-03.** No other writer touches `capture.club`; a user's re-label goes to `review.club`.
+
+---
+
+## `analysisContext` — the analysis context recorded (`pinpoint.analysisContext/1`)
+
+**Added 2026-11-14 (refactor step 1.2; IM-1, D2, D3, approved by Mark 14 Nov 2026).** The athlete facts and the club the analysis consumes, frozen at capture into the swing, so a re-analysis never reads a live profile and uses exactly what the live shot used. Written by the one header writer (`analysisContextJson`, `recording_header.cpp`); read by `readAnalysisContext()`. Analysis reads the context from here only: `athlete.handedness` / `athlete.heightM` and `capture.club` stay in the document for provenance and older readers.
+
+```json
+"analysisContext": {
+  "schema":  "pinpoint.analysisContext/1",
+  "athlete": { "handedness": "Right", "heightM": 1.80, "clubSet": "men" },
+  "club":    { "name": "7 IRON", "lengthMm": 940, "lengthKnown": true, "shaftType": "steel",
+               "bandCentersMm": [300, 500, 700], "hoselFromButtMm": 880, "shaftLengthMm": 615,
+               "handsEndMm": 180, "standardLengthMm": 940,
+               "lengthPrior": { "px": 310.0, "varPx": 25.0, "n": 6 } },
+  "bag":     { "7 IRON": { "lengthMm": 940, "lengthKnown": true, "shaftType": "steel",
+                           "bandCentersMm": [300, 500, 700], "hoselFromButtMm": 880,
+                           "shaftLengthMm": 615, "handsEndMm": 180 },
+               "9 IRON": { … }, "DRIVER": { … } }
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema` | str | `pinpoint.analysisContext/1` (`kAnalysisContextSchema`). A newer version makes the document **read-only** to this build (its known fields are still read); a block with no readable schema is not trusted: read-only, and the legacy context is used. |
+| `athlete.handedness` | `"Right"` \| `"Left"` \| `"unknown"` | Lead-arm sign. |
+| `athlete.heightM` | float m | Standing height; `0` = unknown. Scales the 3-D skeleton. |
+| `athlete.clubSet` | `"men"` \| `"women"` \| `"junior"` | The cohort analysis consumes: the club set on the swing's date (a junior is under 18 on the day; else women's for a female athlete; else men's — `clubSetOn`, `club_standards.h`). **No sex, no date of birth, no age band is recorded** (D3, IM-7). |
+| `club.name` | str | The CAPTURED club (the session's club at the shot), canonical id; `""` = undeclared, never the `DRIVER` stub. Provenance: the golfer's correction is applied at analysis time (`effectiveContext`), never written here. |
+| `club.lengthMm` … `handsEndMm` | as `capture.club` | The captured club's geometry from the bag; `lengthKnown` = it came from a record (> 0). |
+| `club.standardLengthMm` | number mm | `club_standards.h` length of the captured club for the club set and height; `0` when the name is not a standard club. Used only while the length is unknown. |
+| `club.lengthPrior` | object, optional | The club-length prior the live fuse used (as `capture.club.lengthPrior`). Omitted when none joined. |
+| `bag` | object | Every club in the athlete's bag at capture, keyed by canonical club id, with the seven geometry keys (about 1 KB) — so a club the golfer later corrects on the LM board resolves to its own length and bands without a live profile (D2). `{}` = no bag recorded. |
+
+**Who writes it.** The header writer writes the block whenever the export job carries a context (`SwingExportJob::analysisContext`, built by `captureAnalysisContext()` from the athlete record, the session club and the bag). ⚠ As of step 1.2 the live capture does not yet fill it: the capture-side snapshot that does is step 1.5's (`ShotProcessor` is that step's file), so new captures still read as the legacy context until then. Device-only and phone-only documents never carry it.
+
+**A document without the block** (everything before step 1.2) gets the **legacy context**, built once in memory by `legacyAnalysisContext()` and never written back by reading:
+
+| Field | From |
+|---|---|
+| handedness, heightM | `athlete.handedness`, `athlete.heightM` (`0` when absent) |
+| clubSet | `athlete.sex` / `athlete.dob` on the session's date (the first 10 characters of `session.dir`), as re-analysis always read them; no document carries them, so in practice the men's set |
+| club | `capture.club`: the **trimmed** name as stored, its geometry, its recorded prior |
+| club.standardLengthMm | `standardClub(the trimmed captured name, club set, height)`, set only when that name is a standard club |
+| bag | none |
+
+The golfer's popover club (`review.club`) is not folded into the context: it reaches the analysis as the *declared* club and sets the standard length exactly as re-analysis always has (`effective_context.h`, Mark 14 Nov 2026), so a document with an empty popover, or with capture's seeded `DRIVER`, gives the standard length it gave before step 1.2.
 
 ---
 
@@ -532,12 +582,13 @@ When a reading has no capture to go into, it makes the whole document (`writeDev
 | Block | In a device-only swing |
 |---|---|
 | `schema` | `pinpoint.swing/2`. |
-| `clock` | `{ t0_us: 0, wallclock }` — no `unit`; `wallclock` = the reading's `readAtMs`. |
-| `window` | `{ startUs: 0, endUs: 0 }` — zero-length, and ⚠ spelled `startUs`/`endUs`, not `start_us`/`end_us`. There was nothing to capture, and a fabricated span would put a scrubber on a shot with no frames. |
+| `clock` | `{ t0_us: 0, unit, wallclock }` — `wallclock` = the reading's `readAtMs`. |
+| `window` | `{ start_us: 0, end_us: 0 }` — zero-length. There was nothing to capture, and a fabricated span would put a scrubber on a shot with no frames. ⚠ Written before step 1.2 as `{ startUs, endUs }`. |
 | `swing` | `{ index, id }`. |
-| `session` | ⚠ `{ id: <session folder> }`, not `dir`. |
+| `session` | `{ dir: <session folder> }`. ⚠ Written before step 1.2 as `{ id }`. |
 | `athlete` | `{ uuid, name }` — no handedness. |
 | `capture` | `{ sessionType, shotSource: "launchMonitor", impactUs: -1 }` — nothing else (no host, no club). The device says a ball was struck, never when. |
+| `analysisContext` | **absent**: the device-only meta carries no athlete facts or bag, so the shot reads as the legacy context. |
 | `streams` | **`[]`** — the fact, not a failure. `hasVideo` derives from it. |
 | `thumbnail` | **absent** — an empty block would point at a file never written. |
 | `review` | `{ rating: 0, note: "", club }` when the session had a club. |

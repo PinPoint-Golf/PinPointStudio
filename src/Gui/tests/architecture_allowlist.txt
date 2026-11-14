@@ -12,7 +12,7 @@
 # "legacy" is not one. Adding a NEW entry is an architecture decision: ask Mark first. Never add one to make the lint pass.
 
 # ── A1 includes from an inner ring into an outer one ──
-Analysis/swing_reanalyzer.cpp | A1 | 5 | re-analysis builds its own input from the store, the MP4 and a RAM ring; step 1's one Recording builder hands the analysis service a Recording instead  # step 1
+Analysis/swing_reanalyzer.cpp | A1 | 2 | re-analysis still reaches the store: the Recording loader (moved to src/Export in step 1.2) and the recorded products' readers; step 1's repository and analysis service (1.4, 1.5) hand it a Recording instead  # step 1
 Gui/shot/reanalysis_controller.cpp | A1 | 2 | re-analysis (an application service, 03 §2) reads the store itself; step 1 builds the same Recording for re-analysis as for live capture  # step 1
 Gui/shot/shot_processor.cpp | A1 | 16 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 moves the analysis-job half out (the store, athlete and session includes go); per D8 (Mark, 14 Nov 2026) what remains is re-tagged when step 1 lands: device and ring includes → the platform refactor (capture), the carousel → step 3, the session folder → step 2  # step 1
 Gui/shot/shot_processor.h | A1 | 4 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 moves the analysis-job half out (the store, athlete and session includes go); per D8 (Mark, 14 Nov 2026) what remains is re-tagged when step 1 lands: device and ring includes → the platform refactor (capture), the carousel → step 3, the session folder → step 2  # step 1
@@ -38,7 +38,7 @@ Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmS
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
 # ── A3 folder-name parsing outside SwingPaths / SessionIdentity ──
-Analysis/swing_reanalyzer.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Export/recording_header.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters: the legacy context's club set, moved from swing_reanalyzer.cpp in step 1.2); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Coaching/club_distances.h | A3 | 1 | reads a swing/session folder name itself (a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Export/swing_doc_reader.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/athlete/athlete_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
@@ -158,4 +158,3 @@ Pose/pose_runner.cpp | A7 | 1 | PoseRunner::run 722 lines (pose runs are non-det
 Skeleton3d/skeleton3d_fit.cpp | A7 | 2 | frameResiduals 646, fitSkeleton 1390 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
 
 # ── A8 Analysis past the Recording contract ──
-Analysis/swing_reanalyzer.cpp | A8 | 2 | re-analysis builds a RAM ring (ram_payload_source, source_ring) to feed the analysis; step 1: the analysis service takes only a Recording  # step 1

@@ -130,8 +130,11 @@ public:
     // pass. Returns an empty track on any parse problem.
     // Same parser over an in-memory object (a swing.json `analysis` block or a
     // {"frames":[...]} file) — version-gated re-analysis reloads the recorded pose.
+    // t0Us: the origin of the block's times (analysisReadOriginUs, swing_doc.h): 0 for a stamped
+    // document or an injected file, an old absolute-time document's clock.t0_us.
     static pinpoint::analysis::PoseTrack2D fromJsonObject(const QJsonObject &root,
-                                                          pinpoint::SourceId camera);
+                                                          pinpoint::SourceId camera,
+                                                          int64_t t0Us = 0);
     // "<model file>@<bytes>" for the ViTPose variant run() would pick for this
     // quality tier on THIS host — the pose identity in analysis.versions.
     static QString modelIdentity(const QString &motionCaptureQuality);

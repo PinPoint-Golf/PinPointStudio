@@ -930,7 +930,8 @@ pinpoint::analysis::PoseTrack2D PoseRunner::loadFromJson(const QString &file,
 }
 
 pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &root,
-                                                           pinpoint::SourceId camera)
+                                                           pinpoint::SourceId camera,
+                                                           int64_t t0Us)
 {
     using namespace pinpoint::analysis;
     // The pose block's one typed reader (pose_track_json.h), under the REUSE contract this function
@@ -940,7 +941,7 @@ pinpoint::analysis::PoseTrack2D PoseRunner::fromJsonObject(const QJsonObject &ro
     // re-derives them from the frames under the current rule. A bare {"frames":[...]} file (an
     // injected SwingLab track) carries frames only, as it always did.
     const bool bare = root.contains(QStringLiteral("frames"));
-    PoseTrack2D full = poseTrackFromAnalysisJson(bare ? root : root[QStringLiteral("pose2d")].toObject());
+    PoseTrack2D full = poseTrackFromAnalysisJson(bare ? root : root[QStringLiteral("pose2d")].toObject(), t0Us);
     PoseTrack2D track;
     track.camera = camera;
     track.frames = std::move(full.frames);

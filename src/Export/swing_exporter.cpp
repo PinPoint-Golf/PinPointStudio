@@ -40,6 +40,7 @@
 #include "frame_decode.h"
 #include "imu_sample.h"
 #include "pixel_format_names.h"   // canonical pixelFormatName (shared with the reanalyzer)
+#include "recording_header.h"   // the one header writer
 #include "swing_paths.h"
 #include "swing_window.h"
 #include "video_encoder.h"
@@ -907,42 +908,13 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
     }
 
-    // Wallclock: the anchor was snapshotted when the window was captured, i.e.
-    // at monotonic ~endTimestampUs(); subtracting the window duration gives an
-    // honest (ms-accurate) wallclock for t0.
+    // The header: the ONE header writer (recording_header.h) — the analysis-only shot builds the
+    // same header with no streams and no thumbnail.
     const int64_t durationUs = window.endTimestampUs() - t0;
-    const QDateTime wallclock = job.wallclockAnchorUtc.addMSecs(-durationUs / 1000);
-
-    QJsonObject root;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/1");
-    root[QStringLiteral("swing")] = QJsonObject{
-        {QStringLiteral("index"), job.swingIndex},
-        {QStringLiteral("id"),    job.swingId},
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        {QStringLiteral("name"),       job.athleteName},
-        {QStringLiteral("uuid"),       job.athleteUuid},
-        {QStringLiteral("handedness"), job.handedness},
-    };
-    root[QStringLiteral("session")] = QJsonObject{{QStringLiteral("dir"), job.sessionId}};
-    root[QStringLiteral("clock")] = QJsonObject{
-        {QStringLiteral("t0_us"),     static_cast<qint64>(t0)},
-        {QStringLiteral("unit"),      QStringLiteral("us")},
-        {QStringLiteral("wallclock"), wallclock.toString(Qt::ISODateWithMs)},
-    };
-    root[QStringLiteral("window")] = QJsonObject{
-        {QStringLiteral("start_us"), 0},
-        {QStringLiteral("end_us"),   static_cast<qint64>(durationUs)},
-    };
-    if (!result.thumbnailPath.isEmpty()) {
-        // Additive — readers ignore unknown keys by contract.
-        root[QStringLiteral("thumbnail")] = QJsonObject{
-            {QStringLiteral("file"), QStringLiteral("thumb.jpg")},
-            {QStringLiteral("t_us"), static_cast<qint64>(thumbTsUs - t0)},
-        };
-    }
-    root[QStringLiteral("capture")] = SwingExporter::captureBlock(job);
-    root[QStringLiteral("streams")] = streams;
+    RecordingHeader header = recordingHeaderFor(job, t0, durationUs);
+    if (!result.thumbnailPath.isEmpty())
+        header.thumbnail = RecordingHeader::Thumbnail{ QStringLiteral("thumb.jpg"), thumbTsUs - t0 };
+    const QJsonObject root = recordingHeaderJson(header, streams);
 
     // swing.json is NOT written here. The worker returns its raw manifest and the GUI
     // thread writes ONE unified swing.json (raw + the analyzer's "analysis" block) at the
@@ -953,66 +925,9 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
     return result;
 }
 
-QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
+QJsonObject SwingExporter::analysisOnlyHeader(const SwingExportJob& job, int64_t t0Us, int64_t durationUs)
 {
-    QJsonObject cap{
-        {QStringLiteral("sessionType"), job.sessionType},
-        {QStringLiteral("shotSource"),  job.shotSource},
-        // Window-relative impact (-1 = unknown) — the re-analysis impact reference,
-        // present even for analysis-skipped corpus swings (no analysis.phases block).
-        {QStringLiteral("impactUs"),    static_cast<qint64>(job.impactUs)},
-        {QStringLiteral("swingDetectionSensitivity"), job.swingDetectionSensitivity},
-        {QStringLiteral("motionCaptureQuality"),      job.motionCaptureQuality},
-        {QStringLiteral("latencyUs"), QJsonObject{
-            {QStringLiteral("imuBle"),      static_cast<qint64>(job.imuBleLatencyUs)},
-            {QStringLiteral("audioDevice"), job.audioDeviceLatencyUs},
-            // Presence marks a travel-corrected anchor (see SwingExportJob).
-            {QStringLiteral("micTravel"),   static_cast<qint64>(job.micTravelUs)},
-        }},
-        {QStringLiteral("host"), QJsonObject{
-            {QStringLiteral("app"),         QStringLiteral("PinPointStudio")},
-            {QStringLiteral("version"),     job.host.appVersion},
-            {QStringLiteral("gitSha"),      job.host.gitSha},
-            {QStringLiteral("hostname"),    job.host.hostname},
-            {QStringLiteral("platform"),    job.host.platform},
-            {QStringLiteral("poseBackend"), job.host.poseBackend},
-        }},
-    };
-    // Club geometry (shaft-tracker E1 band matcher) — persisted so re-analysis
-    // recovers it. Omitted when unresolved (untaped/no active club). clubName
-    // alone is enough to write the block: an untaped club with no recorded
-    // geometry still carries the length-prior identity (club_length_fusion.h).
-    if (job.clubLengthM > 0.0 || !job.bandCentersMm.empty() || !job.clubName.isEmpty()) {
-        QJsonArray bands;
-        for (double b : job.bandCentersMm) bands.append(b);
-        QJsonObject club{
-            {QStringLiteral("lengthMm"),        job.clubLengthM * 1000.0},
-            {QStringLiteral("shaftType"),       job.shaftType},
-            {QStringLiteral("bandCentersMm"),   bands},
-            // Additive (Phase A5): hosel offset from the butt, mm. 0 = unknown —
-            // absent on swings captured before this field existed.
-            {QStringLiteral("hoselFromButtMm"), job.hoselFromButtMm},
-            // Additive (markerless P4): exposed shaft length and the hands' end on
-            // the grip, mm. 0 = unknown — absent on swings captured before.
-            {QStringLiteral("shaftLengthMm"),   job.shaftLengthMm},
-            {QStringLiteral("handsEndMm"),      job.handsEndMm},
-            // Additive (club-length fusion): canonical club-vocabulary id — half
-            // the persistent prior key (athleteUuid|clubName|cameraKey).
-            {QStringLiteral("name"),            job.clubName},
-        };
-        // The prior the live analysis fuse ACTUALLY used for this shot (state
-        // BEFORE this shot's update) — re-analysis replays it for a byte-exact
-        // fuse instead of reading AppSettings (deterministic, cross-host).
-        // Omitted when no prior joined (first shot / cold key / camera unfixed).
-        if (job.priorClubLenN > 0 && job.priorClubLenPx > 0.0)
-            club[QStringLiteral("lengthPrior")] = QJsonObject{
-                {QStringLiteral("px"),    job.priorClubLenPx},
-                {QStringLiteral("varPx"), job.priorClubLenVarPx},
-                {QStringLiteral("n"),     job.priorClubLenN},
-            };
-        cap[QStringLiteral("club")] = club;
-    }
-    return cap;
+    return recordingHeaderJson(recordingHeaderFor(job, t0Us, durationUs), QJsonArray{});
 }
 
 } // namespace pinpoint

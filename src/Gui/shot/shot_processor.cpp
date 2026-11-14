@@ -2088,44 +2088,13 @@ void ShotProcessor::endSessionFolder()
 
 QJsonObject ShotProcessor::buildSynthManifest() const
 {
-    // Mirrors the exporter's header exactly (swing_exporter.cpp), minus the
-    // media streams — so a reloaded analysis-only shot is indistinguishable
-    // from an exported one apart from hasVideo=false. writeSwingJson stamps the
-    // schema and appends the "analysis" block.
+    // The ONE header writer (recording_header.h), as the exporter calls it, minus the media
+    // (streams, thumbnail) — so a reloaded analysis-only shot is indistinguishable from an
+    // exported one apart from hasVideo=false. writeSwingJson stamps the schema and appends the
+    // "analysis" block.
     const int64_t t0         = m_swingWindow->startTimestampUs();
     const int64_t durationUs = m_swingWindow->endTimestampUs() - t0;
-    const QDateTime wallclock = m_exportJob.wallclockAnchorUtc.addMSecs(-durationUs / 1000);
-
-    QJsonObject root;
-    root[QStringLiteral("swing")] = QJsonObject{
-        { QStringLiteral("index"), m_exportJob.swingIndex },
-        { QStringLiteral("id"),    m_exportJob.swingId },
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        { QStringLiteral("name"),       m_exportJob.athleteName },
-        { QStringLiteral("uuid"),       m_exportJob.athleteUuid },
-        { QStringLiteral("handedness"), m_exportJob.handedness },
-    };
-    // Height rides with the swing so a re-analysis scales the skeleton exactly as the live one
-    // did — never from whatever the profile says on the day it is re-run. Absent when unknown.
-    if (m_exportJob.athleteHeightM > 0.0) {
-        QJsonObject a = root[QStringLiteral("athlete")].toObject();
-        a.insert(QStringLiteral("heightM"), m_exportJob.athleteHeightM);
-        root[QStringLiteral("athlete")] = a;
-    }
-    root[QStringLiteral("session")] = QJsonObject{{ QStringLiteral("dir"), m_exportJob.sessionId }};
-    root[QStringLiteral("clock")] = QJsonObject{
-        { QStringLiteral("t0_us"),     static_cast<qint64>(t0) },
-        { QStringLiteral("unit"),      QStringLiteral("us") },
-        { QStringLiteral("wallclock"), wallclock.toString(Qt::ISODateWithMs) },
-    };
-    root[QStringLiteral("window")] = QJsonObject{
-        { QStringLiteral("start_us"), 0 },
-        { QStringLiteral("end_us"),   static_cast<qint64>(durationUs) },
-    };
-    root[QStringLiteral("capture")] = pinpoint::SwingExporter::captureBlock(m_exportJob);
-    root[QStringLiteral("streams")] = QJsonArray{};   // analysis-only — no media
-    return root;
+    return pinpoint::SwingExporter::analysisOnlyHeader(m_exportJob, t0, durationUs);
 }
 
 // ---------------------------------------------------------------------------

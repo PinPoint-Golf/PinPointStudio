@@ -679,10 +679,10 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 #include <QJsonDocument>
 #include <QJsonObject>
 
-BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera)
+BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera, int64_t t0Us)
 {
     // The ball block's one typed reader (ball_track_json.h), bound to the caller's source.
-    BallTrack2D track = pinpoint::analysis::ballTrackFromAnalysisJson(ball);
+    BallTrack2D track = pinpoint::analysis::ballTrackFromAnalysisJson(ball, t0Us);
     track.camera = camera;
     return track;
 }

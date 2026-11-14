@@ -308,12 +308,9 @@ pp_norm_env(tuning_overrides_test)
 # includes are type-only on this path (fake stages, window = nullptr), so no extra .cpp.
 pp_add_test(analysis_stage_test SOURCES analysis_stage_test.cpp)
 
-# The Recording contract (information_model.md §2; refactor step 1.1): the one job builder
-# (analysis_job_builder) and the effective-club rule (effective_context) over src/Recording's
-# types — live Recording → job equals the reloaded Recording → job; a corrected club takes its bag
-# geometry and standard length; undeclared stays undeclared. Pure: no window, no file, no model.
-pp_add_test(recording_contract_test SOURCES recording_contract_test.cpp
-            ${ANALYSIS}/analysis_job_builder.cpp ${ANALYSIS}/effective_context.cpp)
+# recording_contract_test and recording_store_test (the Recording contract, refactor step 1) sit
+# with the OpenCV targets below: since step 1.2 they load a written swing through the Recording
+# loader, whose disk-backed window decodes MP4 through OpenCV.
 
 # The analysis as a dependency graph (analysis_dag.h; analysis_dag_design.md step B): the
 # graph from fake stages' declarations, the pool run, the detail.series splice, the halt and
@@ -544,7 +541,7 @@ pp_add_test(shot_source_map_test
 # asserts that nothing in src/Analysis keys on it, the same shape of rule as
 # CT-I37 and for the same reason.
 pp_add_test(swing_doc_test
-    SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+    SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     INCLUDE ${SRC}/LaunchMonitor
@@ -580,6 +577,7 @@ pp_add_test(session_archiver_test
             ${SRC}/Export/swing_doc_writer.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp
             ${SRC}/Export/swing_paths.cpp        # SwingDocReader's session helpers → sanitise
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
@@ -712,6 +710,40 @@ pp_add_test(mp4_frame_reader_test
     INCLUDE ${OpenCV_INCLUDE_DIRS}
     LINK    ${OpenCV_LIBS}
     NO_QT)
+
+# --- The Recording contract (information_model.md §2; refactor step 1) -------------------------
+# The store side's link line: the Recording loader (swing folder → disk-backed window + Recording,
+# the MP4 reader behind it), the one header writer + the analysisContext block, the swing-document
+# writer and reader (swing_doc_test's line), the one job builder and the effective club.
+set(PP_RECORDING_STORE_SOURCES
+    ${SRC}/Export/recording_loader.cpp ${SRC}/Export/recording_header.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
+    ${ANALYSIS}/mp4_frame_reader.cpp ${SRC}/Buffer/swing_window.cpp
+    ${ANALYSIS}/analysis_job_builder.cpp ${ANALYSIS}/effective_context.cpp
+    ${SRC}/Export/swing_paths.cpp                                   # SwingDocReader's session helpers
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)     # the loader reports through the real log
+
+# Step 1.1 + 1.2: the one job builder and the effective-club rule over src/Recording's types —
+# live Recording → job equals the reloaded Recording → job, in memory (Test 1) and through the disk
+# (Test 1b: written as capture writes it, read by the Recording loader); a corrected club takes its
+# bag geometry and standard length; undeclared stays undeclared.
+pp_add_test(recording_contract_test
+    SOURCES recording_contract_test.cpp ${PP_RECORDING_STORE_SOURCES}
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+
+# Step 1.2, the store side: Recording → disk → Recording equal; the full and analysis-only headers
+# one header but for the media; a pre-step-1 document → the legacy context (the empty-popover and
+# seeded-DRIVER cases as today); a newer schema → read-only; the club review as stored.
+pp_add_test(recording_store_test
+    SOURCES ${SRC}/Export/tests/recording_store_test.cpp ${PP_RECORDING_STORE_SOURCES}
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
 
 # Shaft v3.0-r1 evidence engines (E1 discrete band + E2 polarity ridge sweep) —
 # Qt-free math core (shaft_tracker_math). -O2: the suites set no build type and
@@ -1369,7 +1401,7 @@ pp_add_test(measure_sample_test
 pp_add_test(shoulder_tilt_vs_bend_test
     SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
@@ -1383,7 +1415,7 @@ pp_add_test(shoulder_tilt_vs_bend_test
 pp_add_test(club_slot_top_test
     SOURCES club_slot_top_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp
@@ -1502,6 +1534,7 @@ pp_add_test(session_diagnostics_model_test
             ${SRC}/Export/swing_doc_writer.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -1558,6 +1591,7 @@ pp_add_test(work_ons_controller_test
             ${SRC}/Export/swing_doc_writer.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -1592,6 +1626,7 @@ add_executable(regrade_ledger
     ${SRC}/Export/swing_doc_writer.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp
     ${SRC}/Export/swing_paths.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
@@ -1637,6 +1672,7 @@ add_executable(athlete_dump
     ${SRC}/Export/swing_doc_writer.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp
     ${SRC}/Export/swing_paths.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
@@ -1667,6 +1703,7 @@ set(MEASURE_DUMP_SRC
     ${SRC}/Export/swing_doc_writer.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp
     ${SRC}/Export/swing_paths.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
@@ -1703,6 +1740,7 @@ add_executable(diag_uncertainty_report
     ${SRC}/Export/swing_doc_writer.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp
     ${SRC}/Export/swing_paths.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
@@ -1736,6 +1774,7 @@ add_executable(diag_rank_diff
     ${SRC}/Export/swing_doc_writer.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp
     ${SRC}/Export/swing_paths.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
