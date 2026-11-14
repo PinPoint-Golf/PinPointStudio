@@ -35,6 +35,7 @@
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
 #include "../packs/pack_provider.h"                // makeCharacteristicPackProvider (#16 side checks)
+#include "../norms/norm_provider.h"                // a saved corridor edit (audit B-01, Stage 0.4b)
 
 #include <QCoreApplication>
 #include <QSet>
@@ -45,6 +46,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimeZone>
 
@@ -1852,8 +1854,10 @@ static void flightCheckedStrikesSuite(const QTemporaryDir &tmp)
 // ── The golfer's half of diagnostics.json is never lost (audit H-04 / H-03 / D-03, Stage 0.1) ──
 //
 // The file is half cache (rows, session meta) and half the only copy of what the golfer said
-// (golferInputKeys). A file found unreadable at load, or at the catch-up's write, is set aside rather
-// than written over; the catch-up merges every golfer key, three ways, before it writes.
+// (golferInputKeys). A file found unreadable at load, or at the catch-up's write, is never written
+// over: one that does not parse is set aside; one that cannot be OPENED is left where it is and the
+// session's writes stop for that activation (Stage 0.4b, 14 Nov 2026 — a flaky share must not cost a good
+// file). The catch-up merges every golfer key, three ways, before it writes.
 static QStringList unreadableAsides(const QString &sessionDir)
 {
     return QDir(sessionDir).entryList(QStringList{ QStringLiteral("diagnostics.json.unreadable-*") }, QDir::Files);
@@ -1869,6 +1873,28 @@ static bool writeBytes(const QString &path, const QByteArray &bytes)
 {
     QFile f(path);
     return f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(bytes) == bytes.size();
+}
+
+// A file that is there but cannot be opened: no permissions at all, the nearest a test gets to a share
+// that refuses the read. False when the open still succeeds (run as root), and the case cannot be made.
+static bool makeUnopenable(const QString &path)
+{
+    QFile::setPermissions(path, QFileDevice::Permissions());
+    QFile probe(path);
+    return !probe.open(QIODevice::ReadOnly);
+}
+
+static void makeOpenable(const QString &path)
+{
+    QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+}
+
+static bool warnedSince(int seq, const QString &path, const char *words)
+{
+    for (const PpMessageLog::Entry &e : PpMessageLog::instance()->fetchSince(seq))
+        if (e.severity == QLatin1String("WARN") && e.message.contains(path) && e.message.contains(QLatin1String(words)))
+            return true;
+    return false;
 }
 
 static void golferInputSuite(const QTemporaryDir &tmp)
@@ -1926,6 +1952,73 @@ static void golferInputSuite(const QTemporaryDir &tmp)
                   && diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject()
                          .value(QStringLiteral("shots")).toArray().size() == 24,
               "the catch-up sets the unreadable file aside before it writes, and writes what it holds");
+    }
+
+    // ── A file that is there but cannot be OPENED is left in place, and the session writes nothing ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_04");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "rich_7iron"), "two swings on disk");
+        const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
+        {
+            auto first = freshModel();
+            first->activateSession(dir);
+            first->declareMiss(QStringLiteral("slice"));
+        }
+        const QByteArray good = bytesOf(path);
+        check(!good.isEmpty(), "…beside a good diagnostics.json holding the golfer's declared miss");
+        if (!makeUnopenable(path)) {
+            makeOpenable(path);
+            std::printf("  [SKIP] a file without permissions still opens here (root?): the unopenable case cannot be made\n");
+        } else {
+            const int seq = PpMessageLog::instance()->currentSeq();
+            auto m = freshModel();
+            m->activateSession(dir);
+            check(unreadableAsides(dir).isEmpty(), "a file that cannot be opened is NOT set aside");
+            check(warnedSince(seq, path, "could not be opened"),
+                  "…and the app log says so: a WARN with the path and that it could not be opened");
+            check(m->shotCount() == 2, "…the model still grades the swings in memory");
+            m->declareMiss(QStringLiteral("hook"));                     // a write after the activation
+            check(m->persistCount() == 0, "…and writes nothing to the session this activation, not even after a change");
+            makeOpenable(path);
+            check(bytesOf(path) == good, "…so the file is exactly as it was, byte for byte");
+            m->declareMiss(QStringLiteral("push"));
+            check(m->persistCount() == 0 && bytesOf(path) == good,
+                  "…and stays blocked for the rest of the activation, even once the file opens again");
+            auto again = freshModel();
+            again->activateSession(dir);
+            check(again->declaredMiss() == QStringLiteral("slice") && unreadableAsides(dir).isEmpty(),
+                  "the next activation reads the file again: the golfer's miss is still there");
+        }
+    }
+
+    // ── The same at the catch-up's last-moment read: it cannot open the file, so it does not write ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_05");
+        check(writeOutcomeSession(dir, fixture24(t0 + 2 * 86400000LL)) && writeUsual7Iron(dir), "a session the catch-up holds");
+        auto catchUp = freshModel();
+        catchUp->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        catchUp->activateSession(dir);
+        const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
+        const QByteArray held = bytesOf(path);
+        if (!makeUnopenable(path)) {
+            makeOpenable(path);
+            std::printf("  [SKIP] a file without permissions still opens here (root?): the unopenable case cannot be made\n");
+        } else {
+            const int seq    = PpMessageLog::instance()->currentSeq();
+            const int writes = catchUp->persistCount();
+            catchUp->setShotIntent(3, QStringLiteral("draw"));          // the catch-up would write
+            makeOpenable(path);
+            check(unreadableAsides(dir).isEmpty() && bytesOf(path) == held && catchUp->persistCount() == writes,
+                  "the catch-up cannot open the file before it writes: it writes nothing and leaves the file in place");
+            check(warnedSince(seq, path, "could not be opened"), "…with a WARN naming the file");
+            catchUp->setShotIntent(5, QStringLiteral("fade"));
+            check(bytesOf(path) == held, "…and writes nothing more this activation");
+            catchUp->activateSession(dir);
+            catchUp->setShotIntent(5, QStringLiteral("fade"));
+            check(diagnosticsJsonOf(dir).value(QStringLiteral("shotIntent")).toObject()
+                      .value(QStringLiteral("5")).toString() == QStringLiteral("fade"),
+                  "the next activation writes again");
+        }
     }
 
     // ── The catch-up's write keeps every golfer key a panel wrote after the catch-up read the file ──
@@ -2343,6 +2436,118 @@ static void clubAssumedSuite(const QTemporaryDir &tmp)
     unbound->activateSession(QString());
     unbound->ingestShot(1, swingDirFor(dir, 1));
     check(unbound->shotCount() == 0, "a model holding no session refuses every swing");
+}
+
+// ── A saved corridor edit reaches an open model at its next activation (audit B-01, Stage 0.4b) ──
+//
+// ModelBrowser::save() writes the user norm set and resets the shared one, which moves its generation.
+// The model re-takes the set at activation; the content stamp hashes the norms, so it moves with them,
+// and every row graded under the old set regrades through the stale-stamp path. With no edit, nothing
+// moves. The user norm set lives under AppDataLocation, so the suite makes that a folder of its own:
+// test mode, and the application named after a fresh QTemporaryDir in the test-mode data location, so
+// AppDataLocation IS that temporary directory. Two runs at once, or a developer's own corridors,
+// never meet it, and it goes with the run.
+static void normEditSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\na saved corridor edit regrades an open session at its next activation\n");
+    const QString oldName = QCoreApplication::applicationName();
+    const QString oldOrg  = QCoreApplication::organizationName();
+    QStandardPaths::setTestModeEnabled(true);
+    const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    QDir().mkpath(dataBase);
+    QTemporaryDir runDir(dataBase + QStringLiteral("/session_diagnostics_model_test-XXXXXX"));
+    QCoreApplication::setOrganizationName(QString());
+    QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+    auto restore = [&]() {
+        QFile::remove(userNormPath());
+        QStandardPaths::setTestModeEnabled(false);
+        QCoreApplication::setOrganizationName(oldOrg);
+        QCoreApplication::setApplicationName(oldName);
+        resetSharedNormProvider();
+    };
+    check(runDir.isValid() && QFileInfo(userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()),
+          "the user norm set goes in this run's own temporary directory");
+    if (!runDir.isValid()) { restore(); return; }
+    resetSharedNormProvider();
+
+    const QString dir = makeSession(tmp, "athlete_norms", "2026-11-14_N_01");
+    check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "rich_7iron"), "two swings on disk");
+    auto ledgerOf = [&dir]() { return diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject(); };
+    auto gradedFromOf = [&dir]() {
+        return diagnosticsJsonOf(dir).value(QStringLiteral("session")).toObject().value(QStringLiteral("gradedFrom")).toObject();
+    };
+
+    auto m = freshModel();
+    m->activateSession(dir);
+    const QString     stamp0  = m->contentStamp();
+    const QJsonObject ledger0 = ledgerOf();
+    const QJsonObject graded0 = gradedFromOf();
+    check(!stamp0.isEmpty() && graded0.size() == 2, "the session is graded and stamped");
+
+    // A corridored row of the first shot, and the norm it was graded against.
+    const std::vector<ShotRecord> shots0 = fromJson(ledger0);
+    const ConditionRow *row = nullptr;
+    const std::shared_ptr<const INormProvider> shipped = sharedNormProvider();
+    NormResolution res;
+    for (const ConditionRow &r : shots0.empty() ? std::vector<ConditionRow>() : shots0.front().rows) {
+        if (r.drivingMeasureId.isEmpty() || !std::isfinite(r.corridorLo) || !std::isfinite(r.corridorHi)
+            || !(r.corridorHi > r.corridorLo))
+            continue;
+        res = shipped->resolve(r.drivingMeasureId, r.contextId);
+        if (res.found() && !res.overridden) { row = &r; break; }
+    }
+    check(row != nullptr, "a row graded against a two-sided shipped corridor");
+    if (!row) { restore(); return; }
+    const QString conditionId = row->conditionId;
+    const double  lo0 = row->corridorLo, hi0 = row->corridorHi;
+    const double  delta = 2.0 * (res.norm->sigmaLo + res.norm->sigmaHi) + 1.0;
+
+    // ── No edit: activating again changes nothing ──
+    m->activateSession(dir);
+    check(m->contentStamp() == stamp0 && ledgerOf() == ledger0 && gradedFromOf() == graded0,
+          "with no edit, the next activation keeps the stamp and every row as it was");
+
+    // ── The edit written but not yet announced (no reset): still nothing ──
+    NormPack pack;
+    pack.id      = QStringLiteral("user");
+    pack.version = QStringLiteral("1");
+    Norm edited  = *res.norm;
+    edited.mu   += delta;
+    pack.norms.push_back(edited);
+    QString why;
+    check(saveUserNormPack(pack, &why), "a user norm set moving that corridor is written");
+    m->activateSession(dir);
+    check(m->contentStamp() == stamp0 && ledgerOf() == ledger0,
+          "…which, until the shared set is reset (as save() does), regrades nothing");
+
+    // ── The reset, as ModelBrowser::save() makes it: the open model regrades at its next activation ──
+    resetSharedNormProvider();
+    check(m->contentStamp() == stamp0, "the reset alone regrades nothing: the open session waits for its next activation");
+    m->activateSession(dir);
+    const QString stamp1 = m->contentStamp();
+    check(!stamp1.isEmpty() && stamp1 != stamp0, "at the next activation the content stamp moves with the norms");
+    const QJsonObject graded1 = gradedFromOf();
+    bool allRestamped = graded1.size() == 2;
+    for (auto it = graded1.constBegin(); it != graded1.constEnd(); ++it)
+        allRestamped = allRestamped && it.value().toObject().value(QStringLiteral("content")).toString().startsWith(stamp1);
+    check(allRestamped, "…and every row was regraded: each shot is stamped with the new content");
+    const std::vector<ShotRecord> shots1 = fromJson(ledgerOf());
+    const ConditionRow *after = nullptr;
+    if (!shots1.empty())
+        for (const ConditionRow &r : shots1.front().rows)
+            if (r.conditionId == conditionId) { after = &r; break; }
+    const double tol = 1e-6 * std::max(1.0, std::fabs(delta));
+    check(after && std::fabs((after->corridorLo - lo0) - delta) < tol && std::fabs((after->corridorHi - hi0) - delta) < tol,
+          "…against the NEW corridor: the edited row's corridor moved by exactly the edit");
+
+    auto fresh = freshModel();
+    fresh->activateSession(dir);
+    check(fresh->contentStamp() == stamp1, "a model made after the save agrees with the open one");
+    m->activateSession(dir);
+    check(m->contentStamp() == stamp1 && gradedFromOf() == graded1,
+          "with no further edit, the next activation regrades nothing again");
+
+    restore();     // the shipped set, and the test's own name, for whatever follows
 }
 
 int main(int argc, char **argv)
@@ -4449,6 +4654,7 @@ int main(int argc, char **argv)
     baselineAuthoritySuite(tmp);
     heldMeasureSuite(tmp);
     clubAssumedSuite(tmp);
+    normEditSuite(tmp);
 
     std::printf("\npatterns at close: %d\n", patternsAtClose);
     std::printf("\n%s\n", g_fail == 0 ? "OK" : "FAILURES");

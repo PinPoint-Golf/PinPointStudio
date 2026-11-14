@@ -90,14 +90,21 @@ rebuilt from the swings. The golfer's keys cannot: `intent` (focus, focus split,
 `screens`, `shotIntent`, `intentFrom` and `corrections` (`SessionDiagnosticsModel::golferInputKeys`).
 Three rules keep them (audit H-04, 14 Nov 2026):
 
-- A `diagnostics.json` found unreadable (there, but it cannot be opened or parsed) at load, or at
-  the catch-up's write, is not written over. It is renamed to
-  `diagnostics.json.unreadable-<yyyyMMdd-HHmmss>` (with `-<n>` added when that name is taken), a
-  WARN in the app log names the file, the parse error and the new name, and the session is graded
-  as one with no file. If the rename fails too, nothing is written to that session's
-  `diagnostics.json` until it is next activated, and a second WARN says so. A live panel does not
-  re-read the file before its own writes, so a file that goes bad after the panel loaded it is
-  not checked (see the last paragraph).
+- A `diagnostics.json` found unreadable at load, or at the catch-up's write, is not written over.
+  What happens depends on why it cannot be read (Stage 0.4b, 14 Nov 2026 — the lead's call, told to Mark):
+  - **It opens but does not parse** (truncated, not a JSON object): the file is bad. It is renamed
+    to `diagnostics.json.unreadable-<yyyyMMdd-HHmmss>` (with `-<n>` added when that name is taken),
+    a WARN in the app log names the file, the parse error and the new name, and the session is
+    graded as one with no file. If the rename fails too, nothing is written to that session's
+    `diagnostics.json` until it is next activated, and a second WARN says so.
+  - **It is there but cannot be opened** (a share that dropped, a permission, a lock): the file is
+    most likely good, met at a bad moment. It is NOT renamed. It stays where it is, untouched;
+    nothing is written to that session's `diagnostics.json` until it is next activated, and a WARN
+    names the file and the open error. The panel still grades the swings in memory for that
+    activation. The next activation reads the file again.
+
+  A live panel does not re-read the file before its own writes, so a file that goes bad after the
+  panel loaded it is not checked (see the last paragraph).
 - The work-ons catch-up (baseline authority "always") merges every golfer key from the file
   just before it writes. The merge is per entry and three-way: an entry the file changed since
   the catch-up read it is the file's (what the golfer said in a panel meanwhile); the rest is the

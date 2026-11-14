@@ -721,8 +721,8 @@ QString normaliseHandedness(const QString &raw)
 SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     : QObject(parent)
     , m_packProv(makeCharacteristicPackProvider())
-    , m_norms(sharedNormProvider())
 {
+    followNormSave();
     // ONE worker thread, not "a worker thread". Two would reduce shot 8 before shot 7 on an
     // unlucky schedule, and while conditionLedgers() sorts by nothing that would care, the
     // TICK RUN is drawn in vector order and the run is the panel's most literal claim about
@@ -936,7 +936,7 @@ void SessionDiagnosticsModel::forgetShot(const QString &swingDir)
 void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, bool regrade)
 {
     if (m_synchronous) {
-        Ingested in = detectShot(shotId, swingDir);
+        Ingested in = detectShot(shotId, swingDir, m_norms);
         in.regrade = regrade;
         in.generation = m_activationGen;
         applyIngested(in);
@@ -948,14 +948,23 @@ void SessionDiagnosticsModel::queueDetect(int shotId, const QString &swingDir, b
     // QThreadPool::start() rather than QtConcurrent::run(): there is no QFuture to wait on
     // here — the result comes back through the queued invocation below — and run()'s future
     // is [[nodiscard]] precisely so that a caller who drops it says why.
-    m_pool.start([this, shotId, swingDir, regrade, generation = m_activationGen]() {
-        Ingested in = detectShot(shotId, swingDir);
+    // The job carries its own norm snapshot: what it grades against is fixed when it is queued, and
+    // a re-take of m_norms at the next activation (followNormSave) never races a job still reading.
+    m_pool.start([this, shotId, swingDir, regrade, generation = m_activationGen, norms = m_norms]() {
+        Ingested in = detectShot(shotId, swingDir, norms);
         in.regrade = regrade;
         in.generation = generation;
         // Queued, so the row vector and every signal below are only ever touched by the
         // thread that owns this object. The worker holds no reference to anything mutable.
         QMetaObject::invokeMethod(this, [this, in]() { applyIngested(in); }, Qt::QueuedConnection);
     });
+}
+
+bool SessionDiagnosticsModel::followNormSave()
+{
+    if (m_norms && sharedNormProviderGeneration() == m_normsGeneration) return false;
+    m_norms = sharedNormProvider(&m_normsGeneration);
+    return true;
 }
 
 QString SessionDiagnosticsModel::computeContentStamp() const
@@ -975,8 +984,8 @@ QString SessionDiagnosticsModel::computeContentStamp() const
     return QString::fromLatin1(h.result().toHex().left(16));
 }
 
-SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId,
-                                                                     const QString &swingDir) const
+SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
+    int shotId, const QString &swingDir, const std::shared_ptr<const INormProvider> &norms) const
 {
     Ingested out;
     // STAMPED BEFORE THE READ. A re-analysis that rewrites the document after this point leaves
@@ -986,7 +995,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
     out.from.docSize    = doc.size;
     out.from.docMtimeMs = doc.mtimeMs;
     out.from.content    = rowContentStamp();
-    if (!m_packProv || !m_norms) return out;
+    if (!m_packProv || !norms) return out;
     // NO DOCUMENT YET, NO SHOT YET: a swing folder is made when the swing is allocated, seconds before
     // its export writes the document, and an activation in that window (the session folder moving with
     // the allocation re-points every panel) back-fills it. Not ok, so the reservation is dropped and the
@@ -1045,7 +1054,7 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(int shotId
 
     // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
     // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
-    const LiveDetection     d = detectForSwing(src, pack, m_norms, gradePolicyByName(m_policyName),
+    const LiveDetection     d = detectForSwing(src, pack, norms, gradePolicyByName(m_policyName),
                                                {}, QString(), sequenceCheckSignalIds());
 
     ShotRecord rec;
@@ -1461,6 +1470,13 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     m_lmShots.clear();
     m_swingDirs.clear();
     m_gradedFrom.clear();
+    // A CORRIDOR EDIT SAVED SINCE THE LAST ACTIVATION (ModelBrowser::save() resets the shared set and
+    // moves its generation): the set is re-taken here, where no detection job is in flight (the pool
+    // drained above, and each job holds its own snapshot anyway). The stamp below hashes the norms,
+    // so it moves with them, and every row graded under the old set reads stale in the reconcile and
+    // regrades — the same path a pack change takes. A session already open regrades at its NEXT
+    // activation, not on the save. With no edit the generation has not moved and nothing changes.
+    followNormSave();
     m_contentStamp = computeContentStamp();
     m_displayOrder.clear();
     m_patternSet.clear();
@@ -1502,10 +1518,15 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 
     // ── 1. The file, if there is one ────────────────────────────────────────────────
     //
-    // A file that is THERE but cannot be opened or parsed (truncated by an interrupted copy, a
-    // share that dropped mid-write) is not "no file": it holds the golfer's only copy of what
-    // they said, and the back-fill below would write a fresh one over it. It is set aside, with a
-    // warning, and the session carries on as one that has no file.
+    // A file that is THERE but cannot be read is not "no file": it holds the golfer's only copy of
+    // what they said, and the back-fill below would write a fresh one over it. Two cases, two
+    // answers (Stage 0.4b, 14 Nov 2026 — the lead's call, told to Mark):
+    //   · it opens but does not parse (truncated by an interrupted copy, a share that dropped
+    //     mid-write): the file itself is bad. It is set aside, with a warning, and the session
+    //     carries on as one that has no file;
+    //   · it cannot be OPENED (a share that dropped, a permission, a lock): the file is most likely
+    //     good and was met at a bad moment. It is left where it is and nothing is written to the
+    //     session this activation, with a warning; the next activation reads it again.
     QJsonObject root;
     bool haveFile = false;
     {
@@ -1514,7 +1535,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
             QString why;
             QFile f(path);
             if (!f.open(QIODevice::ReadOnly)) {
-                why = f.errorString();
+                blockLedgerWrites(path, f.errorString());
             } else {
                 QJsonParseError err;
                 const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
@@ -1528,7 +1549,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
                     haveFile = true;
                 }
             }
-            if (!haveFile) setAsideUnreadableLedger(path, why);
+            if (!haveFile && !m_ledgerWriteBlocked) setAsideUnreadableLedger(path, why);
         }
     }
     if (haveFile) {
@@ -3237,6 +3258,13 @@ bool SessionDiagnosticsModel::setAsideUnreadableLedger(const QString &path, cons
     return false;
 }
 
+void SessionDiagnosticsModel::blockLedgerWrites(const QString &path, const QString &why)
+{
+    m_ledgerWriteBlocked = true;
+    ppWarn() << "[Diagnostics] diagnostics.json could not be opened:" << qPrintable(path) << "—" << qPrintable(why)
+             << "— left where it is, and nothing will be written to this session until it is opened again";
+}
+
 QJsonObject SessionDiagnosticsModel::envelope() const
 {
     QJsonArray lm;
@@ -3286,14 +3314,17 @@ void SessionDiagnosticsModel::persist(bool adoptMerged)
     // focus or a miss, answer a screen or correct a shot in that same file, and what the catch-up read
     // at activation is by now out of date. Every golfer key is merged from the file at the last moment
     // before the write, entry by entry (mergeGolferInput): what the file changed since this model read
-    // or wrote it is the file's, the rest is this model's. A file that cannot be read is set aside, not
-    // written over (setAsideUnreadableLedger), and the ones in hand stand.
+    // or wrote it is the file's, the rest is this model's. A file that does not parse is set aside, not
+    // written over (setAsideUnreadableLedger), and the ones in hand stand. One that cannot be opened is
+    // left where it is and this write, and every later one this activation, is not made
+    // (blockLedgerWrites): the golfer's input it may hold is not ours to merge or to replace.
     if (m_baselineAuthority == BaselineAuthority::Always && QFileInfo::exists(path)) {
         QFile current(path);
         QString why;
         QJsonObject disk;
         if (!current.open(QIODevice::ReadOnly)) {
-            why = current.errorString();
+            blockLedgerWrites(path, current.errorString());
+            return;
         } else {
             QJsonParseError err;
             const QJsonDocument doc = QJsonDocument::fromJson(current.readAll(), &err);

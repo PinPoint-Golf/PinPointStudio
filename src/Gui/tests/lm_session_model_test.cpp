@@ -29,14 +29,27 @@
 // grade per club (R4b) — a two-sided corridor's half-width, the CV for club speed, ungraded without a
 // scale, never smash factor or ball flight (R4), never across clubs; H, typicality — this shot against
 // the session's other shots of its club, this one left out, at least N_MIN of them (R8).
+//
+// And N, a saved corridor edit (audit B-01, Stage 0.4b): the board re-takes the shared norm set at the
+// top of its next grade pass once the save's reset has moved its generation; with no edit, or before
+// the reset, it grades exactly as it did.
 
 #include "launchmonitor/lm_session_model.h"
 #include "variability/variability_measures.h"
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
 #include "Analysis/swing_analysis.h"
+#include "norms/norm_provider.h"
+#include "norms/context_tree.h"
+#include "norms/metric_corridor.h"
+#include "packs/pack_provider.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QSignalSpy>
 #include <QUrl>
 #include <QVariantList>
@@ -401,6 +414,76 @@ int main(int argc, char **argv)
                   typOf(board, "lm.clubheadSpeed").isEmpty()
                       && board.graphics().value(QStringLiteral("typicality")).toMap().isEmpty());
         }
+    }
+
+    {
+        std::printf("\nN — a saved corridor edit reaches the board's next grade pass (audit B-01)\n");
+        // The user norm set lives under AppDataLocation: a folder of this run's own — test mode, and the
+        // application named after a fresh QTemporaryDir in the test-mode data location, so AppDataLocation
+        // IS that temporary directory — so no real profile and no other run meets it.
+        QStandardPaths::setTestModeEnabled(true);
+        const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+        QDir().mkpath(dataBase);
+        QTemporaryDir runDir(dataBase + QStringLiteral("/lm_session_model_test-XXXXXX"));
+        QCoreApplication::setOrganizationName(QString());
+        QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+        check("N0 the user norm set goes in this run's own temporary directory",
+              runDir.isValid()
+                  && QFileInfo(analysis::userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()));
+        analysis::resetSharedNormProvider();
+
+        ShotListModel shots;
+        for (int i = 0; i < 11; ++i)
+            addShot(shots, QStringLiteral("7 IRON"), QVariantMap{ { QStringLiteral("lm.clubPath"), -1.0 + 0.2 * (i % 5) } });
+        LmSessionModel board;
+        board.setReviewing(true);
+        board.setShotModel(&shots);
+        const QVariantMap path0 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");
+        check(QStringLiteral("N1 7 iron path graded against its corridor (\"%1\")").arg(path0.value(QStringLiteral("basisText")).toString()),
+              path0.value(QStringLiteral("graded")).toBool()
+                  && path0.value(QStringLiteral("basisText")).toString().contains(QLatin1String("of corridor")));
+        board.setFocusedShotId(idOf(shots, 3));                    // a grade pass, no edit
+        check("N2 with no edit, the next grade pass grades the same",
+              varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path0);
+
+        // The corridor three times as wide, written as ModelBrowser::save() writes it — on the measure the
+        // board's corridor resolves through (corridorForMetricAtPhase, the board's own join).
+        const std::shared_ptr<const analysis::INormProvider> shipped = analysis::sharedNormProvider();
+        const QString ctx      = analysis::contextIdForClub(QStringLiteral("7 IRON"));
+        const auto    packProv = analysis::makeCharacteristicPackProvider();
+        const std::optional<analysis::MetricCorridor> corridor =
+            analysis::corridorForMetricAtPhase(packProv->pack(), *shipped, QStringLiteral("lm.clubPath"),
+                                               analysis::Phase::Impact, ctx);
+        const analysis::NormResolution res =
+            corridor ? shipped->resolve(corridor->measureId, ctx) : analysis::NormResolution{};
+        check(QStringLiteral("N3 the path corridor resolves to a shipped row (%1)").arg(corridor ? corridor->measureId : QString()),
+              res.found() && !res.overridden);
+        if (res.found()) {
+            analysis::NormPack pack;
+            pack.id      = QStringLiteral("user");
+            pack.version = QStringLiteral("1");
+            analysis::Norm wider = *res.norm;
+            wider.sigmaLo *= 3.0;
+            wider.sigmaHi *= 3.0;
+            pack.norms.push_back(wider);
+            QString why;
+            check("N3 a user norm set widening it is written", analysis::saveUserNormPack(pack, &why));
+            board.setFocusedShotId(idOf(shots, 4));
+            check("N4 before the reset (save() makes it), the board still grades as it did",
+                  varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path0);
+            analysis::resetSharedNormProvider();
+            board.setFocusedShotId(idOf(shots, 5));                // the next grade pass
+            const QVariantMap path1 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");
+            check(QStringLiteral("N5 after the reset, the next grade pass grades against the edit (\"%1\" -> \"%2\")")
+                      .arg(path0.value(QStringLiteral("basisText")).toString(), path1.value(QStringLiteral("basisText")).toString()),
+                  path1.value(QStringLiteral("graded")).toBool()
+                      && path1.value(QStringLiteral("basisText")).toString() != path0.value(QStringLiteral("basisText")).toString());
+            board.setFocusedShotId(idOf(shots, 6));
+            check("N6 and with no further edit, the pass after grades the same again",
+                  varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path1);
+        }
+        QFile::remove(analysis::userNormPath());
+        analysis::resetSharedNormProvider();
     }
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);

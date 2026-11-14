@@ -697,9 +697,18 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
 LmSessionModel::LmSessionModel(QObject *parent)
     : QAbstractListModel(parent)
     , m_pack(makeCharacteristicPackProvider())
-    , m_norms(sharedNormProvider())
     , m_policyName(QStringLiteral("standard"))
 {
+    followNormSave();
+}
+
+// A corridor edit saved since the set was taken (ModelBrowser::save() resets the shared set and moves
+// its generation): re-take it. Only from the GUI thread, which is the only thread this model grades on.
+void LmSessionModel::followNormSave()
+{
+    if (m_norms && sharedNormProviderGeneration() == m_normsGeneration)
+        return;
+    m_norms = sharedNormProvider(&m_normsGeneration);
 }
 
 // Out of line because the header holds a unique_ptr to an incomplete type.
@@ -984,6 +993,8 @@ QString LmSessionModel::shotEmptyText() const
 
 void LmSessionModel::rebuild()
 {
+    // The grade pass: everything below grades against one norm set, the newest saved one.
+    followNormSave();
     beginResetModel();
     m_bands.clear();
     m_graphics.clear();

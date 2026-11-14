@@ -377,11 +377,15 @@ private:
     bool          m_focusFound = false;        // the focused shot is in the list
     bool          m_headlineHasReadings = false;   // the shot the board headlines carries a reading
 
-    // The two registries a corridor comes from. Assembled once and read-only thereafter,
-    // (nothing mutates them after construction): the norm provider is the process-wide cached one, so a
-    // board opening costs no file read, and the pack is this object's own.
+    // The two registries a corridor comes from. The pack is this object's own, assembled once. The norm
+    // provider is the process-wide cached snapshot, so a board opening costs no file read; a saved
+    // corridor edit moves sharedNormProviderGeneration(), and the next grade pass (rebuild(), on the
+    // GUI thread) re-takes the set before it grades (followNormSave). Until then the board shows the
+    // grades it last drew.
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_pack;
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
+    quint64                                                          m_normsGeneration = 0;
+    void                                                             followNormSave();
     QString                                                          m_policyName;
 
     // The grade each (club, reading) badge showed last, for the live hysteresis (§8.9): keyed

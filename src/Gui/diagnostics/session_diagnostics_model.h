@@ -104,11 +104,13 @@ class INormProvider;
 //    THE FILE IS HALF CACHE, HALF THE GOLFER'S ONLY COPY. The rows and session meta can be
 //    rebuilt from the swings; the golfer's keys (golferInputKeys(): intent, screens,
 //    shotIntent, intentFrom, corrections) cannot. Three rules keep them (audit H-04, Stage 0):
-//      · a file found unreadable (there, but it cannot be opened or parsed) at load, or at the
-//        catch-up's write, is not written over — it is renamed aside
-//        (diagnostics.json.unreadable-<stamp>[-n]) with a ppWarn, and the session carries on as
-//        one with no file; if the rename fails, nothing is written to it this activation
-//        (setAsideUnreadableLedger);
+//      · a file found unreadable at load, or at the catch-up's write, is not written over. One
+//        that opens but does not parse is renamed aside (diagnostics.json.unreadable-<stamp>[-n])
+//        with a ppWarn, and the session carries on as one with no file; if the rename fails,
+//        nothing is written to it this activation (setAsideUnreadableLedger). One that is there
+//        but cannot be OPENED (a share that dropped, a permission, a lock) is most likely a good
+//        file read at a bad moment: it is left where it is, untouched, and nothing is written to
+//        the session this activation, with a ppWarn (blockLedgerWrites);
 //      · the work-ons catch-up (BaselineAuthority::Always) merges every golfer key from the
 //        file before it writes, three ways (mergeGolferInput), so what a panel saved while the
 //        catch-up held the session survives the catch-up's write;
@@ -700,8 +702,9 @@ private:
     // ── The pipeline, in the order it runs ──────────────────────────────────────────
 
     // Worker-thread half: swing.json -> phase grid -> measures -> norms -> findings -> rows.
-    // Touches no member except the pack and the norm provider, both of which are assembled
-    // once in the constructor and read-only thereafter.
+    // Grades against `norms`, the snapshot the job was queued with (queueDetect), never the member:
+    // m_norms is re-taken at activation after a saved corridor edit (followNormSave), and a job reads
+    // only what it was handed. The pack is assembled once in the constructor and read-only thereafter.
     struct Ingested {
         pinpoint::analysis::ShotRecord record;
         bool hasLaunchMonitor = false;
@@ -710,7 +713,8 @@ private:
         GradedFrom from;               // what this grading read — stamped BEFORE the read
         int  generation = 0;           // the activation that queued it (m_activationGen)
     };
-    Ingested detectShot(int shotId, const QString &swingDir) const;
+    Ingested detectShot(int shotId, const QString &swingDir,
+                        const std::shared_ptr<const pinpoint::analysis::INormProvider> &norms) const;
 
     // The worker hand-off both ingestShot() and regradeShot() go through.
     void queueDetect(int shotId, const QString &swingDir, bool regrade);
@@ -772,13 +776,18 @@ private:
     // readGolferInput sets every golfer member from `root` (absent = empty); golferInputJson writes them.
     void         readGolferInput(const QJsonObject &root);
     QJsonObject  golferInputJson() const;
-    // A diagnostics.json that is there but cannot be opened or parsed holds the golfer's only copy
-    // of what they said, so where it is found (at load, at the catch-up's write) it is not written
-    // over: renamed aside to
+    // A diagnostics.json that is there but does not parse holds the golfer's only copy of what they
+    // said, so where it is found (at load, at the catch-up's write) it is not written over: renamed
+    // aside to
     // diagnostics.json.unreadable-<yyyyMMdd-HHmmss>[-n], with a ppWarn naming the file, the aside
     // and `why`. If even the rename fails, writes to this session are switched off
     // (m_ledgerWriteBlocked) and that is warned too. True when the path is now free to write.
     bool         setAsideUnreadableLedger(const QString &path, const QString &why);
+    // A diagnostics.json that is there but cannot be OPENED is not set aside: the failure is the
+    // share's or the file system's, not the file's, and renaming a good file away would cost the
+    // session the golfer's input it holds. It stays where it is; writes to this session are switched
+    // off for this activation (m_ledgerWriteBlocked), with a ppWarn naming the file and `why`.
+    void         blockLedgerWrites(const QString &path, const QString &why);
     // Write diagnostics.json. `adoptMerged`: when the catch-up's merge brought a different focus,
     // miss or screen answer in from the file, re-reduce under it (and announce intentChanged)
     // before writing, so the written stage and what the catch-up reads next are the golfer's. Off
@@ -938,6 +947,12 @@ private:
     // ── Owned registries ────────────────────────────────────────────────────────────
     std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;
     std::shared_ptr<const pinpoint::analysis::INormProvider>         m_norms;
+    // The shared norm set's generation m_norms was taken at (sharedNormProviderGeneration()). A saved
+    // corridor edit moves it; the next activation re-takes the set (followNormSave), the content stamp
+    // moves with the norms it hashes, and the rows graded under the old set regrade through the
+    // existing stale-stamp path. Only on the GUI thread, with no detection job in flight.
+    quint64 m_normsGeneration = 0;
+    bool    followNormSave();
     QString m_policyName = QStringLiteral("standard");
 
     // ── The evidence ────────────────────────────────────────────────────────────────
@@ -983,8 +998,9 @@ private:
     bool    m_closed = false;
     bool    m_reviewing = false;
     bool    m_persistEnabled = true;    // setPersistEnabled: off = never write diagnostics.json
-    // This session's diagnostics.json could not be read AND could not be set aside: nothing is
-    // written to it until the next activation (setAsideUnreadableLedger). Reset per activation.
+    // This session's diagnostics.json could not be opened (blockLedgerWrites), or could not be
+    // parsed AND could not be set aside (setAsideUnreadableLedger): nothing is written to it until
+    // the next activation. Reset per activation.
     bool    m_ledgerWriteBlocked = false;
     // golferInputJson() as this model last read it from, or wrote it to, diagnostics.json — the
     // `base` of the catch-up's three-way merge (mergeGolferInput).

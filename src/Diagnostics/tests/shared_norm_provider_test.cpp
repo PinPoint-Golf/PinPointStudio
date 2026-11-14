@@ -37,8 +37,11 @@
 #include "../norms/norm_provider.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QThread>
 
 #include <atomic>
@@ -104,9 +107,23 @@ static void runTogether(int n, F body)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
-    // saveUserNormPack() writes under AppDataLocation: test mode keeps that away from a real profile.
+    // saveUserNormPack() writes under AppDataLocation. A FOLDER OF THIS RUN'S OWN: test mode keeps it
+    // away from a real profile, and the application is named after a fresh QTemporaryDir made in the
+    // test-mode data location, so AppDataLocation IS that temporary directory — unique to the run and
+    // removed with it. Two runs at once (two agents, ctest -j) no longer write each other's user norm
+    // set, which the fixed folder allowed (one unexplained failure in review is suspected to be that).
     QStandardPaths::setTestModeEnabled(true);
-    QFile::remove(userNormPath());
+    const QString dataBase = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    QDir().mkpath(dataBase);
+    QTemporaryDir runDir(dataBase + QStringLiteral("/shared_norm_provider_test-XXXXXX"));
+    if (!runDir.isValid()) {
+        std::printf("no temporary directory for the user norm set\nFAILURES\n");
+        return 1;
+    }
+    QCoreApplication::setOrganizationName(QString());
+    QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+    check(QFileInfo(userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()),
+          "the user norm set is written inside this run's own temporary directory");
     resetSharedNormProvider();
 
     std::printf("=== save -> reset -> the next take reads the edited band ===\n");
@@ -213,7 +230,7 @@ int main(int argc, char **argv)
         check(muOf(sharedNormProvider()) == editedMu, "the last write is what the app reads now");
     }
 
-    // Leave nothing behind for the next run.
+    // Leave nothing behind: the user set goes now, the run's folder with runDir.
     QFile::remove(userNormPath());
     resetSharedNormProvider();
     check(muOf(sharedNormProvider()) == shippedMu, "with the user set removed, the shipped band is back");
