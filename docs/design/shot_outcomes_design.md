@@ -696,9 +696,10 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
   sessions ⇒ likely, else possible. A second reason on ≥ 20 % of driven shots (and ≥ 2) is "Also seen".
 - **Trend**: last two judged sessions vs earlier, 15-point rule (home_themes). Under three judged
   sessions: "→ steady" if present throughout, "new" if it showed up in the latest, else "↓ easing".
-- **How often** words: the ten-step meter's from half up ("every swing" … "more than half your swings");
-  new bands below it, "fairly often" (≥ 40 %), "sometimes" (≥ 25 %), since `themeFrequency` floors at
-  "more than half" and a tendency earns at a quarter.
+- **How often** words: the one frequency rule for a share (`src/Coaching/frequency_words.h`, Stage 0.13,
+  14 Nov 2026), shared with Your swing: "every swing" … "more than half your swings", then "fairly often"
+  (≥ 40 %), "sometimes" (≥ 25 %), "rarely". Tendencies stores these words in `tendencies.json`, so a change to
+  a band needs `kTendencyRuleVersion` bumped.
 - **Work-on**: the work-ons list's status for the seen-with condition.
 
 ```
