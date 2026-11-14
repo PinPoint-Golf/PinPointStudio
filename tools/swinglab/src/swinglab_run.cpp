@@ -35,6 +35,8 @@
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
 //   runmeta.json   provenance: source kind, wall times, params echo
+//   (--doc-blocks) result.json also carries `summary`, `imuIntegrity`, `captureIntegrity` as a
+//                  write-back of this analysis would store them (see the option's help)
 //   trace.jsonl    (--trace) one line per emitted frame with the decide internals
 //                  (phase, tier, theta_dp/theta_out, psi residual, phi/phi_trail,
 //                  theta_ball, head tier/radii, raw/dif p97, support at the DP θ,
@@ -686,11 +688,18 @@ int main(int argc, char **argv)
         "Pool mode: build a skeleton3d session pool from <dir>/*/result.json (see --pool-prefix, --pool-out).", "dir");
     QCommandLineOption optPoolPrefix("pool-prefix", "Pool mode: only the result directories whose name starts with this.", "str");
     QCommandLineOption optPoolOut("pool-out", "Pool mode: where to write the pool JSON.", "file");
+    QCommandLineOption optDocBlocks("doc-blocks",
+        "--out only: also put into result.json the `summary` block and this pass's `imuIntegrity` / "
+        "`captureIntegrity` verdicts, as a write-back of this analysis would store them. The verdicts "
+        "are reached as reanalyzeSwingDir reaches them; the source document, carrying them and this "
+        "analysis, goes through SwingDocWriter::writeSwingJson into <run>/doc (no pose) and the three "
+        "blocks are read back from it; <run>/doc is then removed. Unset, result.json is unchanged. "
+        "For the refactor's parity baseline (tools/parity/).");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
                      optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks });
     cli.process(app);
 
     // ── Pool mode ────────────────────────────────────────────────────────────
@@ -1224,6 +1233,46 @@ int main(int argc, char **argv)
     manifest["source"]  = QJsonObject{ { "swingDir", swingDir },
                                        { "frames", ls.usedRaw ? "raw" : "mp4" } };
     QString werr;
+
+    // --doc-blocks: the summary and the two data-integrity verdicts AS A WRITE-BACK WOULD STORE
+    // THEM. The verdicts are reached exactly as reanalyzeSwingDir (swing_reanalyzer.cpp) reaches
+    // them after analyze() — keep the two in step: the IMU re-fusion only when the recording says
+    // Madgwick, the capture check against the recorded window with the impact camera and off-clock
+    // lanes exempt from coverage. The summary is built by the production writer from the whole
+    // source document (its capture, streams, review and launch monitor), so it is written through
+    // writeSwingJson into a scratch folder and read back; nothing here re-derives a field.
+    QJsonObject docBlocks;
+    if (cli.isSet(optDocBlocks) && result.detail) {
+        std::optional<pinpoint::ImuRefusionVerdict> imuV;
+        if (ls.hostOrientationFilter.compare(QStringLiteral("madgwick"), Qt::CaseInsensitive) == 0)
+            imuV = pinpoint::checkImuRefusion(window);
+        pinpoint::CaptureCoverageSpec cov;
+        cov.judge         = true;
+        cov.windowStartUs = ls.captureWindowStartUs;
+        cov.windowEndUs   = ls.captureWindowEndUs;
+        std::vector<SourceId> exempt = ls.offClockCameras;
+        exempt.push_back(job.impactSource);
+        const pinpoint::CaptureIntegrityVerdict capV =
+            pinpoint::checkCaptureIntegrity(window, job.impactUs, cov, exempt);
+        QJsonObject full = root;
+        pinpoint::applyImuIntegrity(full, imuV ? &*imuV : nullptr);
+        pinpoint::applyCaptureIntegrity(full, &capV);
+        const QString docDir = outDir + QStringLiteral("/doc");
+        QDir(docDir).removeRecursively();
+        QDir().mkpath(docDir);
+        QString derr;
+        if (SwingDocWriter::writeSwingJson(docDir, full, result.detail.get(), &derr, QString(), false)) {
+            const QJsonObject written = SwingStore::load(docDir, &derr);
+            for (const char *k : { "summary", "imuIntegrity", "captureIntegrity" })
+                if (written.contains(QLatin1String(k)))
+                    docBlocks.insert(QLatin1String(k), written.value(QLatin1String(k)));
+        } else {
+            std::fprintf(stderr, "[swinglab] --doc-blocks: document write failed: %s\n",
+                         derr.toUtf8().constData());
+        }
+        QDir(docDir).removeRecursively();
+    }
+
     if (result.detail) {
         // result.json stays JSON — it is a research output read by the Python rigs, not a library
         // document. The production writer builds it (so it is exactly what write-back would store),
@@ -1236,6 +1285,9 @@ int main(int argc, char **argv)
         } else {
             QJsonObject doc = SwingStore::load(outDir, &werr);
             doc.remove(QStringLiteral("summary"));   // the library's list index; not analysis
+            if (cli.isSet(optDocBlocks))
+                for (auto it = docBlocks.constBegin(); it != docBlocks.constEnd(); ++it)
+                    doc.insert(it.key(), it.value());
             if (!trunkCalib.isEmpty())                // --trunk-calib-from: what was solved and applied
                 doc.insert(QStringLiteral("trunkCalibration"), trunkCalib);
             QSaveFile rf(outDir + "/result.json");

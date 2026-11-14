@@ -80,6 +80,9 @@ swinglab_run <swing_dir> --out <run_dir> [--params params.json] [--trace]
   rate, stillness mask). Gated by a job field; zero cost in production.
 - Emits `result.json` (the SwingAnalysis serialized exactly like swing.json's
   analysis block) + `trace.jsonl` + run metadata (SHA, params hash, wall time).
+  `--doc-blocks` (14 Nov 2026, for the refactor's parity baseline in `tools/parity/`) also puts
+  the `summary` block and the pass's `imuIntegrity` / `captureIntegrity` verdicts into
+  `result.json`, as a write-back of the same analysis would store them.
 
 ### 2. `lab.py` — the Python evaluation layer (numpy/matplotlib/opencv)
 

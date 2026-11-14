@@ -1,1 +1,2 @@
 tools/studio/*.cmd text eol=crlf
+tools/parity/*.cmd text eol=crlf

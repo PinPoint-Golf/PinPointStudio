@@ -139,6 +139,9 @@ today.
 
 ### Step 1 · The Recording contract (~1 day + a library re-analysis)
 
+- **Remove the parity tool's copy of the integrity wiring** (`swinglab_run --doc-blocks`, Step G.2): once the one job
+  builder exists, the tool calls it instead of its ~10 copied lines.
+
 - **One builder** produces the Recording, with its analysis context (athlete facts, club and length, rig
   reference), for live capture and for re-analysis alike.
 - **The analysis service takes only a Recording.** `ShotProcessor`'s analysis-job half moves behind it.
