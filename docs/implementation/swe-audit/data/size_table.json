@@ -1,0 +1,8623 @@
+{
+ "files": [
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "ring": "ring1",
+   "lines": 6576,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_catalogue_manifest.cpp",
+   "ring": "ring1",
+   "lines": 5569,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "ring": "ring1",
+   "lines": 4751,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "ring": "ring2",
+   "lines": 3846,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "ring": "ring2",
+   "lines": 2939,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpLmGraphicsBody.qml",
+   "ring": "ring2",
+   "lines": 2811,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "ring": "ring1",
+   "lines": 2755,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "ring": "ring2",
+   "lines": 2738,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "ring": "ring1",
+   "lines": 2682,
+   "inline_fns": 65,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "ring": "boundary",
+   "lines": 2560,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "ring": "ring1",
+   "lines": 2551,
+   "inline_fns": 56,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "ring": "ring1",
+   "lines": 2326,
+   "inline_fns": 0,
+   "mutable": 5,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "ring": "ring2",
+   "lines": 2247,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "ring": "ring2",
+   "lines": 2243,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_tuned_constants.h",
+   "ring": "boundary",
+   "lines": 2139,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "ring": "ring2",
+   "lines": 1948,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "ring": "ring2",
+   "lines": 1859,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpMetricChart.qml",
+   "ring": "ring2",
+   "lines": 1491,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "ring": "ring2",
+   "lines": 1442,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "ring": "ring1",
+   "lines": 1437,
+   "inline_fns": 35,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.cpp",
+   "ring": "ring1",
+   "lines": 1225,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/swing_analysis.h",
+   "ring": "ring1",
+   "lines": 1150,
+   "inline_fns": 8,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "ring": "ring1",
+   "lines": 1117,
+   "inline_fns": 0,
+   "mutable": 4,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "ring": "ring2",
+   "lines": 1111,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpMarkupPanel.qml",
+   "ring": "ring2",
+   "lines": 1108,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_words.h",
+   "ring": "ring2",
+   "lines": 1096,
+   "inline_fns": 121,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/shot_outcomes.h",
+   "ring": "ring1",
+   "lines": 1081,
+   "inline_fns": 23,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/work_ons.h",
+   "ring": "ring1",
+   "lines": 1073,
+   "inline_fns": 19,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "ring": "ring2",
+   "lines": 1045,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.h",
+   "ring": "ring1",
+   "lines": 1040,
+   "inline_fns": 0,
+   "mutable": 10,
+   "invokables": 33,
+   "properties": 39
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "ring": "ring2",
+   "lines": 1021,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "ring": "ring2",
+   "lines": 1020,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_exporter.cpp",
+   "ring": "boundary",
+   "lines": 1019,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "ring": "ring1",
+   "lines": 1018,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "ring": "ring1",
+   "lines": 998,
+   "inline_fns": 23,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpChartPlot.qml",
+   "ring": "ring2",
+   "lines": 959,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "ring": "ring2",
+   "lines": 948,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "ring": "ring2",
+   "lines": 922,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagAnalyse.qml",
+   "ring": "ring1",
+   "lines": 876,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpShotCarousel.qml",
+   "ring": "ring2",
+   "lines": 837,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "ring": "ring1",
+   "lines": 798,
+   "inline_fns": 13,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSessionReportList.qml",
+   "ring": "ring2",
+   "lines": 797,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_descriptor.h",
+   "ring": "ring1",
+   "lines": 785,
+   "inline_fns": 9,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.h",
+   "ring": "ring1",
+   "lines": 741,
+   "inline_fns": 9,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.cpp",
+   "ring": "ring1",
+   "lines": 735,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "ring": "ring2",
+   "lines": 714,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.h",
+   "ring": "ring1",
+   "lines": 709,
+   "inline_fns": 0,
+   "mutable": 2,
+   "invokables": 6,
+   "properties": 34
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "ring": "ring1",
+   "lines": 701,
+   "inline_fns": 26,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue.h",
+   "ring": "ring1",
+   "lines": 700,
+   "inline_fns": 27,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/sequence_checks.h",
+   "ring": "ring1",
+   "lines": 697,
+   "inline_fns": 28,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpChartSummary.qml",
+   "ring": "ring2",
+   "lines": 689,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpSessionToolbar.qml",
+   "ring": "ring2",
+   "lines": 681,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChTraceFigure.qml",
+   "ring": "ring2",
+   "lines": 670,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "ring": "ring2",
+   "lines": 669,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "ring": "ring1",
+   "lines": 664,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "ring": "ring2",
+   "lines": 655,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/diagnostics_health.cpp",
+   "ring": "ring1",
+   "lines": 643,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic.h",
+   "ring": "ring1",
+   "lines": 642,
+   "inline_fns": 10,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "ring": "ring2",
+   "lines": 641,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpDataViewer.qml",
+   "ring": "ring2",
+   "lines": 638,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_posture.h",
+   "ring": "ring2",
+   "lines": 635,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.h",
+   "ring": "ring2",
+   "lines": 624,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 30,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/ScreenHome.qml",
+   "ring": "ring2",
+   "lines": 613,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "ring": "ring2",
+   "lines": 600,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_body.h",
+   "ring": "ring1",
+   "lines": 598,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagReplay.qml",
+   "ring": "ring1",
+   "lines": 595,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/strike_from_flight.h",
+   "ring": "ring1",
+   "lines": 586,
+   "inline_fns": 30,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.cpp",
+   "ring": "ring2",
+   "lines": 575,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_inferred_reads.h",
+   "ring": "boundary",
+   "lines": 568,
+   "inline_fns": 7,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.h",
+   "ring": "ring1",
+   "lines": 567,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "ring": "boundary",
+   "lines": 563,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpLedgerTable.qml",
+   "ring": "ring1",
+   "lines": 560,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "ring": "ring1",
+   "lines": 559,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "ring": "boundary",
+   "lines": 559,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "ring": "ring2",
+   "lines": 547,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.cpp",
+   "ring": "ring2",
+   "lines": 543,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpTransitTimeline.qml",
+   "ring": "ring2",
+   "lines": 537,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_doc.h",
+   "ring": "boundary",
+   "lines": 530,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/ViewLayout.qml",
+   "ring": "ring2",
+   "lines": 529,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_relations.cpp",
+   "ring": "ring2",
+   "lines": 528,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_channel.h",
+   "ring": "ring1",
+   "lines": 519,
+   "inline_fns": 13,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "ring": "ring1",
+   "lines": 519,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpWristPage.qml",
+   "ring": "ring2",
+   "lines": 516,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/studio_profile.cpp",
+   "ring": "boundary",
+   "lines": 510,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSessionFigure.qml",
+   "ring": "ring2",
+   "lines": 507,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpModeStage.qml",
+   "ring": "ring2",
+   "lines": 497,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsShotView.qml",
+   "ring": "ring2",
+   "lines": 497,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "ring": "ring2",
+   "lines": 492,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "ring": "ring1",
+   "lines": 490,
+   "inline_fns": 16,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_dag.h",
+   "ring": "ring1",
+   "lines": 488,
+   "inline_fns": 8,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/device_enumerator.cpp",
+   "ring": "boundary",
+   "lines": 484,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.h",
+   "ring": "ring2",
+   "lines": 478,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 5,
+   "properties": 22
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.h",
+   "ring": "ring1",
+   "lines": 473,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_flight_path.h",
+   "ring": "boundary",
+   "lines": 472,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpShotCard.qml",
+   "ring": "ring2",
+   "lines": 472,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.h",
+   "ring": "ring1",
+   "lines": 470,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSessionReport.qml",
+   "ring": "ring2",
+   "lines": 467,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPositionProfile.qml",
+   "ring": "ring2",
+   "lines": 466,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSessionDiagnosticsBody.qml",
+   "ring": "ring1",
+   "lines": 465,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_stills.cpp",
+   "ring": "ring2",
+   "lines": 464,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_vocabulary.h",
+   "ring": "ring1",
+   "lines": 460,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_traces.cpp",
+   "ring": "ring2",
+   "lines": 460,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_store.cpp",
+   "ring": "boundary",
+   "lines": 460,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/relation_resolver.cpp",
+   "ring": "ring1",
+   "lines": 459,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_stage.h",
+   "ring": "ring1",
+   "lines": 458,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "ring": "ring1",
+   "lines": 457,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpFigureRow.qml",
+   "ring": "ring1",
+   "lines": 457,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpCauseGraph.qml",
+   "ring": "ring1",
+   "lines": 443,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpMotionPanel.qml",
+   "ring": "ring2",
+   "lines": 443,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmTendencyRow.qml",
+   "ring": "ring2",
+   "lines": 440,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.h",
+   "ring": "ring1",
+   "lines": 437,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/shot_factors.h",
+   "ring": "ring1",
+   "lines": 437,
+   "inline_fns": 17,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+   "ring": "boundary",
+   "lines": 436,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.cpp",
+   "ring": "ring2",
+   "lines": 435,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpShotFilter.qml",
+   "ring": "ring2",
+   "lines": 431,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_exporter.h",
+   "ring": "boundary",
+   "lines": 426,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSessionsTableRow.qml",
+   "ring": "ring2",
+   "lines": 424,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.h",
+   "ring": "ring2",
+   "lines": 420,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpShotActionBar.qml",
+   "ring": "ring2",
+   "lines": 416,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmAreaRow.qml",
+   "ring": "ring2",
+   "lines": 403,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.h",
+   "ring": "ring2",
+   "lines": 402,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 10
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.cpp",
+   "ring": "ring2",
+   "lines": 402,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmFocus.qml",
+   "ring": "ring2",
+   "lines": 400,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmSwingSummary.qml",
+   "ring": "ring2",
+   "lines": 400,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsBody.qml",
+   "ring": "ring2",
+   "lines": 400,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_session_reductions.h",
+   "ring": "boundary",
+   "lines": 397,
+   "inline_fns": 11,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/swing_areas.h",
+   "ring": "ring1",
+   "lines": 396,
+   "inline_fns": 10,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml",
+   "ring": "ring1",
+   "lines": 394,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic.cpp",
+   "ring": "ring1",
+   "lines": 393,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_paths.cpp",
+   "ring": "boundary",
+   "lines": 392,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.cpp",
+   "ring": "ring1",
+   "lines": 387,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.h",
+   "ring": "ring2",
+   "lines": 387,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 8,
+   "properties": 24
+  },
+  {
+   "file": "src/Gui/report/PpSessionBulkJobs.qml",
+   "ring": "ring2",
+   "lines": 386,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpSessionDrawer.qml",
+   "ring": "ring2",
+   "lines": 385,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpReaderPlace.qml",
+   "ring": "ring2",
+   "lines": 382,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/smtp_message.cpp",
+   "ring": "ring2",
+   "lines": 375,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.cpp",
+   "ring": "ring1",
+   "lines": 374,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/PpcpPairDialog.qml",
+   "ring": "ring2",
+   "lines": 374,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/PpcpGuidedPairDialog.qml",
+   "ring": "ring2",
+   "lines": 372,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.cpp",
+   "ring": "ring2",
+   "lines": 371,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpPosturePage.qml",
+   "ring": "ring2",
+   "lines": 369,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpLmAppendix.qml",
+   "ring": "ring2",
+   "lines": 368,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/premier_session_parser.cpp",
+   "ring": "boundary",
+   "lines": 365,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/kf3_smoother.h",
+   "ring": "boundary",
+   "lines": 363,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.cpp",
+   "ring": "ring1",
+   "lines": 362,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.cpp",
+   "ring": "ring2",
+   "lines": 359,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsPanel.qml",
+   "ring": "ring2",
+   "lines": 359,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.h",
+   "ring": "ring2",
+   "lines": 354,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 16
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagPrint.qml",
+   "ring": "ring1",
+   "lines": 354,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_club.h",
+   "ring": "ring1",
+   "lines": 351,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_measure_source.h",
+   "ring": "ring1",
+   "lines": 351,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.h",
+   "ring": "ring2",
+   "lines": 347,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 5,
+   "properties": 1
+  },
+  {
+   "file": "src/Gui/review/PpSegmentBrush.qml",
+   "ring": "ring2",
+   "lines": 344,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "ring": "ring1",
+   "lines": 342,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.h",
+   "ring": "ring2",
+   "lines": 342,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 3,
+   "properties": 18
+  },
+  {
+   "file": "src/Core/pp_debug.cpp",
+   "ring": "boundary",
+   "lines": 341,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/session_archiver.cpp",
+   "ring": "boundary",
+   "lines": 341,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSwingGrid.qml",
+   "ring": "ring2",
+   "lines": 340,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.h",
+   "ring": "ring2",
+   "lines": 336,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 9,
+   "properties": 8
+  },
+  {
+   "file": "src/Gui/home/HmGoesTogether.qml",
+   "ring": "ring2",
+   "lines": 333,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "ring": "ring2",
+   "lines": 331,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.cpp",
+   "ring": "ring1",
+   "lines": 327,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_gpu_metrics.cpp",
+   "ring": "boundary",
+   "lines": 326,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/ffmpeg_video_encoder.cpp",
+   "ring": "boundary",
+   "lines": 326,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_os_metrics.cpp",
+   "ring": "boundary",
+   "lines": 322,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpViewPanel.qml",
+   "ring": "ring2",
+   "lines": 319,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/tendency_flow.h",
+   "ring": "ring1",
+   "lines": 316,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/timeline_labels.cpp",
+   "ring": "ring2",
+   "lines": 315,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.h",
+   "ring": "ring2",
+   "lines": 311,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 15,
+   "properties": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/merged_pack_provider.cpp",
+   "ring": "ring1",
+   "lines": 309,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagRoles.qml",
+   "ring": "ring1",
+   "lines": 309,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.cpp",
+   "ring": "ring1",
+   "lines": 308,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_providers.cpp",
+   "ring": "ring1",
+   "lines": 308,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpConsistencyView.qml",
+   "ring": "ring1",
+   "lines": 307,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_profiler.h",
+   "ring": "boundary",
+   "lines": 306,
+   "inline_fns": 4,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/composite_reading.h",
+   "ring": "ring1",
+   "lines": 305,
+   "inline_fns": 10,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_wrist.h",
+   "ring": "ring2",
+   "lines": 304,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpConsistencyPage.qml",
+   "ring": "ring2",
+   "lines": 304,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_club_evidence.h",
+   "ring": "boundary",
+   "lines": 303,
+   "inline_fns": 9,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_rules.h",
+   "ring": "ring1",
+   "lines": 298,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportSheet.qml",
+   "ring": "ring2",
+   "lines": 290,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.cpp",
+   "ring": "ring1",
+   "lines": 287,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChProfile.qml",
+   "ring": "ring2",
+   "lines": 287,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsSessionView.qml",
+   "ring": "ring2",
+   "lines": 285,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/provider_leaf_p.h",
+   "ring": "ring1",
+   "lines": 283,
+   "inline_fns": 4,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/gate_words_pack.cpp",
+   "ring": "ring1",
+   "lines": 283,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_meta.h",
+   "ring": "ring2",
+   "lines": 283,
+   "inline_fns": 15,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/camera_pose_sticks.h",
+   "ring": "ring1",
+   "lines": 282,
+   "inline_fns": 4,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/capture_integrity_check.h",
+   "ring": "ring1",
+   "lines": 282,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_zip_exporter.cpp",
+   "ring": "boundary",
+   "lines": 276,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.cpp",
+   "ring": "ring1",
+   "lines": 275,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpOrderPage.qml",
+   "ring": "ring2",
+   "lines": 269,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChWristShotSection.qml",
+   "ring": "ring2",
+   "lines": 268,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportCover.qml",
+   "ring": "ring2",
+   "lines": 268,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpBarcode.qml",
+   "ring": "ring1",
+   "lines": 267,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.h",
+   "ring": "ring1",
+   "lines": 266,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/merged_norm_provider.cpp",
+   "ring": "ring1",
+   "lines": 265,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_provider.h",
+   "ring": "ring1",
+   "lines": 265,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_profiler.cpp",
+   "ring": "boundary",
+   "lines": 264,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_providers.h",
+   "ring": "ring1",
+   "lines": 263,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmFaultDetail.qml",
+   "ring": "ring2",
+   "lines": 261,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmHomeTabs.qml",
+   "ring": "ring2",
+   "lines": 261,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.h",
+   "ring": "ring2",
+   "lines": 260,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 14
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.cpp",
+   "ring": "ring1",
+   "lines": 259,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpPathChains.qml",
+   "ring": "ring1",
+   "lines": 259,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/dtl_overlay_payload.cpp",
+   "ring": "ring2",
+   "lines": 258,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpWorkOnPage.qml",
+   "ring": "ring2",
+   "lines": 258,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_delivery.h",
+   "ring": "ring2",
+   "lines": 257,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpDeliveryPage.qml",
+   "ring": "ring2",
+   "lines": 255,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/diagnostics_health.h",
+   "ring": "ring1",
+   "lines": 254,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_warp.h",
+   "ring": "ring2",
+   "lines": 254,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDotPlot.qml",
+   "ring": "ring1",
+   "lines": 254,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSeqSession.qml",
+   "ring": "ring2",
+   "lines": 251,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/setup_capability.cpp",
+   "ring": "ring1",
+   "lines": 250,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSmallMultiple.qml",
+   "ring": "ring1",
+   "lines": 250,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_provider.h",
+   "ring": "ring1",
+   "lines": 249,
+   "inline_fns": 4,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagSessionOutcomes.qml",
+   "ring": "ring1",
+   "lines": 249,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.h",
+   "ring": "ring2",
+   "lines": 245,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/shot_analyzer.h",
+   "ring": "ring1",
+   "lines": 241,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_posture.h",
+   "ring": "ring2",
+   "lines": 241,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpRunChart.qml",
+   "ring": "ring1",
+   "lines": 241,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportProfile.qml",
+   "ring": "ring2",
+   "lines": 241,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_versions.h",
+   "ring": "ring1",
+   "lines": 240,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_store.h",
+   "ring": "boundary",
+   "lines": 240,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.h",
+   "ring": "ring2",
+   "lines": 239,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 2,
+   "properties": 12
+  },
+  {
+   "file": "src/LaunchMonitor/lm_enclosing_ellipse.h",
+   "ring": "boundary",
+   "lines": 239,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/recorded_products.cpp",
+   "ring": "ring1",
+   "lines": 238,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/ScreenWrist.qml",
+   "ring": "ring2",
+   "lines": 238,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChDeliveryShotSection.qml",
+   "ring": "ring2",
+   "lines": 237,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/frame_store.cpp",
+   "ring": "ring1",
+   "lines": 236,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/file_pack_provider.cpp",
+   "ring": "ring1",
+   "lines": 236,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChScatter.qml",
+   "ring": "ring2",
+   "lines": 236,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpSwingEditPanel.qml",
+   "ring": "ring2",
+   "lines": 235,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.cpp",
+   "ring": "ring1",
+   "lines": 234,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.h",
+   "ring": "ring2",
+   "lines": 232,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 2,
+   "properties": 17
+  },
+  {
+   "file": "src/Gui/diagnostics/PpShotOutcomeHead.qml",
+   "ring": "ring1",
+   "lines": 232,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureAddress.qml",
+   "ring": "ring2",
+   "lines": 231,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.h",
+   "ring": "ring1",
+   "lines": 230,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureSession.qml",
+   "ring": "ring2",
+   "lines": 230,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/outcome_scope.h",
+   "ring": "ring1",
+   "lines": 227,
+   "inline_fns": 10,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpCoverageStrip.qml",
+   "ring": "ring2",
+   "lines": 227,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmShotFilter.qml",
+   "ring": "ring2",
+   "lines": 227,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.h",
+   "ring": "boundary",
+   "lines": 225,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChWristSession.qml",
+   "ring": "ring2",
+   "lines": 225,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/area_regroup_table.h",
+   "ring": "ring1",
+   "lines": 224,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_bridge.cpp",
+   "ring": "ring2",
+   "lines": 223,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/figure_format.h",
+   "ring": "boundary",
+   "lines": 223,
+   "inline_fns": 21,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpTendenciesPage.qml",
+   "ring": "ring2",
+   "lines": 222,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_series_types.h",
+   "ring": "ring2",
+   "lines": 218,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/pack_io.h",
+   "ring": "ring1",
+   "lines": 215,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_traces.h",
+   "ring": "ring2",
+   "lines": 214,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_monitor.cpp",
+   "ring": "boundary",
+   "lines": 212,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_wrist.cpp",
+   "ring": "ring2",
+   "lines": 211,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/PpcpOfferList.qml",
+   "ring": "ring2",
+   "lines": 211,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/swing_themes_pack.h",
+   "ring": "ring1",
+   "lines": 210,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.h",
+   "ring": "ring2",
+   "lines": 210,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 19
+  },
+  {
+   "file": "src/Gui/diagnostics/PpWhatChanged.qml",
+   "ring": "ring1",
+   "lines": 209,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpNumbersTable.qml",
+   "ring": "ring2",
+   "lines": 209,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSessionsSelectionBar.qml",
+   "ring": "ring2",
+   "lines": 209,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_relations.h",
+   "ring": "ring2",
+   "lines": 208,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_device.h",
+   "ring": "boundary",
+   "lines": 207,
+   "inline_fns": 12,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.h",
+   "ring": "ring1",
+   "lines": 205,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.h",
+   "ring": "ring1",
+   "lines": 204,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/SessionMode.qml",
+   "ring": "ring2",
+   "lines": 204,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSeqTable.qml",
+   "ring": "ring2",
+   "lines": 204,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.cpp",
+   "ring": "ring2",
+   "lines": 203,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsReadingsView.qml",
+   "ring": "ring2",
+   "lines": 202,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/route_substitution.h",
+   "ring": "ring1",
+   "lines": 201,
+   "inline_fns": 4,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsRegister.qml",
+   "ring": "ring2",
+   "lines": 200,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_arbiter.h",
+   "ring": "ring2",
+   "lines": 199,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/variability_clubs.cpp",
+   "ring": "ring2",
+   "lines": 199,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/wrist_domain_score.h",
+   "ring": "ring1",
+   "lines": 198,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.h",
+   "ring": "ring1",
+   "lines": 197,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmSwingAreas.qml",
+   "ring": "ring2",
+   "lines": 197,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/gate_record.h",
+   "ring": "ring1",
+   "lines": 196,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/file_norm_provider.cpp",
+   "ring": "ring1",
+   "lines": 192,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.h",
+   "ring": "boundary",
+   "lines": 191,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmSessions.qml",
+   "ring": "ring2",
+   "lines": 191,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpHistoryStrip.qml",
+   "ring": "ring1",
+   "lines": 189,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportPrintHost.qml",
+   "ring": "ring2",
+   "lines": 189,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/frame_store.h",
+   "ring": "ring1",
+   "lines": 188,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpSessionRowMenu.qml",
+   "ring": "ring2",
+   "lines": 188,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.h",
+   "ring": "ring1",
+   "lines": 187,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_mailer.h",
+   "ring": "ring2",
+   "lines": 187,
+   "inline_fns": 0,
+   "mutable": 2,
+   "invokables": 13,
+   "properties": 12
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.h",
+   "ring": "ring1",
+   "lines": 186,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.h",
+   "ring": "ring2",
+   "lines": 186,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpEntryFlow.qml",
+   "ring": "ring1",
+   "lines": 186,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_outcome.h",
+   "ring": "ring2",
+   "lines": 185,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/shot_pairing.h",
+   "ring": "boundary",
+   "lines": 185,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsRelationsView.qml",
+   "ring": "ring2",
+   "lines": 184,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureFrame.qml",
+   "ring": "ring2",
+   "lines": 183,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.h",
+   "ring": "ring1",
+   "lines": 180,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmRigCapability.qml",
+   "ring": "ring2",
+   "lines": 180,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_consistency.h",
+   "ring": "ring2",
+   "lines": 179,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/swing_areas_pack.h",
+   "ring": "ring1",
+   "lines": 178,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_reading.h",
+   "ring": "boundary",
+   "lines": 178,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.h",
+   "ring": "ring1",
+   "lines": 177,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/session_summary.h",
+   "ring": "ring2",
+   "lines": 177,
+   "inline_fns": 7,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.h",
+   "ring": "ring2",
+   "lines": 176,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpBoxStrip.qml",
+   "ring": "ring1",
+   "lines": 175,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/pack_io.cpp",
+   "ring": "ring1",
+   "lines": 174,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpFeatureHead.qml",
+   "ring": "ring1",
+   "lines": 174,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/pack_provider.h",
+   "ring": "ring1",
+   "lines": 171,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_filter_proxy_model.cpp",
+   "ring": "ring2",
+   "lines": 171,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpLaunchMonitorPanel.qml",
+   "ring": "ring2",
+   "lines": 171,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/tendency_flow_map.h",
+   "ring": "ring1",
+   "lines": 170,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.cpp",
+   "ring": "ring2",
+   "lines": 170,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpSessionDiagnosticsWindow.qml",
+   "ring": "ring2",
+   "lines": 170,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/session_controller.cpp",
+   "ring": "ring2",
+   "lines": 169,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChKindCurve.qml",
+   "ring": "ring2",
+   "lines": 169,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.h",
+   "ring": "ring2",
+   "lines": 168,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 5,
+   "properties": 11
+  },
+  {
+   "file": "src/Gui/report/smtp_client.h",
+   "ring": "ring2",
+   "lines": 168,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpShotRuler.qml",
+   "ring": "ring1",
+   "lines": 167,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChDeliverySession.qml",
+   "ring": "ring2",
+   "lines": 167,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPlot.qml",
+   "ring": "ring2",
+   "lines": 167,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.h",
+   "ring": "ring2",
+   "lines": 166,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_mailer_win.cpp",
+   "ring": "ring2",
+   "lines": 166,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_shot.h",
+   "ring": "ring1",
+   "lines": 164,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_reducer.h",
+   "ring": "ring1",
+   "lines": 164,
+   "inline_fns": 6,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/session_report_model.h",
+   "ring": "ring2",
+   "lines": 164,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 7,
+   "properties": 6
+  },
+  {
+   "file": "src/Export/frame_decode.cpp",
+   "ring": "boundary",
+   "lines": 163,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChKindTable.qml",
+   "ring": "ring2",
+   "lines": 163,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_result.cpp",
+   "ring": "ring1",
+   "lines": 162,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChKeyFigures.qml",
+   "ring": "ring2",
+   "lines": 162,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureShotSection.qml",
+   "ring": "ring2",
+   "lines": 162,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChRunBox.qml",
+   "ring": "ring2",
+   "lines": 162,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/lm_gates.h",
+   "ring": "boundary",
+   "lines": 161,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/device_enumerator.h",
+   "ring": "boundary",
+   "lines": 160,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpExportOptionsSheet.qml",
+   "ring": "ring2",
+   "lines": 160,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/resource_norm_provider.cpp",
+   "ring": "ring1",
+   "lines": 158,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/variability_env.cpp",
+   "ring": "ring2",
+   "lines": 158,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChWindowBrush.qml",
+   "ring": "ring2",
+   "lines": 158,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpQuestions.qml",
+   "ring": "ring1",
+   "lines": 156,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_replay_controller.h",
+   "ring": "ring2",
+   "lines": 154,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 13,
+   "properties": 17
+  },
+  {
+   "file": "src/Gui/diagnostics/PpIndexList.qml",
+   "ring": "ring1",
+   "lines": 154,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/club_scope.h",
+   "ring": "ring1",
+   "lines": 153,
+   "inline_fns": 8,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/presenter_pool.h",
+   "ring": "ring2",
+   "lines": 152,
+   "inline_fns": 0,
+   "mutable": 2,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/consistency_env.cpp",
+   "ring": "ring2",
+   "lines": 151,
+   "inline_fns": 0,
+   "mutable": 2,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_bridge.h",
+   "ring": "ring2",
+   "lines": 151,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/cpu_topology.h",
+   "ring": "boundary",
+   "lines": 151,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_reading.cpp",
+   "ring": "boundary",
+   "lines": 151,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpPropertiesPanel.qml",
+   "ring": "ring2",
+   "lines": 151,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.h",
+   "ring": "ring1",
+   "lines": 150,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_catalogue.cpp",
+   "ring": "ring1",
+   "lines": 150,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/app_info.cpp",
+   "ring": "boundary",
+   "lines": 150,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/relation_resolver.h",
+   "ring": "ring1",
+   "lines": 149,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpClubPanel.qml",
+   "ring": "ring2",
+   "lines": 149,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.h",
+   "ring": "ring2",
+   "lines": 148,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/swing_paths.h",
+   "ring": "boundary",
+   "lines": 148,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChShotShapeGrid.qml",
+   "ring": "ring2",
+   "lines": 148,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChMovesWith.qml",
+   "ring": "ring2",
+   "lines": 147,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpBallTiles.qml",
+   "ring": "ring2",
+   "lines": 147,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/gate_words_pack.h",
+   "ring": "ring1",
+   "lines": 144,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/ppsw_qt.cpp",
+   "ring": "boundary",
+   "lines": 144,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChFindingsLedger.qml",
+   "ring": "ring2",
+   "lines": 144,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_result.h",
+   "ring": "ring1",
+   "lines": 143,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.h",
+   "ring": "ring1",
+   "lines": 141,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.h",
+   "ring": "ring2",
+   "lines": 141,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/charts_words.h",
+   "ring": "ring2",
+   "lines": 141,
+   "inline_fns": 9,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/club_standards.h",
+   "ring": "boundary",
+   "lines": 141,
+   "inline_fns": 4,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChReadingTrace.qml",
+   "ring": "ring2",
+   "lines": 139,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/variability_env.h",
+   "ring": "ring2",
+   "lines": 138,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/replay_source.h",
+   "ring": "ring2",
+   "lines": 137,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/club_vocabulary.h",
+   "ring": "boundary",
+   "lines": 135,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpCarryWaterfall.qml",
+   "ring": "ring1",
+   "lines": 135,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportAbout.qml",
+   "ring": "ring2",
+   "lines": 135,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/condition_reading.h",
+   "ring": "ring1",
+   "lines": 133,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.h",
+   "ring": "ring1",
+   "lines": 133,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 1,
+   "properties": 21
+  },
+  {
+   "file": "src/Core/studio_profile.h",
+   "ring": "boundary",
+   "lines": 133,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 11,
+   "properties": 19
+  },
+  {
+   "file": "src/Diagnostics/norms/metric_corridor.h",
+   "ring": "ring1",
+   "lines": 132,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.h",
+   "ring": "ring1",
+   "lines": 131,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_stills.h",
+   "ring": "ring2",
+   "lines": 130,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/swing_coverage_model.cpp",
+   "ring": "ring2",
+   "lines": 129,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_base.h",
+   "ring": "boundary",
+   "lines": 129,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmTendencies.qml",
+   "ring": "ring2",
+   "lines": 128,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSummary.qml",
+   "ring": "ring2",
+   "lines": 127,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/PpQrGlyph.qml",
+   "ring": "ring2",
+   "lines": 126,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/manifest_gates.h",
+   "ring": "ring1",
+   "lines": 125,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.cpp",
+   "ring": "ring1",
+   "lines": 124,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChBoxCell.qml",
+   "ring": "ring2",
+   "lines": 124,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/session_controller.h",
+   "ring": "ring2",
+   "lines": 122,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 7
+  },
+  {
+   "file": "src/Gui/report/mail_credentials_win.cpp",
+   "ring": "ring2",
+   "lines": 122,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/premier_session_parser.h",
+   "ring": "boundary",
+   "lines": 122,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_replay_controller.cpp",
+   "ring": "ring2",
+   "lines": 121,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/PpShotPipRow.qml",
+   "ring": "ring2",
+   "lines": 120,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/timeline_labels.h",
+   "ring": "ring2",
+   "lines": 118,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 9,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_tendencies.h",
+   "ring": "ring2",
+   "lines": 117,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.h",
+   "ring": "ring2",
+   "lines": 115,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/qml_payload.h",
+   "ring": "ring2",
+   "lines": 113,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/session_list_model.cpp",
+   "ring": "ring2",
+   "lines": 113,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_catalogue.h",
+   "ring": "ring1",
+   "lines": 112,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_curves.cpp",
+   "ring": "ring2",
+   "lines": 112,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChReplaySession.qml",
+   "ring": "ring2",
+   "lines": 112,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/uncertainty_config.h",
+   "ring": "ring1",
+   "lines": 111,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.h",
+   "ring": "ring2",
+   "lines": 111,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/DataWarningFormat.qml",
+   "ring": "ring2",
+   "lines": 111,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmTendencyFlow.qml",
+   "ring": "ring2",
+   "lines": 111,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.h",
+   "ring": "ring2",
+   "lines": 110,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 2,
+   "properties": 1
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSparkline.qml",
+   "ring": "ring1",
+   "lines": 110,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/AnalysisProfileLog.h",
+   "ring": "boundary",
+   "lines": 108,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsKindsView.qml",
+   "ring": "ring2",
+   "lines": 107,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/setup_capability.h",
+   "ring": "ring1",
+   "lines": 106,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_trend.cpp",
+   "ring": "ring1",
+   "lines": 106,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_curves.h",
+   "ring": "ring2",
+   "lines": 106,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/metric_catalog.cpp",
+   "ring": "ring2",
+   "lines": 105,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/chart_samples.js",
+   "ring": "ring2",
+   "lines": 104,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPictureStrip.qml",
+   "ring": "ring2",
+   "lines": 104,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSparkRow.qml",
+   "ring": "ring1",
+   "lines": 103,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpKeyFigures.qml",
+   "ring": "ring1",
+   "lines": 102,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChDeliveryFlight.qml",
+   "ring": "ring2",
+   "lines": 102,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.h",
+   "ring": "ring2",
+   "lines": 101,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 4,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/dashboard_reductions.h",
+   "ring": "ring1",
+   "lines": 100,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChChoices.qml",
+   "ring": "ring2",
+   "lines": 100,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/segment_role.h",
+   "ring": "ring1",
+   "lines": 99,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_monitor.h",
+   "ring": "boundary",
+   "lines": 99,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/variability_clubs.h",
+   "ring": "ring2",
+   "lines": 98,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_filter_proxy_model.h",
+   "ring": "ring2",
+   "lines": 97,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 3,
+   "properties": 9
+  },
+  {
+   "file": "src/Export/swing_zip_exporter.h",
+   "ring": "boundary",
+   "lines": 97,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 2,
+   "properties": 1
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagReplayState.qml",
+   "ring": "ring1",
+   "lines": 97,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSmallMultiples.qml",
+   "ring": "ring1",
+   "lines": 97,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_os_metrics.h",
+   "ring": "boundary",
+   "lines": 95,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportTrust.qml",
+   "ring": "ring2",
+   "lines": 95,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/work_ons_pack.h",
+   "ring": "ring1",
+   "lines": 94,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/device_filter_model.cpp",
+   "ring": "ring2",
+   "lines": 94,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/enum_table_p.h",
+   "ring": "ring1",
+   "lines": 93,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/session_list_model.h",
+   "ring": "ring2",
+   "lines": 93,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChRoles.qml",
+   "ring": "ring2",
+   "lines": 93,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/PpMessageLog.cpp",
+   "ring": "boundary",
+   "lines": 91,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/PpReplayTransport.qml",
+   "ring": "ring2",
+   "lines": 91,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/stream_trim.h",
+   "ring": "ring1",
+   "lines": 90,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.h",
+   "ring": "ring1",
+   "lines": 90,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/session_wrist.h",
+   "ring": "ring2",
+   "lines": 89,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPlaneLabels.qml",
+   "ring": "ring2",
+   "lines": 89,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_constants.h",
+   "ring": "ring1",
+   "lines": 88,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/mail_credentials.cpp",
+   "ring": "ring2",
+   "lines": 88,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpExpectations.qml",
+   "ring": "ring1",
+   "lines": 87,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureProfile.qml",
+   "ring": "ring2",
+   "lines": 85,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/session_archiver.h",
+   "ring": "boundary",
+   "lines": 84,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChWristProfile.qml",
+   "ring": "ring2",
+   "lines": 84,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/consistency_home.h",
+   "ring": "ring1",
+   "lines": 83,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/smtp_message.h",
+   "ring": "ring2",
+   "lines": 83,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSeqChain.qml",
+   "ring": "ring2",
+   "lines": 83,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_debug.h",
+   "ring": "boundary",
+   "lines": 82,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/club_baseline_provider.h",
+   "ring": "ring1",
+   "lines": 81,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_gpu_metrics.h",
+   "ring": "boundary",
+   "lines": 81,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_reading.cpp",
+   "ring": "boundary",
+   "lines": 81,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmFaultRow.qml",
+   "ring": "ring2",
+   "lines": 81,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/hm_view_store.js",
+   "ring": "ring2",
+   "lines": 81,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_trend.h",
+   "ring": "ring1",
+   "lines": 80,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/shot_outcomes_pack.h",
+   "ring": "ring1",
+   "lines": 80,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_factory.cpp",
+   "ring": "boundary",
+   "lines": 80,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/app_info.h",
+   "ring": "boundary",
+   "lines": 79,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 10
+  },
+  {
+   "file": "src/Export/frame_decode.h",
+   "ring": "boundary",
+   "lines": 79,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/device_filter_model.h",
+   "ring": "ring2",
+   "lines": 78,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 2,
+   "properties": 4
+  },
+  {
+   "file": "src/Core/PpMessageLog.h",
+   "ring": "boundary",
+   "lines": 76,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/premier_club.h",
+   "ring": "boundary",
+   "lines": 75,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/ffmpeg_video_encoder.h",
+   "ring": "boundary",
+   "lines": 75,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagReplaySessionRows.qml",
+   "ring": "ring1",
+   "lines": 75,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_scale_type.h",
+   "ring": "ring1",
+   "lines": 74,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Coaching/firing_side.h",
+   "ring": "ring1",
+   "lines": 74,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/mail_credentials_linux.cpp",
+   "ring": "ring2",
+   "lines": 74,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/seg_resolve.h",
+   "ring": "ring1",
+   "lines": 73,
+   "inline_fns": 3,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_resolver.cpp",
+   "ring": "ring1",
+   "lines": 73,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/current_swing.h",
+   "ring": "ring2",
+   "lines": 73,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 1
+  },
+  {
+   "file": "src/Core/pp_model_path.h",
+   "ring": "boundary",
+   "lines": 73,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/uncertainty_json.h",
+   "ring": "ring1",
+   "lines": 72,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_reading.h",
+   "ring": "boundary",
+   "lines": 72,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_lm.h",
+   "ring": "ring1",
+   "lines": 71,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_source_map.h",
+   "ring": "ring2",
+   "lines": 70,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpDrillCard.qml",
+   "ring": "ring2",
+   "lines": 70,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/PpStatsLog.h",
+   "ring": "boundary",
+   "lines": 69,
+   "inline_fns": 0,
+   "mutable": 1,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/standalone_gate.h",
+   "ring": "boundary",
+   "lines": 68,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChQuestions.qml",
+   "ring": "ring2",
+   "lines": 68,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChReadingPicker.qml",
+   "ring": "ring2",
+   "lines": 68,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/dtl_overlay_payload.h",
+   "ring": "ring2",
+   "lines": 67,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/PpStatsLog.cpp",
+   "ring": "boundary",
+   "lines": 67,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSection.qml",
+   "ring": "ring2",
+   "lines": 67,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/session_measure_source.h",
+   "ring": "ring1",
+   "lines": 66,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_csv_parser.h",
+   "ring": "boundary",
+   "lines": 66,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpStill.qml",
+   "ring": "ring2",
+   "lines": 66,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/det_rng.h",
+   "ring": "ring1",
+   "lines": 65,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/AnalysisProfileLog.cpp",
+   "ring": "boundary",
+   "lines": 65,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_log_stream.cpp",
+   "ring": "boundary",
+   "lines": 65,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureMoved.qml",
+   "ring": "ring2",
+   "lines": 65,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/swing_coverage_model.h",
+   "ring": "ring2",
+   "lines": 64,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.h",
+   "ring": "ring1",
+   "lines": 63,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_type.h",
+   "ring": "ring1",
+   "lines": 63,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/metric_catalog.h",
+   "ring": "ring2",
+   "lines": 63,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 1,
+   "properties": 2
+  },
+  {
+   "file": "src/Core/version.h",
+   "ring": "boundary",
+   "lines": 63,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDetailBar.qml",
+   "ring": "ring1",
+   "lines": 63,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/consistency_env.h",
+   "ring": "ring2",
+   "lines": 62,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/recorded_products.h",
+   "ring": "ring1",
+   "lines": 61,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/series_reduce_metric.h",
+   "ring": "ring1",
+   "lines": 61,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/video_encoder.h",
+   "ring": "boundary",
+   "lines": 61,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/standalone_gate.cpp",
+   "ring": "boundary",
+   "lines": 60,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChTrustFold.qml",
+   "ring": "ring2",
+   "lines": 60,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_tuning.h",
+   "ring": "ring1",
+   "lines": 59,
+   "inline_fns": 5,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_outcome.h",
+   "ring": "ring1",
+   "lines": 57,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_physical_constants.h",
+   "ring": "boundary",
+   "lines": 57,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpFitColumns.qml",
+   "ring": "ring2",
+   "lines": 57,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.h",
+   "ring": "ring1",
+   "lines": 56,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChFoldHead.qml",
+   "ring": "ring2",
+   "lines": 56,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSectionControls.qml",
+   "ring": "ring2",
+   "lines": 56,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/memory_norm_provider.cpp",
+   "ring": "ring1",
+   "lines": 54,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/box_map.h",
+   "ring": "ring2",
+   "lines": 54,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/mail_credentials.h",
+   "ring": "ring2",
+   "lines": 54,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_factory.h",
+   "ring": "boundary",
+   "lines": 54,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/memory_pack_provider.cpp",
+   "ring": "ring1",
+   "lines": 52,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagReplayCold.qml",
+   "ring": "ring1",
+   "lines": 52,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/review/MetricRoute.qml",
+   "ring": "ring2",
+   "lines": 52,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpSparkHead.qml",
+   "ring": "ring1",
+   "lines": 51,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/shot/qml_map_ref.h",
+   "ring": "ring2",
+   "lines": 50,
+   "inline_fns": 2,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpDiagReviewFoot.qml",
+   "ring": "ring1",
+   "lines": 50,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/line_angle.h",
+   "ring": "ring1",
+   "lines": 49,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/metric_resolver.h",
+   "ring": "ring1",
+   "lines": 48,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/resource_pack_provider.cpp",
+   "ring": "ring1",
+   "lines": 48,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_mailer_linux.cpp",
+   "ring": "ring2",
+   "lines": 48,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/report_variability.h",
+   "ring": "ring2",
+   "lines": 48,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_base.cpp",
+   "ring": "boundary",
+   "lines": 48,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/sigma_source.h",
+   "ring": "ring1",
+   "lines": 47,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/ppsw_qt.h",
+   "ring": "boundary",
+   "lines": 47,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Metrics/fitted_curve.h",
+   "ring": "ring1",
+   "lines": 46,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportPara.qml",
+   "ring": "ring2",
+   "lines": 45,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportSectionHead.qml",
+   "ring": "ring2",
+   "lines": 45,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Export/video_encoder.cpp",
+   "ring": "boundary",
+   "lines": 44,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/PpMasthead.qml",
+   "ring": "ring1",
+   "lines": 42,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChText.qml",
+   "ring": "ring2",
+   "lines": 41,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/excludes_rule.h",
+   "ring": "ring1",
+   "lines": 40,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/ort_log.h",
+   "ring": "boundary",
+   "lines": 38,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/report/PpReportSqueeze.qml",
+   "ring": "ring2",
+   "lines": 38,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPosturePicture.qml",
+   "ring": "ring2",
+   "lines": 37,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChViewBase.qml",
+   "ring": "ring2",
+   "lines": 37,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChDeliveryPicture.qml",
+   "ring": "ring2",
+   "lines": 36,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureLedger.qml",
+   "ring": "ring2",
+   "lines": 36,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChWristLedger.qml",
+   "ring": "ring2",
+   "lines": 35,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/HmHeadline.qml",
+   "ring": "ring2",
+   "lines": 34,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Core/pp_settings.h",
+   "ring": "boundary",
+   "lines": 32,
+   "inline_fns": 1,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/home/hm_text.js",
+   "ring": "ring2",
+   "lines": 32,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Analysis/shot_analyzer.cpp",
+   "ring": "ring1",
+   "lines": 31,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/session/PpStagePanel.qml",
+   "ring": "ring2",
+   "lines": 31,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChSeek.qml",
+   "ring": "ring2",
+   "lines": 30,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChPostureTrust.qml",
+   "ring": "ring2",
+   "lines": 28,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsAnalyse.qml",
+   "ring": "ring2",
+   "lines": 28,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  },
+  {
+   "file": "src/Gui/charts/PpChartsReplay.qml",
+   "ring": "ring2",
+   "lines": 28,
+   "inline_fns": 0,
+   "mutable": 0,
+   "invokables": 0,
+   "properties": 0
+  }
+ ],
+ "functions": [
+  {
+   "file": "src/Metrics/metric_catalogue_manifest.cpp",
+   "name": "installMetricManifest",
+   "line": 107,
+   "length": 5460
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "SessionReportModel::build",
+   "line": 1157,
+   "length": 1011
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.cpp",
+   "name": "layoutDag",
+   "line": 189,
+   "length": 852
+  },
+  {
+   "file": "src/Export/swing_exporter.cpp",
+   "name": "SwingExporter::run",
+   "line": 137,
+   "length": 818
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "validatePack",
+   "line": 1111,
+   "length": 739
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "serializeAnalysis",
+   "line": 272,
+   "length": 628
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "name": "SwingDiskLoader::load",
+   "line": 309,
+   "length": 575
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_body.h",
+   "name": "appendBodyGates",
+   "line": 27,
+   "length": 569
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "name": "SwingDataSource::reload",
+   "line": 305,
+   "length": 538
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "loadPack",
+   "line": 1854,
+   "length": 529
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "name": "DiskReplaySource::load",
+   "line": 144,
+   "length": 482
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::buildSwingExportJob",
+   "line": 1564,
+   "length": 467
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::conditionDetail",
+   "line": 6061,
+   "length": 461
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "buildSession",
+   "line": 2903,
+   "length": 430
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "buildThisShot",
+   "line": 1642,
+   "length": 413
+  },
+  {
+   "file": "src/Diagnostics/engine/relation_resolver.cpp",
+   "name": "explain",
+   "line": 57,
+   "length": 374
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.cpp",
+   "name": "evaluate",
+   "line": 132,
+   "length": 353
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::detectShot",
+   "line": 947,
+   "length": 345
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "toAnalysisDetail",
+   "line": 339,
+   "length": 342
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 2565,
+   "length": 336
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "buildPhaseGrid",
+   "line": 100,
+   "length": 319
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_club.h",
+   "name": "appendClubGates",
+   "line": 31,
+   "length": 318
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::spreadFor",
+   "line": 3674,
+   "length": 314
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::buildAnalysisJob",
+   "line": 1171,
+   "length": 312
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::ensureOutcomes",
+   "line": 1789,
+   "length": 295
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3348,
+   "length": 288
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "buildSession",
+   "line": 1480,
+   "length": 273
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_rules.h",
+   "name": "appendRules",
+   "line": 33,
+   "length": 263
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "name": "reanalyzeSwingDir",
+   "line": 886,
+   "length": 229
+  },
+  {
+   "file": "src/Metrics/gate_catalogue.h",
+   "name": "buildCatalogue",
+   "line": 149,
+   "length": 229
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "relationsMap",
+   "line": 1606,
+   "length": 227
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::historyFor",
+   "line": 4407,
+   "length": 224
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "kindsCore",
+   "line": 1985,
+   "length": 223
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::activateSession",
+   "line": 1404,
+   "length": 221
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "shotRow",
+   "line": 1425,
+   "length": 215
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::cardMap",
+   "line": 5055,
+   "length": 207
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "alignSession",
+   "line": 460,
+   "length": 207
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "buildThisShot",
+   "line": 1058,
+   "length": 205
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::finishGatherAndLaunch",
+   "line": 949,
+   "length": 200
+  },
+  {
+   "file": "src/Gui/report/report_stills.cpp",
+   "name": "renderInContext",
+   "line": 161,
+   "length": 197
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::describeWorkOns",
+   "line": 717,
+   "length": 190
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::shotReadout",
+   "line": 5801,
+   "length": 188
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "savePack",
+   "line": 2431,
+   "length": 186
+  },
+  {
+   "file": "src/Gui/report/report_wrist.h",
+   "name": "wristReportBlock",
+   "line": 116,
+   "length": 186
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::summaryMasked",
+   "line": 314,
+   "length": 185
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.cpp",
+   "name": "layoutCorridorPlot",
+   "line": 93,
+   "length": 180
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildCards",
+   "line": 4876,
+   "length": 174
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "validateNormsAgainst",
+   "line": 236,
+   "length": 172
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.cpp",
+   "name": "detect",
+   "line": 563,
+   "length": 170
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "buildReference",
+   "line": 2592,
+   "length": 170
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+   "name": "parseLastShotCsv",
+   "line": 261,
+   "length": 169
+  },
+  {
+   "file": "src/Gui/report/report_delivery.h",
+   "name": "deliveryReportBlock",
+   "line": 90,
+   "length": 165
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.cpp",
+   "name": "PpcpClipFiler::file",
+   "line": 271,
+   "length": 164
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1812,
+   "length": 160
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::runThemes",
+   "line": 1602,
+   "length": 160
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::onSwingDocWritten",
+   "line": 2351,
+   "length": 160
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 2284,
+   "length": 159
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::maybeJoin",
+   "line": 2191,
+   "length": 156
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "lmAppendixOf",
+   "line": 997,
+   "length": 156
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "name": "posturePicture",
+   "line": 557,
+   "length": 155
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.cpp",
+   "name": "layoutHub",
+   "line": 1071,
+   "length": 152
+  },
+  {
+   "file": "src/Analysis/analysis_dag.h",
+   "name": "runStagesParallel",
+   "line": 247,
+   "length": 151
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::whatChangedOf",
+   "line": 4052,
+   "length": 151
+  },
+  {
+   "file": "src/Export/ffmpeg_video_encoder.cpp",
+   "name": "FfmpegVideoEncoder::open",
+   "line": 56,
+   "length": 151
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "toJson",
+   "line": 2243,
+   "length": 150
+  },
+  {
+   "file": "src/Coaching/tendency_flow.h",
+   "name": "layoutTendencyFlow",
+   "line": 165,
+   "length": 149
+  },
+  {
+   "file": "src/Gui/report/report_posture.h",
+   "name": "postureReportBlock",
+   "line": 91,
+   "length": 148
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "conditionLedgers",
+   "line": 1206,
+   "length": 147
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "symmetricEigen",
+   "line": 491,
+   "length": 147
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3121,
+   "length": 146
+  },
+  {
+   "file": "src/Core/device_enumerator.cpp",
+   "name": "DeviceEnumerator::scanImu",
+   "line": 338,
+   "length": 144
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "SwingDocReader::readSwingJson",
+   "line": 2216,
+   "length": 144
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_measure_source.h",
+   "name": "readComposite",
+   "line": 197,
+   "length": 143
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "SessionSeriesModel::extractShot",
+   "line": 211,
+   "length": 141
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "fromJson",
+   "line": 2397,
+   "length": 140
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "reportFieldIssues",
+   "line": 670,
+   "length": 137
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildThisShot",
+   "line": 4736,
+   "length": 136
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_shot.h",
+   "name": "appendShotGates",
+   "line": 28,
+   "length": 134
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "trustOf",
+   "line": 923,
+   "length": 133
+  },
+  {
+   "file": "src/Coaching/tendency_flow_map.h",
+   "name": "tendencyFlowMap",
+   "line": 37,
+   "length": 131
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "r::writeSwingJson",
+   "line": 1583,
+   "length": 131
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "eries",
+   "line": 118,
+   "length": 130
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "postureInputFromShot",
+   "line": 921,
+   "length": 130
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "SessionSeriesModel::buildSnapshot",
+   "line": 817,
+   "length": 129
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::shotOutcomeDetail",
+   "line": 2225,
+   "length": 127
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "loadPhaseGrid",
+   "line": 798,
+   "length": 126
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.cpp",
+   "name": "SwingSeriesModel::configure",
+   "line": 273,
+   "length": 126
+  },
+  {
+   "file": "src/Diagnostics/packs/merged_pack_provider.cpp",
+   "name": "mergeOne",
+   "line": 153,
+   "length": 124
+  },
+  {
+   "file": "src/Coaching/work_ons.h",
+   "name": "aggregateWorkOnsIn",
+   "line": 752,
+   "length": 122
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "wristSessionReportPayload",
+   "line": 1926,
+   "length": 121
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildDriver",
+   "line": 5619,
+   "length": 120
+  },
+  {
+   "file": "src/LaunchMonitor/lm_enclosing_ellipse.h",
+   "name": "lmEnclosingEllipse",
+   "line": 105,
+   "length": 120
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::runMarks",
+   "line": 1330,
+   "length": 116
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::sequenceTable",
+   "line": 1302,
+   "length": 116
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "buildThisShot",
+   "line": 1374,
+   "length": 116
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "thisShotMap",
+   "line": 1396,
+   "length": 115
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 985,
+   "length": 114
+  },
+  {
+   "file": "src/Coaching/shot_outcomes.h",
+   "name": "composeCarryBlock",
+   "line": 432,
+   "length": 113
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "replayEntries",
+   "line": 2355,
+   "length": 112
+  },
+  {
+   "file": "src/LaunchMonitor/lm_flight_path.h",
+   "name": "lmIntegrateFlight",
+   "line": 167,
+   "length": 112
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "measurePhases",
+   "line": 4354,
+   "length": 111
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "computeAll",
+   "line": 3446,
+   "length": 111
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "runProfile",
+   "line": 4636,
+   "length": 107
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "reduceOverGrid",
+   "line": 424,
+   "length": 107
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 816,
+   "length": 106
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.cpp",
+   "name": "deliveryPicture",
+   "line": 263,
+   "length": 106
+  },
+  {
+   "file": "src/Analysis/analysis_dag.h",
+   "name": "buildStageGraph",
+   "line": 126,
+   "length": 105
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "savePhaseGrid",
+   "line": 689,
+   "length": 105
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "poseTrackToJson",
+   "line": 1399,
+   "length": 105
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "toJson",
+   "line": 2476,
+   "length": 104
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "ssion",
+   "line": 461,
+   "length": 104
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "keyFiguresMap",
+   "line": 1291,
+   "length": 103
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "name": "grade",
+   "line": 131,
+   "length": 102
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.cpp",
+   "name": "LiveMeasureSource::value",
+   "line": 99,
+   "length": 102
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "buildChoices",
+   "line": 3337,
+   "length": 102
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "ing",
+   "line": 2084,
+   "length": 102
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "ShotController::reportCandidate",
+   "line": 164,
+   "length": 101
+  },
+  {
+   "file": "src/Analysis/recorded_products.cpp",
+   "name": "shaftTrackFromAnalysisJson",
+   "line": 91,
+   "length": 100
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "swingSummaryView",
+   "line": 2338,
+   "length": 100
+  },
+  {
+   "file": "src/Gui/charts/session_traces.cpp",
+   "name": "pooledFit",
+   "line": 158,
+   "length": 100
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "cardOf",
+   "line": 932,
+   "length": 99
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "sequenceBlock",
+   "line": 1324,
+   "length": 99
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_reading.cpp",
+   "name": "readingFromGsProMessage",
+   "line": 50,
+   "length": 99
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "swingThemesFromJson",
+   "line": 2583,
+   "length": 97
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "kindCurveMap",
+   "line": 1860,
+   "length": 97
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "resolveWindow",
+   "line": 1180,
+   "length": 97
+  },
+  {
+   "file": "src/Metrics/setup_capability.cpp",
+   "name": "summariseSetup",
+   "line": 152,
+   "length": 96
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "sessionSequenceBlock",
+   "line": 2769,
+   "length": 96
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "name": "GsProMonitor::pump",
+   "line": 373,
+   "length": 96
+  },
+  {
+   "file": "src/Gui/charts/session_wrist.cpp",
+   "name": "shotWristPayload",
+   "line": 108,
+   "length": 94
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "poseTrackToDetail",
+   "line": 242,
+   "length": 93
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "name": "shotSequence",
+   "line": 52,
+   "length": 93
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "SessionSeriesModel::runJob",
+   "line": 590,
+   "length": 93
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "name": "SmtpClient::handleReply",
+   "line": 329,
+   "length": 93
+  },
+  {
+   "file": "src/LaunchMonitor/premier_session_parser.cpp",
+   "name": "parsePremierSessionFile",
+   "line": 189,
+   "length": 92
+  },
+  {
+   "file": "src/Export/session_archiver.cpp",
+   "name": "archive",
+   "line": 173,
+   "length": 91
+  },
+  {
+   "file": "src/Export/swing_store.cpp",
+   "name": "convertDir",
+   "line": 339,
+   "length": 91
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "name": "SmtpClient::sendMime",
+   "line": 111,
+   "length": 90
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "readPhaseGrid",
+   "line": 927,
+   "length": 89
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildHeader",
+   "line": 4643,
+   "length": 89
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::publishSummary",
+   "line": 1859,
+   "length": 89
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::sequenceOverlay",
+   "line": 1182,
+   "length": 89
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "tureShot",
+   "line": 1768,
+   "length": 89
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::compositeSpreadFor",
+   "line": 4206,
+   "length": 88
+  },
+  {
+   "file": "src/Analysis/camera_pose_sticks.h",
+   "name": "solveCameraPose",
+   "line": 149,
+   "length": 87
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "name": "reduceRate",
+   "line": 709,
+   "length": 87
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::seriesGroups",
+   "line": 856,
+   "length": 87
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "sequenceMap",
+   "line": 1515,
+   "length": 87
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "clubKinds",
+   "line": 2223,
+   "length": 86
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "resolvePreset",
+   "line": 1090,
+   "length": 86
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.cpp",
+   "name": "consistencyResult",
+   "line": 383,
+   "length": 86
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3858,
+   "length": 84
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "name": "windowMeanValueAt",
+   "line": 360,
+   "length": 84
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "ShotController::commitArbitratedShot",
+   "line": 463,
+   "length": 84
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::sequenceRows",
+   "line": 1030,
+   "length": 84
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "name": "ForesightPremierMonitor::processSnapshot",
+   "line": 283,
+   "length": 83
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::appendSessionScope",
+   "line": 2667,
+   "length": 82
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::prepareClubBaseline",
+   "line": 2505,
+   "length": 81
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "SwingDocReader::readSwingSummary",
+   "line": 2429,
+   "length": 81
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::refreshExplanation",
+   "line": 2873,
+   "length": 80
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::publishAreas",
+   "line": 1159,
+   "length": 80
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "emImpute",
+   "line": 996,
+   "length": 79
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "name": "cellDetail",
+   "line": 383,
+   "length": 79
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "polarFactor",
+   "line": 654,
+   "length": 78
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "ledgersOf",
+   "line": 884,
+   "length": 78
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "name": "GsProMonitor::start",
+   "line": 160,
+   "length": 78
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "dataWarningDetailFrom",
+   "line": 147,
+   "length": 78
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "name": "reduceOverGridReading",
+   "line": 579,
+   "length": 77
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "calcSeries",
+   "line": 680,
+   "length": 77
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "name": "exportReferenceSetCsl",
+   "line": 352,
+   "length": 76
+  },
+  {
+   "file": "src/Coaching/shot_factors.h",
+   "name": "shotFactors",
+   "line": 281,
+   "length": 76
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::shotOutcome",
+   "line": 2147,
+   "length": 76
+  },
+  {
+   "file": "src/Gui/charts/session_relations.cpp",
+   "name": "findKinds",
+   "line": 386,
+   "length": 76
+  },
+  {
+   "file": "src/Metrics/metric_provider.h",
+   "name": "resolveRoutes",
+   "line": 145,
+   "length": 75
+  },
+  {
+   "file": "src/Coaching/work_ons.h",
+   "name": "sessionWorkOnsFromJson",
+   "line": 996,
+   "length": 75
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::segments",
+   "line": 189,
+   "length": 75
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "name": "shotDetail",
+   "line": 521,
+   "length": 75
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.cpp",
+   "name": "traceTypicality",
+   "line": 136,
+   "length": 74
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "prepare",
+   "line": 1348,
+   "length": 74
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "name": "tendencySetFromJson",
+   "line": 1361,
+   "length": 74
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryImpactLines",
+   "line": 618,
+   "length": 74
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryHead",
+   "line": 794,
+   "length": 74
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "name": "validateReferenceSet",
+   "line": 145,
+   "length": 73
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "focusView",
+   "line": 2261,
+   "length": 73
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "sionDiagnosticsModel::spreadCorridorOf",
+   "line": 3378,
+   "length": 73
+  },
+  {
+   "file": "src/Export/session_archiver.cpp",
+   "name": "restore",
+   "line": 266,
+   "length": 73
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "impactTrackJson",
+   "line": 1506,
+   "length": 73
+  },
+  {
+   "file": "src/Coaching/work_ons.h",
+   "name": "toJson",
+   "line": 920,
+   "length": 72
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "ShotController::commitShot",
+   "line": 550,
+   "length": 72
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "summaryFromRoot",
+   "line": 1140,
+   "length": 72
+  },
+  {
+   "file": "src/Export/swing_zip_exporter.cpp",
+   "name": "SwingZipExporter::exportShots",
+   "line": 132,
+   "length": 72
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::publishTendencies",
+   "line": 2141,
+   "length": 71
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "validateNormPack",
+   "line": 162,
+   "length": 70
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "readReducer",
+   "line": 136,
+   "length": 70
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "name": "tendencySetToJson",
+   "line": 1267,
+   "length": 70
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_monitor.cpp",
+   "name": "GcQuadMonitor::pollNow",
+   "line": 140,
+   "length": 70
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "name": "ForesightPremierMonitor::pollNow",
+   "line": 211,
+   "length": 70
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "validateSeries",
+   "line": 171,
+   "length": 69
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "name": "clubDistanceItemToJson",
+   "line": 427,
+   "length": 69
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "validateComposite",
+   "line": 471,
+   "length": 68
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "causeGroups",
+   "line": 695,
+   "length": 68
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::maybeThemes",
+   "line": 1518,
+   "length": 68
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "name": "readCamera",
+   "line": 341,
+   "length": 68
+  },
+  {
+   "file": "src/Export/swing_zip_exporter.cpp",
+   "name": "SwingZipExporter::runZip",
+   "line": 206,
+   "length": 68
+  },
+  {
+   "file": "src/Analysis/manifest_gates.h",
+   "name": "manifestGates",
+   "line": 49,
+   "length": 67
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::applyThemes",
+   "line": 1764,
+   "length": 67
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "name": "coachMarks",
+   "line": 148,
+   "length": 67
+  },
+  {
+   "file": "src/Analysis/analysis_dag.h",
+   "name": "stageGraphToJson",
+   "line": 420,
+   "length": 66
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.cpp",
+   "name": "resolveValue",
+   "line": 70,
+   "length": 66
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "readAddressHistory",
+   "line": 692,
+   "length": 66
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "traceMap",
+   "line": 1084,
+   "length": 66
+  },
+  {
+   "file": "src/Gui/charts/session_traces.cpp",
+   "name": "shapeSplit",
+   "line": 313,
+   "length": 66
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 607,
+   "length": 65
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "checkReducerShape",
+   "line": 274,
+   "length": 65
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "ChartsRelationsPresenter::movesWith",
+   "line": 2872,
+   "length": 65
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.cpp",
+   "name": "Mp4FrameDecoder::read",
+   "line": 215,
+   "length": 64
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "seenMost",
+   "line": 1430,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::rebuild",
+   "line": 2590,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::onReplayTick",
+   "line": 2582,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::sequenceVerdictText",
+   "line": 1116,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/review/swing_coverage_model.cpp",
+   "name": "SwingCoverageModel::setLanes",
+   "line": 63,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/report/report_consistency.h",
+   "name": "consistencyReportBlock",
+   "line": 113,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "name": "ReportMailer::startSend",
+   "line": 503,
+   "length": 64
+  },
+  {
+   "file": "src/LaunchMonitor/lm_session_reductions.h",
+   "name": "lmSessionStats",
+   "line": 114,
+   "length": 64
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.cpp",
+   "name": "SessionReviewController::loadSession",
+   "line": 220,
+   "length": 63
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 2926,
+   "length": 62
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::maybeTendencies",
+   "line": 1963,
+   "length": 62
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "postureWhatMoved",
+   "line": 1192,
+   "length": 62
+  },
+  {
+   "file": "src/Gui/report/report_tendencies.h",
+   "name": "tendenciesReportBlock",
+   "line": 53,
+   "length": 62
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1361,
+   "length": 61
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.cpp",
+   "name": "Mp4FrameDecoder::ensureOpen",
+   "line": 83,
+   "length": 61
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::envelope",
+   "line": 3046,
+   "length": 61
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.cpp",
+   "name": "PpcpClipFiler::onClipReady",
+   "line": 180,
+   "length": 61
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "buildThisShot",
+   "line": 596,
+   "length": 61
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryTrust",
+   "line": 871,
+   "length": 61
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "reportContentGaps",
+   "line": 601,
+   "length": 60
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "name": "loadReferenceSet",
+   "line": 220,
+   "length": 60
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::maybeMarks",
+   "line": 1256,
+   "length": 60
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::runTendencies",
+   "line": 2040,
+   "length": 60
+  },
+  {
+   "file": "src/Gui/charts/session_bridge.cpp",
+   "name": "bridgeChest",
+   "line": 95,
+   "length": 60
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "postureMatch",
+   "line": 1056,
+   "length": 60
+  },
+  {
+   "file": "src/Gui/report/report_mailer_win.cpp",
+   "name": "platformCompose",
+   "line": 104,
+   "length": 60
+  },
+  {
+   "file": "src/Export/swing_exporter.cpp",
+   "name": "SwingExporter::captureBlock",
+   "line": 957,
+   "length": 60
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "readNorm",
+   "line": 468,
+   "length": 59
+  },
+  {
+   "file": "src/Diagnostics/packs/merged_pack_provider.cpp",
+   "name": "m_user",
+   "line": 41,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::readHistory",
+   "line": 4307,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/shot/shot_arbiter.h",
+   "name": "decide",
+   "line": 108,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "sessionMapOf",
+   "line": 661,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "postureShotFromDetail",
+   "line": 207,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "buildChoices",
+   "line": 1494,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "linkFired",
+   "line": 398,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "findingMap",
+   "line": 496,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "buildChoices",
+   "line": 1782,
+   "length": 59
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::beginGather",
+   "line": 864,
+   "length": 58
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::startReplay",
+   "line": 2522,
+   "length": 58
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "deliveryShotFromDetail",
+   "line": 127,
+   "length": 58
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "SessionSeriesModel::ensureShot",
+   "line": 696,
+   "length": 58
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.cpp",
+   "name": "SessionReportListModel::scan",
+   "line": 413,
+   "length": 58
+  },
+  {
+   "file": "src/Core/pp_profiler.cpp",
+   "name": "Profiler::dumpToLog",
+   "line": 176,
+   "length": 58
+  },
+  {
+   "file": "src/Core/studio_profile.cpp",
+   "name": "StudioProfile::importImage",
+   "line": 438,
+   "length": 58
+  },
+  {
+   "file": "src/Export/frame_decode.cpp",
+   "name": "decodeToLuma",
+   "line": 103,
+   "length": 58
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 684,
+   "length": 57
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 4293,
+   "length": 57
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "reportFieldIssues",
+   "line": 809,
+   "length": 57
+  },
+  {
+   "file": "src/Coaching/sequence_checks.h",
+   "name": "sequenceChecksOf",
+   "line": 248,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::applyIngested",
+   "line": 1294,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::outcomeLabelMap",
+   "line": 2088,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "publishCorridor",
+   "line": 3523,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "rowMapOf",
+   "line": 712,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliverySession",
+   "line": 986,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "trustOf",
+   "line": 479,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "addressLines",
+   "line": 1435,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "findLandmarks",
+   "line": 325,
+   "length": 57
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildChains",
+   "line": 5288,
+   "length": 56
+  },
+  {
+   "file": "src/Gui/session/session_controller.cpp",
+   "name": "SessionController::start",
+   "line": 76,
+   "length": 56
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.cpp",
+   "name": "consistencyInput",
+   "line": 190,
+   "length": 56
+  },
+  {
+   "file": "src/Gui/charts/session_relations.cpp",
+   "name": "sessionReadings",
+   "line": 179,
+   "length": 56
+  },
+  {
+   "file": "src/Core/app_info.cpp",
+   "name": "QObject",
+   "line": 51,
+   "length": 56
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "fullProfile",
+   "line": 4482,
+   "length": 55
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.cpp",
+   "name": "loadScreenSet",
+   "line": 89,
+   "length": 55
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "pickStrengths",
+   "line": 287,
+   "length": 55
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.cpp",
+   "name": "SessionReviewController::buildDiskRow",
+   "line": 144,
+   "length": 55
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "shotFromDetail",
+   "line": 412,
+   "length": 55
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryPlaneStory",
+   "line": 378,
+   "length": 55
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "name": "R::sendErrorWords",
+   "line": 185,
+   "length": 55
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "earlyLadder",
+   "line": 2203,
+   "length": 54
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "varimax",
+   "line": 1079,
+   "length": 54
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::ghostMark",
+   "line": 5377,
+   "length": 54
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "readingOf",
+   "line": 761,
+   "length": 54
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.cpp",
+   "name": "SessionReportListModel::applyScan",
+   "line": 473,
+   "length": 54
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "validateReducer",
+   "line": 347,
+   "length": 53
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "name": "contextIdForClub",
+   "line": 272,
+   "length": 53
+  },
+  {
+   "file": "src/Coaching/shot_factors.h",
+   "name": "composeFactorMixBar",
+   "line": 382,
+   "length": 53
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::loadProfile",
+   "line": 3141,
+   "length": 53
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "name": "unplacedWhy",
+   "line": 203,
+   "length": 53
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "SessionReportModel::start",
+   "line": 465,
+   "length": 53
+  },
+  {
+   "file": "src/Metrics/variability/variability_trend.cpp",
+   "name": "variabilityTrend",
+   "line": 42,
+   "length": 52
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.cpp",
+   "name": "ReanalysisController::onWorkerFinished",
+   "line": 131,
+   "length": 52
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "name": "headTicksOf",
+   "line": 416,
+   "length": 52
+  },
+  {
+   "file": "src/LaunchMonitor/lm_gates.h",
+   "name": "lmGates",
+   "line": 84,
+   "length": 52
+  },
+  {
+   "file": "src/LaunchMonitor/lm_session_reductions.h",
+   "name": "lmPairStats",
+   "line": 313,
+   "length": 52
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "skeletonLines",
+   "line": 3043,
+   "length": 51
+  },
+  {
+   "file": "src/Metrics/metric_catalogue.cpp",
+   "name": "makeMetricCatalogue",
+   "line": 97,
+   "length": 51
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.cpp",
+   "name": "resolveAvailability",
+   "line": 80,
+   "length": 51
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.cpp",
+   "name": "LiveMeasureSource::gateCause",
+   "line": 265,
+   "length": 51
+  },
+  {
+   "file": "src/Diagnostics/norms/merged_norm_provider.cpp",
+   "name": "m_disabled",
+   "line": 47,
+   "length": 51
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::linkMap",
+   "line": 5564,
+   "length": 51
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "postureSessionReportPayload",
+   "line": 1636,
+   "length": 51
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "orderGradesOf",
+   "line": 2508,
+   "length": 51
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.cpp",
+   "name": "deliveryPictureDocFrom",
+   "line": 201,
+   "length": 51
+  },
+  {
+   "file": "src/Gui/report/smtp_message.cpp",
+   "name": "buildMime",
+   "line": 304,
+   "length": 51
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "name": "GsProMonitor::setSourcePath",
+   "line": 107,
+   "length": 51
+  },
+  {
+   "file": "src/LaunchMonitor/lm_club_evidence.h",
+   "name": "lmClubEvidence",
+   "line": 250,
+   "length": 51
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.cpp",
+   "name": "resolveSegment",
+   "line": 310,
+   "length": 50
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "swingSummaryLines",
+   "line": 2061,
+   "length": 50
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::updateProfile",
+   "line": 3196,
+   "length": 50
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.cpp",
+   "name": "WristDiagnosticsModel::findingMap",
+   "line": 312,
+   "length": 50
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "ShotController::corroborated",
+   "line": 411,
+   "length": 50
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "diagnosticsOf",
+   "line": 128,
+   "length": 50
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "name": "SessionSeriesModel::readLedgerIfChanged",
+   "line": 765,
+   "length": 50
+  },
+  {
+   "file": "src/Core/pp_debug.cpp",
+   "name": "ppMessageHandler",
+   "line": 60,
+   "length": 50
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.cpp",
+   "name": "loadDrillSet",
+   "line": 81,
+   "length": 49
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "referenceSwing",
+   "line": 360,
+   "length": 49
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "name": "spreadAxisFor",
+   "line": 260,
+   "length": 49
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "ShotController::setPpcpBridge",
+   "line": 285,
+   "length": 49
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "computeWrist",
+   "line": 1847,
+   "length": 49
+  },
+  {
+   "file": "src/LaunchMonitor/premier_session_parser.cpp",
+   "name": "parsePremierHistoryFile",
+   "line": 284,
+   "length": 49
+  },
+  {
+   "file": "src/Coaching/strike_from_flight.h",
+   "name": "classifyFlight",
+   "line": 388,
+   "length": 48
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::marshalGraph",
+   "line": 2823,
+   "length": 48
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "parseProfile",
+   "line": 239,
+   "length": 48
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryShot",
+   "line": 936,
+   "length": 48
+  },
+  {
+   "file": "src/Gui/report/report_stills.cpp",
+   "name": "ReportStills::renderAll",
+   "line": 416,
+   "length": 48
+  },
+  {
+   "file": "src/Export/swing_paths.cpp",
+   "name": "SwingPaths::sanitise",
+   "line": 95,
+   "length": 48
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "name": "reduceExtremum",
+   "line": 642,
+   "length": 47
+  },
+  {
+   "file": "src/Diagnostics/packs/file_pack_provider.cpp",
+   "name": "characteristicPackFilesIn",
+   "line": 146,
+   "length": 47
+  },
+  {
+   "file": "src/Coaching/strike_from_flight.h",
+   "name": "flightNormsFromJson",
+   "line": 279,
+   "length": 47
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildGraph",
+   "line": 2771,
+   "length": 47
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::onAnalysisFinished",
+   "line": 2122,
+   "length": 47
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "name": "postureDocFrom",
+   "line": 487,
+   "length": 47
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "captureIntegrityJson",
+   "line": 81,
+   "length": 47
+  },
+  {
+   "file": "src/Export/swing_exporter.cpp",
+   "name": "writeThumbnail",
+   "line": 86,
+   "length": 47
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "chooseStill",
+   "line": 449,
+   "length": 46
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::correctOutcome",
+   "line": 2389,
+   "length": 46
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+   "name": "columnDefs",
+   "line": 55,
+   "length": 46
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1631,
+   "length": 45
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.cpp",
+   "name": "recordAnalysisRun",
+   "line": 31,
+   "length": 45
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "writeNorm",
+   "line": 529,
+   "length": 45
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "shotFromDetail",
+   "line": 167,
+   "length": 45
+  },
+  {
+   "file": "src/Gui/charts/session_curves.cpp",
+   "name": "shotCurve",
+   "line": 32,
+   "length": 45
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "ballTiles",
+   "line": 869,
+   "length": 45
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "name": "ForesightPremierMonitor::sweepCarry",
+   "line": 512,
+   "length": 45
+  },
+  {
+   "file": "src/Export/swing_paths.cpp",
+   "name": "SwingPaths::trashPath",
+   "line": 345,
+   "length": 45
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.cpp",
+   "name": "markCriticalPath",
+   "line": 78,
+   "length": 44
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "patternDraws",
+   "line": 1147,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::applyScan",
+   "line": 513,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::startSwingSave",
+   "line": 1518,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/review/session_summary.h",
+   "name": "summarizeSession",
+   "line": 131,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryPhaseGridOf",
+   "line": 247,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryInputFromGrid",
+   "line": 293,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "name": "exposureCurve",
+   "line": 263,
+   "length": 44
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "numbersOf",
+   "line": 934,
+   "length": 44
+  },
+  {
+   "file": "src/Analysis/recorded_products.cpp",
+   "name": "segmentationFromAnalysisJson",
+   "line": 193,
+   "length": 43
+  },
+  {
+   "file": "src/Metrics/metric_resolver.cpp",
+   "name": "resolveAvailability",
+   "line": 28,
+   "length": 43
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "name": "poolSessionByClub",
+   "line": 251,
+   "length": 43
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "readingStrength",
+   "line": 864,
+   "length": 43
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "hungarianMax",
+   "line": 762,
+   "length": 43
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::rankScores",
+   "line": 2959,
+   "length": 43
+  },
+  {
+   "file": "src/Gui/review/metric_catalog.cpp",
+   "name": "MetricCatalog::setupSummary",
+   "line": 62,
+   "length": 43
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "computePosture",
+   "line": 1591,
+   "length": 43
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "buildSpecs",
+   "line": 54,
+   "length": 43
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "name": "::send",
+   "line": 434,
+   "length": 43
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.cpp",
+   "name": "resolvePoint",
+   "line": 266,
+   "length": 42
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "name": "validateContextTree",
+   "line": 169,
+   "length": 42
+  },
+  {
+   "file": "src/Diagnostics/norms/file_norm_provider.cpp",
+   "name": "makeFileNormProviders",
+   "line": 135,
+   "length": 42
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "fitThemes",
+   "line": 1146,
+   "length": 42
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.cpp",
+   "name": "SessionReviewController::buildLiveRow",
+   "line": 99,
+   "length": 42
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "postureConsistency",
+   "line": 1123,
+   "length": 42
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "withTrunkEstimates",
+   "line": 220,
+   "length": 42
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "hipSourceLine",
+   "line": 434,
+   "length": 42
+  },
+  {
+   "file": "src/Core/pp_debug.cpp",
+   "name": "installAvLogCallbackOnAllInstances",
+   "line": 253,
+   "length": 42
+  },
+  {
+   "file": "src/Core/pp_gpu_metrics.cpp",
+   "name": "backendInit",
+   "line": 57,
+   "length": 42
+  },
+  {
+   "file": "src/LaunchMonitor/launch_monitor_reading.cpp",
+   "name": "fieldDefs",
+   "line": 29,
+   "length": 42
+  },
+  {
+   "file": "src/Export/swing_store.cpp",
+   "name": "deviceHeads",
+   "line": 63,
+   "length": 42
+  },
+  {
+   "file": "src/Diagnostics/packs/file_pack_provider.cpp",
+   "name": "migrateUserPackGroups",
+   "line": 61,
+   "length": 41
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "explainOrder",
+   "line": 955,
+   "length": 41
+  },
+  {
+   "file": "src/Coaching/shot_outcomes.h",
+   "name": "composeShotMixBar",
+   "line": 1013,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::scan",
+   "line": 470,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "plotLayersOf",
+   "line": 723,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "warpAgainst",
+   "line": 474,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "clubGradesOf",
+   "line": 2456,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "ChartsTracesPresenter::updateNow",
+   "line": 3728,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryFit",
+   "line": 481,
+   "length": 41
+  },
+  {
+   "file": "src/Gui/report/report_stills.cpp",
+   "name": "ReportStills::renderSwing",
+   "line": 368,
+   "length": 41
+  },
+  {
+   "file": "src/Core/kf3_smoother.h",
+   "name": "sample",
+   "line": 255,
+   "length": 41
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "SwingDocWriter::refreshLaunchMonitorRows",
+   "line": 2038,
+   "length": 41
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3723,
+   "length": 40
+  },
+  {
+   "file": "src/Analysis/route_substitution.h",
+   "name": "reconcileSubstitutedReadings",
+   "line": 98,
+   "length": 40
+  },
+  {
+   "file": "src/Diagnostics/norms/resource_norm_provider.cpp",
+   "name": "INormProvider::resolve",
+   "line": 30,
+   "length": 40
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.cpp",
+   "name": "validateScreenSet",
+   "line": 47,
+   "length": 40
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "focusOrder",
+   "line": 1610,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::themesFingerprint",
+   "line": 1475,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "name": "ShotListModel::refreshShot",
+   "line": 251,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::buildSynthManifest",
+   "line": 2076,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::sigmaInfo",
+   "line": 760,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "name": "SwingDataSource::resolve",
+   "line": 894,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "name": "SwingDataSource::rebuild",
+   "line": 936,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "readDay",
+   "line": 238,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "kindsMap",
+   "line": 2311,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "wristConsistency",
+   "line": 1425,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "faultLinksOf",
+   "line": 771,
+   "length": 40
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "SessionReportModel::printFinished",
+   "line": 2207,
+   "length": 40
+  },
+  {
+   "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+   "name": "toBaseFactor",
+   "line": 150,
+   "length": 40
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "summaryJson",
+   "line": 1306,
+   "length": 40
+  },
+  {
+   "file": "src/Export/swing_store.cpp",
+   "name": "loadAnalysis",
+   "line": 249,
+   "length": 40
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "name": "ContextTree::inOrder",
+   "line": 82,
+   "length": 39
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.cpp",
+   "name": "corridorPrecisionFor",
+   "line": 44,
+   "length": 39
+  },
+  {
+   "file": "src/Diagnostics/packs/gate_words_pack.cpp",
+   "name": "loadGateWordSet",
+   "line": 144,
+   "length": 39
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "name": "clubDistanceItemFromWindow",
+   "line": 610,
+   "length": 39
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "corrPairwise",
+   "line": 887,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "name": "DiskReplaySource::onTick",
+   "line": 874,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "name": "ShotListModel::attachSwingDir",
+   "line": 293,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "computeDelivery",
+   "line": 803,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "facetGroups",
+   "line": 2175,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "wristShotFromDetail",
+   "line": 304,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.cpp",
+   "name": "consistencyComparable",
+   "line": 502,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "name": "postureEnv",
+   "line": 815,
+   "length": 39
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "name": "ReportMailer::compose",
+   "line": 55,
+   "length": 39
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3975,
+   "length": 38
+  },
+  {
+   "file": "src/Metrics/setup_capability.cpp",
+   "name": "contextForSetup",
+   "line": 111,
+   "length": 38
+  },
+  {
+   "file": "src/Diagnostics/engine/pack_io.cpp",
+   "name": "atomicWrite",
+   "line": 134,
+   "length": 38
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "readCohort",
+   "line": 428,
+   "length": 38
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "reportPackOf",
+   "line": 143,
+   "length": 38
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "corrComplete",
+   "line": 845,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.cpp",
+   "name": "ReanalysisController::startNext",
+   "line": 91,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "m_shotModel",
+   "line": 716,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::finishNowBlocking",
+   "line": 2700,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "scatterMap",
+   "line": 1159,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.cpp",
+   "name": "consistencyReadingGrade",
+   "line": 67,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "name": "stillStreamOf",
+   "line": 452,
+   "length": 38
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "name": "SmtpClient::afterEhlo",
+   "line": 289,
+   "length": 38
+  },
+  {
+   "file": "src/Core/cpu_topology.h",
+   "name": "linuxPhysicalCores",
+   "line": 70,
+   "length": 38
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "name": "ForesightPremierMonitor::refreshHistory",
+   "line": 412,
+   "length": 38
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1445,
+   "length": 37
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_lm.h",
+   "name": "appendLaunchMonitorGates",
+   "line": 32,
+   "length": 37
+  },
+  {
+   "file": "src/Metrics/metric_descriptor.h",
+   "name": "captureDevicesFor",
+   "line": 161,
+   "length": 37
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "name": "windowMeanSigma",
+   "line": 251,
+   "length": 37
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "name": "grade",
+   "line": 85,
+   "length": 37
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "name": "grade",
+   "line": 280,
+   "length": 37
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "name": "loadFrom",
+   "line": 576,
+   "length": 37
+  },
+  {
+   "file": "src/Diagnostics/packs/swing_themes_pack.h",
+   "name": "themeConditionInfo",
+   "line": 139,
+   "length": 37
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "name": "worthChecking",
+   "line": 789,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::applyTendencies",
+   "line": 2102,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "name": "DiskReplaySource::toggleImpactLoop",
+   "line": 727,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "name": "headOf",
+   "line": 247,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "ledgersOf",
+   "line": 559,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "makeWarp",
+   "line": 213,
+   "length": 37
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "alignAsTheMocks",
+   "line": 419,
+   "length": 37
+  },
+  {
+   "file": "src/Core/device_enumerator.cpp",
+   "name": "onDeviceDiscovered",
+   "line": 116,
+   "length": 37
+  },
+  {
+   "file": "src/Analysis/route_substitution.h",
+   "name": "supersedeReadings",
+   "line": 163,
+   "length": 36
+  },
+  {
+   "file": "src/Diagnostics/norms/composite_reading.h",
+   "name": "regularizedGammaQ",
+   "line": 106,
+   "length": 36
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "measuresForMetricAtPhase",
+   "line": 1028,
+   "length": 36
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "compositeToJson",
+   "line": 2170,
+   "length": 36
+  },
+  {
+   "file": "src/Coaching/swing_areas_pack.h",
+   "name": "areaConditionInfoForPack",
+   "line": 60,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "name": "spreadCorridorFromRow",
+   "line": 146,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::setAthleteDir",
+   "line": 374,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::finishDerive",
+   "line": 596,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::updateClubScope",
+   "line": 927,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "name": "ShotListModel::trashShots",
+   "line": 497,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "name": "ShotListModel::attemptPendingTrash",
+   "line": 535,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "traceFor",
+   "line": 685,
+   "length": 36
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "name": "deliveryShotShape",
+   "line": 694,
+   "length": 36
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "summaryFromJson",
+   "line": 1349,
+   "length": 36
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 504,
+   "length": 35
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 3787,
+   "length": 35
+  },
+  {
+   "file": "src/Metrics/variability/variability_result.cpp",
+   "name": "VariabilityResult::basisString",
+   "line": 125,
+   "length": 35
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "canonicalMeasureLabel",
+   "line": 417,
+   "length": 35
+  },
+  {
+   "file": "src/Diagnostics/norms/composite_reading.h",
+   "name": "stdNormalQuantile",
+   "line": 64,
+   "length": 35
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "name": "shotMishitKind",
+   "line": 175,
+   "length": 35
+  },
+  {
+   "file": "src/Coaching/shot_outcomes_pack.h",
+   "name": "shotOutcomePackFor",
+   "line": 43,
+   "length": 35
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "buildTable",
+   "line": 1265,
+   "length": 35
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "name": "spreadBands",
+   "line": 313,
+   "length": 35
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::dataWindow",
+   "line": 267,
+   "length": 35
+  },
+  {
+   "file": "src/Core/pp_gpu_metrics.cpp",
+   "name": "backendInit",
+   "line": 180,
+   "length": 35
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "name": "GsProMonitor::clients",
+   "line": 516,
+   "length": 35
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "impactMetricsFromAnalysis",
+   "line": 1103,
+   "length": 35
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1502,
+   "length": 34
+  },
+  {
+   "file": "src/Metrics/metric_channel.h",
+   "name": "applyPhaseDomainMask",
+   "line": 475,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.cpp",
+   "name": "PpcpClipFiler::onSwingReady",
+   "line": 100,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "standfirstsOf",
+   "line": 966,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "styleMap",
+   "line": 779,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "bandSourceLine",
+   "line": 872,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.cpp",
+   "name": "shoulderOf",
+   "line": 139,
+   "length": 34
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "SessionReportModel::deliver",
+   "line": 2171,
+   "length": 34
+  },
+  {
+   "file": "src/LaunchMonitor/gspro_monitor.cpp",
+   "name": "GsProMonitor::onNewConnection",
+   "line": 285,
+   "length": 34
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "swingDeviceTokens",
+   "line": 2383,
+   "length": 34
+  },
+  {
+   "file": "src/Diagnostics/engine/diagnostics_health.cpp",
+   "name": "referenceHealth",
+   "line": 559,
+   "length": 33
+  },
+  {
+   "file": "src/Coaching/sequence_checks.h",
+   "name": "sequenceChecksToVariant",
+   "line": 341,
+   "length": 33
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "spearmanPairwise",
+   "line": 929,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "addStrength",
+   "line": 197,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::ladderZ",
+   "line": 3474,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::measuredAt",
+   "line": 602,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "standfirstsOf",
+   "line": 450,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "wristGrades",
+   "line": 1326,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "name": "ReportMailer::setPassword",
+   "line": 354,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "name": "shaftTrack",
+   "line": 97,
+   "length": 33
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "runOf",
+   "line": 692,
+   "length": 33
+  },
+  {
+   "file": "src/Core/cpu_topology.h",
+   "name": "physicalCoreCount",
+   "line": 116,
+   "length": 33
+  },
+  {
+   "file": "src/LaunchMonitor/premier_monitor.cpp",
+   "name": "ForesightPremierMonitor::serviceCarryWaits",
+   "line": 477,
+   "length": 33
+  },
+  {
+   "file": "src/Export/ppsw_qt.cpp",
+   "name": "toQt",
+   "line": 103,
+   "length": 33
+  },
+  {
+   "file": "src/Export/swing_zip_exporter.cpp",
+   "name": "SwingZipExporter::camerasForShots",
+   "line": 95,
+   "length": 33
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.cpp",
+   "name": "LiveMeasureSource::historyValue",
+   "line": 204,
+   "length": 32
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "name": "validateMeasureDomains",
+   "line": 1077,
+   "length": 32
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.cpp",
+   "name": "validateDrillSet",
+   "line": 47,
+   "length": 32
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "name": "saveReferenceSet",
+   "line": 282,
+   "length": 32
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "compositeFromJson",
+   "line": 2208,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "name": "spreadCorridorFromNorm",
+   "line": 103,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::shotFilterOptionsFor",
+   "line": 1019,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "name": "m_session",
+   "line": 57,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::onShotDetected",
+   "line": 809,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/shot/shot_replay_controller.cpp",
+   "name": "ShotReplayController::start",
+   "line": 65,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "name": "SwingDataSource::specsForRegion",
+   "line": 846,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "name": "ChartsConsistencyPresenter::start",
+   "line": 851,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "chestTrustLines",
+   "line": 2869,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/charts/variability_clubs.cpp",
+   "name": "pooledWithinClubTraceInput",
+   "line": 121,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.cpp",
+   "name": "SessionReportListModel::data",
+   "line": 321,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "name": "figureOf",
+   "line": 750,
+   "length": 32
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "name": "SmtpClient::onSocketError",
+   "line": 444,
+   "length": 32
+  },
+  {
+   "file": "src/Core/kf3_smoother.h",
+   "name": "rts",
+   "line": 314,
+   "length": 32
+  },
+  {
+   "file": "src/Core/pp_os_metrics.cpp",
+   "name": "threadCpuNowNs",
+   "line": 114,
+   "length": 32
+  },
+  {
+   "file": "src/LaunchMonitor/premier_session_parser.cpp",
+   "name": "readField",
+   "line": 101,
+   "length": 32
+  },
+  {
+   "file": "src/Export/ffmpeg_video_encoder.cpp",
+   "name": "FfmpegVideoEncoder::writeBgr",
+   "line": 209,
+   "length": 32
+  },
+  {
+   "file": "src/Export/ppsw_qt.cpp",
+   "name": "fromQt",
+   "line": 27,
+   "length": 32
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "serializeScore",
+   "line": 233,
+   "length": 32
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 1578,
+   "length": 31
+  },
+  {
+   "file": "src/Analysis/capture_integrity_check.h",
+   "name": "mergeCaptureIntegrity",
+   "line": 219,
+   "length": 31
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "name": "parseBinding",
+   "line": 87,
+   "length": 31
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "name": "mp4DecodeConfig",
+   "line": 170,
+   "length": 31
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "deriveViewNeeded",
+   "line": 521,
+   "length": 31
+  },
+  {
+   "file": "src/Diagnostics/norms/composite_reading.h",
+   "name": "combineDistance",
+   "line": 265,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "s",
+   "line": 3640,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "name": "WorkOnsController::tendencyDetail",
+   "line": 2226,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.cpp",
+   "name": "WristDiagnosticsModel::strips",
+   "line": 232,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.cpp",
+   "name": "ReanalysisController::reanalyse",
+   "line": 39,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/shot/shot_outcome.h",
+   "name": "decideJoin",
+   "line": 152,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "name": "ShotProcessor::startAnalysis",
+   "line": 1485,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "name": "ChartMetrics::windowedMean",
+   "line": 512,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/review/timeline_labels.cpp",
+   "name": "TimelineLabels::distribute",
+   "line": 73,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "name": "ChartsConsistencyPresenter::headline",
+   "line": 745,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "pictureDocOf",
+   "line": 506,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "resolveReference",
+   "line": 307,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "cellMap",
+   "line": 388,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "pictureDocOf",
+   "line": 1296,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "readingAtPoint",
+   "line": 945,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.cpp",
+   "name": "consistencyHead",
+   "line": 137,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "name": "segmentGates",
+   "line": 258,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "walkSide",
+   "line": 96,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "name": "golferCrop",
+   "line": 207,
+   "length": 31
+  },
+  {
+   "file": "src/Gui/report/report_words.h",
+   "name": "causesLead",
+   "line": 832,
+   "length": 31
+  },
+  {
+   "file": "src/Export/session_archiver.cpp",
+   "name": "stubOf",
+   "line": 113,
+   "length": 31
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "lmRawBlock",
+   "line": 943,
+   "length": 31
+  },
+  {
+   "file": "src/Export/swing_doc.cpp",
+   "name": "SwingDocWriter::updateShotAnnotations",
+   "line": 1883,
+   "length": 31
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "segConfigFor",
+   "line": 258,
+   "length": 30
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "buildTrace",
+   "line": 318,
+   "length": 30
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "run",
+   "line": 2038,
+   "length": 30
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "frameAt",
+   "line": 4086,
+   "length": 30
+  },
+  {
+   "file": "src/Analysis/stream_trim.h",
+   "name": "trimStreams",
+   "line": 58,
+   "length": 30
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "name": "canonicalMeasureId",
+   "line": 460,
+   "length": 30
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "name": "loadFrom",
+   "line": 217,
+   "length": 30
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.cpp",
+   "name": "cohortProbeOrder",
+   "line": 108,
+   "length": 30
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.h",
+   "name": "bandEdgesOf",
+   "line": 591,
+   "length": 30
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_measure_source.h",
+   "name": "readOne",
+   "line": 126,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "name": "applyClubTrend",
+   "line": 578,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/club_scope.h",
+   "name": "clubScopeOptions",
+   "line": 92,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "hystereticOrder",
+   "line": 2004,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/swing_areas_pack.h",
+   "name": "metricAreasForPack",
+   "line": 114,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "parallelAnalysis",
+   "line": 1220,
+   "length": 30
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "name": "dropSparseSwings",
+   "line": 1304,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::persist",
+   "line": 3109,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::markFor",
+   "line": 5447,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "name": "SessionDiagnosticsModel::buildBookends",
+   "line": 5767,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "name": "poseBlockToDetail",
+   "line": 88,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "companionTiles",
+   "line": 899,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/charts/session_relations.cpp",
+   "name": "pearson",
+   "line": 272,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "name": "summariseSequence",
+   "line": 299,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "name": "ShotWarp::unwarpMs",
+   "line": 277,
+   "length": 30
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "name": "segmentFor",
+   "line": 54,
+   "length": 30
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "name": "impactContinuityDeg",
+   "line": 358,
+   "length": 29
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "name": "grade",
+   "line": 242,
+   "length": 29
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.cpp",
+   "name": "scalarTypicality",
+   "line": 87,
+   "length": 29
+  },
+  {
+   "file": "src/Diagnostics/packs/swing_themes_pack.h",
+   "name": "themePhrases",
+   "line": 179,
+   "length": 29
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "name": "clubBaselineFromJson",
+   "line": 493,
+   "length": 29
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "name": "conditionBookends",
+   "line": 2109,
+   "length": 29
+  },
+  {
+   "file": "src/Coaching/strike_from_flight.h",
+   "name": "checkStrikesAgainstFlight",
+   "line": 555,
+   "length": 29
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "name": "tendencyFactorToJson",
+   "line": 1205,
+   "length": 29
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "name": "tendencyFactorFromJson",
+   "line": 1236,
+   "length": 29
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "name": "withFrameNotes",
+   "line": 563,
+   "length": 29
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "name": "postureGrades",
+   "line": 1029,
+   "length": 29
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "name": "ChartsRelationsPresenter::start",
+   "line": 2736,
+   "length": 29
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "name": "ChartsTracesPresenter::hoverAt",
+   "line": 3815,
+   "length": 29
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "name": "ensure",
+   "line": 157,
+   "length": 29
+  }
+ ],
+ "per_dir": {
+  "Gui/diagnostics": {
+   "files": 45,
+   "cpp_lines": 11661,
+   "qml_lines": 8986,
+   "fns_over_150": 12,
+   "fns_over_300": 3
+  },
+  "Metrics": {
+   "files": 35,
+   "cpp_lines": 13680,
+   "qml_lines": 0,
+   "fns_over_150": 5,
+   "fns_over_300": 3
+  },
+  "Analysis": {
+   "files": 30,
+   "cpp_lines": 11696,
+   "qml_lines": 0,
+   "fns_over_150": 7,
+   "fns_over_300": 2
+  },
+  "Gui/charts": {
+   "files": 112,
+   "cpp_lines": 27835,
+   "qml_lines": 10378,
+   "fns_over_150": 10,
+   "fns_over_300": 2
+  },
+  "Gui/session": {
+   "files": 15,
+   "cpp_lines": 291,
+   "qml_lines": 7566,
+   "fns_over_150": 0,
+   "fns_over_300": 0
+  },
+  "Diagnostics/packs": {
+   "files": 17,
+   "cpp_lines": 6498,
+   "qml_lines": 0,
+   "fns_over_150": 3,
+   "fns_over_300": 2
+  },
+  "Gui/shot": {
+   "files": 34,
+   "cpp_lines": 8864,
+   "qml_lines": 2952,
+   "fns_over_150": 8,
+   "fns_over_300": 4
+  },
+  "Coaching": {
+   "files": 21,
+   "cpp_lines": 14114,
+   "qml_lines": 0,
+   "fns_over_150": 0,
+   "fns_over_300": 0
+  },
+  "Export": {
+   "files": 20,
+   "cpp_lines": 7512,
+   "qml_lines": 0,
+   "fns_over_150": 3,
+   "fns_over_300": 2
+  },
+  "Gui/report": {
+   "files": 57,
+   "cpp_lines": 9524,
+   "qml_lines": 7267,
+   "fns_over_150": 5,
+   "fns_over_300": 1
+  },
+  "Core": {
+   "files": 32,
+   "cpp_lines": 7289,
+   "qml_lines": 0,
+   "fns_over_150": 0,
+   "fns_over_300": 0
+  },
+  "Gui/review": {
+   "files": 30,
+   "cpp_lines": 5676,
+   "qml_lines": 5283,
+   "fns_over_150": 2,
+   "fns_over_300": 1
+  },
+  "Diagnostics/engine": {
+   "files": 17,
+   "cpp_lines": 6579,
+   "qml_lines": 0,
+   "fns_over_150": 5,
+   "fns_over_300": 3
+  },
+  "Diagnostics/measures": {
+   "files": 12,
+   "cpp_lines": 4017,
+   "qml_lines": 0,
+   "fns_over_150": 1,
+   "fns_over_300": 1
+  },
+  "Diagnostics/norms": {
+   "files": 16,
+   "cpp_lines": 4593,
+   "qml_lines": 0,
+   "fns_over_150": 2,
+   "fns_over_300": 0
+  },
+  "Gui/home": {
+   "files": 22,
+   "cpp_lines": 0,
+   "qml_lines": 5456,
+   "fns_over_150": 0,
+   "fns_over_300": 0
+  },
+  "LaunchMonitor": {
+   "files": 29,
+   "cpp_lines": 6366,
+   "qml_lines": 0,
+   "fns_over_150": 1,
+   "fns_over_300": 0
+  }
+ }
+}

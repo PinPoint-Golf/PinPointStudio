@@ -1,0 +1,6632 @@
+{
+ "clones": [
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:140",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:221",
+   "lines": 39,
+   "sample": [
+    "sh->phases.push_back(pm);",
+    "if (sh->impactUs < N && d.contains(QStringLiteral(\" \"))) sh->impactUs = d.value(QStringLiteral(\" \")).toLongLong();",
+    "for (const QVariant &sv : d.value(QStringLiteral(\" \")).toList()) {",
+    "const QVariantMap s = sv.toMap();",
+    "MetricSeries m;",
+    "m.key = s.value(QStringLiteral(\" \")).toString();"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:967",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1003",
+   "lines": 24,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:245",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:283",
+   "lines": 22,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".flexPositive = true,",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:494",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:531",
+   "lines": 21,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".flexPositive = true,",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/session_delivery.cpp:254",
+   "b": "src/Gui/charts/session_posture.cpp:940",
+   "lines": 20,
+   "sample": [
+    "const MetricSeries *m = shot.metric(k);",
+    "if (!m) continue;",
+    "QJsonArray t, v, valid;",
+    "bool anyInvalid = false;",
+    "for (size_t i = N; i < m->tUs.size() && i < m->value.size(); ++i) {",
+    "const bool ok = m->isValid(i) && fin(m->value[i]);"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "lines": 18,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3367",
+   "lines": 18,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Export/swing_doc.cpp:728",
+   "b": "src/Gui/shot/shot_processor.cpp:206",
+   "lines": 18,
+   "sample": [
+    "{ QStringLiteral(\" \"), c.fitted },",
+    "{ QStringLiteral(\" \"), c.iotaBackDeg },",
+    "{ QStringLiteral(\" \"), c.iotaDownDeg },",
+    "{ QStringLiteral(\" \"), c.deltaDeg },",
+    "{ QStringLiteral(\" \"), c.nodeBackDeg },",
+    "{ QStringLiteral(\" \"), c.nodeDownDeg },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2709",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2751",
+   "lines": 17,
+   "sample": [
+    "\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")),",
+    "via(\" \", RM::Projected, Estimated, { .faceOnCamera = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4884",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4994",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4884",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5212",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4884",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5320",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4994",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5212",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4994",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5320",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5212",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5320",
+   "lines": 16,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:257",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:254",
+   "lines": 16,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/Gui/report/PpPosturePage.qml:248",
+   "b": "src/Gui/report/PpWristPage.qml:345",
+   "lines": 16,
+   "sample": [
+    "Row {",
+    "id: tf",
+    "readonly property var res: cl.modelData.tooFew === true ? cl.modelData.result : null",
+    "visible: !!res && res.graded",
+    "height: cr.u(N)",
+    "PpVariabilityBadge { anchors.verticalCenter: parent.verticalCenter; roles: cr; contentLayer: \" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4855",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5347",
+   "lines": 15,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "lines": 15,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:193",
+   "b": "src/Gui/charts/charts_posture_presenter.h:283",
+   "lines": 15,
+   "sample": [
+    "int selected() const { return m_selected; }",
+    "QVariantMap standfirst() const;",
+    "Q_INVOKABLE qint64 seekUsFor(const QString &tag) const;",
+    "using StillMaker = std::function<QHash<QString, QString>(const QVariantList &stills)>;",
+    "static void setStillMaker(StillMaker maker);",
+    "void setSnapshot(std::shared_ptr<const SessionSnapshot> snapshot);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/delivery_picture.cpp:102",
+   "b": "src/Gui/charts/posture_picture.cpp:117",
+   "lines": 15,
+   "sample": [
+    "bool extendToSquare(const QPointF &p, const QPointF &q, QPointF *a, QPointF *b)",
+    "const double dx = q.x() - p.x(), dy = q.y() - p.y();",
+    "if (std::fabs(dx) < 1e-N && std::fabs(dy) < 1e-N) return false;",
+    "double tMin = -std::numeric_limits<double>::infinity(), tMax = std::numeric_limits<double>::infinity();",
+    "const auto clip = [&](double d, double lo, double hi) {",
+    "if (std::fabs(d) < 1e-N) return;"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5081",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5158",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5158",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5400",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5158",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5295",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5130",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5158",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5081",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5295",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4799",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5424",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3396",
+   "lines": 14,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5105",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5400",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4799",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5373",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5269",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5373",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5373",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5424",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5081",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5130",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4799",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5269",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5269",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5424",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5081",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5400",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5105",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5158",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5105",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5295",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5130",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5295",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5130",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5400",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5295",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5400",
+   "lines": 14,
+   "sample": [
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },"
+   ]
+  },
+  {
+   "a": "src/Export/swing_doc.cpp:679",
+   "b": "src/Gui/shot/shot_processor.cpp:179",
+   "lines": 14,
+   "sample": [
+    "{ QStringLiteral(\" \"), l.ballPx },",
+    "{ QStringLiteral(\" \"), l.bandPx },",
+    "{ QStringLiteral(\" \"), l.headPx },",
+    "{ QStringLiteral(\" \"), l.posePx },",
+    "{ QStringLiteral(\" \"), l.priorPx },",
+    "{ QStringLiteral(\" \"), l.fusedPx },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:172",
+   "b": "src/Gui/charts/charts_posture_presenter.h:257",
+   "lines": 14,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:172",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:254",
+   "lines": 14,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/LaunchMonitor/premier_session_parser.cpp:193",
+   "b": "src/LaunchMonitor/premier_session_parser.cpp:288",
+   "lines": 14,
+   "sample": [
+    "if (error)",
+    "*error = why;",
+    "if (formatChanged)",
+    "*formatChanged = changed;",
+    "return std::nullopt;",
+    "QByteArray bytes = bytesIn;"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4967",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5055",
+   "lines": 13,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1428",
+   "lines": 13,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3678",
+   "lines": 13,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1428",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3678",
+   "lines": 13,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4914",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4967",
+   "lines": 13,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4914",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5055",
+   "lines": 13,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4941",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4967",
+   "lines": 13,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4941",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5055",
+   "lines": 13,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:148",
+   "b": "src/Gui/charts/charts_traces_presenter.cpp:433",
+   "lines": 13,
+   "sample": [
+    "m.label = s.value(QStringLiteral(\" \")).toString();",
+    "m.unit = s.value(QStringLiteral(\" \")).toString();",
+    "for (const QVariant &t : s.value(QStringLiteral(\" \")).toList()) m.tUs.push_back(t.toLongLong());",
+    "for (const QVariant &v : s.value(QStringLiteral(\" \")).toList()) {",
+    "bool ok = false;",
+    "const double x = v.toDouble(&ok);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:229",
+   "b": "src/Gui/charts/charts_traces_presenter.cpp:433",
+   "lines": 13,
+   "sample": [
+    "m.label = s.value(QStringLiteral(\" \")).toString();",
+    "m.unit = s.value(QStringLiteral(\" \")).toString();",
+    "for (const QVariant &t : s.value(QStringLiteral(\" \")).toList()) m.tUs.push_back(t.toLongLong());",
+    "for (const QVariant &v : s.value(QStringLiteral(\" \")).toList()) {",
+    "bool ok = false;",
+    "const double x = v.toDouble(&ok);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:539",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1346",
+   "lines": 13,
+   "sample": [
+    "QString pictureStillDir()",
+    "const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);",
+    "return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral(\" \"));",
+    "QVariantList pendingStillsOf(const QVariantMap &picture)",
+    "QVariantList out;",
+    "for (const QVariant &g : picture.value(QStringLiteral(\" \")).toList())"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1508",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:1797",
+   "lines": 13,
+   "sample": [
+    ": c.refIsPicked ? QStringLiteral(\" \")",
+    ": QStringLiteral(\" \");",
+    "QVariantList ags;",
+    "const auto addA = [&](const QString &id, const QString &label, bool enabled, const QString &why) {",
+    "ags.append(QVariantMap{ { QStringLiteral(\" \"), id }, { QStringLiteral(\" \"), label }, { QStringLiteral(\" \"), ag == id },",
+    "{ QStringLiteral(\" \"), enabled }, { QStringLiteral(\" \"), enabled ? QString() : why } });"
+   ]
+  },
+  {
+   "a": "src/Gui/diagnostics/PpConsistencyView.qml:79",
+   "b": "src/Gui/report/PpConsistencyPage.qml:57",
+   "lines": 13,
+   "sample": [
+    "function _fill(t) {",
+    "if (!t || t.indexOf(\" \") < N) return t || \"\"",
+    "return t.arg(ConsistencyVocabulary.word(N)).arg(ConsistencyVocabulary.word(N)).arg(ConsistencyVocabulary.word(N))",
+    ".arg(ConsistencyVocabulary.word(N)).arg(ConsistencyVocabulary.word(N)).arg(ConsistencyVocabulary.shortWord(N))",
+    ".arg(MeasurementVocabulary.word(N))",
+    "function _cells(rows) {"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:255",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1995",
+   "lines": 12,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:293",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1995",
+   "lines": 12,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4214",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4316",
+   "lines": 12,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:383",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:447",
+   "lines": 12,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:383",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:586",
+   "lines": 12,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:447",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:586",
+   "lines": 12,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1495",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1687",
+   "lines": 12,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2036",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2073",
+   "lines": 12,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .dtlCamera = true, .clubTrack = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3403",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3820",
+   "lines": 12,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true },",
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1293",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1488",
+   "lines": 12,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },",
+    ".domain = P1toP7,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 12,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3670",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4379",
+   "lines": 12,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:239",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:323",
+   "lines": 12,
+   "sample": [
+    "std::shared_ptr<const SessionSnapshot> currentSnapshot() const;",
+    "Inputs m_in;",
+    "QPointer<QObject> m_model;",
+    "std::shared_ptr<const SessionSnapshot> m_directSnapshot;",
+    "qint64 m_playheadUs = -N;",
+    "int m_selected = N;"
+   ]
+  },
+  {
+   "a": "src/Gui/diagnostics/PpDiagAnalyse.qml:19",
+   "b": "src/Gui/diagnostics/PpDiagReplay.qml:19",
+   "lines": 12,
+   "sample": [
+    "import QtQuick",
+    "import PinPointStudio",
+    "Item {",
+    "id: root",
+    "objectName: \" \"",
+    "readonly property string register: \" \""
+   ]
+  },
+  {
+   "a": "src/Gui/review/PpChartPlot.qml:269",
+   "b": "src/Gui/review/PpSegmentBrush.qml:145",
+   "lines": 12,
+   "sample": [
+    "var i0 = N",
+    "while (i0 < solid.length) {",
+    "var i1 = i0",
+    "while (i1 + N < solid.length && solid[i1 + N] === solid[i0]) ++i1",
+    "var a = i0, b = i1",
+    "if (!solid[i0]) {"
+   ]
+  },
+  {
+   "a": "src/Gui/session/PpSessionToolbar.qml:326",
+   "b": "src/Gui/session/PpSessionToolbar.qml:413",
+   "lines": 12,
+   "sample": [
+    "contentItem: Column {",
+    "spacing: Theme.gap(N)",
+    "Text {",
+    "text: qsTr(\" \")",
+    "font.family: Theme.fontBody; font.pixelSize: Theme.fontSzBody",
+    "color: Theme.colorText"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:136",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:166",
+   "lines": 11,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QString(),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:166",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:196",
+   "lines": 11,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QString(),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:136",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:196",
+   "lines": 11,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QString(),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:338",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1264",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2638",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2700",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:506",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1085",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:541",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1085",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1397",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1647",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1397",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2194",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1430",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1647",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1430",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2194",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1647",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2194",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1647",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3680",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2194",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3680",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1832",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4187",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1832",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4552",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4187",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4552",
+   "lines": 11,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5161",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5403",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3144",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3179",
+   "lines": 11,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5108",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5298",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5298",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5084",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5084",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5108",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5133",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5133",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5161",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5478",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5403",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5453",
+   "lines": 11,
+   "sample": [
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:1025",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1862",
+   "lines": 11,
+   "sample": [
+    "auto w = m_worker;",
+    "const StillMaker maker = stillMaker();",
+    "QThreadPool::globalInstance()->start([self, w, todo, maker]() {",
+    "const QHash<QString, QString> errs = maker(todo);",
+    "QMutexLocker sl(&w->stillMutex);",
+    "for (auto it = errs.cbegin(); it != errs.cend(); ++it) if (!it.value().isEmpty()) w->stillErrors.insert(it.key(), it.value());"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:316",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:307",
+   "lines": 11,
+   "sample": [
+    "struct Worker;",
+    "void inputsChanged();",
+    "void busyChanged();",
+    "void resultsChanged();",
+    "void playheadChanged();",
+    "void selectedChanged();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:238",
+   "b": "src/Gui/charts/charts_posture_presenter.h:330",
+   "lines": 11,
+   "sample": [
+    "void updateSelected(bool force);",
+    "std::shared_ptr<const SessionSnapshot> currentSnapshot() const;",
+    "Inputs m_in;",
+    "QPointer<QObject> m_model;",
+    "std::shared_ptr<const SessionSnapshot> m_directSnapshot;",
+    "qint64 m_playheadUs = -N;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_traces_presenter.cpp:1752",
+   "b": "src/Gui/charts/charts_traces_presenter.cpp:3204",
+   "lines": 11,
+   "sample": [
+    "double lo = kNaN, hi = kNaN;",
+    "QSet<QString> units;",
+    "for (const QVariant &rv : rows) {",
+    "const QVariantMap r = rv.toMap();",
+    "const double a = r.value(QStringLiteral(\" \")).toDouble(), b = r.value(QStringLiteral(\" \")).toDouble();",
+    "if (std::isfinite(a)) lo = std::isfinite(lo) ? std::min(lo, a) : a;"
+   ]
+  },
+  {
+   "a": "src/Export/swing_doc.cpp:617",
+   "b": "src/Export/swing_doc.cpp:659",
+   "lines": 11,
+   "sample": [
+    "QJsonObject so{",
+    "{ QStringLiteral(\" \"), rel(s.t_us) },",
+    "{ QStringLiteral(\" \"), QJsonArray{ s.gripPx.x() * iw, s.gripPx.y() * ih } },",
+    "{ QStringLiteral(\" \"), QJsonArray{ s.headPx.x() * iw, s.headPx.y() * ih } },",
+    "{ QStringLiteral(\" \"), s.thetaRad },",
+    "{ QStringLiteral(\" \"), s.thetaDotRadS },"
+   ]
+  },
+  {
+   "a": "src/Gui/home/HmHomeTabs.qml:56",
+   "b": "src/Gui/home/HmSwingAreas.qml:42",
+   "lines": 11,
+   "sample": [
+    "import PinPointStudio",
+    "import \" \" as ViewStore",
+    "Column {",
+    "id: root",
+    "objectName: \" \"",
+    "property var controller: (typeof workOns !== \" \") ? workOns : null"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:485",
+   "b": "src/Metrics/gate_catalogue_body.h:543",
+   "lines": 10,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "GateEntry &e = add(c, \" \", posture, \" \", \" \",",
+    "QStringLiteral(\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:500",
+   "b": "src/Metrics/gate_catalogue_body.h:556",
+   "lines": 10,
+   "sample": [
+    "tune(\" \", N, \" \") };",
+    "e.codes = {",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:152",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:183",
+   "lines": 10,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QString(),",
+    ".signNegative = QString(),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2467",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2499",
+   "lines": 10,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5284",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:257",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:339",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:257",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1265",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:295",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:339",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:295",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1265",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1997",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1265",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1997",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5259",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5307",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2283",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2326",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:505",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3641",
+   "lines": 10,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:540",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3641",
+   "lines": 10,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5259",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:507",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1351",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:542",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1351",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1086",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1351",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:699",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4284",
+   "lines": 10,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:814",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1497",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:814",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1689",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:814",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1861",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1497",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1861",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1689",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1861",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2075",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2239",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4147",
+   "lines": 10,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5307",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1462",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4125",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1562",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1632",
+   "lines": 10,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1740",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1777",
+   "lines": 10,
+   "sample": [
+    "via(\" \", RM::Triangulated, Direct,",
+    "{ .faceOnCamera = true, .dtlCamera = true, .clubTrack = true },",
+    "QStringLiteral(\" \"",
+    "\" \"), PLANNED),",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true, .clubTrack = true },",
+    "QStringLiteral(\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5307",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2038",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2239",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2038",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3709",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2075",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3709",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2239",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3709",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2113",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2283",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2113",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2326",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3937",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4471",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2467",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3153",
+   "lines": 10,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2467",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3182",
+   "lines": 10,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2499",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3153",
+   "lines": 10,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2499",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3182",
+   "lines": 10,
+   "sample": [
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2484",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2517",
+   "lines": 10,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },",
+    ".routes = {"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4672",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4708",
+   "lines": 10,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \"), PLANNED) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3320",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4353",
+   "lines": 10,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5284",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5284",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5307",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4813",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5259",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5284",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4929",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5259",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5335",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5259",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5307",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5362",
+   "lines": 10,
+   "sample": [
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),",
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".description = QStringLiteral("
+   ]
+  },
+  {
+   "a": "src/Coaching/diagnostic_ledger.h:520",
+   "b": "src/Diagnostics/engine/characteristic_engine.h:55",
+   "lines": 10,
+   "sample": [
+    "QString name;",
+    "QString measureId;",
+    "double value = std::numeric_limits<double>::quiet_NaN();",
+    "QString unit;",
+    "double z = std::numeric_limits<double>::quiet_NaN();",
+    "double weight = N;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1797",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:2164",
+   "lines": 10,
+   "sample": [
+    "m_scheduled = false;",
+    "if (m_synchronous || m_running) return;",
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:960",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1797",
+   "lines": 10,
+   "sample": [
+    "m_scheduled = false;",
+    "if (m_synchronous || m_running) return;",
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:1096",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1933",
+   "lines": 10,
+   "sample": [
+    "int best = -N;",
+    "if (m_result) {",
+    "for (int i = N; i < kPos; ++i)",
+    "if (m_result->posUs[size_t(i)] >= N && m_result->posUs[size_t(i)] <= m_playheadUs) best = i;",
+    "if (best < N)",
+    "for (int i = N; i < kPos; ++i) if (m_result->posUs[size_t(i)] >= N) { best = i; break; }"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:960",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:2164",
+   "lines": 10,
+   "sample": [
+    "m_scheduled = false;",
+    "if (m_synchronous || m_running) return;",
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:172",
+   "b": "src/Gui/charts/charts_traces_presenter.h:258",
+   "lines": 10,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:257",
+   "b": "src/Gui/charts/charts_traces_presenter.h:258",
+   "lines": 10,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_traces_presenter.h:258",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:254",
+   "lines": 10,
+   "sample": [
+    "QObject *model() const;",
+    "void setModel(QObject *m);",
+    "QString pickedSwingDir() const { return m_in.pickedSwingDir; }",
+    "void setPickedSwingDir(const QString &d);",
+    "QVariantMap pickedDetail() const { return m_in.pickedDetail; }",
+    "void setPickedDetail(const QVariantMap &d);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:223",
+   "b": "src/Gui/charts/charts_posture_presenter.h:316",
+   "lines": 10,
+   "sample": [
+    "struct Worker;",
+    "void inputsChanged();",
+    "void busyChanged();",
+    "void resultsChanged();",
+    "void playheadChanged();",
+    "void selectedChanged();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:223",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:307",
+   "lines": 10,
+   "sample": [
+    "struct Worker;",
+    "void inputsChanged();",
+    "void busyChanged();",
+    "void resultsChanged();",
+    "void playheadChanged();",
+    "void selectedChanged();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:331",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:323",
+   "lines": 10,
+   "sample": [
+    "std::shared_ptr<const SessionSnapshot> currentSnapshot() const;",
+    "Inputs m_in;",
+    "QPointer<QObject> m_model;",
+    "std::shared_ptr<const SessionSnapshot> m_directSnapshot;",
+    "qint64 m_playheadUs = -N;",
+    "int m_selected = N;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1137",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:1439",
+   "lines": 10,
+   "sample": [
+    "QVariantMap line{ { QStringLiteral(\" \"), g.club }, { QStringLiteral(\" \"), named } };",
+    "if (ranked.empty()) {",
+    "if (!zero.isValid()) continue;",
+    "line.insert(QStringLiteral(\" \"), true);",
+    "line.insert(QStringLiteral(\" \"), zero);",
+    "line.insert(QStringLiteral(\" \"), QString());"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/PpChPostureSession.qml:204",
+   "b": "src/Gui/charts/PpChWristSession.qml:105",
+   "lines": 10,
+   "sample": [
+    "grade: parent.res ? parent.res.grade : N",
+    "measurementLimited: parent.res ? parent.res.measurementLimited : false",
+    "basisText: parent.res ? parent.res.basisText : \"\" }",
+    "Repeater {",
+    "model: cl.modelData.tooFew === true ? [] : [{ text: cl.modelData.mostText || \"\", res: cl.modelData.most },",
+    "{ text: cl.modelData.leastText || \"\", res: cl.modelData.least }]"
+   ]
+  },
+  {
+   "a": "src/Analysis/swing_analysis.h:85",
+   "b": "src/Export/swing_exporter.h:148",
+   "lines": 9,
+   "sample": [
+    "QQuaternion alignA;",
+    "QQuaternion mountM;",
+    "bool anatCalibrated = false;",
+    "bool calibrated = false;",
+    "double mountDeviationDeg = N;",
+    "double mountGravityErrorDeg = N;"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:485",
+   "b": "src/Metrics/gate_catalogue_body.h:559",
+   "lines": 9,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "GateEntry &e = add(c, \" \", posture, \" \", \" \",",
+    "QStringLiteral(\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:501",
+   "b": "src/Metrics/gate_catalogue_body.h:541",
+   "lines": 9,
+   "sample": [
+    "e.codes = {",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "GateEntry &e = add(c, \" \", posture, \" \", \" \","
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4146",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4177",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:219",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1533",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \"), PLANNED) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:334",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1081",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:258",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:386",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:258",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:453",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:258",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:592",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:296",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:386",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:296",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:453",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:296",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:592",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:340",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:386",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:340",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:453",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:340",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:592",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:386",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1266",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:386",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1998",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:433",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:572",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".flexPositive = true,",
+    ".signPositive = QStringLiteral(\" \"",
+    "\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4189",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4319",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:453",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1266",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:453",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1998",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:592",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1266",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3756",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4354",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:592",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1998",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4341",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4379",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1085",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3642",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:508",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:700",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:508",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4285",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:543",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:700",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:543",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4285",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:700",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1087",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:700",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1352",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1087",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4285",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1352",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4285",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1305",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1594",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:815",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3606",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1498",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3606",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1690",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3606",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1862",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3606",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:890",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3856",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:890",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4146",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:890",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4177",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:890",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4458",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:890",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4619",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3856",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4146",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3856",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4177",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3856",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4458",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3856",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4619",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4146",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4458",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4146",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4619",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4177",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4458",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3321",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3756",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4177",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4619",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4458",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4619",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1399",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3406",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1399",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3828",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1432",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3406",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1432",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3828",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1649",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3406",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1649",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3828",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2198",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3406",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2198",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3828",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3406",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3682",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3682",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3828",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1200",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1463",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1200",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4126",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3445",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3647",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1443",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3619",
+   "lines": 9,
+   "sample": [
+    ".unit = QStringLiteral(\" \"),",
+    ".group = QStringLiteral(\" \"),",
+    ".color = QStringLiteral(\" \"),",
+    ".presets = { QStringLiteral(\" \") },",
+    ".description = QStringLiteral(",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1834",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4217",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1834",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4319",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4189",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4217",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4217",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4554",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4319",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4554",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2039",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2395",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2076",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2395",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2240",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2395",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3710",
+   "lines": 9,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2158",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4091",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2158",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4156",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2158",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4389",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4091",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4156",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4091",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4389",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4156",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4389",
+   "lines": 9,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3321",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5189",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3756",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5189",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4354",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5189",
+   "lines": 9,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3596",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3701",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3366",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3395",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4044",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3491",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3743",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3774",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4081",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3670",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4341",
+   "lines": 9,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Coaching/shot_factors.h:415",
+   "b": "src/Coaching/shot_outcomes.h:1036",
+   "lines": 9,
+   "sample": [
+    "std::vector<std::pair<int, int>> byRemainder;",
+    "int given = N;",
+    "for (int i = N; i < int(bar.parts.size()); ++i) {",
+    "const int scaled = bar.parts[size_t(i)].count * N;",
+    "bar.parts[size_t(i)].percent = scaled / bar.judged;",
+    "given += bar.parts[size_t(i)].percent;"
+   ]
+  },
+  {
+   "a": "src/Coaching/tendencies.h:1301",
+   "b": "src/Gui/diagnostics/work_ons_controller.cpp:2291",
+   "lines": 9,
+   "sample": [
+    "{ QStringLiteral(\" \"), b.conditionId },",
+    "{ QStringLiteral(\" \"), b.text },",
+    "{ QStringLiteral(\" \"), produced },",
+    "{ QStringLiteral(\" \"), b.costWords },",
+    "{ QStringLiteral(\" \"), b.tendencyKey },",
+    "{ QStringLiteral(\" \"), b.factor },"
+   ]
+  },
+  {
+   "a": "src/Gui/shot/shot_list_model.cpp:158",
+   "b": "src/Gui/shot/shot_list_model.cpp:195",
+   "lines": 9,
+   "sample": [
+    "m_nextOrdinal = std::max(m_nextOrdinal, ordinal + N);",
+    "Shot shot;",
+    "shot.id = m_nextId++;",
+    "shot.ordinal = ordinal;",
+    "shot.swingDir = swingDir;",
+    "shot.timestampLabel = timestampLabel;"
+   ]
+  },
+  {
+   "a": "src/Gui/shot/shot_processor.cpp:473",
+   "b": "src/Gui/shot/shot_processor.cpp:510",
+   "lines": 9,
+   "sample": [
+    "{ QStringLiteral(\" \"), static_cast<qlonglong>(s.t_us) },",
+    "{ QStringLiteral(\" \"), QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },",
+    "{ QStringLiteral(\" \"), QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },",
+    "{ QStringLiteral(\" \"), s.thetaRad },",
+    "{ QStringLiteral(\" \"), s.thetaDotRadS },",
+    "{ QStringLiteral(\" \"), s.visibleLenPx },"
+   ]
+  },
+  {
+   "a": "src/Export/swing_doc.cpp:823",
+   "b": "src/Gui/shot/shot_processor.cpp:600",
+   "lines": 9,
+   "sample": [
+    "{ QStringLiteral(\" \"), f.version },",
+    "{ QStringLiteral(\" \"), f.nEvidence },",
+    "{ QStringLiteral(\" \"), f.nGated },",
+    "{ QStringLiteral(\" \"), f.nDownweighted },",
+    "{ QStringLiteral(\" \"), f.nisMean },",
+    "{ QStringLiteral(\" \"), f.residualRmsDeg },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1728",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:2095",
+   "lines": 9,
+   "sample": [
+    "{ \\",
+    "if (m_in.field == v) return; \\",
+    "m_in.field = v; \\",
+    "emit inputsChanged(); \\",
+    "schedule(); \\",
+    "PP_SETTER(const QString &, setPickedSwingDir, pickedSwingDir)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:995",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1832",
+   "lines": 9,
+   "sample": [
+    "if (m_result && !m_result->pendingStills.isEmpty() && stillMaker()) {",
+    "QVariantList todo;",
+    "for (const QVariant &v : std::as_const(m_result->pendingStills)) {",
+    "const QString out = v.toMap().value(QStringLiteral(\" \")).toString();",
+    "if (!m_stillsAsked.contains(out)) { m_stillsAsked.insert(out); todo.append(v); }",
+    "if (!todo.isEmpty()) {"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:1049",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1886",
+   "lines": 9,
+   "sample": [
+    "const QString dir = cleanDir(swingDir);",
+    "QMutexLocker lk(&m_worker->mutex);",
+    "if (jsonFile.trimmed().isEmpty()) {",
+    "m_worker->pictures.remove(dir);",
+    "QFile f(jsonFile);",
+    "QJsonObject root;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:227",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:222",
+   "lines": 9,
+   "sample": [
+    "Q_OBJECT",
+    "QML_ELEMENT",
+    "Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)",
+    "Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString register READ registerName WRITE setRegisterName NOTIFY inputsChanged)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:302",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:292",
+   "lines": 9,
+   "sample": [
+    "Q_INVOKABLE void setSynchronous(bool on);",
+    "Q_INVOKABLE bool waitForIdle(int msTimeout = N);",
+    "struct Inputs {",
+    "std::shared_ptr<const SessionSnapshot> snapshot;",
+    "QString pickedSwingDir;",
+    "QVariantMap pickedDetail;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:267",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:373",
+   "lines": 9,
+   "sample": [
+    "QString referenceLabelOf(const QString &dir)",
+    "const QFileInfo fi(dir);",
+    "const int id = SessionSeriesModel::folderShotId(dir);",
+    "const QDate d = QDate::fromString(QFileInfo(fi.absolutePath()).fileName().left(N), QStringLiteral(\" \"));",
+    "QStringList parts;",
+    "if (id >= N) parts << QStringLiteral(\" \").arg(id);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1388",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:1074",
+   "lines": 9,
+   "sample": [
+    "const bool inSession = c.index >= N;",
+    "out.insert(QStringLiteral(\" \"), QString());",
+    "out.insert(QStringLiteral(\" \"), s.ordinal);",
+    "out.insert(QStringLiteral(\" \"), s.shotId);",
+    "out.insert(QStringLiteral(\" \"), s.swingDir);",
+    "out.insert(QStringLiteral(\" \"), inSession);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/PpChartsPanel.qml:208",
+   "b": "src/Gui/diagnostics/PpConsistencyView.qml:130",
+   "lines": 9,
+   "sample": [
+    "Connections {",
+    "target: shotProcessor",
+    "function onShotProcessed(shotId, swingDir) { seriesModel.ingestShot(shotId, swingDir) }",
+    "Connections {",
+    "target: reanalysisController",
+    "function onReanalysed(swingDir) { seriesModel.regradeShot(swingDir) }"
+   ]
+  },
+  {
+   "a": "src/Gui/diagnostics/PpDiagAnalyse.qml:51",
+   "b": "src/Gui/diagnostics/PpDiagPrint.qml:34",
+   "lines": 9,
+   "sample": [
+    "property string view: \" \"",
+    "property var readout: null",
+    "property var cards: []",
+    "property var source: null",
+    "property var header: null",
+    "property var detail: null"
+   ]
+  },
+  {
+   "a": "src/Gui/shot/PpShotActionBar.qml:141",
+   "b": "src/Gui/shot/PpShotActionBar.qml:224",
+   "lines": 9,
+   "sample": [
+    "font.family: Theme.fontData",
+    "font.pixelSize: Theme.fontSzBody2",
+    "color: Theme.colorText",
+    "Text {",
+    "anchors.verticalCenter: parent.verticalCenter",
+    "text: \" \"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2"
+   ]
+  },
+  {
+   "a": "src/Gui/shot/PpShotActionBar.qml:153",
+   "b": "src/Gui/shot/PpShotActionBar.qml:224",
+   "lines": 9,
+   "sample": [
+    "font.family: Theme.fontData",
+    "font.pixelSize: Theme.fontSzBody2",
+    "color: Theme.colorText",
+    "Text {",
+    "anchors.verticalCenter: parent.verticalCenter",
+    "text: \" \"; font.family: Theme.fontData; font.pixelSize: Theme.fontSzBody2"
+   ]
+  },
+  {
+   "a": "src/Gui/review/PpDataViewer.qml:181",
+   "b": "src/Gui/review/PpDataViewer.qml:254",
+   "lines": 9,
+   "sample": [
+    "RowLayout {",
+    "Layout.fillWidth: true; spacing: Theme.gap(N)",
+    "PpMicro {",
+    "text: Theme.caps(qsTr(\" \")); Layout.preferredWidth: root.ctrlGutter",
+    "Layout.alignment: Qt.AlignTop",
+    "height: Theme.sp(N); verticalAlignment: Text.AlignVCenter"
+   ]
+  },
+  {
+   "a": "src/Gui/home/ScreenHome.qml:184",
+   "b": "src/Gui/home/ScreenHome.qml:457",
+   "lines": 9,
+   "sample": [
+    "Item { width: N; height: Theme.gap(N) }",
+    "Text {",
+    "width: parent.width",
+    "text: qsTr(\" \")",
+    "font.family: Theme.fontBody",
+    "font.pixelSize: Theme.fontSzBody"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/PpChDeliverySession.qml:59",
+   "b": "src/Gui/charts/PpChPostureSession.qml:53",
+   "lines": 9,
+   "sample": [
+    "Column {",
+    "id: col",
+    "width: ss.width",
+    "spacing: ss.ok ? ss.roles.g(N) : Theme.gap(N)",
+    "Column {",
+    "objectName: \" \""
+   ]
+  },
+  {
+   "a": "src/Gui/charts/PpChartsSessionView.qml:170",
+   "b": "src/Gui/charts/PpChartsShotView.qml:319",
+   "lines": 9,
+   "sample": [
+    "open: visible; width: Math.min(parent.width, sv.roles ? sv.roles.u(N) : N)",
+    "roles: sv.roles; interactive: sv.interactive",
+    "title: \" \"",
+    "items: visible ? (sv.tc.presets || []).map(function (p) { return { id: p.id, label: p.label, note: String(p.count) } }) : []",
+    "current: sv.tc.preset || \"\"",
+    "clearLabel: \" \""
+   ]
+  },
+  {
+   "a": "src/Analysis/swing_analysis.h:90",
+   "b": "src/Analysis/swing_analysis.h:1003",
+   "lines": 8,
+   "sample": [
+    "bool anatCalibrated = false;",
+    "bool calibrated = false;",
+    "double mountDeviationDeg = N;",
+    "double mountGravityErrorDeg = N;",
+    "QString calibratedAtUtc;",
+    "double calibAgeSec = -N;"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue.h:189",
+   "b": "src/Metrics/gate_catalogue.h:282",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "ksDesign + QStringLiteral(\" \"), N, prod, {} });",
+    "c.push_back({ QStringLiteral(\" \"), seq,",
+    "QStringLiteral(\" \"), QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue.h:201",
+   "b": "src/Metrics/gate_catalogue.h:283",
+   "lines": 8,
+   "sample": [
+    "ksDesign + QStringLiteral(\" \"), N, prod, {} });",
+    "c.push_back({ QStringLiteral(\" \"), seq,",
+    "QStringLiteral(\" \"), QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue.h:305",
+   "b": "src/Metrics/gate_catalogue.h:348",
+   "lines": 8,
+   "sample": [
+    "ksDesign + QStringLiteral(\" \"), N, prod, {} });",
+    "c.push_back({ QStringLiteral(\" \"), seq,",
+    "QStringLiteral(\" \"), QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Gui/report/session_report_model.cpp:200",
+   "b": "src/Metrics/gate_catalogue.h:397",
+   "lines": 8,
+   "sample": [
+    "static const QHash<QString, QString> w{",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Gui/report/session_report_model.cpp:200",
+   "b": "src/Metrics/gate_catalogue.h:421",
+   "lines": 8,
+   "sample": [
+    "static const QHash<QString, QString> w{",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Gui/report/session_report_model.cpp:207",
+   "b": "src/Metrics/gate_catalogue.h:398",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Gui/report/session_report_model.cpp:207",
+   "b": "src/Metrics/gate_catalogue.h:425",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:325",
+   "b": "src/Metrics/gate_catalogue_body.h:392",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "GateEntry &e = add(c, \" \", body, \" \",",
+    "\" \",",
+    "QStringLiteral(\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_body.h:487",
+   "b": "src/Metrics/gate_catalogue_body.h:529",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "GateEntry &e = add(c, \" \", posture, \" \", \" \",",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \"",
+    "\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_club.h:67",
+   "b": "src/Metrics/gate_catalogue_club.h:132",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "add(c, \" \", club, \" \", \" \",",
+    "QStringLiteral(\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_club.h:68",
+   "b": "src/Metrics/gate_catalogue_club.h:297",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "add(c, \" \", club, \" \", \" \",",
+    "QStringLiteral(\" \"",
+    "\" \""
+   ]
+  },
+  {
+   "a": "src/Metrics/gate_catalogue_club.h:131",
+   "b": "src/Metrics/gate_catalogue_club.h:247",
+   "lines": 8,
+   "sample": [
+    "e.codes = {",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    "{ QStringLiteral(\" \"), QStringLiteral(\" \") } };",
+    "add(c, \" \", club, \" \", \" \","
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5190",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5223",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3236",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3271",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:191",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3177",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::Summary,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:292",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:334",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1353",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:245",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:324",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".flexPositive = true,",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:283",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:324",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".flexPositive = true,",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:254",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:334",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:254",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1081",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:292",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1081",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:255",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3640",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:293",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3640",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1995",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3640",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2657",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2751",
+   "lines": 8,
+   "sample": [
+    "\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")),",
+    "via(\" \", RM::Projected, Estimated, { .faceOnCamera = true },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2671",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2767",
+   "lines": 8,
+   "sample": [
+    ".traceTimingGraded = true,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2671",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2720",
+   "lines": 8,
+   "sample": [
+    ".traceTimingGraded = true,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3283",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4057",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1351",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3643",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:509",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:509",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:544",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:544",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:701",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:701",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1088",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1088",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1306",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4286",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1353",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1595",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4286",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3705",
+   "lines": 8,
+   "sample": [
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top, P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:645",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:869",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:645",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1139",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:869",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1139",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1083",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1263",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:891",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3857",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4178",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4459",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1524",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4620",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1400",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3939",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4390",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1433",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:1650",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2199",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3407",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3683",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:905",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3829",
+   "lines": 8,
+   "sample": [
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5183",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5320",
+   "lines": 8,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:937",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3571",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1126",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3528",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address, P::Impact },",
+    ".domain = P1toP7,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1201",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3985",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1464",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3985",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3985",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4127",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    ".traceCorridorMeasure = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5267",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5448",
+   "lines": 8,
+   "sample": [
+    ".howToRead = QStringLiteral(",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4746",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4833",
+   "lines": 8,
+   "sample": [
+    ".usedBy = {},",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2192",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2237",
+   "lines": 8,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Triangulated, Direct, { .dtlCamera = true, .clubTrack = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1795",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:2816",
+   "lines": 8,
+   "sample": [
+    ".traceTimingGraded = true,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:1945",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3787",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3939",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4092",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2040",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3349",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2040",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3377",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2077",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3349",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2077",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3377",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2242",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3349",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2242",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3377",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2401",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3349",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2401",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3377",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3349",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3711",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3377",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3711",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".consistencyArea = QStringLiteral(\" \"),",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2115",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3120",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2115",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3215",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2288",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3120",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2288",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3215",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2328",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3120",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2328",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3215",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3120",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3215",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2159",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3939",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2159",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4473",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3939",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4157",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4092",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4473",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4157",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4473",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4390",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4473",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::TimeSeries,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2317",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3918",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Top },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2656",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4264",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:2708",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4264",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"",
+    "\" \")),",
+    "via(\" \", RM::Triangulated, Estimated, { .faceOnCamera = true, .dtlCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \"",
+    "\" \")),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3015",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3066",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \"), QStringLiteral(\" \") },",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3091",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4862",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3091",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5354",
+   "lines": 8,
+   "sample": [
+    ".usedBy = { QStringLiteral(\" \") },",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3251",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5251",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \") },",
+    ".scaleType = ST::Ratio,",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3322",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4894",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3322",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5003",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3322",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5223",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3322",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5328",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3757",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4894",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3757",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5003",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3757",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5223",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3757",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5328",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4355",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4894",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4355",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5003",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4355",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5223",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4355",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5328",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4894",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5190",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5003",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5190",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5190",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5328",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3492",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3744",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:3775",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4045",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3339",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4082",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Address },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5183",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5212",
+   "lines": 8,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3506",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4420",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:3880",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5034",
+   "lines": 8,
+   "sample": [
+    "\" \")) },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,",
+    ".label = QStringLiteral(\" \"),",
+    ".shortLabel = QStringLiteral(\" \"),"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4154",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4417",
+   "lines": 8,
+   "sample": [
+    ".routes = {",
+    "via(\" \", RM::Projected, Direct, { .faceOnCamera = true },",
+    "QStringLiteral(\" \"",
+    "\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4919",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4946",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:4972",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5060",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4629",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5526",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4919",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5526",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4946",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5526",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4972",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5526",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5060",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5526",
+   "lines": 8,
+   "sample": [
+    "QStringLiteral(\" \")) },",
+    ".usedBy = { QStringLiteral(\" \"),",
+    "QStringLiteral(\" \") },",
+    "cat.addDescriptor({",
+    ".key = QStringLiteral(\" \"),",
+    ".type = MetricType::PointInTime,"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4797",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4822",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4853",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5241",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5345",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5371",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:5422",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5473",
+   "lines": 8,
+   "sample": [
+    "\" \"",
+    "\" \"",
+    "\" \"),",
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QString(),",
+    ".phases = { P::Impact },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4884",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5183",
+   "lines": 8,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Metrics/metric_catalogue_manifest.cpp:4994",
+   "b": "src/Metrics/metric_catalogue_manifest.cpp:5183",
+   "lines": 8,
+   "sample": [
+    ".signPositive = QStringLiteral(\" \"),",
+    ".signNegative = QStringLiteral(\" \"),",
+    ".phases = { P::Impact },",
+    ".routes = {",
+    "via(\" \", RM::Device, Direct, { .launchMonitor = true },",
+    "QStringLiteral(\" \")) },"
+   ]
+  },
+  {
+   "a": "src/Diagnostics/packs/characteristic_pack.cpp:1653",
+   "b": "src/Diagnostics/packs/characteristic_pack.cpp:1687",
+   "lines": 8,
+   "sample": [
+    "if (visit(next)) return true;",
+    "state[id] = N;",
+    "return false;",
+    "for (const Condition &c : pack.conditions) {",
+    "if (state.value(c.id, N) == N && visit(c.id)) {",
+    "err(r, QStringLiteral(\" \"), c.id,"
+   ]
+  },
+  {
+   "a": "src/Diagnostics/packs/drill_pack.cpp:84",
+   "b": "src/Diagnostics/packs/gate_words_pack.cpp:147",
+   "lines": 8,
+   "sample": [
+    "QJsonParseError pe{};",
+    "const QJsonDocument doc = QJsonDocument::fromJson(json, &pe);",
+    "if (pe.error != QJsonParseError::NoError || !doc.isObject()) {",
+    "add(out.report, IssueSeverity::Error, QStringLiteral(\" \"), sourceLabel,",
+    "QStringLiteral(\" \")",
+    ".arg(sourceLabel, pe.errorString()));"
+   ]
+  },
+  {
+   "a": "src/Diagnostics/packs/drill_pack.cpp:84",
+   "b": "src/Diagnostics/packs/screen_pack.cpp:92",
+   "lines": 8,
+   "sample": [
+    "QJsonParseError pe{};",
+    "const QJsonDocument doc = QJsonDocument::fromJson(json, &pe);",
+    "if (pe.error != QJsonParseError::NoError || !doc.isObject()) {",
+    "add(out.report, IssueSeverity::Error, QStringLiteral(\" \"), sourceLabel,",
+    "QStringLiteral(\" \")",
+    ".arg(sourceLabel, pe.errorString()));"
+   ]
+  },
+  {
+   "a": "src/Diagnostics/packs/gate_words_pack.cpp:147",
+   "b": "src/Diagnostics/packs/screen_pack.cpp:92",
+   "lines": 8,
+   "sample": [
+    "QJsonParseError pe{};",
+    "const QJsonDocument doc = QJsonDocument::fromJson(json, &pe);",
+    "if (pe.error != QJsonParseError::NoError || !doc.isObject()) {",
+    "add(out.report, IssueSeverity::Error, QStringLiteral(\" \"), sourceLabel,",
+    "QStringLiteral(\" \")",
+    ".arg(sourceLabel, pe.errorString()));"
+   ]
+  },
+  {
+   "a": "src/Coaching/swing_themes.h:2013",
+   "b": "src/Coaching/swing_themes.h:2218",
+   "lines": 8,
+   "sample": [
+    "case N: return QStringLiteral(\" \");",
+    "case N: return QStringLiteral(\" \");",
+    "case N: return QStringLiteral(\" \");",
+    "case N: return QStringLiteral(\" \");",
+    "case N: return QStringLiteral(\" \");",
+    "case N: return QStringLiteral(\" \");"
+   ]
+  },
+  {
+   "a": "src/Export/swing_doc.cpp:763",
+   "b": "src/Gui/shot/shot_processor.cpp:538",
+   "lines": 8,
+   "sample": [
+    "{ QStringLiteral(\" \"), int(a.shaft.camera) },",
+    "{ QStringLiteral(\" \"), a.shaft.valid },",
+    "{ QStringLiteral(\" \"), double(a.shaft.coverage) },",
+    "{ QStringLiteral(\" \"), double(a.shaft.imuVisionCorr) },",
+    "{ QStringLiteral(\" \"), double(a.shaft.modelVisionResidualDeg) },",
+    "{ QStringLiteral(\" \"), double(a.shaft.measuredClubLenPx) },"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:507",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1297",
+   "lines": 8,
+   "sample": [
+    "const QString dir = cleanDir(swingDir);",
+    "auto it = w.pictures.find(dir);",
+    "if (it != w.pictures.end() && it->pinned) return it->doc;",
+    "const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);",
+    "if (it != w.pictures.end() && it->size == info.size && it->mtimeMs == info.mtimeMs) {",
+    "w.pictureOrder.removeAll(dir);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:526",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1316",
+   "lines": 8,
+   "sample": [
+    "if (root.isEmpty()) e.doc.why = QStringLiteral(\" \").arg(err.isEmpty() ? QString() : QStringLiteral(\" \") + err);",
+    "w.pictureOrder.removeAll(dir);",
+    "w.pictureOrder << dir;",
+    "while (w.pictureOrder.size() > N) {",
+    "const QString old = w.pictureOrder.takeFirst();",
+    "auto o = w.pictures.find(old);"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:780",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1558",
+   "lines": 8,
+   "sample": [
+    "out.reserve(snap.shots.size());",
+    "QHash<const ShotSeries *, CacheEntry> fresh;",
+    "for (const auto &s : snap.shots) {",
+    "if (w) {",
+    "const auto it = w->cache.constFind(s.get());",
+    "if (it != w->cache.constEnd() && it->shot.lock() == s) {"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:815",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1603",
+   "lines": 8,
+   "sample": [
+    "const QString want = cleanDir(in.pickedSwingDir);",
+    "if (!want.isEmpty())",
+    "for (int i = N; i < c.n; ++i)",
+    "if (cleanDir(c.snap->shots[size_t(i)]->swingDir) == want) { c.index = i; break; }",
+    "if (c.index >= N) {",
+    "c.shot = c.snap->shots[size_t(c.index)];"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:901",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1728",
+   "lines": 8,
+   "sample": [
+    "{ \\",
+    "if (m_in.field == v) return; \\",
+    "m_in.field = v; \\",
+    "emit inputsChanged(); \\",
+    "schedule(); \\",
+    "PP_SETTER(const QString &, setPickedSwingDir, pickedSwingDir)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:901",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:2095",
+   "lines": 8,
+   "sample": [
+    "{ \\",
+    "if (m_in.field == v) return; \\",
+    "m_in.field = v; \\",
+    "emit inputsChanged(); \\",
+    "schedule(); \\",
+    "PP_SETTER(const QString &, setPickedSwingDir, pickedSwingDir)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:977",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp:1814",
+   "lines": 8,
+   "sample": [
+    "const bool wasRunning = m_running;",
+    "m_running = false;",
+    "m_result = std::move(r);",
+    "emit resultsChanged();",
+    "updateSelected(true);",
+    "if (m_dirty && !m_synchronous) startJob();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp:962",
+   "b": "src/Gui/charts/charts_traces_presenter.cpp:3662",
+   "lines": 8,
+   "sample": [
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;",
+    "emit busyChanged();",
+    "auto w = m_worker;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1799",
+   "b": "src/Gui/charts/charts_traces_presenter.cpp:3662",
+   "lines": 8,
+   "sample": [
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;",
+    "emit busyChanged();",
+    "auto w = m_worker;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_traces_presenter.cpp:3662",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:2166",
+   "lines": 8,
+   "sample": [
+    "Inputs in = m_in;",
+    "in.snapshot = currentSnapshot();",
+    "m_dirty = false;",
+    "m_running = true;",
+    "emit busyChanged();",
+    "auto w = m_worker;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:144",
+   "b": "src/Gui/charts/charts_posture_presenter.h:227",
+   "lines": 8,
+   "sample": [
+    "Q_OBJECT",
+    "QML_ELEMENT",
+    "Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)",
+    "Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString register READ registerName WRITE setRegisterName NOTIFY inputsChanged)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:144",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:222",
+   "lines": 8,
+   "sample": [
+    "Q_OBJECT",
+    "QML_ELEMENT",
+    "Q_PROPERTY(QObject *model READ model WRITE setModel NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString pickedSwingDir READ pickedSwingDir WRITE setPickedSwingDir NOTIFY inputsChanged)",
+    "Q_PROPERTY(QVariant pickedDetailRef READ pickedDetailRef WRITE setPickedDetailRef NOTIFY inputsChanged)",
+    "Q_PROPERTY(QString register READ registerName WRITE setRegisterName NOTIFY inputsChanged)"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h:212",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:292",
+   "lines": 8,
+   "sample": [
+    "Q_INVOKABLE void setSynchronous(bool on);",
+    "Q_INVOKABLE bool waitForIdle(int msTimeout = N);",
+    "struct Inputs {",
+    "std::shared_ptr<const SessionSnapshot> snapshot;",
+    "QString pickedSwingDir;",
+    "QVariantMap pickedDetail;"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h:313",
+   "b": "src/Gui/charts/charts_wrist_presenter.h:304",
+   "lines": 8,
+   "sample": [
+    "QString referenceSwingDir;",
+    "struct Result;",
+    "struct Worker;",
+    "void inputsChanged();",
+    "void busyChanged();",
+    "void resultsChanged();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:212",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:309",
+   "lines": 8,
+   "sample": [
+    "sh->gatesVersion = d.value(QStringLiteral(\" \")).toInt();",
+    "sh->gates = d.value(QStringLiteral(\" \")).toList();",
+    "for (const QVariant &pv : d.value(QStringLiteral(\" \")).toList()) {",
+    "const QVariantMap p = pv.toMap();",
+    "PhaseMark pm;",
+    "pm.phase = p.value(QStringLiteral(\" \"), -N).toInt();"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.cpp:1495",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:1783",
+   "lines": 8,
+   "sample": [
+    "QVariantMap out;",
+    "const QString scope = c.in.scope == QLatin1String(\" \") ? QStringLiteral(\" \") : QStringLiteral(\" \");",
+    "out.insert(QStringLiteral(\" \"), scope);",
+    "out.insert(QStringLiteral(\" \"), QVariantList{",
+    "QVariantMap{ { QStringLiteral(\" \"), QStringLiteral(\" \") }, { QStringLiteral(\" \"), QStringLiteral(\" \") }, { QStringLiteral(\" \"), scope == QLatin1String(\" \") } },",
+    "QVariantMap{ { QStringLiteral(\" \"), QStringLiteral(\" \") }, { QStringLiteral(\" \"), QStringLiteral(\" \") }, { QStringLiteral(\" \"), scope == QLatin1String(\" \") } } });"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/charts_traces_presenter.cpp:561",
+   "b": "src/Gui/charts/charts_wrist_presenter.cpp:353",
+   "lines": 8,
+   "sample": [
+    "const pinpoint::SwingStore::DocInfo info = pinpoint::SwingStore::info(dir);",
+    "if (dir == w.refDir && info.size == w.refSize && info.mtimeMs == w.refMtimeMs) { *why = w.refWhy; return w.refShot; }",
+    "w.refDir = dir; w.refSize = info.size; w.refMtimeMs = info.mtimeMs;",
+    "w.refShot.reset(); w.refWhy.clear();",
+    "if (!info.exists()) {",
+    "w.refWhy = QStringLiteral(\" \");"
+   ]
+  },
+  {
+   "a": "src/Gui/charts/delivery_picture.cpp:333",
+   "b": "src/Gui/charts/posture_picture.cpp:680",
+   "lines": 8,
+   "sample": [
+    "outPath = QDir(opt.stillDir).filePath(QString::fromLatin1(QCryptographicHash::hash(key.toUtf8(), QCryptographicHash::Sha1).toHex().left(N))",
+    "+ QStringLiteral(\" \"));",
+    "if (QFileInfo::exists(outPath)) src = QUrl::fromLocalFile(outPath).toString();",
+    "else if (opt.stillErrors.contains(outPath)) imageWhy = sentence(QStringLiteral(\" \") + opt.stillErrors.value(outPath));",
+    "else pending = true;",
+    "f.insert(QStringLiteral(\" \"), src);"
+   ]
+  },
+  {
+   "a": "src/Core/PpMessageLog.cpp:75",
+   "b": "src/Core/PpStatsLog.cpp:45",
+   "lines": 8,
+   "sample": [
+    "QMutexLocker lk(&m_mutex);",
+    "QList<Entry> result;",
+    "for (const Entry &e : m_entries) {",
+    "if (e.seq > afterSeq)",
+    "result.append(e);",
+    "if (!result.isEmpty())"
+   ]
+  },
+  {
+   "a": "src/Gui/home/HmSwingAreas.qml:126",
+   "b": "src/Gui/home/HmSwingSummary.qml:145",
+   "lines": 8,
+   "sample": [
+    "width: root.width",
+    "height: visible ? Theme.sp(N) : N",
+    "PpMicro {",
+    "objectName: \" \"",
+    "anchors { left: parent.left; verticalCenter: parent.verticalCenter }",
+    "text: qsTr(\" \")"
+   ]
+  },
+  {
+   "a": "src/Gui/home/HmSwingAreas.qml:142",
+   "b": "src/Gui/home/HmSwingSummary.qml:162",
+   "lines": 8,
+   "sample": [
+    "Text {",
+    "objectName: \" \"",
+    "anchors { left: parent.left; verticalCenter: parent.verticalCenter }",
+    "text: qsTr(\" \")",
+    "font.family: Theme.fontBody",
+    "font.pixelSize: Theme.fontSzBody2"
+   ]
+  },
+  {
+   "a": "src/Gui/report/PpPosturePage.qml:236",
+   "b": "src/Gui/report/PpWristPage.qml:333",
+   "lines": 8,
+   "sample": [
+    "Item { width: N; height: N }",
+    "Repeater {",
+    "model: parent.lines",
+    "delegate: Flow {",
+    "id: cl",
+    "required property var modelData"
+   ]
+  }
+ ],
+ "file_pairs": [
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h",
+   "b": "src/Gui/charts/charts_posture_presenter.h",
+   "jaccard": 0.77,
+   "containment": 0.93
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h",
+   "b": "src/Gui/charts/charts_wrist_presenter.h",
+   "jaccard": 0.71,
+   "containment": 0.84
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h",
+   "b": "src/Gui/charts/charts_wrist_presenter.h",
+   "jaccard": 0.64,
+   "containment": 0.83
+  },
+  {
+   "a": "src/Gui/charts/charts_traces_presenter.h",
+   "b": "src/Gui/charts/charts_wrist_presenter.h",
+   "jaccard": 0.37,
+   "containment": 0.64
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.h",
+   "b": "src/Gui/charts/charts_traces_presenter.h",
+   "jaccard": 0.32,
+   "containment": 0.62
+  },
+  {
+   "a": "src/Gui/charts/charts_posture_presenter.h",
+   "b": "src/Gui/charts/charts_traces_presenter.h",
+   "jaccard": 0.35,
+   "containment": 0.61
+  },
+  {
+   "a": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+   "b": "src/LaunchMonitor/launch_monitor_reading.cpp",
+   "jaccard": 0.07,
+   "containment": 0.59
+  },
+  {
+   "a": "src/Diagnostics/packs/drill_pack.cpp",
+   "b": "src/Diagnostics/packs/screen_pack.cpp",
+   "jaccard": 0.38,
+   "containment": 0.57
+  },
+  {
+   "a": "src/Gui/report/report_stills_pure.cpp",
+   "b": "src/Gui/report/report_stills_pure.h",
+   "jaccard": 0.06,
+   "containment": 0.54
+  },
+  {
+   "a": "src/Diagnostics/packs/drill_pack.cpp",
+   "b": "src/Diagnostics/packs/reference_pack.cpp",
+   "jaccard": 0.23,
+   "containment": 0.53
+  },
+  {
+   "a": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "b": "src/Diagnostics/packs/characteristic_pack.h",
+   "jaccard": 0.03,
+   "containment": 0.52
+  },
+  {
+   "a": "src/Gui/charts/delivery_picture.cpp",
+   "b": "src/Gui/charts/posture_picture.cpp",
+   "jaccard": 0.2,
+   "containment": 0.51
+  },
+  {
+   "a": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "b": "src/Gui/charts/charts_posture_presenter.cpp",
+   "jaccard": 0.22,
+   "containment": 0.51
+  },
+  {
+   "a": "src/Diagnostics/packs/reference_pack.cpp",
+   "b": "src/Diagnostics/packs/screen_pack.cpp",
+   "jaccard": 0.22,
+   "containment": 0.5
+  },
+  {
+   "a": "src/Gui/charts/PpChartsSessionView.qml",
+   "b": "src/Gui/charts/PpChartsShotView.qml",
+   "jaccard": 0.22,
+   "containment": 0.49
+  },
+  {
+   "a": "src/Diagnostics/packs/drill_pack.cpp",
+   "b": "src/Diagnostics/packs/gate_words_pack.cpp",
+   "jaccard": 0.27,
+   "containment": 0.48
+  },
+  {
+   "a": "src/Gui/report/report_posture.h",
+   "b": "src/Gui/report/report_wrist.h",
+   "jaccard": 0.26,
+   "containment": 0.48
+  },
+  {
+   "a": "src/Gui/charts/charts_consistency_presenter.h",
+   "b": "src/Gui/charts/charts_relations_presenter.h",
+   "jaccard": 0.21,
+   "containment": 0.47
+  },
+  {
+   "a": "src/LaunchMonitor/launch_monitor_reading.cpp",
+   "b": "src/LaunchMonitor/premier_session_parser.cpp",
+   "jaccard": 0.06,
+   "containment": 0.47
+  },
+  {
+   "a": "src/Diagnostics/packs/gate_words_pack.cpp",
+   "b": "src/Diagnostics/packs/screen_pack.cpp",
+   "jaccard": 0.26,
+   "containment": 0.46
+  },
+  {
+   "a": "src/Diagnostics/norms/norm_pack.cpp",
+   "b": "src/Diagnostics/norms/norm_pack.h",
+   "jaccard": 0.04,
+   "containment": 0.46
+  }
+ ]
+}

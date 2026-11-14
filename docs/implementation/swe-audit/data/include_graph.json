@@ -1,0 +1,2079 @@
+{
+ "dir_edges": [
+  {
+   "src": "Analysis",
+   "dst": "Ball",
+   "count": 4
+  },
+  {
+   "src": "Analysis",
+   "dst": "Body",
+   "count": 11
+  },
+  {
+   "src": "Analysis",
+   "dst": "Club",
+   "count": 23
+  },
+  {
+   "src": "Analysis",
+   "dst": "Core",
+   "count": 8
+  },
+  {
+   "src": "Analysis",
+   "dst": "Export",
+   "count": 2
+  },
+  {
+   "src": "Analysis",
+   "dst": "IMU",
+   "count": 8
+  },
+  {
+   "src": "Analysis",
+   "dst": "Kinematics",
+   "count": 3
+  },
+  {
+   "src": "Analysis",
+   "dst": "Pose",
+   "count": 9
+  },
+  {
+   "src": "Analysis",
+   "dst": "Skeleton3d",
+   "count": 3
+  },
+  {
+   "src": "Analysis",
+   "dst": "Timeline",
+   "count": 5
+  },
+  {
+   "src": "Analysis",
+   "dst": "Wrist",
+   "count": 9
+  },
+  {
+   "src": "Coaching",
+   "dst": "Analysis",
+   "count": 2
+  },
+  {
+   "src": "Coaching",
+   "dst": "Core",
+   "count": 5
+  },
+  {
+   "src": "Coaching",
+   "dst": "Diagnostics/engine",
+   "count": 8
+  },
+  {
+   "src": "Coaching",
+   "dst": "Diagnostics/measures",
+   "count": 2
+  },
+  {
+   "src": "Coaching",
+   "dst": "Gui/diagnostics",
+   "count": 1
+  },
+  {
+   "src": "Coaching",
+   "dst": "LaunchMonitor",
+   "count": 3
+  },
+  {
+   "src": "Coaching",
+   "dst": "Metrics",
+   "count": 1
+  },
+  {
+   "src": "Core",
+   "dst": "Video",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/engine",
+   "dst": "Core",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/engine",
+   "dst": "Diagnostics/measures",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/engine",
+   "dst": "Diagnostics/norms",
+   "count": 4
+  },
+  {
+   "src": "Diagnostics/engine",
+   "dst": "Diagnostics/packs",
+   "count": 11
+  },
+  {
+   "src": "Diagnostics/engine",
+   "dst": "Metrics",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Analysis",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Core",
+   "count": 3
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Diagnostics/engine",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Diagnostics/norms",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Diagnostics/packs",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Export",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/measures",
+   "dst": "Metrics",
+   "count": 7
+  },
+  {
+   "src": "Diagnostics/norms",
+   "dst": "Diagnostics/engine",
+   "count": 7
+  },
+  {
+   "src": "Diagnostics/norms",
+   "dst": "Diagnostics/measures",
+   "count": 2
+  },
+  {
+   "src": "Diagnostics/norms",
+   "dst": "Diagnostics/packs",
+   "count": 4
+  },
+  {
+   "src": "Diagnostics/norms",
+   "dst": "Wrist",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/packs",
+   "dst": "Coaching",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/packs",
+   "dst": "Core",
+   "count": 1
+  },
+  {
+   "src": "Diagnostics/packs",
+   "dst": "Diagnostics/engine",
+   "count": 11
+  },
+  {
+   "src": "Export",
+   "dst": "Analysis",
+   "count": 4
+  },
+  {
+   "src": "Export",
+   "dst": "Body",
+   "count": 2
+  },
+  {
+   "src": "Export",
+   "dst": "Club",
+   "count": 2
+  },
+  {
+   "src": "Export",
+   "dst": "Core",
+   "count": 8
+  },
+  {
+   "src": "Export",
+   "dst": "IMU",
+   "count": 2
+  },
+  {
+   "src": "Export",
+   "dst": "Kinematics",
+   "count": 1
+  },
+  {
+   "src": "Export",
+   "dst": "LaunchMonitor",
+   "count": 3
+  },
+  {
+   "src": "Export",
+   "dst": "Skeleton3d",
+   "count": 1
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Analysis",
+   "count": 3
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Body",
+   "count": 2
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Club",
+   "count": 1
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Coaching",
+   "count": 7
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Core",
+   "count": 14
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Diagnostics/engine",
+   "count": 7
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Diagnostics/measures",
+   "count": 3
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Diagnostics/norms",
+   "count": 14
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Diagnostics/packs",
+   "count": 4
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Export",
+   "count": 5
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/diagnostics",
+   "count": 1
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/report",
+   "count": 2
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/review",
+   "count": 4
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/shot",
+   "count": 7
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/trust",
+   "count": 2
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/typeset",
+   "count": 5
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Gui/variability",
+   "count": 6
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Kinematics",
+   "count": 2
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "LaunchMonitor",
+   "count": 1
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Metrics",
+   "count": 24
+  },
+  {
+   "src": "Gui/charts",
+   "dst": "Wrist",
+   "count": 6
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Coaching",
+   "count": 19
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Core",
+   "count": 4
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Diagnostics/engine",
+   "count": 5
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Diagnostics/measures",
+   "count": 3
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Diagnostics/norms",
+   "count": 4
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Diagnostics/packs",
+   "count": 6
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Export",
+   "count": 2
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Gui/charts",
+   "count": 1
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Gui/review",
+   "count": 1
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Gui/typeset",
+   "count": 1
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Gui/variability",
+   "count": 5
+  },
+  {
+   "src": "Gui/diagnostics",
+   "dst": "Metrics",
+   "count": 4
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Analysis",
+   "count": 1
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Coaching",
+   "count": 7
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Core",
+   "count": 10
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Diagnostics/norms",
+   "count": 1
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Diagnostics/packs",
+   "count": 3
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Export",
+   "count": 6
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/athlete",
+   "count": 1
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/charts",
+   "count": 10
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/diagnostics",
+   "count": 3
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/launchmonitor",
+   "count": 1
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/markup",
+   "count": 2
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/review",
+   "count": 2
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/shot",
+   "count": 1
+  },
+  {
+   "src": "Gui/report",
+   "dst": "Gui/variability",
+   "count": 3
+  },
+  {
+   "src": "Gui/report",
+   "dst": "LaunchMonitor",
+   "count": 3
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Analysis",
+   "count": 1
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Core",
+   "count": 2
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Export",
+   "count": 3
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Gui/trust",
+   "count": 1
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Kinematics",
+   "count": 1
+  },
+  {
+   "src": "Gui/review",
+   "dst": "LaunchMonitor",
+   "count": 1
+  },
+  {
+   "src": "Gui/review",
+   "dst": "Metrics",
+   "count": 6
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Analysis",
+   "count": 1
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Body",
+   "count": 2
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Core",
+   "count": 1
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Export",
+   "count": 3
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Gui/markup",
+   "count": 1
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Kinematics",
+   "count": 1
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Ppcp",
+   "count": 3
+  },
+  {
+   "src": "Gui/shot",
+   "dst": "Video",
+   "count": 1
+  },
+  {
+   "src": "LaunchMonitor",
+   "dst": "Analysis",
+   "count": 1
+  },
+  {
+   "src": "LaunchMonitor",
+   "dst": "Core",
+   "count": 1
+  },
+  {
+   "src": "Metrics",
+   "dst": "Analysis",
+   "count": 4
+  },
+  {
+   "src": "Metrics",
+   "dst": "Core",
+   "count": 4
+  },
+  {
+   "src": "Metrics",
+   "dst": "Gui/typeset",
+   "count": 1
+  },
+  {
+   "src": "Metrics",
+   "dst": "Wrist",
+   "count": 2
+  }
+ ],
+ "against_assumed_order": [
+  {
+   "src": "Coaching",
+   "dst": "Gui/diagnostics",
+   "count": 1,
+   "examples": [
+    "src/Coaching/session_report.h -> src/Gui/diagnostics/session_spread.h"
+   ]
+  },
+  {
+   "src": "Core",
+   "dst": "Video",
+   "count": 2,
+   "examples": [
+    "src/Core/device_enumerator.h -> src/Video/video_input_factory.h",
+    "src/Core/device_enumerator.h -> src/Video/camera_capabilities.h"
+   ]
+  },
+  {
+   "src": "Diagnostics/packs",
+   "dst": "Coaching",
+   "count": 1,
+   "examples": [
+    "src/Diagnostics/packs/swing_themes_pack.h -> src/Coaching/swing_themes.h"
+   ]
+  },
+  {
+   "src": "LaunchMonitor",
+   "dst": "Analysis",
+   "count": 1,
+   "examples": [
+    "src/LaunchMonitor/lm_gates.h -> src/Analysis/gate_record.h"
+   ]
+  },
+  {
+   "src": "Metrics",
+   "dst": "Gui/typeset",
+   "count": 1,
+   "examples": [
+    "src/Metrics/variability/variability_typicality.cpp -> src/Gui/typeset/box_stats.h"
+   ]
+  }
+ ],
+ "dir_cycles": [
+  [
+   "Analysis",
+   "Export",
+   "LaunchMonitor"
+  ],
+  [
+   "Coaching",
+   "Diagnostics/engine",
+   "Diagnostics/measures",
+   "Diagnostics/norms",
+   "Diagnostics/packs",
+   "Gui/charts",
+   "Gui/diagnostics",
+   "Gui/report"
+  ]
+ ],
+ "file_cycles": [],
+ "fan": [
+  {
+   "file": "src/Gui/report/session_report_model.cpp",
+   "fan_in": 0,
+   "fan_out": 37
+  },
+  {
+   "file": "src/Metrics/gate_catalogue.h",
+   "fan_in": 11,
+   "fan_out": 9
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 20
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_provider.h",
+   "fan_in": 17,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 19
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+   "fan_in": 0,
+   "fan_out": 19
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 18
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 18
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.h",
+   "fan_in": 15,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/session_series_types.h",
+   "fan_in": 16,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Coaching/diagnostic_ledger.h",
+   "fan_in": 13,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/swing_analysis.h",
+   "fan_in": 12,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/pack_provider.h",
+   "fan_in": 13,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 13
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 12
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.cpp",
+   "fan_in": 0,
+   "fan_out": 12
+  },
+  {
+   "file": "src/Gui/charts/charts_words.h",
+   "fan_in": 11,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.h",
+   "fan_in": 9,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.cpp",
+   "fan_in": 0,
+   "fan_out": 12
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.cpp",
+   "fan_in": 0,
+   "fan_out": 11
+  },
+  {
+   "file": "src/Gui/charts/session_posture.cpp",
+   "fan_in": 0,
+   "fan_out": 11
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.h",
+   "fan_in": 8,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Metrics/metric_catalogue.h",
+   "fan_in": 9,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/engine/pack_io.h",
+   "fan_in": 11,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic.h",
+   "fan_in": 10,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.h",
+   "fan_in": 10,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/diagnostics/session_diagnostics_model.h",
+   "fan_in": 3,
+   "fan_out": 8
+  },
+  {
+   "file": "src/Gui/charts/session_curves.h",
+   "fan_in": 9,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.h",
+   "fan_in": 5,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.h",
+   "fan_in": 9,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/session_series_model.h",
+   "fan_in": 8,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/engine/provider_leaf_p.h",
+   "fan_in": 6,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/charts_relations_presenter.h",
+   "fan_in": 4,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.h",
+   "fan_in": 5,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Gui/charts/session_warp.h",
+   "fan_in": 7,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/tendencies.h",
+   "fan_in": 6,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Coaching/swing_areas_pack.h",
+   "fan_in": 3,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Coaching/work_ons_pack.h",
+   "fan_in": 4,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Diagnostics/engine/diagnostics_health.h",
+   "fan_in": 2,
+   "fan_out": 6
+  },
+  {
+   "file": "src/Gui/diagnostics/session_spread.h",
+   "fan_in": 5,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Diagnostics/engine/condition_reading.h",
+   "fan_in": 7,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Coaching/club_distances.h",
+   "fan_in": 2,
+   "fan_out": 6
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+   "fan_in": 0,
+   "fan_out": 8
+  },
+  {
+   "file": "src/Coaching/work_ons.h",
+   "fan_in": 7,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/variability_clubs.h",
+   "fan_in": 6,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/variability_env.h",
+   "fan_in": 4,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.h",
+   "fan_in": 6,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.h",
+   "fan_in": 4,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.cpp",
+   "fan_in": 0,
+   "fan_out": 7
+  },
+  {
+   "file": "src/Gui/diagnostics/work_ons_controller.h",
+   "fan_in": 2,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Gui/charts/session_traces.h",
+   "fan_in": 5,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.cpp",
+   "fan_in": 0,
+   "fan_out": 7
+  },
+  {
+   "file": "src/Gui/review/timeline_labels.h",
+   "fan_in": 7,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/consistency_env.cpp",
+   "fan_in": 0,
+   "fan_out": 7
+  },
+  {
+   "file": "src/Analysis/gate_record.h",
+   "fan_in": 6,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.cpp",
+   "fan_in": 0,
+   "fan_out": 6
+  },
+  {
+   "file": "src/Metrics/variability/variability_result.h",
+   "fan_in": 5,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/series_reduce.h",
+   "fan_in": 5,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/charts_traces_presenter.h",
+   "fan_in": 1,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_sample.cpp",
+   "fan_in": 0,
+   "fan_out": 6
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.h",
+   "fan_in": 4,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/consistency_env.h",
+   "fan_in": 5,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/presenter_pool.h",
+   "fan_in": 6,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/qml_map_ref.h",
+   "fan_in": 6,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/session_relations.h",
+   "fan_in": 4,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Metrics/metric_descriptor.h",
+   "fan_in": 4,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/analysis_stage.h",
+   "fan_in": 4,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/club_scope.h",
+   "fan_in": 2,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Coaching/shot_factors.h",
+   "fan_in": 3,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.h",
+   "fan_in": 3,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_vocabulary.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/review/session_summary.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.h",
+   "fan_in": 3,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/charts_posture_presenter.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Diagnostics/measures/live_measure_source.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Gui/report/report_stills.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/variability_env.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Gui/shot/dtl_overlay_payload.h",
+   "fan_in": 5,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Analysis/shot_analyzer.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/session_wrist.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/charts_delivery_presenter.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Coaching/shot_outcomes.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Coaching/shot_outcomes_pack.h",
+   "fan_in": 3,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/swing_themes_pack.h",
+   "fan_in": 1,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Gui/charts/charts_wrist_presenter.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/session_bridge.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/charts_consistency_presenter.h",
+   "fan_in": 2,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/session_sequence.cpp",
+   "fan_in": 0,
+   "fan_out": 5
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/uncertainty_json.h",
+   "fan_in": 4,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Analysis/swing_reanalyzer.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/report/report_mailer.h",
+   "fan_in": 3,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/metric_catalogue.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Coaching/outcome_scope.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Coaching/session_report.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Analysis/analysis_tuning.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/box_map.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/qml_payload.h",
+   "fan_in": 3,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/engine/relation_resolver.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/frame_store.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Metrics/metric_provider.h",
+   "fan_in": 3,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/analysis_pipeline.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/firing_side.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/mail_credentials.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Coaching/sequence_checks.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/tendency_flow_map.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/strike_from_flight.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/shot/shot_processor.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Metrics/variability/variability_constants.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Metrics/metric_resolver.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/file_pack_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_measure_source.h",
+   "fan_in": 1,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Coaching/swing_themes.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/report_mailer.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.h",
+   "fan_in": 3,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/fitted_curve.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/session_posture.h",
+   "fan_in": 2,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.cpp",
+   "fan_in": 0,
+   "fan_out": 4
+  },
+  {
+   "file": "src/Metrics/variability/variability_scale_type.h",
+   "fan_in": 4,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/session_delivery.h",
+   "fan_in": 3,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/session_consistency.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/posture_picture.h",
+   "fan_in": 3,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Metrics/setup_capability.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Coaching/tendency_flow.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/engine/diagnostics_health.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Diagnostics/norms/file_norm_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/charts/consistency_grades.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Metrics/metric_providers.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/smtp_client.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/report/report_stills.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/variability/variability_typicality.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/review/swing_data_source.h",
+   "fan_in": 3,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/report/report_words.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/report_meta.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/review/chart_metrics.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/shot_source_map.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/route_substitution.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/uncertainty_config.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/device_filter_model.h",
+   "fan_in": 3,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/swing_coverage_model.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.h",
+   "fan_in": 3,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Analysis/recorded_products.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/measures/session_measure_source.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/characteristic_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 3
+  },
+  {
+   "file": "src/Gui/report/report_tendencies.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/det_rng.h",
+   "fan_in": 3,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Metrics/variability/variability_trend.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/shot_replay_controller.h",
+   "fan_in": 1,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/session_list_model.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/packs/gate_words_pack.h",
+   "fan_in": 2,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/session_review_controller.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/resource_norm_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/mail_credentials_linux.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/session_list_model.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/smtp_message.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Metrics/line_angle.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/wrist_domain_score.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/packs/resource_pack_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/seg_resolve.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/capture_integrity_check.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/engine/excludes_rule.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/composite_reading.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/engine/relation_resolver.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/analysis_versions.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Metrics/metric_channel.h",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/shot_filter_proxy_model.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/packs/memory_pack_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/shot_analyzer.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/shot_outcome.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/shot_list_model.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Metrics/variability/variability_trend.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/smtp_client.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/norms/norm.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Coaching/swing_areas.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/analysis_profiling.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/memory_norm_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/disk_replay_source.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/setup_capability.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/measures/club_baseline_provider.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/report/session_report_list_model.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/variability/variability_outcome.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/metric_catalog.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/session_report_model.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/session_curves.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/delivery_picture.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/report/report_stills_pure.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/shot_arbiter.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/screen_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/frame_store.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/drill_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/session_relations.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Metrics/metric_reducer.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/reference_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/charts/session_bridge.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/engine/enum_table_p.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/variability_clubs.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/device_filter_model.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/shot_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Analysis/recorded_products.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Diagnostics/measures/sigma_source.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Analysis/analysis_dag.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/series_reduce_metric.h",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/review/metric_catalog.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/corridor_plot.cpp",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/shot/replay_source.h",
+   "fan_in": 2,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/dag_layout.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/manifest_gates.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/metric_corridor.h",
+   "fan_in": 0,
+   "fan_out": 2
+  },
+  {
+   "file": "src/Gui/report/report_delivery.h",
+   "fan_in": 1,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_wrist.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/session/session_controller.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/session_traces.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/smtp_message.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/variability/variability_result.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/metric_type.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/dtl_overlay_payload.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_rules.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/area_regroup_table.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Coaching/consistency_home.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/merged_pack_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/context_tree.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/mail_credentials_win.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/metric_providers.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/metric_resolver.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/shot_replay_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/engine/characteristic_engine.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_consistency.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/engine/pack_io.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_mailer_linux.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/measures/anatomy_vocabulary.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_body.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/measures/measure_facets.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/mail_credentials.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/segment_role.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/norms/merged_norm_provider.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_posture.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Diagnostics/packs/gate_words_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/charts/session_wrist.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/mp4_frame_reader.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_shot.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/swing_coverage_model.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/metric_catalogue_manifest.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/reanalysis_controller.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/timeline_labels.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/shot/shot_filter_proxy_model.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/shot/ppcp_clip_filer.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/diagnostics/wrist_diagnostics_model.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_club.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/review/swing_series_model.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Analysis/stream_trim.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/session/session_controller.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/variability/variability_grader.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_mailer_win.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Diagnostics/norms/norm_pack.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Gui/report/report_variability.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Gui/charts/session_warp.cpp",
+   "fan_in": 0,
+   "fan_out": 1
+  },
+  {
+   "file": "src/Metrics/gate_catalogue_lm.h",
+   "fan_in": 1,
+   "fan_out": 0
+  },
+  {
+   "file": "src/Analysis/camera_pose_sticks.h",
+   "fan_in": 0,
+   "fan_out": 0
+  }
+ ],
+ "unresolved": {
+  "pp_debug.h": 51,
+  "event_buffer.h": 19,
+  "types.h": 16,
+  "app_settings.h": 16,
+  "swing_window.h": 14,
+  "format_descriptor.h": 13,
+  "imu_sample.h": 11,
+  "pp_profiler.h": 9,
+  "athlete_controller.h": 7,
+  "session_controller.h": 7,
+  "device_clock_mapper.h": 6,
+  "device_enumerator.h": 6,
+  "../Core/pp_debug.h": 6,
+  "SecretsManager.h": 5,
+  "pp_os_metrics.h": 5,
+  "pp_gpu_metrics.h": 5,
+  "ort_log.h": 5,
+  "ble_adapter_pool.h": 4,
+  "imu_manager.h": 4,
+  "camera_manager.h": 4,
+  "shot_list_model.h": 4,
+  "pp_settings.h": 4,
+  "version.h": 4,
+  "../Export/swing_doc.h": 4,
+  "AnalysisProfileLog.h": 3,
+  "pp_version.h": 3,
+  "shot_processor.h": 3,
+  "hm_instance.h": 3,
+  "swing_analysis.h": 3,
+  "pp_model_path.h": 3,
+  "SpinnakerPlatform.h": 3,
+  "pixel_format_names.h": 2,
+  "ram_payload_source.h": 2,
+  "source_descriptor.h": 2,
+  "ting_player.h": 2,
+  "video_input_factory.h": 2,
+  "ball_detector.h": 2,
+  "macos_permissions.h": 2,
+  "pose_estimator_base.h": 2,
+  "../Video/camera_capabilities.h": 2,
+  "imu_sample_tap.h": 2,
+  "ModelDownloader.h": 2,
+  "../Analysis/swing_analysis.h": 2,
+  "../Core/pp_os_metrics.h": 2,
+  "../Core/club_vocabulary.h": 2,
+  "imu_instance.h": 2,
+  "../Club/club_length_fusion.h": 2,
+  "Spinnaker.h": 2,
+  "SpinGenApi/SpinnakerGenApi.h": 2,
+  "source_ring.h": 1
+ }
+}

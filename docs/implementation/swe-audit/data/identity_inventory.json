@@ -1,0 +1,1041 @@
+{
+ "counts": {
+  "shot": {
+   "swingDir": 881,
+   "shotId": 554,
+   "ordinal": 493,
+   "swingId": 52,
+   "focusedSwingDir": 14,
+   "focusedShotId": 43,
+   "dirOf": 13,
+   "shotIndex": 24,
+   "shotNo": 48,
+   "selectedShotId": 12,
+   "selectedSwingDir": 6
+  },
+  "session": {
+   "sessionId": 118,
+   "sessionDir": 379,
+   "sessionKey": 6,
+   "activeSessionId": 12,
+   "activeSessionDir": 17,
+   "liveSessionDir": 16
+  },
+  "athlete": {
+   "athleteDir": 74,
+   "athleteName": 38
+  }
+ },
+ "per_file": {
+  "src/Analysis/shot_analyzer.h": {
+   "swingDir": 1
+  },
+  "src/Analysis/swing_reanalyzer.cpp": {
+   "swingDir": 15
+  },
+  "src/Analysis/swing_reanalyzer.h": {
+   "swingDir": 2
+  },
+  "src/Coaching/club_distances.h": {
+   "shotId": 1
+  },
+  "src/Coaching/diagnostic_ledger.h": {
+   "shotId": 4,
+   "ordinal": 4
+  },
+  "src/Coaching/outcome_scope.h": {
+   "shotId": 5
+  },
+  "src/Coaching/sequence_checks.h": {
+   "shotId": 6
+  },
+  "src/Coaching/swing_areas.h": {
+   "sessionId": 2
+  },
+  "src/Coaching/swing_themes.h": {
+   "shotId": 6
+  },
+  "src/Coaching/tendencies.h": {
+   "shotId": 5
+  },
+  "src/Coaching/work_ons.h": {
+   "sessionId": 10
+  },
+  "src/Diagnostics/measures/live_measure_source.cpp": {
+   "swingDir": 7,
+   "sessionId": 2
+  },
+  "src/Diagnostics/measures/live_measure_source.h": {
+   "swingDir": 2,
+   "sessionId": 1
+  },
+  "src/Diagnostics/measures/measure_sample.cpp": {
+   "ordinal": 3,
+   "swingDir": 13,
+   "sessionId": 3
+  },
+  "src/Diagnostics/measures/measure_sample.h": {
+   "ordinal": 1,
+   "swingDir": 3,
+   "sessionId": 1
+  },
+  "src/Export/session_archiver.cpp": {
+   "sessionDir": 33
+  },
+  "src/Export/session_archiver.h": {
+   "sessionDir": 5
+  },
+  "src/Export/swing_doc.cpp": {
+   "ordinal": 7,
+   "swingDir": 78,
+   "swingId": 1,
+   "sessionDir": 3,
+   "sessionId": 3,
+   "athleteDir": 4,
+   "athleteName": 8
+  },
+  "src/Export/swing_doc.h": {
+   "ordinal": 2,
+   "swingDir": 15,
+   "swingId": 1,
+   "sessionDir": 1,
+   "sessionId": 2,
+   "athleteName": 4
+  },
+  "src/Export/swing_exporter.cpp": {
+   "swingDir": 6,
+   "swingId": 2,
+   "sessionId": 1,
+   "athleteName": 1
+  },
+  "src/Export/swing_exporter.h": {
+   "swingDir": 2,
+   "swingId": 1,
+   "sessionId": 1,
+   "athleteName": 1
+  },
+  "src/Export/swing_paths.cpp": {
+   "swingDir": 5,
+   "swingId": 6,
+   "sessionDir": 23,
+   "sessionId": 6,
+   "athleteDir": 12,
+   "athleteName": 10
+  },
+  "src/Export/swing_paths.h": {
+   "swingDir": 1,
+   "swingId": 1,
+   "sessionId": 1,
+   "athleteDir": 1,
+   "athleteName": 4
+  },
+  "src/Export/swing_store.cpp": {
+   "swingDir": 32
+  },
+  "src/Export/swing_store.h": {
+   "swingDir": 15
+  },
+  "src/Export/swing_zip_exporter.cpp": {
+   "swingId": 2
+  },
+  "src/Gui/athlete/athlete_controller.cpp": {
+   "athleteDir": 6
+  },
+  "src/Gui/athlete/athlete_controller.h": {
+   "athleteDir": 1
+  },
+  "src/Gui/cameras/AnnotationTool.qml": {
+   "swingDir": 1,
+   "focusedSwingDir": 2
+  },
+  "src/Gui/cameras/PpAnnotationLayer.qml": {
+   "swingDir": 1
+  },
+  "src/Gui/cameras/PpCameraFrame.qml": {
+   "swingDir": 4,
+   "focusedSwingDir": 1
+  },
+  "src/Gui/cameras/PpCameraTiles.qml": {
+   "focusedShotId": 1
+  },
+  "src/Gui/cameras/camera_instance.cpp": {
+   "sessionId": 1
+  },
+  "src/Gui/cameras/camera_manager.cpp": {
+   "sessionKey": 6
+  },
+  "src/Gui/charts/PpChBoxCell.qml": {
+   "shotId": 4,
+   "ordinal": 3
+  },
+  "src/Gui/charts/PpChDeliveryFlight.qml": {
+   "ordinal": 5
+  },
+  "src/Gui/charts/PpChKindCurve.qml": {
+   "ordinal": 2
+  },
+  "src/Gui/charts/PpChKindTable.qml": {
+   "ordinal": 2
+  },
+  "src/Gui/charts/PpChPlot.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/PpChPostureSession.qml": {
+   "ordinal": 4
+  },
+  "src/Gui/charts/PpChProfile.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/PpChReadingTrace.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/PpChReplaySession.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/PpChRunBox.qml": {
+   "shotId": 1,
+   "ordinal": 10
+  },
+  "src/Gui/charts/PpChScatter.qml": {
+   "shotId": 1,
+   "ordinal": 21
+  },
+  "src/Gui/charts/PpChSeqSession.qml": {
+   "shotId": 1,
+   "ordinal": 7
+  },
+  "src/Gui/charts/PpChSessionFigure.qml": {
+   "ordinal": 8
+  },
+  "src/Gui/charts/PpChShotShapeGrid.qml": {
+   "ordinal": 7
+  },
+  "src/Gui/charts/PpChWristSession.qml": {
+   "shotId": 1,
+   "ordinal": 3
+  },
+  "src/Gui/charts/PpChWristShotSection.qml": {
+   "swingDir": 4
+  },
+  "src/Gui/charts/PpChartsBody.qml": {
+   "shotId": 2,
+   "ordinal": 3,
+   "swingDir": 3
+  },
+  "src/Gui/charts/PpChartsPanel.qml": {
+   "shotId": 2,
+   "swingDir": 7,
+   "sessionDir": 5,
+   "activeSessionId": 2,
+   "activeSessionDir": 2,
+   "liveSessionDir": 1
+  },
+  "src/Gui/charts/PpChartsSessionView.qml": {
+   "ordinal": 1,
+   "swingDir": 2
+  },
+  "src/Gui/charts/PpChartsShotView.qml": {
+   "swingDir": 11
+  },
+  "src/Gui/charts/PpReaderPlace.qml": {
+   "shotId": 2,
+   "swingDir": 7,
+   "sessionDir": 3
+  },
+  "src/Gui/charts/charts_consistency_presenter.cpp": {
+   "shotId": 1,
+   "ordinal": 32,
+   "swingDir": 3,
+   "sessionDir": 3
+  },
+  "src/Gui/charts/charts_consistency_presenter.h": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/charts_delivery_presenter.cpp": {
+   "shotId": 3,
+   "ordinal": 9,
+   "swingDir": 26,
+   "sessionDir": 9
+  },
+  "src/Gui/charts/charts_delivery_presenter.h": {
+   "swingDir": 1
+  },
+  "src/Gui/charts/charts_posture_presenter.cpp": {
+   "shotId": 3,
+   "ordinal": 33,
+   "swingDir": 13,
+   "dirOf": 3,
+   "sessionDir": 14
+  },
+  "src/Gui/charts/charts_posture_presenter.h": {
+   "swingDir": 1
+  },
+  "src/Gui/charts/charts_relations_presenter.cpp": {
+   "shotId": 4,
+   "ordinal": 40,
+   "swingDir": 15,
+   "sessionDir": 3
+  },
+  "src/Gui/charts/charts_traces_presenter.cpp": {
+   "shotId": 14,
+   "ordinal": 85,
+   "swingDir": 19
+  },
+  "src/Gui/charts/charts_traces_presenter.h": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/charts_wrist_presenter.cpp": {
+   "shotId": 5,
+   "ordinal": 9,
+   "swingDir": 10
+  },
+  "src/Gui/charts/delivery_picture.cpp": {
+   "ordinal": 2,
+   "swingDir": 10
+  },
+  "src/Gui/charts/delivery_picture.h": {
+   "ordinal": 1,
+   "swingDir": 3
+  },
+  "src/Gui/charts/posture_picture.cpp": {
+   "ordinal": 1,
+   "swingDir": 9
+  },
+  "src/Gui/charts/posture_picture.h": {
+   "ordinal": 1,
+   "swingDir": 3
+  },
+  "src/Gui/charts/session_bridge.cpp": {
+   "ordinal": 6
+  },
+  "src/Gui/charts/session_bridge.h": {
+   "ordinal": 2
+  },
+  "src/Gui/charts/session_consistency.cpp": {
+   "ordinal": 8
+  },
+  "src/Gui/charts/session_consistency.h": {
+   "ordinal": 4
+  },
+  "src/Gui/charts/session_curves.cpp": {
+   "ordinal": 2
+  },
+  "src/Gui/charts/session_curves.h": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/session_delivery.cpp": {
+   "shotId": 3,
+   "ordinal": 8,
+   "swingDir": 16,
+   "sessionId": 1
+  },
+  "src/Gui/charts/session_delivery.h": {
+   "shotId": 1,
+   "ordinal": 1,
+   "swingDir": 2
+  },
+  "src/Gui/charts/session_posture.cpp": {
+   "shotId": 2,
+   "ordinal": 10,
+   "swingDir": 2
+  },
+  "src/Gui/charts/session_posture.h": {
+   "shotId": 1,
+   "ordinal": 4,
+   "swingDir": 1
+  },
+  "src/Gui/charts/session_relations.cpp": {
+   "ordinal": 4,
+   "shotIndex": 6
+  },
+  "src/Gui/charts/session_relations.h": {
+   "shotIndex": 2
+  },
+  "src/Gui/charts/session_sequence.cpp": {
+   "ordinal": 2
+  },
+  "src/Gui/charts/session_sequence.h": {
+   "ordinal": 1
+  },
+  "src/Gui/charts/session_series_model.cpp": {
+   "shotId": 10,
+   "ordinal": 7,
+   "swingDir": 35,
+   "sessionDir": 11
+  },
+  "src/Gui/charts/session_series_model.h": {
+   "shotId": 2,
+   "swingDir": 9,
+   "sessionDir": 5
+  },
+  "src/Gui/charts/session_series_types.h": {
+   "shotId": 1,
+   "ordinal": 1,
+   "swingDir": 1,
+   "sessionDir": 1
+  },
+  "src/Gui/charts/session_traces.cpp": {
+   "ordinal": 20
+  },
+  "src/Gui/charts/session_traces.h": {
+   "ordinal": 3
+  },
+  "src/Gui/charts/session_warp.cpp": {
+   "ordinal": 13
+  },
+  "src/Gui/charts/session_warp.h": {
+   "ordinal": 2
+  },
+  "src/Gui/components/PpVariabilityMark.qml": {
+   "swingId": 3
+  },
+  "src/Gui/components/TrendVocabulary.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/diagnosticmodel/DiagnosticModel.qml": {
+   "swingDir": 1
+  },
+  "src/Gui/diagnosticmodel/model_browser.cpp": {
+   "ordinal": 1,
+   "swingDir": 3
+  },
+  "src/Gui/diagnostics/PpBarcode.qml": {
+   "shotId": 4,
+   "shotIndex": 2,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpBoxStrip.qml": {
+   "shotId": 22,
+   "swingDir": 10
+  },
+  "src/Gui/diagnostics/PpCarryWaterfall.qml": {
+   "shotId": 1
+  },
+  "src/Gui/diagnostics/PpConsistencyView.qml": {
+   "shotId": 3,
+   "ordinal": 3,
+   "swingDir": 8,
+   "focusedSwingDir": 1,
+   "sessionDir": 10,
+   "activeSessionId": 2,
+   "activeSessionDir": 2,
+   "liveSessionDir": 1
+  },
+  "src/Gui/diagnostics/PpDiagAnalyse.qml": {
+   "shotId": 2,
+   "shotNo": 4,
+   "swingDir": 8,
+   "dirOf": 1,
+   "sessionDir": 7
+  },
+  "src/Gui/diagnostics/PpDiagPrint.qml": {
+   "shotId": 3,
+   "shotNo": 5,
+   "swingDir": 2,
+   "sessionDir": 4
+  },
+  "src/Gui/diagnostics/PpDiagReplay.qml": {
+   "shotId": 6,
+   "shotNo": 3,
+   "swingDir": 7,
+   "dirOf": 1,
+   "sessionDir": 5
+  },
+  "src/Gui/diagnostics/PpDiagReplaySessionRows.qml": {
+   "shotId": 1,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpDiagReplayState.qml": {
+   "shotId": 3,
+   "shotIndex": 5
+  },
+  "src/Gui/diagnostics/PpDiagRoles.qml": {
+   "shotNo": 2
+  },
+  "src/Gui/diagnostics/PpDiagSessionOutcomes.qml": {
+   "shotId": 4,
+   "swingDir": 1,
+   "sessionDir": 1
+  },
+  "src/Gui/diagnostics/PpEntryFlow.qml": {
+   "shotId": 2,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpFeatureHead.qml": {
+   "shotId": 1,
+   "shotNo": 3,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpFigureRow.qml": {
+   "shotId": 5,
+   "shotNo": 3,
+   "swingDir": 5,
+   "sessionDir": 2
+  },
+  "src/Gui/diagnostics/PpHistoryStrip.qml": {
+   "sessionDir": 3
+  },
+  "src/Gui/diagnostics/PpKeyFigures.qml": {
+   "shotNo": 4
+  },
+  "src/Gui/diagnostics/PpLedgerTable.qml": {
+   "shotId": 5,
+   "shotNo": 3,
+   "shotIndex": 2,
+   "swingDir": 5,
+   "dirOf": 1
+  },
+  "src/Gui/diagnostics/PpMasthead.qml": {
+   "shotNo": 1
+  },
+  "src/Gui/diagnostics/PpPathChains.qml": {
+   "shotNo": 3
+  },
+  "src/Gui/diagnostics/PpQuestions.qml": {
+   "shotId": 3
+  },
+  "src/Gui/diagnostics/PpRunChart.qml": {
+   "shotId": 15,
+   "swingDir": 3
+  },
+  "src/Gui/diagnostics/PpSessionDiagnosticsBody.qml": {
+   "shotId": 1,
+   "selectedShotId": 1,
+   "shotIndex": 1,
+   "swingDir": 1,
+   "sessionDir": 1
+  },
+  "src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml": {
+   "shotId": 3,
+   "focusedShotId": 1,
+   "selectedShotId": 2,
+   "swingDir": 4,
+   "focusedSwingDir": 1,
+   "selectedSwingDir": 3,
+   "sessionDir": 6,
+   "activeSessionId": 2,
+   "activeSessionDir": 6,
+   "liveSessionDir": 2
+  },
+  "src/Gui/diagnostics/PpShotOutcomeHead.qml": {
+   "shotId": 14,
+   "shotNo": 2
+  },
+  "src/Gui/diagnostics/PpShotRuler.qml": {
+   "shotId": 12,
+   "swingDir": 1,
+   "dirOf": 1
+  },
+  "src/Gui/diagnostics/PpSmallMultiple.qml": {
+   "shotId": 11,
+   "swingDir": 5
+  },
+  "src/Gui/diagnostics/PpSmallMultiples.qml": {
+   "shotId": 2,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpSparkHead.qml": {
+   "shotNo": 2
+  },
+  "src/Gui/diagnostics/PpSparkRow.qml": {
+   "shotId": 2,
+   "swingDir": 1
+  },
+  "src/Gui/diagnostics/PpSparkline.qml": {
+   "shotId": 9,
+   "swingDir": 3,
+   "dirOf": 1
+  },
+  "src/Gui/diagnostics/PpWhatChanged.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/diagnostics/session_diagnostics_model.cpp": {
+   "shotId": 95,
+   "swingDir": 37,
+   "sessionDir": 10,
+   "sessionId": 5
+  },
+  "src/Gui/diagnostics/session_diagnostics_model.h": {
+   "shotId": 16,
+   "selectedShotId": 3,
+   "swingDir": 5,
+   "selectedSwingDir": 3,
+   "sessionDir": 6
+  },
+  "src/Gui/diagnostics/work_ons_controller.cpp": {
+   "shotId": 6,
+   "dirOf": 3,
+   "sessionDir": 16,
+   "sessionId": 12,
+   "athleteDir": 24
+  },
+  "src/Gui/diagnostics/work_ons_controller.h": {
+   "sessionDir": 3,
+   "athleteDir": 12
+  },
+  "src/Gui/home/HmAreaRow.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmFaultDetail.qml": {
+   "sessionDir": 5
+  },
+  "src/Gui/home/HmFaultRow.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmFocus.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmGoesTogether.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmHomeTabs.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmSessions.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/home/HmSwingAreas.qml": {
+   "sessionDir": 1,
+   "athleteDir": 1
+  },
+  "src/Gui/home/HmSwingSummary.qml": {
+   "sessionDir": 1,
+   "athleteDir": 2
+  },
+  "src/Gui/home/HmTendencies.qml": {
+   "athleteDir": 1
+  },
+  "src/Gui/home/PpcpOfferList.qml": {
+   "sessionId": 2
+  },
+  "src/Gui/home/ScreenHome.qml": {
+   "sessionDir": 1
+  },
+  "src/Gui/imu/trunk_ceremony_recorder.cpp": {
+   "sessionDir": 3
+  },
+  "src/Gui/imu/trunk_ceremony_recorder.h": {
+   "sessionDir": 1
+  },
+  "src/Gui/launchmonitor/launch_monitor_controller.cpp": {
+   "shotId": 4,
+   "swingDir": 37,
+   "swingId": 6,
+   "sessionId": 7,
+   "athleteName": 1
+  },
+  "src/Gui/launchmonitor/launch_monitor_controller.h": {
+   "shotId": 2,
+   "swingDir": 9,
+   "swingId": 1,
+   "sessionId": 1
+  },
+  "src/Gui/launchmonitor/lm_session_model.cpp": {
+   "shotId": 4,
+   "ordinal": 9,
+   "swingDir": 3
+  },
+  "src/Gui/launchmonitor/lm_session_model.h": {
+   "shotId": 2,
+   "focusedShotId": 3
+  },
+  "src/Gui/main.cpp": {
+   "shotId": 8,
+   "ordinal": 3,
+   "swingDir": 5,
+   "sessionDir": 3,
+   "sessionId": 2,
+   "activeSessionId": 1,
+   "activeSessionDir": 1,
+   "liveSessionDir": 1,
+   "athleteDir": 6
+  },
+  "src/Gui/markup/markup_controller.cpp": {
+   "swingDir": 4
+  },
+  "src/Gui/markup/markup_controller.h": {
+   "swingDir": 1
+  },
+  "src/Gui/markup/markup_truth.cpp": {
+   "swingDir": 14
+  },
+  "src/Gui/markup/markup_truth.h": {
+   "swingDir": 10
+  },
+  "src/Gui/report/PpLmAppendix.qml": {
+   "focusedShotId": 2
+  },
+  "src/Gui/report/PpReportSheet.qml": {
+   "sessionDir": 9
+  },
+  "src/Gui/report/PpSessionBulkJobs.qml": {
+   "liveSessionDir": 2
+  },
+  "src/Gui/report/PpWorkOnPage.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/report/PpWristPage.qml": {
+   "ordinal": 1
+  },
+  "src/Gui/report/report_mailer.cpp": {
+   "sessionDir": 4
+  },
+  "src/Gui/report/report_mailer.h": {
+   "sessionDir": 3
+  },
+  "src/Gui/report/report_meta.h": {
+   "sessionDir": 27
+  },
+  "src/Gui/report/report_stills.cpp": {
+   "swingDir": 2
+  },
+  "src/Gui/report/report_stills.h": {
+   "swingDir": 2
+  },
+  "src/Gui/report/session_report_list_model.cpp": {
+   "sessionDir": 12,
+   "athleteDir": 2
+  },
+  "src/Gui/report/session_report_list_model.h": {
+   "sessionDir": 3,
+   "athleteDir": 2
+  },
+  "src/Gui/report/session_report_model.cpp": {
+   "shotId": 6,
+   "swingDir": 1,
+   "sessionDir": 39,
+   "athleteName": 3
+  },
+  "src/Gui/report/session_report_model.h": {
+   "sessionDir": 13
+  },
+  "src/Gui/review/PpDataViewer.qml": {
+   "swingDir": 9
+  },
+  "src/Gui/review/PpPropertiesPanel.qml": {
+   "swingDir": 3
+  },
+  "src/Gui/review/PpTransitTimeline.qml": {
+   "swingDir": 2
+  },
+  "src/Gui/review/session_list_model.cpp": {
+   "sessionId": 1
+  },
+  "src/Gui/review/session_list_model.h": {
+   "sessionId": 1
+  },
+  "src/Gui/review/session_review_controller.cpp": {
+   "ordinal": 1,
+   "swingDir": 1,
+   "sessionDir": 8,
+   "sessionId": 16,
+   "liveSessionDir": 5
+  },
+  "src/Gui/review/session_review_controller.h": {
+   "sessionDir": 2,
+   "sessionId": 3,
+   "activeSessionId": 3,
+   "liveSessionDir": 3
+  },
+  "src/Gui/review/swing_data_source.h": {
+   "swingDir": 3
+  },
+  "src/Gui/session/PpLaunchMonitorPanel.qml": {
+   "shotId": 17,
+   "focusedShotId": 4,
+   "ordinal": 3,
+   "swingDir": 4
+  },
+  "src/Gui/session/PpLmGraphicsBody.qml": {
+   "shotId": 31,
+   "focusedShotId": 3,
+   "ordinal": 10,
+   "shotNo": 11,
+   "shotIndex": 1,
+   "swingDir": 2,
+   "sessionDir": 1
+  },
+  "src/Gui/session/PpSessionDrawer.qml": {
+   "sessionId": 7
+  },
+  "src/Gui/session/PpSessionToolbar.qml": {
+   "activeSessionDir": 1
+  },
+  "src/Gui/session/ScreenWrist.qml": {
+   "swingDir": 6
+  },
+  "src/Gui/session/SessionMode.qml": {
+   "shotId": 8,
+   "focusedShotId": 10,
+   "swingDir": 8,
+   "focusedSwingDir": 9,
+   "sessionDir": 1
+  },
+  "src/Gui/settings/archive_controller.cpp": {
+   "sessionDir": 17
+  },
+  "src/Gui/settings/archive_controller.h": {
+   "sessionDir": 4
+  },
+  "src/Gui/setup/ScreenSessionSetup.qml": {
+   "athleteName": 2
+  },
+  "src/Gui/setup/SetupContext.qml": {
+   "athleteName": 1
+  },
+  "src/Gui/shell/Main.qml": {
+   "shotId": 5,
+   "focusedShotId": 1,
+   "swingDir": 11,
+   "sessionDir": 2
+  },
+  "src/Gui/shell/PpDetectCluster.qml": {
+   "swingDir": 1
+  },
+  "src/Gui/shot/PpShotActionBar.qml": {
+   "ordinal": 2
+  },
+  "src/Gui/shot/PpShotCard.qml": {
+   "shotId": 2,
+   "ordinal": 6,
+   "swingDir": 3
+  },
+  "src/Gui/shot/PpShotCarousel.qml": {
+   "shotId": 21,
+   "focusedShotId": 14,
+   "selectedShotId": 6,
+   "swingDir": 20,
+   "sessionId": 4
+  },
+  "src/Gui/shot/PpShotFilter.qml": {
+   "shotId": 4,
+   "focusedShotId": 4,
+   "ordinal": 6,
+   "swingDir": 3
+  },
+  "src/Gui/shot/PpShotPipRow.qml": {
+   "shotId": 2
+  },
+  "src/Gui/shot/PpSwingEditPanel.qml": {
+   "ordinal": 2,
+   "swingDir": 6
+  },
+  "src/Gui/shot/current_swing.h": {
+   "swingDir": 3
+  },
+  "src/Gui/shot/disk_replay_source.cpp": {
+   "swingDir": 8
+  },
+  "src/Gui/shot/disk_replay_source.h": {
+   "swingDir": 1
+  },
+  "src/Gui/shot/ppcp_clip_filer.cpp": {
+   "shotId": 25,
+   "swingDir": 24,
+   "sessionId": 6
+  },
+  "src/Gui/shot/ppcp_clip_filer.h": {
+   "shotId": 5,
+   "swingDir": 3,
+   "sessionId": 2
+  },
+  "src/Gui/shot/reanalysis_controller.h": {
+   "swingDir": 4
+  },
+  "src/Gui/shot/replay_source.h": {
+   "swingDir": 1
+  },
+  "src/Gui/shot/shot_controller.cpp": {
+   "shotId": 14
+  },
+  "src/Gui/shot/shot_controller.h": {
+   "shotId": 4
+  },
+  "src/Gui/shot/shot_list_model.cpp": {
+   "ordinal": 19,
+   "swingDir": 47
+  },
+  "src/Gui/shot/shot_list_model.h": {
+   "ordinal": 3,
+   "swingDir": 11
+  },
+  "src/Gui/shot/shot_processor.cpp": {
+   "ordinal": 2,
+   "swingDir": 11,
+   "swingId": 3,
+   "sessionId": 3,
+   "athleteName": 3
+  },
+  "src/Gui/shot/shot_processor.h": {
+   "shotId": 1,
+   "ordinal": 1,
+   "swingDir": 1,
+   "activeSessionDir": 3
+  },
+  "src/Gui/shot/shot_replay_controller.cpp": {
+   "shotId": 2,
+   "swingDir": 4
+  },
+  "src/Gui/shot/shot_replay_controller.h": {
+   "shotId": 4,
+   "swingDir": 4
+  },
+  "src/Gui/swing3d/SwingViz3DHost.qml": {
+   "swingDir": 3
+  },
+  "src/Gui/swing3d/SwingViz3DView.qml": {
+   "swingDir": 8
+  },
+  "src/Gui/swing3d/swing_rig_driver.cpp": {
+   "swingDir": 3,
+   "sessionDir": 10
+  },
+  "src/Gui/swing3d/swing_rig_driver.h": {
+   "swingDir": 4,
+   "sessionDir": 1
+  },
+  "src/Gui/trust/PpTrustInline.qml": {
+   "swingDir": 2
+  },
+  "src/Gui/trust/PpTrustInlineFor.qml": {
+   "swingDir": 6
+  },
+  "src/Gui/trust/PpTrustPanel.qml": {
+   "swingDir": 1,
+   "sessionDir": 4,
+   "activeSessionId": 2,
+   "activeSessionDir": 2,
+   "liveSessionDir": 1
+  },
+  "src/Gui/trust/PpTrustSummaryFold.qml": {
+   "swingDir": 7,
+   "sessionDir": 4
+  },
+  "src/Gui/trust/TrustFocus.qml": {
+   "swingDir": 5
+  },
+  "src/Gui/trust/trust_presenter.cpp": {
+   "ordinal": 4,
+   "swingDir": 3
+  },
+  "src/Gui/trust/trust_readings.cpp": {
+   "swingDir": 6
+  },
+  "src/Gui/typeset/PpBoxPlot.qml": {
+   "shotId": 5
+  },
+  "src/Gui/typeset/PpBrush.qml": {
+   "shotId": 7,
+   "swingDir": 6,
+   "dirOf": 1
+  },
+  "src/Gui/typeset/PpMark.qml": {
+   "shotId": 7
+  },
+  "src/Gui/typeset/PpPageKey.qml": {
+   "shotId": 4
+  },
+  "src/Gui/typeset/PpShotStrip.qml": {
+   "shotId": 13,
+   "swingDir": 1,
+   "dirOf": 1
+  },
+  "src/Gui/typeset/PpTypeset.qml": {
+   "shotId": 5,
+   "shotNo": 2,
+   "shotIndex": 5,
+   "sessionDir": 1
+  },
+  "src/Gui/variability/variability_facade.cpp": {
+   "swingId": 1
+  },
+  "src/Gui/variability/variability_geometry.cpp": {
+   "swingId": 8
+  },
+  "src/Gui/variability/variability_geometry.h": {
+   "swingId": 4
+  },
+  "src/LaunchMonitor/premier_monitor.cpp": {
+   "sessionId": 6
+  },
+  "src/LaunchMonitor/premier_monitor.h": {
+   "sessionId": 1
+  },
+  "src/LaunchMonitor/premier_session_parser.cpp": {
+   "sessionId": 3
+  },
+  "src/LaunchMonitor/premier_session_parser.h": {
+   "sessionId": 1
+  },
+  "src/LaunchMonitor/shot_pairing.h": {
+   "swingDir": 3
+  },
+  "src/Metrics/variability/variability_constants.h": {
+   "ordinal": 1
+  },
+  "src/Metrics/variability/variability_grader.cpp": {
+   "ordinal": 1
+  },
+  "src/Metrics/variability/variability_result.cpp": {
+   "ordinal": 1
+  },
+  "src/Metrics/variability/variability_typicality.cpp": {
+   "swingId": 7
+  },
+  "src/Metrics/variability/variability_typicality.h": {
+   "swingId": 5
+  }
+ },
+ "translators": [
+  "src/Diagnostics/measures/anatomy_vocabulary.cpp:154: midOf",
+  "src/Diagnostics/norms/context_tree.cpp:270: contextIdForClub",
+  "src/Gui/charts/charts_consistency_presenter.cpp:905: ChartsConsistencyPresenter::waitForIdle",
+  "src/Gui/charts/charts_delivery_presenter.cpp:1079: ChartsDeliveryPresenter::waitForIdle",
+  "src/Gui/charts/charts_posture_presenter.cpp:1916: ChartsPosturePresenter::waitForIdle",
+  "src/Gui/charts/charts_relations_presenter.cpp:2855: ChartsRelationsPresenter::waitForIdle",
+  "src/Gui/charts/charts_traces_presenter.cpp:3712: ChartsTracesPresenter::waitForIdle",
+  "src/Gui/charts/charts_wrist_presenter.cpp:2211: ChartsWristPresenter::waitForIdle",
+  "src/Gui/charts/session_delivery.cpp:245: deliveryPhaseGridOf",
+  "src/Gui/charts/session_relations.cpp:126: medoidOf",
+  "src/Gui/charts/session_series_model.cpp:441: SessionSeriesModel::waitForIdle",
+  "src/Gui/diagnostics/session_diagnostics_model.cpp:791: SessionDiagnosticsModel::shotIdForSwingDir",
+  "src/Gui/diagnostics/session_diagnostics_model.cpp:1386: SessionDiagnosticsModel::waitForIdle",
+  "src/Gui/diagnostics/session_diagnostics_model.cpp:3304: SessionDiagnosticsModel::indexOfShot",
+  "src/Gui/diagnostics/work_ons_controller.cpp:632: WorkOnsController::waitForIdle",
+  "src/Gui/imu/hm_instance.cpp:74: HmUnit::unitIdFor",
+  "src/Gui/imu/imu_manager.cpp:658: ImuManager::deviceIdForRole",
+  "src/Gui/monitor/RmPpcpCameraRow.qml:30: VideoInputPpcp::deviceIdFor",
+  "src/Gui/monitor/ScreenResourceMonitor.qml:58: VideoInputPpcp::deviceIdFor",
+  "src/Gui/report/PpSessionReport.qml:462: shotOfText",
+  "src/Gui/review/session_review_controller.cpp:321: SessionReviewController::swingDirsForSession",
+  "src/Gui/shot/shot_list_model.cpp:110: ShotListModel::rowForId",
+  "src/Gui/shot/shot_list_model.cpp:118: ShotListModel::ordinalForId",
+  "src/Gui/shot/shot_list_model.cpp:593: ShotListModel::swingDirsForIds",
+  "src/Gui/shot/shot_list_model.cpp:641: ShotListModel::analysisDetailForSwingDir",
+  "src/Gui/typeset/PpBrush.qml:51: dirOf",
+  "src/Gui/typeset/PpTypeset.qml:220: shotOfText",
+  "src/Gui/typeset/PpTypeset.qml:374: shotOfText"
+ ],
+ "translator_calls": {
+  "indexOfShot": 20,
+  "waitForIdle": 19,
+  "rowForId": 13,
+  "contextIdForClub": 12,
+  "dirOf": 9,
+  "deviceIdForRole": 7,
+  "rowOf": 7,
+  "shotOfText": 7,
+  "unitIdFor": 7,
+  "midOf": 6,
+  "swingDirsForSession": 6,
+  "swingDirsForIds": 6,
+  "shotIdForSwingDir": 5,
+  "deliveryPhaseGridOf": 3,
+  "medoidOf": 3,
+  "ordinalForId": 3,
+  "deviceIdFor": 2,
+  "analysisDetailForSwingDir": 2,
+  "peerForId": 1,
+  "idOf": 1
+ }
+}

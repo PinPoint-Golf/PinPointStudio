@@ -1,0 +1,1611 @@
+{
+ "dup_names": {
+  "kChunk": [
+   {
+    "file": "src/Analysis/frame_store.cpp",
+    "line": 133,
+    "value": "32"
+   },
+   {
+    "file": "src/Gui/report/smtp_client.cpp",
+    "line": 37,
+    "value": "64 * 1024"
+   },
+   {
+    "file": "src/Export/session_archiver.cpp",
+    "line": 74,
+    "value": "4 << 20"
+   }
+  ],
+  "kRadToDeg": [
+   {
+    "file": "src/Metrics/metric_channel.h",
+    "line": 277,
+    "value": "57.29577951308232"
+   },
+   {
+    "file": "src/LaunchMonitor/lm_flight_path.h",
+    "line": 68,
+    "value": "180.0 / M_PI"
+   }
+  ],
+  "kPhaseCount": [
+   {
+    "file": "src/Metrics/metric_descriptor.h",
+    "line": 412,
+    "value": "15"
+   },
+   {
+    "file": "src/Gui/review/timeline_labels.cpp",
+    "line": 63,
+    "value": "int(sizeof(kFullNames) / sizeof(kFullNames[0]))"
+   }
+  ],
+  "kInf": [
+   {
+    "file": "src/Metrics/variability/variability_grader.cpp",
+    "line": 30,
+    "value": "std::numeric_limits<double>::infinity()"
+   },
+   {
+    "file": "src/Metrics/variability/variability_typicality.cpp",
+    "line": 36,
+    "value": "std::numeric_limits<double>::infinity()"
+   }
+  ],
+  "kPi": [
+   {
+    "file": "src/Metrics/variability/variability_grader.cpp",
+    "line": 32,
+    "value": "3.14159265358979323846"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.cpp",
+    "line": 45,
+    "value": "3.14159265358979323846"
+   },
+   {
+    "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+    "line": 32,
+    "value": "3.14159265358979323846"
+   },
+   {
+    "file": "src/LaunchMonitor/premier_session_parser.cpp",
+    "line": 32,
+    "value": "3.14159265358979323846"
+   }
+  ],
+  "kNaN": [
+   {
+    "file": "src/Metrics/variability/variability_result.h",
+    "line": 77,
+    "value": "std::numeric_limits<double>::quiet_NaN()"
+   },
+   {
+    "file": "src/Coaching/swing_themes.h",
+    "line": 392,
+    "value": "std::numeric_limits<double>::quiet_NaN()"
+   },
+   {
+    "file": "src/Gui/charts/session_series_types.h",
+    "line": 54,
+    "value": "std::numeric_limits<double>::quiet_NaN()"
+   }
+  ],
+  "kFlagCoasted": [
+   {
+    "file": "src/Gui/shot/dtl_overlay_payload.cpp",
+    "line": 37,
+    "value": "0x04"
+   },
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 62,
+    "value": "0x04, kFlagPredicted = 0x20, kFlagOffFrame = 0x80, kFlagSynthesized = 0x100"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 46,
+    "value": "0x04, kFlagPredicted = 0x20, kFlagOffFrame = 0x80, kFlagSynthesized = 0x100"
+   }
+  ],
+  "kConfThreshold": [
+   {
+    "file": "src/Gui/review/swing_coverage_model.cpp",
+    "line": 26,
+    "value": "0.5"
+   },
+   {
+    "file": "src/Gui/review/swing_data_source.cpp",
+    "line": 46,
+    "value": "0.5"
+   },
+   {
+    "file": "src/Gui/review/swing_series_model.cpp",
+    "line": 30,
+    "value": "0.5"
+   }
+  ],
+  "kImpactPhase": [
+   {
+    "file": "src/Gui/review/timeline_labels.cpp",
+    "line": 67,
+    "value": "5"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 48,
+    "value": "5"
+   }
+  ],
+  "kPos": [
+   {
+    "file": "src/Gui/charts/charts_delivery_presenter.cpp",
+    "line": 100,
+    "value": "kDeliveryPositions"
+   },
+   {
+    "file": "src/Gui/charts/charts_posture_presenter.cpp",
+    "line": 117,
+    "value": "kPosturePositions"
+   }
+  ],
+  "kind": [
+   {
+    "file": "src/Gui/charts/charts_traces_presenter.cpp",
+    "line": 1456,
+    "value": "v == QLatin1String(\"    \") ? 0 : v == QLatin1String(\"         \") ? 1 : v == QLatin1String(\"    \") ? 2 : 3"
+   },
+   {
+    "file": "src/Export/swing_doc.cpp",
+    "line": 998,
+    "value": "int(analysis::SigmaKind::AssumedInput)"
+   }
+  ],
+  "kAddressWindowUs": [
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 61,
+    "value": "60000"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 45,
+    "value": "60000"
+   }
+  ],
+  "kConfMin": [
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 44,
+    "value": "0.3"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 460,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 751,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 883,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1002,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1043,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1114,
+    "value": "0.30"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1189,
+    "value": "0.30"
+   }
+  ],
+  "kMaxEntries": [
+   {
+    "file": "src/Core/PpMessageLog.h",
+    "line": 66,
+    "value": "500"
+   },
+   {
+    "file": "src/Core/PpStatsLog.h",
+    "line": 60,
+    "value": "1000"
+   }
+  ],
+  "kDegToRad": [
+   {
+    "file": "src/LaunchMonitor/lm_flight_path.h",
+    "line": 67,
+    "value": "M_PI / 180.0"
+   },
+   {
+    "file": "src/LaunchMonitor/lm_inferred_reads.h",
+    "line": 556,
+    "value": "3.14159265358979323846 / 180.0"
+   }
+  ]
+ },
+ "dup_values": {
+  "3.14159265358979323846": [
+   {
+    "file": "src/Analysis/analysis_pipeline.cpp",
+    "line": 106,
+    "name": "kPiD"
+   },
+   {
+    "file": "src/Metrics/variability/variability_grader.cpp",
+    "line": 32,
+    "name": "kPi"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.cpp",
+    "line": 45,
+    "name": "kPi"
+   },
+   {
+    "file": "src/LaunchMonitor/gcquad_csv_parser.cpp",
+    "line": 32,
+    "name": "kPi"
+   },
+   {
+    "file": "src/LaunchMonitor/premier_session_parser.cpp",
+    "line": 32,
+    "name": "kPi"
+   }
+  ],
+  "24": [
+   {
+    "file": "src/Analysis/analysis_pipeline.cpp",
+    "line": 338,
+    "name": "kPts"
+   },
+   {
+    "file": "src/Core/pp_debug.cpp",
+    "line": 213,
+    "name": "kAvLogWarning"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 743,
+    "name": "kFrameStoreBgrMinRamGiB"
+   }
+  ],
+  "150000": [
+   {
+    "file": "src/Analysis/analysis_pipeline.cpp",
+    "line": 620,
+    "name": "kScanPadUs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1605,
+    "name": "kPeakWindowUs"
+   }
+  ],
+  "4.0": [
+   {
+    "file": "src/Analysis/analysis_pipeline.cpp",
+    "line": 2724,
+    "name": "kGripSigmaPx"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 144,
+    "name": "kDeliveryShapeBandDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 683,
+    "name": "kInnovRef"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1824,
+    "name": "kMinWidthDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1993,
+    "name": "kShadowAreaMaxFrac"
+   }
+  ],
+  "7": [
+   {
+    "file": "src/Analysis/analysis_versions.h",
+    "line": 96,
+    "name": "kDtlShaftStageVersion"
+   },
+   {
+    "file": "src/Coaching/consistency_home.h",
+    "line": 39,
+    "name": "kConsistencyAfterBallColumn"
+   },
+   {
+    "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+    "line": 641,
+    "name": "kDetailMaxDepth"
+   },
+   {
+    "file": "src/Gui/review/chart_metrics.cpp",
+    "line": 184,
+    "name": "kFinishPhase"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 127,
+    "name": "kDeliveryPositions"
+   },
+   {
+    "file": "src/Gui/charts/session_posture.h",
+    "line": 165,
+    "name": "kPostureRows"
+   },
+   {
+    "file": "src/Gui/report/report_delivery.h",
+    "line": 77,
+    "name": "kDeliveryReportPositions"
+   },
+   {
+    "file": "src/Gui/report/report_posture.h",
+    "line": 79,
+    "name": "kPostureRowCap"
+   },
+   {
+    "file": "src/Gui/report/report_wrist.h",
+    "line": 98,
+    "name": "kWristMovesWithCap"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1836,
+    "name": "kTiers"
+   }
+  ],
+  "9": [
+   {
+    "file": "src/Analysis/analysis_versions.h",
+    "line": 112,
+    "name": "kShaftFusionStageVersion"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 798,
+    "name": "kActivityRefFrames"
+   }
+  ],
+  "18": [
+   {
+    "file": "src/Analysis/analysis_versions.h",
+    "line": 148,
+    "name": "kSkeleton3DStageVersion"
+   },
+   {
+    "file": "src/Coaching/session_report.h",
+    "line": 100,
+    "name": "kAdultAge"
+   },
+   {
+    "file": "src/Gui/report/report_posture.h",
+    "line": 74,
+    "name": "kPostureTrustCap"
+   }
+  ],
+  "3.0": [
+   {
+    "file": "src/Analysis/capture_integrity_check.h",
+    "line": 79,
+    "name": "kCaptureHolePeriods"
+   },
+   {
+    "file": "src/Coaching/club_distances.h",
+    "line": 74,
+    "name": "kClubTrendMinYards"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 240,
+    "name": "kFeetPerYard"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 132,
+    "name": "kDeliveryGoingBackDeg"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 133,
+    "name": "kDeliveryHandsDeg"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 136,
+    "name": "kDeliveryUsualDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 100,
+    "name": "kTrunkGravityTolPct"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 850,
+    "name": "kP1ClubQuietSigma"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1118,
+    "name": "kSpanNoisePx"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1147,
+    "name": "kImuTissueSigmaThoraxDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1192,
+    "name": "kSpanNoisePx"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1198,
+    "name": "kKpSigmaPx"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1393,
+    "name": "kCameraArmTopWidthSigmas"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1408,
+    "name": "kGapBridgeAgreeSigma"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1453,
+    "name": "kAttackSynthMaxStepRatio"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1660,
+    "name": "kSigmaUnsetDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1661,
+    "name": "kGateSigma"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1703,
+    "name": "kMaxShiftS"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 2105,
+    "name": "kTierSeenSigmas"
+   }
+  ],
+  "32": [
+   {
+    "file": "src/Analysis/frame_store.cpp",
+    "line": 133,
+    "name": "kChunk"
+   },
+   {
+    "file": "src/Gui/shot/ppcp_clip_filer.h",
+    "line": 161,
+    "name": "kMaxForgotten"
+   }
+  ],
+  "16": [
+   {
+    "file": "src/Analysis/mp4_frame_reader.cpp",
+    "line": 37,
+    "name": "kOpenCvSeekBackoff"
+   },
+   {
+    "file": "src/Gui/shot/shot_controller.h",
+    "line": 322,
+    "name": "kDetectionRing"
+   },
+   {
+    "file": "src/Gui/report/report_wrist.h",
+    "line": 99,
+    "name": "kWristTrustCap"
+   },
+   {
+    "file": "src/Gui/report/session_report_model.cpp",
+    "line": 241,
+    "name": "kPostureFramesPerGroup"
+   },
+   {
+    "file": "src/Core/pp_debug.cpp",
+    "line": 212,
+    "name": "kAvLogError"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 363,
+    "name": "kBatchSize"
+   }
+  ],
+  "8": [
+   {
+    "file": "src/Analysis/mp4_frame_reader.cpp",
+    "line": 41,
+    "name": "kForwardSeekMargin"
+   },
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 55,
+    "name": "kNMin"
+   },
+   {
+    "file": "src/Diagnostics/engine/diagnostics_health.h",
+    "line": 187,
+    "name": "kMinCorpusForShare"
+   },
+   {
+    "file": "src/Coaching/consistency_home.h",
+    "line": 38,
+    "name": "kConsistencyColumns"
+   },
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 134,
+    "name": "kDiagMinPairsForDependence"
+   },
+   {
+    "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+    "line": 513,
+    "name": "kHistoryMaxColumns"
+   },
+   {
+    "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+    "line": 640,
+    "name": "kDetailMaxPaths"
+   },
+   {
+    "file": "src/Gui/shot/ppcp_clip_filer.h",
+    "line": 157,
+    "name": "kMaxTrackedShots"
+   },
+   {
+    "file": "src/Gui/shot/shot_arbiter.h",
+    "line": 181,
+    "name": "kMaxCandidates"
+   },
+   {
+    "file": "src/Gui/charts/charts_wrist_presenter.cpp",
+    "line": 68,
+    "name": "kP"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 71,
+    "name": "kConsistencyMinBallShots"
+   },
+   {
+    "file": "src/Gui/charts/session_posture.h",
+    "line": 166,
+    "name": "kPosturePositions"
+   },
+   {
+    "file": "src/Gui/report/report_consistency.h",
+    "line": 76,
+    "name": "kConsistencyReportRowCap"
+   },
+   {
+    "file": "src/Gui/report/report_posture.h",
+    "line": 77,
+    "name": "kPostureAddressCap"
+   },
+   {
+    "file": "src/Gui/report/report_wrist.h",
+    "line": 97,
+    "name": "kWristRecurringCap"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 342,
+    "name": "kQueueDepth"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 358,
+    "name": "kBatchSize"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1837,
+    "name": "kGroups"
+   }
+  ],
+  "17": [
+   {
+    "file": "src/Analysis/swing_analysis.h",
+    "line": 414,
+    "name": "kFootFirstKp"
+   },
+   {
+    "file": "src/Coaching/tendencies.h",
+    "line": 71,
+    "name": "kTendencyRuleVersion"
+   },
+   {
+    "file": "src/Gui/report/report_stills_pure.cpp",
+    "line": 43,
+    "name": "kBodyKeypoints"
+   }
+  ],
+  "57.29577951308232": [
+   {
+    "file": "src/Metrics/metric_channel.h",
+    "line": 277,
+    "name": "kRadToDeg"
+   },
+   {
+    "file": "src/Gui/review/swing_data_source.cpp",
+    "line": 47,
+    "name": "kRad2Deg"
+   }
+  ],
+  "15": [
+   {
+    "file": "src/Metrics/metric_descriptor.h",
+    "line": 412,
+    "name": "kPhaseCount"
+   },
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 239,
+    "name": "kDiagSchemaVersion"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1541,
+    "name": "kOnsetReturnGapFrames"
+   }
+  ],
+  "20": [
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 56,
+    "name": "kNWindow"
+   },
+   {
+    "file": "src/Core/pp_profiler.cpp",
+    "line": 210,
+    "name": "kMaxScopeLines"
+   }
+  ],
+  "0.10": [
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 57,
+    "name": "kTraceAmpFraction"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 61,
+    "name": "kEskfAccelNoTrustG"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1131,
+    "name": "kTriScaleFrac"
+   },
+   {
+    "file": "src/LaunchMonitor/lm_inferred_reads.h",
+    "line": 547,
+    "name": "kArcRadiusRelSigma"
+   }
+  ],
+  "20.0": [
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 58,
+    "name": "kTimingScaleMs"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 138,
+    "name": "kDeliveryHandsCarryMinMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 142,
+    "name": "kTurnStartDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 674,
+    "name": "kLeadMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1228,
+    "name": "kSightedTurnDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1256,
+    "name": "kJudgeMaxSigmaMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1409,
+    "name": "kGapBridgeNoiseDps"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 2118,
+    "name": "kShoulderViewsMinLinePx"
+   }
+  ],
+  "0.05": [
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 60,
+    "name": "kHysteresis"
+   },
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 121,
+    "name": "kDiagTrendAlpha"
+   },
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 137,
+    "name": "kDiagFisherAlpha"
+   },
+   {
+    "file": "src/Gui/charts/session_warp.cpp",
+    "line": 48,
+    "name": "kEndSlopeFloor"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 51,
+    "name": "kBeta"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1903,
+    "name": "kRulerRelSigma"
+   }
+  ],
+  "12": [
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 77,
+    "name": "kFunnelMaxSessions"
+   },
+   {
+    "file": "src/Metrics/variability/variability_constants.h",
+    "line": 85,
+    "name": "kTypicalityMaxGhosts"
+   },
+   {
+    "file": "src/Gui/shot/shot_processor.cpp",
+    "line": 106,
+    "name": "kImpactClipCrf"
+   },
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 130,
+    "name": "kDeliveryFitMinShots"
+   },
+   {
+    "file": "src/Gui/report/report_delivery.h",
+    "line": 75,
+    "name": "kDeliveryReportTrustCap"
+   },
+   {
+    "file": "src/Gui/report/session_report_list_model.cpp",
+    "line": 46,
+    "name": "kStatesPerTurn"
+   }
+  ],
+  "1.349": [
+   {
+    "file": "src/Metrics/variability/variability_typicality.cpp",
+    "line": 40,
+    "name": "kRobustSpreadDivisor"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 64,
+    "name": "kConsistencySpreadDivisor"
+   }
+  ],
+  "0.7": [
+   {
+    "file": "src/Diagnostics/engine/characteristic_engine.cpp",
+    "line": 29,
+    "name": "kInferredContextConfidence"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 558,
+    "name": "kReacquireConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 2116,
+    "name": "kShoulderViewsMinConf"
+   }
+  ],
+  "0.6": [
+   {
+    "file": "src/Diagnostics/engine/wrist_domain_score.h",
+    "line": 120,
+    "name": "kWristDomainDefaultWeight"
+   },
+   {
+    "file": "src/Gui/charts/session_warp.cpp",
+    "line": 46,
+    "name": "kTempoMinOverlap"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1284,
+    "name": "kPairMinCorr"
+   }
+  ],
+  "30": [
+   {
+    "file": "src/Diagnostics/norms/norm.h",
+    "line": 650,
+    "name": "kMinSeatedN"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 73,
+    "name": "kConsistencyShuffles"
+   }
+  ],
+  "1.5": [
+   {
+    "file": "src/Coaching/club_distances.h",
+    "line": 70,
+    "name": "kClubShortBelowSds"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 67,
+    "name": "kFlightFatSteeperDeg"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 72,
+    "name": "kConsistencyFenceIqr"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 267,
+    "name": "kConfInflate"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 430,
+    "name": "kDtlBracketGapScale"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 799,
+    "name": "kActivityInnerR"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 917,
+    "name": "kBridgeSpacingFactor"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1515,
+    "name": "kFracHi"
+   }
+  ],
+  "0.80": [
+   {
+    "file": "src/Coaching/club_distances.h",
+    "line": 71,
+    "name": "kPartialShaftAngleFraction"
+   },
+   {
+    "file": "src/Coaching/session_report.h",
+    "line": 85,
+    "name": "kStrengthMeasurableShare"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 75,
+    "name": "kFlightThinLaunchShare"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1929,
+    "name": "kFirmShare"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1932,
+    "name": "kBorderHi"
+   }
+  ],
+  "0.85": [
+   {
+    "file": "src/Coaching/club_distances.h",
+    "line": 72,
+    "name": "kPartialSpeedFraction"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 65,
+    "name": "kFlightTopSmashShare"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 76,
+    "name": "kFlightFatCarryShare"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 471,
+    "name": "kSkyCarryShare"
+   }
+  ],
+  "0.20": [
+   {
+    "file": "src/Coaching/club_distances.h",
+    "line": 75,
+    "name": "kClubTrendSpreadChange"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1195,
+    "name": "kPlaneRatioFloor"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1931,
+    "name": "kBorderLo"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1933,
+    "name": "kBorderGross"
+   }
+  ],
+  "0.30": [
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 105,
+    "name": "kDiagPatternWilsonLb"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 285,
+    "name": "kCorroborationBoost"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 460,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 751,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 773,
+    "name": "kFootConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 883,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1002,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1043,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1114,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1189,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1443,
+    "name": "kHeadConfMin"
+   }
+  ],
+  "0.70": [
+   {
+    "file": "src/Coaching/diagnostic_ledger.h",
+    "line": 114,
+    "name": "kDiagDirectionAgreementGate"
+   },
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 68,
+    "name": "kFlightShortCarryShare"
+   }
+  ],
+  "6": [
+   {
+    "file": "src/Coaching/session_report.h",
+    "line": 94,
+    "name": "kCouldBeCap"
+   },
+   {
+    "file": "src/Coaching/work_ons.h",
+    "line": 93,
+    "name": "kWorkOnRuleVersion"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 68,
+    "name": "kConsistencyMinOthers"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 80,
+    "name": "kConsistencyImpactColumn"
+   },
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 85,
+    "name": "kConsistencyDownswingLast"
+   },
+   {
+    "file": "src/Gui/report/report_consistency.h",
+    "line": 75,
+    "name": "kConsistencyReportSwingCap"
+   },
+   {
+    "file": "src/Gui/report/report_posture.h",
+    "line": 73,
+    "name": "kPostureDepartureCap"
+   },
+   {
+    "file": "src/Gui/report/session_report_model.cpp",
+    "line": 95,
+    "name": "kTodayCap"
+   },
+   {
+    "file": "src/Gui/report/session_report_model.cpp",
+    "line": 101,
+    "name": "kPracticeCap"
+   }
+  ],
+  "0.50": [
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 62,
+    "name": "kFlightLowLaunchShare"
+   },
+   {
+    "file": "src/Coaching/work_ons.h",
+    "line": 104,
+    "name": "kWorkOnQuietWilsonUb"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1930,
+    "name": "kLikelyShare"
+   }
+  ],
+  "8.0": [
+   {
+    "file": "src/Coaching/strike_from_flight.h",
+    "line": 64,
+    "name": "kFlightShankStartDeg"
+   },
+   {
+    "file": "src/Gui/charts/session_posture.h",
+    "line": 170,
+    "name": "kPostureTrailKeptDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 660,
+    "name": "kExpo"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1442,
+    "name": "kLowPointMaxRadiusM"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1664,
+    "name": "kBallSigmaDeg"
+   }
+  ],
+  "0.15": [
+   {
+    "file": "src/Coaching/swing_areas.h",
+    "line": 127,
+    "name": "kAreaOccasionalShare"
+   },
+   {
+    "file": "src/Gui/charts/session_posture.h",
+    "line": 168,
+    "name": "kPostureCloseCall"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 72,
+    "name": "kInitAccelTolG"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 435,
+    "name": "kMarginFrac"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1196,
+    "name": "kNoPlaneRelSigma"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1398,
+    "name": "kImuSignReversalFrac"
+   }
+  ],
+  "0.35": [
+   {
+    "file": "src/Coaching/swing_areas.h",
+    "line": 128,
+    "name": "kAreaCleanUpper"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 62,
+    "name": "kEskfGyroFullTrustRadps"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1314,
+    "name": "kPairSwapMinFrac"
+   }
+  ],
+  "0.2": [
+   {
+    "file": "src/Gui/diagnostics/session_diagnostics_model.cpp",
+    "line": 153,
+    "name": "kShareSome"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1561,
+    "name": "kOnsetBridgeMinNetFrac"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1916,
+    "name": "kGrossWarn"
+   },
+   {
+    "file": "src/LaunchMonitor/premier_session_parser.h",
+    "line": 103,
+    "name": "kPremierHistorySpeedTolMph"
+   }
+  ],
+  "120": [
+   {
+    "file": "src/Gui/shot/disk_replay_source.cpp",
+    "line": 48,
+    "name": "kSlaveResyncMs"
+   },
+   {
+    "file": "src/Gui/report/report_posture.h",
+    "line": 78,
+    "name": "kPostureStripCap"
+   },
+   {
+    "file": "src/Gui/report/report_wrist.h",
+    "line": 96,
+    "name": "kWristStyleColumnCap"
+   }
+  ],
+  "500": [
+   {
+    "file": "src/Gui/shot/shot_processor.cpp",
+    "line": 80,
+    "name": "kPostRollManualMs"
+   },
+   {
+    "file": "src/Core/PpMessageLog.h",
+    "line": 66,
+    "name": "kMaxEntries"
+   }
+  ],
+  "20000": [
+   {
+    "file": "src/Gui/review/chart_metrics.cpp",
+    "line": 703,
+    "name": "kBandNearUs"
+   },
+   {
+    "file": "src/Gui/review/swing_series_model.cpp",
+    "line": 31,
+    "name": "kMaxRows"
+   },
+   {
+    "file": "src/Gui/report/report_stills.cpp",
+    "line": 70,
+    "name": "kPoseNearestUs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 168,
+    "name": "kTurnTimeoutMs"
+   }
+  ],
+  "0.3": [
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 52,
+    "name": "kShoulderConf"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 44,
+    "name": "kConfMin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1441,
+    "name": "kLowPointMinRadiusM"
+   }
+  ],
+  "0.06": [
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 54,
+    "name": "kBallMargin"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 326,
+    "name": "kMarkMargin"
+   },
+   {
+    "file": "src/Gui/report/report_stills_pure.cpp",
+    "line": 390,
+    "name": "kBodyMargin"
+   }
+  ],
+  "40.0": [
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 56,
+    "name": "kWashReach"
+   },
+   {
+    "file": "src/Gui/charts/session_warp.cpp",
+    "line": 33,
+    "name": "kPeakToMs"
+   },
+   {
+    "file": "src/Gui/charts/session_warp.cpp",
+    "line": 34,
+    "name": "kPeakFlankMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 95,
+    "name": "kTrunkFaceMaxFromHorizontalDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1005,
+    "name": "kMinStanceSpanPx"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1187,
+    "name": "kMaxPlaceSigmaMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1242,
+    "name": "kMinCredibleClubMph"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1257,
+    "name": "kJudgeWindowMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1511,
+    "name": "kMaxJumpPx"
+   }
+  ],
+  "60000": [
+   {
+    "file": "src/Gui/charts/delivery_picture.cpp",
+    "line": 61,
+    "name": "kAddressWindowUs"
+   },
+   {
+    "file": "src/Gui/charts/posture_picture.cpp",
+    "line": 45,
+    "name": "kAddressWindowUs"
+   },
+   {
+    "file": "src/Gui/report/report_stills.cpp",
+    "line": 71,
+    "name": "kPoseBracketUs"
+   }
+  ],
+  "0.95": [
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 75,
+    "name": "kConsistencyShuffleP95"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 102,
+    "name": "kTrunkMinSampleFraction"
+   }
+  ],
+  "100.0": [
+   {
+    "file": "src/Gui/charts/session_consistency.h",
+    "line": 76,
+    "name": "kConsistencyAfterImpactMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1285,
+    "name": "kPairMinExtentPx"
+   }
+  ],
+  "15.0": [
+   {
+    "file": "src/Gui/charts/session_delivery.h",
+    "line": 139,
+    "name": "kDeliveryLieBarelyLoftDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 116,
+    "name": "kTrunkTurnAxisMaxFromVerticalDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 161,
+    "name": "kTurnReturnDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 2041,
+    "name": "kShaftDirSkeletonOneViewSigmaDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 2106,
+    "name": "kTierSeenFloorPx"
+   }
+  ],
+  "0.12": [
+   {
+    "file": "src/Gui/report/report_stills_pure.cpp",
+    "line": 389,
+    "name": "kCropMargin"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1909,
+    "name": "kClubLenSigmaDefaultM"
+   }
+  ],
+  "10.0": [
+   {
+    "file": "src/Gui/report/report_tendencies.h",
+    "line": 48,
+    "name": "kReportFlowLayoutGap"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 105,
+    "name": "kTrunkMountYawSigmaDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 134,
+    "name": "kStillGyroDps"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 251,
+    "name": "kBlendedDeltaPts"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 293,
+    "name": "kArchetypeTopDeltaDeg"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 298,
+    "name": "kArchetypeFaceOffsetDeg"
+   },
+   {
+    "file": "src/LaunchMonitor/premier_monitor.h",
+    "line": 121,
+    "name": "kGhostBallSpeedMph"
+   }
+  ],
+  "200": [
+   {
+    "file": "src/Core/AnalysisProfileLog.h",
+    "line": 99,
+    "name": "kMaxRuns"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 74,
+    "name": "kInitMaxSeedAttempts"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1698,
+    "name": "kReturnHoldMs"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1906,
+    "name": "kMcDraws"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1914,
+    "name": "kBootstrapN"
+   },
+   {
+    "file": "src/Core/pp_tuned_constants.h",
+    "line": 1927,
+    "name": "kMcDraws"
+   }
+  ]
+ },
+ "inline_literals": {
+  "0.9": [
+   "src/Analysis/analysis_pipeline.cpp:343",
+   "src/Coaching/swing_themes.h:171",
+   "src/Coaching/swing_themes.h:212",
+   "src/Coaching/tendencies.h:217",
+   "src/Diagnostics/engine/wrist_domain_score.h:127",
+   "src/Diagnostics/engine/wrist_domain_score.h:128"
+  ],
+  "0.8": [
+   "src/Analysis/analysis_pipeline.cpp:343",
+   "src/Coaching/swing_themes.h:203",
+   "src/Diagnostics/engine/wrist_domain_score.h:125"
+  ],
+  "0.10": [
+   "src/Analysis/analysis_pipeline.cpp:3077",
+   "src/Coaching/work_ons.h:611",
+   "src/Diagnostics/engine/characteristic.cpp:288",
+   "src/Diagnostics/engine/characteristic.cpp:354",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:2988",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:2992"
+  ],
+  "1.5": [
+   "src/Analysis/analysis_pipeline.cpp:3325",
+   "src/Analysis/analysis_pipeline.cpp:3326",
+   "src/Analysis/analysis_pipeline.cpp:4191",
+   "src/Analysis/analysis_pipeline.cpp:4238",
+   "src/Coaching/diagnostic_ledger.h:172",
+   "src/Coaching/work_ons.h:233",
+   "src/Diagnostics/norms/norm.cpp:227",
+   "src/Diagnostics/norms/norm.cpp:233",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:2250",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:569",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:570",
+   "src/Metrics/gate_catalogue_rules.h:266"
+  ],
+  "3.5": [
+   "src/Analysis/analysis_pipeline.cpp:3511",
+   "src/Diagnostics/norms/norm.cpp:227",
+   "src/Metrics/gate_catalogue_rules.h:259"
+  ],
+  "0.05": [
+   "src/Analysis/analysis_pipeline.cpp:4240",
+   "src/Coaching/work_ons.h:613",
+   "src/Coaching/work_ons.h:614",
+   "src/Diagnostics/engine/characteristic.cpp:289",
+   "src/Diagnostics/norms/corridor_plot.cpp:264",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:2996",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:2997",
+   "src/Metrics/gate_catalogue_rules.h:71",
+   "src/Metrics/gate_catalogue_rules.h:76"
+  ],
+  "0.30": [
+   "src/Diagnostics/engine/characteristic.cpp:353",
+   "src/Metrics/gate_catalogue_body.h:499",
+   "src/Metrics/gate_catalogue_body.h:576",
+   "src/Metrics/gate_catalogue_club.h:63",
+   "src/Metrics/gate_catalogue_rules.h:57"
+  ],
+  "0.7": [
+   "src/Coaching/swing_themes.h:172",
+   "src/Coaching/swing_themes.h:177",
+   "src/Coaching/swing_themes.h:213",
+   "src/Coaching/tendencies.h:218",
+   "src/Diagnostics/engine/wrist_domain_score.h:133",
+   "src/Diagnostics/engine/wrist_domain_score.h:136",
+   "src/Diagnostics/engine/wrist_domain_score.h:138",
+   "src/Metrics/gate_catalogue_rules.h:142"
+  ],
+  "0.6": [
+   "src/Coaching/swing_themes.h:146",
+   "src/Diagnostics/engine/wrist_domain_score.h:126",
+   "src/Diagnostics/engine/wrist_domain_score.h:134",
+   "src/Diagnostics/engine/wrist_domain_score.h:135",
+   "src/Diagnostics/engine/wrist_domain_score.h:137",
+   "src/Metrics/gate_catalogue_rules.h:174"
+  ],
+  "0.35": [
+   "src/Coaching/dashboard_reductions.h:72",
+   "src/Diagnostics/engine/characteristic.cpp:286",
+   "src/Metrics/gate_catalogue_rules.h:226"
+  ],
+  "0.1": [
+   "src/Coaching/swing_themes.h:178",
+   "src/Diagnostics/norms/corridor_plot.cpp:53",
+   "src/Diagnostics/norms/corridor_plot.cpp:62",
+   "src/Diagnostics/norms/corridor_plot.cpp:63",
+   "src/Gui/diagnostics/session_spread.h:296",
+   "src/Metrics/series_reduce.h:786",
+   "src/Metrics/series_reduce.h:790"
+  ],
+  "0.15": [
+   "src/Coaching/swing_themes.h:194",
+   "src/Coaching/tendencies.h:81",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:1922",
+   "src/Gui/diagnostics/session_diagnostics_model.cpp:1926"
+  ]
+ },
+ "total_constants": 676
+}

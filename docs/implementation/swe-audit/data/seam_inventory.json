@@ -1,0 +1,609 @@
+{
+ "context_properties": [
+  {
+   "name": "appSettings",
+   "var": "appSettings",
+   "type": "AppSettings",
+   "line": 1030
+  },
+  {
+   "name": "libraryConverter",
+   "var": "libraryConverter",
+   "type": "LibraryConverter",
+   "line": 1031
+  },
+  {
+   "name": "archiveController",
+   "var": "archiveController",
+   "type": "ArchiveController",
+   "line": 1032
+  },
+  {
+   "name": "appInfo",
+   "var": "appInfo",
+   "type": "AppInfo",
+   "line": 1033
+  },
+  {
+   "name": "secrets",
+   "var": "secrets",
+   "type": "SecretsBridge",
+   "line": 1034
+  },
+  {
+   "name": "athleteController",
+   "var": "athleteController",
+   "type": "AthleteController",
+   "line": 1035
+  },
+  {
+   "name": "navController",
+   "var": "navController",
+   "type": "NavigationController",
+   "line": 1036
+  },
+  {
+   "name": "imuManager",
+   "var": "imuManager",
+   "type": "ImuManager",
+   "line": 1037
+  },
+  {
+   "name": "trunkCeremony",
+   "var": "trunkCeremony",
+   "type": "TrunkCeremonyRecorder",
+   "line": 1038
+  },
+  {
+   "name": "launchMonitor",
+   "var": "launchMonitorController",
+   "type": "LaunchMonitorController",
+   "line": 1039
+  },
+  {
+   "name": "controller",
+   "var": "controller",
+   "type": "TranscriptionController",
+   "line": 1040
+  },
+  {
+   "name": "ttsController",
+   "var": "ttsController",
+   "type": "TtsController",
+   "line": 1041
+  },
+  {
+   "name": "llmController",
+   "var": "llmController",
+   "type": "LlmController",
+   "line": 1042
+  },
+  {
+   "name": "cameraManager",
+   "var": "cameraManager",
+   "type": "CameraManager",
+   "line": 1043
+  },
+  {
+   "name": "bufferController",
+   "var": "bufferController",
+   "type": "BufferController",
+   "line": 1044
+  },
+  {
+   "name": "resourceMonitor",
+   "var": "resourceMonitor",
+   "type": "ResourceMonitorController",
+   "line": 1045
+  },
+  {
+   "name": "profiler",
+   "var": "profilerController",
+   "type": "ProfilerController",
+   "line": 1046
+  },
+  {
+   "name": "sessionController",
+   "var": "sessionController",
+   "type": "SessionController",
+   "line": 1047
+  },
+  {
+   "name": "notifications",
+   "var": "notificationCenter",
+   "type": "NotificationCenter",
+   "line": 1048
+  },
+  {
+   "name": "updateController",
+   "var": "updateController",
+   "type": "UpdateController",
+   "line": 1049
+  },
+  {
+   "name": "cudaRuntime",
+   "var": "cudaRuntime",
+   "type": "CudaRuntimeController",
+   "line": 1050
+  },
+  {
+   "name": "appLog",
+   "var": "appLog",
+   "type": "AppLog",
+   "line": 1051
+  },
+  {
+   "name": "ppcpImport",
+   "var": "ppcpImportController",
+   "type": "?",
+   "line": 1064
+  },
+  {
+   "name": "ppcpOffers",
+   "var": "ppcpOfferController",
+   "type": "?",
+   "line": 1083
+  },
+  {
+   "name": "ppcpHost",
+   "var": "ppcpHost",
+   "type": "?",
+   "line": 1273
+  },
+  {
+   "name": "motionCaptureProbe",
+   "var": "motionCaptureProbe",
+   "type": "MotionCaptureProbe",
+   "line": 1275
+  },
+  {
+   "name": "sessionReviewController",
+   "var": "sessionReviewController",
+   "type": "SessionReviewController",
+   "line": 1276
+  },
+  {
+   "name": "workOns",
+   "var": "workOns",
+   "type": "WorkOnsController",
+   "line": 1277
+  },
+  {
+   "name": "studioProfile",
+   "var": "studioProfile",
+   "type": "StudioProfile",
+   "line": 1284
+  },
+  {
+   "name": "sessionReport",
+   "var": "sessionReport",
+   "type": "SessionReportModel",
+   "line": 1285
+  },
+  {
+   "name": "sessionReportList",
+   "var": "sessionReportList",
+   "type": "SessionReportListModel",
+   "line": 1286
+  },
+  {
+   "name": "reportMailer",
+   "var": "reportMailer",
+   "type": "ReportMailer",
+   "line": 1287
+  },
+  {
+   "name": "shotController",
+   "var": "shotController",
+   "type": "ShotController",
+   "line": 1288
+  },
+  {
+   "name": "shotProcessor",
+   "var": "shotProcessor",
+   "type": "ShotProcessor",
+   "line": 1289
+  },
+  {
+   "name": "shotReplay",
+   "var": "shotReplay",
+   "type": "ShotReplayController",
+   "line": 1290
+  },
+  {
+   "name": "currentSwing",
+   "var": "currentSwing",
+   "type": "CurrentSwing",
+   "line": 1291
+  },
+  {
+   "name": "shotModel",
+   "var": "shotModel",
+   "type": "ShotListModel",
+   "line": 1292
+  },
+  {
+   "name": "reanalysisController",
+   "var": "reanalysisController",
+   "type": "ReanalysisController",
+   "line": 1293
+  },
+  {
+   "name": "swingExporter",
+   "var": "swingZipExporter",
+   "type": "pinpoint::SwingZipExporter",
+   "line": 1294
+  },
+  {
+   "name": "liveWrist",
+   "var": "liveWrist",
+   "type": "LiveWristAngles",
+   "line": 1295
+  },
+  {
+   "name": "markupController",
+   "var": "markupController",
+   "type": "MarkupController",
+   "line": 1296
+  },
+  {
+   "name": "clipboard",
+   "var": "clipboardHelper",
+   "type": "ClipboardHelper",
+   "line": 1297
+  }
+ ],
+ "registered_types": {
+  "TingPlayer": "src/Audio/ting_player.h",
+  "NotificationCenter": "src/Gui/app/notification_center.h",
+  "CameraInstance": "src/Gui/cameras/camera_instance.h",
+  "ChartsConsistencyPresenter": "src/Gui/charts/charts_consistency_presenter.h",
+  "ChartsDeliveryPresenter": "src/Gui/charts/charts_delivery_presenter.h",
+  "ChartsPosturePresenter": "src/Gui/charts/charts_posture_presenter.h",
+  "ChartsRelationsPresenter": "src/Gui/charts/charts_relations_presenter.h",
+  "ChartsTracesPresenter": "src/Gui/charts/charts_traces_presenter.h",
+  "ChartsWristPresenter": "src/Gui/charts/charts_wrist_presenter.h",
+  "SessionSeriesModel": "src/Gui/charts/session_series_model.h",
+  "ModelBrowser": "src/Gui/diagnosticmodel/model_browser.h",
+  "SessionDiagnosticsModel": "src/Gui/diagnostics/session_diagnostics_model.h",
+  "WristDiagnosticsModel": "src/Gui/diagnostics/wrist_diagnostics_model.h",
+  "LmClubArt": "src/Gui/launchmonitor/lm_club_art.h",
+  "LmSessionModel": "src/Gui/launchmonitor/lm_session_model.h",
+  "OffscreenSheet": "src/Gui/print/offscreen_sheet.h",
+  "PdfDocumentWriter": "src/Gui/print/pdf_document_writer.h",
+  "ChartMetrics": "src/Gui/review/chart_metrics.h",
+  "MetricCatalog": "src/Gui/review/metric_catalog.h",
+  "SwingCoverageModel": "src/Gui/review/swing_coverage_model.h",
+  "SwingDataSource": "src/Gui/review/swing_data_source.h",
+  "SwingSeriesModel": "src/Gui/review/swing_series_model.h",
+  "TimelineLabels": "src/Gui/review/timeline_labels.h",
+  "SessionController": "src/Gui/session/session_controller.h",
+  "AppScreen": "src/Gui/shell/app_screen.h",
+  "ShotFilterProxyModel": "src/Gui/shot/shot_filter_proxy_model.h",
+  "SwingAnnotationGeometry": "src/Gui/swing3d/swing_annotation_geometry.h",
+  "SwingHullGeometry": "src/Gui/swing3d/swing_hull_geometry.h",
+  "SwingRigDriver": "src/Gui/swing3d/swing_rig_driver.h",
+  "TrustPresenter": "src/Gui/trust/trust_presenter.h",
+  "TrustWords": "src/Gui/trust/trust_words.h",
+  "VariabilityFacade": "src/Gui/variability/variability_facade.h",
+  "VariabilityGeometryQml": "src/Gui/variability/variability_geometry.h",
+  "BodyPoseAdapter": "src/Gui/viz/body_pose_adapter.h",
+  "BayerVideoItem": "src/Video/bayer_video_item.h"
+ },
+ "qml_instantiations": {
+  "TingPlayer": [
+   "src/Gui/calibration/ImuCalibrationFlow.qml:158",
+   "src/Gui/settings/MicrophonesPanel.qml:67",
+   "src/Gui/shell/Main.qml:751",
+   "src/Gui/shell/Main.qml:765",
+   "src/Gui/shell/PpDetectCluster.qml:157"
+  ],
+  "BayerVideoItem": [
+   "src/Gui/cameras/PpCameraFrame.qml:805",
+   "src/Gui/settings/CamerasPanel.qml:1432"
+  ],
+  "ChartsDeliveryPresenter": [
+   "src/Gui/charts/PpChartsPanel.qml:199"
+  ],
+  "ChartsPosturePresenter": [
+   "src/Gui/charts/PpChartsPanel.qml:184"
+  ],
+  "ChartsRelationsPresenter": [
+   "src/Gui/charts/PpChartsPanel.qml:151",
+   "src/Gui/diagnostics/PpConsistencyView.qml:202"
+  ],
+  "ChartsTracesPresenter": [
+   "src/Gui/charts/PpChartsPanel.qml:128"
+  ],
+  "ChartsWristPresenter": [
+   "src/Gui/charts/PpChartsPanel.qml:168"
+  ],
+  "SessionSeriesModel": [
+   "src/Gui/charts/PpChartsPanel.qml:102",
+   "src/Gui/diagnostics/PpConsistencyView.qml:128",
+   "src/Gui/trust/PpTrustInlineFor.qml:51",
+   "src/Gui/trust/PpTrustPanel.qml:48",
+   "src/Gui/trust/PpTrustSummaryFold.qml:71"
+  ],
+  "ModelBrowser": [
+   "src/Gui/diagnosticmodel/DiagnosticModel.qml:44"
+  ],
+  "ChartsConsistencyPresenter": [
+   "src/Gui/diagnostics/PpConsistencyView.qml:294"
+  ],
+  "SessionDiagnosticsModel": [
+   "src/Gui/diagnostics/PpSessionDiagnosticsPanel.qml:90"
+  ],
+  "OffscreenSheet": [
+   "src/Gui/report/PpReportPrintHost.qml:59"
+  ],
+  "ChartMetrics": [
+   "src/Gui/review/PpChartPlot.qml:150",
+   "src/Gui/review/PpChartSummary.qml:94",
+   "src/Gui/review/PpMetricChart.qml:892",
+   "src/Gui/review/PpSegmentBrush.qml:65",
+   "src/Gui/review/PpTransitTimeline.qml:135"
+  ],
+  "TimelineLabels": [
+   "src/Gui/review/PpChartPlot.qml:152",
+   "src/Gui/review/PpChartSummary.qml:96",
+   "src/Gui/review/PpMetricChart.qml:894",
+   "src/Gui/review/PpSegmentBrush.qml:67",
+   "src/Gui/review/PpTransitTimeline.qml:136"
+  ],
+  "SwingDataSource": [
+   "src/Gui/review/PpDataViewer.qml:90"
+  ],
+  "LmSessionModel": [
+   "src/Gui/session/PpLaunchMonitorPanel.qml:63"
+  ],
+  "ShotFilterProxyModel": [
+   "src/Gui/shot/PpShotCarousel.qml:294"
+  ],
+  "SwingRigDriver": [
+   "src/Gui/swing3d/SwingViz3DView.qml:103"
+  ],
+  "TrustPresenter": [
+   "src/Gui/trust/PpTrustInlineFor.qml:52",
+   "src/Gui/trust/PpTrustPanel.qml:63",
+   "src/Gui/trust/PpTrustSummaryFold.qml:73"
+  ],
+  "BodyPoseAdapter": [
+   "src/Gui/viz/BodyVizView.qml:71"
+  ]
+ },
+ "variant_contracts": [
+  "src/Gui/diagnostics/session_diagnostics_model.h:187: Q_PROPERTY(QVariantList missChain READ missChain NOTIFY intentChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:193: Q_PROPERTY(QVariantMap headerInfo READ headerInfo NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:194: Q_PROPERTY(QVariantList thisShot READ thisShot NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:197: Q_PROPERTY(QVariantMap afterShotDelta READ afterShotDelta NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:198: Q_PROPERTY(QVariantList cards READ cards NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:199: Q_PROPERTY(QVariantList watching READ watching NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:200: Q_PROPERTY(QVariantList chains READ chains NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:201: Q_PROPERTY(QVariantList unchained READ unchained NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:203: Q_PROPERTY(QVariantMap driver READ driver NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:207: Q_PROPERTY(QVariantList notJudged READ notJudged NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:210: Q_PROPERTY(QVariantList bookends READ bookends NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:213: Q_PROPERTY(QVariantList expectations READ expectations NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:234: Q_PROPERTY(QVariantMap detail READ detail NOTIFY detailChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:250: Q_PROPERTY(QVariantList shotLog READ shotLog NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:251: Q_PROPERTY(QVariantMap  shotMix READ shotMix NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:252: Q_PROPERTY(QVariantList reasons READ reasons NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:253: Q_PROPERTY(QVariantList carryToday READ carryToday NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:256: Q_PROPERTY(QVariantList clubMix READ clubMix NOTIFY surfaceChanged)",
+  "src/Gui/diagnostics/session_diagnostics_model.h:422: Q_INVOKABLE QVariantList missCandidates() const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:443: Q_INVOKABLE QVariantMap shotOutcome(int shotId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:449: Q_INVOKABLE QVariantMap shotOutcomeDetail(int shotId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:464: Q_INVOKABLE QVariantMap shotReadout(int shotId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:467: Q_INVOKABLE QVariantList pipsFor(int shotId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:476: Q_INVOKABLE QVariantMap sequenceChecks(int shotId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:480: Q_INVOKABLE QVariantList sequenceRanking() const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:488: Q_INVOKABLE QVariantMap sequenceConsistency() const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:507: Q_INVOKABLE QVariantMap conditionDetail(const QString &conditionId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:547: Q_INVOKABLE QVariantMap spreadOf(const QString &conditionId) const;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:556: Q_INVOKABLE QVariantMap historyOf(const QString &conditionId) const;",
+  "src/Gui/diagnostics/work_ons_controller.h:200: Q_PROPERTY(QVariantList items READ items NOTIFY itemsChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:211: Q_PROPERTY(QVariantMap lastSession READ lastSession NOTIFY itemsChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:234: Q_PROPERTY(QVariantList areaItems READ areaItems NOTIFY areasChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:249: Q_PROPERTY(QVariantMap focusItem READ focusItem NOTIFY summaryChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:252: Q_PROPERTY(QVariantList doWellItems READ doWellItems NOTIFY summaryChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:255: Q_PROPERTY(QVariantList nextItems READ nextItems NOTIFY summaryChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:259: Q_PROPERTY(QVariantList togetherItems READ togetherItems NOTIFY summaryChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:296: Q_PROPERTY(QVariantList tendencyItems READ tendencyItems NOTIFY tendenciesChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:305: Q_PROPERTY(QVariantList clubScopes READ clubScopes NOTIFY clubScopeChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:319: Q_PROPERTY(QVariantMap shotFilterOptions READ shotFilterOptions NOTIFY clubScopeChanged)",
+  "src/Gui/diagnostics/work_ons_controller.h:350: Q_INVOKABLE QVariantMap faultDetail(const QString &conditionId) const { return m_details.value(conditionId); }",
+  "src/Gui/diagnostics/work_ons_controller.h:373: Q_INVOKABLE QVariantMap tendencyDetail(const QString &key) const;",
+  "src/Gui/diagnostics/work_ons_controller.h:385: Q_INVOKABLE QVariantMap tendencyFlow(const QString &group, double plotHeight, double gap) const;",
+  "src/Gui/diagnostics/work_ons_controller.h:386: Q_INVOKABLE QVariantMap clubDistance(const QString &club) const;",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:46: Q_PROPERTY(QVariantMap  analysisDetail   READ analysisDetail   WRITE setAnalysisDetail NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:51: Q_PROPERTY(QVariantList positions        READ positions        NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:52: Q_PROPERTY(QVariantList strips           READ strips           NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:53: Q_PROPERTY(QVariantList gridRows         READ gridRows         NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:54: Q_PROPERTY(QVariantList scoreBreakdown   READ scoreBreakdown   NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:56: Q_PROPERTY(QVariantList findings         READ findings         NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:57: Q_PROPERTY(QVariantList strengths        READ strengths        NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:62: Q_PROPERTY(QVariantMap  resemblance      READ resemblance      NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:64: Q_PROPERTY(QVariantMap  previousAnalysisDetail  READ previousAnalysisDetail  WRITE setPreviousAnalysisDetail  NOTIFY resultChanged)",
+  "src/Gui/diagnostics/wrist_diagnostics_model.h:65: Q_PROPERTY(QVariantMap  referenceAnalysisDetail READ referenceAnalysisDetail WRITE setReferenceAnalysisDetail NOTIFY resultChanged)",
+  "src/Gui/shot/shot_controller.h:199: Q_INVOKABLE QVariantMap shotStats() const;",
+  "src/Gui/shot/shot_filter_proxy_model.h:80: Q_INVOKABLE QVariantList visibleShotIds() const;",
+  "src/Gui/shot/shot_list_model.h:213: Q_INVOKABLE QVariantList swingDirsForIds(const QVariantList &ids) const;",
+  "src/Gui/shot/shot_list_model.h:222: Q_INVOKABLE QVariantMap shotSummary(int id) const;",
+  "src/Gui/shot/shot_list_model.h:227: Q_INVOKABLE QVariantMap previousAnalysisDetail(const QString &swingDir) const;",
+  "src/Gui/shot/shot_list_model.h:236: Q_INVOKABLE QVariantMap analysisDetailForSwingDir(const QString &swingDir) const;",
+  "src/Gui/shot/shot_replay_controller.h:65: Q_PROPERTY(QVariantList streams        READ streams        NOTIFY activeChanged)",
+  "src/Gui/review/chart_metrics.h:63: Q_INVOKABLE QVariantList segments(const QVariantList &phases, qint64 spanUs) const;",
+  "src/Gui/review/chart_metrics.h:77: Q_INVOKABLE QVariantMap dataWindow(const QVariantList &phases, qint64 dataStartUs, qint64 dataEndUs,",
+  "src/Gui/review/chart_metrics.h:120: Q_INVOKABLE QVariantMap summary(const QVariantList &tUs, const QVariantList &value,",
+  "src/Gui/review/chart_metrics.h:193: Q_INVOKABLE QVariantMap summaryMasked(const QVariantList &tUs, const QVariantList &value,",
+  "src/Gui/review/chart_metrics.h:243: Q_INVOKABLE QVariantMap fittedCurveAt(const QVariantList &tUs, const QVariantList &value,",
+  "src/Gui/review/chart_metrics.h:246: Q_INVOKABLE QVariantMap windowedMean(const QVariantList &tUs, const QVariantList &value,",
+  "src/Gui/review/chart_metrics.h:273: Q_INVOKABLE QVariantMap domainFor(const QString &key) const;",
+  "src/Gui/review/chart_metrics.h:282: Q_INVOKABLE QVariantMap cardSpecFor(const QString &key) const;",
+  "src/Gui/review/chart_metrics.h:395: Q_INVOKABLE QVariantMap sigmaInfo(const QVariantMap &series) const;",
+  "src/Gui/review/chart_metrics.h:453: Q_INVOKABLE QVariantList niceTicks(double lo, double hi, int maxTicks) const;",
+  "src/Gui/review/chart_metrics.h:459: Q_INVOKABLE QVariantList timeTicksMs(qint64 domStartUs, qint64 domEndUs,",
+  "src/Gui/review/chart_metrics.h:505: Q_INVOKABLE QVariantList seriesGroups(const QVariantList &seriesList) const;",
+  "src/Gui/review/chart_metrics.h:547: Q_INVOKABLE QVariantList sequenceRows(const QVariantMap &ks) const;",
+  "src/Gui/review/chart_metrics.h:594: Q_INVOKABLE QVariantMap sequenceOverlay(const QVariantMap &ks) const;",
+  "src/Gui/review/chart_metrics.h:617: Q_INVOKABLE QVariantMap sequenceTable(const QVariantMap &ks) const;",
+  "src/Gui/review/device_filter_model.h:45: Q_PROPERTY(QVariantList availableDevices READ availableDevices NOTIFY availableDevicesChanged)",
+  "src/Gui/review/metric_catalog.h:39: Q_PROPERTY(QVariantList groups READ groups CONSTANT)",
+  "src/Gui/review/metric_catalog.h:40: Q_PROPERTY(QVariantList types  READ types  CONSTANT)",
+  "src/Gui/review/metric_catalog.h:58: Q_INVOKABLE QVariantList setupSummary(const QVariantMap &setup) const;",
+  "src/Gui/review/session_review_controller.h:121: Q_INVOKABLE QVariantList swingDirsForSession(const QString &sessionId) const;",
+  "src/Gui/review/swing_data_source.h:86: Q_PROPERTY(QVariantMap imuPlacement READ imuPlacement WRITE setImuPlacement NOTIFY viewChanged)",
+  "src/Gui/review/swing_data_source.h:94: Q_PROPERTY(QVariantList regionOptions   READ regionOptions   CONSTANT)",
+  "src/Gui/review/swing_data_source.h:99: Q_PROPERTY(QVariantMap  regionLaneCounts READ regionLaneCounts NOTIFY loadedChanged)",
+  "src/Gui/review/swing_data_source.h:102: Q_PROPERTY(QVariantList segments        READ segments        NOTIFY loadedChanged)",
+  "src/Gui/review/swing_data_source.h:103: Q_PROPERTY(QVariantList resolvedSources READ resolvedSources NOTIFY viewChanged)",
+  "src/Gui/review/swing_data_source.h:104: Q_PROPERTY(QVariantList phases          READ phases          NOTIFY loadedChanged)",
+  "src/Gui/review/swing_data_source.h:105: Q_PROPERTY(QVariantList metadata        READ metadata        NOTIFY loadedChanged)",
+  "src/Gui/review/swing_data_source.h:110: Q_PROPERTY(QVariantList notShown        READ notShown        NOTIFY viewChanged)",
+  "src/Gui/review/timeline_labels.h:49: Q_INVOKABLE QVariantList distribute(const QVariantList &centers, const QVariantList &sizes,",
+  "src/Gui/review/timeline_labels.h:61: Q_INVOKABLE QVariantList stationLayout(const QVariantList &phases, qint64 startUs,",
+  "src/Gui/review/timeline_labels.h:81: Q_INVOKABLE QVariantList positionLayout(const QVariantList &positions, qint64 startUs,",
+  "src/Gui/charts/charts_consistency_presenter.h:125: Q_PROPERTY(QVariantMap status READ status NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:126: Q_PROPERTY(QVariantMap head READ head NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:127: Q_PROPERTY(QVariantMap matrix READ matrix NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:130: Q_PROPERTY(QVariantList shots READ shots NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:131: Q_PROPERTY(QVariantMap cell READ cell NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:132: Q_PROPERTY(QVariantMap shot READ shot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_consistency_presenter.h:133: Q_PROPERTY(QVariantMap empty READ empty NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_delivery_presenter.h:161: Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_delivery_presenter.h:162: Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_delivery_presenter.h:163: Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_delivery_presenter.h:164: Q_PROPERTY(QVariantMap plotLayers READ plotLayers NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_delivery_presenter.h:166: Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)",
+  "src/Gui/charts/charts_posture_presenter.h:247: Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_posture_presenter.h:248: Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_posture_presenter.h:249: Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_posture_presenter.h:251: Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:294: Q_PROPERTY(QVariantMap status READ status NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:295: Q_PROPERTY(QVariantList families READ families NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:296: Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:297: Q_PROPERTY(QVariantMap openRow READ openRow NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:298: Q_PROPERTY(QVariantMap sequence READ sequence NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:299: Q_PROPERTY(QVariantMap relations READ relations NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:300: Q_PROPERTY(QVariantMap kinds READ kinds NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:301: Q_PROPERTY(QVariantMap replaySession READ replaySession NOTIFY playheadChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:302: Q_PROPERTY(QVariantMap playhead READ playhead NOTIFY playheadChanged)",
+  "src/Gui/charts/charts_relations_presenter.h:354: Q_INVOKABLE QVariantList ticks(double lo, double hi, int maxTicks, const QString &unit = QString()) const;",
+  "src/Gui/charts/charts_traces_presenter.h:248: Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_traces_presenter.h:249: Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_traces_presenter.h:250: Q_PROPERTY(QVariantMap reference READ reference NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_traces_presenter.h:251: Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_traces_presenter.h:252: Q_PROPERTY(QVariantMap now READ now NOTIFY nowChanged)",
+  "src/Gui/charts/charts_traces_presenter.h:313: Q_INVOKABLE QVariantMap shotAt(const QString &key, double canonMs, double value) const;",
+  "src/Gui/charts/charts_traces_presenter.h:316: Q_INVOKABLE QVariantMap hoverAt(double shotMs) const;",
+  "src/Gui/charts/charts_traces_presenter.h:328: Q_INVOKABLE QVariantMap lastTimings() const { return m_timings; }",
+  "src/Gui/charts/charts_wrist_presenter.h:243: Q_PROPERTY(QVariantMap choices READ choices NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_wrist_presenter.h:244: Q_PROPERTY(QVariantMap thisShot READ thisShot NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_wrist_presenter.h:245: Q_PROPERTY(QVariantMap session READ session NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_wrist_presenter.h:246: Q_PROPERTY(QVariantMap movesWith READ movesWith NOTIFY resultsChanged)",
+  "src/Gui/charts/charts_wrist_presenter.h:248: Q_PROPERTY(QVariantMap standfirst READ standfirst NOTIFY selectedChanged)",
+  "src/Gui/charts/session_series_model.h:136: Q_PROPERTY(QVariantList skipped READ skipped NOTIFY snapshotChanged)",
+  "src/Gui/report/report_mailer.h:84: Q_INVOKABLE QVariantMap compose(const QStringList &to, const QString &replyTo, const QString &subject,",
+  "src/Gui/report/report_mailer.h:100: Q_INVOKABLE QVariantMap setPassword(const QString &password);",
+  "src/Gui/report/report_mailer.h:107: Q_INVOKABLE QVariantMap send(const QString &sessionDir, const QStringList &to, const QString &replyTo,",
+  "src/Gui/report/report_mailer.h:112: Q_INVOKABLE QVariantMap sendTest(const QString &fromName, const QString &fromAddress = QString());",
+  "src/Gui/report/session_report_list_model.h:89: Q_PROPERTY(QVariantMap reportCounts READ reportCounts NOTIFY countsChanged)",
+  "src/Gui/report/session_report_list_model.h:91: Q_PROPERTY(QVariantList clubCounts READ clubCounts NOTIFY countsChanged)",
+  "src/Gui/report/session_report_list_model.h:160: Q_INVOKABLE QVariantMap rowFor(const QString &sessionDir) const;",
+  "src/Gui/report/session_report_model.h:100: Q_INVOKABLE QVariantMap preflight(const QString &sessionDir) const;",
+  "src/Gui/report/session_report_model.h:108: Q_INVOKABLE QVariantMap state(const QString &sessionDir) const;",
+  "src/Core/app_info.h:53: Q_PROPERTY(QVariantList dependencies READ dependencies CONSTANT)",
+  "src/Core/studio_profile.h:54: Q_PROPERTY(QVariantList practiceSteps READ practiceSteps WRITE setPracticeSteps NOTIFY changed)",
+  "src/Core/studio_profile.h:64: Q_PROPERTY(QVariantList missingDetails READ missingDetails                    NOTIFY changed)",
+  "src/Core/studio_profile.h:107: Q_INVOKABLE QVariantList defaultPracticeSteps() const;",
+  "src/Export/swing_zip_exporter.h:58: Q_INVOKABLE QVariantList camerasForShots(const QVariantList &swingDirs) const;"
+ ],
+ "mutable_members": [
+  "src/Analysis/swing_reanalyzer.cpp:161: mutable QFile                  file_;",
+  "src/Analysis/swing_reanalyzer.cpp:162: mutable std::vector<std::byte> buf_;",
+  "src/Analysis/swing_reanalyzer.cpp:163: mutable bool                   opened_ = false;",
+  "src/Analysis/swing_reanalyzer.cpp:252: mutable Mp4FrameDecoder dec_;",
+  "src/Diagnostics/measures/live_measure_source.h:198: mutable QHash<QString, MissingKind> m_reasons;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1002: mutable bool m_outcomesDirty = true;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1004: mutable pinpoint::analysis::TendencySessionEvidence m_outcomeEvidence;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1005: mutable std::vector<pinpoint::analysis::NodeSpec>     m_outcomeNodes;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1006: mutable std::vector<pinpoint::analysis::LinkEvidence> m_outcomeLinks;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1007: mutable std::vector<pinpoint::analysis::ShotOutcome> m_composed;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1008: mutable QVariantList m_shotLog;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1009: mutable QVariantMap  m_shotMix;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1010: mutable QVariantList m_reasons;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1011: mutable QVariantList m_carryToday;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1012: mutable QVariantList m_clubMix;",
+  "src/Gui/diagnostics/work_ons_controller.h:649: mutable std::unique_ptr<pinpoint::analysis::ICharacteristicPackProvider> m_packProv;",
+  "src/Gui/diagnostics/work_ons_controller.h:695: mutable std::unique_ptr<pinpoint::analysis::ShotOutcomePack> m_outcomePack;",
+  "src/Gui/shot/qml_payload.h:111: mutable QJSValue m_js;",
+  "src/Gui/charts/consistency_env.cpp:120: mutable QMutex                  m_memoLock;",
+  "src/Gui/charts/consistency_env.cpp:121: mutable QHash<QString, double>  m_memo;",
+  "src/Gui/charts/session_series_model.h:294: mutable QMutex m_workerMutex;",
+  "src/Gui/report/report_mailer.h:166: mutable bool    m_loaded = false;",
+  "src/Gui/report/report_mailer.h:167: mutable Sending m_s;",
+  "src/Gui/report/session_report_model.h:158: mutable QString             m_contentStamp;",
+  "src/Core/AnalysisProfileLog.h:104: mutable QMutex     m_mutex;",
+  "src/Core/PpMessageLog.h:71: mutable QMutex m_mutex;",
+  "src/Core/PpStatsLog.h:65: mutable QMutex m_mutex;",
+  "src/Core/pp_profiler.h:214: mutable std::mutex                              m_mutex;"
+ ],
+ "thread_sites": [
+  "src/Analysis/analysis_dag.h:385: std::vector<std::thread> pool;",
+  "src/Analysis/analysis_dag.h:388: for (std::thread &t : pool) t.join();",
+  "src/Gui/diagnostics/session_diagnostics_model.h:37: #include <QThreadPool>",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1023: QThreadPool m_pool;",
+  "src/Gui/diagnostics/session_diagnostics_model.h:1026: QThreadPool m_historyPool;",
+  "src/Gui/diagnostics/work_ons_controller.cpp:58: #include <QThread>",
+  "src/Gui/diagnostics/work_ons_controller.cpp:298: m_marksPool.setThreadPriority(QThread::LowPriority);",
+  "src/Gui/diagnostics/work_ons_controller.cpp:301: m_replicatePool.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));",
+  "src/Gui/diagnostics/work_ons_controller.cpp:303: m_themesPool.setThreadPriority(QThread::LowPriority);",
+  "src/Gui/diagnostics/work_ons_controller.cpp:304: m_replicatePool.setThreadPriority(QThread::LowPriority);",
+  "src/Gui/diagnostics/work_ons_controller.cpp:1741: QThreadPool *pool = &m_replicatePool;",
+  "src/Gui/diagnostics/work_ons_controller.h:35: #include <QThreadPool>",
+  "src/Gui/diagnostics/work_ons_controller.h:650: QThreadPool m_pool;",
+  "src/Gui/diagnostics/work_ons_controller.h:666: QThreadPool  m_themesPool;",
+  "src/Gui/diagnostics/work_ons_controller.h:667: QThreadPool  m_replicatePool;",
+  "src/Gui/diagnostics/work_ons_controller.h:707: QThreadPool  m_marksPool;",
+  "src/Gui/shot/reanalysis_controller.cpp:124: m_watcher.setFuture(QtConcurrent::run([dir] {",
+  "src/Gui/shot/shot_processor.cpp:1136: m_segmentationWatcher.setFuture(QtConcurrent::run(",
+  "src/Gui/shot/shot_processor.cpp:1491: m_analysisWatcher.setFuture(QtConcurrent::run(",
+  "src/Gui/shot/shot_processor.cpp:1544: m_swingSaveWatcher.setFuture(QtConcurrent::run(",
+  "src/Gui/shot/shot_processor.cpp:2256: m_docWriteWatcher.setFuture(QtConcurrent::run(",
+  "src/Gui/charts/charts_consistency_presenter.cpp:40: #include <QThread>",
+  "src/Gui/charts/charts_consistency_presenter.cpp:683: out->thread = QThread::currentThread();",
+  "src/Gui/charts/charts_delivery_presenter.cpp:45: #include <QThreadPool>",
+  "src/Gui/charts/charts_delivery_presenter.cpp:1027: QThreadPool::globalInstance()->start([self, w, todo, maker]() {",
+  "src/Gui/charts/charts_posture_presenter.cpp:54: #include <QThreadPool>",
+  "src/Gui/charts/charts_posture_presenter.cpp:1864: QThreadPool::globalInstance()->start([self, w, todo, maker]() {",
+  "src/Gui/charts/consistency_env.cpp:34: #include <QThread>",
+  "src/Gui/charts/consistency_env.cpp:136: if (!taken.exchange(true) && !QThread::isMainThread()) {",
+  "src/Gui/charts/presenter_pool.h:50: #include <QThread>",
+  "src/Gui/charts/presenter_pool.h:51: #include <QThreadPool>",
+  "src/Gui/charts/presenter_pool.h:131: static QThreadPool *shared()",
+  "src/Gui/charts/presenter_pool.h:133: static QPointer<QThreadPool> pool;",
+  "src/Gui/charts/presenter_pool.h:135: pool = new QThreadPool(QCoreApplication::instance());",
+  "src/Gui/charts/presenter_pool.h:137: pool->setMaxThreadCount(std::max(2, QThread::idealThreadCount()));",
+  "src/Gui/charts/session_series_model.h:29: #include <QThreadPool>",
+  "src/Gui/charts/session_series_model.h:324: QThreadPool m_pool;",
+  "src/Gui/report/report_stills.cpp:38: #include <QThreadPool>",
+  "src/Gui/report/report_stills.cpp:419: static QThreadPool *pool = [] {",
+  "src/Gui/report/report_stills.cpp:420: auto *p = new QThreadPool;",
+  "src/Gui/report/report_stills.cpp:421: p->setMaxThreadCount(std::clamp(QThread::idealThreadCount() / 3, 1, 3));",
+  "src/Gui/report/session_report_list_model.h:61: #include <QThreadPool>",
+  "src/Gui/report/session_report_list_model.h:231: QThreadPool    m_pool;",
+  "src/Gui/report/session_report_model.cpp:490: m_job->docsWatcher.setFuture(QtConcurrent::run([dir] { return readDocs(dir); }));",
+  "src/Gui/report/session_report_model.cpp:502: m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack] { return readChartsPa",
+  "src/Core/cpu_topology.h:57: const unsigned hw   = std::thread::hardware_concurrency();",
+  "src/Core/device_enumerator.cpp:354: m_imuScanThread = new QThread(this);",
+  "src/Core/device_enumerator.cpp:358: scanner->moveToThread(m_imuScanThread);",
+  "src/Core/device_enumerator.cpp:361: connect(m_imuScanThread, &QThread::started,  scanner, &ImuBleScanner::start);",
+  "src/Core/device_enumerator.cpp:363: connect(m_imuScanThread, &QThread::finished, scanner, &QObject::deleteLater);",
+  "src/Core/device_enumerator.cpp:472: QThread *scanThread = m_imuScanThread;",
+  "src/Core/device_enumerator.cpp:473: connect(m_imuScanThread, &QThread::finished, this, [this, scanThread]() {",
+  "src/Core/device_enumerator.h:25: #include <QThread>",
+  "src/Core/device_enumerator.h:150: QThread *m_imuScanThread    = nullptr;",
+  "src/Export/swing_zip_exporter.cpp:190: m_watcher.setFuture(QtConcurrent::run([job = std::move(job)] {"
+ ]
+}
