@@ -1,10 +1,11 @@
 # 04 · The refactor plan
 
 **Status (14 Nov 2026):**
-- Mark has agreed the overall architecture in `03-target-architecture.md` (draft 2.1); its elements will be refined
+- Mark has agreed the overall architecture in `03-target-architecture.md` (draft 2.1, and decisions 1–23). Draft 2.2
+  adds his 14 Nov decisions (19–23) and the lead's clarifications for him to read; its elements will be refined
   step by step.
 - This page is how we get there. It replaces the first remediation plan.
-- Stage 0, local defect fixes, is partly done (below). Nothing structural starts until Mark approves the first
+- Stage 0, local defect fixes, is committed (below). Nothing structural starts until Mark approves the first
   step's brief.
 
 ## 1. How the work runs
@@ -96,24 +97,24 @@ today.
 
 | # | Fix | Decision | State |
 |---|---|---|---|
-| 0.1 | Golfer input never lost from `diagnostics.json` (H-04) | **Keep** (Critical) | Implemented; reviewer's 3 changes in progress |
-| 0.2 | `atomicWrite` on `QSaveFile` (H-05) | **Keep** | **Signed off** |
-| 0.4 | A saved corridor edit reaches the app (B-01, part of B-03) | **Keep** | Implemented; reviewer's 5 changes in progress |
-| 0.4b | Follow-up to 0.4: `SessionDiagnosticsModel` re-takes the norms at activation; `LmSessionModel` at its grade pass | **Keep**: closes 0.4's definition of done | Queued after 0.1 and 0.4 |
-| 0.5 | The report honours the board's exclusions and club overrides (F-03) | **Keep** | **Signed off** |
-| 0.3 | "Club assumed" demotion (B-07), and `ingestShot` checks its session | **Keep**: a grading defect, small, lasting | Queued |
-| 0.6 | One stored-score reader; the replay's overall score (H-01) | **Keep**: small, lasting | Queued |
-| 0.12 | One held rule for Your swing and Work-ons (C-06) | **Keep**: Mark's decision, small | Queued |
-| 0.8g | **Guard only:** no athlete switch or auto-select while capture runs. The live carousel reloads only when the athlete's uuid actually changes. | **Keep the guard** (data can be saved under the wrong athlete today) | Queued; its brief is a cut-down 0.7 |
+| 0.1 | Golfer input never lost from `diagnostics.json` (H-04) | **Keep** (Critical) | Committed (5b878a1d) |
+| 0.2 | `atomicWrite` on `QSaveFile` (H-05) | **Keep** | Committed (b397c975) |
+| 0.4 | A saved corridor edit reaches the app (B-01, part of B-03) | **Keep** | Committed (e0180377) |
+| 0.4b | Follow-up to 0.4: `SessionDiagnosticsModel` re-takes the norms at activation; `LmSessionModel` at its grade pass | **Keep**: closes 0.4's definition of done | Committed (d668bb55) |
+| 0.5 | The report honours the board's exclusions and club overrides (F-03) | **Keep** | Committed (ab9dd6e0; 0.5b, one golfer name per reading: 9b04fb9b) |
+| 0.3 | "Club assumed" demotion (B-07), and `ingestShot` checks its session | **Keep**: a grading defect, small, lasting | Committed (44641cdf) |
+| 0.6 | One stored-score reader; the replay's overall score (H-01) | **Keep**: small, lasting | Committed (4fd746ee) |
+| 0.12 | One held rule for Your swing and Work-ons (C-06) | **Keep**: Mark's decision, small | Committed (ac5840b2) |
+| 0.8g | **Guard only:** no athlete switch or auto-select while capture runs. The live carousel reloads only when the athlete's uuid actually changes. | **Keep the guard** (data can be saved under the wrong athlete today) | Committed (0531235b) |
 | 0.7 | The full split between "athlete changed" and "record edited", with listeners moved | **Fold into step 2** (Athlete objects replaced on switch) | — |
 | 0.9 | The selection cleared on session change; no basename fallback (E-05) | **Fold into step 4** (`AppState` selection) | — |
 | 0.10 | Re-analysis uses the live athlete facts (H-02, A-01) | **Fold into step 1** (the Recording contract) | — |
 | 0.11 | The score pill | **Design question**, filed as an issue | — |
-| 0.13 | Frequency words never claim more than the share; one rule for Your swing and Tendencies | **Keep** (Mark, 14 Nov) | Implemented, in review |
-| 0.14 | Your swing's words say what listed a habit ("…in your latest session"); a set-up can be praised by the same rule as a fault, and for being consistent using the app's existing consistency grade (Mark, 14 Nov: option A; "praise setup, esp. a consistent setup"; "we have consistency grading in the app") | **Keep** (Mark's decisions) | Queued after 0.13 |
+| 0.13 | Frequency words never claim more than the share; one rule for Your swing and Tendencies | **Keep** (Mark, 14 Nov) | Committed (e28eff09) |
+| 0.14 | Your swing's words say what listed a habit ("…in your latest session"); a set-up can be praised by the same rule as a fault, and for being consistent using the app's existing consistency grade (Mark, 14 Nov: option A; "praise setup, esp. a consistent setup"; "we have consistency grading in the app") | **Keep** (Mark's decisions) | Committed (9d2ac92d) |
+| 0.4c | When a session's diagnostics cannot be saved (unopenable file, failed set-aside), say so in the app through the existing notifications, not only in the log (Mark's rule: show with a warning, never hide) | **Keep** (a defect 0.4b exposed) | Committed (0a019783) |
 
-**Order:** 0.1 and 0.4 finish, then 0.4b, 0.3, 0.6, 0.12 and 0.8g, two at a time on disjoint files. Stage 0 ends
-with one list of change sets for Mark to test and commit.
+**Stage 0 is committed.** Mark tests the change sets from the dashboard's "to try" list.
 
 ## 3. The steps
 
@@ -141,9 +142,17 @@ with one list of change sets for Mark to test and commit.
 - **One builder** produces the Recording, with its analysis context (athlete facts, club and length, rig
   reference), for live capture and for re-analysis alike.
 - **The analysis service takes only a Recording.** `ShotProcessor`'s analysis-job half moves behind it.
+- **`RecordingRepository`:** the domain's interface for a shot's swing file, implemented by `SwingStore`. The file is
+  written once by capture (the Recording), then only by its `Session` (Mark, 14 Nov).
 - **Folds in 0.10:** one header builder; `athlete.heightM`, the cohort and the standard club length recorded.
-- **Closes:** H-02, A-01, E-11, the parity half of E-09, A-09 (one write-back path).
-- **Test:** live job == re-analysis job, from the same Recording.
+- **A corrected club** (Mark, 14 Nov): re-analysis uses the effective club (the golfer's correction, else the declared
+  club), with its length and norms. The builder applies the correction to make the effective context; the captured
+  club stays in the Recording. A correction is a `ShotAnnotated` event that marks the shot's analysis stale.
+- **One serialiser per analysis block,** beside its producer, as part of the Recording contract: the live detail and
+  the disk form are the same functions, in one time domain.
+- **Closes:** H-02, A-01, E-11, the parity half of E-09, A-09 (one write-back path), A-02, H-01, E-10, A-03.
+- **Test:** same Recording + same effective context (the effective club included) → same job, for an uncorrected
+  shot (live job == re-analysis job) and for a corrected one (re-analysis uses the corrected club).
 - **Re-run:** a stage-version bump, then one library re-analysis on GOLFSIMPC (run by the lead).
 
 ### Step 2 · Identity and repositories (~1 day)
@@ -152,8 +161,17 @@ with one list of change sets for Mark to test and commit.
   else).
 - **Repositories:**
   - `AthleteRepository` (`athlete.json`, the folder stored on the record);
-  - `SessionRepository`, an identity map (`session_input.json`, `diagnostics.json`, `club_baseline.json`);
-  - `SessionFiles`/`AthleteFiles`.
+  - `SessionRepository`, an identity map (`session_input.json`, `diagnostics.json`, `club_baseline.json`,
+    `work_ons.json`, `archived.json`, the report documents);
+  - `SessionFiles`/`AthleteFiles`: the one place each session or athlete file name is spelled, used only by the two
+    repositories (H-12, lint A4);
+  - advisory lock files, so the CLI tools and the app never write one session or athlete folder at once;
+  - **one atomic-write helper** (the lead's proposal, for Mark): the repositories write through the shared
+    `atomicWrite`, and the about 15 files that use `QSaveFile` directly, and the two that write a part file and
+    rename, move onto it.
+- **The archive as a `Session` command** (the lead's proposal, for Mark): `archived.json` and the archive move are
+  written through `SessionRepository` in this step (the archiver stops writing the folder itself), and through
+  `Session::archive()` once the `Session` exists in step 3.
 - **One-off migrations,** each with a dry-run report and backups on the share:
   - the athlete folder recorded on the record;
   - QSettings → `athlete.json`;
@@ -166,12 +184,25 @@ with one list of change sets for Mark to test and commit.
 - **Decision for Mark in this step's brief:** when the library is re-pointed mid-session (a dropped share), should the
   session continue in the new library (today's behaviour: one session split across two places), or end and start a
   new session there?
-- **Closes:** E-02, E-03, F-06, F-07/E-06, E-07, H-09, H-12, H-04 (fully).
+- **Closes:** E-02, E-03, F-06, F-07/E-06, E-07, H-09, H-12, H-04 (fully), H-14.
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
 
 1. **`Session`** (aggregate root, commands and events) and **`SessionDiagnostics`** arrive in
-   `src/DomainModel`. `diagnoseSwing()` becomes a pure function in `src/Diagnostics`.
+   `src/DomainModel`. **Grading** (Mark, 14 Nov): `SessionDiagnosticsModel::detectShot` becomes the pure
+   `gradeShot()` in `src/Diagnostics`. `SessionDiagnostics` grades every shot of its session (each number against its
+   corridor, with the session's club baseline and the effective club) and keeps the rows in `diagnostics.json`, one
+   writer. The rows are shot-level facts, exposed through the shot (`ShotDiagnostics`, read-only). The analysis
+   pipeline never grades; a corridor edit or a club correction regrades without re-analysis.
+   - `work_ons.json` is the session summary, written by `SessionDiagnostics` (the lead's clarification, for Mark
+     to read).
+   - `outcome_corrections.jsonl` is appended by the athlete level on `LabelCorrected`, never by the session (Mark,
+     14 Nov).
+   - The club baseline is a recorded input: written once at first need, rewritten only when its format is older
+     than the current rule (Mark, 14 Nov).
+   - `fault_profile.json` is deleted, with its reader (H-11, D-07).
+   - **Rule versions are checked:** a golden or parity test fails when a rule's output changes and its version did
+     not (C-05).
 2. **Parallel run:** behind a feature switch, the new owner computes alongside today's `SessionDiagnosticsModel`
    on every live and opened session, and a diff is logged. The parity run covers the corpus.
 3. **Cut-over, view by view:**
@@ -182,13 +213,16 @@ with one list of change sets for Mark to test and commit.
    - the catch-up (via `AthleteDiagnostics`).
 
    Each cut-over deletes a private model. `SessionMode.sessionDiagnostics` goes last.
-4. **Always detect:** every live shot is graded, panel or not.
+4. **Always grade:** every live shot is graded, panel or not.
 5. **Praise needs consistency** (Mark, 14 Nov): "What you do well" praises a condition only when it is in range
    AND its consistency grade is Repeatable or Grooved, for every praise, set-ups and faults alike. The grades are
    held by `AthleteDiagnostics` and read by the swing-themes reduction (Stage 0.14 could not reach them: today they
    are computed only in the Home controller, after the themes, and never stored).
+6. **Decisions for Mark in this step's brief:** the owner and repository of packs and norms (the user's pack and
+   corridor edits, today `<AppData>/diagnostics/user.json` and `user.norms.json`); and where session status and
+   start/end times are stored (today they are not persisted).
 
-- **Closes:** D-01…D-06, D-13, H-03, G-03/C-01, B-02 (one pack snapshot), the session half of E-13, and the
+- **Closes:** D-01…D-07, D-13, H-03, H-11, C-05, G-03/C-01, B-02 (one pack snapshot), the session half of E-13, and the
   follow-up noted in 0.5 (Tendencies, Consistency, the kicker and work-on facts honour the board's annotations).
 - **Re-run:** a regrade, if the stamps change.
 
@@ -202,7 +236,8 @@ with one list of change sets for Mark to test and commit.
   - the selections (stage and cast);
   - the replay.
 
-  It replaces `SessionMode`'s focus fields, `CurrentSwing` and the carousel's copy.
+  It lives in `src/App` (Mark, 14 Nov) and replaces `SessionMode`'s focus fields, `CurrentSwing` and the carousel's
+  copy. With nothing being captured, the cast selection shows the session on screen (Mark, 14 Nov).
 - **Folds in 0.9.**
 - **The carousel shot summary**, the request that started this work: strike · direction · flight · carry, for LM
   shots. Its look goes to Mark first if it needs anything new.
@@ -213,12 +248,23 @@ with one list of change sets for Mark to test and commit.
 - **`SessionSeries` per session.** The view-owned `SessionSeriesModel`s go. `SessionSnapshot` reads the owner.
 - **One presenter base and one threading idiom** for the six presenters.
 - **Typed presenters**, one view at a time; the `QVariantMap` shapes go.
-- **Closes:** F-01, F-02, F-04, F-08, F-09, D-10, F-12.
+- **The report as a `Session` command** (the lead's proposal, for Mark): the report documents are saved through a
+  `Session` command and `SessionRepository`, not by the report model directly.
+- **QML through `app`:** as each view moves (from step 3's cut-over on), the 42 context globals shrink to devices,
+  settings, logging and `app`.
+- **No domain rules in QML:** as each view moves to a typed presenter, its rules ("Clean" vs "Solid", shape by
+  substring, distances from band words) move into the presenter's typed result.
+- **Closes:** F-01, F-02, F-04, F-08, F-09, D-10, F-12, G-11, D-11.
 
 ### Step 6 · Measurements unified, flight-check overlay (~1½ days + a regrade)
 
 - **One source-tagged set of measurements per shot.** The LM is a device like any other, and one precedence rule
   decides which source wins. The LM board becomes a presenter.
+- **One club per shot:** the effective club (the golfer's correction, else the declared club) is the club for
+  grading, the board, every presenter and re-analysis (step 1). The board's private club handling goes.
+- **No DRIVER stub for an undeclared club** (the lead's proposal, for Mark): capture records an undeclared club as
+  undeclared, so it is graded "club assumed" (B-07, G-07), instead of the athlete's primary club or the `"DRIVER"`
+  stub, which reads back as a declared driver.
 - **The flight check becomes a session overlay** on unchanged rows; the stamps include their norms and thresholds.
 - **One direction**, from the pack's corridors.
 - **One handedness gloss.**
@@ -246,7 +292,7 @@ These are wall-clock estimates at agent pace, assuming Mark reviews each step wi
 
 | Step | Estimate |
 |---|---|
-| Stage 0 remainder | ~½ day |
+| Stage 0 | committed |
 | G | ~1 day |
 | 1 | ~1 day + re-analysis |
 | 2 | ~1 day |
