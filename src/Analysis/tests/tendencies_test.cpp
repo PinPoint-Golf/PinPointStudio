@@ -755,6 +755,22 @@ int main()
     check(tendencyFrequencyWords(0.1)  == QStringLiteral("rarely"), "10%: rarely");
     check(tendencyFrequencyWords(0.6)  == QStringLiteral("more than half your swings"), "60%: the existing word");
     check(tendencyFrequencyWords(0.95) == QStringLiteral("almost every swing"), "95%: the existing word");
+    {
+        // One rule with Your swing (frequency_words.h, Stage 0.13): the shared default thresholds, every share.
+        bool same = true, honest = true;
+        for (int i = 0; i <= 1000; ++i) {
+            const double s = i / 1000.0;
+            const QString w = tendencyFrequencyWords(s);
+            same = same && w == frequencyWords(s, FrequencyThresholds{});
+            if (s < 0.5) honest = honest && !w.contains(QStringLiteral("half")) && !w.contains(QStringLiteral("most"))
+                                  && !w.contains(QStringLiteral("every"));
+        }
+        check(same, "tendency words are the shared frequency rule over shares 0..1");
+        check(honest, "below half: never \"more than half\" or more");
+        check(tendencyFrequencyWords(0.5) == QStringLiteral("more than half your swings") && tendencyFrequencyWords(0.4999) == QStringLiteral("fairly often")
+              && tendencyFrequencyWords(0.7) == QStringLiteral("most swings") && tendencyFrequencyWords(0.995) == QStringLiteral("every swing"),
+              "the boundaries as before (0.995 / 0.9 / 0.7 / 0.5 / 0.4 / 0.25)");
+    }
 
     std::printf("\ncancelled, and the JSON:\n");
     {

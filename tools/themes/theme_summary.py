@@ -73,9 +73,14 @@ MAX_DO_WELL = 3
 MAX_NEEDS_WORK = MAX_SEEN_MOST
 MAX_NEXT = 4                # "next on your list", after the focus
 UNPLACED = 11               # a focus group with no known swing position ranks after P10
-EVERY_SWING = 0.995         # caption boundaries
+# How often (src/Coaching/frequency_words.h, the one rule Your swing and Tendencies share): the caption
+# and frequency boundaries from half up, then the fixed bands below half.
+EVERY_SWING = 0.995
 ALMOST_EVERY = 0.9
 MOST_SWINGS = 0.7
+MORE_THAN_HALF = 0.5
+FAIRLY_OFTEN = 0.4
+SOMETIMES = 0.25
 IN_BAND_SHAPES = ("floor", "ceiling", "twoSided")   # the ledger's spellings; a pack Target is twoSided
 
 NOTHING_SEEN = "Nothing shows up on most of your swings."
@@ -262,12 +267,37 @@ def whats_off(rates, pack):
     return rows
 
 
+def frequency_band(share):
+    """frequencyBand() in frequency_words.h: words that never claim more than the share."""
+    if share >= EVERY_SWING:
+        return "every"
+    if share >= ALMOST_EVERY:
+        return "almostEvery"
+    if share >= MOST_SWINGS:
+        return "most"
+    if share >= MORE_THAN_HALF:
+        return "moreThanHalf"
+    if share >= FAIRLY_OFTEN:
+        return "fairlyOften"
+    if share >= SOMETIMES:
+        return "sometimes"
+    return "rarely"     # NaN too: every comparison is False
+
+
+FREQUENCY_WORDS = {"every": "every swing", "almostEvery": "almost every swing", "most": "most swings",
+                   "moreThanHalf": "more than half your swings", "fairlyOften": "fairly often",
+                   "sometimes": "sometimes", "rarely": "rarely"}
+
+
 def how_often(share):
-    if share >= 0.9:
+    """themeHowOften(): "on almost every swing" (every swing too), "on most swings", "on more than half
+    your swings", and below half the bare words."""
+    band = frequency_band(share)
+    if band in ("every", "almostEvery"):
         return "on almost every swing"
-    if share >= 0.7:
-        return "on most swings"
-    return "on more than half your swings"
+    if band in ("most", "moreThanHalf"):
+        return "on " + FREQUENCY_WORDS[band]
+    return FREQUENCY_WORDS[band]
 
 
 def seen_most_lines(off, cond_phrase):
@@ -500,13 +530,8 @@ def well_caption(share):
 
 
 def frequency(share):
-    if share >= EVERY_SWING:
-        return "every swing"
-    if share >= ALMOST_EVERY:
-        return "almost every swing"
-    if share >= MOST_SWINGS:
-        return "most swings"
-    return "more than half your swings"
+    """themeFrequency(): the one frequency rule's words."""
+    return FREQUENCY_WORDS[frequency_band(share)]
 
 
 def counted(n, one, many):

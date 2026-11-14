@@ -46,6 +46,7 @@
 //
 // Unit-tested standalone in src/Analysis/tests/tendencies_test.cpp.
 
+#include "frequency_words.h"
 #include "shot_factors.h"
 #include "tendency_flow.h"
 #include "shot_outcomes.h"
@@ -209,17 +210,11 @@ inline double shotCarryLoss(const ShotRecord &recorded, const ClubBaselineEntry 
     return std::max(0.0, usual->carryMean - shot.carry);
 }
 
-// themeFrequency() floors at "more than half"; a tendency earns at a quarter, so it needs words below
-// that. The bands from half up use themeFrequency's thresholds and its words.
+// How often a factor's value is seen: the one frequency rule (frequency_words.h), which Your swing's
+// themeFrequency() says too, with its default thresholds (ThemeOptions' own).
 inline QString tendencyFrequencyWords(double share)
 {
-    if (share >= 0.995) return QStringLiteral("every swing");
-    if (share >= 0.9)   return QStringLiteral("almost every swing");
-    if (share >= 0.7)   return QStringLiteral("most swings");
-    if (share >= 0.5)  return QStringLiteral("more than half your swings");
-    if (share >= 0.4)  return QStringLiteral("fairly often");
-    if (share >= 0.25) return QStringLiteral("sometimes");
-    return QStringLiteral("rarely");
+    return frequencyWords(share);
 }
 
 // Irons split by how they are played: long 1-4, mid 5-7, short 8 to the pitching wedge. An iron with no number

@@ -48,6 +48,7 @@
 
 #include "Gui/diagnostics/work_ons_controller.h"
 #include "Gui/variability/variability_measures.h"
+#include "Coaching/frequency_words.h"
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
 #include "Export/swing_store.h"
@@ -343,7 +344,9 @@ static bool isFaultItem(const QVariant &v, const QJsonArray &storedSeen)
         && m.value(QStringLiteral("share")).typeId() == QMetaType::Double
         && m.value(QStringLiteral("trend")).typeId() == QMetaType::Int && trend >= -1 && trend <= 1
         && (freq == QStringLiteral("every swing") || freq == QStringLiteral("almost every swing")
-            || freq == QStringLiteral("most swings") || freq == QStringLiteral("more than half your swings"))
+            || freq == QStringLiteral("most swings") || freq == QStringLiteral("more than half your swings")
+            || freq == QStringLiteral("fairly often") || freq == QStringLiteral("sometimes") || freq == QStringLiteral("rarely"))
+        && freq == frequencyWords(m.value(QStringLiteral("share")).toDouble())   // the one rule (frequency_words.h)
         && isPips(m.value(QStringLiteral("sessions")))
         && storedRowMatches(storedSeen, m.value(QStringLiteral("sessions")).toList(),
                             m.value(QStringLiteral("share")).toDouble());

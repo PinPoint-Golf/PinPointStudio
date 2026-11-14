@@ -102,6 +102,7 @@
 
 #include "../Analysis/det_rng.h"
 #include "diagnostic_ledger.h"
+#include "frequency_words.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -129,6 +130,10 @@ namespace pinpoint::analysis {
 // work on is the work-on list's own rule (conditionRoleFor) — a held condition (reportHold) is never
 // needs work, a focus or praised, and a Setup habit can be needs work and the focus. A rule-3 file was
 // chosen by the old rule (Fault only, holds ignored), so it is re-derived.
+// NOT a rule change (14 Nov 2026, Stage 0.13): the frequency words — below half now "fairly often" /
+// "sometimes" / "rarely" where "more than half your swings" used to be said (frequency_words.h) — are
+// made at publish from the stored share (swingSummaryView) and never stored, so a rule-4 file is
+// still current and nothing is re-derived.
 inline constexpr int kThemeSchemaVersion = 2;
 inline constexpr int kThemeRuleVersion   = 4;
 
@@ -212,9 +217,12 @@ struct ThemeOptions {
     int    maxNext       = 4;           // "next on your list", after the focus
     int    maxTogether   = 4;
     int    maxThemeParts = 2;
-    double everySwing    = 0.995;       // "In the ideal range on every swing"
-    double almostEvery   = 0.9;
-    double mostSwings    = 0.7;
+    // How often, from half up (frequency_words.h; its defaults, which Tendencies reads too).
+    double everySwing    = FrequencyThresholds{}.everySwing;    // "every swing"; "In the ideal range on every swing"
+    double almostEvery   = FrequencyThresholds{}.almostEvery;
+    double mostSwings    = FrequencyThresholds{}.mostSwings;
+
+    FrequencyThresholds frequencyThresholds() const { return { everySwing, almostEvery, mostSwings }; }
 };
 
 // What the reduction needs to know about one measure, marshalled from the pack by the caller.
@@ -2007,11 +2015,20 @@ inline QString themeSwingsOverSessions(int swings, int sessions)
                                              .arg(sessions).arg(sessions == 1 ? QStringLiteral("session") : QStringLiteral("sessions"));
 }
 
+// "What we see most"'s words, by the one frequency rule (frequency_words.h): "on almost every swing"
+// (every swing included, as it always said), "on most swings", "on more than half your swings", and
+// below half the bare "fairly often" / "sometimes" / "rarely".
 inline QString themeHowOften(double share, const ThemeOptions &opt = {})
 {
-    if (share >= opt.almostEvery) return QStringLiteral("on almost every swing");
-    if (share >= opt.mostSwings)  return QStringLiteral("on most swings");
-    return QStringLiteral("on more than half your swings");
+    const FrequencyBand b = frequencyBand(share, opt.frequencyThresholds());
+    switch (b) {
+    case FrequencyBand::Every:
+    case FrequencyBand::AlmostEvery:  return QStringLiteral("on almost every swing");
+    case FrequencyBand::Most:
+    case FrequencyBand::MoreThanHalf: return QStringLiteral("on ") + frequencyWords(b);
+    default:                          break;
+    }
+    return frequencyWords(b);
 }
 
 // Where a theme starts, from its earliest member's swing position.
@@ -2163,7 +2180,7 @@ struct DoWellItem {
 struct NeedsWorkItem {
     QString text;               // "You stand up through the ball"
     double  share = 0.0;
-    QString frequency;          // "every swing" / "almost every swing" / "most swings" / "more than half your swings"
+    QString frequency;          // themeFrequency(share): "every swing" … "more than half your swings" … "rarely"
     int     trend = 0;          // +1 growing, −1 easing, 0 no change or too few sessions
     std::vector<bool> pips;     // per judged session, oldest first
     QString conditionId;        // the row's condition id (not stored; carried for the GUI)
@@ -2244,12 +2261,10 @@ inline QString themeWellCaption(double share, const ThemeOptions &opt = {})
     return QStringLiteral("In the ideal range on most swings");
 }
 
+// A needs-work item's words: the one frequency rule (frequency_words.h), shared with Tendencies.
 inline QString themeFrequency(double share, const ThemeOptions &opt = {})
 {
-    if (share >= opt.everySwing)  return QStringLiteral("every swing");
-    if (share >= opt.almostEvery) return QStringLiteral("almost every swing");
-    if (share >= opt.mostSwings)  return QStringLiteral("most swings");
-    return QStringLiteral("more than half your swings");
+    return frequencyWords(share, opt.frequencyThresholds());
 }
 
 // "two" .. "nine", else digits — how many of the list the focus covers.

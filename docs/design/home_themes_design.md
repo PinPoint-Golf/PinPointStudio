@@ -264,6 +264,21 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   warns. `kThemeRuleVersion` 3 → 4, so a cached `swing_themes.json` is re-derived; the golden
   fixture and `tools/themes/theme_summary.py` (`is_work_on_fault`, `is_praisable`) follow the same
   rule.
+- **How often, in words (14 Nov 2026, Stage 0.13).** One rule says how often a share is seen, for Your
+  swing and Tendencies alike (`src/Coaching/frequency_words.h`): "every swing" (≥ 0.995), "almost every
+  swing" (≥ 0.9), "most swings" (≥ 0.7), "more than half your swings" (≥ 0.5), then "fairly often"
+  (≥ 0.4), "sometimes" (≥ 0.25) and "rarely". The words never claim more than the share beside them.
+  Before, Your swing's words stopped at "more than half your swings", and since rule v4 a needs-work row
+  can sit under half: its share is recency-weighted over every judged session, while it is listed when
+  the LATEST session saw it on half or more. Ball too far (0.39; 20 of 24 swings in the latest session)
+  read "more than half your swings" beside a 0.39 bar; it now reads "sometimes". The three upper
+  thresholds are `ThemeOptions`' (`everySwing`, `almostEvery`, `mostSwings`), defaulted from the shared
+  rule, which Tendencies reads; the bands below half are fixed. `themeFrequency` (the cards) says the
+  words bare; `themeHowOften` (the flat "what we see most" lines) keeps its shape: "on almost every
+  swing" (every swing included, as before), "on most swings", "on more than half your swings", and the
+  bare words below half. The words are made at publish from the stored share, so `kThemeRuleVersion`
+  does not move and nothing is re-derived; the tendency words did not change, so neither does
+  `kTendencyRuleVersion`. `tools/themes/theme_summary.py` (`frequency_band`) follows.
 - **Parity with the prototype.** Both draw their random numbers from mt19937_64 with one seed per
   replicate (`tools/themes/theme_rng.py` is bit-identical to `DetRng`), so
   `swing_themes_golden_test` holds the C++ to the Python on a copy of Mark's five library ledgers

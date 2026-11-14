@@ -1251,6 +1251,56 @@ int main()
               && themeFrequency(0.994) == QStringLiteral("almost every swing") && themeFrequency(0.9) == QStringLiteral("almost every swing")
               && themeFrequency(0.7) == QStringLiteral("most swings") && themeFrequency(0.69) == QStringLiteral("more than half your swings"),
               "frequency: 0.995 and up is \"every swing\", then almost every, most, more than half");
+
+        // ONE frequency rule (frequency_words.h, Stage 0.13), shared with Tendencies: every band over
+        // shares 0..1, and words that never claim more than the share — "more than half" (or anything
+        // above it) is never said below 0.5.
+        {
+            const ThemeOptions o;
+            check(o.everySwing == FrequencyThresholds{}.everySwing && o.almostEvery == FrequencyThresholds{}.almostEvery
+                  && o.mostSwings == FrequencyThresholds{}.mostSwings,
+                  "frequency: ThemeOptions' thresholds are the shared rule's (which Tendencies reads)");
+            const auto expected = [](double s) {
+                return s >= 0.995 ? QStringLiteral("every swing") : s >= 0.9 ? QStringLiteral("almost every swing")
+                     : s >= 0.7 ? QStringLiteral("most swings") : s >= 0.5 ? QStringLiteral("more than half your swings")
+                     : s >= 0.4 ? QStringLiteral("fairly often") : s >= 0.25 ? QStringLiteral("sometimes") : QStringLiteral("rarely");
+            };
+            const QStringList atLeastHalf{ QStringLiteral("every swing"), QStringLiteral("almost every swing"),
+                                           QStringLiteral("most swings"), QStringLiteral("more than half your swings") };
+            bool bands = true, honest = true, howHonest = true, howShape = true, sameRule = true, misSet = true;
+            ThemeOptions low;                       // a mis-set option cannot make "most" mean less than half
+            low.mostSwings = 0.3; low.almostEvery = 0.2; low.everySwing = 0.1;
+            for (int i = 0; i <= 1000; ++i) {
+                const double s = i / 1000.0;
+                const QString w = themeFrequency(s), h = themeHowOften(s);
+                bands    = bands && w == expected(s);
+                sameRule = sameRule && w == frequencyWords(s) && w == frequencyWords(frequencyBand(s, o.frequencyThresholds()));
+                if (s < 0.5) {
+                    honest    = honest && !atLeastHalf.contains(w) && !w.contains(QStringLiteral("half"));
+                    howHonest = howHonest && !h.contains(QStringLiteral("half")) && !h.contains(QStringLiteral("most"))
+                                && !h.contains(QStringLiteral("every"));
+                    misSet    = misSet && !atLeastHalf.contains(themeFrequency(s, low)) && !themeHowOften(s, low).startsWith(QStringLiteral("on "));
+                }
+                // themeHowOften keeps its shape: "on …" from half up (every swing said as almost every), bare words below.
+                const QString shaped = w == QStringLiteral("every swing") ? QStringLiteral("on almost every swing")
+                                     : atLeastHalf.contains(w)           ? QStringLiteral("on ") + w : w;
+                howShape = howShape && h == shaped;
+            }
+            check(bands, "frequency: each band over shares 0..1 (0.995 / 0.9 / 0.7 / 0.5 / 0.4 / 0.25)");
+            check(honest, "frequency: \"more than half\" or more is never said below 0.5");
+            check(howHonest && howShape, "how often: the same bands in its own shape, and never \"half\" or more below 0.5");
+            check(sameRule, "frequency: themeFrequency is the one rule (frequencyWords)");
+            check(misSet, "frequency: thresholds set below half are held at half, so the words still never overclaim");
+            check(themeFrequency(0.4999) == QStringLiteral("fairly often") && themeFrequency(0.5) == QStringLiteral("more than half your swings")
+                  && themeFrequency(0.39) == QStringLiteral("sometimes") && themeFrequency(0.4) == QStringLiteral("fairly often")
+                  && themeFrequency(0.2499) == QStringLiteral("rarely") && themeFrequency(0.25) == QStringLiteral("sometimes")
+                  && themeFrequency(0.0) == QStringLiteral("rarely")
+                  && themeFrequency(std::numeric_limits<double>::quiet_NaN()) == QStringLiteral("rarely"),
+                  "frequency: the boundaries below half, and NaN claims nothing");
+            check(themeHowOften(0.39) == QStringLiteral("sometimes") && themeHowOften(0.45) == QStringLiteral("fairly often")
+                  && themeHowOften(0.1) == QStringLiteral("rarely") && themeHowOften(1.0) == QStringLiteral("on almost every swing"),
+                  "how often: below half the bare words; every swing still \"on almost every swing\"");
+        }
         check(av.needsWork.size() == 5 && av.needsWork[0].frequency == QStringLiteral("almost every swing")
               && av.needsWork[2].frequency == QStringLiteral("every swing"),
               "needs work says \"every swing\" too");
