@@ -37,6 +37,7 @@
 #include <QCoreApplication>
 #include <QDate>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QString>
 #include <QStringList>
@@ -693,6 +694,183 @@ static void testTrashPath()
     }
 }
 
+// ---------------------------------------------------------------------------
+// K — within a session the folder is fixed (SWE audit E-01, Stage 0.8g)
+// ---------------------------------------------------------------------------
+//
+// The contract (swing_paths.h, class comment): from beginSession() to
+// endSession() every swing lands in the folder the session first allocated. A
+// rename of the athlete puts a different name in the folder base, and a session
+// that runs past midnight a different date; either used to allocate a second
+// folder mid-session — one session split across two folders, nothing told.
+// The one exception: a LIBRARY re-pointed mid-session (the remedy after a share
+// drop) moves the next swing to a new folder under the new library (K15–K20);
+// the same library spelled with a trailing "/" is not a move (K21–K22), and
+// End's empty-folder clean-up after a move trashes nothing with swings (K23–K24).
+// The oracle is the filesystem: the swing's parent, and which folders exist.
+
+static void testSessionKeepsItsFolder()
+{
+    std::printf("\nK — a session keeps its folder across a rename and midnight, not a library change\n");
+
+    // Rename mid-session.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("K1"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        const QString session = paths.beginSession(lib.root(), kName, kUuid,
+                                                   QStringLiteral("date-name-type"), kType, false);
+        check(QStringLiteral("K1 the session opened"), !session.isEmpty() && paths.sessionOpen());
+        const SwingPaths::Allocation a = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        const QString renamed = QStringLiteral("Mark Liversedge-Smith");
+        const SwingPaths::Allocation b = paths.allocateSwingDir(lib.root(), renamed, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        checkEq(QStringLiteral("K2 the swing after a rename is in the session's folder"),
+                QFileInfo(b.swingDir).absolutePath(), session);
+        checkEq(QStringLiteral("K3 …and is the next number"), b.swingId, QStringLiteral("swing_0002"));
+        checkEq(QStringLiteral("K4 …under the session's id"), b.sessionId, a.sessionId);
+        check(QStringLiteral("K5 no folder was made under the new name"),
+              !TempLibrary::exists(lib.athleteDir(SwingPaths::sanitise(renamed))));
+
+        // After the session ends, the next one resolves afresh — under the new name.
+        paths.endSession(false);
+        check(QStringLiteral("K6 endSession closes it"), !paths.sessionOpen());
+        const QString next = paths.beginSession(lib.root(), renamed, kUuid,
+                                                QStringLiteral("date-name-type"), kType, false);
+        check(QStringLiteral("K7 the next session goes under the new name"),
+              next.startsWith(lib.athleteDir(SwingPaths::sanitise(renamed)) + QLatin1Char('/')));
+    }
+
+    // Midnight mid-session.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("K8"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        QDate day(2026, 11, 14);
+        paths.setClockForTest([&day] { return day; });
+        const QString session = paths.beginSession(lib.root(), kName, kUuid,
+                                                   QStringLiteral("date-name-type"), kType, false);
+        checkEq(QStringLiteral("K8 the session is dated its first day"), QFileInfo(session).fileName(),
+                QStringLiteral("2026-11-14_") + kToken + QLatin1Char('_') + kType + QStringLiteral("_01"));
+        paths.allocateSwingDir(lib.root(), kName, kUuid, QStringLiteral("date-name-type"), kType);
+        day = day.addDays(1);                                    // past midnight
+        const SwingPaths::Allocation b = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        checkEq(QStringLiteral("K9 the swing after midnight is in the session's folder"),
+                QFileInfo(b.swingDir).absolutePath(), session);
+        checkEqInt(QStringLiteral("K10 one session folder for the athlete"),
+                   TempLibrary::countSessions(lib.athleteDir(kToken)), 1);
+        paths.endSession(false);
+
+        // Outside a session the day still moves the lazy folder on (the per-run cache).
+        const SwingPaths::Allocation c = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        day = day.addDays(1);
+        const SwingPaths::Allocation d = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        check(QStringLiteral("K11 outside a session a new day is a new folder"),
+              QFileInfo(c.swingDir).absolutePath() != QFileInfo(d.swingDir).absolutePath());
+    }
+
+    // The library re-pointed mid-session (Storage settings, after a share drop): the next swing goes
+    // under the NEW library — never on into the old folder, which may be unreachable.
+    {
+        TempLibrary oldLib, newLib;
+        if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K15"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        const QString session = paths.beginSession(oldLib.root(), kName, kUuid,
+                                                   QStringLiteral("date-name-type"), kType, false);
+        const SwingPaths::Allocation a = paths.allocateSwingDir(oldLib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        checkEq(QStringLiteral("K15 the first swing is in the session's folder"),
+                QFileInfo(a.swingDir).absolutePath(), session);
+        const SwingPaths::Allocation b = paths.allocateSwingDir(newLib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        check(QStringLiteral("K16 after a library change the next swing is under the new library (%1)").arg(b.swingDir),
+              !b.swingDir.isEmpty() && b.swingDir.startsWith(newLib.athleteDir(kToken) + QLatin1Char('/')));
+        check(QStringLiteral("K17 …and it was created there"), TempLibrary::exists(b.swingDir));
+        checkEqInt(QStringLiteral("K18 the old session folder gained nothing"), TempLibrary::countSwings(session), 1);
+        const SwingPaths::Allocation c = paths.allocateSwingDir(newLib.root(), QStringLiteral("Renamed"), kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        checkEq(QStringLiteral("K19 the session then keeps its new folder (a rename does not move it)"),
+                QFileInfo(c.swingDir).absolutePath(), QFileInfo(b.swingDir).absolutePath());
+        checkEq(QStringLiteral("K20 currentSessionDir follows it"), paths.currentSessionDir(),
+                QFileInfo(b.swingDir).absolutePath());
+        paths.endSession(false);
+    }
+
+    // The SAME library re-picked with a trailing "/" (Settings stores one, the folder picker does not)
+    // is not a library change: the session keeps its folder.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("K21"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        const QString session = paths.beginSession(lib.root() + QLatin1Char('/'), kName, kUuid,
+                                                   QStringLiteral("date-name-type"), kType, false);
+        const SwingPaths::Allocation a = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        const SwingPaths::Allocation b = paths.allocateSwingDir(lib.root() + QLatin1Char('/'), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        check(QStringLiteral("K21 \"lib/\" then \"lib\" then \"lib/\": one session folder"),
+              QDir::cleanPath(QFileInfo(a.swingDir).absolutePath()) == QDir::cleanPath(session)
+              && QDir::cleanPath(QFileInfo(b.swingDir).absolutePath()) == QDir::cleanPath(session));
+        checkEqInt(QStringLiteral("K22 …and the athlete has one session folder"),
+                   TempLibrary::countSessions(lib.athleteDir(kToken)), 1);
+        paths.endSession(false);
+    }
+
+    // End after a library move: the empty-session clean-up (discardIfNoNewSwings) trashes nothing
+    // that holds swings — not the new library's folder (it was not beginSession()'s), not the old one.
+    {
+        TempLibrary oldLib, newLib;
+        if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K23"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        const QString session = paths.beginSession(oldLib.root(), kName, kUuid,
+                                                   QStringLiteral("date-name-type"), kType, false);
+        const SwingPaths::Allocation a = paths.allocateSwingDir(oldLib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        const SwingPaths::Allocation b = paths.allocateSwingDir(newLib.root(), kName, kUuid,
+                                                                QStringLiteral("date-name-type"), kType);
+        paths.endSession(/*discardIfNoNewSwings=*/true);
+        check(QStringLiteral("K23 End keeps the new library's session folder and its swing"),
+              TempLibrary::exists(b.swingDir) && TempLibrary::countSwings(QFileInfo(b.swingDir).absolutePath()) == 1);
+        check(QStringLiteral("K24 End keeps the old library's session folder and its swing"),
+              TempLibrary::exists(a.swingDir) && TempLibrary::countSwings(session) == 1);
+    }
+
+    // A session whose start could not make its folder keeps the first one a swing makes.
+    {
+        TempLibrary lib;
+        if (!lib.valid()) { skip(QStringLiteral("K12"), QStringLiteral("no temp dir")); return; }
+        SwingPaths paths;
+        QDate day(2026, 11, 14);
+        paths.setClockForTest([&day] { return day; });
+        // A FILE where the athlete folder should be: mkpath of the session folder fails.
+        QFile blocker(lib.athleteDir(kToken));
+        const bool blocked = blocker.open(QIODevice::WriteOnly);
+        blocker.close();
+        const QString session = blocked ? paths.beginSession(lib.root(), kName, kUuid,
+                                                             QStringLiteral("date-name-type"), kType, false)
+                                         : QString();
+        if (!blocked || !session.isEmpty()) {
+            skip(QStringLiteral("K12 a failed start"), QStringLiteral("could not make the start fail here"));
+        } else {
+            check(QStringLiteral("K12 a failed start still opens the session"), paths.sessionOpen());
+            QFile::remove(lib.athleteDir(kToken));               // the library comes back
+            const SwingPaths::Allocation a = paths.allocateSwingDir(lib.root(), kName, kUuid,
+                                                                    QStringLiteral("date-name-type"), kType);
+            check(QStringLiteral("K13 the first swing makes a folder"), !a.swingDir.isEmpty());
+            day = day.addDays(1);
+            const SwingPaths::Allocation b = paths.allocateSwingDir(lib.root(), QStringLiteral("Renamed"), kUuid,
+                                                                    QStringLiteral("date-name-type"), kType);
+            checkEq(QStringLiteral("K14 …and the session keeps it across midnight and a rename"),
+                    QFileInfo(b.swingDir).absolutePath(), QFileInfo(a.swingDir).absolutePath());
+        }
+        paths.endSession(false);
+    }
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QStandardPaths / QTemporaryDir
@@ -704,6 +882,7 @@ int main(int argc, char **argv)
     testBeginSession();
     testEndSession();
     testTrashPath();
+    testSessionKeepsItsFolder();
     std::printf("\n%d checks, %d failed, %d skipped\n", g_run, g_fail, g_skip);
     return g_fail == 0 ? 0 : 1;
 }

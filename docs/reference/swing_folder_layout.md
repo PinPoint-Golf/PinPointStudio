@@ -36,7 +36,7 @@ The app writes a few athlete-level files beside the session folders: `tendencies
 
 ## Session level
 
-One folder per session. A session is "a sitting" — typically a day's shots for one session type; all swings captured during one app run share one session folder.
+One folder per session. A session is "a sitting" — typically a day's shots for one session type; all swings captured during one app run share one session folder. From session start to End, every swing goes into the folder that session first allocated: renaming the athlete mid-session, or a session that runs past midnight, does not start a second folder (the folder keeps the name and date it was started with). The one exception is the library folder itself: re-pointed in Storage settings mid-session (say after the share dropped), the next swing goes into a new session folder under the new library, and the log says so. The current athlete cannot be switched or deleted while a session runs, and an athlete created mid-session is saved but does not become current (`AthleteController`).
 
 ### Folder name
 

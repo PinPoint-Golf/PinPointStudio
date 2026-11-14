@@ -19,6 +19,7 @@
 #include "athlete_controller.h"
 
 #include "pp_settings.h"
+#include "../../Core/pp_debug.h"
 #include "club_vocabulary.h"
 #include "club_standards.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
@@ -382,9 +383,16 @@ QString AthleteController::saveAthlete(
     s.endGroup(); // uuid
     s.endGroup(); // athletes
 
-    if (creating)
-        s.setValue(kCurrentUuid, targetUuid);   // auto-select new athlete
+    // A new athlete becomes current — except while a session runs, when the session's athlete
+    // must stay current (its swings are being saved under them; see setSessionRunningCheck).
     // On update: do NOT change the current selection.
+    if (creating) {
+        if (sessionRunning())
+            ppInfo() << "[Athlete] created" << name.trimmed() << targetUuid
+                     << "but kept" << m_currentName << "current: a session is running for them";
+        else
+            s.setValue(kCurrentUuid, targetUuid);   // auto-select new athlete
+    }
 
     s.sync();
     reload();
@@ -809,6 +817,12 @@ bool AthleteController::removeClubRecord(const QString &uuid, const QString &clu
 
 bool AthleteController::deleteAthlete(const QString &uuid)
 {
+    if (sessionRunning() && !uuid.isEmpty() && uuid == m_currentUuid) {
+        ppInfo() << "[Athlete] refused to delete" << m_currentName
+                 << "- a session is running for them; end it first";
+        return false;
+    }
+
     QSettings s = ppSettings();
 
     s.beginGroup(kGroup);
@@ -823,16 +837,27 @@ bool AthleteController::deleteAthlete(const QString &uuid)
     return true;
 }
 
-void AthleteController::selectAthlete(const QString &uuid)
+bool AthleteController::selectAthlete(const QString &uuid)
 {
+    if (sessionRunning() && uuid != m_currentUuid) {
+        ppInfo() << "[Athlete] refused to switch from" << m_currentName << "to" << uuid
+                 << "- a session is running; end it first";
+        return false;
+    }
     QSettings s = ppSettings();
     s.setValue(kCurrentUuid, uuid);
     s.sync();
     reload();
+    return true;
 }
 
 void AthleteController::clearCurrentAthlete()
 {
+    if (sessionRunning() && !m_currentUuid.isEmpty()) {
+        ppInfo() << "[Athlete] refused to clear the current athlete" << m_currentName
+                 << "- a session is running; end it first";
+        return;
+    }
     QSettings s = ppSettings();
     s.remove(kCurrentUuid);
     s.sync();

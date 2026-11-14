@@ -97,9 +97,27 @@ public:
     bool         currentPhotosApproved()   const { return currentField(QStringLiteral("reportPhotosApproved")) == QLatin1String("true"); }
     QString      currentPhotosApprovedOn() const { return currentField(QStringLiteral("reportPhotosApprovedOn")); }
 
+    // ── No athlete switch while a session runs (SWE audit E-01, Stage 0.8g) ──────────────────
+    // A running session's swings are saved under the CURRENT athlete's folder and analysed with
+    // their handedness, height and clubs, so the current athlete must not change until the
+    // session ends. The rule lives HERE, not only in the picker's QML (which greys Select and
+    // Delete and says "A session is running for … End it to switch or delete a golfer."):
+    // while the check answers true,
+    //   selectAthlete(another)   is refused — returns false, logs why (ppInfo), changes nothing;
+    //   deleteAthlete(current)   is refused the same way (another athlete may still be deleted);
+    //   clearCurrentAthlete()    is refused the same way;
+    //   saveAthlete("", …)       still CREATES the athlete, but does not make it current.
+    // Editing a record (saveAthlete with a uuid, updateAthlete, the club records) is not a switch
+    // and is always allowed. main.cpp hands in SessionController::running; unset (the tests'
+    // default) means no session is ever running.
+    void setSessionRunningCheck(std::function<bool()> running) { m_sessionRunning = std::move(running); }
+    bool sessionRunning() const { return m_sessionRunning && m_sessionRunning(); }
+
     // Upsert: empty uuid creates a new athlete (returns its new uuid); a non-empty,
     // existing uuid updates in place (returns that uuid). Returns "" on failure
     // (empty name, or unknown uuid on update). Performs cm->ft / kg->lb conversion.
+    // A new athlete becomes the current one — unless a session is running (above), when it
+    // is saved and listed but the session's athlete stays current.
     Q_INVOKABLE QString saveAthlete(
         const QString &uuid,                                    // "" = create
         const QString &name,
@@ -225,11 +243,17 @@ public:
     Q_INVOKABLE bool setClubRecord(const QString &uuid, const QString &clubId,
                                    const QVariantMap &record);
     Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);
+    // deleteAthlete / selectAthlete answer false when refused while a session runs (see
+    // setSessionRunningCheck above); selectAthlete of the athlete already current is not a switch.
     Q_INVOKABLE bool deleteAthlete(const QString &uuid);
-    Q_INVOKABLE void selectAthlete(const QString &uuid);
+    Q_INVOKABLE bool selectAthlete(const QString &uuid);
     Q_INVOKABLE void clearCurrentAthlete();
 
 signals:
+    // ⚠ Emitted by every reload(): a SWITCH of athlete and an EDIT of any record alike (one form
+    // Save emits it five or six times). A listener that reloads data must act only when
+    // currentUuid() differs from the one it last acted on — athlete_switch_gate.h. (Splitting
+    // this into a switch signal and an edit signal is refactor step 2, not done here.)
     void currentAthleteChanged();
     void athletesChanged();
     void clubDistancesChanged();
@@ -262,6 +286,7 @@ private:
     QString      m_currentHandedness;
 
     std::function<QString(const QString &)> m_dirFor;
+    std::function<bool()> m_sessionRunning;   // SessionController::running, from main.cpp
     QHash<QString, Activity> m_activity;      // uuid → last scan's result
     int  m_activityGeneration = 0;
     bool m_syncActivity = false;

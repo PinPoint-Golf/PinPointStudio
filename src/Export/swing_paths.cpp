@@ -141,11 +141,17 @@ QString SwingPaths::sanitise(const QString& raw)
     return s;
 }
 
+QString SwingPaths::rootKey(const QString& root)
+{
+    return QDir::cleanPath(root);
+}
+
 SwingPaths::Resolved SwingPaths::resolveSession(const QString& libraryRoot,
                                                 const QString& athleteName,
                                                 const QString& athleteUuid,
                                                 const QString& namingPattern,
-                                                const QString& sessionTypeLabel)
+                                                const QString& sessionTypeLabel,
+                                                const QDate&   today)
 {
     Resolved r;
 
@@ -161,7 +167,7 @@ SwingPaths::Resolved SwingPaths::resolveSession(const QString& libraryRoot,
         sanitise(!athleteName.trimmed().isEmpty() ? athleteName : athleteUuid);
     r.athleteDir = r.root + QLatin1Char('/') + athleteToken;
 
-    r.today = QDate::currentDate().toString(Qt::ISODate);
+    r.today = today.toString(Qt::ISODate);
 
     // Compose the session-folder base name (pre-counter) per the naming pattern.
     // Tokens are filesystem-sanitised; the athlete token doubles as the name.
@@ -189,22 +195,59 @@ SwingPaths::Allocation SwingPaths::allocateSwingDir(const QString& libraryRoot,
     Allocation out;
 
     const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel);
+        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
 
     // Session folder: resolved once per (root, athlete, day, base) and cached so
-    // all swings of an app run share it; a new day / athlete / root / pattern /
-    // session-type reallocates. A "_NN" counter keeps runs distinct. When
-    // beginSession() has primed the cache, the key already matches and this
-    // no-ops — every swing lands in the session folder chosen at start.
-    if (m_cachedSessionDir.isEmpty() || m_cachedRoot != r.root ||
-        m_cachedAthleteUuid != athleteUuid || m_cachedDate != r.today ||
-        m_cachedBase != r.base) {
+    // all swings of an app run share it; outside a session a new day / athlete /
+    // root / pattern / session-type reallocates. A "_NN" counter keeps runs
+    // distinct. When beginSession() has primed the cache this no-ops — every
+    // swing lands in the session folder chosen at start.
+    //
+    // ⚠ INSIDE A SESSION (beginSession() .. endSession()) THE FOLDER IS KEPT when
+    // the athlete's name, the date, the naming pattern or the session type moves
+    // on (and the uuid, which AthleteController no longer lets change mid-session).
+    // A rename changes the base (the name is in it) and a session past midnight
+    // changes the date; either used to allocate a second folder mid-session with
+    // no signal, splitting one session across two folders (E-01).
+    //
+    // ⚠ A LIBRARY CHANGE STILL MOVES IT. The library can be re-pointed in Storage
+    // settings mid-session — it is the remedy the "Swings are not being saved"
+    // errors send the coach to after a share drops — so the next swing must go to
+    // a session folder under the NEW library, never on into the old, unreachable
+    // one. Logged every time (ppWarn, both roots).
+    // The root is compared CLEANED (rootKey): Settings may store the library with a
+    // trailing "/" and the folder picker without, and re-picking the same library
+    // must not read as a move. Only the key is cleaned; the paths built from r.root
+    // keep their spelling, so every folder this hands out is spelled as before.
+    const QString rootKeyNow = rootKey(r.root);
+    const bool rootChanged = !m_cachedSessionDir.isEmpty() && m_cachedRoot != rootKeyNow;
+    const bool keyChanged  = m_cachedRoot != rootKeyNow || m_cachedAthleteUuid != athleteUuid
+                             || m_cachedDate != r.today || m_cachedBase != r.base;
+    if (m_sessionOpen && rootChanged) {
+        ppWarn() << "[SwingExport] the library changed during a session (" << m_cachedRoot << "->"
+                 << rootKeyNow << ") - the session continues in a new folder under the new library";
+        m_sessionCreated = false;   // the new folder is not the one beginSession() made
+    } else if (m_sessionOpen && !m_cachedSessionDir.isEmpty() && keyChanged) {
+        // Logged once per new drift (not once per swing, and an earlier rename never
+        // silences a later midnight or uuid message).
+        const QString drift = athleteUuid + QLatin1Char('|') + r.today + QLatin1Char('|') + r.base;
+        if (drift != m_keptLoggedFor) {
+            m_keptLoggedFor = drift;
+            if (m_cachedAthleteUuid != athleteUuid)
+                ppWarn() << "[SwingExport] the athlete changed during a session (" << m_cachedAthleteUuid
+                         << "->" << athleteUuid << ") - keeping the session folder" << m_cachedSessionDir;
+            else
+                ppInfo() << "[SwingExport] the session's name, date or type moved on (" << m_cachedBase
+                         << "->" << r.base << ") - keeping the session folder" << m_cachedSessionDir;
+        }
+    }
+    if (m_cachedSessionDir.isEmpty() || rootChanged || (!m_sessionOpen && keyChanged)) {
         const int maxIndex = maxSessionIndex(r.athleteDir, r.base);
         m_cachedSessionId  = QStringLiteral("%1_%2")
                                  .arg(r.base)
                                  .arg(maxIndex + 1, 2, 10, QLatin1Char('0'));
         m_cachedSessionDir = r.athleteDir + QLatin1Char('/') + m_cachedSessionId;
-        m_cachedRoot        = r.root;
+        m_cachedRoot        = rootKeyNow;
         m_cachedAthleteUuid = athleteUuid;
         m_cachedDate        = r.today;
         m_cachedBase        = r.base;
@@ -253,7 +296,7 @@ QString SwingPaths::findTodaySessionDir(const QString& libraryRoot,
                                         const QString& sessionTypeLabel)
 {
     const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel);
+        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
     const int maxIndex = maxSessionIndex(r.athleteDir, r.base);
     if (maxIndex <= 0)
         return {};   // no "<base>_NN" folder exists for today
@@ -269,8 +312,16 @@ QString SwingPaths::beginSession(const QString& libraryRoot,
                                  const QString& sessionTypeLabel,
                                  bool extendExisting)
 {
+    // The session is open from here to endSession(), even if the folder cannot be made now:
+    // the first folder a swing then allocates is the one the session keeps.
+    m_sessionOpen = true;
+    m_keptLoggedFor.clear();
+    m_cachedSessionDir.clear();
+    m_cachedSessionId.clear();
+    m_sessionCreated = false;
+
     const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel);
+        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
 
     QString sessionDir;
     QString sessionId;
@@ -297,7 +348,7 @@ QString SwingPaths::beginSession(const QString& libraryRoot,
     }
 
     // Prime the allocation cache so every subsequent allocateSwingDir() reuses it.
-    m_cachedRoot        = r.root;
+    m_cachedRoot        = rootKey(r.root);
     m_cachedAthleteUuid = athleteUuid;
     m_cachedDate        = r.today;
     m_cachedBase        = r.base;
@@ -339,6 +390,8 @@ void SwingPaths::endSession(bool discardIfNoNewSwings)
     m_cachedSessionDir.clear();
     m_cachedSessionId.clear();
     m_sessionCreated = false;
+    m_sessionOpen    = false;
+    m_keptLoggedFor.clear();
 }
 
 bool SwingPaths::trashPath(const QString& path, QString* where)

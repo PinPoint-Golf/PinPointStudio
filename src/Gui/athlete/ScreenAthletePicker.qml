@@ -31,7 +31,10 @@ Item {
     property string selectedUuid: athleteController.currentUuid
 
     // A running session's swings are being saved to the current golfer, so the golfer cannot be
-    // switched (or deleted) until it ends. The rail has no session lock; this is the one guard.
+    // switched (or deleted) until it ends. This is the UI of the rule (Select and Delete greyed,
+    // the line below saying why); AthleteController enforces it too (setSessionRunningCheck:
+    // select / delete refused, a new athlete saved but not made current), since the rail has
+    // no session lock and "＋ New athlete" stays open.
     readonly property bool sessionRunning: typeof sessionController !== "undefined" && sessionController.running
 
     property var filteredAthletes: {

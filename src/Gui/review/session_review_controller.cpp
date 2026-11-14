@@ -70,6 +70,7 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
         connect(m_liveModel, &QAbstractItemModel::dataChanged,  this, &SessionReviewController::updateLiveSessionDir);
     }
     m_liveSessionDir = liveSessionDir();
+    m_athleteGate.prime(m_athlete ? m_athlete->currentUuid() : QString());
     refresh();
 }
 
@@ -283,6 +284,8 @@ void SessionReviewController::loadSession(const QString &sessionId)
 
 void SessionReviewController::onAthleteChanged()
 {
+    if (!m_athleteGate.switched(m_athlete ? m_athlete->currentUuid() : QString()))
+        return;                          // a record edit, not a switch: keep the review and the list
     if (m_reviewActive)
         resumeLive();                    // the loaded session belongs to the previous athlete
     refresh();                           // sidecar-only, so this is safe to run inline

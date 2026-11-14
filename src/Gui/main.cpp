@@ -66,6 +66,7 @@
 #include "buffer_controller.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
+#include "athlete_switch_gate.h"
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 #include "profiler_controller.h"
@@ -299,6 +300,8 @@ int main(int argc, char *argv[])
     // for why identity (a stable id) is the whole mechanism.
     NotificationCenter      notificationCenter;
     SessionController       sessionController(&athleteController);
+    // No athlete switch while a session runs: the controller refuses it (E-01, Stage 0.8g).
+    athleteController.setSessionRunningCheck([&sessionController] { return sessionController.running(); });
     NavigationController    navController;
     // In-app updater façade: Linux AppImage engine, WinSparkle on Windows, Sparkle on
     // macOS (all behind this one QML context property). Constructed on all platforms
@@ -458,8 +461,14 @@ int main(int argc, char *argv[])
     // athlete's shots. Re-point them whenever the current athlete changes.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
                      &sessionReviewController, &SessionReviewController::onAthleteChanged);
+    // Only on a real SWITCH (another uuid): currentAthleteChanged also fires on every record edit,
+    // and reloading then cleared the live carousel mid-session — rows lost their detail, failed
+    // shots vanished, ids changed and the selection named nothing (E-03). Primed with the athlete
+    // the start-up reload above was for.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
-                     &shotModel, [&shotModel, &appSettings, &athleteController] {
+                     &shotModel, [&shotModel, &appSettings, &athleteController,
+                                  gate = AthleteSwitchGate(athleteController.currentUuid())]() mutable {
+        if (!gate.switched(athleteController.currentUuid())) return;
         shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(
             appSettings.athleteLibraryPath(), athleteController.currentName()));
     });

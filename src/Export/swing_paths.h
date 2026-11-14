@@ -18,7 +18,10 @@
 
 #pragma once
 
+#include <QDate>
 #include <QString>
+
+#include <functional>
 
 namespace pinpoint {
 
@@ -33,8 +36,23 @@ namespace pinpoint {
 // (date / athlete / session-type tokens) plus a per-day uniqueness counter.
 // It is allocated lazily on the first save and cached for the lifetime of this
 // object (i.e. per app run): all swings of one run share one session folder.
-// The cache is invalidated when the athlete, date, library root, or composed
-// session-base (pattern / session type) changes.
+// Outside a session, the cache is invalidated when the athlete, date, library
+// root, or composed session-base (pattern / session type) changes.
+//
+// ⚠ WITHIN A SESSION THE FOLDER IS FIXED (SWE audit E-01, Stage 0.8g). From
+// beginSession() to endSession(), every swing lands in the session folder that
+// session first allocated — the one beginSession() chose, or, if that failed,
+// the first one allocateSwingDir() made. A rename of the athlete (the name is
+// in the folder base), a session running past midnight (so is the date), or a
+// change of naming pattern or session type no longer re-allocates and silently
+// splits the session in two. The athlete's uuid cannot change while a session
+// runs (AthleteController refuses the switch); if it ever arrives different it
+// is logged as a warning and the session's folder is still kept.
+// The ONE exception is the LIBRARY ROOT: re-pointed mid-session (Storage
+// settings — the remedy the "Swings are not being saved" errors offer after a
+// share drops), the next swing goes into a new session folder under the new
+// library, with a warning naming both roots, rather than on into the old,
+// unreachable one. The session then keeps that folder.
 class SwingPaths {
 public:
     struct Allocation {
@@ -119,6 +137,12 @@ public:
     // collapse separators, truncate; "unknown" when nothing survives.
     static QString sanitise(const QString& raw);
 
+    // True from beginSession() until endSession() — the session folder is then fixed.
+    bool sessionOpen() const { return m_sessionOpen; }
+
+    // Tests: the day "today" is (a session running past midnight). Unset = QDate::currentDate().
+    void setClockForTest(std::function<QDate()> today) { m_today = std::move(today); }
+
 private:
     // Resolved, pattern-composed session identity (shared by allocate/find/begin).
     struct Resolved {
@@ -129,10 +153,15 @@ private:
     };
     static Resolved resolveSession(const QString& libraryRoot, const QString& athleteName,
                                    const QString& athleteUuid, const QString& namingPattern,
-                                   const QString& sessionTypeLabel);
+                                   const QString& sessionTypeLabel, const QDate& today);
+    QDate today() const { return m_today ? m_today() : QDate::currentDate(); }
+    // The library root as the session cache compares it: QDir::cleanPath, so "lib/" and "lib"
+    // are one library. Used only for the key (m_cachedRoot), never to build a path.
+    static QString rootKey(const QString& root);
+    std::function<QDate()> m_today;
 
     // Session cache key — a new session folder is allocated when any part changes.
-    QString m_cachedRoot;
+    QString m_cachedRoot;        // rootKey() of the library root
     QString m_cachedAthleteUuid;
     QString m_cachedDate;        // ISO yyyy-MM-dd
     QString m_cachedBase;        // composed session-folder base (pre-counter)
@@ -142,6 +171,11 @@ private:
     // discard it — see the warning on endSession() above. False for an extended
     // session, for a lazily-allocated one, and whenever no session is in progress.
     bool    m_sessionCreated = false;
+    // beginSession() .. endSession(): the session folder, once allocated, is kept whatever
+    // the name, date, pattern or type do; a library change moves it (see the class comment).
+    // m_keptLoggedFor: the last kept drift logged (uuid|date|base), so each new one logs once.
+    bool    m_sessionOpen    = false;
+    QString m_keptLoggedFor;
 };
 
 } // namespace pinpoint

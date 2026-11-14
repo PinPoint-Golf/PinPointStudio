@@ -143,8 +143,11 @@ public:
     // Point the (live) carousel at one session folder: clear(), then reload every
     // swing.json under `dir` via SwingDocReader (as addPersistedShot). An empty
     // `dir` just clears — an empty carousel. Called on wrist-screen entry and at
-    // session start/end to keep the carousel today-scoped; never during live
-    // capture (guarded in QML), so it can't clobber freshly captured in-memory shots.
+    // session start/end to keep the carousel today-scoped. Never during live
+    // capture, so it can't clobber freshly captured in-memory shots: the QML
+    // callers run it only at those transitions, and the athlete-change reload in
+    // main.cpp runs only on a real switch (AthleteSwitchGate — a record edit is
+    // not one), which AthleteController refuses while a session runs.
     Q_INVOKABLE void loadSessionDir(const QString &dir);
 
     // Drop every row (model reset). Used by SessionReviewController when swapping
