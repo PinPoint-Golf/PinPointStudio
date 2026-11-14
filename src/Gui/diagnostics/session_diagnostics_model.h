@@ -621,6 +621,12 @@ public:
     const std::vector<pinpoint::analysis::ConditionLedger> &ledgerRows()  const { return m_ledgers; }
     const pinpoint::analysis::Explanation                  &explanation() const { return m_explanation; }
     const std::vector<pinpoint::analysis::LinkEvidence>    &linkEvidence() const { return m_links; }
+    // One shot's three factors, strike · direction · flight (shot_factors.h), exactly as the club mix
+    // (`clubMix`) counts them: the shot's composed outcome — its corrections, intent and usual applied —
+    // through shotFactors() against this session's flight usuals. Nothing read for a shot not in the
+    // ledger. A pure read with no state of its own, for the parity dump (tools/diagnostics/regrade_ledger
+    // --dump); no surface reads it.
+    pinpoint::analysis::ShotFactors shotFactorsOf(int shotId) const;
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────

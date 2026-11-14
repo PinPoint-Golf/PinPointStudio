@@ -492,6 +492,16 @@ declaring a QML module from a test directory will hit the same wall.
 - **A new directory under `src/` fails the test** until it is given a ring in `dirRings()`. That forces the choice to be made on purpose.
 - **Run:** `cmake --build build/tests --target architecture_lint_test -j 6`, then `ctest --test-dir build/tests -R '^architecture_lint_test$' --output-on-failure` (about 2 s).
 
+### Parity dumps — `regrade_ledger --dump` and `athlete_dump`
+
+The refactor's parity baseline (`build/refactor/step-G/BRIEF.md` §2) records what today's code produces so each later step can show it changed nothing it did not mean to. Two headless tools write the diagnostics and athlete halves of it. Both are built in the tests tree (`src/Analysis/tests/CMakeLists.txt`), are **not** registered with ctest because they write into the folders they are given, and share one canonical JSON writer, `tools/diagnostics/parity_json.h`: keys sorted, numbers `%.17g`, NaN as null, no timestamps or cache fingerprints, folders as `<session>` / `<athlete>`. Two runs on the same data diff byte for byte, even from two scratch copies at different paths.
+
+- **Session level, `regrade_ledger --dump <out.json> <session-dir>…`.** After its usual regrade it writes, per session, the ledger (every condition's tier, counts and corridor; every shot's rows by condition id with state, value, corridor and z) and, per shot, the composed outcome (`shotOutcome`) and its three factors, strike · direction · flight (`SessionDiagnosticsModel::shotFactorsOf`, the club mix's own call). Shots are ordered by id, rows and conditions by condition id.
+- **Athlete level, `athlete_dump --fresh --out <out.json> <athlete-dir>…`.** Runs the app's work-ons catch-up (`WorkOnsController`, synchronous) and writes `tendencies.json`, the club distances and each session's `work_ons.json` and `club_baseline.json`. `--fresh` deletes those caches first so this build derives them again. The tool refuses any folder without a `scratch` component in its real path.
+- **Content.** Both need all eight `PINPOINT_CORE_*` variables (PACK, NORMS, FLIGHT_NORMS, CONTEXTS, SCREENS, DRILLS, GATE_WORDS, REFERENCES) set to `src/Resources/diagnostics/*.json`. The tools carry no Qt resources, so without the flight table no flight would be read. Each dump records the SHA-1 of every content file.
+- **Order for a parity run.** Copy the sessions under `/mnt/swingdata/scratch/` (`cp -R`, never the live library or the corpus). Then run `regrade_ledger --tag parity --dump` on every session, and then `athlete_dump --fresh` on each athlete folder. `--help` on either tool gives the JSON shape.
+- **The writer is pinned** by `parity_json_test` (ctest): sorted keys, full precision, run keys dropped and folders tokenised.
+
 ---
 
 ## 10. File map

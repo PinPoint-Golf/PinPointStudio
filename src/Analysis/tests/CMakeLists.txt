@@ -1581,6 +1581,49 @@ set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
 
+# THE PARITY DUMPS (refactor Step G; docs/developer/testing_developer_guide.md "Parity dumps"). The session
+# half is regrade_ledger --dump, above. athlete_dump is the athlete half: the app's work-ons catch-up
+# (WorkOnsController, driven synchronously as work_ons_controller_test drives it) over a SCRATCH athlete
+# folder, then tendencies.json, the club distances and every session's work_ons.json / club_baseline.json
+# written as one canonical JSON. Same link line as work_ons_controller_test, because it IS the controller.
+# NOT registered with ctest: the catch-up writes into the folders it is given (it refuses any not on scratch).
+# parity_json_test pins the canonical writer both dumps share (tools/diagnostics/parity_json.h).
+add_executable(athlete_dump
+    ${PP_REPO_ROOT}/tools/diagnostics/athlete_dump.cpp
+    ${SRC}/Gui/diagnostics/work_ons_controller.cpp
+    ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+    ${SESSION_DIAG_MARKS_SOURCES}
+    ${SRC}/Gui/charts/session_series_model.cpp
+    ${SRC}/Gui/charts/session_wrist.cpp
+    ${SRC}/Gui/charts/session_posture.cpp
+    ${SRC}/Wrist/wrist_analysis_adapter.cpp
+    ${SRC}/Wrist/wrist_assessment_engine.cpp
+    ${SRC}/Wrist/assessment_rules.cpp
+    ${SRC}/Wrist/reference_bands.cpp
+    ${SRC}/Metrics/metric_catalogue.cpp
+    ${SRC}/Metrics/metric_resolver.cpp
+    ${SRC}/Metrics/metric_catalogue_manifest.cpp
+    ${SRC}/Metrics/metric_providers.cpp
+    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+    ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/merged_norm_provider.cpp
+    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/packs/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+target_include_directories(athlete_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+                                                ${SRC}/Gui ${SRC}/Gui/charts)
+target_link_libraries(athlete_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
+set_target_properties(athlete_dump PROPERTIES AUTOMOC ON)
+pp_apply_sanitizers(athlete_dump)
+pp_add_test(parity_json_test SOURCES ${PP_REPO_ROOT}/tools/diagnostics/parity_json_test.cpp)
+
 # measure_dump — every pack measure's reading per shot as a CSV, for the posture validation
 # (posture_metrics_design.md §9 V1–V5): value, z, grade or refusal, and each composite part. The
 # app's own per-shot construction (LiveMeasureSource + NormMeasureSource), minus the phase-grid

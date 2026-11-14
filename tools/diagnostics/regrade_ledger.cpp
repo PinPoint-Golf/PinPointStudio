@@ -43,9 +43,38 @@
 //   ./build/tests/Analysis/regrade_ledger --tag pre-headsway-fix /mnt/swingdata/corpus/swings/*/
 //
 // NOT A TEST, and not registered with ctest — it writes into the swing library.
+//
+// --dump <out.json> — THE PARITY DUMP (refactor Step G, build/refactor/step-G/BRIEF.md §2 item 2). After
+// the regrade above, one JSON file over every session named, written by parity_json.h's canonical writer
+// (keys sorted, numbers "%.17g", no timestamps, folders as "<session>"/"<athlete>") so two runs diff clean.
+// Read off the SAME model the regrade just ran — its ledger, its shotOutcome() and its shotFactorsOf(),
+// which are the panel's and the club mix's own code paths; nothing is re-derived here. Shape:
+//
+//   { "tool": "regrade_ledger --dump", "dumpVersion": 1,
+//     "content":  { PINPOINT_CORE_<X>: sha1 of the file graded against },
+//     "sessions": [ by athlete then session folder name:
+//       { "athlete", "session", "status": "regraded"|"graded"|"skipped", "skipReason",
+//         "stage", "shotCount", "patternCount", "patterns": [card ids, as the panel orders them],
+//         "coverageLine", "contentStamp", "shotMix": {...}, "clubMix": [...], "carryToday": [...],
+//         "conditions": [ by id: { "id", "drivingMeasureId", "tier", "assessable", "fired", "wilsonLower",
+//                                  "pPattern", "recurrence", "firingExcess", "medianExcess",
+//                                  "corridor": corridorOf(id) } ],
+//         "shots": [ by shotId: { "shotId", "club", "contextId", "dataWarning", "handedness", "swingLength",
+//                                 "rows": [ by conditionId: every ConditionRow field that grades — state,
+//                                           value, corridorLo/Hi, z, corridorShape, firingSide, faultAt,
+//                                           pFire, overruled, notAssessableReason, readings … ],
+//                                 "outcome": shotOutcome(shotId),
+//                                 "factors": { "strike"|"direction"|"flight": { read, values, faults,
+//                                                                               method, rawValue } } } ] } ] }
+//
+// Dump mode needs every PINPOINT_CORE_* the diagnostics read (parity_json.h contentVariables(): the flight
+// table and the gate words too, which a plain regrade can do without), because a dump graded without the
+// flight table would read no flight on any shot and say so silently.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "Coaching/shot_factors.h"
 #include "Core/PpMessageLog.h"
+#include "parity_json.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -57,6 +86,7 @@
 #include <QSaveFile>
 #include <QStringList>
 
+#include <algorithm>
 #include <cstdio>
 
 // SessionDiagnosticsModel is a QML_ELEMENT façade in the global namespace, as the app registers it.
@@ -102,6 +132,204 @@ bool readLedger(const QString &path, QJsonObject *root, QString *why)
     return true;
 }
 
+// ── The parity dump (--dump) ─────────────────────────────────────────────────────────────────
+
+using namespace pinpoint::analysis;
+
+QString tierText(Tier t)
+{
+    switch (t) {
+    case Tier::Pattern:  return QStringLiteral("pattern");
+    case Tier::Watching: return QStringLiteral("watching");
+    case Tier::Clean:    break;
+    }
+    return QStringLiteral("clean");
+}
+
+QVariantMap corridorMap(const SpreadCorridor &c)
+{
+    return QVariantMap{
+        { QStringLiteral("known"),    c.known },
+        { QStringLiteral("fromNorm"), c.fromNorm },
+        { QStringLiteral("shape"),    corridorShapeToString(c.shape) },
+        { QStringLiteral("lowOpen"),  c.lowOpen },
+        { QStringLiteral("highOpen"), c.highOpen },
+        { QStringLiteral("mu"),       c.mu },
+        { QStringLiteral("sigmaLo"),  c.sigmaLo },
+        { QStringLiteral("sigmaHi"),  c.sigmaHi },
+        { QStringLiteral("idealLo"),  c.idealLo },
+        { QStringLiteral("idealHi"),  c.idealHi },
+        { QStringLiteral("signalLo"), c.signalLo },
+        { QStringLiteral("signalHi"), c.signalHi },
+        { QStringLiteral("faultLo"),  c.faultLo },
+        { QStringLiteral("faultHi"),  c.faultHi },
+    };
+}
+
+QVariantMap rowMap(const ConditionRow &r)
+{
+    QVariantList readings;
+    for (const MeasureRow &m : r.readings)
+        readings.append(QVariantMap{
+            { QStringLiteral("measureId"),     m.measureId },
+            { QStringLiteral("signalId"),      m.signalId },
+            { QStringLiteral("value"),         m.value },
+            { QStringLiteral("corridorLo"),    m.corridorLo },
+            { QStringLiteral("corridorHi"),    m.corridorHi },
+            { QStringLiteral("z"),             m.z },
+            { QStringLiteral("corridorShape"), corridorShapeToString(m.corridorShape) },
+            { QStringLiteral("firingSide"),    firingSideToString(m.firingSide) },
+            { QStringLiteral("faultAt"),       m.faultAt },
+            { QStringLiteral("fired"),         m.fired },
+        });
+    return QVariantMap{
+        { QStringLiteral("conditionId"),         r.conditionId },
+        { QStringLiteral("state"),               shotStateToString(r.state) },
+        { QStringLiteral("confidence"),          double(r.confidence) },
+        { QStringLiteral("direction"),           r.direction },
+        { QStringLiteral("drivingMeasureId"),    r.drivingMeasureId },
+        { QStringLiteral("value"),               r.value },
+        { QStringLiteral("corridorLo"),          r.corridorLo },
+        { QStringLiteral("corridorHi"),          r.corridorHi },
+        { QStringLiteral("z"),                   r.z },
+        { QStringLiteral("corridorShape"),       corridorShapeToString(r.corridorShape) },
+        { QStringLiteral("firingSide"),          firingSideToString(r.firingSide) },
+        { QStringLiteral("faultAt"),             r.faultAt },
+        { QStringLiteral("allOf"),               r.allOf },
+        { QStringLiteral("contextId"),           r.contextId },
+        { QStringLiteral("contextInferred"),     r.contextInferred },
+        { QStringLiteral("material"),            r.material },
+        { QStringLiteral("sharp"),               r.sharp },
+        { QStringLiteral("notAssessableReason"), r.notAssessableReason },
+        { QStringLiteral("notJudgedGate"),       r.notJudgedGate },
+        { QStringLiteral("notLiveStatus"),       r.notLiveStatus },
+        { QStringLiteral("pFire"),               double(r.pFire) },
+        { QStringLiteral("grossRisk"),           double(r.grossRisk) },
+        { QStringLiteral("quantified"),          r.quantified },
+        { QStringLiteral("firedSignalCount"),    r.firedSignalCount },
+        { QStringLiteral("overruled"),           r.overruled },
+        { QStringLiteral("readings"),            readings },
+    };
+}
+
+QVariantMap factorMap(const ShotFactor &f)
+{
+    return QVariantMap{
+        { QStringLiteral("read"),     f.read },
+        { QStringLiteral("values"),   f.values },
+        { QStringLiteral("faults"),   f.faults },
+        { QStringLiteral("method"),   f.method },
+        { QStringLiteral("rawValue"), f.rawValue },
+    };
+}
+
+// One session as the model that just regraded it holds it.
+QVariantMap sessionDump(const SessionDiagnosticsModel &m)
+{
+    QVariantMap out;
+    out.insert(QStringLiteral("stage"),        m.stage());
+    out.insert(QStringLiteral("shotCount"),    m.shotCount());
+    out.insert(QStringLiteral("patternCount"), m.patternCount());
+    out.insert(QStringLiteral("coverageLine"), m.coverageLine());
+    out.insert(QStringLiteral("contentStamp"), m.contentStamp());
+    QStringList patterns;
+    for (const QVariant &v : m.cards()) {
+        const QVariantMap card = v.toMap();
+        patterns << card.value(QStringLiteral("id"), card.value(QStringLiteral("conditionId"))).toString();
+    }
+    out.insert(QStringLiteral("patterns"),   patterns);
+    out.insert(QStringLiteral("shotMix"),    m.shotMix());
+    out.insert(QStringLiteral("clubMix"),    m.clubMix());
+    out.insert(QStringLiteral("carryToday"), m.carryToday());
+
+    std::vector<const ConditionLedger *> ledgers;
+    for (const ConditionLedger &l : m.ledgerRows()) ledgers.push_back(&l);
+    std::sort(ledgers.begin(), ledgers.end(), [](const ConditionLedger *a, const ConditionLedger *b) { return a->id < b->id; });
+    QVariantList conditions;
+    for (const ConditionLedger *l : ledgers)
+        conditions.append(QVariantMap{
+            { QStringLiteral("id"),               l->id },
+            { QStringLiteral("drivingMeasureId"), l->drivingMeasureId },
+            { QStringLiteral("tier"),             tierText(l->tier) },
+            { QStringLiteral("assessable"),       l->assessable },
+            { QStringLiteral("fired"),            l->fired },
+            { QStringLiteral("wilsonLower"),      l->wilsonLower },
+            { QStringLiteral("pPattern"),         l->pPattern },
+            { QStringLiteral("recurrence"),       l->recurrence },
+            { QStringLiteral("firingExcess"),     l->firingExcess },
+            { QStringLiteral("medianExcess"),     l->medianExcess },
+            { QStringLiteral("corridor"),         corridorMap(m.corridorOf(l->id)) },
+        });
+    out.insert(QStringLiteral("conditions"), conditions);
+
+    std::vector<const ShotRecord *> shots;
+    for (const ShotRecord &s : m.shotRecords()) shots.push_back(&s);
+    std::stable_sort(shots.begin(), shots.end(), [](const ShotRecord *a, const ShotRecord *b) { return a->shotId < b->shotId; });
+    QVariantList shotList;
+    for (const ShotRecord *s : shots) {
+        std::vector<const ConditionRow *> rows;
+        for (const ConditionRow &r : s->rows) rows.push_back(&r);
+        std::stable_sort(rows.begin(), rows.end(), [](const ConditionRow *a, const ConditionRow *b) { return a->conditionId < b->conditionId; });
+        QVariantList rowList;
+        for (const ConditionRow *r : rows) rowList.append(rowMap(*r));
+        const ShotFactors f = m.shotFactorsOf(s->shotId);
+        shotList.append(QVariantMap{
+            { QStringLiteral("shotId"),      s->shotId },
+            { QStringLiteral("club"),        s->club },
+            { QStringLiteral("contextId"),   s->contextId },
+            { QStringLiteral("dataWarning"), s->dataWarning },
+            { QStringLiteral("handedness"),  s->handedness },
+            { QStringLiteral("swingLength"), s->swingLength },
+            { QStringLiteral("rows"),        rowList },
+            { QStringLiteral("outcome"),     m.shotOutcome(s->shotId) },
+            { QStringLiteral("factors"),     QVariantMap{ { shotFactorStrike(),    factorMap(f.strike) },
+                                                          { shotFactorDirection(), factorMap(f.direction) },
+                                                          { shotFactorFlight(),    factorMap(f.flight) } } },
+        });
+    }
+    out.insert(QStringLiteral("shots"), shotList);
+    return out;
+}
+
+// One session's entry, its folders tokenised.
+struct DumpEntry { QString athlete, session; QVariantMap body; };
+
+DumpEntry dumpEntry(const QString &dir, const QString &status, QVariantMap body, const QString &skipReason = QString())
+{
+    parity::PathTokens tokens;
+    parity::addPathToken(tokens, dir, QStringLiteral("<session>"));
+    parity::addPathToken(tokens, QFileInfo(dir).absolutePath(), QStringLiteral("<athlete>"));
+    body.insert(QStringLiteral("status"), status);
+    if (!skipReason.isEmpty()) body.insert(QStringLiteral("skipReason"), skipReason);
+    DumpEntry e;
+    e.athlete = QFileInfo(QFileInfo(dir).absolutePath()).fileName();
+    e.session = QFileInfo(dir).fileName();
+    body.insert(QStringLiteral("athlete"), e.athlete);
+    body.insert(QStringLiteral("session"), e.session);
+    e.body = parity::scrub(body, tokens).toMap();
+    return e;
+}
+
+void printUsage(FILE *to)
+{
+    std::fprintf(to,
+        "usage: regrade_ledger [--tag <backup-suffix>] [--dump <out.json>] <session-dir>...\n"
+        "\n"
+        "Re-reduces each session's diagnostics.json under the CURRENT pack (PINPOINT_CORE_* at the checkout's\n"
+        "src/Resources/diagnostics/*.json). The old file is kept as diagnostics.json.<tag> (default pre-regrade;\n"
+        "refuses if that exists). WRITES INTO THE SESSION: run it on scratch copies unless a library regrade\n"
+        "is what you mean.\n"
+        "\n"
+        "  --tag <suffix>     the backup's suffix\n"
+        "  --dump <out.json>  after the regrade, write the PARITY DUMP: per session the ledger (every condition's\n"
+        "                     tier and corridor, every shot's rows by condition id), and per shot the composed\n"
+        "                     outcome and its three factors (strike, direction, flight), read off the model's own\n"
+        "                     code paths. Canonical JSON (keys sorted, %%.17g numbers, no timestamps, folders as\n"
+        "                     <session>/<athlete>), so two runs diff byte for byte. Needs every PINPOINT_CORE_*\n"
+        "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
+        "  --help             this text\n");
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -112,20 +340,32 @@ int main(int argc, char **argv)
     PpMessageLog::instance()->setEchoToStderr(true);
 
     QString     tag = QStringLiteral("pre-regrade");
+    QString     dumpPath;
     QStringList dirs;
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
+        if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--tag") && i + 1 < argc) { tag = QString::fromLocal8Bit(argv[++i]); continue; }
+        if (a == QLatin1String("--dump") && i + 1 < argc) { dumpPath = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a.startsWith(QLatin1String("--"))) {
             std::fprintf(stderr, "regrade_ledger: unknown option %s\n", argv[i]);
+            printUsage(stderr);
             return 2;
         }
         dirs << a;
     }
     if (dirs.isEmpty()) {
-        std::fprintf(stderr, "usage: regrade_ledger [--tag <backup-suffix>] <session-dir>...\n");
+        printUsage(stderr);
         return 2;
     }
+    if (!dumpPath.isEmpty()) {
+        if (const QStringList missing = parity::missingContent(); !missing.isEmpty()) {
+            std::fprintf(stderr, "regrade_ledger: --dump needs every content file; unset or unreadable: %s\n",
+                         qPrintable(missing.join(QLatin1Char(' '))));
+            return 2;
+        }
+    }
+    std::vector<DumpEntry> dump;
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) {
         std::fprintf(stderr, "regrade_ledger: PINPOINT_CORE_PACK is unset — export PINPOINT_CORE_{PACK,NORMS,"
                              "CONTEXTS,SCREENS,DRILLS,REFERENCES} at src/Resources/diagnostics/*.json so the "
@@ -138,6 +378,7 @@ int main(int argc, char **argv)
         const QString dir = QDir(raw).absolutePath();
         if (!QDir(dir).exists()) {
             std::printf("%-48s SKIP  no such directory\n", qPrintable(QFileInfo(dir).fileName()));
+            dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("no such directory")));
             ++failures;
             continue;
         }
@@ -151,6 +392,7 @@ int main(int argc, char **argv)
             if (QFile::exists(backup)) {
                 std::printf("%-48s SKIP  %s already exists — pick another --tag\n",
                             qPrintable(name), qPrintable(QFileInfo(backup).fileName()));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("backup already exists")));
                 ++failures;
                 continue;
             }
@@ -159,12 +401,14 @@ int main(int argc, char **argv)
             if (!readLedger(ledger, &old, &why)) {
                 std::printf("%-48s SKIP  diagnostics.json cannot be read (%s) — left as it is\n",
                             qPrintable(name), qPrintable(why));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("diagnostics.json cannot be read")));
                 ++failures;
                 continue;
             }
             carried = SessionDiagnosticsModel::golferInput(old);
             if (!QFile::rename(ledger, backup)) {
                 std::printf("%-48s SKIP  could not set the ledger aside\n", qPrintable(name));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("could not set the ledger aside")));
                 ++failures;
                 continue;
             }
@@ -184,6 +428,7 @@ int main(int argc, char **argv)
                     std::printf("%-48s SKIP  could not carry the golfer's input across (%s)%s\n",
                                 qPrintable(name), qPrintable(out.errorString()),
                                 restored ? " — ledger put back" : " — the ledger is in the backup");
+                    dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("could not carry the golfer's input across")));
                     ++failures;
                     continue;
                 }
@@ -241,6 +486,32 @@ int main(int argc, char **argv)
                 ++failures;
             }
         }
+        if (!dumpPath.isEmpty()) {
+            QVariantMap body = sessionDump(m);
+            body.insert(QStringLiteral("ledgerWritten"), modelWrote);
+            dump.push_back(dumpEntry(dir, hadLedger ? QStringLiteral("regraded") : QStringLiteral("graded"), body));
+        }
+    }
+
+    if (!dumpPath.isEmpty()) {
+        // By athlete then session folder: the order the dirs were named in is the caller's, not the data's.
+        std::stable_sort(dump.begin(), dump.end(), [](const DumpEntry &a, const DumpEntry &b) {
+            return a.athlete != b.athlete ? a.athlete < b.athlete : a.session < b.session;
+        });
+        QVariantList sessions;
+        for (const DumpEntry &e : dump) sessions.append(e.body);
+        const QVariantMap root{
+            { QStringLiteral("tool"),        QStringLiteral("regrade_ledger --dump") },
+            { QStringLiteral("dumpVersion"), 1 },
+            { QStringLiteral("content"),     parity::contentHashes() },
+            { QStringLiteral("sessions"),    sessions },
+        };
+        QString why;
+        if (!parity::writeFile(dumpPath, parity::toCanonicalJson(root), &why)) {
+            std::fprintf(stderr, "regrade_ledger: could not write the dump %s (%s)\n", qPrintable(dumpPath), qPrintable(why));
+            return 1;
+        }
+        std::printf("dump: %d session(s) -> %s\n", int(dump.size()), qPrintable(dumpPath));
     }
     return failures == 0 ? 0 : 1;
 }

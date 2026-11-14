@@ -2228,6 +2228,16 @@ QVariantMap SessionDiagnosticsModel::outcomeLabelMap(const ShotOutcomeLabel &l, 
     };
 }
 
+ShotFactors SessionDiagnosticsModel::shotFactorsOf(int shotId) const
+{
+    ensureOutcomes();
+    const int at = indexOfShot(shotId);
+    if (at < 0 || size_t(at) >= m_composed.size() || size_t(at) >= m_shots.size()) return ShotFactors{};
+    // The club mix's own call (ensureOutcomes), on the same composed shot and the same session facts.
+    return shotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, flightNorms(),
+                       outcomeSessionFacts().flightUsuals);
+}
+
 QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
 {
     ensureOutcomes();
