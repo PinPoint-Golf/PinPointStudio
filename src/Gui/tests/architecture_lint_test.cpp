@@ -45,11 +45,14 @@
 //       Rules-ring files of src/Analysis. One finding per line that names one. (Diagnostics/packs is
 //       left out for now: its loader is step 3's.)
 //   A6  a Q_INVOKABLE that returns or takes a QVariantMap / QVariantList, or a Q_PROPERTY of that
-//       type, in any header under src/ (the QML boundary, 03 §9: values become Q_GADGETs).
+//       type, or a public slot / signal that carries one, in any header under src/ (the QML boundary,
+//       03 §9: values become Q_GADGETs).
 //   A7  a C++ function longer than 300 lines in rings 1–2 (Vocabulary, Rules). The function finder is
 //       docs/implementation/swe-audit/tools/size_table.py's brace-depth heuristic ported to C++ (a '{'
 //       after `…)` [const|noexcept|override|final] that is not a control statement, lambda or
-//       initialiser, outside any other function body; length = the lines from its '{' to its '}').
+//       initialiser, outside any other function body; length = the lines from its '{' to its '}'). It reads
+//       the signature back to the previous statement boundary rather than size_table.py's fixed 240
+//       characters, which missed long signatures.
 //       Ported, not called: this test must run wherever the tests tree is built, with no Python.
 //   A8  src/Analysis reaching past the Recording contract (§0.1) into Acquisition — the ring buffer,
 //       camera / IMU / launch-monitor device classes — or into application state (any src/Gui header,
@@ -75,14 +78,13 @@
 // Before the scan, every rule runs on fixtures, so a rule that silently stops matching fails here
 // rather than passing everything.
 //
-// KNOWN LIMITS (none has a case in today's tree, so no debt hides behind them):
+// KNOWN LIMITS (checked against the tree when they were written down; re-check before relying on one):
 //   - A1 reads only `#include "…"`: a project header in <…> is not seen (if added, resolve by exact
 //     path only — the basename fallback would map the HackMotion SDK's <wrist/types.h> onto
 //     Buffer/types.h). An include whose basename is ambiguous resolves to nothing and is skipped.
 //   - A2 misses a module-qualified creation (`X.SessionSeriesModel {`).
 //   - A4 misses a file name built by concatenation ("club_baseline" + ".json").
 //   - A5 does not look for std::filesystem or QStandardPaths.
-//   - A6 does not read `public slots:` or signals, which QML also sees.
 //   - A7 misses trailing-return functions (`auto f() -> T {`), as size_table.py does.
 //
 //   cmake --build build/tests --target architecture_lint_test -j 6
@@ -504,7 +506,16 @@ QVector<Function> functions(const QString &code)
         const QChar ch = code.at(i);
         if (ch == QLatin1Char('{')) {
             QString fn;
-            const QString before = code.mid(qMax(0, i - 240), i - qMax(0, i - 240));
+            // the signature: back to the previous statement boundary (; { or } outside parentheses), so a
+            // long parameter list is never cut off (size_table.py looks back a fixed 240 characters)
+            int from = i - 1;
+            for (int paren = 0; from >= 0; --from) {
+                const QChar c = code.at(from);
+                if (c == QLatin1Char(')')) ++paren;
+                else if (c == QLatin1Char('(')) --paren;
+                else if (paren <= 0 && (c == QLatin1Char(';') || c == QLatin1Char('{') || c == QLatin1Char('}'))) break;
+            }
+            const QString before = code.mid(from + 1, i - from - 1);
             int e = before.size();
             while (e > 0 && before.at(e - 1).isSpace()) --e;
             const QString stripped = before.left(e);
@@ -599,6 +610,44 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
                 const auto m = pt.next();
                 out.append({ QStringLiteral("A6"), lineAt(s.code, m.capturedStart()),
                              QStringLiteral("Q_PROPERTY of a QVariantMap/QVariantList: a typed value (Q_GADGET) or a list model") });
+            }
+            // public slots and signals: QML calls and receives them too. A section runs from its label to
+            // the next access label or the end of the class; only its declarations (depth 0) count.
+            static const QRegularExpression label(QStringLiteral(
+                R"(\b(?:(public|protected|private)\s*(slots|Q_SLOTS)?|(signals|Q_SIGNALS))\s*:(?!:))"));
+            QVector<QRegularExpressionMatch> labels;
+            for (auto lt = label.globalMatch(s.code); lt.hasNext();) labels.append(lt.next());
+            for (int k = 0; k < labels.size(); ++k) {
+                const auto &m = labels.at(k);
+                const bool qmlSeen = !m.captured(3).isEmpty()
+                                  || (m.captured(1) == QLatin1String("public") && !m.captured(2).isEmpty());
+                if (!qmlSeen) continue;
+                const int stop = k + 1 < labels.size() ? labels.at(k + 1).capturedStart() : s.code.size();
+                int       depth = 0, segStart = m.capturedEnd();
+                auto      judge = [&](int a, int b) {
+                    const QString seg = s.code.mid(a, b - a);
+                    if (!seg.contains(QLatin1Char('(')) || seg.contains(QLatin1String("Q_INVOKABLE"))
+                        || seg.contains(QLatin1String("Q_PROPERTY")) || !var.match(seg).hasMatch())
+                        return;
+                    int first = a;
+                    while (first < b && s.code.at(first).isSpace()) ++first;
+                    out.append({ QStringLiteral("A6"), lineAt(s.code, first),
+                                 QStringLiteral("%1 with a QVariantMap/QVariantList: a typed value (Q_GADGET) or a list model")
+                                     .arg(m.captured(3).isEmpty() ? QStringLiteral("public slot") : QStringLiteral("signal")) });
+                };
+                for (int c = m.capturedEnd(); c < stop; ++c) {
+                    const QChar ch = s.code.at(c);
+                    if (ch == QLatin1Char('{')) {
+                        if (depth == 0) judge(segStart, c);
+                        ++depth;
+                    } else if (ch == QLatin1Char('}')) {
+                        if (depth == 0) break;                          // the end of the class
+                        if (--depth == 0) segStart = c + 1;
+                    } else if (ch == QLatin1Char(';') && depth == 0) {
+                        judge(segStart, c);
+                        segStart = c + 1;
+                    }
+                }
             }
         }
         // A7 — a function over 300 lines in rings 1–2
@@ -742,9 +791,13 @@ void selfTest()
     const QString api = QStringLiteral(
         "class X : public QObject {\n  Q_PROPERTY(QVariantMap shot READ shot NOTIFY changed)\n"
         "  Q_PROPERTY(int n READ n NOTIFY changed)\n  Q_INVOKABLE QVariantList rows() const;\n"
-        "  Q_INVOKABLE void set(const QVariantMap &m);\n  Q_INVOKABLE int count() const;\n  QVariantMap notInvokable() const;\n};\n");
-    check(countRule(run("Gui/x/y.h", api), "A6") == 3,
-          QStringLiteral("A6 catches QVariant properties, returns and arguments; passes typed and non-QML members"));
+        "  Q_INVOKABLE void set(const QVariantMap &m);\n  Q_INVOKABLE int count() const;\n  QVariantMap notInvokable() const;\n"
+        "public slots:\n  void chat(const QVariantList &h);\n  void stop() { QVariantMap inBody; }\n"
+        "signals:\n  void prepared(bool ok,\n                const QVariantMap &report);\n  void done();\n"
+        "private slots:\n  void privateSlot(const QVariantMap &m);\nprivate:\n  QVariantMap m_cache;\n};\n");
+    check(countRule(run("Gui/x/y.h", api), "A6") == 5,
+          QStringLiteral("A6 catches QVariant properties, returns, arguments, public slots and signals; passes typed, "
+                         "private and non-QML members and slot bodies"));
     check(countRule(run("Gui/x/y.cpp", api), "A6") == 0, QStringLiteral("A6 reads headers only"));
     QString longFn = QStringLiteral("namespace n {\nint big(int a) const\n{\n");
     for (int i = 0; i < 300; ++i) longFn += QStringLiteral("  if (a) { a += 1; }  // }\n");
@@ -754,6 +807,15 @@ void selfTest()
           QStringLiteral("A7 finds a 306-line function in a rules ring and measures it (got: %1)")
               .arg(a7.isEmpty() ? QStringLiteral("none") : a7.first().text));
     check(countRule(run("Gui/x/y.cpp", longFn), "A7") == 0, QStringLiteral("A7 reads rings 1–2 only"));
+    QString longSig = QStringLiteral("struct S { int a; };\ninline int composed(");
+    for (int i = 0; i < 12; ++i) longSig += QStringLiteral("const std::vector<SomeLongTypeName> &argumentNumber%1, ").arg(i);
+    longSig += QStringLiteral("const Options &o = {})\n{\n");
+    for (int i = 0; i < 300; ++i) longSig += QStringLiteral("  ++x;\n");
+    longSig += QStringLiteral("  return 0;\n}\n");
+    const auto a7s = run("Coaching/x.h", longSig);
+    check(countRule(a7s, "A7") == 1 && a7s.first().text.startsWith(QLatin1String("composed is")),
+          QStringLiteral("A7 finds a long function whose signature is longer than 240 characters and has a {} default (got: %1)")
+              .arg(a7s.isEmpty() ? QStringLiteral("none") : a7s.first().text));
     check(ringOf(QStringLiteral("Analysis/analysis_pipeline.cpp")) == Application && ringOf(QStringLiteral("Analysis/gate_record.h")) == Vocabulary
               && ringOf(QStringLiteral("Core/pp_debug.cpp")) == Platform && ringOf(QStringLiteral("Gui/diagnostics/x.h")) == Adapters
               && ringOf(QStringLiteral("NoSuchDir/x.h")) == -1 && ringOf(QStringLiteral("Gui/shot/shot_processor.cpp")) == Application,

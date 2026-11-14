@@ -96,7 +96,7 @@ Gui/charts/session_series_model.h | A6 | 1 | a presenter/model hands QML QVarian
 Gui/print/pdf_document_writer.h | A6 | 1 | the report's PDF writer takes its page options as a QVariantMap; step 5 moves the report onto the session with typed results  # step 5
 Gui/report/report_mailer.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/report/session_report_list_model.h | A6 | 3 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
-Gui/report/session_report_model.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/report/session_report_model.h | A6 | 6 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/trust/trust_presenter.h | A6 | 2 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/launchmonitor/launch_monitor_controller.h | A6 | 1 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
 Gui/launchmonitor/lm_club_art.h | A6 | 3 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
@@ -132,6 +132,7 @@ Gui/shot/shot_replay_controller.h | A6 | 1 | a shot/review view's QML API; step 
 Gui/swing3d/swing_rig_driver.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
 Gui/trust/trust_words.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
 Gui/viz/body_pose_adapter.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+LLM/LlmWorker.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
 Pose/motion_capture_probe.h | A6 | 1 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
 Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
 
@@ -139,11 +140,19 @@ Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step
 Metrics/gate_catalogue_body.h | A7 | 1 | the body gate catalogue is a table written as code (one entry per gate), not logic  # kept
 Metrics/gate_catalogue_club.h | A7 | 1 | the club gate catalogue is a table written as code (one entry per gate), not logic  # kept
 Metrics/metric_catalogue_manifest.cpp | A7 | 1 | the metric manifest is a table written as code (one entry per metric), not logic  # kept
+Ball/ball_runner.cpp | A7 | 1 | BallRunner::run 435 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Ball/impact_runner.cpp | A7 | 1 | ImpactRunner::run 574 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Body/dtl_posture.h | A7 | 1 | buildDtlPosture 439 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Body/lower_body_metrics.cpp | A7 | 1 | trackLowerBody 338 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Body/upper_body_metrics.cpp | A7 | 1 | trackUpperBody 630 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Club/dtl_shaft_decide.cpp | A7 | 1 | dtlSolve 787 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Club/dtl_shaft_post.cpp | A7 | 1 | dtlPostSolve 818 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Club/shaft_track_assembly.cpp | A7 | 3 | segmentPhases 464, synthesizeLayerC 306, decideTrack 1960 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Coaching/shot_outcomes.h | A7 | 1 | composeShotOutcome 387 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Coaching/tendencies.h | A7 | 1 | reduceTendencies 434 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Diagnostics/engine/characteristic_engine.cpp | A7 | 1 | evaluate 353 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Diagnostics/engine/dag_layout.cpp | A7 | 1 | layoutDag 852 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/engine/diagnostics_health.cpp | A7 | 1 | diagnosticsHealth 448 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Diagnostics/engine/relation_resolver.cpp | A7 | 1 | explain 374 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Diagnostics/measures/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
 Diagnostics/packs/characteristic_pack.cpp | A7 | 2 | validatePack 739, loadPack 529 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
