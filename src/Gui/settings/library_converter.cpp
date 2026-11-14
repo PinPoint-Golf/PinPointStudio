@@ -20,8 +20,8 @@
 
 #include "../app/app_settings.h"
 #include "../../Core/pp_debug.h"
-#include "../../Export/swing_doc.h"
 #include "../../Export/swing_store.h"
+#include "../../DomainModel/recording_repository.h"
 
 #include <QFileInfo>
 #include <QPointer>
@@ -83,8 +83,13 @@ void LibraryConverter::progress(int done, int failed, const QString &lastError)
 void LibraryConverter::convert()
 {
     if (m_running || !m_settings) return;
+    if (!m_repo) {
+        ppWarn() << "[LibraryConverter] no recording repository — nothing converted";
+        return;
+    }
     const QString root = m_settings->athleteLibraryPath();
     if (root.isEmpty()) return;
+    pinpoint::RecordingRepository *repo = m_repo;
 
     m_running = true;
     m_done = m_failed = m_total = 0;
@@ -111,7 +116,7 @@ void LibraryConverter::convert()
         if (m_pending < 0) count();
     });
 
-    m_watcher.setFuture(QtConcurrent::run([root, abort, self]() -> int {
+    m_watcher.setFuture(QtConcurrent::run([root, abort, self, repo]() -> int {
         const QStringList dirs = jsonSwings(root);
         QMetaObject::invokeMethod(self, [self, n = int(dirs.size())] {
             if (self) { self->m_total = n; self->progress(0, 0, {}); }
@@ -120,13 +125,12 @@ void LibraryConverter::convert()
         int converted = 0, failed = 0, done = 0;
         for (const QString &d : dirs) {
             if (abort->load()) break;
-            const pinpoint::SwingStore::ConvertResult r =
-                pinpoint::SwingDocWriter::convertToPpsw(d, /*deleteJson=*/true);
+            const pinpoint::ConversionResult r = repo->convert(d, /*deleteJson=*/true);
             ++done;
             QString err;
-            if (r.outcome == pinpoint::SwingStore::ConvertResult::Outcome::Converted) {
+            if (r.outcome == pinpoint::ConversionResult::Outcome::Converted) {
                 ++converted;
-            } else if (r.outcome == pinpoint::SwingStore::ConvertResult::Outcome::Failed) {
+            } else if (r.outcome == pinpoint::ConversionResult::Outcome::Failed) {
                 ++failed;
                 err = r.error;
                 ppWarn() << "[LibraryConverter] left as JSON:" << d << "—" << r.error;

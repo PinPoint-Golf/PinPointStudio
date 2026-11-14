@@ -42,6 +42,7 @@
 #include "../../Coaching/work_ons.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -181,8 +182,8 @@ static void makeDocSession(const QString &dir, int n, qint64 startMs)
             { "swing", QJsonObject{ { "index", i }, { "id", id } } },
             { "streams", QJsonArray{ QJsonObject{ { "kind", "video" }, { "alias", "Face-On" }, { "file", "Face-On.mp4" } } } },
             { "thumbnail", QJsonObject{ { "file", "thumb.jpg" } } } };
-        pinpoint::SwingDocWriter::writeSwingJson(sd, manifest, nullptr);
-        pinpoint::SwingDocWriter::updateReview(sd, 3, QString(), QStringLiteral("7 IRON"));
+        pinpoint::testdoc::writeSwingJson(sd, manifest, nullptr);
+        pinpoint::testdoc::updateReview(sd, 3, QString(), QStringLiteral("7 IRON"));
         touch(sd + QStringLiteral("/Face-On.mp4"), QByteArray(64 * 1024, char('a' + i)));
         touch(sd + QStringLiteral("/thumb.jpg"), QByteArray(1024, 't'));
     }

@@ -26,6 +26,7 @@
 #include "standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
+#include "../../DomainModel/recording_repository.h"
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -431,7 +432,7 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
                                               const QString &swingId, int swingIndex,
                                               const QString &sessionId, int existingShotId)
 {
-    pinpoint::SwingDocWriter::DeviceOnlyMeta meta;
+    pinpoint::DeviceOnlyMeta meta;
     // The rescue path is handed a folder somebody else allocated, so it reads the
     // identity back off the path rather than being told: <session>/<swing_NNNN>.
     const QDir dir(swingDir);
@@ -457,9 +458,14 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     meta.wallclockMs = r.readAtMs > 0 ? r.readAtMs : QDateTime::currentMSecsSinceEpoch();
 
-    QString error;
-    if (!pinpoint::SwingDocWriter::writeDeviceOnlySwing(swingDir, r, meta, &error)) {
-        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << error;
+    if (!m_repo) {
+        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir
+                 << ": no recording repository";
+        return false;
+    }
+    const pinpoint::WriteResult w = m_repo->create(swingDir, r, meta);
+    if (!w.ok()) {
+        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << w.error;
         return false;
     }
 
@@ -533,9 +539,11 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     const QString club = followedClub(r);
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
-    QString error;
-    if (!pinpoint::SwingDocWriter::updateLaunchMonitor(swingDir, r, &error, captureClub, &clubReplaced)) {
-        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":" << error;
+    const pinpoint::WriteResult w =
+        m_repo ? m_repo->completeCapture(swingDir, r, captureClub, &clubReplaced) : pinpoint::WriteResult{};
+    if (!w.ok()) {
+        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
+                 << (m_repo ? w.error : QStringLiteral("no recording repository"));
         return false;
     }
     if (clubReplaced) {
@@ -679,10 +687,10 @@ void LaunchMonitorController::flushUpdates()
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
 
-        QString error;
-        if (!pinpoint::SwingDocWriter::updateLaunchMonitor(dir, r, &error)) {
+        const pinpoint::WriteResult w = m_repo ? m_repo->completeCapture(dir, r) : pinpoint::WriteResult{};
+        if (!w.ok()) {
             ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
-                     << "to" << dir << ":" << error;
+                     << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));
             continue;
         }
         ppInfo() << "LaunchMonitor: club data for" << r.deviceShotId << "written to" << dir;

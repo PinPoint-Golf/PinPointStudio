@@ -75,6 +75,7 @@
 
 #include "frame_decode.h"
 #include "swing_doc.h"
+#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "swing_exporter.h"
 
 #include "../../IMU/imu_vision_fuser.h"
@@ -275,7 +276,7 @@ bool exportSwing(const SwingWindow& w, const SwingExportJob& job)
         return false;
     }
     QString werr;
-    if (!SwingDocWriter::writeSwingJson(job.swingDir, res.manifest, nullptr, &werr)) {
+    if (!pinpoint::testdoc::writeSwingJson(job.swingDir, res.manifest, nullptr, &werr)) {
         std::fprintf(stderr, "  writeSwingJson failed: %s\n", werr.toUtf8().constData());
         return false;
     }
@@ -572,7 +573,7 @@ QString firstJsonDiff(const QJsonValue &a, const QJsonValue &b, const QString &p
 QJsonObject serializedAnalysisMinusTimings(const QString &dir, const ShotAnalysisResult &r)
 {
     QString err;
-    if (!SwingDocWriter::writeSwingJson(dir, QJsonObject(), r.detail.get(), &err)) {
+    if (!pinpoint::testdoc::writeSwingJson(dir, QJsonObject(), r.detail.get(), &err)) {
         std::fprintf(stderr, "  writeSwingJson failed: %s\n", err.toUtf8().constData());
         return QJsonObject();
     }
@@ -708,7 +709,7 @@ void testReanalysisKeepsAssessment(const RamSwing &ram)
     const SwingExportResult res = SwingExporter::run(*ram.window, ej);
     CHECK(res.ok);
     QString err;
-    CHECK(SwingDocWriter::writeSwingJson(dir.path(), res.manifest, live.detail.get(), &err));
+    CHECK(pinpoint::testdoc::writeSwingJson(dir.path(), res.manifest, live.detail.get(), &err));
     const QJsonObject before =
         SwingStore::load(dir.path(), &err).value(QStringLiteral("analysis")).toObject();
     CHECK(before.contains(QStringLiteral("assessment")));

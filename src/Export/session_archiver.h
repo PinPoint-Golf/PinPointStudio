@@ -45,10 +45,23 @@
 // folder is the exception: it was never thinned, so the library's copy is at least as new as the
 // archive's — a send or a remake made while archived lives only there — and a file of it the
 // library still holds is left alone.
+//
+// THE GOLFER'S REVIEW IS MERGED, NEVER OVERWRITTEN (step 1.4, round 3). A review can be edited on
+// the stub while archived, AND on the restored document while the restore is still running (the
+// session opens on its stubs and restores on a worker). Copying a swing's document back puts the
+// ARCHIVED review in place, so each swing's review is merged three ways right after its document
+// lands: base = the review as archived (the archive's copy), theirs = the stub's (read just before
+// the copy), mine = the restored document's at the moment of the merge. A field changed since
+// archiving wins over the base; when both sides changed it, the later edit — the one made on the
+// restored document, during the restore — wins, and the conflict is logged naming swing and field.
 
+#include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
+
+#include "../DomainModel/recording_repository.h"   // ReviewEdit
 
 namespace pinpoint::SessionArchiver {
 
@@ -79,5 +92,19 @@ QString archivePathFor(const QString &sessionDir, const QString &archiveRoot);
 Result archive(const QString &sessionDir, const QString &archiveRoot, const Options &opt = {},
                const Progress &progress = {});
 Result restore(const QString &sessionDir, const Progress &progress = {});
+
+// The three-way merge of one swing's review (see the file header), per field — rating, note, club,
+// excluded, clubOverride. `edit` holds only the fields to take from the stub: changed there since
+// archiving, unchanged on the restored document. `conflicts` names the fields both sides changed
+// differently; the restored document's value (the later edit) is kept for each.
+// Known window (until step 2's folder lock): while one swing's document (~28 MB) is copied back and checked —
+// up to a few seconds — an edit made on the stub can be lost, and rarely the stub can land in place of the
+// restored document (recoverable from the archive). Outside that window no golfer input is dropped.
+struct ReviewMerge {
+    ReviewEdit  edit;
+    bool        any = false;     // edit sets at least one field
+    QStringList conflicts;
+};
+ReviewMerge mergeReview(const QJsonObject &archived, const QJsonObject &stub, const QJsonObject &now);
 
 } // namespace pinpoint::SessionArchiver

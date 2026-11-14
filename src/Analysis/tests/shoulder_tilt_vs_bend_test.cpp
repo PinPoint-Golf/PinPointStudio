@@ -43,6 +43,7 @@
 #include "../../Metrics/gate_catalogue.h"
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../../Export/swing_store.h"
 
 #include <QDir>
@@ -128,7 +129,7 @@ QJsonObject document(const std::vector<MetricSeries> &series, const std::vector<
         { QStringLiteral("streams"), QJsonArray{} },
         { QStringLiteral("clock"), QJsonObject{ { QStringLiteral("t0_us"), 0.0 } } } };
     QString err;
-    if (!SwingDocWriter::writeSwingJson(dir, manifest, &a, &err)) {
+    if (!pinpoint::testdoc::writeSwingJson(dir, manifest, &a, &err)) {
         std::printf("    write failed: %s\n", qPrintable(err));
         return {};
     }

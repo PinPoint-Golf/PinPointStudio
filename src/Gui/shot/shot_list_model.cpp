@@ -19,6 +19,7 @@
 #include "shot_list_model.h"
 
 #include "../Export/swing_doc.h"
+#include "../DomainModel/recording_repository.h"
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 
@@ -352,9 +353,17 @@ void ShotListModel::persistReview(int row)
     const Shot &s = m_shots.at(row);
     if (s.swingDir.isEmpty())
         return;
-    QString err;
-    if (!pinpoint::SwingDocWriter::updateReview(s.swingDir, s.rating, s.note, s.club, &err))
-        ppWarn() << "[ShotListModel] review write-through failed:" << err;
+    if (!m_repo) {
+        ppWarn() << "[ShotListModel] review write-through skipped — no recording repository:" << s.swingDir;
+        return;
+    }
+    pinpoint::ReviewEdit edit;
+    edit.rating = s.rating;
+    edit.note   = s.note;
+    edit.club   = s.club;
+    const pinpoint::WriteResult w = m_repo->editReview(s.swingDir, edit);
+    if (!w.ok())
+        ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
 }
 
 void ShotListModel::setRating(int id, int n)
@@ -406,10 +415,17 @@ void ShotListModel::persistLmAnnotations(int row)
     const Shot &s = m_shots.at(row);
     if (s.swingDir.isEmpty())
         return;
-    QString err;
-    if (!pinpoint::SwingDocWriter::updateShotAnnotations(s.swingDir, s.lmExcluded,
-                                                         s.lmClubOverride, &err))
-        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << err;
+    if (!m_repo) {
+        ppWarn() << "[ShotListModel] launch monitor annotation write-through skipped — no recording repository:"
+                 << s.swingDir;
+        return;
+    }
+    pinpoint::ReviewEdit edit;
+    edit.excluded     = s.lmExcluded;
+    edit.clubOverride = s.lmClubOverride;
+    const pinpoint::WriteResult w = m_repo->editReview(s.swingDir, edit);
+    if (!w.ok())
+        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << w.error;
 }
 
 void ShotListModel::setLmExcluded(int id, bool excluded)

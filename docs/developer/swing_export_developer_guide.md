@@ -411,7 +411,8 @@ type later is just another element of `streams[]` — readers must ignore unknow
 `kind`s.
 
 > **This is the exporter's *raw* manifest.** At the analyzer→exporter join,
-> `SwingDocWriter::writeSwingJson()` (§15) composes this tree with the analyzer's
+> the writer (`SwingDocWriter::writeDocument()`, reached through `RecordingRepository::create`
+> — see [The one door](#the-one-door--recordingrepository-step-14) below) composes this tree with the analyzer's
 > output into **one** `swing.json` — stamping the on-disk schema (`kSwingDocSchema`)
 > and adding inline `analysis` (`pinpoint.analysis/2`: score, tier, metric series,
 > phases) and `review` (user rating/note) blocks, plus a `thumbnail` block. There is
@@ -464,6 +465,54 @@ type later is just another element of `streams[]` — readers must ignore unknow
   ]
 }
 ```
+
+### The one door — `RecordingRepository` (step 1.4)
+
+Every write of a swing file goes through **`RecordingRepository`**
+(`src/DomainModel/recording_repository.h`, the domain-model ring), implemented on the
+store by **`SwingStoreRecordingRepository`** (`src/Export/swing_store_repository.*`).
+`SwingDocWriter`'s write functions are **private**: the adapter is their friend, and so is
+the live join (`ShotProcessor`) until step 1.5 moves it onto `create()`. The composition
+root holds the one instance — `main.cpp` hands it to `ShotListModel` (both carousels),
+`SessionReviewController`, `LaunchMonitorController`, `PpcpClipFiler`, `ReanalysisController`
+and `LibraryConverter`; `lm_repair`, `pps_convert_library` and `swinglab_run` make their own.
+The archiver (in the store itself) keeps a private one. It is stateless apart from the
+writer's one-entry just-written cache, so it is safe from workers.
+
+| Method | Does | Callers |
+|---|---|---|
+| `create(dir, NewRecording{header, analysis, reviewClub}, PersistOptions)` | the first write: header + streams (+ analysis), `review.club` seeded | phone-clip placeholder, swinglab's scratch/result documents (the live join in 1.5) |
+| `create(dir, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded | `LaunchMonitorController` |
+| `completeCapture(dir, reading, followedClub, &clubReplaced)` | a late LM reading (IM-4: capture writes in stages); follow-club may replace `capture.club` | `LaunchMonitorController`, `lm_repair` |
+| `completeCapture(dir, StreamArrival)` | a phone clip's stream origin, then its file, frames and clock | `PpcpClipFiler` |
+| `writeAnalysis(dir, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `persistReanalysis` (the app, swinglab `--write-back`), `lm_repair` |
+| `editReview(dir, ReviewEdit)` | merges rating / note / club / `excluded` / `clubOverride` into `review` (an unset field is left alone) | `ShotListModel`, `SessionArchiver` (restore) |
+| `convert(dir, deleteJson)` | JSON era → `swing.ppsw`, proven first | `LibraryConverter`, `pps_convert_library`, `SessionArchiver` |
+| `writeSummarySidecar(PersistedShot)` | the JSON-era `swing_summary.json` | `SessionReviewController` |
+| `isDeviceOnly(dir)` | a read | `ReanalysisController`, `reanalyseAndPersist` |
+
+Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, `Failed`
++ the reason).
+
+**Every write refuses a read-only document.** A document saved by a newer build — its
+`schema`, or its `analysisContext` block's, newer than this build reads
+(`readAnalysisContext`, `recording_header.h`) — is never rewritten: `ReadOnly`, the bytes
+untouched (`SwingDocWriter::refusesWrite`, asked by every write before it changes anything).
+
+**The one re-analysis write-back** is `persistReanalysis` / `reanalyseAndPersist`
+(`src/Analysis/reanalyse_and_persist.*`, application ring): the app's
+`ReanalysisController` analyses on a worker and calls `persistReanalysis` on the GUI thread
+(so an edit made meanwhile on the GUI thread is never lost to a write-back that read the
+document before it); swinglab's `--write-back` calls `reanalyseAndPersist`. **"Save pose
+keypoints" is honoured by re-analysis** as by the live save (`PersistOptions::savePose`, read
+from the setting at each write; swinglab keeps the app's default, on).
+
+**The whole-shot gate records** (`manifest_gates.h`) are appended once, in the writer, from
+the document's integrity blocks on every write.
+
+**Not yet through the door:** the live join (`ShotProcessor`, step 1.5) and the archive stub
+(`SessionArchiver`'s `SwingStore::save`, step 2). `SwingStore::save` / `writeFile` stay public
+for those and for tools writing outside the library (`raw_reencode`) and tests' fixtures.
 
 ### Capture provenance (additive, 2026-06)
 
@@ -992,11 +1041,13 @@ src/Export/
 │                                 encode loop, thumbnail, IMU/ball streams,
 │                                 baseline sidecar, manifest builder
 │
-├── swing_doc.h                 SwingDocWriter/Reader — the unified swing.json,
-│                                 the review write-through, and the regenerable
-│                                 swing_summary.json index sidecar (§6)
-├── swing_doc_writer.cpp        SwingDocWriter, saveDocument, the launch monitor
-│                                 and integrity blocks
+├── swing_doc.h                 SwingDocWriter/Reader — the unified swing.json
+│                                 (the writes private since step 1.4), and the
+│                                 regenerable swing_summary.json index sidecar (§6)
+├── swing_doc_writer.cpp        SwingDocWriter, refusesWrite, saveDocument, the
+│                                 launch monitor and integrity blocks
+├── swing_store_repository.h/.cpp  THE ONE DOOR (step 1.4): RecordingRepository on
+│                                 the store; the only friend of the writer
 ├── swing_doc_reader.cpp        SwingDocReader, the summary block and sidecar,
 │                                 dataWarningDetailFrom & the other read helpers
 ├── swing_doc_analysis.cpp      the `analysis` block, composed from the per-block
@@ -1016,9 +1067,19 @@ src/Export/
 ├── swing_zip_exporter.cpp
 │
 └── tests/
+    ├── recording_repository_test.cpp  Every RecordingRepository method; savePose;
+    │                               the empty-document guard; every write refuses
+    │                               a newer document; ANALYSIS SUITE
+    ├── swing_doc_test_writes.h  the tests' writes, through the repository
     ├── recording_store_test.cpp  The Recording through the disk, the one header,
     │                               the legacy context, read-only; ANALYSIS SUITE
     └── swing_doc_test.cpp      Document round-trip; BUILT BY THE ANALYSIS SUITE
+
+src/DomainModel/
+└── recording_repository.h      RecordingRepository — the interface (step 1.4)
+
+src/Analysis/
+└── reanalyse_and_persist.{h,cpp}  the one re-analysis write-back (step 1.4)
 
 src/Gui/shot/
 └── shot_processor.{h,cpp}      startSwingSave(), buildSwingExportJob(),
@@ -1062,7 +1123,8 @@ real captured frames — and are validated by hand (see
 ### `swing_doc_test` — the unified document round-trip
 
 `src/Export/tests/swing_doc_test.cpp` exercises `SwingDocWriter` / `SwingDocReader`
-(§6) end to end against a temp directory:
+(§6) end to end against a temp directory. Its writes go through the repository
+(`swing_doc_test_writes.h` keeps the call shapes), as every test's do since step 1.4:
 
 - **Unified write** — `writeSwingJson(rawManifest, analysis)` composes the exporter's
   raw `pinpoint.swing/1` tree with a `SwingAnalysis` into one document, bumping the
@@ -1087,6 +1149,17 @@ real captured frames — and are validated by hand (see
   also asserts the cheap path was genuinely taken (`SwingSummary::fromSidecar`)
   and that an orphaned sidecar copied into a directory with no `swing.json` is
   rejected rather than trusted.
+
+### `recording_repository_test` — the one door
+
+`src/Export/tests/recording_repository_test.cpp` runs every `RecordingRepository` method on a
+temp folder: `create` (the review seed), `savePose` on `create` and `writeAnalysis`, the
+write-back (the analysis replaced, capture / streams / review / LM rows carried, both
+verdicts from this pass), the empty-document guard, `editReview`'s merge, `completeCapture`
+(follow-club, never over a hand-set club; a stream arrival), the launch-monitor-only shot
+(rows current / stale / dry run), `convert` and the JSON-era sidecar, **every write refusing a
+newer document** (document schema or `analysisContext` block; the bytes unchanged), and
+`reanalyseAndPersist` with the analyzer stubbed.
 
 There is **no Export test project**. `swing_doc_test.cpp` lives in
 `src/Export/tests/` but is compiled by the **Analysis suite**

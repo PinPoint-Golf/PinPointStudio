@@ -93,6 +93,7 @@
 #include "../Export/swing_doc.h"
 #include "../Export/swing_paths.h"
 #include "../Export/swing_zip_exporter.h"
+#include "../Export/swing_store_repository.h"
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -279,8 +280,13 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+    // THE ONE DOOR TO THE SWING FILES (RecordingRepository, step 1.4): every writer below is handed
+    // this one instance. Stateless, so safe from the workers; static so the static phone-clip filer
+    // further down never outlives it.
+    static pinpoint::SwingStoreRecordingRepository recordingRepository;
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
+    libraryConverter.setRecordingRepository(&recordingRepository);
     // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
     ArchiveController        archiveController(&appSettings);
     // Read-only app/build/dependency info for the About box (appInfo context property).
@@ -331,6 +337,7 @@ int main(int argc, char *argv[])
     ShotController            shotController(&eventBuffer, &sessionController);
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
+    shotModel.setRecordingRepository(&recordingRepository);   // rating / note / club / board edits
     // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
     // everything from the shot dirs it is handed, so it needs no dependencies.
     pinpoint::SwingZipExporter swingZipExporter;
@@ -349,6 +356,7 @@ int main(int argc, char *argv[])
     // row reflects the just-restored shots.
     SessionReviewController   sessionReviewController(&shotModel, &appSettings,
                                                       &athleteController);
+    sessionReviewController.setRecordingRepository(&recordingRepository);
     // Opening an ARCHIVED session brings it back: its stubs show at once, the restore runs on a
     // worker, and the session re-opens complete when it lands — if it is still the one on screen.
     QObject::connect(&sessionReviewController, &SessionReviewController::archivedSessionOpened,
@@ -520,6 +528,7 @@ int main(int argc, char *argv[])
     LaunchMonitorController   launchMonitorController(&appSettings, &shotModel,
                                                       &athleteController, &sessionController,
                                                       &cameraManager);
+    launchMonitorController.setRecordingRepository(&recordingRepository);
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);
@@ -545,6 +554,14 @@ int main(int argc, char *argv[])
     // result back, and emits reanalysed(dir) so the carousel refreshes the row in
     // whichever model is active (live or review). Owns no live shot state.
     ReanalysisController      reanalysisController;
+    reanalysisController.setRecordingRepository(&recordingRepository);
+    // Storage → Save pose keypoints, honoured by the write-back as by the live save (asked at each
+    // write, on the GUI thread).
+    reanalysisController.setPersistOptions([&appSettings] {
+        pinpoint::PersistOptions o;
+        o.savePose = appSettings.savePoseKeypoints();
+        return o;
+    });
 
     // DELETE LETS GO OF THE SWING FIRST (#56). The replay holds the swing's videos
     // open — the focused one, and in a live session with a cast screen the newest
@@ -1134,6 +1151,7 @@ int main(int argc, char *argv[])
     // both.
     static PpcpClipFiler ppcpClipFiler;
     ppcpClipFiler.setLedger(&ppcpHost.ledger());
+    ppcpClipFiler.setRecordingRepository(&recordingRepository);
     // MSG 8.4a — the owed `capture_committed` goes out on the next tick, but a
     // clip that has just been flushed to disk should not wait 20 ms to be
     // acknowledged when the link is right here.

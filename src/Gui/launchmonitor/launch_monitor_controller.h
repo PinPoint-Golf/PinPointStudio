@@ -36,6 +36,7 @@ class AthleteController;
 class CameraManager;
 class SessionController;
 class ShotListModel;
+namespace pinpoint { class RecordingRepository; }
 
 // The launch monitor's place in the app (QML context property `launchMonitor`).
 //
@@ -133,6 +134,9 @@ public:
     // Queue a swing for re-analysis (ReanalysisController::reanalyse). Used when following
     // Premier's club changed the club of a swing that was already analysed. Optional.
     void setReanalyseRequest(std::function<void(const QString &)> request) { m_reanalyse = std::move(request); }
+    // The one door to the swing files (main.cpp's): a device-only shot is created through it, and
+    // every reading is folded in through completeCapture (IM-4). Without one nothing is written.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -240,6 +244,7 @@ private:
     bool                           m_pipelineBusy = false;
     std::function<bool(const QString &)> m_folderHeld;
     std::function<void(const QString &)> m_reanalyse;
+    pinpoint::RecordingRepository       *m_repo = nullptr;
     QString                        m_unknownClubCode;   // logged once per code, not per shot
     // Remembered so a connector rebuilt from a settings change is told again
     // without waiting for the next club selection.

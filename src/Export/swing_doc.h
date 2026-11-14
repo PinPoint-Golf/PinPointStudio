@@ -32,11 +32,14 @@
 
 #include "launch_monitor_reading.h"
 #include "swing_store.h"
+#include "../DomainModel/recording_repository.h"   // WriteResult, ReviewEdit, StreamArrival, DeviceOnlyMeta
 
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
+
+class ShotProcessor;   // Gui/shot: the live join, a writer until step 1.5 (SwingDocWriter's friends)
 
 namespace pinpoint::analysis { struct SwingAnalysis; struct ImpactTrack2D; struct PoseTrack2D; }
 
@@ -45,6 +48,7 @@ namespace pinpoint {
 struct ImuRefusionVerdict;   // IMU/imu_refusion_check.h — by pointer, so this
                              // header need not drag the filter/refuser chain in.
 struct CaptureIntegrityVerdict;   // Analysis/capture_integrity_check.h — same reason.
+class  SwingStoreRecordingRepository;   // swing_store_repository.h — the one writer (friend below)
 
 // ── The swing.json "imuIntegrity" block ──────────────────────────────────────
 //
@@ -139,76 +143,99 @@ int overallScoreFromAnalysis(const QJsonObject &analysis);
 void insertDtlTopOutOfView(QVariantMap &detail, double handsFromTopPx, double clubPx);
 
 // The single, unified per-shot document. Raw capture manifest and derived analysis
-// live in ONE swing.json — no separate analysis.json. Written once, on the GUI thread,
-// at the analyzer∥exporter join (ShotProcessor::maybeJoin), so the two concurrent
-// workers never write the same file.
+// live in ONE swing.json — no separate analysis.json.
+//
+// ⛔ ITS WRITES ARE PRIVATE (refactor step 1.4). Every write of a swing file goes through
+// RecordingRepository (src/DomainModel/recording_repository.h), implemented by
+// SwingStoreRecordingRepository (swing_store_repository.h), the only friend that writes. The one
+// other friend is the live join, ShotProcessor, until step 1.5 moves it onto the repository's
+// create(). What stays public here are reads.
+//
+// EVERY WRITE REFUSES A READ-ONLY DOCUMENT — one saved by a newer build (its schema, or its
+// analysisContext block's, is newer than this build reads: readAnalysisContext, recording_header.h).
+// It is never rewritten, so a newer build's fields are never lost to an older one.
 class SwingDocWriter {
 public:
-    // Compose `rawManifest` (the exporter's returned pinpoint.swing tree) with the
-    // analyzer's `analysis` (inline, additive "analysis" object) and write atomically
-    // to <swingDir>/swing.json. Bumps schema to pinpoint.swing/2. analysis==nullptr →
-    // raw only (no "analysis"). Returns false (and sets *error) on write failure.
-    //
-    // `club` is the session's active club at the instant of the shot; it seeds the review
-    // block, which updateReview() later replaces if the user corrects it. Empty writes no
-    // review block. WITHOUT IT a camera swing recorded its club nowhere a reader looked,
-    // and every shot the user never rated read back as the club_vocabulary.h stub.
-    //
-    // It sits AFTER `error` deliberately. Ahead of it, the existing
-    // writeSwingJson(dir, manifest, &analysis, nullptr) call sites would still compile —
-    // nullptr converts to QString through const char* — and silently mean "no club, drop
-    // the error" instead of failing loudly.
-    //
-    // `savePose` false (AppSettings savePoseKeypoints off) omits the pose tracks — analysis.pose2d
-    // and poseDtl, about half of a document — and their version stamps, so re-analysis knows to
-    // re-run pose rather than reuse a track that is not there. The replay then has no skeleton.
-    static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
-                               const analysis::SwingAnalysis *analysis,
-                               QString *error = nullptr,
-                               const QString &club = QString(),
-                               bool savePose = true);
+    // The late-capture vocabulary lives with the repository; these names are kept for readers.
+    using StreamOrigin   = pinpoint::StreamOrigin;
+    using DeviceOnlyMeta = pinpoint::DeviceOnlyMeta;
 
     // ⚠ THE DOCUMENT WE JUST WROTE, kept so the next reader does not fetch and re-parse it
     // (2026-09-16). At the end of a shot the GUI thread serialised ~28 MB, wrote it to the library —
     // a network share in the studio — and then the replay immediately read the same file back and
     // parsed it again, a third full pass over the same pose track while the user waited.
     //
-    // Exactly one entry, keyed by swing directory, holding the root writeSwingJson() already had in
+    // Exactly one entry, keyed by swing directory, holding the root writeDocument() already had in
     // hand. Every writer that rewrites a document invalidates it, so a cached copy can never be older
     // than the file, and TAKING IT CLEARS IT — one reader, once. Empty for a swing written by another
     // process or a previous run: callers fall back to reading the file, which is always correct and
     // only slower.
     static QJsonObject takeJustWritten(const QString &swingDir);
 
-    // Write-through of the user's review (rating 0–5, free-text note, club) into
-    // an existing <swingDir>/swing.json: reads the doc, replaces the additive
-    // "review" block, atomic rewrite (QSaveFile). Called from the shot model's
-    // setRating/setNote/setClub so edits survive a restart. Returns false (and
-    // sets *error) if the doc can't be read or rewritten — a shot whose swing.json
-    // was never written (e.g. export failed) simply fails here harmlessly.
-    // ⚠ MERGES rather than replaces: the review block also carries the launch monitor board's
-    // annotations (updateShotAnnotations below), and a star rating must not erase a shot the
-    // golfer left out. Only rating, note and club are written here.
-    static bool updateReview(const QString &swingDir, int rating, const QString &note,
-                             const QString &club, QString *error = nullptr);
+    // A swing the launch monitor alone recorded: no streams, and a raw `launchMonitor` block.
+    static bool isDeviceOnlySwing(const QJsonObject &root);
 
-    // Write-through of the launch monitor board's two per-shot annotations into the "review"
-    // block: `excluded` (left out of the board's statistics) and `clubOverride` (the club the
-    // board treats the shot as; "" for the default). Both are written ONLY when set — false and
-    // "" REMOVE the key — so a document nobody annotated stays exactly as it was, and absence
-    // keeps meaning "never annotated" (PersistedShot::excluded). Touches nothing else in the
-    // block: never the club, so a document with no declared club does not acquire the stub.
-    // Same read-modify-atomic-rewrite as updateReview; no-op (true) when nothing would change.
-    static bool updateShotAnnotations(const QString &swingDir, bool excluded,
-                                      const QString &clubOverride, QString *error = nullptr);
+    // Is this document read-only to this build — saved by a newer one (its schema, or its
+    // analysisContext block's, is newer than this build reads)? Every write below asks first, and a
+    // true answer fills *out (ReadOnly, with the reason) and writes nothing.
+    static bool refusesWrite(const QJsonObject &root, WriteResult *out);
 
-    // Fold a launch monitor reading into an existing <swingDir>/swing.json.
+private:
+    friend class SwingStoreRecordingRepository;   // THE door
+    friend class ::ShotProcessor;                 // the live join, until step 1.5 (create())
+
+    // Compose `rawManifest` (the exporter's returned pinpoint.swing tree) with the
+    // analyzer's `analysis` (inline, additive "analysis" object) and write atomically.
+    // Stamps the one schema constant. analysis==nullptr → raw only (no "analysis").
+    // Refuses a read-only rawManifest (on a write-back it is the document on disk).
+    //
+    // `club` is the session's active club at the instant of the shot; it seeds the review
+    // block, which editReview() later replaces if the user corrects it. Empty writes no
+    // review block. WITHOUT IT a camera swing recorded its club nowhere a reader looked,
+    // and every shot the user never rated read back as the club_vocabulary.h stub.
+    //
+    // `savePose` false (AppSettings savePoseKeypoints off) omits the pose tracks — analysis.pose2d
+    // and poseDtl, about half of a document — and their version stamps, so re-analysis knows to
+    // re-run pose rather than reuse a track that is not there. The replay then has no skeleton.
+    //
+    // THE WHOLE-SHOT GATE RECORDS (manifest_gates.h) are appended here, and only here: re-derived
+    // from rawManifest's captureIntegrity / imuIntegrity blocks on every write.
+    static WriteResult writeDocument(const QString &swingDir, const QJsonObject &rawManifest,
+                                     const analysis::SwingAnalysis *analysis,
+                                     const QString &club, bool savePose);
+
+    // writeDocument() in the shape the live join calls it (ShotProcessor, until step 1.5).
+    //
+    // `club` sits AFTER `error` deliberately. Ahead of it, a
+    // writeSwingJson(dir, manifest, &analysis, nullptr) call would still compile —
+    // nullptr converts to QString through const char* — and silently mean "no club, drop
+    // the error" instead of failing loudly.
+    static bool writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
+                               const analysis::SwingAnalysis *analysis,
+                               QString *error = nullptr,
+                               const QString &club = QString(),
+                               bool savePose = true);
+
+    // Write-through of the golfer's review edits into an existing document: reads the doc, MERGES
+    // the edit into the additive "review" block (ReviewEdit, recording_repository.h), atomic
+    // rewrite. A shot whose document was never written (e.g. export failed) fails here harmlessly
+    // (NoDocument).
+    // ⚠ MERGES rather than replaces: the block carries the rating, note and club (the swing-edit
+    // popover) and the launch monitor board's annotations (excluded, clubOverride), and a star
+    // rating must not erase a shot the golfer left out. The annotations are written ONLY when set —
+    // false and "" REMOVE the key — so a document nobody annotated stays exactly as it was, and
+    // absence keeps meaning "never annotated" (PersistedShot::excluded); an annotation-only edit is
+    // a no-op (Unchanged) when nothing would change, and never touches the club, so a document with
+    // no declared club does not acquire the stub. A rating / note / club edit always rewrites.
+    static WriteResult editReview(const QString &swingDir, const ReviewEdit &edit);
+
+    // Fold a launch monitor reading into an existing document.
     //
     // LATE BY DESIGN. The monitor writes its file after the shot, and swing.json is
     // written only when the analyzer and exporter have both finished (12-37 s), so a
     // reading normally lands during analysis and sometimes during the first replay.
     // Rather than hold the document open or re-run analysis, this is the same
-    // read-modify-atomic-rewrite updateReview() performs, and it writes two things:
+    // read-modify-atomic-rewrite editReview() performs, and it writes two things:
     //
     //   · a top-level "launchMonitor" block — every value as the device reported it,
     //     including the columns that map to no metric. Additive, so older readers
@@ -225,21 +252,20 @@ public:
     //
     // Idempotent: re-applying replaces any existing "launchMonitor" block and any
     // existing `lm.` metric entries rather than appending duplicates. Refreshes the
-    // summary sidecar for the same reason updateReview does — this rewrite moves
-    // swing.json's size and mtime, which invalidates both sidecar guards.
+    // summary for the same reason editReview does — this rewrite moves the document's
+    // size and mtime, which invalidates the sidecar guards.
     //
     // `captureClub`, when not empty, REPLACES capture.club in the same write: the club the
     // swing was recorded under, with its geometry (lengthMm, bandCentersMm, …, name). Used only
     // when the launch monitor names the club and the user asked PinPoint to follow it
-    // (launchmonitor/premierFollowClub). Replaced only when its name differs from the recorded
+    // (launchmonitor/premierFollowClub; IM-4). Replaced only when its name differs from the recorded
     // one, and never over a hand-set review.club: one naming neither the recorded club nor the
     // device's (the live save seeds review.club with the session's club, so a seeded one moves
     // with capture.club). *clubReplaced says whether it was, so the caller can re-analyse.
-    static bool updateLaunchMonitor(const QString &swingDir,
-                                    const lm::LaunchMonitorReading &reading,
-                                    QString *error = nullptr,
-                                    const QJsonObject &captureClub = {},
-                                    bool *clubReplaced = nullptr);
+    static WriteResult updateLaunchMonitor(const QString &swingDir,
+                                           const lm::LaunchMonitorReading &reading,
+                                           const QJsonObject &captureClub,
+                                           bool *clubReplaced);
 
     // Rebuilds the document's `lm.` rows and the rows WE derive from them (lmDerivedKeys:
     // compoundMiss, lowPointFromAttack) from the raw `launchMonitor` block already in the file,
@@ -247,18 +273,14 @@ public:
     // what the device said, and nothing here has anything new to say about it.
     //
     // WHY: a derivation added or changed after a swing was paired reaches a swing with video when
-    // it is re-analysed (writeSwingJson derives again from the raw block), but a launch-monitor-
+    // it is re-analysed (writeDocument derives again from the raw block), but a launch-monitor-
     // only swing (writeDeviceOnlySwing) has nothing to re-analyse, so it kept the rows of the day it
     // was written. The 4 Aug 2026 session's 25 shots had no compoundMiss, so pull-hook and
     // push-slice could not be judged on any of them. Re-analysis of such a swing calls this.
     //
-    // Writes only when the rows change; *changed says whether they did (or would, with dryRun).
+    // Written when the rows change; Unchanged when they do not (Written on a dry run = WOULD be).
     // A document with no raw block, or no analysis block, is left alone and is not an error.
-    static bool refreshLaunchMonitorRows(const QString &swingDir, bool *changed = nullptr,
-                                         QString *error = nullptr, bool dryRun = false);
-
-    // A swing the launch monitor alone recorded: no streams, and a raw `launchMonitor` block.
-    static bool isDeviceOnlySwing(const QJsonObject &root);
+    static WriteResult refreshLaunchMonitorRows(const QString &swingDir, bool dryRun);
 
     // ── CORE §8.5 — where a stream's bytes came from, when they came off a wire ──
     //
@@ -277,27 +299,7 @@ public:
     //
     // Additive on a `streams[]` element, so every existing reader ignores it —
     // they select by `kind` and read named keys (swing_export_developer_guide §6).
-    struct StreamOrigin {
-        // ⚠ THE TWO WORDS THAT ARE NOT THE SAME WORD.
-        //   `transfer`     — THIS HOST's view of the exchange. Ours to assert.
-        //   `completeness` — the OWNER's assertion about the Capture (CORE 5.14,
-        //                    I10), carried verbatim and NEVER inferred from how
-        //                    many bytes turned up.
-        // Conflating them would let a receiver decide a device's data was
-        // complete, which is exactly what I10 forbids.
-        QString transport;      // "ppcp"
-        QString peerId;         // the MINTING peer — I34's first part
-        QString sessionId;
-        QString captureId;
-        QString streamId;
-        QString transfer;       // requested|arriving|complete|absent|timeout|failed
-        QString completeness;   // complete|partial|absent — the owner's word
-        QString absentReason;   // 7.3b, e.g. "outside_buffer"; only when absent
-        QString committedAt;    // ISO-8601 UTC; empty until capture_committed went
-
-        bool isEmpty() const { return transport.isEmpty() && captureId.isEmpty(); }
-    };
-
+    //
     // Attach or refresh the `origin` of ONE `streams[]` element, by alias.
     //
     // LATE BY DESIGN, exactly as updateLaunchMonitor() is: a clip is asked for at
@@ -313,8 +315,6 @@ public:
     // an element with no readable file, which is the behaviour we want while a
     // transfer is in flight.
     //
-    // Refreshes the summary sidecar for the same reason updateReview does — this
-    // rewrite moves swing.json's size and mtime, invalidating both sidecar guards.
     // `fileName` names the file the bytes became, relative to the swing folder.
     // Written only when non-empty, because the two facts arrive together and for
     // the same reason: an element that says `complete` while naming no file is a
@@ -324,7 +324,7 @@ public:
     // `frameTUs` are the per-frame timestamps in microseconds, in the same
     // window-relative convention every other video stream uses unless `framesClock`
     // (below) names another clock.  Written only
-    // when non-empty, and REQUIRED for the stream to be usable: SwingDiskLoader
+    // when non-empty, and REQUIRED for the stream to be usable: the Recording loader
     // and DiskReplaySource both skip a video element whose `frames.t_us` is
     // empty, so a clip that lands without them is a file on disk that nothing
     // will ever open.
@@ -337,30 +337,12 @@ public:
     // passes SwingStore::kFramesClockClip ("clip"), because ppcp_clip_filer.cpp times a clip from its
     // own first frame. Written as `frames.clock` beside `frames.t_us`; empty writes nothing (the
     // window's clock). SwingStore::streamOnWindowClock is its reader (issue #53).
-    static bool updateStreamOrigin(const QString &swingDir, const QString &alias,
-                                   const StreamOrigin &origin, QString *error = nullptr,
-                                   const QString &fileName = QString(),
-                                   const QVector<qint64> &frameTUs = {},
-                                   double playbackFps = 0.0,
-                                   const QString &framesClock = QString());
+    static WriteResult updateStreamOrigin(const QString &swingDir, const StreamArrival &arrival);
 
-    // Who the shot belongs to and where it sits — everything a device-only document
-    // needs that the reading itself cannot supply.
-    struct DeviceOnlyMeta {
-        QString swingId;              // "swing_0007"
-        int     swingIndex = 0;
-        QString sessionId;            // the session FOLDER name, for the draw-from filter
-        QString athleteName;
-        QString athleteUuid;          // what a norm COHORT is resolved through
-        QString club;                 // the app's selected club, not the device's code
-        int     sessionType = -1;
-        qint64  wallclockMs = 0;      // when the reading was taken
-    };
-
-    // Write a complete swing.json for a shot that ONLY a launch monitor saw.
+    // Write a complete document for a shot that ONLY a launch monitor saw.
     //
     // The capture pipeline produced nothing: no camera, no IMU, no buffer window, so no
-    // analysis and no export. This is not a degraded version of writeSwingJson — it is a
+    // analysis and no export. This is not a degraded version of writeDocument — it is a
     // different document, and it says so rather than leaving blanks that read as failure:
     // `streams` is empty, there is no thumbnail, and `analysis` carries metrics and one
     // phase and nothing else.
@@ -373,17 +355,17 @@ public:
     // instant, not the event. That unknown is carried honestly by `capture.impactUs`,
     // which stays at its -1 "unknown" sentinel while the phase sits at t_us 0.
     //
-    // Returns false (and sets *error) if the directory cannot be written.
-    static bool writeDeviceOnlySwing(const QString &swingDir,
-                                     const lm::LaunchMonitorReading &reading,
-                                     const DeviceOnlyMeta &meta,
-                                     QString *error = nullptr);
+    // Failed if the reading has no values or the directory cannot be written.
+    static WriteResult writeDeviceOnlySwing(const QString &swingDir,
+                                            const lm::LaunchMonitorReading &reading,
+                                            const DeviceOnlyMeta &meta);
 
     // Convert a JSON-era swing to swing.ppsw, with this writer's `summary` block, and prove it
     // before deleting anything (SwingStore::convertDir). The library conversion — in-app and
     // pps_convert_library — both come through here, so a converted swing is indistinguishable
-    // from one this writer wrote.
+    // from one this writer wrote. A read-only (newer) JSON document is refused (Failed).
     static SwingStore::ConvertResult convertToPpsw(const QString &swingDir, bool deleteJson);
+
 };
 
 // A reloaded shot — everything ShotListModel::addPersistedShot needs to rebuild a

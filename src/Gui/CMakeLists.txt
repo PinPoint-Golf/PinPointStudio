@@ -84,7 +84,7 @@ else()
         ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
         ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-        ${PP_ROOT}/src/Export/swing_doc_writer.cpp
+        ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
         ${PP_ROOT}/src/Export/swing_doc_reader.cpp
         ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
         ${PP_ROOT}/src/Export/recording_header.cpp
@@ -227,7 +227,7 @@ else()
             ${PP_ROOT}/src/LaunchMonitor/gspro_reading.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_monitor.cpp
             ${PP_ROOT}/src/LaunchMonitor/premier_session_parser.cpp
-            ${PP_ROOT}/src/Export/swing_doc_writer.cpp
+            ${PP_ROOT}/src/Export/swing_doc_writer.cpp ${PP_ROOT}/src/Export/swing_store_repository.cpp
             ${PP_ROOT}/src/Export/swing_doc_reader.cpp
             ${PP_ROOT}/src/Export/swing_doc_analysis.cpp
             ${PP_ROOT}/src/Export/recording_header.cpp

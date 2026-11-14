@@ -273,8 +273,8 @@ public:
     // ── The panel's two inline actions and the mismatch note's Undo (lm_panel_fsx.md) ──
     //
     // All three are PERSISTED, through the shot list's write-through to each shot's review
-    // block (ShotListModel::setLmExcluded / setLmClubOverride → SwingDocWriter::
-    // updateShotAnnotations), so a reload of the session comes back exactly as the golfer left
+    // block (ShotListModel::setLmExcluded / setLmClubOverride → RecordingRepository::
+    // editReview), so a reload of the session comes back exactly as the golfer left
     // it. They change no reading: they change which shots the board is computed over, and
     // which club it computes them as. The rebuild that follows is the ordinary one, driven by
     // the shot list's dataChanged — there is no second path to keep in step.

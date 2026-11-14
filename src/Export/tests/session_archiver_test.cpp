@@ -13,6 +13,7 @@
 
 #include "../session_archiver.h"
 #include "../swing_doc.h"
+#include "swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../swing_store.h"
 
 #include <QCoreApplication>
@@ -71,7 +72,7 @@ static void makeSwing(const QString &dir, int index, bool withRaw)
         { "streams", QJsonArray{ QJsonObject{ { "kind", "video" }, { "alias", "Face-On" },
                                               { "file", "Face-On.mp4" }, { "frames", QJsonObject{ { "t_us", tUs } } } } } },
         { "thumbnail", QJsonObject{ { "file", "thumb.jpg" } } } };
-    SwingDocWriter::writeSwingJson(dir, manifest, nullptr);
+    pinpoint::testdoc::writeSwingJson(dir, manifest, nullptr);
 
     QJsonObject doc = SwingStore::load(dir);
     QJsonArray frames;
@@ -88,7 +89,7 @@ static void makeSwing(const QString &dir, int index, bool withRaw)
         { "phases", QJsonArray{ QJsonObject{ { "phase", 7 }, { "t_us", 200000 } } } },
         { "pose2d", QJsonObject{ { "frames", frames } } } });
     SwingStore::save(dir, doc);
-    SwingDocWriter::updateReview(dir, 4, QStringLiteral("good one"), QStringLiteral("7 IRON"));   // rebuilds the summary
+    pinpoint::testdoc::updateReview(dir, 4, QStringLiteral("good one"), QStringLiteral("7 IRON"));   // rebuilds the summary
 
     put(dir + "/Face-On.mp4", noise(300 * 1024, 11 + index));
     put(dir + "/thumb.jpg",   noise(8 * 1024, 21 + index));
@@ -171,17 +172,38 @@ int main(int argc, char **argv)
     check(!SessionArchiver::archive(session, store).ok, "archiving it twice is refused");
 
     std::printf("\n=== a review made while archived ===\n");
-    check(SwingDocWriter::updateReview(swing1, 2, QStringLiteral("rated later"), QStringLiteral("PW")),
+    check(pinpoint::testdoc::updateReview(swing1, 2, QStringLiteral("rated later"), QStringLiteral("PW")),
           "rate the stub");
+    // The launch monitor board's annotations are golfer input too (REVIEW-1 of step 1.4): leaving a
+    // shot out, or naming its club, on an archived session's stub must survive the restore.
+    check(pinpoint::testdoc::updateShotAnnotations(swing1, true, QStringLiteral("9 IRON")),
+          "leave the stub out of the board and name its club");
+    // swing_0002: a note and a rating on its stub; the golfer rates it again and leaves it out WHILE
+    // the restore runs, after its document has landed (REVIEW-2 of step 1.4).
+    const QString swing2 = session + "/swing_0002";
+    check(pinpoint::testdoc::updateReview(swing2, 1, QStringLiteral("stub note"), QStringLiteral("7 IRON")),
+          "rate and note the second stub");
 
     std::printf("\n=== restore ===\n");
-    const auto back = SessionArchiver::restore(session);
+    bool editedDuringRestore = false;
+    const auto back = SessionArchiver::restore(session, [&](int, int) {
+        // Between files: once swing_0002's document is back (its stub's `archive` block is gone),
+        // the golfer edits it through the same door the app uses.
+        if (!editedDuringRestore && SwingStore::hasDocument(swing2)
+            && !SwingStore::load(swing2).contains(QStringLiteral("archive"))) {
+            editedDuringRestore = pinpoint::testdoc::updateReview(swing2, 5, QStringLiteral("stub note"),
+                                                                  QStringLiteral("7 IRON"))
+                                  && pinpoint::testdoc::updateShotAnnotations(swing2, true, QString());
+        }
+        return true;
+    });
     check(back.ok, "restored");
     if (!back.ok) std::printf("    %s\n", back.error.toUtf8().constData());
     check(!SessionArchiver::isArchived(session), "the marker is gone");
     bool restored = true;
     for (auto it = before.begin(); it != before.end(); ++it) {
-        if (it.key() == QLatin1String("swing_0001/swing.ppsw")) continue;   // re-reviewed, below
+        if (it.key() == QLatin1String("swing_0001/swing.ppsw")
+            || it.key() == QLatin1String("swing_0002/swing.ppsw")) continue;   // re-reviewed, below
         restored &= get(session + "/" + it.key()) == it.value();
     }
     check(restored, "every file is back byte for byte");
@@ -189,6 +211,43 @@ int main(int argc, char **argv)
     check(full.ok && full.analysisDetail.contains("pose2d"), "the full document is back, pose track and all");
     check(full.rating == 2 && full.note == QStringLiteral("rated later") && full.club == QStringLiteral("PW"),
           "…carrying the review made while it was archived");
+    check(full.excluded && full.clubOverride == QStringLiteral("9 IRON"),
+          "…and the board's exclusion and club override made on the stub");
+    check(editedDuringRestore, "swing_0002 was edited during the restore, after its document landed");
+    const PersistedShot two = SwingDocReader::readSwingJson(swing2);
+    check(two.ok && two.rating == 5 && two.excluded,
+          "…and that edit survived the restore (rating 5, left out)");
+    check(two.note == QStringLiteral("stub note") && two.club == QStringLiteral("7 IRON"),
+          "…beside what was made on its stub while archived");
+
+    std::printf("\n=== the three-way review merge ===\n");
+    {
+        const QJsonObject base{ { "rating", 3 }, { "note", "a" }, { "club", "7 IRON" } };
+        // Changed on the stub only → taken; changed during the restore only → left alone.
+        QJsonObject stub = base;  stub["rating"] = 4; stub["excluded"] = true;
+        QJsonObject now  = base;  now["note"] = "b";  now["clubOverride"] = "PW";
+        auto m = SessionArchiver::mergeReview(base, stub, now);
+        check(m.any && m.edit.rating == 4 && m.edit.excluded == true && !m.edit.note && !m.edit.clubOverride
+                  && !m.edit.club && m.conflicts.isEmpty(),
+              "a stub-only change is taken; a change made during the restore is left alone");
+        // Both changed one field differently → the later edit (now) stays, and it is reported.
+        stub = base; stub["rating"] = 1;
+        now  = base; now["rating"]  = 5;
+        m = SessionArchiver::mergeReview(base, stub, now);
+        check(!m.any && !m.edit.rating && m.conflicts == QStringList{ "rating" },
+              "a conflict keeps the restored document's (later) edit and names the field");
+        // Both made the same change → nothing to do, no conflict.
+        now = stub;
+        m = SessionArchiver::mergeReview(base, stub, now);
+        check(!m.any && m.conflicts.isEmpty(), "the same change on both sides is no conflict");
+        // An annotation cleared on the stub (absent) clears it, unless the restored one changed.
+        QJsonObject baseX = base; baseX["excluded"] = true; baseX["clubOverride"] = "PW";
+        m = SessionArchiver::mergeReview(baseX, base, baseX);
+        check(m.any && m.edit.excluded == false && m.edit.clubOverride == QString(),
+              "annotations cleared on the stub are cleared on restore");
+        m = SessionArchiver::mergeReview(base, base, now);
+        check(!m.any && m.conflicts.isEmpty(), "an untouched stub changes nothing");
+    }
     check(QFile::exists(dest + "/swing_0001/Face-On.mp4"), "the archive copy is kept");
 
     std::printf("\n=== raw frames dropped only when asked ===\n");

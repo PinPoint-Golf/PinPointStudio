@@ -103,6 +103,8 @@
 #include "../../../src/Club/dtl_shaft_config.h"         // the resolved scalars echoed into club_dtl.json
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/Export/swing_store.h"
+#include "../../../src/Export/swing_store_repository.h"      // the one door to the swing files
+#include "../../../src/Analysis/reanalyse_and_persist.h"     // the one re-analysis write-back
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
@@ -692,7 +694,7 @@ int main(int argc, char **argv)
         "--out only: also put into result.json the `summary` block and this pass's `imuIntegrity` / "
         "`captureIntegrity` verdicts, as a write-back of this analysis would store them. The verdicts "
         "are reached as reanalyzeSwingDir reaches them; the source document, carrying them and this "
-        "analysis, goes through SwingDocWriter::writeSwingJson into <run>/doc (no pose) and the three "
+        "analysis, goes through the production writer (RecordingRepository::create) into <run>/doc (no pose) and the three "
         "blocks are read back from it; <run>/doc is then removed. Unset, result.json is unchanged. "
         "For the refactor's parity baseline (tools/parity/).");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
@@ -734,25 +736,18 @@ int main(int argc, char **argv)
     const QString swingDir = cli.positionalArguments().first();
 
     // ── Write-back mode: the in-app re-analysis, headless ────────────────────
-    // Mirrors ReanalysisController::startNext()/onWorkerFinished() exactly:
+    // The in-app ReanalysisController's ONE write-back (reanalyse_and_persist.h):
     // reanalyzeSwingDir with DEFAULT options (sessionType from the doc, span-bounded
-    // like a live shot, no tuning overrides), then a manifest-preserving
-    // writeSwingJson into the source dir — "analysis" is replaced, capture/streams/
-    // review ride through untouched. The empty-manifest guard is the controller's:
-    // never replace a document we could not read back.
+    // like a live shot, no tuning overrides), then RecordingRepository::writeAnalysis
+    // into the source dir — "analysis" and both integrity verdicts are replaced,
+    // capture/streams/review ride through untouched, and the repository's empty-document
+    // guard never replaces a document it could not read back. A launch-monitor-only swing
+    // has nothing to re-analyse: its launch monitor rows are rebuilt from the reading it holds.
+    // Pose is kept (PersistOptions' default, the app's "Save pose keypoints" default).
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
-        // A launch-monitor-only swing, as the in-app controller handles it: nothing to re-analyse,
-        // so its launch monitor rows are rebuilt from the reading it holds (refreshLaunchMonitorRows).
-        if (pinpoint::SwingDocWriter::isDeviceOnlySwing(SwingStore::load(swingDir))) {
-            bool changed = false;
-            QString lerr;
-            if (!pinpoint::SwingDocWriter::refreshLaunchMonitorRows(swingDir, &changed, &lerr))
-                return fail(QStringLiteral("launch monitor refresh failed: ") + lerr);
-            std::fprintf(stderr, "[swinglab] write-back ok — launch monitor only, rows %s\n",
-                         changed ? "rebuilt" : "already current");
-            return 0;
-        }
+        pinpoint::SwingStoreRecordingRepository repo;   // the composition root's one door
+        const pinpoint::PersistOptions persist;
         ReanalyzeOptions ropts;
         ropts.forceRerun = cli.isSet(optForce);
         ropts.fullWindow = cli.isSet(optFullWindow);
@@ -775,7 +770,7 @@ int main(int argc, char **argv)
         // --pooled: run on a QThreadPool thread as the app's ReanalysisController does
         // (QtConcurrent::run), not the main thread — the pool's threads have the platform
         // default stack (512 KiB on macOS against the main thread's 8 MiB).
-        ReanalyzeResult r;
+        PersistedReanalysis r;
         if (cli.isSet(optPooled)) {
             // PINPOINT_SWINGLAB_CVBUSY=1: another thread keeps OpenCV's parallel_for_ busy
             // (what the replay does in the app) while the analysis starts.
@@ -786,30 +781,28 @@ int main(int argc, char **argv)
                     cv::Mat big(1024, 1024, CV_8UC3, cv::Scalar(10, 20, 30)), out;
                     while (!busyStop.load()) cv::GaussianBlur(big, out, cv::Size(31, 31), 0);
                 });
-            QThreadPool::globalInstance()->start([&] { r = reanalyzeSwingDir(swingDir, ropts); });
+            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(repo, swingDir, persist, ropts); });
             QThreadPool::globalInstance()->waitForDone();
             busyStop = true;
             if (busy.joinable()) busy.join();
         } else {
-            r = reanalyzeSwingDir(swingDir, ropts);
+            r = reanalyseAndPersist(repo, swingDir, persist, ropts);
         }
-        if (!r.ok || !r.analysis.detail)
+        if (r.deviceOnly) {
+            if (!r.write.ok())
+                return fail(QStringLiteral("launch monitor refresh failed: ") + r.write.error);
+            std::fprintf(stderr, "[swinglab] write-back ok — launch monitor only, rows %s\n",
+                         r.write.changed() ? "rebuilt" : "already current");
+            return 0;
+        }
+        if (!r.analysed)
             return fail(QStringLiteral("re-analysis failed: ")
-                        + (r.error.isEmpty() ? QStringLiteral("no analysis detail") : r.error));
-        QString rerr;
-        QJsonObject manifest = SwingStore::load(swingDir, &rerr);
-        if (manifest.isEmpty())
-            return fail(QStringLiteral("swing document missing/unreadable (%1) — not overwriting").arg(rerr));
-        // Same as the in-app controller: the data-integrity verdict is re-reached by
-        // this pass rather than inherited from capture, and is REMOVED when this pass
-        // could not reach one. See swing_doc.h.
-        pinpoint::applyImuIntegrity(manifest, r.imuIntegrity ? &*r.imuIntegrity : nullptr);
-        pinpoint::applyCaptureIntegrity(manifest, r.captureIntegrity ? &*r.captureIntegrity : nullptr);
-        QString werr;
-        if (!pinpoint::SwingDocWriter::writeSwingJson(swingDir, manifest,
-                                                      r.analysis.detail.get(), &werr))
-            return fail(QStringLiteral("write-back failed: ") + werr);
-        std::fprintf(stderr, "[swinglab] write-back ok — score %d\n", r.analysis.score);
+                        + (r.analysisError.isEmpty() ? QStringLiteral("no analysis detail") : r.analysisError));
+        if (r.write.status == pinpoint::WriteResult::Status::NoDocument)
+            return fail(QStringLiteral("swing document missing/unreadable (%1) — not overwriting").arg(r.write.error));
+        if (!r.write.ok())
+            return fail(QStringLiteral("write-back failed: ") + r.write.error);
+        std::fprintf(stderr, "[swinglab] write-back ok — score %d\n", r.score);
         return 0;
     }
     const QString outDir   = cli.value(optOut);
@@ -1261,7 +1254,14 @@ int main(int argc, char **argv)
         QDir(docDir).removeRecursively();
         QDir().mkpath(docDir);
         QString derr;
-        if (SwingDocWriter::writeSwingJson(docDir, full, result.detail.get(), &derr, QString(), false)) {
+        pinpoint::NewRecording scratch;
+        scratch.header   = full;
+        scratch.analysis = result.detail.get();
+        pinpoint::PersistOptions noPose;
+        noPose.savePose = false;
+        const pinpoint::WriteResult dw = pinpoint::SwingStoreRecordingRepository().create(docDir, scratch, noPose);
+        derr = dw.error;
+        if (dw.ok()) {
             const QJsonObject written = SwingStore::load(docDir, &derr);
             for (const char *k : { "summary", "imuIntegrity", "captureIntegrity" })
                 if (written.contains(QLatin1String(k)))
@@ -1279,7 +1279,13 @@ int main(int argc, char **argv)
         // into the run dir as swing.ppsw; it is then re-emitted as JSON and the .ppsw dropped.
         // Written with QSaveFile, so a reused --out dir gets the NEW result — the old
         // rename-onto-an-existing-file failed silently and left the previous run's result behind.
-        if (!SwingDocWriter::writeSwingJson(outDir, manifest, result.detail.get(), &werr)) {
+        pinpoint::NewRecording resultDoc;
+        resultDoc.header   = manifest;
+        resultDoc.analysis = result.detail.get();
+        const pinpoint::WriteResult rw = pinpoint::SwingStoreRecordingRepository().create(outDir, resultDoc);
+        if (!rw.ok())
+            werr = rw.error;
+        if (!rw.ok()) {
             std::fprintf(stderr, "[swinglab] result write failed: %s\n",
                          werr.toUtf8().constData());
         } else {

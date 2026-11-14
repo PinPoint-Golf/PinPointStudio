@@ -40,6 +40,7 @@
 #include "../recording_header.h"
 #include "../recording_loader.h"
 #include "../swing_doc.h"
+#include "swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../swing_exporter.h"
 #include "../swing_store.h"
 #include "../../Analysis/analysis_job_builder.h"
@@ -303,7 +304,7 @@ void testOneHeader()
     meta.sessionId = QStringLiteral("2026-11-14_Test_Swing_01");
     meta.athleteName = QStringLiteral("Test"); meta.athleteUuid = QStringLiteral("uuid-t");
     meta.wallclockMs = 1'763'100'000'000LL;
-    check(SwingDocWriter::writeDeviceOnlySwing(d, *reading, meta), "a device-only shot is written");
+    check(pinpoint::testdoc::writeDeviceOnlySwing(d, *reading, meta), "a device-only shot is written");
     const QJsonObject dev = SwingStore::load(d);
     check(dev.value(QStringLiteral("schema")).toString() == QString::fromLatin1(kSwingDocSchema)
               && dev.value(QStringLiteral("session")).toObject().value(QStringLiteral("dir")).toString() == meta.sessionId

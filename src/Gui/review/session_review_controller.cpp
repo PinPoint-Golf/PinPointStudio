@@ -34,6 +34,7 @@
 #include "session_summary.h"
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
+#include "../DomainModel/recording_repository.h"
 
 namespace {
 
@@ -241,11 +242,12 @@ void SessionReviewController::loadSession(const QString &sessionId)
     // charts workers, so nothing is shared between them. The rows are added here, in folder
     // order, exactly as before; callers still find the session loaded when this returns.
     const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionId);
+    pinpoint::RecordingRepository *repo = m_repo;
     const QList<pinpoint::PersistedShot> parsed = QtConcurrent::blockingMapped(
-        swingDirs, [](const QString &sd) {
+        swingDirs, [repo](const QString &sd) {
             pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
-            if (ps.ok)
-                pinpoint::SwingDocReader::writeSwingSummary(ps);
+            if (ps.ok && repo)
+                repo->writeSummarySidecar(ps);
             return ps;
         });
 

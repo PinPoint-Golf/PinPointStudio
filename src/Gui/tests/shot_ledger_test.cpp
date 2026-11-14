@@ -32,6 +32,7 @@
 
 #include "shot/shot_list_model.h"
 #include "swing_doc.h"
+#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "swing_paths.h"
 #include "temp_library.h"
 #include "swing_store.h"
@@ -108,7 +109,7 @@ static bool writeSwingDoc(const QString &swingDir, int index, const QString &clu
     root[QStringLiteral("streams")] = streams;
 
     QString err;
-    const bool ok = SwingDocWriter::writeSwingJson(swingDir, root, nullptr, &err, club);
+    const bool ok = pinpoint::testdoc::writeSwingJson(swingDir, root, nullptr, &err, club);
     if (!ok)
         std::printf("        fixture write failed: %s\n", qPrintable(err));
     return ok;
@@ -320,6 +321,7 @@ static void testReviewWriteThrough()
     writeSwingDoc(swing, 1, QStringLiteral("7-iron"), true, QDateTime::currentDateTime());
 
     ShotListModel m;
+    m.setRecordingRepository(&pinpoint::testdoc::repo());   // the edits write through the one door
     m.loadSessionDir(session);
     checkInt(QStringLiteral("W0 the fixture swing loaded"), m.rowCount(), 1);
     const int id = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
@@ -397,6 +399,7 @@ static void testLmAnnotationsWriteThrough()
     writeSwingDoc(swing, 1, QStringLiteral("DRIVER"), true, QDateTime::currentDateTime());
 
     ShotListModel m;
+    m.setRecordingRepository(&pinpoint::testdoc::repo());   // the edits write through the one door
     m.loadSessionDir(session);
     checkInt(QStringLiteral("M0 the fixture swing loaded"), m.rowCount(), 1);
     const int id = m.data(m.index(0), ShotListModel::ShotIdRole).toInt();
@@ -552,7 +555,7 @@ static void testLmReadingsAfterCheapReload()
             an.series.push_back(s);
         }
         QString err;
-        return SwingDocWriter::writeSwingJson(dir, root, &an, &err, QStringLiteral("7 IRON"));
+        return pinpoint::testdoc::writeSwingJson(dir, root, &an, &err, QStringLiteral("7 IRON"));
     };
     const QString plain = session + QStringLiteral("/swing_0001");
     const QString withLm = session + QStringLiteral("/swing_0002");
@@ -573,7 +576,7 @@ static void testLmReadingsAfterCheapReload()
     reading.dropped.push_back(face);
     QString lerr;
     check(QStringLiteral("R1 the reading folds into the second swing"),
-          SwingDocWriter::updateLaunchMonitor(withLm, reading, &lerr));
+          pinpoint::testdoc::updateLaunchMonitor(withLm, reading, &lerr));
 
     // The precondition the bug lived in: the cheap reload knows a device measured the shot, and
     // holds none of what it measured.

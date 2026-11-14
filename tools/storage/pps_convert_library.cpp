@@ -24,7 +24,8 @@
 // directory beneath it holding a swing document is a swing. Dot-directories (.pinpoint-trash)
 // are not entered — a trashed swing is the user's to restore, not ours to rewrite.
 //
-// Each swing goes through SwingDocWriter::convertToPpsw — the SAME function the in-app
+// Each swing goes through RecordingRepository::convert (the writer's convertToPpsw) — the SAME
+// door the in-app
 // "Convert library" action uses — which proves the .ppsw against the original (a fresh reader,
 // semantic equality of everything but the added summary) BEFORE the JSON is deleted. A swing
 // that fails keeps its JSON untouched, and the run STOPS there unless --keep-going: a failure in
@@ -35,6 +36,7 @@
 
 #include "swing_doc.h"
 #include "swing_store.h"
+#include "swing_store_repository.h"   // the one door to the swing files
 
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -96,6 +98,7 @@ int main(int argc, char **argv)
         csvOut << "swing_dir,outcome,json_bytes,ppsw_bytes,ms,error\n";
     }
 
+    SwingStoreRecordingRepository repo;   // the composition root's one door
     int converted = 0, already = 0, failed = 0, pending = 0;
     qint64 jsonTotal = 0, ppswTotal = 0;
     QElapsedTimer total;
@@ -128,32 +131,31 @@ int main(int argc, char **argv)
 
             QElapsedTimer t;
             t.start();
-            const SwingStore::ConvertResult r =
-                SwingDocWriter::convertToPpsw(dir, /*deleteJson=*/!cli.isSet(optKeep));
+            const ConversionResult r = repo.convert(dir, /*deleteJson=*/!cli.isSet(optKeep));
             const qint64 ms = t.elapsed();
 
             QString outcome;
             switch (r.outcome) {
-                case SwingStore::ConvertResult::Outcome::Converted:
+                case ConversionResult::Outcome::Converted:
                     outcome = QStringLiteral("converted");
                     ++converted;
                     jsonTotal += r.jsonBytes;
                     ppswTotal += r.ppswBytes;
                     break;
-                case SwingStore::ConvertResult::Outcome::AlreadyPpsw:
+                case ConversionResult::Outcome::AlreadyConverted:
                     outcome = QStringLiteral("already");
                     ++already;
                     break;
-                case SwingStore::ConvertResult::Outcome::NoDocument:
+                case ConversionResult::Outcome::NoDocument:
                     outcome = QStringLiteral("nodoc");
                     break;
-                case SwingStore::ConvertResult::Outcome::Failed:
+                case ConversionResult::Outcome::Failed:
                     outcome = QStringLiteral("FAILED");
                     ++failed;
                     break;
             }
             out() << "  " << outcome << "  " << dir;
-            if (r.outcome == SwingStore::ConvertResult::Outcome::Converted)
+            if (r.outcome == ConversionResult::Outcome::Converted)
                 out() << "  " << r.jsonBytes << " -> " << r.ppswBytes << " bytes, " << ms << " ms";
             if (!r.error.isEmpty())
                 out() << "  — " << r.error;
@@ -164,7 +166,7 @@ int main(int argc, char **argv)
                        << ',' << ms << ',' << csvField(r.error) << "\n";
                 csvOut.flush();
             }
-            if (r.outcome == SwingStore::ConvertResult::Outcome::Failed && !cli.isSet(optGoOn)) {
+            if (r.outcome == ConversionResult::Outcome::Failed && !cli.isSet(optGoOn)) {
                 out() << "STOPPED at the first failure (its swing.json is untouched). "
                          "--keep-going to continue past it.\n";
                 return 1;

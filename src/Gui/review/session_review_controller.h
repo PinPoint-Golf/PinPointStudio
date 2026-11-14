@@ -28,6 +28,7 @@
 
 class AppSettings;
 class AthleteController;
+namespace pinpoint { class RecordingRepository; }
 
 // SessionReviewController — the single source of truth for "am I reviewing a
 // saved session, and if so which one". Global (one instance, a QML context
@@ -88,6 +89,11 @@ public:
                             AppSettings       *settings,
                             AthleteController *athlete,
                             QObject           *parent = nullptr);
+
+    // The one door to the swing files (main.cpp's): the loaded session's rows write their review
+    // edits through it, and a JSON-era swing's summary sidecar is written through it.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo)
+    { m_repo = repo; m_reviewModel.setRecordingRepository(repo); }
 
     bool     reviewActive()   const { return m_reviewActive; }
     QObject *sessionsModel()        { return &m_sessionsModel; }
@@ -159,6 +165,7 @@ private:
     ShotListModel     *m_liveModel = nullptr;
     AppSettings       *m_settings  = nullptr;
     AthleteController *m_athlete   = nullptr;
+    pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the pool too
     AthleteSwitchGate  m_athleteGate;    // primed in the constructor with the athlete refresh() was for
 
     SessionListModel   m_sessionsModel;

@@ -21,7 +21,7 @@
 // LibraryConverter — the Storage panel's "Convert library" action.
 //
 // Finds every JSON-era swing (swing.json) under the athlete library and converts it to swing.ppsw
-// through SwingDocWriter::convertToPpsw: the same verified conversion pps_convert_library runs, so
+// through RecordingRepository::convert: the same verified conversion pps_convert_library runs, so
 // the in-app path and the tool cannot disagree. Each swing is proven against its original before
 // its JSON is deleted; a failure leaves that swing exactly as it was and is named in the app log.
 //
@@ -36,6 +36,7 @@
 #include <memory>
 
 class AppSettings;
+namespace pinpoint { class RecordingRepository; }
 
 class LibraryConverter : public QObject {
     Q_OBJECT
@@ -50,6 +51,9 @@ class LibraryConverter : public QObject {
 public:
     explicit LibraryConverter(AppSettings *settings, QObject *parent = nullptr);
     ~LibraryConverter() override;
+
+    // The one door to the swing files (main.cpp's). Without one convert() does nothing.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
 
     int     pending() const { return m_pending; }
     bool    running() const { return m_running; }
@@ -69,6 +73,7 @@ private:
     void progress(int done, int failed, const QString &lastError);
 
     AppSettings *m_settings = nullptr;
+    pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the worker
     int     m_pending = -1;
     bool    m_running = false;
     int     m_done = 0, m_total = 0, m_failed = 0;

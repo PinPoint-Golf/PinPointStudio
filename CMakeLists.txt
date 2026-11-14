@@ -2781,7 +2781,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc_internal.h
-    src/Export/swing_doc_writer.cpp
+    src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
     src/Export/swing_doc_reader.cpp
     src/Export/swing_doc_analysis.cpp
     src/Export/recording_header.cpp
@@ -2896,6 +2896,12 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
+    # The one door to the swing files (refactor step 1.4): the repository interface, its store
+    # adapter, and the one re-analysis write-back.
+    src/DomainModel/recording_repository.h
+    src/Export/swing_store_repository.h
+    src/Analysis/reanalyse_and_persist.h
+    src/Analysis/reanalyse_and_persist.cpp
     # The Recording contract (refactor step 1): the types, the effective club, the one job
     # builder, and the store side — the one header writer and the Recording loader (1.2).
     src/Recording/recording.h
@@ -3176,7 +3182,7 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp
@@ -3202,7 +3208,7 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp
@@ -3242,6 +3248,7 @@ if(PINPOINT_BUILD_TOOLS)
     # parity test additionally compiles the exporter to build its fixture.
     set(_pinpoint_offline_sources
         src/Analysis/swing_reanalyzer.cpp
+        src/Analysis/reanalyse_and_persist.cpp   # the one re-analysis write-back (step 1.4)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
         src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
@@ -3322,7 +3329,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Metrics/metric_catalogue_manifest.cpp
         src/Metrics/metric_providers.cpp
         src/Export/frame_decode.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
         src/Export/recording_header.cpp

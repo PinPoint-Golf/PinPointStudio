@@ -267,7 +267,7 @@ phases is recorded.
 ### Stage 5 — outputs
 
 - **`result.json`** — the re-run `SwingAnalysis` serialized by the production
-  `SwingDocWriter::writeSwingJson()` (then renamed from `swing.json`), under
+  writer, through `RecordingRepository::create` (then re-emitted as JSON), under
   a `pinpoint.swinglab/1` manifest that records the source swing dir and
   frame source (`raw|mp4`). Identical shape to the app's `analysis` block, so
   every downstream consumer (score, plots) reads one format.

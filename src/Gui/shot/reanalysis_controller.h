@@ -23,7 +23,10 @@
 #include <QStringList>
 #include <QVariantList>
 
+#include <functional>
+
 #include "../Analysis/swing_reanalyzer.h"   // pinpoint::analysis::ReanalyzeResult
+#include "../DomainModel/recording_repository.h"
 
 // ReanalysisController — the single funnel for "re-analyse this shot" from the
 // carousel's PpShotActionBar (focused shot) and the set-scope menu ("re-analyse
@@ -31,7 +34,10 @@
 // SwingDiskLoader (no all-frames-in-RAM rebuild), re-runs the production analyzer
 // on a worker thread ONE SWING AT A TIME (each runs ViTPose at physical-core
 // thread count — sequential bounds memory/CPU), and writes the fresh analysis back
-// into swing.json (preserving capture/streams/review).
+// into swing.json (preserving capture/streams/review) through the one write-back,
+// persistReanalysis (Analysis/reanalyse_and_persist.h), on the GUI thread, and the
+// RecordingRepository main.cpp hands it. "Save pose keypoints" is honoured
+// (PersistOptions, read from the setting at each write).
 //
 // It is MODEL-AGNOSTIC: callers pass already-resolved swing DIRS (the carousel
 // resolves them from its active model — live shotModel or a loaded session's
@@ -51,6 +57,13 @@ class ReanalysisController : public QObject
 
 public:
     explicit ReanalysisController(QObject *parent = nullptr);
+
+    // The one door to the swing files (main.cpp's). Without one every write-back fails, loudly.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // How a write-back is persisted, asked at each write (the "Save pose keypoints" setting can
+    // change mid-batch). Unset: PersistOptions' defaults (pose kept).
+    void setPersistOptions(std::function<pinpoint::PersistOptions()> options)
+    { m_persistOptions = std::move(options); }
 
     bool reanalysing() const { return m_reanalysing; }
 
@@ -91,10 +104,15 @@ private slots:
 private:
     void startNext();
     // A launch-monitor-only swing has nothing to re-analyse; its launch monitor rows are rebuilt
-    // from the reading it holds instead (SwingDocWriter::refreshLaunchMonitorRows). True when `dir`
+    // from the reading it holds instead (persistReanalysis with no result). True when `dir`
     // was one, counted and reported like any re-analysed swing.
     bool refreshIfDeviceOnly(const QString &dir);
     void setReanalysing(bool on);
+    pinpoint::PersistOptions persistOptions() const
+    { return m_persistOptions ? m_persistOptions() : pinpoint::PersistOptions{}; }
+
+    pinpoint::RecordingRepository             *m_repo = nullptr;
+    std::function<pinpoint::PersistOptions()>  m_persistOptions;
 
     QStringList m_queue;        // pending swing dirs
     QString     m_current;      // swing dir in flight (empty when idle)

@@ -37,13 +37,16 @@
 // second implementation of a classifier whose own header exists to stop exactly that (see
 // lm_inferred_reads.h — "two derivations of one judgement is the drift the whole header is
 // arranged to prevent"). So this reads the block back into a LaunchMonitorReading and hands
-// it to SwingDocWriter::updateLaunchMonitor(), which is idempotent by construction: it
+// it to RecordingRepository::completeCapture() (the writer's updateLaunchMonitor), which is
+// idempotent by construction: it
 // rewrites the raw block, strips any surviving `lm.` and derived rows before re-adding, and
 // refreshes the summary sidecar guard that the rewrite invalidates.
 //
 // A swing whose `lm.` rows are all there but whose DERIVED rows (lmDerivedKeys) are missing or out
 // of date — a launch-monitor-only swing written before the derivation existed — is rebuilt by
-// SwingDocWriter::refreshLaunchMonitorRows instead, which leaves the raw block as it is.
+// RecordingRepository::writeAnalysis with no analysis instead (the writer's refreshLaunchMonitorRows),
+// which leaves the raw block as it is. Every write goes through the one door (step 1.4), so a
+// document a newer build saved is refused, never rewritten.
 //
 // Safe to re-run. Safe on a swing that never had a reading (there is nothing to read back,
 // and it is skipped). Reports what it changed and touches nothing else in the document.
@@ -55,6 +58,7 @@
 
 #include "swing_doc.h"
 #include "swing_store.h"
+#include "swing_store_repository.h"   // the one door to the swing files
 #include "launch_monitor_reading.h"
 #include "pp_debug.h"
 
@@ -152,7 +156,7 @@ struct Tally {
     int visited = 0, repaired = 0, derived = 0, intact = 0, noReading = 0, noDoc = 0, failed = 0, rows = 0;
 };
 
-void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
+void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, bool dryRun, Tally &t)
 {
     if (!SwingStore::hasDocument(swingDir)) {
         // SAID OUT LOUD, not passed over. A silent skip here reads as a clean session on the
@@ -191,15 +195,16 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
         // Every reading has its row, but a row WE derive from them (compoundMiss, lowPointFromAttack)
         // may be missing or out of date: a launch-monitor-only swing written before the derivation
         // existed is never re-analysed, so it kept the rows of its day. Rebuilt from the block,
-        // which is left as it is (SwingDocWriter::refreshLaunchMonitorRows).
-        bool stale = false;
-        QString err;
-        if (!SwingDocWriter::refreshLaunchMonitorRows(swingDir, &stale, &err, /*dryRun*/ true)) {
-            out() << "  " << name << ": FAILED — " << err << "\n";
+        // which is left as it is (writeAnalysis with no analysis).
+        pinpoint::PersistOptions probe;
+        probe.dryRun = true;
+        const pinpoint::WriteResult would = repo.writeAnalysis(swingDir, pinpoint::AnalysisOutcome{}, probe);
+        if (!would.ok()) {
+            out() << "  " << name << ": FAILED — " << would.error << "\n";
             ++t.failed;
             return;
         }
-        if (!stale) {
+        if (!would.changed()) {
             out() << "  " << name << ": already intact — " << before << " lm.* rows\n";
             ++t.intact;
             return;
@@ -209,8 +214,9 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
             ++t.derived;
             return;
         }
-        if (!SwingDocWriter::refreshLaunchMonitorRows(swingDir, &stale, &err)) {
-            out() << "  " << name << ": FAILED — " << err << "\n";
+        const pinpoint::WriteResult w = repo.writeAnalysis(swingDir, pinpoint::AnalysisOutcome{});
+        if (!w.ok()) {
+            out() << "  " << name << ": FAILED — " << w.error << "\n";
             ++t.failed;
             return;
         }
@@ -227,9 +233,9 @@ void repairSwing(const QString &swingDir, bool dryRun, Tally &t)
         return;
     }
 
-    QString err;
-    if (!SwingDocWriter::updateLaunchMonitor(swingDir, *reading, &err)) {
-        out() << "  " << name << ": FAILED — " << err << "\n";
+    const pinpoint::WriteResult w = repo.completeCapture(swingDir, *reading);
+    if (!w.ok()) {
+        out() << "  " << name << ": FAILED — " << w.error << "\n";
         ++t.failed;
         return;
     }
@@ -275,6 +281,7 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    pinpoint::SwingStoreRecordingRepository repo;   // the composition root's one door
     Tally t;
     for (const QString &p : paths) {
         const QString clean = QDir::cleanPath(p);
@@ -286,7 +293,7 @@ int main(int argc, char *argv[])
 
         if (SwingStore::hasDocument(clean)) {
             out() << clean << "\n";
-            repairSwing(clean, dryRun, t);
+            repairSwing(repo, clean, dryRun, t);
             continue;
         }
 
@@ -301,7 +308,7 @@ int main(int argc, char *argv[])
         }
         out() << clean << "\n";
         for (const QString &s : swings)
-            repairSwing(d.filePath(s), dryRun, t);
+            repairSwing(repo, d.filePath(s), dryRun, t);
     }
 
     out() << "\n" << (dryRun ? "would repair " : "repaired ") << t.repaired
