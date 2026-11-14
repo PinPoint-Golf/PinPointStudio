@@ -125,8 +125,8 @@ private:
 
 VariabilityMeasureNormLookup variabilityMeasureNorms()
 {
-    // Taken here, on the GUI thread (sharedNormProvider()'s first build is not thread-safe); resolve() is const and
-    // safe from any thread after that, as consistency_env.cpp relies on.
+    // One norm snapshot for the lookup's life (norm_provider.h): resolve() is const and safe from any thread, and a
+    // corridor saved later reaches the next lookup made, not this one.
     const std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider();
     if (!norms) return {};
     return [norms](const QString &measureId, const QString &club) -> std::optional<VariabilityMeasureNorm> {

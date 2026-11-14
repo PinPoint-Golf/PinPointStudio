@@ -652,9 +652,6 @@ public:
     // is a backup nobody can use.
     Q_INVOKABLE QVariantMap resetToStandard();
 
-    // Re-take the shared providers after somebody else wrote (the old panel, the corridor editor).
-    Q_INVOKABLE void refresh();
-
 signals:
     void modelChanged();
     void corridorSamplesChanged();

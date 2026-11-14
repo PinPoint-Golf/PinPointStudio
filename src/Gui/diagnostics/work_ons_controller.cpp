@@ -928,7 +928,8 @@ void WorkOnsController::updateClubScope()
     QStringList clubs;
     for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) clubs += it->clubs;
     if (!clubs.isEmpty() || !m_scopeOptions.empty()) {
-        const ContextTree &tree = sharedNormProvider()->contexts();
+        const std::shared_ptr<const INormProvider> norms = sharedNormProvider();   // held while `tree` is read
+        const ContextTree &tree = norms->contexts();
         m_scopeOptions = clubScopeOptions(clubs, [&tree](const QString &club) { return tendencyClubGroup(tree, club); });
     }
 
@@ -1294,7 +1295,8 @@ void WorkOnsController::maybeMarks()
     job.seed       = QString::fromLatin1(seed.result().toHex());
     job.previous   = m_marksFingerprint;
     job.scope      = m_scope;
-    // Here, on the GUI thread: sharedNormProvider()'s first build is not safe on a worker (norm_provider.h).
+    // Taken per job: the job grades against one norm snapshot, and a corridor saved since the last job is in this
+    // one (norm_provider.h).
     job.norms      = sharedNormProvider();
 
     auto cancel = std::make_shared<std::atomic<bool>>(false);
@@ -1556,8 +1558,8 @@ void WorkOnsController::maybeThemes()
         job.pack    = std::make_shared<const CharacteristicPack>(pack);
     }
     if (!m_filter.isAll()) {
-        // Marshalled here, on the GUI thread, as the tendency job's are; sharedNormProvider()'s first build is not
-        // safe on a worker, and the flight table is read here first so the worker only reads it.
+        // Marshalled here, on the GUI thread, as the tendency job's are: one norm snapshot per job (norm_provider.h),
+        // and the flight table is read here first so the worker only reads it.
         job.outcomePack = std::make_shared<const ShotOutcomePack>(outcomePack());
         job.norms       = sharedNormProvider();
         (void)shippedFlightNorms();
@@ -1984,7 +1986,7 @@ void WorkOnsController::maybeTendencies()
     std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
         return QFileInfo(a).fileName() < QFileInfo(b).fileName();
     });
-    // Marshalled here, on the GUI thread; sharedNormProvider()'s first build is not safe on a worker.
+    // Marshalled here, on the GUI thread: one norm snapshot per job (norm_provider.h).
     job.pack  = outcomePack();
     job.norms = sharedNormProvider();
 

@@ -186,8 +186,8 @@
 namespace pinpoint::charts {
 
 // THE SESSION REPORT'S WRIST PAGE (report/report_wrist.h): the `session` map above for a snapshot, with no picked
-// shot and no QObject — built on the caller's thread with the shipped pack and the shared norm set (call
-// warmWristBands() once first, as SessionReportModel does). `archetypeMode` −1 Auto, 0..2 by hand. `available`
+// shot and no QObject — built on the caller's thread with the shipped pack and the shared norm set (any thread;
+// warmWristBands() first only moves the norm assembly off it, as SessionReportModel does). `archetypeMode` −1 Auto, 0..2 by hand. `available`
 // false when no shot reads a wrist DOF. `noun`: what its sentences count, plural — "shots" as on Charts, "swings"
 // for the report (with "shots" every string is the screen's, byte for byte, but for the keys changed below).
 // What differs from `session`, for paper:

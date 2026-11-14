@@ -275,7 +275,7 @@ private slots:
     {
         QStandardPaths::setTestModeEnabled(true);
         warmWristBands();
-        QVERIFY(postureSharedEnv().pack);
+        QVERIFY(postureSharedEnv()->pack);
         const QJsonObject root = readJson("PP_POSTURE_FIXTURE");
         QVERIFY2(!root.isEmpty(), "PP_POSTURE_FIXTURE");
         const QJsonObject ledger = readJson("PP_POSTURE_DIAGNOSTICS");
@@ -492,7 +492,8 @@ private slots:
         QVERIFY(s.value(QStringLiteral("available")).toBool());
 
         // the core's own reading of the same shots: the band each cell draws, and the readings it grades
-        const PostureEnv &env = postureSharedEnv();
+        const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
+        const PostureEnv &env = *envHeld;
         std::vector<PostureShotInput> in;
         for (const auto &sh : snap->shots) in.push_back(postureInputFromShot(*sh, env));
         const PostureSessionView sv = postureSession(in, env);
@@ -681,11 +682,11 @@ private slots:
                 return l.startsWith(QStringLiteral("⚠ Pelvis height at P3–P5")) && l.contains(QStringLiteral("authored seed")); }));
         }
         // the match itself: the pelvis band at P3–P5 changes no distance — d with and without those cells' values agree
-        PostureShotInput in = postureInputFromShot(*m_nick, postureSharedEnv());
-        const PostureMatch with = postureMatch(in.value, in.present, postureShotWarn(in), postureSharedEnv());
+        PostureShotInput in = postureInputFromShot(*m_nick, *postureSharedEnv());
+        const PostureMatch with = postureMatch(in.value, in.present, postureShotWarn(in), *postureSharedEnv());
         for (int pos = 2; pos <= 4; ++pos) in.value[size_t(PostureRow::PelvisHeight)][size_t(pos)] = 40.0;
         in.backLine.fill(40.0);
-        const PostureMatch moved = postureMatch(in.value, in.present, postureShotWarn(in), postureSharedEnv());
+        const PostureMatch moved = postureMatch(in.value, in.present, postureShotWarn(in), *postureSharedEnv());
         QCOMPARE(moved.cells, with.cells);
         QCOMPARE(moved.dLevel, with.dLevel);
         QCOMPARE(moved.dSquatPush, with.dSquatPush);
@@ -873,7 +874,8 @@ private slots:
     {
         ChartsPosturePresenter p;
         setUp(p, m_five, 3);
-        const PostureEnv &env = postureSharedEnv();
+        const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
+        const PostureEnv &env = *envHeld;
         QVERIFY2(env.absolutes.size() >= 6, "the pack's rigSensitive measures");
         const QVariantMap t = p.thisShot();
         const QVariantMap ad = t.value(QStringLiteral("address")).toMap();
@@ -1051,7 +1053,7 @@ private slots:
         const QVariantMap block = pinpoint::report::postureReportBlock(rep, {}).toMap();
         const QVariantMap ra = block.value(QStringLiteral("address")).toMap();
         QCOMPARE(ra.value(QStringLiteral("title")).toString(), QStringLiteral("At address"));
-        QCOMPARE(ra.value(QStringLiteral("rows")).toList().size(), int(postureSharedEnv().absolutes.size()));
+        QCOMPARE(ra.value(QStringLiteral("rows")).toList().size(), int(postureSharedEnv()->absolutes.size()));
         QVERIFY(block.value(QStringLiteral("trust")).toStringList().contains(postureRigRule()));
         QVERIFY(std::none_of(lines.begin(), lines.end(), [](const QString &l) { return l.contains(QStringLiteral("data warning")); }));
 

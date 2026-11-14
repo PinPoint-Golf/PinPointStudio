@@ -1907,6 +1907,41 @@ int main(int argc, char **argv)
         check(m.validationWarningCount() == cleanWarnings, "and moves back when it is undone");
     }
 
+    std::printf("=== a saved corridor reaches the rest of the app without a relaunch (B-01) ===\n");
+    {
+        // Everything outside this panel grades through sharedNormProvider(). Its only reset used to sit
+        // in a refresh() nobody called, so a saved corridor was on disk and every other grade in the
+        // app read the old one until the next launch. A browser of its own, from the files, so the
+        // draft above is not saved along with it.
+        ModelBrowser  b;
+        const QString id     = QStringLiteral("norm:m_ballPosition@driver");
+        const auto    before = sharedNormProvider();
+        const quint64 g0     = sharedNormProviderGeneration();
+        const NormResolution was = before->resolve(QStringLiteral("m_ballPosition"), QStringLiteral("driver"));
+        check(was.found(), "the app's norm set has ball position at driver");
+        const double oldMu = was.found() ? was.norm->mu : 0.0;
+        const double newMu = oldMu + 3.0;
+
+        check(okOf(b.setField(QStringLiteral("corridors"), id, QStringLiteral("mu"), newMu)), "the corridor is edited");
+        check(sharedNormProvider() == before, "an UNSAVED edit does not reach the app's norm set");
+        check(okOf(b.save()), "and saved");
+
+        const auto           after = sharedNormProvider();
+        const NormResolution now   = after->resolve(QStringLiteral("m_ballPosition"), QStringLiteral("driver"));
+        check(sharedNormProviderGeneration() > g0, "the save moved the shared norm set's generation");
+        check(now.found() && now.norm->mu == newMu,
+              "the next take of the app's norm set reads the SAVED corridor, without a relaunch");
+        check(before->resolve(QStringLiteral("m_ballPosition"), QStringLiteral("driver")).norm->mu == oldMu,
+              "a snapshot taken before the save keeps the corridor it was taken with");
+
+        // Put the file back as it was, through the panel's own way back.
+        b.undo();
+        check(okOf(b.save()), "the edit is undone and saved");
+        const NormResolution back = sharedNormProvider()->resolve(QStringLiteral("m_ballPosition"),
+                                                                  QStringLiteral("driver"));
+        check(back.found() && back.norm->mu == oldMu, "and the app's norm set is back on the old corridor");
+    }
+
     std::printf("=== save writes, and does NOT clear the stack ===\n");
     {
         const QString id = firstShippedId(m.rows(QStringLiteral("characteristics")));

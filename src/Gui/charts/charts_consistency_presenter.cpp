@@ -779,6 +779,7 @@ QVariantMap ChartsConsistencyPresenter::headline(const ConsistencyHead &head)
 ChartsConsistencyPresenter::ChartsConsistencyPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
+    m_normsGeneration = pa::sharedNormProviderGeneration();   // read first: a save in between only re-makes them
     m_env = consistencyEnvFromPacks();      // on the GUI thread, for the worker to hold by value
     m_scales = makeVariabilityScaleProvider();     // on the GUI thread too; then safe on any thread (variability_env.h)
 }
@@ -850,6 +851,15 @@ void ChartsConsistencyPresenter::schedule()
 void ChartsConsistencyPresenter::start()
 {
     m_dirty = false;
+    // A corridor saved in the Diagnostic Model since the last job: start again as a new presenter would — the env,
+    // the scales and the cache (its consistency run read the old corridors) — so this job reads ONE norm set, the new.
+    // A job still running keeps the cache and env it was handed.
+    if (m_normsGeneration != pa::sharedNormProviderGeneration()) {
+        m_normsGeneration = pa::sharedNormProviderGeneration();
+        m_env = consistencyEnvFromPacks();
+        m_scales = makeVariabilityScaleProvider();
+        m_cache = std::make_shared<Cache>();
+    }
     const auto snap = currentSnapshot();
     const QString picked = m_pickedDir, open = m_openCell;
     const int ordinal = m_pickedOrdinal;

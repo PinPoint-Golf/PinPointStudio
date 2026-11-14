@@ -45,17 +45,25 @@ namespace pinpoint::charts {
 
 // TAKE IT ON THE GUI THREAD, then hand it to a worker by value. consistencyInput takes the env as an
 // argument so that a worker has to be given one: a presenter holds one from its constructor. The two
-// functions are then thread-safe, callable from any thread, at once, for the life of the process.
+// functions are then thread-safe, callable from any thread, at once, for as long as the env is held.
 //
 // The first call in the process does the work (reading the packs, walking the conditions) on the
-// caller's thread, and it is finished when this returns. Later calls cost nothing. Like
-// postureSharedEnv() and the wrist bands it keeps the norm set it found for the life of the process, so
-// a corridor edited in the Diagnostic Model reaches this at the next launch. A worker holding it can
-// therefore never meet resetSharedNormProvider(), which is not safe against a concurrent reader.
+// caller's thread, and it is finished when this returns. Later calls cost nothing.
 //
-// WHY THE FIRST CALL IS THE GUI THREAD'S. sharedNormProvider()'s own first build is unsafe against a
-// first build on another thread, and a reset against any reader. A first call from any other thread is
-// a programming error: it asserts in a debug build and writes ppError in a release one.
+// A CORRIDOR SAVED IN THE DIAGNOSTIC MODEL. An env holds ONE norm snapshot (norm_provider.h) for as
+// long as it lives, so a job grades against one norm set start to finish. The next env taken after a
+// save reads the new corridors (normSigma follows the shared norm set's generation). The consistency,
+// relations and traces presenters re-take theirs at their NEXT JOB when the generation has moved
+// (with their scales, and the consistency and relations caches). A save schedules no job, so a view
+// already open keeps its old grades until its next job runs (a new snapshot, a pick, a setting). The
+// pack half (areas, after-the-ball keys) is built once and follows a pack edit only at the next
+// launch (audit B-02).
+//
+// WHY THE FIRST CALL IS THE GUI THREAD'S. The norm set is safe to take from any thread now, but the
+// first call also assembles the characteristic pack, and the pack loader reads the flat registries
+// (sharedReferenceSet() and its neighbours), whose first build is still not safe against a first build
+// on another thread (audit B-03). A first call from any other thread is a programming error: it
+// asserts in a debug build and writes ppError in a release one.
 ConsistencyEnv consistencyEnvFromPacks();
 
 } // namespace pinpoint::charts

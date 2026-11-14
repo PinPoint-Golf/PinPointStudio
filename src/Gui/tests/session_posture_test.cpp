@@ -150,14 +150,14 @@ class SessionPostureTest : public QObject
 {
     Q_OBJECT
 
-    const PostureEnv *m_env = nullptr;
+    std::shared_ptr<const PostureEnv> m_env;   // the snapshot, held for the suite
 
 private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
         warmWristBands();
-        m_env = &postureSharedEnv();
+        m_env = postureSharedEnv();
         QVERIFY(m_env->pack);
         QVERIFY(m_env->norms);
         // the bands resolve at the pattern nodes, from the shipped rows

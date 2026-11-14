@@ -430,6 +430,7 @@ private:
     PresenterPool m_pool{ this };
     std::shared_ptr<Cache> m_cache;        // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_consistencyEnv;       // taken on the GUI thread; a job holds a copy
+    quint64 m_normsGeneration = 0;         // the shared norm set's generation the env and cache were made at
     bool m_synchronous = false;
     bool m_running = false;
     bool m_dirty = false;

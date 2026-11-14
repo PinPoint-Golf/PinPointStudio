@@ -28,6 +28,7 @@
 #include "session_series_model.h"
 #include "variability_clubs.h"      // perClubTraceInputs (R2b: one window per club)
 #include "variability_env.h"        // the scale provider: each curve's scale type
+#include "../../Diagnostics/norms/norm_provider.h"   // sharedNormProviderGeneration: re-make the scales after a save
 #include "../variability/variability_facade.h"                 // variabilityResult, typicalityTracePayload
 #include "../../Metrics/variability/variability_grader.h"      // the trace and ordinal graders
 #include "../../Metrics/variability/variability_typicality.h"  // traceTypicalityWindow (R8)
@@ -143,7 +144,8 @@ struct ChartsTracesPresenter::Worker {
 
     // THE VARIABILITY MARKS (docs/design/system/variability.md; Session 5 of the plan): the scale provider,
     // MADE ON THE GUI THREAD by the presenter's constructor (variability_env.h's threading rule) and only read
-    // here, and the two graders the Session and Against views use. The graders are pure maths, made on first use.
+    // here — made again between jobs after a corridor save (followNormSave) — and the two graders the Session
+    // and Against views use. The graders are pure maths, made on first use.
     std::shared_ptr<const IVariabilityScaleProvider> scales;
     std::unique_ptr<variability::IVariabilityGrader> traceGrader, ordinalGrader;
 
@@ -3560,7 +3562,9 @@ static std::shared_ptr<ChartsTracesPresenter::Result> computeAll(ChartsTracesPre
 ChartsTracesPresenter::ChartsTracesPresenter(QObject *parent)
     : QObject(parent), m_worker(std::make_shared<Worker>())
 {
-    // the scale provider is made HERE, on the GUI thread (variability_env.h), before any job can read it
+    // the scale provider is made HERE, on the GUI thread (variability_env.h), before any job can read it; the generation
+    // is read first, so a save in between only re-makes it (followNormSave)
+    m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();
     m_worker->scales = makeVariabilityScaleProvider();
     schedule();
 }
@@ -3659,6 +3663,7 @@ void ChartsTracesPresenter::startJob()
     m_scheduled = false;
     if (m_synchronous) return;
     if (m_running) return;            // apply() re-runs it, dirty
+    followNormSave();
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     m_dirty = false;
@@ -3688,14 +3693,28 @@ void ChartsTracesPresenter::flushIfSynchronous()
 {
     if (!m_synchronous || !m_dirty) return;
     m_dirty = false;
+    followNormSave();
     Inputs in = m_in;
     in.snapshot = currentSnapshot();
     apply(computeAll(*m_worker, in));
 }
 
+void ChartsTracesPresenter::followNormSave()
+{
+    const quint64 gen = pinpoint::analysis::sharedNormProviderGeneration();
+    if (!m_ownScales || gen == m_normsGeneration) return;
+    m_normsGeneration = gen;
+    // No job is running (both callers check), and the lock makes the hand-over explicit. Nothing the worker caches
+    // is read through the scales (the grades are made per job), so no cache has to be emptied.
+    std::shared_ptr<const IVariabilityScaleProvider> scales = makeVariabilityScaleProvider();
+    QMutexLocker lk(&m_worker->mutex);
+    m_worker->scales = std::move(scales);
+}
+
 void ChartsTracesPresenter::setVariabilityScalesForTest(std::shared_ptr<const IVariabilityScaleProvider> scales)
 {
     m_pool.waitForDone();
+    m_ownScales = false;
     m_worker->scales = std::move(scales);
     m_dirty = true;
     schedule();

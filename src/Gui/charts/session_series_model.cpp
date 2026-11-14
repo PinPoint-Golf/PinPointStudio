@@ -388,8 +388,8 @@ SessionSeriesModel::SessionSeriesModel(QObject *parent)
     // ONE worker thread (decision 2). Two would let a re-analysed shot's read overtake the
     // activation that put its session in place, and the cache would be written by both.
     m_pool.setMaxThreadCount(1);
-    // The wrist grader's norm set, built here on the owner's thread so no worker's first read races
-    // another first read of the process-wide slot (session_wrist.h).
+    // The wrist grader's norm set, built here on the owner's thread so the first worker read does not
+    // pay for it (a warm-up: the build itself is safe on any thread, session_wrist.h).
     warmWristBands();
 }
 

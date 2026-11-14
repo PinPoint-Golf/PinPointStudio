@@ -255,10 +255,28 @@ std::unique_ptr<INormProvider> makeMemoryNormProvider(
 // statics" rule the pack providers follow is not broken — this is lazy initialisation, not startup
 // registration.
 //
-// Call resetSharedNormProvider() after writing a user norm set, or edits will not be visible until
-// the next launch. Not thread-safe against concurrent readers: call it from the UI thread while no
-// analysis is running, which is the only place a norm is ever edited.
-std::shared_ptr<const INormProvider> sharedNormProvider();
+// SNAPSHOTS, NOT A LIVE VIEW. What this hands out is an immutable snapshot (shared_ptr<const ...>).
+// A reader keeps the one it took for as long as it holds the pointer, so a reset never frees or
+// changes a set somebody is reading: one analysis pass grades against one norm set, start to finish.
+// To see an edit, a holder takes the provider AGAIN — at its own safe point (the start of a pass, the
+// next job, the next time it is made). Holding one forever is holding the norms of the moment it was
+// taken.
+//
+// THREADS. Taking it, building it on first use and resetting it are all safe from any thread at once:
+// the slot is guarded by a lock and the build happens under it, so two first callers cannot both
+// assemble it, and a reset that lands during a build discards that build. (The PACK side is a
+// different matter — makeCharacteristicPackProvider() still reads the unsynchronised flat registries,
+// audit B-03 — so a caller that builds a pack and a norm set together has its own thread rule; see
+// consistency_env.h.)
+//
+// AFTER A WRITE. Call resetSharedNormProvider() after writing a user norm set (ModelBrowser::save()
+// and resetToStandard() do), or every later take returns the set from before the write until the next
+// launch. The reset moves sharedNormProviderGeneration(); a holder that derives something expensive
+// from the norms (a band grid, a memo) compares the generation it built at with the current one to
+// know it is stale. `generation`, when given, receives the generation of the snapshot returned, read
+// under the same lock, so the pair is consistent.
+std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation = nullptr);
+quint64                              sharedNormProviderGeneration();
 void                                 resetSharedNormProvider();
 
 } // namespace pinpoint::analysis

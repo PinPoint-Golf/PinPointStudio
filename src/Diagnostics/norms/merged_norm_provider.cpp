@@ -18,9 +18,12 @@
 
 #include "norm_provider.h"
 
+#include <QMutex>
+#include <QMutexLocker>
 #include <QSet>
 
 #include <algorithm>
+#include <atomic>
 
 namespace pinpoint::analysis {
 
@@ -236,29 +239,53 @@ std::unique_ptr<INormProvider> makeNormProvider()
 }
 
 namespace {
-// Function-local static, so nothing runs before main(). See the header for why this is cached at
-// all: the compiled table it replaced was free, and callers build a band provider per lookup.
-std::shared_ptr<const INormProvider> &sharedSlot()
+// The process-wide slot: one immutable snapshot, swapped whole under a lock. Function-local static,
+// so nothing runs before main(). See the header for why this is cached at all (the compiled table it
+// replaced was free, and callers build a band provider per lookup) and for the snapshot rule.
+//
+// The snapshot is BUILT under the lock too. That is what makes a first touch from a worker safe: two
+// threads that both find the slot empty cannot both assemble it and race to store the result — the
+// second waits and takes the first one's. It also orders a build against a reset: a reset that lands
+// while a build is in progress waits for it, then discards it, so a set assembled from the file
+// before a save can never be handed out after that save's reset. Nothing the assembly calls takes
+// this lock again (makeNormProvider() reads files and the Qt resource, never the slot).
+struct SharedNormSlot {
+    QMutex                               lock;
+    std::shared_ptr<const INormProvider> norms;
+    std::atomic<quint64>                 generation{ 0 };   // moved by every reset, under `lock`
+};
+
+SharedNormSlot &sharedSlot()
 {
-    static std::shared_ptr<const INormProvider> slot;
+    static SharedNormSlot slot;
     return slot;
 }
 } // namespace
 
-std::shared_ptr<const INormProvider> sharedNormProvider()
+std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation)
 {
-    std::shared_ptr<const INormProvider> &slot = sharedSlot();
-    if (!slot)
-        slot = std::shared_ptr<const INormProvider>(makeNormProvider().release());
-    return slot;
+    SharedNormSlot &s = sharedSlot();
+    QMutexLocker    lk(&s.lock);
+    if (!s.norms) s.norms = std::shared_ptr<const INormProvider>(makeNormProvider().release());
+    if (generation) *generation = s.generation.load();
+    return s.norms;
 }
+
+quint64 sharedNormProviderGeneration() { return sharedSlot().generation.load(); }
 
 void resetSharedNormProvider()
 {
-    // Existing shared_ptr holders keep the old set alive until they release it, so a reset during
-    // an in-flight read cannot pull the rug out — it just means that reader finishes on the norms
-    // it started with, which is the correct outcome for a single analysis pass.
-    sharedSlot().reset();
+    // Existing holders keep the old snapshot alive until they release it, so a reset during an
+    // in-flight read cannot pull the rug out: that reader finishes on the norms it started with,
+    // which is the correct outcome for a single analysis pass. The old set is released OUTSIDE the
+    // lock, so when this was its last holder its destructor does not stall every other reader.
+    SharedNormSlot                      &s = sharedSlot();
+    std::shared_ptr<const INormProvider> retired;
+    {
+        QMutexLocker lk(&s.lock);
+        retired.swap(s.norms);
+        s.generation.fetch_add(1);
+    }
 }
 
 } // namespace pinpoint::analysis

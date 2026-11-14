@@ -2659,6 +2659,7 @@ QString ConsistencyReadingRows::guardNote()
 ChartsRelationsPresenter::ChartsRelationsPresenter(QObject *parent)
     : QObject(parent), m_cache(std::make_shared<Cache>())
 {
+    m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();   // read first, as the consistency presenter
     m_consistencyEnv = consistencyEnvFromPacks();     // on the GUI thread, for the worker to hold by value
 }
 
@@ -2735,6 +2736,13 @@ void ChartsRelationsPresenter::schedule()
 void ChartsRelationsPresenter::start()
 {
     m_dirty = false;
+    // A corridor saved in the Diagnostic Model since the last job: the env and the cache start again, as a new
+    // presenter's would, so this job reads ONE norm set, the new (ChartsConsistencyPresenter::start, the same rule).
+    if (m_normsGeneration != pinpoint::analysis::sharedNormProviderGeneration()) {
+        m_normsGeneration = pinpoint::analysis::sharedNormProviderGeneration();
+        m_consistencyEnv = consistencyEnvFromPacks();
+        m_cache = std::make_shared<Cache>();
+    }
     const auto snap = currentSnapshot();
     const QString picked = m_picked, reg = m_register, family = m_family, up = m_upId, across = m_acrossId, facet = m_facetId, open = m_openId;
     const QVariantMap detail = m_pickedDetail;

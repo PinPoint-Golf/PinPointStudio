@@ -121,7 +121,7 @@ using VariabilityMeasureNormLookup =
     std::function<std::optional<VariabilityMeasureNorm>(const QString &measureId, const QString &club)>;
 
 // PRODUCTION: sharedNormProvider(), each club through contextIdForClub(), unqualified cohort (as the corridor rung).
-// Make it on the GUI thread, as the provider.
+// It holds the norm snapshot it was made with; safe to make on any thread.
 VariabilityMeasureNormLookup variabilityMeasureNorms();
 
 // PRODUCTION: consistencyEnvFromPacks(), the shipped metric manifest and variabilityMeasureNorms(). Make it on the

@@ -314,7 +314,13 @@ PostureEnv postureEnv(const analysis::CharacteristicPack *pack,
                       std::shared_ptr<const analysis::INormProvider> norms,
                       const analysis::GradePolicy &policy = {});
 // The shipped pack (makeCharacteristicPackProvider) and sharedNormProvider(), built on first use.
-const PostureEnv &postureSharedEnv();
+// A SNAPSHOT: hold the pointer for the whole pass, so one pass reads one norm set. The pack is built
+// once for the process; the norm half is made again when the shared norm set has moved (a corridor
+// saved in the Diagnostic Model), so the next pass after a save reads the new corridors. The norm half
+// is safe on any thread. The FIRST call also assembles the pack, whose loader reads the unsynchronised
+// flat registries (audit B-03, open): that first build is not safe against another first build of
+// them on a different thread (consistency_env.h states the same rule).
+std::shared_ptr<const PostureEnv> postureSharedEnv();
 
 PostureBandGrid  postureBands(const PostureEnv &env, PosturePattern p);
 struct PostureTrailStyle;

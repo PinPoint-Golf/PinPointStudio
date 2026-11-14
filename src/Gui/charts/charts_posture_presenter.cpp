@@ -110,6 +110,10 @@ struct ChartsPosturePresenter::Worker {
     // and the stamp of every sibling ledger (readAddressHistory)
     QString histStamp;
     PostureAddressHistory hist;
+
+    // The env the caches above were read through (postureSharedEnv's snapshot). A new one — the shared
+    // norm set moved after a corridor save — empties them, so no shot keeps an input read over the old.
+    std::shared_ptr<const PostureEnv> env;
 };
 
 namespace {
@@ -1165,8 +1169,8 @@ QVariantMap postureConsistency(const std::vector<PostureClubGrades> &grades)
 
 // `picked` may be a shot outside the snapshot (its own detail): then nothing in the strip is picked. `noun`:
 // what the words count, plural ("shots" on Charts, "swings" in the report) — the core's sentences take the same.
-QVariantMap sessionMapOf(const std::vector<PostureShotInput> &inputs, const PostureSessionView &sv, int patternMode,
-                         int pickedIndex, const PostureShotInput *picked, const std::array<qint64, kPos> &us,
+QVariantMap sessionMapOf(const PostureEnv &env, const std::vector<PostureShotInput> &inputs, const PostureSessionView &sv,
+                         int patternMode, int pickedIndex, const PostureShotInput *picked, const std::array<qint64, kPos> &us,
                          const QString &noun = QStringLiteral("shots"))
 {
     QVariantMap out;
@@ -1279,7 +1283,7 @@ QVariantMap sessionMapOf(const std::vector<PostureShotInput> &inputs, const Post
     out.insert(QStringLiteral("consistency"), postureConsistency(grades));
     out.insert(QStringLiteral("whatMoved"), QVariantMap{ { QStringLiteral("top"), movedMap(sv.top, us) },
                                                           { QStringLiteral("impact"), movedMap(sv.impact, us) } });
-    const QVariantMap address = addressMapOf(sv.absolutes, sv.addressLines, postureSharedEnv(), inputs, pool, false, many);
+    const QVariantMap address = addressMapOf(sv.absolutes, sv.addressLines, env, inputs, pool, false, many);
     out.insert(QStringLiteral("address"), address);
     out.insert(QStringLiteral("absolutes"), address.value(QStringLiteral("rows")));   // the same rows (ABSOLUTE = ADDRESS)
     out.insert(QStringLiteral("trust"), trustMap(sv.trust));
@@ -1590,7 +1594,15 @@ static ChartsPosturePresenter::StillMaker stillMaker()
 static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPosturePresenter::Worker &w, const ChartsPosturePresenter::Inputs &in)
 {
     QMutexLocker lk(&w.mutex);
-    const PostureEnv &env = postureSharedEnv();
+    // One snapshot for the whole pass, held here so a corridor save mid-job cannot change it under us.
+    const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
+    if (w.env != envHeld) {
+        w.cache.clear();
+        w.refDir.clear(); w.refSize = -1; w.refMtimeMs = -1;
+        w.histStamp.clear();
+        w.env = envHeld;
+    }
+    const PostureEnv &env = *envHeld;
     auto R = std::make_shared<ChartsPosturePresenter::Result>();
     std::shared_ptr<const SessionSnapshot> snap = in.snapshot;
     if (!snap) snap = std::make_shared<SessionSnapshot>();
@@ -1627,7 +1639,7 @@ static std::shared_ptr<ChartsPosturePresenter::Result> computePosture(ChartsPost
     std::array<qint64, kPos> sessUs = c.pUs;
     if (!c.shot)
         for (int i = 0; i < c.n; ++i) if (hasPosture(c.inputs[size_t(i)])) { sessUs = positionUs(c.snap->shots[size_t(i)].get()); break; }
-    R->session = sessionMapOf(c.inputs, c.sess, in.pattern, c.index, c.shot ? &c.pick : nullptr, sessUs);
+    R->session = sessionMapOf(env, c.inputs, c.sess, in.pattern, c.index, c.shot ? &c.pick : nullptr, sessUs);
     buildChoices(c, *R);
     return R;
 }
@@ -1636,13 +1648,14 @@ QVariantMap postureSessionReportPayload(const SessionSnapshot &snapshot, int pat
 {
     const int mode = patternMode < -1 || patternMode > 1 ? -1 : patternMode;
     const QString many = noun.trimmed().isEmpty() ? QStringLiteral("shots") : noun.trimmed();
-    const PostureEnv &env = postureSharedEnv();
+    const std::shared_ptr<const PostureEnv> envHeld = postureSharedEnv();
+    const PostureEnv &env = *envHeld;
     const std::vector<PostureShotInput> inputs = readInputs(nullptr, snapshot, env);
     const PostureAddressHistory hist = readAddressHistory(snapshot.sessionDir, env);
     const PostureSessionView sv = postureSession(inputs, env, mode, &snapshot.tiers, &snapshot.workOnOrder, many, &hist);
     std::array<qint64, kPos> us = positionUs(nullptr);
     for (size_t i = 0; i < inputs.size(); ++i) if (hasPosture(inputs[i])) { us = positionUs(snapshot.shots[i].get()); break; }
-    QVariantMap out = sessionMapOf(inputs, sv, mode, -1, nullptr, us, many);
+    QVariantMap out = sessionMapOf(env, inputs, sv, mode, -1, nullptr, us, many);
     if (!sv.available) return out;
 
     // THE PICTURE (§5.7): the session's TYPICAL swing — the one whose distance to the session's pattern is nearest the

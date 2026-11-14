@@ -361,6 +361,9 @@ private:
     void startJob();
     void apply(std::shared_ptr<Result> r);
     void flushIfSynchronous();
+    // Between jobs, on the GUI thread: a corridor saved in the Diagnostic Model since the scale provider was made
+    // re-makes it, so this job's corridor widths read the new norm set (ChartsRelationsPresenter::start, the same rule).
+    void followNormSave();
     void updateNow(bool force);
     void onSnapshotChanged();
 
@@ -380,6 +383,8 @@ private:
     QVariantMap m_timings;
 
     std::shared_ptr<Worker> m_worker;   // the worker's caches; touched only by jobs
+    quint64 m_normsGeneration = 0;      // the shared norm set's generation the worker's scale provider was made at
+    bool m_ownScales = true;            // false once a test injected its own (setVariabilityScalesForTest)
     PresenterPool m_pool{ this };
 };
 

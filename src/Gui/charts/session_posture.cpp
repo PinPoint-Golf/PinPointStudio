@@ -32,6 +32,8 @@
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QSet>
 
 #include <algorithm>
@@ -852,10 +854,17 @@ PostureEnv postureEnv(const pa::CharacteristicPack *pack, std::shared_ptr<const 
     return e;
 }
 
-const PostureEnv &postureSharedEnv()
+std::shared_ptr<const PostureEnv> postureSharedEnv()
 {
     static const std::unique_ptr<pa::ICharacteristicPackProvider> provider = pa::makeCharacteristicPackProvider();
-    static const PostureEnv env = postureEnv(provider ? &provider->pack() : nullptr, pa::sharedNormProvider());
+    static QMutex                            lock;
+    static std::shared_ptr<const PostureEnv> env;
+    static quint64                           builtAt = 0;
+    QMutexLocker lk(&lock);
+    if (!env || builtAt != pa::sharedNormProviderGeneration()) {
+        std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider(&builtAt);
+        env = std::make_shared<const PostureEnv>(postureEnv(provider ? &provider->pack() : nullptr, std::move(norms)));
+    }
     return env;
 }
 

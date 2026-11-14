@@ -54,8 +54,9 @@
 //            DOFs the shot carries,
 //    engineScore: int }
 //
-// Pure apart from the shared norm set (sharedNormProvider, read-only once built): no QObject, no
-// files, no threads of its own. Safe on any thread once warmWristBands() has run on one.
+// Pure apart from the shared norm set (sharedNormProvider, an immutable snapshot): no QObject, no
+// files, no threads of its own. Safe on any thread. Each call grades against the norm set current when
+// it starts, so a corridor saved in the Diagnostic Model reaches the next call.
 
 #include "session_series_types.h"
 
@@ -81,8 +82,9 @@ QVariantMap wristResemblanceOf(const QJsonObject &analysis);
 // "Neutral" | "Bowed" | "Cupped" for 0..2 (anything else reads Neutral, as the engine resolves it).
 QString wristArchetypeName(int archetype);
 
-// Build the shared norm set on the calling thread. SessionSeriesModel calls it on construction (the GUI
-// thread) so the first worker read never races another first read for the process-wide slot.
+// Build the shared norm set and the band provider over it on the calling thread, so the first worker
+// read does not pay for the assembly. A warm-up only: the shared norm set's build is safe on any thread
+// (norm_provider.h), so nothing depends on it for correctness.
 void warmWristBands();
 
 } // namespace pinpoint::charts

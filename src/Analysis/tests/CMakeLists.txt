@@ -1315,6 +1315,17 @@ pp_add_test(norm_pack_test
 set_tests_properties(norm_pack_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${CMAKE_CURRENT_SOURCE_DIR}/../../Resources/diagnostics/contexts.json")
 
+# The process-wide norm set the app grades against (sharedNormProvider): a saved user norm set plus
+# resetSharedNormProvider() is what the next take returns (audit B-01), a snapshot taken before keeps
+# its band, and the slot's build and reset are safe while other threads read (audit B-03). Writes go
+# to AppDataLocation in QStandardPaths test mode.
+pp_add_test(shared_norm_provider_test
+    SOURCES ${DIAG}/tests/shared_norm_provider_test.cpp ${DIAG_NORM}
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/merged_norm_provider.cpp
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})
+pp_norm_env(shared_norm_provider_test)
+
 # Reading a MEASURE off a stored swing — the half of the value/norm join that nothing implemented
 # until the corridor editor needed real numbers under its histogram. The load-bearing assertions are
 # that an unsegmented phase yields NOTHING (never a nearest-sample guess a sidecar would then cache),

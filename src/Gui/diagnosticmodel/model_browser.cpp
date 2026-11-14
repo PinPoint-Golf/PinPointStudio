@@ -1014,16 +1014,6 @@ const ModelBrowser::Reach &ModelBrowser::reachOf(const QString &conditionId) con
     return *m_reach.insert(conditionId, r);
 }
 
-void ModelBrowser::refresh()
-{
-    // Re-take the shared provider so the REST of the app sees whatever landed elsewhere, then
-    // rebuild our own assembly over the working copies. This object deliberately does not read the
-    // shared norm provider for its own answers: that one reflects the file, and this panel has to
-    // answer from the draft.
-    resetSharedNormProvider();
-    rebuild();
-}
-
 // ── Dirty tracking ──────────────────────────────────────────────────────────
 
 const QSet<QString> &ModelBrowser::dirtyIds() const
@@ -5167,6 +5157,12 @@ QVariantMap ModelBrowser::save()
                  tr("Characteristics were saved; the corridors were not. %1").arg(whyNot));
         return r;
     }
+    // The corridors are on disk from here on, whatever happens to the registries after them, so the
+    // shared norm snapshot is dropped now: the next grade anywhere in the app (the wrist grid, Charts,
+    // the report, a work-ons job) takes the provider again and assembles it from the file just
+    // written. Readers mid-pass keep the snapshot they hold (norm_provider.h), so this is safe while
+    // a worker is grading.
+    resetSharedNormProvider();
 
     // The screen and drill layers, written third and fourth. Reported the same way as the corridor
     // half: an author told only "could not save" would not know which registry to redo.
@@ -5207,7 +5203,8 @@ QVariantMap ModelBrowser::save()
     }
     // The rest of the app reads these three through their process-wide caches, so a write that did
     // not drop them would be on disk and invisible until relaunch — the report builder re-takes the
-    // gate words for each report, and it would re-take the old ones.
+    // gate words for each report, and it would re-take the old ones. (The norms were dropped above,
+    // as soon as they landed.)
     resetSharedScreenSet();
     resetSharedDrillSet();
     resetSharedGateWordSet();
@@ -5369,10 +5366,14 @@ QVariantMap ModelBrowser::resetToStandard()
     // Written through immediately. A reset that only cleared the draft would leave the files it just
     // backed up still on disk and the panel reading "n unsaved" — which is not what "reset" means to
     // anybody who clicked it.
-    if (!saveUserPack(m_working, &whyNot) || !saveUserNormPack(m_workingNorms, &whyNot)
-        || !saveUserScreenSet(m_workingScreens, &whyNot)
-        || !saveUserDrillSet(m_workingDrills, &whyNot)
-        || !saveUserGateWordSet(m_workingGateWords, &whyNot)) {
+    const bool wrote = saveUserPack(m_working, &whyNot) && saveUserNormPack(m_workingNorms, &whyNot)
+                       && saveUserScreenSet(m_workingScreens, &whyNot)
+                       && saveUserDrillSet(m_workingDrills, &whyNot)
+                       && saveUserGateWordSet(m_workingGateWords, &whyNot);
+    // Whatever landed of the norm set, the shared snapshot is re-read from the file on its next take:
+    // a reset only ever re-reads what is on disk, so it is right whether the write landed or not.
+    resetSharedNormProvider();
+    if (!wrote) {
         // The draft is already the standard model and the stack still holds the way back, so this is
         // a failure to PERSIST rather than a failure to reset. Say exactly that.
         QVariantMap r = refuse(tr("Reset here, but it could not be written to disk. %1").arg(whyNot));

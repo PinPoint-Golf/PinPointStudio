@@ -207,6 +207,7 @@ private:
     std::shared_ptr<Cache> m_cache;     // touched only inside a job (jobs never overlap)
     ConsistencyEnv m_env;               // taken on the GUI thread; a job holds a copy
     std::shared_ptr<const IVariabilityScaleProvider> m_scales;   // made on the GUI thread; a job holds a reference
+    quint64 m_normsGeneration = 0;      // the shared norm set's generation the three above were made at
     bool m_synchronous = false;
     bool m_running = false;
     bool m_dirty = false;

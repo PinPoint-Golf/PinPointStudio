@@ -240,9 +240,10 @@ bool saveUserScreenSet(const ScreenSet &set, QString *whyNot)
 
 const ScreenSet &sharedScreenSet()
 {
-    // Cached process-wide, exactly like sharedNormProvider(). Not thread-safe against concurrent
-    // readers — call resetSharedScreenSet() from the UI thread after writing a user set, or every
-    // reader keeps the assembly it already has and the edit looks like it did nothing.
+    // Cached process-wide, like sharedNormProvider() but WITHOUT its snapshot and lock (audit B-03):
+    // not thread-safe against concurrent readers — call resetSharedScreenSet() from the UI thread
+    // after writing a user set, or every reader keeps the assembly it already has and the edit looks
+    // like it did nothing.
     if (!g_screens) g_screens = new ScreenSet(assembleScreenSet());
     return *g_screens;
 }

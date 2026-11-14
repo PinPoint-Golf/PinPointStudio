@@ -49,17 +49,22 @@ const pa::PpJointDof kDisplayOrder[] = {
     pa::PpJointDof::LeadElbowFlex,
 };
 
-// ONE band provider for the process, built under a lock. NormBandProvider is read-only once made (it
-// holds the shared norm set), so every worker may grade through it at once; what is not thread-safe is
-// the FIRST build of sharedNormProvider()'s slot, which this lock serialises among our callers and
-// warmWristBands() moves onto the GUI thread before any worker exists.
-const pa::IReferenceBandProvider &bands()
+// The band provider over the CURRENT shared norm set, as a snapshot. NormBandProvider is read-only once
+// made (it holds one norm snapshot), so every worker may grade through it at once. It is made again,
+// under this lock, when the shared norm set has moved since (a corridor saved in the Diagnostic Model
+// resets it); a grade already holding the old one finishes on it. Safe from any thread: the shared
+// norm set's own build is (norm_provider.h).
+std::shared_ptr<const pa::IReferenceBandProvider> bands()
 {
     static QMutex lock;
-    static std::unique_ptr<pa::IReferenceBandProvider> provider;
+    static std::shared_ptr<const pa::IReferenceBandProvider> provider;
+    static quint64 builtAt = 0;
     QMutexLocker lk(&lock);
-    if (!provider) provider = pa::makeReferenceBandProvider();
-    return *provider;
+    if (!provider || builtAt != pa::sharedNormProviderGeneration()) {
+        std::shared_ptr<const pa::INormProvider> norms = pa::sharedNormProvider(&builtAt);
+        provider = std::make_shared<const pa::NormBandProvider>(std::move(norms));
+    }
+    return provider;
 }
 
 QVariant nul() { return QVariant::fromValue(nullptr); }
@@ -154,7 +159,7 @@ QVariantMap shotWristPayload(const ShotSeries &shot, int archetypeMode, const QV
 
     pa::WristAssessmentConfig cfg;
     cfg.band.archetype = archetypeMode < -1 || archetypeMode > 2 ? -1 : archetypeMode;
-    const pa::PpWristAssessmentResult r = pa::WristAssessmentEngine::assess(source, bands(), cfg);
+    const pa::PpWristAssessmentResult r = pa::WristAssessmentEngine::assess(source, *bands(), cfg);
     const pa::PpSwingPositionTimeline tl = source.timeline();
 
     QVariantList dofs;
