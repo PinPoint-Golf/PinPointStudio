@@ -747,6 +747,9 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // A batch still coalescing (decision 1) has rows placed and not yet written. Write them:
     // they are graded and stamped, and on disk they will not be detected again. The deliveries
     // still queued die with this object, as they always did, and the next activation re-does them.
+    // A block met by this last write is logged and not announced: the panel that would turn it into a
+    // notification is being torn down with this object.
+    m_destroying = true;
     if (m_owedRebuild) persist(/*adoptMerged=*/false);
 }
 
@@ -1552,6 +1555,12 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
             if (!haveFile && !m_ledgerWriteBlocked) setAsideUnreadableLedger(path, why);
         }
     }
+    // The file opened (or there was none, or a bad one was set aside): whatever a past activation of this
+    // session warned about is over. A block met later this activation (the catch-up's write) warns again.
+    // Queued, as the block is (markLedgerWritesBlocked).
+    if (!m_ledgerWriteBlocked)
+        QMetaObject::invokeMethod(this, [this, sessionDir] { emit ledgerWritesResumed(sessionDir); },
+                                  Qt::QueuedConnection);
     if (haveFile) {
         // The ledger half is diagnostic_ledger.h's own, read through its own reader — the
         // gates travel with the file so a session records what it was read under.
@@ -3252,17 +3261,39 @@ bool SessionDiagnosticsModel::setAsideUnreadableLedger(const QString &path, cons
                  << "shot intent and corrections in that file are not in the new one";
         return true;
     }
-    m_ledgerWriteBlocked = true;
     ppWarn() << "[Diagnostics] diagnostics.json could not be read:" << qPrintable(path) << "—" << qPrintable(why)
              << "— and could not be set aside either, so nothing will be written over it this session";
+    markLedgerWritesBlocked(tr("Its diagnostics file could not be read or moved aside. "
+                               "Check the library's drive or share."));
     return false;
 }
 
 void SessionDiagnosticsModel::blockLedgerWrites(const QString &path, const QString &why)
 {
-    m_ledgerWriteBlocked = true;
     ppWarn() << "[Diagnostics] diagnostics.json could not be opened:" << qPrintable(path) << "—" << qPrintable(why)
              << "— left where it is, and nothing will be written to this session until it is opened again";
+    markLedgerWritesBlocked(tr("Its diagnostics file could not be opened. Check the library's drive or share."));
+}
+
+void SessionDiagnosticsModel::markLedgerWritesBlocked(const QString &reason)
+{
+    // SHOW WITH A WARNING, NEVER HIDE. The panel goes on taking corrections, intents, a declared focus or
+    // miss and screen answers while nothing is written, so the log line above is not enough: the golfer
+    // is told on screen (PpSessionDiagnosticsPanel → the notification centre). Once per activation —
+    // the flag stays set until the next one, so a second block in the same activation says nothing new.
+    //
+    // QUEUED, to the next turn of the event loop. The panel activates its model from a property binding
+    // while it is still being built (PpSessionDiagnosticsPanel.sessionDir → activateSession), before its
+    // Connections are connected, so a signal emitted there and then reached nobody. Queued, it reaches
+    // whoever is listening once the panel is up; the session it names is carried with it, so an
+    // activation of another session in between cannot misdirect it. A model destroyed first takes the
+    // pending call with it (the context object is `this`).
+    const bool already = m_ledgerWriteBlocked;
+    m_ledgerWriteBlocked = true;
+    if (already || m_destroying) return;
+    const QString dir = m_sessionDir;
+    QMetaObject::invokeMethod(this, [this, dir, reason] { emit ledgerWritesBlocked(dir, reason); },
+                              Qt::QueuedConnection);
 }
 
 QJsonObject SessionDiagnosticsModel::envelope() const

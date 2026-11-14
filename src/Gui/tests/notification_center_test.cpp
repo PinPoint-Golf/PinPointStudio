@@ -265,6 +265,55 @@ int main()
                  QStringLiteral("swing.save.no-directory"));
     }
 
+    // ── postWarning: a condition raised from QML, restated without counting (Stage 0.4c) ──
+    {
+        g_now = 1'000'000;
+        NotificationCenter nc;
+        nc.setClockForTest([] { return g_now; });
+        const QString id = QStringLiteral("diagnostics.writes-blocked:/lib/A/2026-11-14_A_01");
+
+        std::printf("\n-- postWarning raises a latched warning --\n");
+        nc.postWarning(id, QStringLiteral("Changes to the diagnostics of 2026-11-14_A_01 are not being saved"),
+                       QStringLiteral("Its diagnostics file could not be opened."));
+        checkInt("one row", nc.rowCount(), 1);
+        checkInt("severity Warn", nc.data(nc.index(0, 0), NotificationCenter::SeverityRole).toInt(),
+                 NotificationCenter::Warn);
+        checkInt("kind Condition", nc.data(nc.index(0, 0), NotificationCenter::KindRole).toInt(),
+                 NotificationCenter::Condition);
+        g_now += NotificationCenter::kEventDwellMs * 10;
+        nc.sweep();
+        checkBool("still live long after an event's dwell", nc.isLive(id), true);
+
+        std::printf("\n-- the same id again (the wall cast's panel, a re-opened session) dedups --\n");
+        int dataChanges = 0;
+        QObject::connect(&nc, &QAbstractItemModel::dataChanged, [&] { ++dataChanges; });
+        nc.postWarning(id, QStringLiteral("Changes to the diagnostics of 2026-11-14_A_01 are not being saved"),
+                       QStringLiteral("Its diagnostics file could not be read or moved aside."));
+        checkInt("still one row", nc.rowCount(), 1);
+        checkInt("count stays 1 — a restatement, not a second fault", nc.countOf(id), 1);
+        checkStr("the latest words stand",
+                 nc.data(nc.index(0, 0), NotificationCenter::DetailRole).toString(),
+                 QStringLiteral("Its diagnostics file could not be read or moved aside."));
+        checkInt("the row was updated in place", dataChanges, 1);
+
+        std::printf("\n-- another session is its own notice --\n");
+        const QString other = QStringLiteral("diagnostics.writes-blocked:/lib/A/2026-11-14_A_02");
+        nc.postWarning(other, QStringLiteral("Changes to the diagnostics of 2026-11-14_A_02 are not being saved"),
+                       QString());
+        checkInt("two rows", nc.rowCount(), 2);
+
+        std::printf("\n-- resolved when the session opens again; an empty id is refused --\n");
+        nc.resolve(id);
+        checkBool("resolved", nc.isLive(id), false);
+        checkBool("the other stays", nc.isLive(other), true);
+        nc.resolve(id);                                     // idempotent: nothing on screen to resolve
+        checkInt("one row", nc.rowCount(), 1);
+        nc.postWarning(QString(), QStringLiteral("no id"), QString());
+        checkInt("still one row", nc.rowCount(), 1);
+        nc.postWarning(id, QStringLiteral("again"), QString());
+        checkInt("a resolved condition may return", nc.countOf(id), 1);
+    }
+
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES",
                 g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;

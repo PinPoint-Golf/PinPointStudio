@@ -110,7 +110,9 @@ class INormProvider;
 //        nothing is written to it this activation (setAsideUnreadableLedger). One that is there
 //        but cannot be OPENED (a share that dropped, a permission, a lock) is most likely a good
 //        file read at a bad moment: it is left where it is, untouched, and nothing is written to
-//        the session this activation, with a ppWarn (blockLedgerWrites);
+//        the session this activation, with a ppWarn (blockLedgerWrites). Either way the golfer is
+//        told on screen, not only in the log: ledgerWritesBlocked, which the panel turns into a
+//        "not being saved" notification (Stage 0.4c);
 //      · the work-ons catch-up (BaselineAuthority::Always) merges every golfer key from the
 //        file before it writes, three ways (mergeGolferInput), so what a panel saved while the
 //        catch-up held the session survives the catch-up's write;
@@ -691,6 +693,25 @@ signals:
     // One shot finished reducing. The panel's cue for the after-shot moment; carries whether
     // cadence decided to surface it, so the QML does not have to ask a second question.
     void shotIngested(int shotId, bool surfaced);
+    // SHOW WITH A WARNING, NEVER HIDE (Stage 0.4c). Writes to `sessionDir`'s diagnostics.json have
+    // just been switched off for this activation (m_ledgerWriteBlocked): the file is there but could
+    // not be opened (blockLedgerWrites), or could not be read and could not be set aside either
+    // (setAsideUnreadableLedger). The panel keeps taking the golfer's input and grading in memory,
+    // and none of it is kept, so the golfer has to be told. Emitted ONCE per activation, on the
+    // change from writable to blocked; `reason` is one plain sentence saying why, for the notice.
+    // ledgerWritesResumed: an activation found `sessionDir`'s file readable (or found none), so
+    // what was warned about is over for that session. Emitted at every such activation — the
+    // listener's dismissal is idempotent and the model does not know whether anyone warned.
+    // BOTH ARE QUEUED to the next turn of the event loop: the panel activates its model from a
+    // binding while it is still being built, before its Connections exist (markLedgerWritesBlocked).
+    // ⚠ REFACTOR-TEMPORARY WIRING: the model is created in QML, so it cannot reach the C++
+    // NotificationCenter; PpSessionDiagnosticsPanel turns these into a notification. When the
+    // Session owns SessionDiagnostics (target architecture, step 3) it posts directly and these go.
+    // Known limits until then (session_diagnostics_design.md §A2): one panel's resumed clears the
+    // shared notice while another panel's model may still be blocked; and the notice outlives the
+    // panel leaving the session (it goes when dismissed or when the session next opens readably).
+    void ledgerWritesBlocked(const QString &sessionDir, const QString &reason);
+    void ledgerWritesResumed(const QString &sessionDir);
 
 private:
     struct GradedFrom {
@@ -788,6 +809,10 @@ private:
     // session the golfer's input it holds. It stays where it is; writes to this session are switched
     // off for this activation (m_ledgerWriteBlocked), with a ppWarn naming the file and `why`.
     void         blockLedgerWrites(const QString &path, const QString &why);
+    // The one place m_ledgerWriteBlocked is set: sets it and, on the change from writable to
+    // blocked, emits ledgerWritesBlocked(m_sessionDir, reason) — not while the model is being
+    // destroyed (the destructor's flush), when nothing is left to show it.
+    void         markLedgerWritesBlocked(const QString &reason);
     // Write diagnostics.json. `adoptMerged`: when the catch-up's merge brought a different focus,
     // miss or screen answer in from the file, re-reduce under it (and announce intentChanged)
     // before writing, so the written stage and what the catch-up reads next are the golfer's. Off
@@ -1000,8 +1025,10 @@ private:
     bool    m_persistEnabled = true;    // setPersistEnabled: off = never write diagnostics.json
     // This session's diagnostics.json could not be opened (blockLedgerWrites), or could not be
     // parsed AND could not be set aside (setAsideUnreadableLedger): nothing is written to it until
-    // the next activation. Reset per activation.
+    // the next activation. Reset per activation. Set only through markLedgerWritesBlocked(), which
+    // tells the golfer (ledgerWritesBlocked).
     bool    m_ledgerWriteBlocked = false;
+    bool    m_destroying = false;       // ~SessionDiagnosticsModel: no signals from its last flush
     // golferInputJson() as this model last read it from, or wrote it to, diagnostics.json — the
     // `base` of the catch-up's three-way merge (mergeGolferInput).
     QJsonObject m_golferBase;

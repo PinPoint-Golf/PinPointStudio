@@ -575,6 +575,13 @@ pipeline emits a single statement of what the shot *became*.
 Stage-level detail keeps going to the application log — one log, `ppWarn`, as the house rule
 has it. The toast is the act-now half.
 
+**From QML.** A condition only a QML-created object can see is raised with
+`notifications.postWarning(id, title, detail)` (a Warn Condition) and retired with
+`notifications.resolve(id)`. Unlike R1, a `postWarning` for an id already on screen updates the
+words and does **not** count up: its callers are observers restating a state that is still true
+(two panels holding one session), not a second occurrence. First use: the session diagnostics
+panel's *"…are not being saved"* (`session_diagnostics_design.md` §A2, Stage 0.4c).
+
 ### 7.6 What 1 September would have looked like
 
 - **One** error toast at the first shot: *"Swings are not being saved — the folder

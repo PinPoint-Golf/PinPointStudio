@@ -103,6 +103,28 @@ Three rules keep them (audit H-04, 14 Nov 2026):
     names the file and the open error. The panel still grades the swings in memory for that
     activation. The next activation reads the file again.
 
+  **The golfer is told, not only the log** (Stage 0.4c, 14 Nov 2026 — show with a warning, never
+  hide). In both blocked cases (cannot be opened; does not parse and cannot be renamed) the panel
+  keeps taking corrections, intents, a declared focus or miss and screen answers and keeps none of
+  them, so a warning goes up in the app's notification centre: *"Changes to the diagnostics of
+  the Tue 18 Aug · 21:38 session are not being saved"* (the session named as the reviewing strip names
+  it; "today's session" for the live one — never by its folder), with the reason in plain words — *"Its diagnostics file
+  could not be opened. Check the library's drive or share."*, or *"…could not be read or moved
+  aside…"*. It is a condition (it does not time out; it can be dismissed), one per session folder
+  (id `diagnostics.writes-blocked:<folder>`), raised once per activation and not per action; the
+  wall cast's panel restates the same notice rather than adding a second, and a restatement does not
+  count up. It goes when the session is next opened and its file opens. Wiring: the model emits
+  `ledgerWritesBlocked(sessionDir, reason)` / `ledgerWritesResumed(sessionDir)` (queued to the next
+  event-loop turn), and `PpSessionDiagnosticsPanel` calls `notifications.postWarning()` /
+  `resolve()`. That hop exists only because the model is created in QML; once the Session owns its
+  diagnostics (target architecture, step 3) it posts directly. The work-ons catch-up's own models
+  have no panel and still only log. Two known limits until then:
+  - The stage panel and the wall cast each hold a model and share the one notice. If one finds the file
+    openable it clears that notice while the other model stays blocked for its activation, and input
+    given on that other panel is not kept. The session-owned single writer (step 3) removes this.
+  - The notice stays until it is dismissed or the session is next opened with a readable file. Moving
+    the panel to another session does not clear it, because the first session is still unsaved.
+
   A live panel does not re-read the file before its own writes, so a file that goes bad after the
   panel loaded it is not checked (see the last paragraph).
 - The work-ons catch-up (baseline authority "always") merges every golfer key from the file

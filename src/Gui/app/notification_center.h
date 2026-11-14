@@ -117,10 +117,26 @@ public:
     // The one way in.  Applies R1, R2 and R3; always logs.
     void post(const Notification &n);
 
+    // THE WAY IN FROM QML, for a condition only a QML-created object can see.
+    // A Warn Condition (it latches until resolved or dismissed).  ⚠ A RESTATEMENT,
+    // NOT AN OCCURRENCE: when `id` is already on screen the words are updated in
+    // place and `count` does NOT move, unlike post()'s R1.  The callers are
+    // observers re-reporting a state that is still true — the stage panel and the
+    // wall cast each hold their own SessionDiagnosticsModel and both see the same
+    // unopenable file; a session re-opened while its file is still unopenable is
+    // the same fault, not a second one — and "(×2)" would claim a second fault
+    // that never happened.  Logged like every post.
+    // First caller: PpSessionDiagnosticsPanel ("diagnostics.writes-blocked:<dir>",
+    // Stage 0.4c) — refactor-temporary, until the Session owns its diagnostics and
+    // posts through post() directly (target architecture, step 3).
+    Q_INVOKABLE void postWarning(const QString &id, const QString &title,
+                                 const QString &detail);
+
     // A condition ended because the world changed — the path became writable,
     // the link came back.  Distinct from dismiss(), which is the user saying
     // "I have read this"; a resolved condition may legitimately return.
-    void resolve(const QString &id);
+    // Invokable for postWarning()'s QML callers, which see the world change.
+    Q_INVOKABLE void resolve(const QString &id);
 
     Q_INVOKABLE void dismiss(const QString &id);
     Q_INVOKABLE void invokeAction(const QString &id);

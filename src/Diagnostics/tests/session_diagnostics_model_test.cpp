@@ -1897,6 +1897,25 @@ static bool warnedSince(int seq, const QString &path, const char *words)
     return false;
 }
 
+// What the model told its panel about writes to the session (Stage 0.4c — show with a warning, never
+// hide): ledgerWritesBlocked and ledgerWritesResumed. Both are QUEUED (the panel activates its model
+// before its Connections exist), so they are read after the event loop has turned (heard()).
+struct WriteNotices {
+    QStringList blocked;       // the session each block named
+    QStringList reasons;       // its plain sentence, for the notification
+    QStringList resumed;
+};
+static std::shared_ptr<WriteNotices> listenForWriteNotices(SessionDiagnosticsModel *m)
+{
+    auto w = std::make_shared<WriteNotices>();
+    QObject::connect(m, &SessionDiagnosticsModel::ledgerWritesBlocked, m,
+                     [w](const QString &dir, const QString &why) { w->blocked << dir; w->reasons << why; });
+    QObject::connect(m, &SessionDiagnosticsModel::ledgerWritesResumed, m,
+                     [w](const QString &dir) { w->resumed << dir; });
+    return w;
+}
+static void heard() { QCoreApplication::processEvents(); }
+
 static void golferInputSuite(const QTemporaryDir &tmp)
 {
     std::printf("\nthe golfer's input in diagnostics.json is never lost\n");
@@ -1913,7 +1932,11 @@ static void golferInputSuite(const QTemporaryDir &tmp)
         check(writeBytes(path, truncated), "…beside a truncated diagnostics.json");
         int seq = PpMessageLog::instance()->currentSeq();
         auto m = freshModel();
+        const auto notices = listenForWriteNotices(m.get());
         m->activateSession(dir);
+        heard();
+        check(notices->blocked.isEmpty() && notices->resumed == QStringList{ dir },
+              "a file set aside is not a block: the session's writes go on, and the model says so (resumed)");
         const QStringList asides = unreadableAsides(dir);
         check(asides.size() == 1 && bytesOf(QDir(dir).filePath(asides.value(0))) == truncated,
               "the unreadable file is set aside, byte for byte, not written over");
@@ -1972,7 +1995,13 @@ static void golferInputSuite(const QTemporaryDir &tmp)
         } else {
             const int seq = PpMessageLog::instance()->currentSeq();
             auto m = freshModel();
+            const auto notices = listenForWriteNotices(m.get());
             m->activateSession(dir);
+            check(notices->blocked.isEmpty(), "the block is announced queued, not from inside the activation");
+            heard();
+            check(notices->blocked == QStringList{ dir } && notices->resumed.isEmpty()
+                      && notices->reasons.value(0).contains(QStringLiteral("could not be opened")),
+                  "…and then the golfer is told: ledgerWritesBlocked names the session and says the file could not be opened");
             check(unreadableAsides(dir).isEmpty(), "a file that cannot be opened is NOT set aside");
             check(warnedSince(seq, path, "could not be opened"),
                   "…and the app log says so: a WARN with the path and that it could not be opened");
@@ -1984,10 +2013,21 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             m->declareMiss(QStringLiteral("push"));
             check(m->persistCount() == 0 && bytesOf(path) == good,
                   "…and stays blocked for the rest of the activation, even once the file opens again");
+            heard();
+            check(notices->blocked.size() == 1,
+                  "…told once for the activation, not once per change the golfer made");
             auto again = freshModel();
+            const auto later = listenForWriteNotices(again.get());
             again->activateSession(dir);
+            heard();
             check(again->declaredMiss() == QStringLiteral("slice") && unreadableAsides(dir).isEmpty(),
                   "the next activation reads the file again: the golfer's miss is still there");
+            check(later->blocked.isEmpty() && later->resumed == QStringList{ dir },
+                  "…and says the session's writes are back (ledgerWritesResumed), so the warning can go");
+            again->declareMiss(QStringLiteral("push"));
+            check(again->persistCount() > 0 && diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject()
+                         .value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("push"),
+                  "…and it does write: the next change lands in the file");
         }
     }
 
@@ -1997,7 +2037,9 @@ static void golferInputSuite(const QTemporaryDir &tmp)
         check(writeOutcomeSession(dir, fixture24(t0 + 2 * 86400000LL)) && writeUsual7Iron(dir), "a session the catch-up holds");
         auto catchUp = freshModel();
         catchUp->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        const auto notices = listenForWriteNotices(catchUp.get());
         catchUp->activateSession(dir);
+        heard();
         const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
         const QByteArray held = bytesOf(path);
         if (!makeUnopenable(path)) {
@@ -2011,13 +2053,51 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             check(unreadableAsides(dir).isEmpty() && bytesOf(path) == held && catchUp->persistCount() == writes,
                   "the catch-up cannot open the file before it writes: it writes nothing and leaves the file in place");
             check(warnedSince(seq, path, "could not be opened"), "…with a WARN naming the file");
+            heard();
+            check(notices->blocked == QStringList{ dir } && notices->resumed == QStringList{ dir },
+                  "…and the golfer is told, at the write that found it (the activation had said writes were fine)");
             catchUp->setShotIntent(5, QStringLiteral("fade"));
             check(bytesOf(path) == held, "…and writes nothing more this activation");
+            heard();
+            check(notices->blocked.size() == 1, "…told once, not again at the next change");
             catchUp->activateSession(dir);
+            heard();
+            check(notices->resumed.size() == 2 && notices->resumed.last() == dir && notices->blocked.size() == 1,
+                  "the next activation opens the file and says the writes are back");
             catchUp->setShotIntent(5, QStringLiteral("fade"));
             check(diagnosticsJsonOf(dir).value(QStringLiteral("shotIntent")).toObject()
                       .value(QStringLiteral("5")).toString() == QStringLiteral("fade"),
                   "the next activation writes again");
+        }
+    }
+
+    // ── A file that does not parse and cannot be set aside either (0.1's failed rename) blocks, and says so ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_06");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "rich_7iron"), "two swings on disk");
+        const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
+        check(writeBytes(path, truncated), "…beside a truncated diagnostics.json");
+        // A folder that can be read and not written: the file opens, does not parse, and cannot be renamed.
+        QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::ExeOwner);
+        const bool renameFails = !QFile::rename(path, path + QStringLiteral(".probe"));
+        if (!renameFails) {
+            QFile::rename(path + QStringLiteral(".probe"), path);
+            QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+            std::printf("  [SKIP] a read-only folder still renames here (root?): the failed set-aside cannot be made\n");
+        } else {
+            const int seq = PpMessageLog::instance()->currentSeq();
+            auto m = freshModel();
+            const auto notices = listenForWriteNotices(m.get());
+            m->activateSession(dir);
+            m->declareMiss(QStringLiteral("hook"));
+            heard();
+            QFile::setPermissions(dir, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+            check(warnedSince(seq, path, "could not be set aside"), "the rename fails, with a WARN naming the file");
+            check(unreadableAsides(dir).isEmpty() && bytesOf(path) == truncated && m->persistCount() == 0,
+                  "…the file stays as it was and nothing is written");
+            check(notices->blocked == QStringList{ dir } && notices->resumed.isEmpty()
+                      && notices->reasons.value(0).contains(QStringLiteral("moved aside")),
+                  "…and the golfer is told once: ledgerWritesBlocked names the session and says why");
         }
     }
 

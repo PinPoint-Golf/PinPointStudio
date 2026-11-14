@@ -474,7 +474,8 @@ Q_INVOKABLE void flagForReview(int shotId);                                     
 - They are the golfer's only copy, so every writer that rebuilds the file carries them: the catch-up merges
   them from the file before it writes, `regrade_ledger` copies them across, and an unreadable file is never
   written over: one that does not parse is set aside, one that cannot be opened is left in place and
-  blocks the session's writes (session_diagnostics_design.md §A2, audit H-04).
+  blocks the session's writes, and either block puts a "not being saved" warning on screen
+  (session_diagnostics_design.md §A2, audit H-04, Stage 0.4c).
 - Corrections feed: displayed labels, `shotLog`, `shotMix`, `reasons`, distances and tendencies. They
   and flags are appended to `<athlete>/outcome_corrections.jsonl` as the tuning log for outcome
   corridors: `kind: "correction"` (shot, family, detected, corrected, measure values) or `kind: "flag"`.

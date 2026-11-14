@@ -184,6 +184,28 @@ void NotificationCenter::post(const Notification &n)
     emit liveCountChanged();
 }
 
+void NotificationCenter::postWarning(const QString &id, const QString &title,
+                                     const QString &detail)
+{
+    Notification n;
+    n.id       = id;
+    n.severity = Warn;
+    n.kind     = Condition;
+    n.title    = title;
+    n.detail   = detail;
+
+    // A restatement of a condition already on screen: new words, same count
+    // (see the header).  Everything else — an empty id refused, a new one
+    // appended — is post()'s.
+    const int existing = id.isEmpty() ? -1 : indexOf(id);
+    if (existing < 0) { post(n); return; }
+    Row &r = m_live[std::size_t(existing)];
+    r.n = n;
+    logPost(n, r.count, /*shown=*/true);
+    const QModelIndex ix = index(existing, 0);
+    emit dataChanged(ix, ix);
+}
+
 void NotificationCenter::removeAt(int row)
 {
     if (row < 0 || row >= int(m_live.size())) return;

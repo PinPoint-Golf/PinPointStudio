@@ -320,6 +320,51 @@ Item {
         function onDetailChanged() { root._saveNav() }
     }
 
+    // ── a session whose diagnostics cannot be saved ──────────────────────────
+    //
+    // SHOW WITH A WARNING, NEVER HIDE. When the session's diagnostics.json is there but cannot be
+    // opened (or cannot be read and cannot be moved aside), the model grades in memory and writes
+    // nothing for the rest of the activation — while this panel goes on taking corrections, intents,
+    // a declared focus or miss and screen answers. So the golfer is told, through the app's one
+    // notification centre: a condition naming the session, latched until it is dismissed or the
+    // session is next opened with a file that opens.
+    //
+    // ONE ID PER SESSION FOLDER, so the wall cast's panel (its own model, the same file) restates the
+    // notice rather than adding a second one, and postWarning() does not count a restatement.
+    //
+    // ⚠ REFACTOR-TEMPORARY WIRING: the model is created here, so it cannot reach the C++ notification
+    // centre itself. When the Session owns its diagnostics (target architecture, step 3) it posts
+    // directly and this block goes. Guarded: a test engine may not provide `notifications`.
+    // THE ID IS THE FOLDER, THE WORDS ARE THE SESSION'S NAME: golfers never see folder names. The name is
+    // the one the app already shows — the reviewing strip's and carousel chip's "Tue 18 Aug · 21:38"
+    // (SessionReviewController's activeDayLabel/activeTimeLabel), or the session list's "Today" for the
+    // live one. A folder that is neither (not expected for a panel) is "this session".
+    function _writesBlockedId(dir) { return "diagnostics.writes-blocked:" + SessionMode.folderKey(dir) }
+    function _sessionName(dir) {
+        const src = (typeof sessionReviewController !== "undefined") ? sessionReviewController : null
+        if (src && src.reviewActive && SessionMode.sameFolder(dir, src.activeSessionId) && src.activeDayLabel)
+            return qsTr("the %1 session").arg(src.activeDayLabel
+                                              + (src.activeTimeLabel ? " · " + src.activeTimeLabel : ""))
+        const live = (typeof shotProcessor !== "undefined" && shotProcessor) ? shotProcessor.activeSessionDir : ""
+        if ((live && SessionMode.sameFolder(dir, live)) || (src && SessionMode.sameFolder(dir, src.liveSessionDir)))
+            return qsTr("today's session")
+        return qsTr("this session")
+    }
+    Connections {
+        target: diagModel
+        function onLedgerWritesBlocked(dir, reason) {
+            if (typeof notifications === "undefined" || !notifications) return
+            notifications.postWarning(root._writesBlockedId(dir),
+                                      qsTr("Changes to the diagnostics of %1 are not being saved")
+                                          .arg(root._sessionName(dir)),
+                                      reason)
+        }
+        function onLedgerWritesResumed(dir) {
+            if (typeof notifications === "undefined" || !notifications) return
+            notifications.resolve(root._writesBlockedId(dir))
+        }
+    }
+
     Connections {
         target: shotProcessor
         function onShotProcessed(shotId, swingDir) {
