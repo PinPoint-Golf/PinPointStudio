@@ -57,6 +57,37 @@ namespace pinpoint::lm {
 // point and strike location and height.
 bool lmIsClubDelivery(const QString &key);
 
+// ── ONE SHOT AS THE BOARD COUNTS IT (audit F-03) ──
+// The board's own facts about a shot, after the golfer's two annotations and the club evidence are applied:
+// its EFFECTIVE club (resolveClubs in the .cpp: the golfer's override, else a specific evidence relabel, else the
+// recorded club), whether the golfer LEFT IT OUT, and its raw readings. Every surface that quotes a launch monitor
+// figure for the session reads these — the board itself and the session report's cover, numbers table, swing grid,
+// reference swing and appendix — so a shot the golfer left out or re-labelled is treated one way everywhere.
+// LmSessionModel::boardShots() publishes them; LmSessionModel's own rows ARE these (it derives from this struct).
+struct LmBoardShot {
+    int          id = -1;          // the shot list's shot id
+    int          ordinal = 0;      // capture order
+    QString      swingDir;         // where its document is ("" for a shot never written)
+    QString      recorded;         // the club it was recorded under (ShotListModel::ClubRole)
+    QString      club;             // the EFFECTIVE club — the one every figure groups by
+    QString      source;           // "recorded" | "evidence" | "user"
+    bool         excluded = false; // "Leave out" on the board (review.excluded)
+    QHash<QString, double> values; // the raw readings, keyed "lm.carryDistance" (LmShotValues)
+
+    // THE ONE RULE for whether a shot is in the figures: not left out, and the monitor read it. A left-out shot is
+    // still listed (and drawn hollow) — it is in no mean, median, SD, grade, corridor, count, tile or ellipse.
+    bool inFigures() const { return !excluded && !values.isEmpty(); }
+    // A reading, or NaN when the shot does not carry it.
+    double reading(const QString &key) const;
+    // Re-labelled: its effective club is not the one it was recorded under.
+    bool relabelled() const;
+};
+
+// Two club names are one club when they match ignoring case and surrounding space ("7 IRON" / "7 iron").
+bool lmSameClub(const QString &a, const QString &b);
+// Bag order, driver → wedges (lmClubBagRank), ties by name: the order the board and the report list clubs in.
+bool lmClubBagLess(const QString &a, const QString &b);
+
 } // namespace pinpoint::lm
 
 // The launch monitor session board's model (PpLaunchMonitorPanel).
@@ -234,6 +265,10 @@ public:
     QString      corridorScope() const { return m_corridorScope; }
     QVariantList bandCounts() const;
     QVariantMap  graphics()   const { return m_graphics; }
+    // Every shot of the list as the last rebuild counted it, oldest first (capture order): the effective club, left
+    // out or not, the raw readings. The C++ face of graphics.shots, for a reader that quotes the board's figures
+    // without re-deciding which shots count (the session report). Empty with no shot list.
+    const std::vector<pinpoint::lm::LmBoardShot> &boardShots() const { return m_boardShots; }
 
     // ── The panel's two inline actions and the mismatch note's Undo (lm_panel_fsx.md) ──
     //
@@ -333,6 +368,7 @@ private:
 
     QVector<Band> m_bands;
     QVariantMap   m_graphics;
+    std::vector<pinpoint::lm::LmBoardShot> m_boardShots;   // boardShots(): the rows rebuild() resolved, oldest first
     QString       m_scopeText;
     QString       m_valueLabel;
     QString       m_corridorScope;

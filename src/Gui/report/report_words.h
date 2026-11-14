@@ -898,22 +898,29 @@ inline QString ballByline(const QString &device, int measured, int swings)
     return measured >= swings ? QStringLiteral("measured on every swing by ") + by
                               : QStringLiteral("measured on %1 by %2").arg(countOf(measured, swings), by);
 }
-inline QString ballNote(int swings, bool severalClubs)
+// `swings` is how many swings the figures are over: those the launch monitor read and the golfer did not leave out on
+// its panel. `leftOut` is the ones left out (lmLeftOutNote), in ascending order.
+inline QString lmLeftOutNote(const QList<int> &leftOut);
+inline QString ballNote(int swings, bool severalClubs, const QList<int> &leftOut = {})
 {
+    const QString out = leftOut.isEmpty() ? QString() : QStringLiteral(" ") + lmLeftOutNote(leftOut);
     if (severalClubs)
-        return QStringLiteral("Each club's typical value (the middle of its swings), with its range from lowest to highest.");
+        return QStringLiteral("Each club's typical value (the middle of its swings), with its range from lowest to highest.") + out;
     if (swings <= 2)
-        return swings == 1 ? QStringLiteral("Your one swing's numbers.")
-                           : QStringLiteral("Middle of your two swings in large type; the lower and higher beneath.");
-    return QStringLiteral("Typical value (the middle of your %1 swings) in large type; the range from lowest to highest beneath.").arg(numberWord(swings));
+        return (swings == 1 ? QStringLiteral("Your one swing's numbers.")
+                            : QStringLiteral("Middle of your two swings in large type; the lower and higher beneath.")) + out;
+    return QStringLiteral("Typical value (the middle of your %1 swings) in large type; the range from lowest to highest beneath.").arg(numberWord(swings)) + out;
 }
 inline QString ballMore(int moreClubs)
 {
     if (moreClubs <= 0) return QString();
     return moreClubs == 1 ? QStringLiteral("1 more club in your numbers") : QStringLiteral("%1 more clubs in your numbers").arg(moreClubs);
 }
-// The numbers table's note: the sign convention for the golfer's hand, what Habits and Typical mean.
-inline QString numbersNote(bool leftHanded, int workOnsPerSwing, int swings, bool habits, bool severalClubs)
+// The numbers table's note: the sign convention for the golfer's hand, what Habits and Typical mean, then the marks the
+// table uses ("out", "*") in the appendix's words (lmMarksNote). `swings`: how many swings Typical is the middle of.
+inline QString lmMarksNote(bool anyOut, bool anyRelabelled);
+inline QString numbersNote(bool leftHanded, int workOnsPerSwing, int swings, bool habits, bool severalClubs,
+                           bool anyOut = false, bool anyRelabelled = false)
 {
     QString s = QStringLiteral("Path, face and offline: positive is right of target, negative left (%1-handed golfer).")
                     .arg(leftHanded ? QStringLiteral("left") : QStringLiteral("right"));
@@ -923,7 +930,7 @@ inline QString numbersNote(bool leftHanded, int workOnsPerSwing, int swings, boo
     if (swings >= 3)
         s += severalClubs ? QStringLiteral(" Typical: the middle value of each club's swings.")
                           : QStringLiteral(" Typical: the middle value of your %1 swings.").arg(numberWord(swings));
-    return s;
+    return s + lmMarksNote(anyOut, anyRelabelled);
 }
 // "4 of 5" — how many of the swing-by-swing work-ons showed on this swing.
 inline QString habitsCell(int fired, int of) { return gridCount(fired, of); }
@@ -953,16 +960,23 @@ inline QString lmTablesNote(bool leftHanded, bool anyOut, bool anyRelabelled, co
                                "spin axis, offline, path, face), up (attack, and lie, toe up), %1 (face to path), toward the toe "
                                "(strike location) and high (strike height); minus the other way.")
                     .arg(leftHanded ? QStringLiteral("closed") : QStringLiteral("open"));
-    if (anyOut) s += QStringLiteral(" Out: left out on the launch monitor panel, and in none of the averages.");
-    if (anyRelabelled) s += QStringLiteral(" *: listed under the club its readings point to, not the one recorded.");
+    s += lmMarksNote(anyOut, anyRelabelled);
     if (!noReading.isEmpty()) s += QStringLiteral(" ") + noReading;
     return s;
 }
-// "No reading on swing 4." / "No reading on swings 4 and 9." / "No reading on swings 1–12 and 15." (runs of three or
-// more as a range). `swings` in ascending order.
-inline QString lmNoReading(const QList<int> &swings)
+// The two marks a launch monitor table uses, said the same way under every table that uses them (the numbers table,
+// the appendix's shot tables): each with a leading space, only the marks used. A shot is counted under the club the
+// launch monitor panel counts it as — the golfer's choice there, or the club its readings point to.
+inline QString lmMarksNote(bool anyOut, bool anyRelabelled)
 {
-    if (swings.isEmpty()) return QString();
+    QString s;
+    if (anyOut) s += QStringLiteral(" Out: left out on the launch monitor panel, and in none of the figures.");
+    if (anyRelabelled) s += QStringLiteral(" *: counted under the club the launch monitor panel gives it, not the one recorded.");
+    return s;
+}
+// "4" / "4 and 9" / "1–12 and 15": report swing numbers, runs of three or more as a range. Ascending order.
+inline QString swingNumbersList(const QList<int> &swings)
+{
     QStringList parts;
     for (int i = 0; i < swings.size();) {
         int j = i;
@@ -971,7 +985,22 @@ inline QString lmNoReading(const QList<int> &swings)
         else for (int k = i; k <= j; ++k) parts << QString::number(swings[k]);
         i = j + 1;
     }
-    return (swings.size() == 1 ? QStringLiteral("No reading on swing ") : QStringLiteral("No reading on swings ")) + andList(parts) + QStringLiteral(".");
+    return andList(parts);
+}
+// Under the cover's ball figures: "Swing 10 is left out, as on the launch monitor panel." Empty with none.
+inline QString lmLeftOutNote(const QList<int> &leftOut)
+{
+    if (leftOut.isEmpty()) return QString();
+    return (leftOut.size() == 1 ? QStringLiteral("Swing %1 is left out, as on the launch monitor panel.")
+                                : QStringLiteral("Swings %1 are left out, as on the launch monitor panel."))
+        .arg(swingNumbersList(leftOut));
+}
+// "No reading on swing 4." / "No reading on swings 4 and 9." / "No reading on swings 1–12 and 15." (runs of three or
+// more as a range). `swings` in ascending order.
+inline QString lmNoReading(const QList<int> &swings)
+{
+    if (swings.isEmpty()) return QString();
+    return (swings.size() == 1 ? QStringLiteral("No reading on swing ") : QStringLiteral("No reading on swings ")) + swingNumbersList(swings) + QStringLiteral(".");
 }
 inline QString lmStatsNote(bool anyOut)
 {

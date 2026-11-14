@@ -88,9 +88,14 @@ Column {
     PpReportSqueeze { id: squeeze; target: sg; pageH: sg.pageH }
     readonly property bool tight: squeeze.level > 0
     onRepChanged: squeeze.level = 0
+    // Carry per swing: a number, or null for a swing with no carry in the launch monitor's figures — no reading, or
+    // left out on the launch monitor panel (F-03). Such a swing draws no bar; its label (carryText: "-", "out") says
+    // why. The scale is the bars' own, so a left-out misread cannot squash the rest.
     readonly property var carry: g.carry || []
-    readonly property real cmax: carry.length ? Math.max.apply(null, carry) : 1
-    readonly property real cmin: carry.length ? Math.min.apply(null, carry) - Math.max(10, 0.15 * (cmax - Math.min.apply(null, carry))) : 0
+    readonly property var carryText: g.carryText || []
+    readonly property var carried: carry.filter(v => typeof v === "number")
+    readonly property real cmax: carried.length ? Math.max.apply(null, carried) : 1
+    readonly property real cmin: carried.length ? Math.min.apply(null, carried) - Math.max(10, 0.15 * (cmax - Math.min.apply(null, carried))) : 0
 
     // ═══ the section head ═══
     Column {
@@ -198,14 +203,18 @@ Column {
                     model: carryBar.visible ? band.to - band.from : 0
                     delegate: Item {
                         required property int index
-                        readonly property real v: sg.carry[band.from + index]
+                        readonly property var raw: sg.carry[band.from + index]
+                        readonly property bool hasBar: typeof raw === "number"
+                        readonly property real v: hasBar ? raw : sg.cmin
                         readonly property bool best: band.from + index + 1 === sg.g.best
                         readonly property real bw: Math.min(14, sg.pitch * 0.62)
                         readonly property real h: 46 * (v - sg.cmin) / Math.max(1, sg.cmax - sg.cmin)
                         x: sg.mx(index) - bw / 2; y: 62 - h; width: bw; height: h
-                        Rectangle { anchors.fill: parent; color: parent.best ? sg.ro.accent : Qt.alpha(sg.ro.ink, 0.22) }
+                        Rectangle { visible: parent.hasBar; anchors.fill: parent; color: parent.best ? sg.ro.accent : Qt.alpha(sg.ro.ink, 0.22) }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.top; anchors.bottomMargin: 2
-                               text: Math.round(parent.v); font: sg.ro.fFigS; color: sg.ro.ink3 }
+                               text: sg.carryText[band.from + index] !== undefined ? sg.carryText[band.from + index]
+                                     : (parent.hasBar ? Math.round(parent.v) : "-")
+                               font: sg.ro.fFigS; color: sg.ro.ink3 }
                     }
                 }
                 Rectangle { y: 62; width: parent.width; height: sg.ro.hw; color: sg.ro.hair }

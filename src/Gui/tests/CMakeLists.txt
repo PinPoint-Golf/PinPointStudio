@@ -268,8 +268,8 @@ pp_add_test(shot_ledger_test
 # keeps the Session view drawing when only the headline shot is empty. Rows built in memory. The model
 # names a device through launch_monitor_factory, which brings both connectors, so libgspro links too.
 pp_require_gspro()
-pp_add_test(lm_session_model_test
-    SOURCES lm_session_model_test.cpp
+# The board's model and everything it links, as a list: report_lm_test (report_model_tests.cmake) runs the same board.
+set(PP_LM_BOARD_SOURCES
             ${GUI}/launchmonitor/lm_session_model.cpp
             ${GUI}/shot/shot_list_model.cpp
             ${GUI}/trust/trust_readings.cpp
@@ -315,8 +315,12 @@ pp_add_test(lm_session_model_test
             ${SRC}/Metrics/metric_catalogue_manifest.cpp
             ${SRC}/Metrics/metric_providers.cpp
             ${SRC}/Wrist/reference_bands.cpp
-    INCLUDE ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis
-            ${SRC}/Diagnostics ${SRC}/Metrics
+)
+set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts ${GUI}/trust ${GUI}/variability ${SRC} ${SRC}/Core
+    ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
+pp_add_test(lm_session_model_test
+    SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
+    INCLUDE ${PP_LM_BOARD_INCLUDES}
     LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
 set_tests_properties(lm_session_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")

@@ -60,7 +60,7 @@ tests them hardest:
 | `reduceSessionWorkOns` (`src/Coaching/work_ons.h`) | The list and its order, **derived fresh** from the model, never read from `work_ons.json`. Nick's `work_ons.json` on the share still says 12 measurable swings on a 10-swing session; it was written before two swings were deleted, and is re-derived only at the next catch-up. |
 | `aggregateWorkOns` and the sibling sessions' records | "Earlier today" and "across sessions": Active, Easing, Cleared, and the tick per session. |
 | The pack (`core.json`, `drills.json`, `screens.json`) | Golfer phrasing (`golfer`, `golferWell`, `golferWhy`), aliases, consequences, drills, screens, causal edges. |
-| Launch monitor block per swing | Ball numbers, and the "what came with it" facts where the condition reads an LM measure. |
+| `LmSessionModel` (the launch monitor board) over the session's shots | Every ball number, with the golfer's "Leave out" and club overrides applied (§3, "Launch monitor figures: one source"). The diagnostics ledger supplies the "what came with it" facts where a condition reads an LM measure. |
 | `PpDiagPrint` (the analyst's report) | **Kept, and appended as an optional technical appendix** ("For your coach: the full diagnostics"). It is the same register, unchanged, printed after the client pages from a fresh page. The client report is the front of the same document, not a rival to it. |
 | `PpTrustSummaryFold` / `notJudged` | "What we could not check", rewritten in golfer words and said once, at the back ([feedback_charts_page_pattern]: trust is said once). |
 | `PpPager`, `PpTypeset` print roles, `PpPdfPrinter`, `PdfDocumentWriter` | The page machinery, fonts and PDF/A output. The report is another print register. |
@@ -222,8 +222,29 @@ private `ShotListModel` of the session, and the figures (the map's `lmAppendix.g
 tables come from that one model. So the appendix agrees with the panel on everything: each
 shot's effective club (a shot the readings put under another club is listed there, marked *),
 the shots left out (shown as "out", in none of the statistics) and every number (`lmSessionStats`).
-That is also where it differs from "Your numbers" on the client pages, which groups by the
-recorded club and quotes the median.
+
+**Launch monitor figures: one source** (14 November 2026, audit F-03). Every launch monitor figure in the
+report reads that same board, not the swings' raw `launchMonitor` blocks: the cover's ball tiles, "Your
+numbers" and its Typical row, the swing grid's carry bars, the reference swing's carry (its tie-break,
+"your longest" and its words) and the appendix. `SessionReportModel::build()` runs the private
+`LmSessionModel` once, and `src/Gui/report/report_lm.{h,cpp}` builds every page's block from
+`LmSessionModel::boardShots()` (`pinpoint::lm::LmBoardShot`) joined to the report's swings by folder.
+Which shots count is `LmBoardShot::inFigures()` — the board's own rule (not left out, and read) — so a
+golfer's "Leave out" and club override on the panel (`review.excluded`, `review.clubOverride`) apply on
+every page alike:
+- a **left-out** shot is in no median, range, Typical value, carry bar or reference tie-break. The tables
+  still list it ("10 out"); the carry row reads "out" in place of its bar; the cover's note names it
+  ("Swing 10 is left out, as on the launch monitor panel.");
+- a **re-labelled** shot is counted under its effective club: the ball block and Typical rows split per
+  effective club (in the board's bag order), and the tables mark it "*". The two marks are explained in
+  the same words under "Your numbers" and the appendix tables (`lmMarksNote`).
+The readings are the board's (the analysis' `lm.*` entries, after the import's gates). The numbers table's
+heads and units are `lm::fieldDefs()`'s; the golfer pages print whole units except smash factor and the
+club's delivery angles, which keep the board's decimals (`lmGolferDecimals`). The cover and "Your numbers"
+still quote the median, the appendix the mean. Not covered: the kicker, About and the diagnostics pages
+name the session's clubs from the diagnostics ledger, which does not read the board's override; and the
+Consistency and Tendencies pages read the Charts snapshot and the diagnostics ledger, which do not read
+"Leave out" either.
 
 **Technical appendix** (optional, off by default, §8): the existing `PpDiagPrint` pages, from a
 fresh page, for the coach's own file or for a golfer who wants everything.

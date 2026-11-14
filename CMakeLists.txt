@@ -740,6 +740,7 @@ qt_add_executable(PinPointStudio
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
     src/Gui/report/report_stills_pure.h      src/Gui/report/report_stills_pure.cpp
+    src/Gui/report/report_lm.h               src/Gui/report/report_lm.cpp
     src/Gui/report/report_meta.h
     src/Gui/report/report_posture.h
     src/Gui/report/report_wrist.h

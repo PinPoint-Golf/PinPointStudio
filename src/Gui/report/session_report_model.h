@@ -34,7 +34,10 @@
 //      deliverySessionReportPayload, consistencySessionReportPayload) for those four pages;
 //   2. once all three have landed, the work-on list is derived FRESH (sessionWorkOns(), never work_ons.json,
 //      which can be stale after a delete), the same-day sessions' records are read for "Earlier today",
-//      and the pure reductions (src/Coaching/session_report.h) choose what to say;
+//      and the pure reductions (src/Coaching/session_report.h) choose what to say. The launch monitor board's
+//      own model (a private LmSessionModel over the session's shots) is run once, and EVERY launch monitor figure
+//      — cover, numbers table, carry row, reference swing, appendix — reads its shots through report_lm.h, so
+//      a shot the golfer left out or re-labelled on the board is treated the same on every page (F-03);
 //   3. the stills are made off the GUI thread (ReportStills::renderAll) unless photos are off;
 //   4. the map is assembled (report_words.h holds every sentence template) and handed to the print host
 //      (printRequested); the host prints it and answers printFinished;

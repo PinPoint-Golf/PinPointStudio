@@ -61,6 +61,25 @@ bool lmIsClubDelivery(const QString &key)
     return key.startsWith(QLatin1String("lm.")) && !pinpoint::variability::isOutcomeMetric(key);
 }
 
+double LmBoardShot::reading(const QString &key) const
+{
+    const auto it = values.constFind(key);
+    return it == values.constEnd() || !std::isfinite(*it) ? std::numeric_limits<double>::quiet_NaN() : *it;
+}
+
+bool LmBoardShot::relabelled() const { return !lmSameClub(club, recorded); }
+
+bool lmSameClub(const QString &a, const QString &b)
+{
+    return a.trimmed().compare(b.trimmed(), Qt::CaseInsensitive) == 0;
+}
+
+bool lmClubBagLess(const QString &a, const QString &b)
+{
+    const int ra = lmClubBagRank(a), rb = lmClubBagRank(b);
+    return ra != rb ? ra < rb : a.compare(b, Qt::CaseInsensitive) < 0;
+}
+
 } // namespace pinpoint::lm
 
 namespace {
@@ -263,31 +282,25 @@ QVariantMap pointMap(const LmPoint &p)
 // One row of the session as rebuild() needs it, in the shot list's own (newest-first) order.
 // Gathered ONCE per rebuild so the board, the scope, the evidence and the session figures all
 // read the same facts about the same shot.
-struct LmShotRow {
+//
+// The shared facts (id, ordinal, swingDir, the recorded and EFFECTIVE club, its source, excluded, the raw readings and
+// the inFigures() rule) are pinpoint::lm::LmBoardShot's, which boardShots() publishes to the session report; the rest
+// is the board's own working.
+struct LmShotRow : pinpoint::lm::LmBoardShot {
     int                   row = -1;
-    int                   id  = -1;
-    int                   ordinal = 0;
-    QString               recorded;       // the club the shot was recorded under (ClubRole)
     QString               clubOverride;   // the golfer's own choice on the panel, or ""
-    bool                  excluded = false;
     QString               kind;           // the DEVICE (lm_device.h key), "" when no device measured it
-    LmShotValues          values;         // the raw readings
     std::optional<double> optical;        // our own low point estimate — see opticalLowPointFor
     // The gate behind each reading the shot lacks (lmGateMap), keyed by metric key: {} on a shot
     // analysed before records existed, or one the monitor reported in full.
     QVariantMap           gates;
-    QString               swingDir;       // where the records are (the Trust panel opens the reading there)
-    // Resolved by resolveClubs():
-    QString               club;           // the EFFECTIVE club — the one everything scopes by
-    QString               source;         // "recorded" | "evidence" | "user"
+    // Resolved by resolveClubs() (with LmBoardShot::club and ::source):
     LmClubEvidence        evidence;
     bool                  declined = false;   // the golfer chose the recorded club over the evidence
 };
 
-bool sameClub(const QString &a, const QString &b)
-{
-    return a.trimmed().compare(b.trimmed(), Qt::CaseInsensitive) == 0;
-}
+using pinpoint::lm::lmSameClub;
+bool sameClub(const QString &a, const QString &b) { return lmSameClub(a, b); }
 
 // WHY A READING IS MISSING (trust stage 6 session 2; docs/design/trust_stage6_plan.md "Session 2"). Of one
 // shot's records (analysisDetail.gates), the gate behind each launch monitor field it lacks — the
@@ -449,7 +462,7 @@ QVariantMap typicalityFor(const std::vector<LmShotRow> &rows, int headRow, bool 
         return out;
     std::vector<const LmShotRow *> window;
     for (const LmShotRow &r : rows) {
-        if (&r != &head && (r.excluded || r.values.isEmpty() || !sameClub(r.club, club)))
+        if (&r != &head && (!r.inFigures() || !sameClub(r.club, club)))
             continue;
         window.push_back(&r);
     }
@@ -545,16 +558,14 @@ QVariantMap sessionGraphics(const std::vector<LmShotRow> &rows, int focusRow,
     struct Group { QString club; std::vector<const LmShotRow *> shots; };
     std::vector<Group> groups;
     for (const LmShotRow *r : byOrdinal) {
-        if (r->excluded || r->values.isEmpty()) continue;
+        if (!r->inFigures()) continue;
         auto it = std::find_if(groups.begin(), groups.end(),
                                [r](const Group &gr) { return sameClub(gr.club, r->club); });
         if (it == groups.end()) groups.push_back({ r->club, { r } });
         else                    it->shots.push_back(r);
     }
-    std::stable_sort(groups.begin(), groups.end(), [](const Group &a, const Group &b) {
-        const int ra = lmClubBagRank(a.club), rb = lmClubBagRank(b.club);
-        return ra != rb ? ra < rb : a.club.compare(b.club, Qt::CaseInsensitive) < 0;
-    });
+    std::stable_sort(groups.begin(), groups.end(),
+                     [](const Group &a, const Group &b) { return pinpoint::lm::lmClubBagLess(a.club, b.club); });
     QVariantList clubs;
     for (const Group &gr : groups) {
         std::vector<LmShotValues> vals;
@@ -976,6 +987,7 @@ void LmSessionModel::rebuild()
     beginResetModel();
     m_bands.clear();
     m_graphics.clear();
+    m_boardShots.clear();
     m_scopeText.clear();
     m_corridorScope.clear();
     m_valueLabel = tr("latest");
@@ -1041,6 +1053,12 @@ void LmSessionModel::rebuild()
     m_diskDetail = std::move(diskDetail);
     resolveClubs(rows);
 
+    // The shots as counted, oldest first, for boardShots() (the session report's one source, F-03).
+    m_boardShots.reserve(rows.size());
+    for (const LmShotRow &r : rows) m_boardShots.push_back(r);
+    std::stable_sort(m_boardShots.begin(), m_boardShots.end(),
+                     [](const pinpoint::lm::LmBoardShot &a, const pinpoint::lm::LmBoardShot &b) { return a.ordinal < b.ordinal; });
+
     // The focused row, and the club that scopes everything — its EFFECTIVE club. Rows are
     // newest-first, so the first row of the scope is also the newest shot in it.
     int focusedRow = -1;
@@ -1059,7 +1077,7 @@ void LmSessionModel::rebuild()
     // kept shot at all leaves the whole session, as before.
     int scopeRow = focusedRow;
     for (size_t i = 0; i < rows.size() && scopeRow < 0; ++i)
-        if (!rows[i].values.isEmpty() && !rows[i].excluded)
+        if (rows[i].inFigures())
             scopeRow = int(i);
     const QString club = scopeRow >= 0 ? rows[size_t(scopeRow)].club.trimmed() : QString();
 
