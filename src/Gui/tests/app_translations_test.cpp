@@ -143,7 +143,7 @@ static void testUnknownAndMalformed(QCoreApplication &app)
 static void testFallbackStopsAtTheLanguage(QCoreApplication &app, const QString &shippedTag)
 {
     const QString base     = AppTranslations::baseName();
-    const QString language = shippedTag.section(QLatin1Char('_'), 0, 0);
+    const QString language = QRegularExpression(QStringLiteral("^([A-Za-z]{2,3})")).match(shippedTag).captured(1);
     const QString shipped  = QDir(AppTranslations::defaultDirectory())
                                  .filePath(base + QLatin1Char('_') + shippedTag + QStringLiteral(".qm"));
 

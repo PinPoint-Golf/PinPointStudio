@@ -2978,6 +2978,10 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <source>Matchups</source>
         <translation>动作搭配</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>训练</translation>
+    </message>
 </context>
 <context>
     <name>HmRigCapability</name>
@@ -2992,6 +2996,77 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Add iPhone as a camera</source>
         <translation>添加 iPhone 作为相机</translation>
+    </message>
+</context>
+<context>
+    <name>HmSessions</name>
+    <message>
+        <source>%1 session</source>
+        <translation>%1 次训练</translation>
+    </message>
+    <message>
+        <source>%1 sessions</source>
+        <translation>%1 次训练</translation>
+    </message>
+    <message>
+        <source>%1 swing</source>
+        <translation>%1 次挥杆</translation>
+    </message>
+    <message>
+        <source>%1 swings</source>
+        <translation>%1 次挥杆</translation>
+    </message>
+    <message>
+        <source>All reports</source>
+        <translation>全部报告</translation>
+    </message>
+    <message>
+        <source>None %1</source>
+        <translation>无 %1</translation>
+    </message>
+    <message>
+        <source>Out of date %1</source>
+        <translation>已过期 %1</translation>
+    </message>
+    <message>
+        <source>Ready %1</source>
+        <translation>已就绪 %1</translation>
+    </message>
+    <message>
+        <source>All clubs</source>
+        <translation>全部球杆</translation>
+    </message>
+    <message>
+        <source>Club: All</source>
+        <translation>球杆：全部</translation>
+    </message>
+    <message>
+        <source>Club: %1</source>
+        <translation>球杆：%1</translation>
+    </message>
+    <message>
+        <source>Show archived (%1)</source>
+        <translation>显示已归档（%1）</translation>
+    </message>
+    <message>
+        <source>Search work-ons, clubs</source>
+        <translation>搜索改进重点、球杆</translation>
+    </message>
+    <message>
+        <source>Click a row to select or deselect</source>
+        <translation>点击一行以选中或取消选择</translation>
+    </message>
+    <message>
+        <source>Shift-click for a range</source>
+        <translation>按住 Shift 点击可选择一个范围</translation>
+    </message>
+    <message>
+        <source>Hover for Review, or double-click, to open in Live</source>
+        <translation>悬停可回看，双击在实时模式中打开</translation>
+    </message>
+    <message>
+        <source>Esc clears</source>
+        <translation>Esc 清除</translation>
     </message>
 </context>
 <context>
@@ -3139,6 +3214,13 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     </message>
 </context>
 <context>
+    <name>HmTendencyFlow</name>
+    <message>
+        <source>Tendencies</source>
+        <translation>倾向</translation>
+    </message>
+</context>
+<context>
     <name>HmTendencyRow</name>
     <message>
         <source>Strike</source>
@@ -3175,6 +3257,14 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Practice</source>
         <translation>练习</translation>
+    </message>
+    <message>
+        <source>Together</source>
+        <translation>同时出现</translation>
+    </message>
+    <message>
+        <source>Your most common shots</source>
+        <translation>你最常出现的击球</translation>
     </message>
 </context>
 <context>
@@ -3772,14 +3862,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>GSPro Connect (R10, MLM2PRO, SkyTrak+, …)</translation>
     </message>
     <message>
-        <source>GC Quad</source>
-        <translation>GC Quad</translation>
-    </message>
-    <message>
-        <source>GSPro</source>
-        <translation>GSPro</translation>
-    </message>
-    <message>
         <source>no launch monitor is configured</source>
         <translation>未配置弹道测量仪</translation>
     </message>
@@ -4229,10 +4311,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Live</source>
         <translation>实时</translation>
-    </message>
-    <message>
-        <source>Sessions</source>
-        <translation>训练记录</translation>
     </message>
     <message>
         <source>New athlete</source>
@@ -9249,10 +9327,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>实时</translation>
     </message>
     <message>
-        <source>Sessions</source>
-        <translation>训练记录</translation>
-    </message>
-    <message>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
@@ -9538,6 +9612,22 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Session diagnostics</source>
         <translation>训练诊断</translation>
+    </message>
+    <message>
+        <source>the %1 session</source>
+        <translation>%1 的训练</translation>
+    </message>
+    <message>
+        <source>today&apos;s session</source>
+        <translation>今天的训练</translation>
+    </message>
+    <message>
+        <source>this session</source>
+        <translation>本次训练</translation>
+    </message>
+    <message>
+        <source>Changes to the diagnostics of %1 are not being saved</source>
+        <translation>%1 的诊断改动未保存</translation>
     </message>
 </context>
 <context>
@@ -13158,81 +13248,6 @@ Reports sent from this computer will come from %1.</source>
     </message>
 </context>
 <context>
-    <name>ScreenSessions</name>
-    <message>
-        <source>Sessions</source>
-        <translation>训练记录</translation>
-    </message>
-    <message>
-        <source>%1 session</source>
-        <translation>%1 次训练</translation>
-    </message>
-    <message>
-        <source>%1 sessions</source>
-        <translation>%1 次训练</translation>
-    </message>
-    <message>
-        <source>%1 swing</source>
-        <translation>%1 次挥杆</translation>
-    </message>
-    <message>
-        <source>%1 swings</source>
-        <translation>%1 次挥杆</translation>
-    </message>
-    <message>
-        <source>Search work-ons, clubs</source>
-        <translation>搜索改进重点、球杆</translation>
-    </message>
-    <message>
-        <source>All reports</source>
-        <translation>全部报告</translation>
-    </message>
-    <message>
-        <source>None %1</source>
-        <translation>无报告 %1</translation>
-    </message>
-    <message>
-        <source>Out of date %1</source>
-        <translation>已过时 %1</translation>
-    </message>
-    <message>
-        <source>Ready %1</source>
-        <translation>就绪 %1</translation>
-    </message>
-    <message>
-        <source>All clubs</source>
-        <translation>全部球杆</translation>
-    </message>
-    <message>
-        <source>Club: All</source>
-        <translation>球杆：全部</translation>
-    </message>
-    <message>
-        <source>Club: %1</source>
-        <translation>球杆：%1</translation>
-    </message>
-    <message>
-        <source>Show archived (%1)</source>
-        <translation>显示已归档（%1）</translation>
-    </message>
-    <message>
-        <source>Click a row to select or deselect</source>
-        <translation>点击一行可选择或取消选择</translation>
-    </message>
-    <message>
-        <source>Shift-click for a range</source>
-        <translation>按住 Shift 点击可选一段范围</translation>
-    </message>
-    <message>
-        <source>Hover for Review, or double-click, to open in Live</source>
-        <translation>悬停后点击“回看”，或直接双击，可在“实时”中打开</translation>
-    </message>
-    <message>
-        <source>Esc clears</source>
-        <translation>按 Esc 清除选择</translation>
-    </message>
-</context>
-<context>
     <name>ScreenSettings</name>
     <message>
         <source>Search settings…</source>
@@ -13320,6 +13335,17 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Lead-wrist flexion · address → impact</source>
         <translation>前导手腕屈曲 · 准备站位 → 击球瞬间</translation>
+    </message>
+</context>
+<context>
+    <name>SessionDiagnosticsModel</name>
+    <message>
+        <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
+        <translation>其诊断文件无法读取或移开。请检查资料库所在的磁盘或共享。</translation>
+    </message>
+    <message>
+        <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
+        <translation>其诊断文件无法打开。请检查资料库所在的磁盘或共享。</translation>
     </message>
 </context>
 <context>

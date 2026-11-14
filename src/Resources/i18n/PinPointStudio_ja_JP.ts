@@ -2978,6 +2978,10 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <source>Matchups</source>
         <translation>組み合わせ</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>セッション</translation>
+    </message>
 </context>
 <context>
     <name>HmRigCapability</name>
@@ -2992,6 +2996,77 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Add iPhone as a camera</source>
         <translation>iPhone をカメラとして追加</translation>
+    </message>
+</context>
+<context>
+    <name>HmSessions</name>
+    <message>
+        <source>%1 session</source>
+        <translation>%1 セッション</translation>
+    </message>
+    <message>
+        <source>%1 sessions</source>
+        <translation>%1 セッション</translation>
+    </message>
+    <message>
+        <source>%1 swing</source>
+        <translation>%1 スイング</translation>
+    </message>
+    <message>
+        <source>%1 swings</source>
+        <translation>%1 スイング</translation>
+    </message>
+    <message>
+        <source>All reports</source>
+        <translation>すべてのレポート</translation>
+    </message>
+    <message>
+        <source>None %1</source>
+        <translation>なし %1</translation>
+    </message>
+    <message>
+        <source>Out of date %1</source>
+        <translation>要更新 %1</translation>
+    </message>
+    <message>
+        <source>Ready %1</source>
+        <translation>準備完了 %1</translation>
+    </message>
+    <message>
+        <source>All clubs</source>
+        <translation>すべてのクラブ</translation>
+    </message>
+    <message>
+        <source>Club: All</source>
+        <translation>クラブ: すべて</translation>
+    </message>
+    <message>
+        <source>Club: %1</source>
+        <translation>クラブ: %1</translation>
+    </message>
+    <message>
+        <source>Show archived (%1)</source>
+        <translation>アーカイブを表示（%1）</translation>
+    </message>
+    <message>
+        <source>Search work-ons, clubs</source>
+        <translation>ワークオン、クラブを検索</translation>
+    </message>
+    <message>
+        <source>Click a row to select or deselect</source>
+        <translation>行をクリックして選択または選択解除します</translation>
+    </message>
+    <message>
+        <source>Shift-click for a range</source>
+        <translation>Shift クリックで範囲を選択します</translation>
+    </message>
+    <message>
+        <source>Hover for Review, or double-click, to open in Live</source>
+        <translation>ホバーでレビュー、ダブルクリックで Live を開きます</translation>
+    </message>
+    <message>
+        <source>Esc clears</source>
+        <translation>Esc で解除します</translation>
     </message>
 </context>
 <context>
@@ -3139,6 +3214,13 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     </message>
 </context>
 <context>
+    <name>HmTendencyFlow</name>
+    <message>
+        <source>Tendencies</source>
+        <translation>傾向</translation>
+    </message>
+</context>
+<context>
     <name>HmTendencyRow</name>
     <message>
         <source>Strike</source>
@@ -3175,6 +3257,14 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Practice</source>
         <translation>練習</translation>
+    </message>
+    <message>
+        <source>Together</source>
+        <translation>同時</translation>
+    </message>
+    <message>
+        <source>Your most common shots</source>
+        <translation>最も多いショット</translation>
     </message>
 </context>
 <context>
@@ -3772,14 +3862,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>GSPro Connect (R10, MLM2PRO, SkyTrak+, …)</translation>
     </message>
     <message>
-        <source>GC Quad</source>
-        <translation>GC Quad</translation>
-    </message>
-    <message>
-        <source>GSPro</source>
-        <translation>GSPro</translation>
-    </message>
-    <message>
         <source>no launch monitor is configured</source>
         <translation>弾道測定器が未設定</translation>
     </message>
@@ -4229,10 +4311,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Live</source>
         <translation>ライブ</translation>
-    </message>
-    <message>
-        <source>Sessions</source>
-        <translation>セッション</translation>
     </message>
     <message>
         <source>New athlete</source>
@@ -9249,10 +9327,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>ライブ</translation>
     </message>
     <message>
-        <source>Sessions</source>
-        <translation>セッション</translation>
-    </message>
-    <message>
         <source>Settings</source>
         <translation>設定</translation>
     </message>
@@ -9538,6 +9612,22 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Session diagnostics</source>
         <translation>セッション診断</translation>
+    </message>
+    <message>
+        <source>the %1 session</source>
+        <translation>%1 のセッション</translation>
+    </message>
+    <message>
+        <source>today&apos;s session</source>
+        <translation>今日のセッション</translation>
+    </message>
+    <message>
+        <source>this session</source>
+        <translation>このセッション</translation>
+    </message>
+    <message>
+        <source>Changes to the diagnostics of %1 are not being saved</source>
+        <translation>%1 の診断への変更は保存されません</translation>
     </message>
 </context>
 <context>
@@ -13158,81 +13248,6 @@ Reports sent from this computer will come from %1.</source>
     </message>
 </context>
 <context>
-    <name>ScreenSessions</name>
-    <message>
-        <source>Sessions</source>
-        <translation>セッション</translation>
-    </message>
-    <message>
-        <source>%1 session</source>
-        <translation>%1 セッション</translation>
-    </message>
-    <message>
-        <source>%1 sessions</source>
-        <translation>%1 セッション</translation>
-    </message>
-    <message>
-        <source>%1 swing</source>
-        <translation>%1 スイング</translation>
-    </message>
-    <message>
-        <source>%1 swings</source>
-        <translation>%1 スイング</translation>
-    </message>
-    <message>
-        <source>Search work-ons, clubs</source>
-        <translation>課題、クラブを検索</translation>
-    </message>
-    <message>
-        <source>All reports</source>
-        <translation>すべてのレポート</translation>
-    </message>
-    <message>
-        <source>None %1</source>
-        <translation>なし %1</translation>
-    </message>
-    <message>
-        <source>Out of date %1</source>
-        <translation>要更新 %1</translation>
-    </message>
-    <message>
-        <source>Ready %1</source>
-        <translation>作成済み %1</translation>
-    </message>
-    <message>
-        <source>All clubs</source>
-        <translation>すべてのクラブ</translation>
-    </message>
-    <message>
-        <source>Club: All</source>
-        <translation>クラブ: すべて</translation>
-    </message>
-    <message>
-        <source>Club: %1</source>
-        <translation>クラブ: %1</translation>
-    </message>
-    <message>
-        <source>Show archived (%1)</source>
-        <translation>アーカイブ済みを表示（%1）</translation>
-    </message>
-    <message>
-        <source>Click a row to select or deselect</source>
-        <translation>行をクリックして選択または選択解除</translation>
-    </message>
-    <message>
-        <source>Shift-click for a range</source>
-        <translation>Shift キーを押しながらクリックして範囲選択</translation>
-    </message>
-    <message>
-        <source>Hover for Review, or double-click, to open in Live</source>
-        <translation>ポインターを合わせて「レビュー」、またはダブルクリックすると「ライブ」で開く</translation>
-    </message>
-    <message>
-        <source>Esc clears</source>
-        <translation>Esc でクリア</translation>
-    </message>
-</context>
-<context>
     <name>ScreenSettings</name>
     <message>
         <source>Search settings…</source>
@@ -13320,6 +13335,17 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Lead-wrist flexion · address → impact</source>
         <translation>リード側の手首の掌屈 · アドレス → インパクト</translation>
+    </message>
+</context>
+<context>
+    <name>SessionDiagnosticsModel</name>
+    <message>
+        <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
+        <translation>診断ファイルを読み取ることも移動することもできませんでした。ライブラリのドライブまたは共有を確認してください。</translation>
+    </message>
+    <message>
+        <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
+        <translation>診断ファイルを開けませんでした。ライブラリのドライブまたは共有を確認してください。</translation>
     </message>
 </context>
 <context>

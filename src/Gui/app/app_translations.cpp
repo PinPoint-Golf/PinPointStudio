@@ -38,6 +38,22 @@ QString normalisedTag(const QString &languageTag)
     return shape.match(tag).hasMatch() ? tag : QString();
 }
 
+// A normalised tag with its last subtag dropped ("zh_Hans_CN" → "zh_Hans" → "zh" → ""), and its
+// language subtag alone. A tag is not a folder name: these read it by its shape, the same pattern
+// normalisedTag() checked, rather than by cutting at underscores.
+QString withoutLastSubtag(const QString &tag)
+{
+    static const QRegularExpression last(QStringLiteral("^(.+)[_][A-Za-z0-9]{2,8}$"));
+    const QRegularExpressionMatch m = last.match(tag);
+    return m.hasMatch() ? m.captured(1) : QString();
+}
+
+QString languageSubtag(const QString &tag)
+{
+    static const QRegularExpression lang(QStringLiteral("^([A-Za-z]{2,3})"));
+    return lang.match(tag).captured(1);
+}
+
 } // namespace
 
 QString AppTranslations::defaultDirectory()
@@ -53,7 +69,7 @@ QString AppTranslations::baseName()
 bool AppTranslations::isSourceLanguage(const QString &languageTag)
 {
     const QString tag = normalisedTag(languageTag);
-    return tag.section(QLatin1Char('_'), 0, 0).compare(QLatin1String("en"), Qt::CaseInsensitive) == 0;
+    return languageSubtag(tag).compare(QLatin1String("en"), Qt::CaseInsensitive) == 0;
 }
 
 AppTranslations::Result AppTranslations::install(QCoreApplication &app, const QString &languageTag,
@@ -86,8 +102,7 @@ AppTranslations::Result AppTranslations::install(QCoreApplication &app, const QS
                 result.catalogue = path;
             break;
         }
-        const int cut = candidate.lastIndexOf(QLatin1Char('_'));
-        candidate = cut > 0 ? candidate.left(cut) : QString();
+        candidate = withoutLastSubtag(candidate);
     }
 
     if (!loaded) {

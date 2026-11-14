@@ -2978,6 +2978,10 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <source>Matchups</source>
         <translation>매치업</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>세션</translation>
+    </message>
 </context>
 <context>
     <name>HmRigCapability</name>
@@ -2992,6 +2996,77 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Add iPhone as a camera</source>
         <translation>iPhone을 카메라로 추가</translation>
+    </message>
+</context>
+<context>
+    <name>HmSessions</name>
+    <message>
+        <source>%1 session</source>
+        <translation>세션 %1개</translation>
+    </message>
+    <message>
+        <source>%1 sessions</source>
+        <translation>세션 %1개</translation>
+    </message>
+    <message>
+        <source>%1 swing</source>
+        <translation>스윙 %1개</translation>
+    </message>
+    <message>
+        <source>%1 swings</source>
+        <translation>스윙 %1개</translation>
+    </message>
+    <message>
+        <source>All reports</source>
+        <translation>전체 리포트</translation>
+    </message>
+    <message>
+        <source>None %1</source>
+        <translation>없음 %1</translation>
+    </message>
+    <message>
+        <source>Out of date %1</source>
+        <translation>최신 아님 %1</translation>
+    </message>
+    <message>
+        <source>Ready %1</source>
+        <translation>준비됨 %1</translation>
+    </message>
+    <message>
+        <source>All clubs</source>
+        <translation>전체 클럽</translation>
+    </message>
+    <message>
+        <source>Club: All</source>
+        <translation>클럽: 전체</translation>
+    </message>
+    <message>
+        <source>Club: %1</source>
+        <translation>클럽: %1</translation>
+    </message>
+    <message>
+        <source>Show archived (%1)</source>
+        <translation>보관된 항목 표시 (%1)</translation>
+    </message>
+    <message>
+        <source>Search work-ons, clubs</source>
+        <translation>연습 과제, 클럽 검색</translation>
+    </message>
+    <message>
+        <source>Click a row to select or deselect</source>
+        <translation>행을 클릭해 선택하거나 선택을 해제하세요</translation>
+    </message>
+    <message>
+        <source>Shift-click for a range</source>
+        <translation>범위를 선택하려면 Shift 키를 누른 채 클릭하세요</translation>
+    </message>
+    <message>
+        <source>Hover for Review, or double-click, to open in Live</source>
+        <translation>리뷰를 보려면 마우스를 올리고, Live에서 열려면 더블클릭하세요</translation>
+    </message>
+    <message>
+        <source>Esc clears</source>
+        <translation>Esc 키를 누르면 선택이 해제됩니다</translation>
     </message>
 </context>
 <context>
@@ -3139,6 +3214,13 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     </message>
 </context>
 <context>
+    <name>HmTendencyFlow</name>
+    <message>
+        <source>Tendencies</source>
+        <translation>경향</translation>
+    </message>
+</context>
+<context>
     <name>HmTendencyRow</name>
     <message>
         <source>Strike</source>
@@ -3175,6 +3257,14 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Practice</source>
         <translation>연습</translation>
+    </message>
+    <message>
+        <source>Together</source>
+        <translation>함께 나타남</translation>
+    </message>
+    <message>
+        <source>Your most common shots</source>
+        <translation>내 샷 중 가장 흔한 것</translation>
     </message>
 </context>
 <context>
@@ -3772,14 +3862,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>GSPro Connect (R10, MLM2PRO, SkyTrak+, …)</translation>
     </message>
     <message>
-        <source>GC Quad</source>
-        <translation>GC Quad</translation>
-    </message>
-    <message>
-        <source>GSPro</source>
-        <translation>GSPro</translation>
-    </message>
-    <message>
         <source>no launch monitor is configured</source>
         <translation>구성된 론치 모니터 없음</translation>
     </message>
@@ -4229,10 +4311,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Live</source>
         <translation>라이브</translation>
-    </message>
-    <message>
-        <source>Sessions</source>
-        <translation>세션</translation>
     </message>
     <message>
         <source>New athlete</source>
@@ -9249,10 +9327,6 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
         <translation>라이브</translation>
     </message>
     <message>
-        <source>Sessions</source>
-        <translation>세션</translation>
-    </message>
-    <message>
         <source>Settings</source>
         <translation>설정</translation>
     </message>
@@ -9538,6 +9612,22 @@ Your current model is copied to a dated backup file first, and ⌘Z undoes this 
     <message>
         <source>Session diagnostics</source>
         <translation>세션 진단</translation>
+    </message>
+    <message>
+        <source>the %1 session</source>
+        <translation>%1 세션</translation>
+    </message>
+    <message>
+        <source>today&apos;s session</source>
+        <translation>오늘 세션</translation>
+    </message>
+    <message>
+        <source>this session</source>
+        <translation>이번 세션</translation>
+    </message>
+    <message>
+        <source>Changes to the diagnostics of %1 are not being saved</source>
+        <translation>%1의 진단 변경 사항이 저장되지 않습니다</translation>
     </message>
 </context>
 <context>
@@ -13158,81 +13248,6 @@ Reports sent from this computer will come from %1.</source>
     </message>
 </context>
 <context>
-    <name>ScreenSessions</name>
-    <message>
-        <source>Sessions</source>
-        <translation>세션</translation>
-    </message>
-    <message>
-        <source>%1 session</source>
-        <translation>세션 %1개</translation>
-    </message>
-    <message>
-        <source>%1 sessions</source>
-        <translation>세션 %1개</translation>
-    </message>
-    <message>
-        <source>%1 swing</source>
-        <translation>스윙 %1개</translation>
-    </message>
-    <message>
-        <source>%1 swings</source>
-        <translation>스윙 %1개</translation>
-    </message>
-    <message>
-        <source>Search work-ons, clubs</source>
-        <translation>연습 과제, 클럽 검색</translation>
-    </message>
-    <message>
-        <source>All reports</source>
-        <translation>모든 리포트</translation>
-    </message>
-    <message>
-        <source>None %1</source>
-        <translation>없음 %1</translation>
-    </message>
-    <message>
-        <source>Out of date %1</source>
-        <translation>최신 아님 %1</translation>
-    </message>
-    <message>
-        <source>Ready %1</source>
-        <translation>준비 완료 %1</translation>
-    </message>
-    <message>
-        <source>All clubs</source>
-        <translation>모든 클럽</translation>
-    </message>
-    <message>
-        <source>Club: All</source>
-        <translation>클럽: 전체</translation>
-    </message>
-    <message>
-        <source>Club: %1</source>
-        <translation>클럽: %1</translation>
-    </message>
-    <message>
-        <source>Show archived (%1)</source>
-        <translation>보관된 항목 표시 (%1)</translation>
-    </message>
-    <message>
-        <source>Click a row to select or deselect</source>
-        <translation>행을 클릭하여 선택 또는 선택 해제</translation>
-    </message>
-    <message>
-        <source>Shift-click for a range</source>
-        <translation>Shift+클릭으로 범위 선택</translation>
-    </message>
-    <message>
-        <source>Hover for Review, or double-click, to open in Live</source>
-        <translation>마우스를 올려 ‘리뷰’를 누르거나 더블 클릭하여 ‘라이브’에서 열기</translation>
-    </message>
-    <message>
-        <source>Esc clears</source>
-        <translation>Esc로 지우기</translation>
-    </message>
-</context>
-<context>
     <name>ScreenSettings</name>
     <message>
         <source>Search settings…</source>
@@ -13320,6 +13335,17 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Lead-wrist flexion · address → impact</source>
         <translation>리드 손목 굴곡 · 어드레스 → 임팩트</translation>
+    </message>
+</context>
+<context>
+    <name>SessionDiagnosticsModel</name>
+    <message>
+        <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
+        <translation>해당 진단 파일을 읽지 못했거나 다른 곳으로 옮기지 못했습니다. 라이브러리의 드라이브 또는 공유 폴더를 확인하세요.</translation>
+    </message>
+    <message>
+        <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
+        <translation>해당 진단 파일을 열지 못했습니다. 라이브러리의 드라이브 또는 공유 폴더를 확인하세요.</translation>
     </message>
 </context>
 <context>

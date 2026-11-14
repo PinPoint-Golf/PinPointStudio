@@ -2985,6 +2985,10 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
         <source>Matchups</source>
         <translation>Zusammenhänge</translation>
     </message>
+    <message>
+        <source>Sessions</source>
+        <translation>Sessions</translation>
+    </message>
 </context>
 <context>
     <name>HmRigCapability</name>
@@ -2999,6 +3003,77 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
     <message>
         <source>Add iPhone as a camera</source>
         <translation>iPhone als Kamera hinzufügen</translation>
+    </message>
+</context>
+<context>
+    <name>HmSessions</name>
+    <message>
+        <source>%1 session</source>
+        <translation>%1 Session</translation>
+    </message>
+    <message>
+        <source>%1 sessions</source>
+        <translation>%1 Sessions</translation>
+    </message>
+    <message>
+        <source>%1 swing</source>
+        <translation>%1 Schwung</translation>
+    </message>
+    <message>
+        <source>%1 swings</source>
+        <translation>%1 Schwünge</translation>
+    </message>
+    <message>
+        <source>All reports</source>
+        <translation>Alle Berichte</translation>
+    </message>
+    <message>
+        <source>None %1</source>
+        <translation>Keine %1</translation>
+    </message>
+    <message>
+        <source>Out of date %1</source>
+        <translation>Veraltet %1</translation>
+    </message>
+    <message>
+        <source>Ready %1</source>
+        <translation>Bereit %1</translation>
+    </message>
+    <message>
+        <source>All clubs</source>
+        <translation>Alle Schläger</translation>
+    </message>
+    <message>
+        <source>Club: All</source>
+        <translation>Schläger: Alle</translation>
+    </message>
+    <message>
+        <source>Club: %1</source>
+        <translation>Schläger: %1</translation>
+    </message>
+    <message>
+        <source>Show archived (%1)</source>
+        <translation>Archivierte einblenden (%1)</translation>
+    </message>
+    <message>
+        <source>Search work-ons, clubs</source>
+        <translation>Schwerpunkte, Schläger suchen</translation>
+    </message>
+    <message>
+        <source>Click a row to select or deselect</source>
+        <translation>Klicke auf eine Zeile, um sie aus- oder abzuwählen</translation>
+    </message>
+    <message>
+        <source>Shift-click for a range</source>
+        <translation>Umschalt-Klick für einen Bereich</translation>
+    </message>
+    <message>
+        <source>Hover for Review, or double-click, to open in Live</source>
+        <translation>Zeiger auf die Zeile für „Ansehen“ oder Doppelklick, um in Live zu öffnen</translation>
+    </message>
+    <message>
+        <source>Esc clears</source>
+        <translation>Esc hebt die Auswahl auf</translation>
     </message>
 </context>
 <context>
@@ -3146,6 +3221,13 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
     </message>
 </context>
 <context>
+    <name>HmTendencyFlow</name>
+    <message>
+        <source>Tendencies</source>
+        <translation>Tendenzen</translation>
+    </message>
+</context>
+<context>
     <name>HmTendencyRow</name>
     <message>
         <source>Strike</source>
@@ -3182,6 +3264,14 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
     <message>
         <source>Practice</source>
         <translation>Üben</translation>
+    </message>
+    <message>
+        <source>Together</source>
+        <translation>Zusammen</translation>
+    </message>
+    <message>
+        <source>Your most common shots</source>
+        <translation>Deine häufigsten Schüsse</translation>
     </message>
 </context>
 <context>
@@ -3779,14 +3869,6 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
         <translation>GSPro Connect (R10, MLM2PRO, SkyTrak+, …)</translation>
     </message>
     <message>
-        <source>GC Quad</source>
-        <translation>GC Quad</translation>
-    </message>
-    <message>
-        <source>GSPro</source>
-        <translation>GSPro</translation>
-    </message>
-    <message>
         <source>no launch monitor is configured</source>
         <translation>es ist kein Launch Monitor konfiguriert</translation>
     </message>
@@ -4236,10 +4318,6 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
     <message>
         <source>Live</source>
         <translation>Live</translation>
-    </message>
-    <message>
-        <source>Sessions</source>
-        <translation>Sessions</translation>
     </message>
     <message>
         <source>New athlete</source>
@@ -9291,10 +9369,6 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
         <translation>Live</translation>
     </message>
     <message>
-        <source>Sessions</source>
-        <translation>Sessions</translation>
-    </message>
-    <message>
         <source>Settings</source>
         <translation>Einstellungen</translation>
     </message>
@@ -9580,6 +9654,22 @@ Dein aktuelles Modell wird vorher in eine datierte Sicherungsdatei kopiert, und 
     <message>
         <source>Session diagnostics</source>
         <translation>Session-Diagnose</translation>
+    </message>
+    <message>
+        <source>the %1 session</source>
+        <translation>die Session vom %1</translation>
+    </message>
+    <message>
+        <source>today&apos;s session</source>
+        <translation>die heutige Session</translation>
+    </message>
+    <message>
+        <source>this session</source>
+        <translation>diese Session</translation>
+    </message>
+    <message>
+        <source>Changes to the diagnostics of %1 are not being saved</source>
+        <translation>Änderungen an der Session-Diagnose von %1 werden nicht gespeichert</translation>
     </message>
 </context>
 <context>
@@ -13207,81 +13297,6 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
     </message>
 </context>
 <context>
-    <name>ScreenSessions</name>
-    <message>
-        <source>Sessions</source>
-        <translation>Sessions</translation>
-    </message>
-    <message>
-        <source>%1 session</source>
-        <translation>%1 Session</translation>
-    </message>
-    <message>
-        <source>%1 sessions</source>
-        <translation>%1 Sessions</translation>
-    </message>
-    <message>
-        <source>%1 swing</source>
-        <translation>%1 Schwung</translation>
-    </message>
-    <message>
-        <source>%1 swings</source>
-        <translation>%1 Schwünge</translation>
-    </message>
-    <message>
-        <source>Search work-ons, clubs</source>
-        <translation>Schwerpunkte, Schläger suchen</translation>
-    </message>
-    <message>
-        <source>All reports</source>
-        <translation>Alle Berichte</translation>
-    </message>
-    <message>
-        <source>None %1</source>
-        <translation>Keiner %1</translation>
-    </message>
-    <message>
-        <source>Out of date %1</source>
-        <translation>Veraltet %1</translation>
-    </message>
-    <message>
-        <source>Ready %1</source>
-        <translation>Bereit %1</translation>
-    </message>
-    <message>
-        <source>All clubs</source>
-        <translation>Alle Schläger</translation>
-    </message>
-    <message>
-        <source>Club: All</source>
-        <translation>Schläger: Alle</translation>
-    </message>
-    <message>
-        <source>Club: %1</source>
-        <translation>Schläger: %1</translation>
-    </message>
-    <message>
-        <source>Show archived (%1)</source>
-        <translation>Archivierte einblenden (%1)</translation>
-    </message>
-    <message>
-        <source>Click a row to select or deselect</source>
-        <translation>Klicke auf eine Zeile, um sie aus- oder abzuwählen</translation>
-    </message>
-    <message>
-        <source>Shift-click for a range</source>
-        <translation>Umschalt-Klick für einen Bereich</translation>
-    </message>
-    <message>
-        <source>Hover for Review, or double-click, to open in Live</source>
-        <translation>Zeige mit dem Zeiger auf die Zeile für „Ansehen“ oder doppelklicke, um sie in Live zu öffnen</translation>
-    </message>
-    <message>
-        <source>Esc clears</source>
-        <translation>Esc hebt die Auswahl auf</translation>
-    </message>
-</context>
-<context>
     <name>ScreenSettings</name>
     <message>
         <source>Search settings…</source>
@@ -13369,6 +13384,17 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
     <message>
         <source>Lead-wrist flexion · address → impact</source>
         <translation>Flexion des vorderen Handgelenks · Ansprechposition → Treffmoment</translation>
+    </message>
+</context>
+<context>
+    <name>SessionDiagnosticsModel</name>
+    <message>
+        <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
+        <translation>Die Diagnosedatei konnte nicht gelesen oder beiseitegelegt werden. Prüfe das Laufwerk oder die Freigabe der Bibliothek.</translation>
+    </message>
+    <message>
+        <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
+        <translation>Die Diagnosedatei konnte nicht geöffnet werden. Prüfe das Laufwerk oder die Freigabe der Bibliothek.</translation>
     </message>
 </context>
 <context>
