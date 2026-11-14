@@ -726,7 +726,7 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // A batch still coalescing (decision 1) has rows placed and not yet written. Write them:
     // they are graded and stamped, and on disk they will not be detected again. The deliveries
     // still queued die with this object, as they always did, and the next activation re-does them.
-    if (m_owedRebuild) persist();
+    if (m_owedRebuild) persist(/*adoptMerged=*/false);
 }
 
 // ── Simple inputs ───────────────────────────────────────────────────────────────────────
@@ -1410,12 +1410,13 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // read the reduction, and the next load re-reduces from the rows anyway. Its deliveries
     // still queued carry the old generation and are dropped on arrival; their swings remain
     // stale on disk and are graded again the next time that session is activated.
-    if (m_owedRebuild) persist();
+    if (m_owedRebuild) persist(/*adoptMerged=*/false);
     m_owedRebuild   = false;
     m_owedAfterShot = -1;
     ++m_activationGen;
 
     m_sessionDir = sessionDir;
+    m_ledgerWriteBlocked = false;
     m_shots.clear();
     m_outcomesDirty = true;
     m_ingested.clear();
@@ -1452,6 +1453,8 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     emit sessionChanged();
     emit detailChanged();
 
+    m_golferBase = golferInputJson();
+
     if (sessionDir.isEmpty()) {
         scanHistory();
         rebuild();
@@ -1460,11 +1463,37 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     }
 
     // ── 1. The file, if there is one ────────────────────────────────────────────────
-    QFile f(diagnosticsPath());
-    if (f.open(QIODevice::ReadOnly)) {
-        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
-
+    //
+    // A file that is THERE but cannot be opened or parsed (truncated by an interrupted copy, a
+    // share that dropped mid-write) is not "no file": it holds the golfer's only copy of what
+    // they said, and the back-fill below would write a fresh one over it. It is set aside, with a
+    // warning, and the session carries on as one that has no file.
+    QJsonObject root;
+    bool haveFile = false;
+    {
+        const QString path = diagnosticsPath();
+        if (QFileInfo::exists(path)) {
+            QString why;
+            QFile f(path);
+            if (!f.open(QIODevice::ReadOnly)) {
+                why = f.errorString();
+            } else {
+                QJsonParseError err;
+                const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
+                f.close();
+                if (err.error != QJsonParseError::NoError)
+                    why = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
+                else if (!doc.isObject())
+                    why = QStringLiteral("not a JSON object");
+                else {
+                    root = doc.object();
+                    haveFile = true;
+                }
+            }
+            if (!haveFile) setAsideUnreadableLedger(path, why);
+        }
+    }
+    if (haveFile) {
         // The ledger half is diagnostic_ledger.h's own, read through its own reader — the
         // gates travel with the file so a session records what it was read under.
         const QJsonObject ledgerObj = root.value(QStringLiteral("ledger")).toObject();
@@ -1512,21 +1541,9 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         // every change to the rows is, before anything reads them.
         checkRowsAgainstFlight();
 
-        const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();
-        m_focusConditionId = intent.value(QStringLiteral("focusConditionId")).toString();
-        m_focusFromShot    = intent.value(QStringLiteral("focusFromShot")).toInt(-1);
-        m_declaredMiss     = intent.value(QStringLiteral("declaredMiss")).toString();
-
-        // §4.4. Read only into the outcome surfaces; detection, corridors and tiers never see them.
-        m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
-        m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
-        const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
-        m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
-        m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
-
-        const QJsonObject screens = root.value(QStringLiteral("screens")).toObject();
-        for (auto it = screens.constBegin(); it != screens.constEnd(); ++it)
-            m_screens.insert(it.key(), it.value().toBool());
+        // The golfer's half: focus, declared miss, screen answers, shot intent, corrections.
+        readGolferInput(root);
+        m_golferBase = golferInputJson();
     }
 
     // ── 2. The athlete's history ────────────────────────────────────────────────────
@@ -3042,6 +3059,146 @@ QString SessionDiagnosticsModel::faultProfilePath() const
     return d.filePath(kProfileFile);
 }
 
+// ── The golfer's half of the envelope ──────────────────────────────────────────────────────
+
+const QStringList &SessionDiagnosticsModel::golferInputKeys()
+{
+    static const QStringList keys{ QStringLiteral("intent"),     QStringLiteral("screens"),
+                                   QStringLiteral("shotIntent"), QStringLiteral("intentFrom"),
+                                   QStringLiteral("corrections") };
+    return keys;
+}
+
+QJsonObject SessionDiagnosticsModel::golferInput(const QJsonObject &envelope)
+{
+    QJsonObject out;
+    for (const QString &k : golferInputKeys())
+        if (envelope.contains(k)) out.insert(k, envelope.value(k));
+    return out;
+}
+
+void SessionDiagnosticsModel::readGolferInput(const QJsonObject &root)
+{
+    const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();
+    m_focusConditionId = intent.value(QStringLiteral("focusConditionId")).toString();
+    m_focusFromShot    = intent.value(QStringLiteral("focusFromShot")).toInt(-1);
+    m_declaredMiss     = intent.value(QStringLiteral("declaredMiss")).toString();
+
+    m_screens.clear();
+    const QJsonObject screens = root.value(QStringLiteral("screens")).toObject();
+    for (auto it = screens.constBegin(); it != screens.constEnd(); ++it)
+        m_screens.insert(it.key(), it.value().toBool());
+
+    // §4.4. Read only into the outcome surfaces; detection, corridors and tiers never see them.
+    m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
+    m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
+    const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
+    m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
+    m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
+    m_outcomesDirty   = true;
+}
+
+QJsonObject SessionDiagnosticsModel::golferInputJson() const
+{
+    QJsonObject intent;
+    intent[QStringLiteral("focusConditionId")] = m_focusConditionId;
+    intent[QStringLiteral("focusFromShot")]    = m_focusFromShot;
+    intent[QStringLiteral("declaredMiss")]     = m_declaredMiss;
+
+    QJsonObject screens;
+    for (auto it = m_screens.constBegin(); it != m_screens.constEnd(); ++it)
+        screens.insert(it.key(), it.value());
+
+    QJsonObject root;
+    root[QStringLiteral("intent")]  = intent;
+    root[QStringLiteral("screens")] = screens;
+    // §4.4: per shot, in the envelope, never in the rows. Each written only when there is something to say.
+    if (!m_shotIntent.isEmpty()) {
+        QJsonObject shotIntent;
+        for (auto it = m_shotIntent.constBegin(); it != m_shotIntent.constEnd(); ++it)
+            shotIntent.insert(QString::number(it.key()), it.value());
+        root[QStringLiteral("shotIntent")] = shotIntent;
+    }
+    if (m_intentFromShot >= 0 && !m_intentFromShape.isEmpty())
+        root[QStringLiteral("intentFrom")] = QJsonObject{ { QStringLiteral("fromShot"), m_intentFromShot },
+                                                          { QStringLiteral("shape"),    m_intentFromShape } };
+    if (!m_corrections.isEmpty())
+        root[QStringLiteral("corrections")] = shotCorrectionsToJson(m_corrections);
+    return root;
+}
+
+namespace {
+// One entry, three ways: the file's value where the file moved since `base`, ours where it did not.
+// An absent entry is QJsonValue::Undefined on every side, so an entry added or removed is a move too.
+QJsonValue pickThreeWay(const QJsonValue &base, const QJsonValue &ours, const QJsonValue &theirs)
+{
+    return theirs == base ? ours : theirs;
+}
+
+QJsonObject mergeEntries(const QJsonObject &base, const QJsonObject &ours, const QJsonObject &theirs)
+{
+    QSet<QString> keys;
+    for (const QJsonObject *o : { &base, &ours, &theirs })
+        for (auto it = o->constBegin(); it != o->constEnd(); ++it) keys.insert(it.key());
+    QJsonObject out;
+    for (const QString &k : std::as_const(keys)) {
+        const QJsonValue v = pickThreeWay(base.value(k), ours.value(k), theirs.value(k));
+        if (!v.isUndefined()) out.insert(k, v);
+    }
+    return out;
+}
+} // namespace
+
+QJsonObject SessionDiagnosticsModel::mergeGolferInput(const QJsonObject &base, const QJsonObject &ours,
+                                                      const QJsonObject &theirs)
+{
+    const QString kFocus = QStringLiteral("focusConditionId"), kFrom = QStringLiteral("focusFromShot"),
+                  kMiss  = QStringLiteral("declaredMiss");
+    const QJsonObject bi = base.value(QStringLiteral("intent")).toObject();
+    const QJsonObject oi = ours.value(QStringLiteral("intent")).toObject();
+    const QJsonObject ti = theirs.value(QStringLiteral("intent")).toObject();
+    // The focus is ONE entry: a split from one declaration under the id of another is neither.
+    auto focusOf = [&](const QJsonObject &i) { return QJsonValue(QJsonObject{ { kFocus, i.value(kFocus) },
+                                                                              { kFrom,  i.value(kFrom) } }); };
+    const QJsonObject focus = pickThreeWay(focusOf(bi), focusOf(oi), focusOf(ti)).toObject();
+    QJsonObject intent{ { kFocus, focus.value(kFocus) }, { kFrom, focus.value(kFrom) } };
+    const QJsonValue miss = pickThreeWay(bi.value(kMiss), oi.value(kMiss), ti.value(kMiss));
+    if (!miss.isUndefined()) intent.insert(kMiss, miss);
+
+    QJsonObject out;
+    out[QStringLiteral("intent")] = intent;
+    // Per entry: one screen's answer, one shot's intent, one shot's corrections.
+    for (const QString &k : { QStringLiteral("screens"), QStringLiteral("shotIntent"), QStringLiteral("corrections") }) {
+        const QJsonObject m = mergeEntries(base.value(k).toObject(), ours.value(k).toObject(), theirs.value(k).toObject());
+        if (!m.isEmpty()) out.insert(k, m);
+    }
+    // The run of intent is one entry (from which shot, which shape).
+    const QJsonValue run = pickThreeWay(base.value(QStringLiteral("intentFrom")), ours.value(QStringLiteral("intentFrom")),
+                                        theirs.value(QStringLiteral("intentFrom")));
+    if (!run.isUndefined()) out.insert(QStringLiteral("intentFrom"), run);
+    return out;
+}
+
+bool SessionDiagnosticsModel::setAsideUnreadableLedger(const QString &path, const QString &why)
+{
+    // A name of its own, never reused: a second unreadable file in the same second is a second copy.
+    const QString stem = path + QStringLiteral(".unreadable-")
+                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QString aside = stem;
+    for (int n = 2; QFileInfo::exists(aside); ++n) aside = stem + QLatin1Char('-') + QString::number(n);
+    if (QFile::rename(path, aside)) {
+        ppWarn() << "[Diagnostics] diagnostics.json could not be read:" << qPrintable(path) << "—" << qPrintable(why)
+                 << "— kept as" << qPrintable(QFileInfo(aside).fileName())
+                 << "; the session is regraded from its swings, and the focus, declared miss, screen answers,"
+                 << "shot intent and corrections in that file are not in the new one";
+        return true;
+    }
+    m_ledgerWriteBlocked = true;
+    ppWarn() << "[Diagnostics] diagnostics.json could not be read:" << qPrintable(path) << "—" << qPrintable(why)
+             << "— and could not be set aside either, so nothing will be written over it this session";
+    return false;
+}
+
 QJsonObject SessionDiagnosticsModel::envelope() const
 {
     QJsonArray lm;
@@ -3072,32 +3229,10 @@ QJsonObject SessionDiagnosticsModel::envelope() const
     session[QStringLiteral("gradedFrom")] = graded;
     session[QStringLiteral("writtenAtMs")]= double(QDateTime::currentMSecsSinceEpoch());
 
-    QJsonObject intent;
-    intent[QStringLiteral("focusConditionId")] = m_focusConditionId;
-    intent[QStringLiteral("focusFromShot")]    = m_focusFromShot;
-    intent[QStringLiteral("declaredMiss")]     = m_declaredMiss;
-
-    QJsonObject screens;
-    for (auto it = m_screens.constBegin(); it != m_screens.constEnd(); ++it)
-        screens.insert(it.key(), it.value());
-
-    QJsonObject root;
+    // The golfer's keys first, from their one writer; then the cache half.
+    QJsonObject root = golferInputJson();
     root[QStringLiteral("schemaVersion")] = kEnvelopeVersion;
     root[QStringLiteral("session")]       = session;
-    root[QStringLiteral("intent")]        = intent;
-    root[QStringLiteral("screens")]       = screens;
-    // §4.4: per shot, in the envelope, never in the rows. Each written only when there is something to say.
-    if (!m_shotIntent.isEmpty()) {
-        QJsonObject shotIntent;
-        for (auto it = m_shotIntent.constBegin(); it != m_shotIntent.constEnd(); ++it)
-            shotIntent.insert(QString::number(it.key()), it.value());
-        root[QStringLiteral("shotIntent")] = shotIntent;
-    }
-    if (m_intentFromShot >= 0 && !m_intentFromShape.isEmpty())
-        root[QStringLiteral("intentFrom")] = QJsonObject{ { QStringLiteral("fromShot"), m_intentFromShot },
-                                                          { QStringLiteral("shape"),    m_intentFromShape } };
-    if (!m_corrections.isEmpty())
-        root[QStringLiteral("corrections")] = shotCorrectionsToJson(m_corrections);
     // The ledger is nested rather than merged, so diagnostic_ledger.h's reader takes exactly
     // the object its writer produced — including ITS schemaVersion, which is a different
     // number about a different contract.
@@ -3105,27 +3240,48 @@ QJsonObject SessionDiagnosticsModel::envelope() const
     return root;
 }
 
-void SessionDiagnosticsModel::persist()
+void SessionDiagnosticsModel::persist(bool adoptMerged)
 {
     const QString path = diagnosticsPath();
-    if (path.isEmpty() || !m_persistEnabled) return;
-    // THE CATCH-UP MUST NOT WRITE OVER THE GOLFER. While it regrades a session a panel can correct a shot
-    // in that same file, and what the catch-up read at activation is by now out of date. These three are
-    // the panel's to change, so the file's say-so wins, read at the last moment before the write. A file
-    // that cannot be read has nothing to say and the ones in hand stand.
-    if (m_baselineAuthority == BaselineAuthority::Always) {
+    if (path.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) return;
+    // THE CATCH-UP MUST NOT WRITE OVER THE GOLFER. While it regrades a session a panel can declare a
+    // focus or a miss, answer a screen or correct a shot in that same file, and what the catch-up read
+    // at activation is by now out of date. Every golfer key is merged from the file at the last moment
+    // before the write, entry by entry (mergeGolferInput): what the file changed since this model read
+    // or wrote it is the file's, the rest is this model's. A file that cannot be read is set aside, not
+    // written over (setAsideUnreadableLedger), and the ones in hand stand.
+    if (m_baselineAuthority == BaselineAuthority::Always && QFileInfo::exists(path)) {
         QFile current(path);
-        if (current.open(QIODevice::ReadOnly)) {
+        QString why;
+        QJsonObject disk;
+        if (!current.open(QIODevice::ReadOnly)) {
+            why = current.errorString();
+        } else {
             QJsonParseError err;
             const QJsonDocument doc = QJsonDocument::fromJson(current.readAll(), &err);
-            if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                const QJsonObject root = doc.object();
-                m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
-                m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
-                const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
-                m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
-                m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
-                m_outcomesDirty   = true;
+            current.close();
+            if (err.error != QJsonParseError::NoError)
+                why = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
+            else if (!doc.isObject())
+                why = QStringLiteral("not a JSON object");
+            else
+                disk = doc.object();
+        }
+        if (!why.isEmpty()) {
+            if (!setAsideUnreadableLedger(path, why)) return;
+        } else {
+            const QJsonObject ours = golferInputJson();
+            readGolferInput(disk);
+            const QJsonObject theirs = golferInputJson();     // the file's, in the same shape as base and ours
+            readGolferInput(mergeGolferInput(m_golferBase, ours, theirs));
+            const QJsonObject merged = golferInputJson();
+            if (merged != ours && adoptMerged) {
+                // A focus, miss or screen answer reaches the reduction (focus split, link grades, the
+                // stage ratchet): re-reduce under the golfer's before the stage is written.
+                if (merged.value(QStringLiteral("screens")) != ours.value(QStringLiteral("screens")))
+                    m_patternSet.clear();     // knownScreenResults changed: explain() runs again
+                emit intentChanged();
+                rebuild();
             }
         }
     }
@@ -3133,7 +3289,8 @@ void SessionDiagnosticsModel::persist()
     // interrupted write must not truncate the session's evidence, and a half-written
     // diagnostics.json would load, report what survived, and look exactly like a session in
     // which nothing happened after shot 6.
-    atomicWrite(path, QJsonDocument(envelope()).toJson(QJsonDocument::Compact));
+    if (atomicWrite(path, QJsonDocument(envelope()).toJson(QJsonDocument::Compact)))
+        m_golferBase = golferInputJson();
     ++m_persistCount;
 }
 

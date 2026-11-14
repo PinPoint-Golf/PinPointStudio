@@ -101,6 +101,22 @@ class INormProvider;
 //    on disk against the swing_* directories beside it and back-fills the difference —
 //    which is also what makes the panel safe to enable half way through a session.
 //
+//    THE FILE IS HALF CACHE, HALF THE GOLFER'S ONLY COPY. The rows and session meta can be
+//    rebuilt from the swings; the golfer's keys (golferInputKeys(): intent, screens,
+//    shotIntent, intentFrom, corrections) cannot. Three rules keep them (audit H-04, Stage 0):
+//      · a file found unreadable (there, but it cannot be opened or parsed) at load, or at the
+//        catch-up's write, is not written over — it is renamed aside
+//        (diagnostics.json.unreadable-<stamp>[-n]) with a ppWarn, and the session carries on as
+//        one with no file; if the rename fails, nothing is written to it this activation
+//        (setAsideUnreadableLedger);
+//      · the work-ons catch-up (BaselineAuthority::Always) merges every golfer key from the
+//        file before it writes, three ways (mergeGolferInput), so what a panel saved while the
+//        catch-up held the session survives the catch-up's write;
+//      · tools/diagnostics/regrade_ledger carries the golfer keys from the file it sets aside
+//        into the one it rebuilds.
+//    Live panels do not merge: two live models writing one file (stage panel + cast window) is
+//    the open lost update the session-owned single writer removes (audit D-01, Stage 2).
+//
 // 3. WHAT THE FAULT PROFILE MAY TOUCH. `fault_profile.json` lives in the ATHLETE folder (the
 //    session directory's parent) and is read at activation and written at close. It reaches
 //    exactly two things: the Cold state's `expectations` list, and the `score` fed to
@@ -260,6 +276,8 @@ class SessionDiagnosticsModel : public QObject
     //   "live"    a live panel: only when every predecessor's ledger is schema 11, and never while reviewing.
     //   "never"   review panels and the session report: read only. Unknown words read as "never".
     // The default is "live", so a panel left on it behaves as a live one until it reviews.
+    // "always" also decides diagnostics.json's golfer keys: before each write that model merges every
+    // one of them from the file (persist, mergeGolferInput), because a panel may hold the same session.
     Q_PROPERTY(QString baselineAuthority READ baselineAuthorityName WRITE setBaselineAuthorityName NOTIFY baselineAuthorityChanged)
 
 public:
@@ -278,6 +296,25 @@ public:
     // writes diagnostics.json"). On by default — the panel and the work-ons catch-up own the file.
     bool    persistEnabled() const { return m_persistEnabled; }
     void    setPersistEnabled(bool on) { m_persistEnabled = on; }
+
+    // THE GOLFER'S HALF OF diagnostics.json. The envelope's other keys (session, ledger) are a cache any
+    // activation can rebuild from the swings; these five are the ONLY copy of what the golfer and coach
+    // said — the focus contract and declared miss (`intent`), screen answers (`screens`), per-shot intent
+    // (`shotIntent`), a run of intent (`intentFrom`) and outcome corrections (`corrections`; the athlete's
+    // outcome_corrections.jsonl is a log, never read back). Whatever rebuilds the file must carry them:
+    // the catch-up's merge re-reads them all (persist), and regrade_ledger copies them across.
+    static const QStringList &golferInputKeys();
+    // The golferInputKeys() present in an envelope, as they stand in it (no normalising).
+    static QJsonObject golferInput(const QJsonObject &envelope);
+    // The catch-up's merge (persist, BaselineAuthority::Always), entry by entry and three ways, all in
+    // the shape persist writes the golfer keys in: an entry the file still holds as this model last
+    // read or wrote it (`base`) is this model's to say (`ours` — a shot this model dropped stays
+    // dropped, its focus split stays moved); an entry the file has changed since is the file's (`theirs` — what the
+    // golfer said in a panel while this model held the session). The focus is one entry (id and
+    // split together); a shot's intent, a shot's corrections and a screen's answer are one each.
+    // Public and static so the test can pin it on hand-built envelopes.
+    static QJsonObject mergeGolferInput(const QJsonObject &base, const QJsonObject &ours,
+                                        const QJsonObject &theirs);
 
     enum class BaselineAuthority { Never, Live, Always };
     BaselineAuthority baselineAuthority() const { return m_baselineAuthority; }
@@ -726,7 +763,23 @@ private:
     QString      clubBaselinePath() const;
     QString      tuningLogPath() const;
     QJsonObject  envelope() const;
-    void         persist();
+    // The golfer's half of the envelope (see golferInputKeys): ONE reader and ONE writer, so the load,
+    // the catch-up's merge and envelope() can never disagree about which keys are the golfer's.
+    // readGolferInput sets every golfer member from `root` (absent = empty); golferInputJson writes them.
+    void         readGolferInput(const QJsonObject &root);
+    QJsonObject  golferInputJson() const;
+    // A diagnostics.json that is there but cannot be opened or parsed holds the golfer's only copy
+    // of what they said, so where it is found (at load, at the catch-up's write) it is not written
+    // over: renamed aside to
+    // diagnostics.json.unreadable-<yyyyMMdd-HHmmss>[-n], with a ppWarn naming the file, the aside
+    // and `why`. If even the rename fails, writes to this session are switched off
+    // (m_ledgerWriteBlocked) and that is warned too. True when the path is now free to write.
+    bool         setAsideUnreadableLedger(const QString &path, const QString &why);
+    // Write diagnostics.json. `adoptMerged`: when the catch-up's merge brought a different focus,
+    // miss or screen answer in from the file, re-reduce under it (and announce intentChanged)
+    // before writing, so the written stage and what the catch-up reads next are the golfer's. Off
+    // for the two flushes of an abandoned batch (activation, destruction), which reduce nothing.
+    void         persist(bool adoptMerged = true);
     void         loadProfile();
     void         updateProfile();
 
@@ -926,6 +979,12 @@ private:
     bool    m_closed = false;
     bool    m_reviewing = false;
     bool    m_persistEnabled = true;    // setPersistEnabled: off = never write diagnostics.json
+    // This session's diagnostics.json could not be read AND could not be set aside: nothing is
+    // written to it until the next activation (setAsideUnreadableLedger). Reset per activation.
+    bool    m_ledgerWriteBlocked = false;
+    // golferInputJson() as this model last read it from, or wrote it to, diagnostics.json — the
+    // `base` of the catch-up's three-way merge (mergeGolferInput).
+    QJsonObject m_golferBase;
     int     m_selectedShotId = -1;
     QString m_selectedSwingDir;
     // Re-points m_selectedShotId at m_selectedSwingDir without a rebuild of its own — for the

@@ -30,6 +30,7 @@
 
 #include "../../Gui/typeset/box_stats.h"
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Core/PpMessageLog.h"                // the unreadable-ledger warning (H-04)
 #include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
@@ -1846,6 +1847,159 @@ static void flightCheckedStrikesSuite(const QTemporaryDir &tmp)
     for (const ShotRecord &s : three)
         if (const ConditionRow *r = rowFor(s, QStringLiteral("thin")); !r || r->state != ShotState::Fired || r->overruled) allStand = false;
     check(allStand, "three shots: no usual, every thin back as detected");
+}
+
+// ── The golfer's half of diagnostics.json is never lost (audit H-04 / H-03 / D-03, Stage 0.1) ──
+//
+// The file is half cache (rows, session meta) and half the only copy of what the golfer said
+// (golferInputKeys). A file found unreadable at load, or at the catch-up's write, is set aside rather
+// than written over; the catch-up merges every golfer key, three ways, before it writes.
+static QStringList unreadableAsides(const QString &sessionDir)
+{
+    return QDir(sessionDir).entryList(QStringList{ QStringLiteral("diagnostics.json.unreadable-*") }, QDir::Files);
+}
+
+static QByteArray bytesOf(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+static bool writeBytes(const QString &path, const QByteArray &bytes)
+{
+    QFile f(path);
+    return f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(bytes) == bytes.size();
+}
+
+static void golferInputSuite(const QTemporaryDir &tmp)
+{
+    std::printf("\nthe golfer's input in diagnostics.json is never lost\n");
+    const qint64 t0 = kStageEpochMs + 86400000LL * 310;
+    // A truncated file — an interrupted copy onto the share — that still names the golfer's focus.
+    const QByteArray truncated = QByteArrayLiteral(
+        "{\"schemaVersion\":1,\"intent\":{\"focusConditionId\":\"over_the_top\",\"focusFromShot\":1,\"declaredMiss\":\"sl");
+
+    // ── A corrupt file survives the activation's back-fill and every write after it ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_01");
+        check(stageShot(dir, 1, "rich_7iron") && stageShot(dir, 2, "rich_7iron"), "two swings on disk");
+        const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
+        check(writeBytes(path, truncated), "…beside a truncated diagnostics.json");
+        int seq = PpMessageLog::instance()->currentSeq();
+        auto m = freshModel();
+        m->activateSession(dir);
+        const QStringList asides = unreadableAsides(dir);
+        check(asides.size() == 1 && bytesOf(QDir(dir).filePath(asides.value(0))) == truncated,
+              "the unreadable file is set aside, byte for byte, not written over");
+        bool warned = false;
+        for (const PpMessageLog::Entry &e : PpMessageLog::instance()->fetchSince(seq))
+            warned = warned || (e.severity == QLatin1String("WARN") && e.message.contains(path)
+                                && e.message.contains(asides.value(0)) && e.message.contains(QStringLiteral("at byte")));
+        check(warned, "…and the app log says so: a WARN with the path, the parse error and where the file went");
+        check(m->shotCount() == 2 && m->persistCount() > 0
+                  && diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject()
+                         .value(QStringLiteral("shots")).toArray().size() == 2,
+              "…and the model carries on: both swings back-filled into a fresh, readable file");
+        m->declareMiss(QStringLiteral("slice"));                    // a persist after the activation
+        check(unreadableAsides(dir) == asides && bytesOf(QDir(dir).filePath(asides.value(0))) == truncated
+                  && diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject()
+                         .value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
+              "…it survives the next write too, and that write lands in the new file");
+        auto again = freshModel();
+        again->activateSession(dir);
+        check(unreadableAsides(dir).size() == 1 && again->declaredMiss() == QStringLiteral("slice"),
+              "a readable file is read, never set aside");
+    }
+
+    // ── The same at the catch-up's last-moment read: corrupted after activation, set aside before the write ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_02");
+        check(writeOutcomeSession(dir, fixture24(t0)) && writeUsual7Iron(dir), "a session the catch-up holds");
+        auto catchUp = freshModel();
+        catchUp->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        catchUp->activateSession(dir);
+        const QString path = QDir(dir).filePath(QStringLiteral("diagnostics.json"));
+        check(writeBytes(path, truncated), "…whose file is truncated while it holds it");
+        catchUp->setShotIntent(3, QStringLiteral("draw"));          // the catch-up writes
+        const QStringList asides = unreadableAsides(dir);
+        check(asides.size() == 1 && bytesOf(QDir(dir).filePath(asides.value(0))) == truncated
+                  && diagnosticsJsonOf(dir).value(QStringLiteral("ledger")).toObject()
+                         .value(QStringLiteral("shots")).toArray().size() == 24,
+              "the catch-up sets the unreadable file aside before it writes, and writes what it holds");
+    }
+
+    // ── The catch-up's write keeps every golfer key a panel wrote after the catch-up read the file ──
+    {
+        const QString dir = makeSession(tmp, "athlete_golfer", "2026-11-14_M_03");
+        check(writeOutcomeSession(dir, fixture24(t0 + 86400000LL)) && writeUsual7Iron(dir),
+              "a session the catch-up and a panel both hold");
+        auto catchUp = freshModel();
+        catchUp->setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
+        catchUp->activateSession(dir);
+        auto panel = freshModel();
+        panel->activateSession(dir);
+        panel->declareFocusFrom(QStringLiteral("over_the_top"), 4);
+        panel->declareMiss(QStringLiteral("slice"));
+        panel->recordScreenResult(QStringLiteral("early_extension"), true);
+        catchUp->setShotIntent(3, QStringLiteral("draw"));          // its write, from what it read before them
+        const QJsonObject onDisk = diagnosticsJsonOf(dir);
+        const QJsonObject intent = onDisk.value(QStringLiteral("intent")).toObject();
+        check(intent.value(QStringLiteral("focusConditionId")).toString() == QStringLiteral("over_the_top")
+                  && intent.value(QStringLiteral("focusFromShot")).toInt() == 4,
+              "a focus declared in the panel survives the catch-up's write");
+        check(intent.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
+              "…and a declared miss");
+        check(onDisk.value(QStringLiteral("screens")).toObject().value(QStringLiteral("early_extension")).toBool(),
+              "…and a screen answer");
+        check(onDisk.value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("3")).toString() == QStringLiteral("draw"),
+              "…while the catch-up's own change, to an entry the file had not moved, stands beside them");
+        check(catchUp->focusConditionId() == QStringLiteral("over_the_top") && catchUp->focusFromShot() == 4
+                  && catchUp->declaredMiss() == QStringLiteral("slice"),
+              "the catch-up adopts them: it reduces under the golfer's focus from then on");
+
+        panel->clearFocus();                                        // withdrawn in the panel …
+        catchUp->setShotIntent(5, QStringLiteral("fade"));          // … while the catch-up still holds it
+        const QJsonObject after = diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject();
+        check(after.value(QStringLiteral("focusConditionId")).toString().isEmpty()
+                  && after.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
+              "a focus withdrawn in the panel stays withdrawn, the miss beside it untouched");
+    }
+
+    // ── The merge, three ways, on hand-built envelopes ──
+    {
+        auto corr = [](const char *to) {
+            return QJsonValue(QJsonArray{ QJsonObject{ { QStringLiteral("family"), QStringLiteral("strike") },
+                                                       { QStringLiteral("from"), QStringLiteral("chunk") },
+                                                       { QStringLiteral("to"), QLatin1String(to) } } });
+        };
+        auto env = [](const char *focus, int from, QJsonObject corrections) {
+            return QJsonObject{ { QStringLiteral("intent"), QJsonObject{ { QStringLiteral("focusConditionId"), QLatin1String(focus) },
+                                                                         { QStringLiteral("focusFromShot"), from },
+                                                                         { QStringLiteral("declaredMiss"), QString() } } },
+                                { QStringLiteral("corrections"), corrections } };
+        };
+        // The catch-up dropped shot 7 (its swing left the folder), which moved the focus split from 5 to 4;
+        // meanwhile a panel corrected shot 12.
+        const QJsonObject base   = env("over_the_top", 5, QJsonObject{ { QStringLiteral("7"), corr("thin") }, { QStringLiteral("9"), corr("top") } });
+        const QJsonObject ours   = env("over_the_top", 4, QJsonObject{ { QStringLiteral("9"), corr("top") } });
+        const QJsonObject theirs = env("over_the_top", 5, QJsonObject{ { QStringLiteral("7"), corr("thin") }, { QStringLiteral("9"), corr("top") },
+                                                                      { QStringLiteral("12"), corr("thin") } });
+        const QJsonObject merged = SessionDiagnosticsModel::mergeGolferInput(base, ours, theirs);
+        const QJsonObject mc = merged.value(QStringLiteral("corrections")).toObject();
+        check(!mc.contains(QStringLiteral("7")) && mc.contains(QStringLiteral("9")) && mc.contains(QStringLiteral("12")),
+              "merge: a shot the catch-up dropped stays dropped; the panel's new correction is kept");
+        check(merged.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusFromShot")).toInt() == 4,
+              "merge: the catch-up's moved focus split stands where the file did not move it");
+        const QJsonObject redeclared = env("early_extension", 6, theirs.value(QStringLiteral("corrections")).toObject());
+        const QJsonObject m2 = SessionDiagnosticsModel::mergeGolferInput(base, ours, redeclared);
+        check(m2.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusConditionId")).toString() == QStringLiteral("early_extension")
+                  && m2.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusFromShot")).toInt() == 6,
+              "merge: a focus re-declared in the file wins whole — its id with its own split");
+        check(SessionDiagnosticsModel::golferInputKeys()
+                  == QStringList({ QStringLiteral("intent"), QStringLiteral("screens"), QStringLiteral("shotIntent"),
+                                   QStringLiteral("intentFrom"), QStringLiteral("corrections") }),
+              "the golfer's keys are the five the envelope carries");
+    }
 }
 
 // Contract A: who writes the sidecar, and the provisional stamp's one regrade. Staged swings, because
@@ -4204,6 +4358,7 @@ int main(int argc, char **argv)
     compositePresentationSuite(tmp);
     variabilityMarksSuite(tmp);
     shotOutcomesSuite(tmp);
+    golferInputSuite(tmp);
     flightCheckedStrikesSuite(tmp);
     baselineAuthoritySuite(tmp);
     heldMeasureSuite(tmp);

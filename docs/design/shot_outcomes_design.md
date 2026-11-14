@@ -471,6 +471,9 @@ Q_INVOKABLE void flagForReview(int shotId);                                     
 ```
 
 - Detection, corridors and tiers never read either (A6; assert by test, as the focus contract is).
+- They are the golfer's only copy, so every writer that rebuilds the file carries them: the catch-up merges
+  them from the file before it writes, `regrade_ledger` copies them across, and an unreadable file is set
+  aside rather than written over (session_diagnostics_design.md §A2, audit H-04).
 - Corrections feed: displayed labels, `shotLog`, `shotMix`, `reasons`, distances and tendencies. They
   and flags are appended to `<athlete>/outcome_corrections.jsonl` as the tuning log for outcome
   corridors: `kind: "correction"` (shot, family, detected, corrected, measure values) or `kind: "flag"`.
