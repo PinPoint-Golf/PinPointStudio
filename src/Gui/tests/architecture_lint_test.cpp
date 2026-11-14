@@ -70,7 +70,7 @@
 //
 // THE ALLOW-LIST. Today's violations live in architecture_allowlist.txt beside this file, generated
 // once from the tree at the start of Step G — one line per file and rule, with the number of findings
-// allowed, WHY, and the refactor step that removes it (`# step 3`; `# unplanned` when no step 1-7
+// allowed, WHY, and the refactor step that removes it (`# step 3`; `# unplanned` when no step 1-8
 // does — those go to Mark; `# kept` for a deliberate one). A file that grows past its count fails; one that
 // drops below it is reported so the count can be lowered. The list can only shrink: adding a NEW
 // entry is an architecture decision — ask Mark first.
@@ -836,7 +836,7 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
     QFile                f(path);
     *ok = f.open(QIODevice::ReadOnly | QIODevice::Text);
     if (!*ok) return out;
-    static const QRegularExpression tag(QStringLiteral(R"(#\s*(step\s+[1-7]|unplanned|kept)\s*$)"));
+    static const QRegularExpression tag(QStringLiteral(R"(#\s*(step\s+[1-8]|unplanned|kept)\s*$)"));
     static const QRegularExpression ruleRe(QStringLiteral(R"(^A[1-8]$)"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
     for (int i = 0; i < lines.size(); ++i) {

@@ -20,6 +20,7 @@ created inside a view and did not exist unless that panel was on.
 | [02-findings.md](02-findings.md) | Every verified finding, by theme then severity |
 | [03-target-architecture.md](03-target-architecture.md) | The proposed ownership model, identity and layer rules. **For approval** |
 | [04-remediation-plan.md](04-remediation-plan.md) | Staged, dependency-ordered and testable plan |
+| [05-deferred-worklist.md](05-deferred-worklist.md) | The technical and platform-layer items steps 1–8 leave out, with context, for the platform refactor that follows |
 | [brief.md](brief.md) | The brief every reviewer worked from: 15-point checklist, evidence rule, finding schema |
 | `findings/` | The eight reviewers' raw reports (A–H) and the verification record |
 | `data/` | Generated measurements (see below) |

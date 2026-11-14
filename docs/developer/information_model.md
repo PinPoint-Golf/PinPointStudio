@@ -4,14 +4,14 @@
 refactor (`docs/implementation/swe-audit/04-remediation-plan.md`). Much of it does not exist yet. Before relying on
 any object or rule below, check [§11 Where the code is today](#11-where-the-code-is-today).
 
-It restates `docs/implementation/swe-audit/03-target-architecture.md` (draft 2.2; decisions 1–23). Who decided what:
+It restates `docs/implementation/swe-audit/03-target-architecture.md` (draft 2.3; decisions 1–30). Who decided what:
 
 | Mark | Meaning |
 |---|---|
 | (Mark, 14 Nov 2026) | Mark's decision |
 | *(clarification, for Mark to read)* | The lead's clarification of the agreed design, consistent with P1–P9. Not yet read by Mark. |
 | *to decide (Mark, step N)* | Open. Described as it is today; the named step's brief brings it to Mark. |
-| no mark | The agreed design (03, decisions 1–23) |
+| no mark | The agreed design (03, decisions 1–30) |
 
 Each refactor step's brief may refine an element; when it does, this page changes in the same commit.
 
@@ -78,7 +78,7 @@ to Analysis as typed input.
 
 | Context | Holds | Owns |
 |---|---|---|
-| **Acquisition** | Transports, devices, the ring buffer, connectors, calibration *procedures*, threading inside capture. Its internals are designed in the later Acquisition review; only its contract is fixed here. | Nothing persistent: it produces Recordings, which the domain owns and stores |
+| **Acquisition** | Transports, devices, the ring buffer, connectors, calibration *procedures*, threading inside capture. Its internals are designed in the platform refactor (capture), which follows this one; only its contract is fixed here. | Nothing persistent: it produces Recordings, which the domain owns and stores |
 | **Analysis** | The per-shot DAG, the grading rule and the cross-shot reduction rules | Nothing persistent: its results are owned and stored by the domain |
 | **Domain + Application** | Athlete, Session, Shot, Studio/Rig, persistence, `AppState`, presentation | Everything that is stored |
 
@@ -116,20 +116,24 @@ A **Recording** is everything Analysis is allowed to know about a captured swing
 | Rig | A reference to the Studio/Rig state it was captured with (cameras, positions, calibrations) |
 | Integrity | Capture holes, lost frames |
 | Analysis context | The athlete facts the analysis consumes (handedness, height, cohort, the club and its length), **recorded at capture**, so re-analysis never reads a live profile. It is the only source of athlete facts for analysis *(clarification, for Mark to read)*. |
+| Analysis context on disk | One schema-tagged `analysisContext` block in the swing file, written once by capture through the one header writer: `athlete.handedness`, `athlete.heightM` (0 = unknown), `athlete.clubSet` (men / women / junior: the cohort analysis consumes), the captured club (`club.name`, empty = undeclared, never the stub) with its geometry, length prior and standard length, and `bag`, a snapshot of the bag's geometry so a corrected club is resolvable without a live profile. `capture.club` stays, written from the same value, as provenance (IM-1; Mark, 14 Nov 2026). The norm cohort (sex, age band) is **not** recorded in step 1; whether grading reads it from the Recording is step 3's (IM-7; Mark, 14 Nov 2026). |
 
 | Rule | Forbids |
 |---|---|
 | A shot's swing file is written **once by capture** (the Recording), **then only by its `Session`**. That is how P3 holds for the Recording (Mark, 14 Nov 2026). | Any other writer of a swing file |
+| **Capture writes in stages**: the shot, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`. Follow-club may rewrite the captured club, because the device named it (IM-4; Mark, 14 Nov 2026). | A late write that is not a capture fact |
+| **Until step 3** the later writers are today's callers (`ShotListModel`, `ReanalysisController`, the LM controller, the archiver, the tools), all through `RecordingRepository`; the `Session` takes them over in step 3 (IM-5; Mark, 14 Nov 2026). | Writing the swing file past the repository |
 | **Analysis only ever runs on a Recording**, whether it arrived a second ago or a year ago. Live analysis and re-analysis are the same function: **same Recording + same effective context (the effective club included) → same job.** | Building an analysis job from live objects; Analysis code reaching into device classes, the ring buffer, live controllers, the athlete controller or settings (lint rule A8) |
 | **One builder** makes the analysis job from the Recording and its effective context (the recorded analysis context, with the golfer's club correction applied), for live capture and re-analysis alike. | A second job builder; any context field set on one path only |
 | **Re-analysis uses the effective club** (Mark, 14 Nov 2026): when the golfer has corrected the club, the builder puts the corrected club, its length and its norms into the effective context, because it is what was really hit. A corrected shot re-analyses with its corrected club. The captured club stays in the Recording for provenance. | Re-analysing a corrected shot with the club it was captured under; Analysis reading the shot's `review` block itself |
+| **The correction, until step 6, is the LM board's override** (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. A corrected club takes its geometry from the bag snapshot (when present) and its standard length from the club set and height; it has no length prior (IM-3; Mark, 14 Nov 2026). | Treating the popover's club, or the board's evidence suggestion, as the correction |
 
 **The name.** The contract's types are vocabulary shared by both sides; its store is an adapter. Both live in a
 directory named for what they are (e.g. `src/Recording`), not `src/Export`.
 
 ### Studio/Rig (Mark, 14 Nov 2026)
 
-**Named; designed in the Acquisition session.**
+**Named; designed in the platform refactor (capture).**
 
 | Aspect | Target |
 |---|---|
@@ -137,7 +141,7 @@ directory named for what they are (e.g. `src/Recording`), not `src/Export`.
 | Not owned by | A device, or a shot |
 | Relation to shots | Each Recording references the rig state it was captured with |
 | Calibration | The *procedure* belongs to Acquisition; its *result* is a source fact owned by Studio/Rig |
-| Identity, persistence, writer, `RigChanged` | Named; designed in the Acquisition session |
+| Identity, persistence, writer, `RigChanged` | Named; designed in the platform refactor (capture). Until then a Recording keeps each stream's setup (perspective, mirrored, fixed in place) and a slot for the rig reference |
 
 ---
 
@@ -214,9 +218,9 @@ placed elsewhere where a directory spans rings.
 | Ring | Directories (and files placed against their directory) |
 |---|---|
 | Platform | the logging, profiling and machine-query files of `Core` (`pp_debug`, `pp_log_stream`, `PpMessageLog`, `pp_profiler`, `cpu_topology`, `pp_gpu_metrics`, …) |
-| Vocabulary | `Metrics`; the rest of `Core`; the shared types of `Analysis` (`swing_analysis`, `gate_record`, `analysis_versions`, …); the stream types of `Buffer` (`types`, `swing_window`, `imu_sample`, …); the reading types of `LaunchMonitor` (`launch_monitor_reading`, `lm_device`); `Export/frame_decode` |
+| Vocabulary | `src/Recording`, the Recording contract's types, created in step 1 (IM-6; Mark, 14 Nov 2026); `Metrics`; the rest of `Core`; the shared types of `Analysis` (`swing_analysis`, `gate_record`, `analysis_versions`, …); the stream types of `Buffer` (`types`, `swing_window`, `imu_sample`, …); the reading types of `LaunchMonitor` (`launch_monitor_reading`, `lm_device`); `Export/frame_decode` |
 | Rules | `Pose`, `Club`, `Ball`, `Body`, `IMU`, `Kinematics`, `Wrist`, `Skeleton3d`, `Timeline`, `Diagnostics`, `Coaching`; the inferred reads of `LaunchMonitor` (`lm_inferred_reads`, `lm_flight_path`, `shot_pairing`, …); `Core/kf3_smoother` |
-| Domain model | `src/DomainModel` (Mark, 14 Nov 2026) |
+| Domain model | `src/DomainModel` (Mark, 14 Nov 2026), created in step 1 for `RecordingRepository` (IM-6; Mark, 14 Nov 2026) |
 | Application | `Analysis` (the pipeline, re-analysis); `src/App` for `AppState` (Mark, 14 Nov 2026) |
 | Adapters | `Gui` (presenters, QML, and today's app services); `Export` (the Recording store); `Buffer` (the ring itself); `Video`, `Audio`, `LaunchMonitor` (connectors), `Ppcp`, `LLM`, `STT`, `TTS`, `Secrets`, `Update`; `Core/device_enumerator`, `Core/pp_settings`, `Core/studio_profile`, `Core/app_info` |
 | No ring (not C++) | `Resources` (shipped data: core pack, norms, flight norms, icons, fonts, keys); `Shaders` |
@@ -280,8 +284,8 @@ Session  (aggregate root · SessionId)
 | Club baseline (the athlete's club baselines) | recorded input (Mark, 14 Nov 2026) | `Session`; session | — | written once at first need, never at Open | never regenerated, never deleted with the caches; rewritten only when its format is older than the current rule | `<session>/club_baseline.json` | `Session` via `SessionRepository` |
 | `sessionIntent` (declared focus/work-on, declared miss, screen answers, "from here on" intent runs) | source | `Session`; session | — | by command | — | `<session>/session_input.json` | `Session` |
 | `Shot` | entity | `Session`; shot | `ShotRef` = (`SessionId`, swing number) | at capture (or with its session on load) | with its session | `swing_NNNN/swing.ppsw` | written once by capture, then only by its `Session` |
-| Recording | source | `Shot`; shot | the shot's | at capture | never regenerated | `swing.ppsw` | capture, once |
-| Analysis | recorded product (derived, stamped) | `Shot`; shot | the shot's | by the analysis pipeline | refreshed by re-analysis | `swing.ppsw` | the `Session`, from the pipeline's posted result |
+| Recording (its analysis context a recorded input) | source | `Shot`; shot | the shot's | at capture, in stages: the shot, then its late parts (IM-4; Mark, 14 Nov 2026) | never regenerated | `swing.ppsw` (the context: the `analysisContext` block, IM-1) | capture, through `RecordingRepository` |
+| Analysis | recorded product (derived, stamped with its stage versions and its inputs; window time) | `Shot`; shot | the shot's | by the analysis pipeline | refreshed by re-analysis | `swing.ppsw` | the `Session`, from the pipeline's posted result; until step 3, today's callers through `RecordingRepository` (IM-5; Mark, 14 Nov 2026) |
 | Measurement `{metric, source instrument + route, kind, value, σ, gates}` | per kind *(clarification, for Mark to read)*: a **reading** (delivered by an instrument: LM, HackMotion) is source; a **derived measurement** (rules over the Recording's streams: camera, IMU, and the LM's inferred reads) is part of the recorded product | `Shot`; shot | — | readings as delivered; derived measurements by the measurement rules | with the shot | `swing.ppsw` | `Session` |
 | Annotations (a reading left out; the club it was really hit with) | source | `Shot`; shot | — | by command | — | the shot's `review` block | `Session` |
 | Shot intent, rating, note, label corrections | source | `Shot`; shot | — | by command; shot intent is pre-filled from the intent run in force when the shot is taken, and the shot can override it | — | the shot's `review` block (label corrections: Mark, 14 Nov 2026) | `Session` |
@@ -291,7 +295,7 @@ Session  (aggregate root · SessionId)
 | `SessionDiagnostics` | derived: grades every shot of its session and keeps the rows; owns the session's results | `Session`; session | the session's | with the session; always runs (every live shot is graded, panel or not) | with the session | `<session>/diagnostics.json`, `<session>/work_ons.json` (`work_ons.json`: *clarification, for Mark to read*) | `SessionDiagnostics` via `SessionRepository` |
 | `SessionSeries` | derived: the session's measurements as series, one per session | `Session`; session | the session's | with the session | with the session | in memory only, never persisted | — |
 | Packs and norms (the shipped core pack and norms; the user's pack and corridor edits; community sets; flight norms) | source (the user's edits); shipped rule data | **owner: to decide (Mark, step 3)** | the set's file name | loaded once per change | — | today: shipped sets in `src/Resources/diagnostics/` (read-only); the user's in `<AppData>/diagnostics/`: `user.json` (pack), `user.norms.json` (the corridor editor's set), other `*.json` (community sets, read-only) | today: the pack editor and the corridor editor, through `atomicWrite`. **Repository: to decide (Mark, step 3)** |
-| `Studio/Rig` | source (calibration results), versioned | its own entity | named; designed in the Acquisition session | — | — | named; designed in the Acquisition session | named; designed in the Acquisition session |
+| `Studio/Rig` | source (calibration results), versioned | its own entity | named; designed in the platform refactor (capture) | — | — | named; designed in the platform refactor (capture) | named; designed in the platform refactor (capture) |
 
 ### "Live", "open" and "on screen" are not objects (Mark, 14 Nov 2026)
 
@@ -317,6 +321,7 @@ There is one kind of object, `Session`, and three different facts about it:
 | Rule | Detail |
 |---|---|
 | Source facts | The declared club (captured, kept in the Recording for provenance) and the golfer's correction (the board's override, in the shot's `review`) |
+| Until step 6 | The correction is the LM board's override (`review.clubOverride`) only; the swing-edit popover's `review.club` is the declared club, because it cannot yet be told apart from the club capture seeds into it (IM-3; Mark, 14 Nov 2026) |
 | Effective club | Derived: the correction wins, else the declared club. It is the one club for grading, every presenter and re-analysis (Mark, 14 Nov 2026). |
 | Undeclared | An undeclared club is *undeclared* and graded as "club assumed", never a hidden DRIVER |
 | Label | From one table |
@@ -413,6 +418,8 @@ kept in the swing document as a cache with a stamp (`k*StageVersion` and inputs,
 | Re-analysis reproduces live | Same Recording + same effective context (the effective club included) → same job. A corrected shot re-analyses with its corrected club (Mark, 14 Nov 2026). |
 | Produced by | The analysis pipeline (an application service). It produces the recorded product only, never grades. |
 | Bumping | A change to a stage's output bumps its `k*StageVersion`. |
+| The input stamp | `analysis.versions.inputs` records the effective context the analysis used (the effective club, its length and source, height, club set; `kAnalysisInputsVersion`). A shot whose effective context now differs from its stamp, or that has no stamp, is stale. A change of inputs moves no `k*StageVersion` (IM-2; Mark, 14 Nov 2026). |
+| One time base | `analysis.timeBase: "window"`: the analysis is window-relative on disk, rebased once in the pipeline; a document without the key is guessed in one place, the repository's reader (IM-2; Mark, 14 Nov 2026). |
 
 ### Events and what they recompute
 
@@ -433,7 +440,7 @@ The five events `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionReloc
 | `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) |
 | `NormsChanged`, `PackChanged` (a corridor edit among them) | regrade through the stamp (rule version and input content), at once, without re-analysis, never "after a relaunch" |
 | `AthleteRecordChanged` | athlete-level facts only. **Not** a session's club baseline or any Recording's analysis context (recorded inputs) |
-| `RigChanged` | named; designed with Studio/Rig in the Acquisition session |
+| `RigChanged` | named; designed with Studio/Rig in the platform refactor (capture) |
 
 ### Stamps
 
@@ -453,7 +460,7 @@ Every file is written only through its root (Mark, 14 Nov 2026).
 
 | File | Kind | Owner (one writer) | Repository |
 |---|---|---|---|
-| `swing_NNNN/swing.ppsw`: the Recording; the analysis; measurements (the LM's readings among them) | source + recorded product | written once by capture (the Recording), then only by its `Session` | `RecordingRepository` (implemented by `SwingStore`) |
+| `swing_NNNN/swing.ppsw`: the Recording (its `analysisContext` block, IM-1); the analysis (`analysis.versions.inputs`, `analysis.timeBase`, IM-2); measurements (the LM's readings among them) | source + recorded input + recorded product | written by capture, in stages (IM-4), then only by its `Session`; until step 3 by today's callers through the repository (IM-5) | `RecordingRepository` (implemented by `SwingStore`) |
 | `swing_NNNN/swing.ppsw`, `review` block: rating, note, exclusion, club correction, shot intent, label corrections | source | the `Session` | `RecordingRepository` |
 | `swing_NNNN/swing_phasegrid.json` | derived (shot cache, stamped) | the `Session` *(clarification, for Mark to read)* | `RecordingRepository` |
 | `swing_NNNN/swing.json`, `swing_summary.json` | JSON-era swing document and its sidecar: read for old swings, removed on the first rewrite to `.ppsw`; retired | — | `RecordingRepository` (read only) |
@@ -473,7 +480,7 @@ Every file is written only through its root (Mark, 14 Nov 2026).
 
 This table covers the athlete, session and shot files and the rule data they are graded against. Studio and
 acquisition files (the studio profile, the PPCP import ledger, calibration and ceremony recordings) belong to
-Studio/Rig and Acquisition, designed in the Acquisition session.
+Studio/Rig and Acquisition, designed in the platform refactor (capture).
 
 The athlete's library folder is stored on the record, kept on rename, and migrated once. It is never derived from
 the athlete's name.
@@ -573,14 +580,19 @@ Updated by each refactor step in the commit that changes the status. Step number
 | Element | Status | Today | Delivered by |
 |---|---|---|---|
 | Recording contract: one builder, analysis only on a Recording | not yet | live capture and re-analysis build the job separately; `athlete.heightM` not written for a normal capture (H-02, A-01, E-11) | step 1 |
-| Analysis context recorded in the Recording | not yet | as above | step 1 |
+| Analysis context recorded in the Recording: one `analysisContext` block, club set as the cohort, the bag snapshot (IM-1; Mark, 14 Nov 2026) | not yet | as above; the club set is never written, and readers look for `athlete.sex` / `dob`, which no writer puts in a document | step 1; the old library backfilled once with height and club set (D4: dry run to Mark first, backups on the share) |
+| The input stamp and one time base (IM-2; Mark, 14 Nov 2026) | not yet | stage versions only; the window-time guess `tt >= windowT0 ? tt - windowT0 : tt` in several readers (A-03) | step 1 |
+| Capture writes in stages; the interim writers through `RecordingRepository` (IM-4, IM-5; Mark, 14 Nov 2026) | not yet | 27 write call sites of the swing file (step 1's brief §3.4) | step 1 (the repository); step 3 (the `Session`) |
+| The club correction is the board's override until step 6 (IM-3; Mark, 14 Nov 2026) | not yet | re-analysis never reads `clubOverride` | step 1 (re-analysis); step 6 (one club everywhere) |
+| Norm cohort (sex, age band) not recorded in step 1 (IM-7; Mark, 14 Nov 2026) | — | — | step 3 decides whether grading reads it from the Recording |
 | Same Recording + same effective context → same job; a corrected shot re-analyses with its corrected club | not yet | the board's override is read only by the board (G-07) | step 1 (re-analysis); step 6 (one club everywhere) |
 | `RecordingRepository`, implemented by `SwingStore` | not yet | `SwingStore` exists; no interface | step 1 |
 | One serialiser per analysis block | partly | Stage 0.6: one stored-score reader; hand-kept converters remain (A-02, H-01, E-10, A-03) | step 1 |
 | A swing file written once by capture, then only by its `Session` | not yet | `ShotProcessor` and several readers write the document (E-09) | step 1 (the rule, `RecordingRepository`) |
-| `src/Export` renamed for the Recording contract | not yet | — | step 7 |
-| Studio/Rig | not yet | rig assumptions spread through the code | Acquisition session |
-| Rings enforced (`architecture_lint_test`, A1–A8); the Platform ring | not yet | the lint and its allowlist are being written (step G) | step G (lint); steps 1–7 shrink its allowlist |
+| `src/Recording` (Vocabulary) and `src/DomainModel` created (IM-6; Mark, 14 Nov 2026) | not yet | directories do not exist | step 1 |
+| `src/Export` renamed for the Recording contract | not yet | — | step 7 (the store only; the types are born in `src/Recording` in step 1) |
+| Studio/Rig | not yet | rig assumptions spread through the code | the platform refactor (capture) |
+| Rings enforced (`architecture_lint_test`, A1–A8); the Platform ring | not yet | the lint and its allowlist are being written (step G) | step G (lint); steps 1–8 shrink its allowlist |
 | `src/DomainModel`; repository interfaces | not yet | directory does not exist | steps 1–3 |
 | `AthleteId`, `SessionId`, `ShotRef`, `SessionIdentity` | not yet | athlete keyed by sanitised name; folder names parsed in many places (E-02, E-07, F-06) | step 2 |
 | `Athlete` object, one per `AthleteId`, replaced on switch | partly | `AthleteController` holds a name; a switch is refused while a session runs, and a record edit is no longer treated as a switch (Stage 0, guard only) | step 2 |
@@ -594,19 +606,19 @@ Updated by each refactor step in the commit that changes the status. Step number
 | `work_ons.json` written by `SessionDiagnostics` *(clarification, for Mark to read)* | not yet | written by the athlete-level `WorkOnsController` | step 3 |
 | `outcome_corrections.jsonl` appended by the athlete level on `LabelCorrected` | not yet | appended by `SessionDiagnosticsModel` | step 3 |
 | Club baseline as a recorded input, rewritten only when its format is outdated | partly | frozen at first need and rewritten when its schema is older than the rule (`club_distances.h`); written by whichever view-model instance has authority (D-06) | step 3 |
-| Archive and report as `Session` commands | not yet | the archiver and the report model write the session folder directly | step 2 (the archive through `SessionRepository`), step 3 (`Session::archive()`), step 5 (the report): the lead's proposal, for Mark |
+| Archive and report as `Session` commands | not yet | the archiver and the report model write the session folder directly | step 2 (the archive through `SessionRepository`), step 3 (`Session::archive()`), step 5 (the report): the lead's proposal; Mark agreed 14 Nov 2026 |
 | Packs and norms: owner and repository | to decide (Mark, step 3) | pack and corridor editors write `<AppData>/diagnostics/` through `atomicWrite` | step 3 (decision); step 7 (norms loaded by repositories) |
 | Shot outcome and three factors owned once | not yet | recomposed per consumer (C-01, G-03) | step 3 |
 | `SessionSeries`, one per session | not yet | one `SessionSeriesModel` per view (F-01) | step 5 |
 | One measurement set, tagged by source and kind; the LM a device; one precedence rule | not yet | LM rows inside `analysis.metrics`; a separate LM model (A-04, A-10) | step 6 |
 | Flight check as a session overlay | not yet | the verdict is written into the rows (C-02) | step 6 |
 | One direction rule (pack corridors) | not yet | two classifiers (F-05, G-01) | step 6 |
-| Undeclared club graded "club assumed" | partly | Stage 0.3: graded right when the club is empty; capture still writes a DRIVER stub (the athlete's primary club, default DRIVER), so the shot reads back as a declared driver | step 6 (one club per shot): the lead's proposal, for Mark |
+| Undeclared club graded "club assumed" | partly | Stage 0.3: graded right when the club is empty; capture still writes a DRIVER stub (the athlete's primary club, default DRIVER), so the shot reads back as a declared driver | step 6 (one club per shot): the lead's proposal; Mark agreed 14 Nov 2026 |
 | Held conditions: one rule | done | Stage 0.12 | — |
 | `AppState` in `src/App`; the selection and `castSelection` | not yet | the selection is held in five places (E-04, E-05) | step 4 |
 | Golfer input out of the cache | partly | Stage 0.1: golfer input can no longer be lost from `diagnostics.json`; it still lives there (H-04) | step 2 |
 | `session_input.json`; label corrections and shot intent on the shot's `review` | not yet | in the `diagnostics.json` envelope | step 2 |
-| Atomic writes, one mechanism | partly | Stage 0.2: the shared `atomicWrite` is on `QSaveFile`; about 15 files still use `QSaveFile` directly, and two still write a part file and rename | step 2 (one helper, with the repositories): the lead's proposal, for Mark |
+| Atomic writes, one mechanism | partly | Stage 0.2: the shared `atomicWrite` is on `QSaveFile`; about 15 files still use `QSaveFile` directly, and two still write a part file and rename | step 2 (one helper, with the repositories): the lead's proposal; Mark agreed 14 Nov 2026 |
 | One door per file; schema checked on read | not yet | envelope parsed in about 10 places; schema tags unchecked (D-08, H-08, H-12) | step 2 |
 | `fault_profile.json` deleted | not yet | a reader on every activation, a writer with no caller (H-11, D-07) | step 3 |
 | Stamps carry rule versions and every input | partly | analysis stage versions exist but gate reuse only; diagnostics stamps omit flight norms and thresholds (A-08, C-02, G-06) | steps 3 and 6 |

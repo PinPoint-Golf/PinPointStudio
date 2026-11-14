@@ -1,6 +1,11 @@
-# 03 · Target architecture — draft 2.1 **agreed by Mark, 14 Nov 2026**; draft 2.2 adds his 14 Nov decisions and the lead's clarifications for him to read (to be refined in each step's brief)
+# 03 · Target architecture — draft 2.1 **agreed by Mark, 14 Nov 2026**; draft 2.2 adds his 14 Nov decisions and the lead's clarifications for him to read; draft 2.3 adds step 1's information-model decisions (to be refined in each step's brief)
 
 **Status:**
+- Draft 2.3, 14 Nov 2026: Mark's answers to step 1's brief (`build/refactor/step-1/BRIEF.md` §8.2, §9) recorded as
+  decisions 24–30 (§13): the analysis context in the swing file, the input stamp and time base, the club rule until
+  step 6, capture writing in stages, the interim writers, the two new directories, and no norm cohort in step 1
+  (Mark, 14 Nov 2026). The later review of capture is called **the platform refactor (capture)** everywhere (Mark,
+  14 Nov 2026); its worklist is `05-deferred-worklist.md`.
 - Draft 2.2, 14 Nov 2026: clarifications from the information-model review (`docs/developer/information_model.md`).
   Decisions 1–23 (§13) are Mark's; 19–23 record his 14 Nov decisions below. Each change says who decided it.
   - **Mark, 14 Nov:**
@@ -43,14 +48,14 @@
 - Draft 2.1, 14 Nov 2026. It adds §0, the context map: three contexts, the Recording contract and Studio/Rig.
 - Draft 2. It is rewritten around design principles. Draft 1 was organised around the findings,
   and it put the selection in the domain model, which Mark rightly challenged.
-- Mark has agreed draft 2.1 and decisions 1–23. Nothing in a structural step of `04-remediation-plan.md` is built
+- Mark has agreed draft 2.1 and decisions 1–30. Nothing in a structural step of `04-remediation-plan.md` is built
   until Mark has approved that step's brief.
 - Stage 0, local defect fixes that need no new structure, is committed.
 
 ## 0. The context map: three contexts and the contracts between them
 
 PinPoint is three contexts, joined by two contracts (Mark and the lead, draft 2 review). This audit and this design
-cover **Analysis** and **Domain + Application** in full. **Acquisition** is reviewed in a later session. Its
+cover **Analysis** and **Domain + Application** in full. **Acquisition** is reviewed in the platform refactor (capture), which follows this one. Its
 internals are out of scope here, but its contract with Analysis, the Recording, is decided now.
 
 ```
@@ -83,7 +88,8 @@ A Recording is everything Analysis is allowed to know about a captured swing, an
 - capture integrity (holes, lost frames);
 - the **analysis context** it was captured under: the athlete facts the analysis consumes (handedness, height,
   cohort, the club and its length). These are recorded, so re-analysis never reaches for a live profile. It is the
-  only source of athlete facts for analysis.
+  only source of athlete facts for analysis. Step 1 records it as one schema-tagged `analysisContext` block; the cohort it
+  records is the club set, not the norm cohort (decisions 24 and 30).
 
 A shot's swing file is written **once by capture** (the Recording), **then only by its `Session`** (Mark, 14 Nov).
 That is how P3 holds for the Recording.
@@ -123,7 +129,7 @@ That result belongs to the **Studio/Rig**, a domain entity, not to a device and 
 references the rig state it was captured with.
 
 Today assumptions such as "fixed cameras are square" and the uncalibrated DTL yaw σ are spread through the code,
-because nothing owns the rig. Studio/Rig is named here; its design goes with the Acquisition session.
+because nothing owns the rig. Studio/Rig is named here; its design goes with the platform refactor (capture).
 
 ### 0.3 The shapes of Analysis
 
@@ -138,7 +144,7 @@ because nothing owns the rig. Studio/Rig is named here; its design goes with the
 
 ### 0.4 Decided now, and deferred
 
-| Decided in this design | Deferred to the Acquisition session |
+| Decided in this design | Deferred to the platform refactor (capture) |
 |---|---|
 | The three contexts and their direction | Transports, devices, the ring buffer, connectors, threading inside capture |
 | The Recording contract: its contents, the rule "analysis only on a Recording", its name | The capture pipeline that produces it |
@@ -353,7 +359,7 @@ it known-stale; re-analysis refreshes it.
 | `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) |
 | `NormsChanged`, `PackChanged` (a corridor edit among them) | regrade through the stamp (the rule version and the content of the inputs), without re-analysis — never "until relaunch" (B-01) |
 | `AthleteRecordChanged` | athlete-level facts. **Not** a session's club baseline or any Recording's analysis context: recorded inputs, frozen by design (E-03) |
-| `RigChanged` | named; designed with Studio/Rig in the Acquisition session |
+| `RigChanged` | named; designed with Studio/Rig in the platform refactor (capture) |
 
 **Stamps:** every cached derived result carries the versions of its rules and a fingerprint of its inputs,
 norms and thresholds included (C-02, G-06). A reader that finds a stale stamp recomputes. It does not trust the
@@ -393,7 +399,7 @@ step 3).
 
 The table covers the athlete, session and shot files and the rule data they are graded against. Studio and
 acquisition files (the studio profile, the PPCP import ledger, calibration and ceremony recordings) go with Studio/Rig
-and the Acquisition session.
+and the platform refactor (capture).
 
 **Rules:**
 - **One door per file.** Each file has one repository and one format definition (no envelope parsed in 10
@@ -523,13 +529,26 @@ updates when `ShotReanalysed` or `ShotAdded` lands for the selected `ShotRef`.
 | 14 | Migration | The strangler order in §10 (the steps of `04-remediation-plan.md`), with the lint first. |
 | 15 | Instruments | The launch monitor is one device among the others. A shot has one set of source-tagged measurements; one rule decides which source wins for a metric; the LM board, Charts and the report are presenters over the session's measurements. No separate LM model. (Mark, draft 2 review.) |
 | 16 | The Recording contract | The layering contract between Acquisition and Analysis (§0.1): analysis only ever runs on a Recording, which carries its analysis context. Today's `src/Export` is renamed for what it is (e.g. `src/Recording`). |
-| 17 | Studio/Rig | A domain entity owning the rig and its calibrations, versioned and referenced by each Recording. Named now; designed in the Acquisition session. |
+| 17 | Studio/Rig | A domain entity owning the rig and its calibrations, versioned and referenced by each Recording. Named now; designed in the platform refactor (capture). |
 | 18 | A corrected club | Re-analysis uses the effective (corrected) club, its length and norms; the captured club stays in the Recording; a correction marks the shot's analysis stale. Same Recording + same effective context → same job (§0.1). |
 | 19 | Grading | `SessionDiagnostics` grades every shot of its session and keeps the rows, shot-level facts exposed through the shot; the analysis pipeline never grades; a corridor edit or club correction regrades without re-analysis (§0.3, §5). |
 | 20 | Intent runs | A "from here on" run pre-fills each shot as it is taken; each shot can override it; an edited run affects only later shots (§7). |
 | 21 | Recorded input | A third kind in P1; the club baseline is one, rewritten only when its format is outdated (§1). |
 | 22 | Events, cast, writers | The five new events (§5); the cast shows the session on screen when nothing is captured (§4); every file is written only through its root, the archive and the report as `Session` commands, a swing file once by capture then by its `Session`; the tuning log appended by the athlete level on `LabelCorrected` (§7). |
 | 23 | Platform ring | Ring 0 holds logging, profiling and machine queries; every ring may include it; nothing domain-shaped goes in it (§2). |
+
+**New in draft 2.3: step 1's information-model changes, decided by Mark on 14 Nov 2026** (IM-1…IM-7 of
+`build/refactor/step-1/BRIEF.md` §8.2, each asked separately and approved as recommended):
+
+| # | Decision | Answer |
+|---|---|---|
+| 24 | The analysis context in the swing file (IM-1) | A new field family: one schema-tagged `analysisContext` block, written once by capture through the one header writer, the only source of the context for analysis: handedness, height, the club set (men / women / junior) as the cohort analysis consumes, the captured club with its geometry, length prior and standard length, and a snapshot of the bag's geometry so a corrected club is resolvable without a live profile. `capture.club` stays, as provenance (§0.1). (Mark, 14 Nov 2026) |
+| 25 | The input stamp and the time base (IM-2) | `analysis.versions.inputs` stamps the effective context an analysis used (`kAnalysisInputsVersion`): a corrected club makes the analysis known-stale, and no `k*StageVersion` moves when no stage changes. `analysis.timeBase: "window"`: the analysis is window-relative on disk, rebased once in the pipeline; older documents are guessed in one place, the repository's reader (§5, §7). (Mark, 14 Nov 2026) |
+| 26 | The club rule, until step 6 (IM-3) | The golfer's correction is the LM board's override (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. The effective club is the correction if set, else the captured club; undeclared stays undeclared (decision 18). (Mark, 14 Nov 2026) |
+| 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Mark, 14 Nov 2026) |
+| 28 | The interim writers (IM-5) | Until step 3 the swing file's later writers are today's callers, through `RecordingRepository`; the `Session` takes them over in step 3 (§7). (Mark, 14 Nov 2026) |
+| 29 | Two new directories (IM-6) | `src/Recording` (Vocabulary: the Recording contract's types) and `src/DomainModel` (the repository interfaces) are created in step 1; step 7 then renames only the store (§2, decision 16). (Mark, 14 Nov 2026) |
+| 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Mark, 14 Nov 2026) |
 
 ## 14. Keeping it this way
 
