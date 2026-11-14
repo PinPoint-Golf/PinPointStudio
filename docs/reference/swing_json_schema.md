@@ -765,7 +765,7 @@ The current codes are the `k*StageVersion` constants in `src/Analysis/analysis_v
 | `interval` | obj | `{halfWidth, lo, hi}`: the measurement uncertainty on `overall`. Written only once computed. |
 | `perRegion` / `perPhase` | obj | **Added 2026-07-21.** Adherence contribution maps, for example `rotation` or `wrist` per region. Written only when not empty, so a resemblance score never has them. |
 
-> **Version note.** In `pinpoint.analysis/2`, `score` was a bare integer (e.g. `"score": 6`). `/3` promotes it to this object (design §B.0a/§B.7). Readers accept both. A device-only swing has no `score`.
+> **Version note.** In `pinpoint.analysis/2`, `score` was a bare integer (e.g. `"score": 6`). `/3` promotes it to this object (design §B.0a/§B.7). Readers accept both, and take the overall through ONE function, `overallScoreFromAnalysis()` (`swing_doc.h`): every reader of a stored score calls it (the summary, the full reader, the replay and the data viewer's Properties row), so none can read a `/3` object as a bare int and get 0 (the replay and the Properties row did until 2026-11-14). A device-only swing has no `score`, which reads as 0.
 
 ### `metrics[]`
 

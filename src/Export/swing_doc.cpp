@@ -223,12 +223,20 @@ QVariantMap dataWarningDetailFrom(const QJsonObject &manifest)
     return d;
 }
 
+// "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a). See the header.
+int overallScoreFromAnalysis(const QJsonObject &analysis)
+{
+    const QJsonValue scoreVal = analysis[QStringLiteral("score")];
+    return scoreVal.isObject() ? scoreVal.toObject()[QStringLiteral("overall")].toInt()
+                               : scoreVal.toInt();
+}
+
 namespace {
 
 // Serialise the score breakdown into the "score" object (schema /3+, design §B.0/§B.7).
 // Always carries kind + overall; resemblance fields only for the Wrist estimand; the
 // uncertainty interval only once computed (WP-4). Pre-/3 docs stored a bare int here —
-// readSwingJson() stays tolerant of both forms.
+// every reader takes the overall through overallScoreFromAnalysis(), which reads both forms.
 QJsonObject serializeScore(const analysis::ScoreBreakdown &s)
 {
     QJsonObject o;
@@ -1175,11 +1183,7 @@ SwingSummary summaryFromRoot(const QJsonObject &root, const QString &swingDir)
 
     if (root.contains(QStringLiteral("analysis"))) {
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-        // "score" is a bare int in /2 docs, a ScoreBreakdown object in /3+ (design §B.0a).
-        const QJsonValue scoreVal = an[QStringLiteral("score")];
-        s.score = scoreVal.isObject()
-                      ? scoreVal.toObject()[QStringLiteral("overall")].toInt()
-                      : scoreVal.toInt();
+        s.score = overallScoreFromAnalysis(an);
         // The chips, from the same helper the full reader uses. Reads only metrics[] — the pose track
         // this summary exists to avoid is never touched.
         s.metrics = impactMetricsFromAnalysis(an);
@@ -2260,7 +2264,7 @@ PersistedShot SwingDocReader::readSwingJson(const QString &swingDir)
         const QJsonObject an = root[QStringLiteral("analysis")].toObject();
         const QJsonValue scoreVal = an[QStringLiteral("score")];
         const QJsonObject scoreObj = scoreVal.toObject();   // empty if /2 (a number)
-        const int overall = sum.score;
+        const int overall = overallScoreFromAnalysis(an);
 
         // analysisDetail in the live QML-role shape (metrics→series, score→overall).
         ps.analysisDetail = QVariantMap{

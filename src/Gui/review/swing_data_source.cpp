@@ -24,6 +24,7 @@
 #include "timeline_labels.h"              // the one phase-tag vocabulary (P1…P10 + mnemonics)
 #include "../Analysis/swing_analysis.h"   // SegmentRole + segmentRoleForSlot/Name
 #include "../../Export/swing_store.h"   // the document, whichever format it is in
+#include "../../Export/swing_doc.h"     // overallScoreFromAnalysis — the stored score, either shape
 #include "../trust/trust_readings.h"     // gateFor: the gate behind a lane the region lacks
 
 #include <QDir>
@@ -671,7 +672,9 @@ void SwingDataSource::reload()
     }
     {   // Analysis
         QVariantList r;
-        if (analysis.contains(QStringLiteral("score"))) r << row(QStringLiteral("Score"), QString::number(analysis.value(QStringLiteral("score")).toInt()));
+        // A bare int (/2) or the ScoreBreakdown object (/3+): read through the one rule, never `.toInt()`,
+        // which reads every /3 score as 0.
+        if (analysis.contains(QStringLiteral("score"))) r << row(QStringLiteral("Score"), QString::number(pinpoint::overallScoreFromAnalysis(analysis)));
         if (analysis.contains(QStringLiteral("tier")))  r << row(QStringLiteral("Tier"),  QString::number(analysis.value(QStringLiteral("tier")).toInt()));
         if (analysis.contains(QStringLiteral("schema"))) r << row(QStringLiteral("Schema"), analysis.value(QStringLiteral("schema")).toString());
         const QJsonObject seg = analysis.value(QStringLiteral("segmentation")).toObject();

@@ -341,7 +341,7 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
         }
         m_analysisDetail = QVariantMap{
             { QStringLiteral("tier"),    an[QStringLiteral("tier")].toInt() },
-            { QStringLiteral("overall"), an[QStringLiteral("score")].toInt() },
+            { QStringLiteral("overall"), pinpoint::overallScoreFromAnalysis(an) },   // int (/2) or object (/3+)
             { QStringLiteral("series"),  series },
             { QStringLiteral("phases"),  phases } };
         hasAnalysis = !series.isEmpty();

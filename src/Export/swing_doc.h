@@ -95,6 +95,14 @@ void applyCaptureIntegrity(QJsonObject &manifest, const CaptureIntegrityVerdict 
 // and the live join both call it.
 QVariantMap dataWarningDetailFrom(const QJsonObject &manifest);
 
+// The swing's overall score out of a stored "analysis" block, in either shape it has
+// been written: a bare int (pinpoint.analysis/2) or the ScoreBreakdown object whose
+// "overall" it is (/3+, serializeScore). 0 when the block has no score.
+// The one place that rule is spelled — every reader of a stored score calls it (the summary,
+// the full reader, the replay and the data viewer's Properties row), so none can fall back
+// to `score.toInt()` and read a /3 object as 0.
+int overallScoreFromAnalysis(const QJsonObject &analysis);
+
 // The down-the-line top-out-of-view fact (analysis.clubDtl.summary.topOutOfView)
 // as the three dataWarningDetail keys — dtlTopOutOfView, dtlHandsFromTopPx,
 // dtlClubPx (px, rounded) — spelled once so the on-disk read above and the live
