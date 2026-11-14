@@ -116,8 +116,27 @@ def load_drills(path=DRILLS):
             for d in doc.get("drills", [])}
 
 
+def is_held(c):
+    """Held back (reportHold): a reading not trusted enough to headline anything."""
+    return bool(((c.get("reportHold") or {}).get("reason") or "").strip())
+
+
+def is_work_on_fault(c):
+    """A fault to work on — the work-on list's Movement class (src/Coaching/condition_role_pack.h,
+    rule v4, Mark 14 Nov 2026: Your swing follows Work-ons): a fault or a set-up, never a held
+    condition. The only conditions "what we see most", the focus and "next on your list" name."""
+    return c.get("kind") in ("fault", "setup") and not is_held(c)
+
+
+def is_praisable(c):
+    """"What you do well" may name the golfer being clear of it: a fault that is not held. A set-up
+    is read on the panel, not praised (ConditionRole::praisable)."""
+    return c.get("kind") == "fault" and not is_held(c)
+
+
 def condition_info(pack, drills=None):
-    """condition id -> what "what you do well" and the focus read off the pack: fault (kind),
+    """condition id -> what "what you do well" and the focus read off the pack: fault (a fault to
+    work on, is_work_on_fault), praisable (is_praisable),
     detection (0 any, 1 all, 2 first), prominence (Rare 0 .. Ubiquitous 4), the condition's
     FAMILIES — the metricKey (or the measure id when it has none) of the FIRST measure of each
     detectedBy signal, in detectedBy order, each once — its DRILL (the first of its `drills` the
@@ -140,7 +159,8 @@ def condition_info(pack, drills=None):
             w = when_of(meta[ms[0]]) if ms[0] in meta else 0
             if w > 0:
                 whens.append(w)
-        out[c["id"]] = {"fault": c.get("kind") == "fault",
+        out[c["id"]] = {"fault": is_work_on_fault(c),
+                        "praisable": is_praisable(c),
                         "detection": DETECTION[c.get("detection", "any") or "any"],
                         "prominence": PROMINENCE[c.get("prominence", "occasional") or "occasional"],
                         "families": fams,
@@ -212,13 +232,13 @@ def session_rates(session_dirs):
 
 
 def whats_off(rates, pack):
-    """Faults (pack kind == 'fault' only) present in the latest session that judged them, by
-    recency-weighted share, highest first (stable)."""
+    """Faults to work on (is_work_on_fault: a fault or set-up, never held — rule v4) present in the
+    latest session that judged them, by recency-weighted share, highest first (stable)."""
     conds = {c["id"]: c for c in pack["conditions"]}
     rows = []
     for cid, per in rates.items():
         c = conds.get(cid)
-        if not c or c.get("kind") != "fault":
+        if not c or not is_work_on_fault(c):
             continue
         judged = [(s, f, a) for s, f, a in per if a >= MIN_ASSESSED]
         if not judged:
@@ -320,8 +340,8 @@ def needs_work_families(info, off):
 
 
 def do_well(counts, info, off):
-    """Rule v1. Candidates: fault, detection any / first (all is a conjunction: no one reading is
-    the condition), prominence Occasional and up. Judged sessions counted >= MIN_ASSESSED rows;
+    """Rule v1. Candidates: praisable (is_praisable: an unheld fault), detection any / first (all
+    is a conjunction: no one reading is the condition), prominence Occasional and up. Judged sessions counted >= MIN_ASSESSED rows;
     at least WELL_MIN_SESSIONS of them and WELL_MIN_SWINGS rows over them. Kept when the
     recency-weighted in-band share is >= WELL_SHARE and the latest judged session's is >=
     WELL_SESSION, and its families touch no needs-work condition's. Ranked prominence, share,
@@ -331,7 +351,7 @@ def do_well(counts, info, off):
     rows = []
     for cid, per in counts.items():
         ci = info.get(cid)
-        if (not ci or not ci["fault"] or ci["detection"] == DETECTION_ALL
+        if (not ci or not ci["praisable"] or ci["detection"] == DETECTION_ALL
                 or ci["prominence"] < WELL_MIN_PROMINENCE):
             continue
         judged = [(s, g, a) for s, g, a in per if a >= MIN_ASSESSED]

@@ -19,14 +19,15 @@
 #pragma once
 
 // THE PACK'S FACTS FOR THE SWING AREAS, marshalled once into swing_areas.h's pack-agnostic
-// AreaConditionInfo — as work_ons_pack.h does for the list, and with the list's own class rule
-// (workOnClassFor), so a condition that can never be a work-on is never counted toward an area either.
+// AreaConditionInfo — as work_ons_pack.h does for the list, and with the list's own role
+// (conditionRoleFor, condition_role_pack.h), so a condition that can never be a work-on is never
+// counted toward an area either.
 //
 // Display-only: nothing here goes into the pack, so nothing here moves the content stamp
 // (SessionDiagnosticsModel::computeContentStamp hashes savePack) — a relabel re-detects no swing.
 
 #include "swing_areas.h"
-#include "work_ons_pack.h"                          // workOnClassFor
+#include "condition_role_pack.h"                    // conditionRoleFor
 #include "firing_side.h"                            // conditionFiringSide
 #include "../Diagnostics/engine/characteristic.h"
 #include "../Diagnostics/engine/condition_reading.h"  // conditionReadings
@@ -65,8 +66,8 @@ inline QHash<QString, AreaConditionInfo> areaConditionInfoForPack(const Characte
         i.group  = conditionGroupName(c.group);
         i.label  = c.label;
         i.golfer = c.golfer;
-        i.counts = areaConditionCounts(i.group, workOnClassFor(c), c.kind == ConditionKind::Outcome,
-                                       !c.reportHold.isEmpty(), c.id);
+        const ConditionRole role = conditionRoleFor(c);
+        i.counts = areaConditionCounts(i.group, role.workOn, role.isOutcome(), role.held, c.id);
         bool anyMeasure = false, allLm = true;
         bool allBinary = !c.detectedBy.isEmpty();
         for (const QString &sigId : c.detectedBy) {

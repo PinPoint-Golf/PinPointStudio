@@ -58,6 +58,7 @@
 // leaves them off (SessionDiagnosticsModel::sessionWorkOns).
 
 #include "work_ons.h"
+#include "condition_role_pack.h"    // conditionRoleFor, FactKind
 #include "../Gui/diagnostics/session_spread.h"
 #include "../Diagnostics/engine/characteristic.h"
 
@@ -101,7 +102,8 @@ inline constexpr int    kAdultAge               = 18;   // §7.3
 
 // ── The pack's facts ────────────────────────────────────────────────────────────
 
-enum class FactKind { Fault, Setup, Delivery, Outcome, Capacity, Other };
+// FactKind (Fault, Setup, Delivery, Outcome, Capacity, Other) is in condition_role.h: the report's
+// kind is one part of a condition's role (conditionRoleFor), read off the pack once.
 
 struct ReportCondition {
     QString  id;
@@ -149,20 +151,14 @@ inline ReportPack reportPackOf(const CharacteristicPack &pack)
     ReportPack out;
     for (const Condition &c : pack.conditions) {
         ReportCondition r;
+        const ConditionRole role = conditionRoleFor(c);     // kind and hold, from the one projection
         r.id = c.id;
-        switch (c.kind) {
-        case ConditionKind::Fault:    r.kind = FactKind::Fault;    break;
-        case ConditionKind::Setup:    r.kind = FactKind::Setup;    break;
-        case ConditionKind::Delivery: r.kind = FactKind::Delivery; break;
-        case ConditionKind::Outcome:  r.kind = FactKind::Outcome;  break;
-        case ConditionKind::Capacity: r.kind = FactKind::Capacity; break;
-        default:                      r.kind = FactKind::Other;    break;
-        }
+        r.kind = role.fact;
         r.prominence    = int(c.prominence);
         r.axis          = c.axis;
         r.hasGolferWell = !c.golferWell.trimmed().isEmpty();
         r.screenable    = c.observability == Observability::Latent && !c.screenRef.isEmpty();
-        r.held          = !c.reportHold.isEmpty();
+        r.held          = role.held;
         r.retired       = c.state == ConditionState::Retired || c.state == ConditionState::Superseded;
         for (const QString &sid : c.detectedBy) {
             const Signal *s = sig.value(sid, nullptr);

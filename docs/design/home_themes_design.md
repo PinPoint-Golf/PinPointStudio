@@ -250,6 +250,20 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
     shows (family = metricKey, with a signed series the same family as its magnitude — otherwise
     "your hips keep turning through impact" sat beside "your hips haven't turned enough by impact");
   - worded from the pack's `golferWell` (what a golfer in the ideal range does, never "don't").
+- **Which conditions (rule v4, 14 Nov 2026).** Your swing follows Work-ons (Mark, on audit C-06):
+  "what we see most", the focus and "next on your list" name exactly the conditions the work-on
+  list can hold as a movement — a `Fault` or a `Setup`, never one the pack holds back
+  (`reportHold`). Before, Your swing took every `Fault` and no `Setup`, and ignored the hold: a held
+  reading (chicken_wing, "we could not measure your lead arm after impact") could be "needs work"
+  here while Work-ons left it out, and a set-up habit (ball too far) could be a work-on but never
+  Your focus. Both lists now read one role (`conditionRoleFor`, `src/Coaching/condition_role_pack.h`;
+  `swing_themes_pack.h` marshals it into `ThemeConditionInfo::fault`), and `condition_role_test`
+  holds them to one answer for every shipped condition. "What you do well" names only an unheld
+  `Fault` (`ThemeConditionInfo::praisable`): a set-up is read on the panel, not praised, as the
+  pack validator's `golferWell` rule already says, and a held reading reassures no more than it
+  warns. `kThemeRuleVersion` 3 → 4, so a cached `swing_themes.json` is re-derived; the golden
+  fixture and `tools/themes/theme_summary.py` (`is_work_on_fault`, `is_praisable`) follow the same
+  rule.
 - **Parity with the prototype.** Both draw their random numbers from mt19937_64 with one seed per
   replicate (`tools/themes/theme_rng.py` is bit-identical to `DetRng`), so
   `swing_themes_golden_test` holds the C++ to the Python on a copy of Mark's five library ledgers

@@ -1149,6 +1149,16 @@ pp_add_test(swing_themes_golden_test
                     -DPP_SWING_THEMES_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/swing_themes")
 set_tests_properties(swing_themes_golden_test PROPERTIES TIMEOUT 600)
 
+# A condition's role (src/Coaching/condition_role_pack.h), the one projection of the pack's kind and
+# hold rule (audit C-06): on the shipped core.json, Your swing's "a fault to work on" is the work-on
+# list's for every condition, and the list, areas, report and shot composer read the same answers as
+# before the role.
+pp_add_test(condition_role_test
+    SOURCES condition_role_test.cpp ${DIAG_PACK} ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS}
+    COMPILE_OPTIONS -DPP_CORE_PACK_PATH="${DIAGRES}/core.json")
+
 # Detection + explanation passes, DARK: synthetic measure source only, never invoked on a real
 # swing. Asserts the rule the whole library depends on — an absent measure resolves Unavailable and
 # never as a pass — plus greedy explanation ranking, the "a leaf is never a root" rule, and that

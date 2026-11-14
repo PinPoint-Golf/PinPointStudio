@@ -30,8 +30,9 @@ the same table, the same k, the same themes, tiers and words. This script writes
 
 Regenerate whenever core.json's orientation (shape, signal directions, unwatchedTail), reducers
 (anchor / window phases), golfer phrases (golfer, golferWell, golferWhy, golferHigh, golferLow),
-condition kind / detection / prominence / detectedBy / drills change, drills.json's ids, labels
-or instructions change, or the algorithm here does.
+condition kind / reportHold / detection / prominence / detectedBy / drills change (a hold takes a
+condition out of Your swing, rule v4), drills.json's ids, labels or instructions change, or the
+algorithm here does.
 """
 from __future__ import annotations
 

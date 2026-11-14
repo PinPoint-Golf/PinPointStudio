@@ -185,13 +185,16 @@ static std::vector<int> rate(int fired, int total)
     return v;
 }
 
-// A fault condition per id: prominence Common, detection Any, its own id as its one family.
+// A fault condition per id: prominence Common, detection Any, its own id as its one family. `fault`
+// false is a condition that is neither worked on nor praised; a set-up (worked on, never praised) is
+// fault true with praisable cleared.
 static ThemeConditionInfo cond(const QString &id, int prominence = 3, int detection = kThemeDetectionAny,
                                QStringList families = {}, bool fault = true)
 {
     ThemeConditionInfo c;
     c.id = id;
     c.fault = fault;
+    c.praisable = fault;
     c.detection = detection;
     c.prominence = prominence;
     c.families = families.isEmpty() ? QStringList{ id } : families;
@@ -506,7 +509,7 @@ int main()
             return nullptr;
         };
         check(!find("seven"), "a session must judge a fault on 8 swings to count");
-        check(!find("setupOnly"), "only Fault conditions are listed");
+        check(!find("setupOnly"), "only conditions marked a fault to work on are listed");
         check(!find("b"), "present only when the latest judged session saw it on half (four judged swings are not a session)");
         const SeenMostRow *a = find("a");
         const double wantA = (0.421875 * 1.0 + 0.5625 * 1.0 + 0.75 * 0.5 + 1.0 * 0.7) / (0.421875 + 0.5625 + 0.75 + 1.0);
@@ -525,6 +528,20 @@ int main()
         bool ordered = true;
         for (size_t i = 1; i < rows.size(); ++i) ordered = ordered && rows[i - 1].share >= rows[i].share;
         check(ordered, "ranked by share");
+
+        // Rule v4: the marshalled flags, as swing_themes_pack.h sets them from the work-on list's role —
+        // a set-up is worked on (fault) though never praised; a held condition is neither.
+        {
+            QHash<QString, ThemeConditionInfo> v4;
+            ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));
+            setupHabit.praisable = false;
+            v4.insert(setupHabit.id, setupHabit);
+            v4.insert(QStringLiteral("heldFault"), cond(QStringLiteral("heldFault"), 3, kThemeDetectionAny, {}, false));
+            const std::vector<ThemeSessionInput> hs{ ledgerOf("s1", { { "setupHabit", rate(9, 10) }, { "heldFault", rate(9, 10) } }) };
+            const std::vector<SeenMostRow> hr = seenMost(sortedSessions(hs), v4, ThemeOptions{});
+            check(hr.size() == 1 && hr.front().conditionId == QStringLiteral("setupHabit"),
+                  "a set-up worked on is listed; a held condition (not a fault to work on) is not");
+        }
 
         const std::vector<ThemeSessionInput> twoIn{ ledgerOf("s1", { { "a", rate(9, 10) } }), ledgerOf("s2", { { "a", rate(9, 10) } }) };
         check(seenMost(sortedSessions(twoIn), faults, ThemeOptions{}).front().trend.isEmpty(), "no trend under three judged sessions");
@@ -628,17 +645,22 @@ int main()
         ci.insert(QStringLiteral("rare"), cond(QStringLiteral("rare"), 1));
         ci.insert(QStringLiteral("occasional"), cond(QStringLiteral("occasional"), 2));
         ci.insert(QStringLiteral("setup"), cond(QStringLiteral("setup"), 3, kThemeDetectionAny, {}, false));
+        ThemeConditionInfo setupHabit = cond(QStringLiteral("setupHabit"));    // rule v4: worked on, not praised
+        setupHabit.praisable = false;
+        ci.insert(setupHabit.id, setupHabit);
 
         std::vector<ThemeSessionInput> ls = {
             wellLedger("s1", { { "clean3", inBand(10, 10) }, { "few", inBand(40, 40) }, { "seven", inBand(7, 7) }, { "twenty", inBand(10, 10) },
                                { "thirty", inBand(15, 15) }, { "bigger", inBand(16, 16) }, { "latest", inBand(10, 10) },
                                { "lowShare", inBand(8, 10) }, { "conj", inBand(15, 15) }, { "first", inBand(15, 15) },
                                { "rare", inBand(15, 15) }, { "occasional", inBand(15, 15) }, { "setup", inBand(15, 15) },
+                               { "setupHabit", inBand(15, 15) },
                                { "unmapped", inBand(15, 15) }, { "allUnknown", inBand(10, 10), CorridorShape::Unknown } }),
             wellLedger("s2", { { "clean3", inBand(10, 10) }, { "seven", inBand(7, 7) }, { "twenty", inBand(10, 10) },
                                { "thirty", inBand(15, 15) }, { "bigger", inBand(16, 16) }, { "latest", inBand(10, 10) },
                                { "lowShare", inBand(8, 10) }, { "conj", inBand(15, 15) }, { "first", inBand(15, 15) },
                                { "rare", inBand(15, 15) }, { "occasional", inBand(15, 15) }, { "setup", inBand(15, 15) },
+                               { "setupHabit", inBand(15, 15) },
                                { "unmapped", inBand(15, 15) }, { "unknownMixed", inBand(15, 15) },
                                { "allUnknown", inBand(10, 10), CorridorShape::Unknown } }),
             wellLedger("s3", { { "clean3", inBand(9, 10) }, { "seven", inBand(7, 7) }, { "latest", inBand(7, 10) }, { "lowShare", inBand(9, 10) },
@@ -666,6 +688,7 @@ int main()
         check(!findWell(rows, "conj") && findWell(rows, "first"), "an All conjunction is never praised; a First preference is");
         check(!findWell(rows, "rare") && findWell(rows, "occasional"), "prominence: Occasional and up only");
         check(!findWell(rows, "setup") && !findWell(rows, "unmapped"), "only fault conditions the pack knows");
+        check(!findWell(rows, "setupHabit"), "a condition worked on but not praisable (a set-up) is never praised");
 
         bool ranked = true;
         for (size_t i = 1; i < rows.size(); ++i) {
@@ -1258,8 +1281,13 @@ int main()
         QJsonObject rule2 = toJson(fj);
         rule2[QStringLiteral("ruleVersion")] = 2;
         bool ok2 = true;
-        check(kThemeRuleVersion == 3 && swingThemesFromJson(rule2, &ok2).focusOrder.empty() && !ok2,
+        check(kThemeRuleVersion == 4 && swingThemesFromJson(rule2, &ok2).focusOrder.empty() && !ok2,
               "a rule-2 file (no focus groups) is refused, to be re-derived");
+        QJsonObject rule3 = toJson(fj);
+        rule3[QStringLiteral("ruleVersion")] = 3;
+        bool ok3 = true;
+        check(swingThemesFromJson(rule3, &ok3).focusOrder.empty() && !ok3,
+              "a rule-3 file (faults chosen by kind alone, holds ignored) is refused, to be re-derived");
     }
 
     // ── JSON ─────────────────────────────────────────────────────────────────────────────────────

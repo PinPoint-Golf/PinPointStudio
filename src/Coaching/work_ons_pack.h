@@ -31,6 +31,7 @@
 // runs before the cut).
 
 #include "work_ons.h"
+#include "condition_role_pack.h"                  // workOnClassFor
 #include "../Diagnostics/engine/characteristic.h"
 #include "../Diagnostics/engine/condition_reading.h"
 #include "../Diagnostics/measures/measure_facets.h"   // phaseLabel
@@ -39,24 +40,10 @@
 
 namespace pinpoint::analysis {
 
-// WHAT A CONDITION IS, for the list: Fault and Setup are movements, Delivery fills a short list, the
-// rest is never listed. One function, so the session's list and Home's areas (swing_areas_pack.h)
-// classify by the same rule.
-//
-// HELD BACK (Condition::reportHold): a reading not trusted enough to headline anything is never a
-// work-on — not here, so not on the home screen and not in the report, and "work-on 1" stays one
-// habit everywhere. The row still grades and still shows on the panel; only the list leaves it out.
-inline WorkOnClass workOnClassFor(const Condition &c)
-{
-    if (!c.reportHold.isEmpty()) return WorkOnClass::Excluded;
-    switch (c.kind) {
-    case ConditionKind::Fault:
-    case ConditionKind::Setup:    return WorkOnClass::Movement;
-    case ConditionKind::Delivery: return WorkOnClass::Delivery;
-    default: break;
-    }
-    return WorkOnClass::Excluded;
-}
+// WHAT A CONDITION IS, for the list — workOnClassFor(), the role's workOn (condition_role_pack.h):
+// Fault and Setup are movements, Delivery fills a short list, the rest is never listed, and a HELD
+// condition (Condition::reportHold) is never a work-on. One projection, so the session's list, Home's
+// areas (swing_areas_pack.h) and Home → Your swing (swing_themes_pack.h) classify by the same rule.
 
 inline SessionWorkOns sessionWorkOnsForPack(const CharacteristicPack *pack, const std::vector<ShotRecord> &shots,
                                             const std::vector<ConditionLedger> &ledgers,

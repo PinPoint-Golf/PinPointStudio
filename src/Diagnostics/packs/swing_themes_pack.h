@@ -26,8 +26,12 @@
 //
 //   themeMeasureInfo()       per measure: which way is MORE OF THE FAULT, where in the swing it
 //                            is read, and its metricKey
-//   themeConditionInfo()     per condition: Fault or not (only faults are listed or praised), its
-//                            detection mode and prominence, and its FAMILIES — the metricKey (or
+//   themeConditionInfo()     per condition: whether it is a fault to work on and whether it may be
+//                            praised — both from the condition's ROLE (conditionRoleFor,
+//                            src/Coaching/condition_role_pack.h), the one projection the work-on
+//                            list reads too, so Your swing follows Work-ons: a held condition is
+//                            neither, a Setup habit can be worked on but is not praised (rule v4) —
+//                            its detection mode and prominence, and its FAMILIES — the metricKey (or
 //                            measure id) of the first measure of each detectedBy signal — the
 //                            root, so a "Signed" key joins its unsigned family — which is
 //                            how "what you do well" keeps clear of what the other layers say —
@@ -55,6 +59,7 @@
 #include "drill_pack.h"
 
 #include "../../Coaching/swing_themes.h"
+#include "../../Coaching/condition_role_pack.h"   // conditionRoleFor
 
 #include <QHash>
 #include <QSet>
@@ -153,7 +158,9 @@ inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const Characteristi
     for (const Condition &c : pack.conditions) {
         ThemeConditionInfo info;
         info.id         = c.id;
-        info.fault      = c.kind == ConditionKind::Fault;
+        const ConditionRole role = conditionRoleFor(c);
+        info.fault      = role.isMovementWorkOn();     // as the work-on list: Fault or Setup, not held
+        info.praisable  = role.praisable;              // a Fault, not held
         info.detection  = c.detection == DetectionMode::All   ? kThemeDetectionAll
                         : c.detection == DetectionMode::First ? kThemeDetectionFirst
                         :                                       kThemeDetectionAny;

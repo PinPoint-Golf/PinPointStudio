@@ -125,8 +125,12 @@ namespace pinpoint::analysis {
 // The persisted shape, and the rule that filled it — two numbers for the reason work_ons.h gives.
 // 2: "what you do well" (doWell), each needs-work row's per-session pips, every shot and session.
 // Rule 3: the focus groups (focusOrder) — a file without them is re-derived, not read.
+// Rule 4 (14 Nov 2026, audit C-06; Mark: "Your swing follows Work-ons"): which conditions are faults to
+// work on is the work-on list's own rule (conditionRoleFor) — a held condition (reportHold) is never
+// needs work, a focus or praised, and a Setup habit can be needs work and the focus. A rule-3 file was
+// chosen by the old rule (Fault only, holds ignored), so it is re-derived.
 inline constexpr int kThemeSchemaVersion = 2;
-inline constexpr int kThemeRuleVersion   = 3;
+inline constexpr int kThemeRuleVersion   = 4;
 
 // One seed per replicate, from a base and a stream, so replicates are independent of each other
 // and of the order they run in. Unsigned arithmetic wraps, which is the "mod 2^64" the Python
@@ -227,7 +231,11 @@ struct ThemeMeasureInfo {
 
 // What "what we see most" and "what you do well" need to know about one condition, marshalled
 // from the pack by the caller (themeConditionInfo in swing_themes_pack.h).
-//   fault       pack kind Fault: the only conditions either list may name
+//   fault       a fault to work on, as the work-on list classes it (ConditionRole::workOn ==
+//               Movement: Fault or Setup, never a held condition): the only conditions "what we
+//               see most", the focus and "next on your list" may name (rule v4)
+//   praisable   a Fault that is not held (ConditionRole::praisable): the only conditions "what you
+//               do well" may name — a set-up is read on the panel, not praised
 //   detection   kThemeDetectionAny / All / First (an All conjunction is never praised)
 //   prominence  Rare 0, Uncommon 1, Occasional 2, Common 3, Ubiquitous 4
 //   families    the metricKey root (or the measure id when it has none) of the FIRST measure of
@@ -251,9 +259,12 @@ inline constexpr int kThemeDetectionAny   = 0;
 inline constexpr int kThemeDetectionAll   = 1;
 inline constexpr int kThemeDetectionFirst = 2;
 
+// What the reduction needs of one condition (marshalled by swing_themes_pack.h from the condition's
+// role, so the pack's kind and hold rule are read in one place for Your swing and the work-on list).
 struct ThemeConditionInfo {
     QString     id;
-    bool        fault      = false;
+    bool        fault      = false;     // a fault to work on: needs work, the focus, next on your list
+    bool        praisable  = false;     // "what you do well" may name the golfer being clear of it
     int         detection  = kThemeDetectionAny;
     int         prominence = 0;
     QStringList families;
@@ -1518,7 +1529,7 @@ inline int rowInBand(const ConditionRow &r)
 }
 
 // theme_summary.do_well, rule v1. Per session per condition: good = rows in band, counted = rows
-// counted. Candidates are faults, detection Any / First, prominence wellMinProminence and up; a
+// counted. Candidates are praisable faults, detection Any / First, prominence wellMinProminence and up; a
 // session is judged on minAssessed counted rows; wellMinSessions judged sessions and wellMinSwings
 // rows over them; kept when the recency-weighted in-band share reaches wellShare and the latest
 // judged session's reaches wellSession, and the condition's families touch no needs-work
@@ -1557,7 +1568,7 @@ inline std::vector<DoWellRow> doWell(const std::vector<const ThemeSessionInput *
     std::vector<DoWellRow> out;
     for (const QString &id : order) {
         const auto ci = conditions.constFind(id);
-        if (ci == conditions.constEnd() || !ci->fault || ci->detection == kThemeDetectionAll
+        if (ci == conditions.constEnd() || !ci->praisable || ci->detection == kThemeDetectionAll
             || ci->prominence < opt.wellMinProminence)
             continue;
         std::vector<Counted> judged;

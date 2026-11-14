@@ -24,20 +24,10 @@
 // run between two outcomes, the strike_toe/heel -> smash_deficit pair).
 
 #include "shot_outcomes.h"
+#include "condition_role_pack.h"        // conditionRoleFor
 #include "../Diagnostics/engine/characteristic.h"
 
 namespace pinpoint::analysis {
-
-inline ShotConditionLayer shotConditionLayerFor(ConditionKind kind)
-{
-    switch (kind) {
-    case ConditionKind::Outcome:  return ShotConditionLayer::Ball;
-    case ConditionKind::Delivery: return ShotConditionLayer::Club;
-    case ConditionKind::Fault:    return ShotConditionLayer::Swing;
-    default: break;
-    }
-    return ShotConditionLayer::Root;
-}
 
 inline ShotOutcomePack shotOutcomePackFor(const CharacteristicPack *pack)
 {
@@ -47,6 +37,7 @@ inline ShotOutcomePack shotOutcomePackFor(const CharacteristicPack *pack)
     int order = 0;
     QSet<QString> outcomes;
     for (const Condition &c : pack->conditions) {
+        const ConditionRole role = conditionRoleFor(c);     // the layer, from the one projection
         ShotConditionFacts f;
         f.id          = c.id;
         f.family      = c.family;
@@ -56,9 +47,9 @@ inline ShotOutcomePack shotOutcomePackFor(const CharacteristicPack *pack)
         f.golferAbbr  = c.golferAbbr;
         f.golferStory = c.golferStory;
         f.playTo      = c.playTo;
-        f.layer       = shotConditionLayerFor(c.kind);
+        f.layer       = role.layer;
         f.packOrder   = order++;
-        if (c.kind == ConditionKind::Outcome) outcomes.insert(c.id);
+        if (role.isOutcome()) outcomes.insert(c.id);
         facts.conditions.insert(c.id, f);
     }
 

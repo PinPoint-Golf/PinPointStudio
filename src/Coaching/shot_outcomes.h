@@ -34,6 +34,7 @@
 // Unit-tested standalone in src/Analysis/tests/shot_outcomes_test.cpp.
 
 #include "club_distances.h"
+#include "condition_role.h"          // ShotConditionLayer
 
 #include <QHash>
 #include <QJsonArray>
@@ -64,9 +65,9 @@ inline constexpr double kCurveCarryLossFactor = 1.0;
 inline constexpr double kCarryLossPerLaunchDegree = 0.008;   // 0.8 % of carry per degree out of window
 inline constexpr double kCarryLossPer1000Rpm      = 0.030;   // 3 % of carry per 1000 rpm out of window
 
-// Which layer of the model a condition sits in, for the link words (§5.1). Ball = outcomes; Club =
-// delivery numbers; Swing = faults; Root = setup, capacity, equipment and intent.
-enum class ShotConditionLayer { Ball, Club, Swing, Root };
+// Which layer of the model a condition sits in, for the link words (§5.1): ShotConditionLayer, in
+// condition_role.h beside the rest of a condition's role (Ball = outcomes; Club = delivery numbers;
+// Swing = faults; Root = setup, capacity, equipment and intent).
 
 // The words and place of one condition.
 struct ShotConditionFacts {

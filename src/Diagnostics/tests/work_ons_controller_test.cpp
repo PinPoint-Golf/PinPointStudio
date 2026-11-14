@@ -1605,29 +1605,34 @@ int main(int argc, char **argv)
     check(c.summarySubtitle() == QStringLiteral("From 20 swings over 2 sessions"),
           "the subtitle counts every swing and session read: 'From 20 swings over 2 sessions'");
     {
-        // One needs-work fault — the reverse spine angle, on every swing of both sessions (the ball
-        // position is a setup condition and the pull an outcome: neither is a fault). Since the
-        // session report's content (2026-10-20) every listable fault carries a drill — this one
-        // "Club across the chest" — so the focus is titled by that drill, aims for the fault's ideal,
-        // and names what to practise, with nothing left for next.
+        // Two needs-work habits, as the work-on list holds them (rule v4, 14 Nov 2026: Your swing follows
+        // Work-ons): the reverse spine angle, on every swing of both sessions, and the ball position — a
+        // set-up the list works on, on every swing of the one session that measured it (the pull is an
+        // outcome: never one). Every listable habit carries a drill. The focus starts earliest in the
+        // swing, so the set-up (read at address, "Stance and ball-position sticks") is the focus, titled by
+        // its drill and aiming for its ideal, and the reverse spine (at the top) is next on the list.
         const QVariantMap focus = c.focusItem();
         const QVariantList rightNow = focus.value(QStringLiteral("rightNow")).toList();
-        const QVariantMap spine = rightNow.value(0).toMap();
-        check(rightNow.size() == 1 && c.nextItems().isEmpty()
-              && spine.value(QStringLiteral("sessions")).toList() == QVariantList{ true, true }
-              && spine.value(QStringLiteral("frequency")).toString() == QStringLiteral("every swing"),
-              "the fault on every swing of both sessions is the focus: 'every swing', a filled pip for each");
+        const QVariantMap ballNow = rightNow.value(0).toMap();
+        const QVariantList next = c.nextItems();
+        const QVariantMap spineNext = next.value(0).toMap();
+        check(rightNow.size() == 1 && next.size() == 1
+              && ballNow.value(QStringLiteral("sessions")).toList() == QVariantList{ true }
+              && ballNow.value(QStringLiteral("frequency")).toString() == QStringLiteral("every swing")
+              && spineNext.value(QStringLiteral("sessions")).toList() == QVariantList{ true, true }
+              && spineNext.value(QStringLiteral("frequency")).toString() == QStringLiteral("every swing"),
+              "the set-up worked on is the focus (earliest in the swing), the fault on every swing of both sessions is next");
         check(!focus.value(QStringLiteral("practise")).toString().isEmpty()
-              && focus.value(QStringLiteral("practiseLabel")).toString() == QStringLiteral("Club across the chest")
-              && focus.value(QStringLiteral("title")).toString() == QStringLiteral("Club across the chest")
+              && focus.value(QStringLiteral("practiseLabel")).toString() == QStringLiteral("Stance and ball-position sticks")
+              && focus.value(QStringLiteral("title")).toString() == QStringLiteral("Stance and ball-position sticks")
               && !focus.value(QStringLiteral("aimFor")).toList().value(0).toString().isEmpty(),
-              "…a fault with its drill: titled by the drill, its ideal as what to aim for, the drill to practise");
+              "…a habit with its drill: titled by the drill, its ideal as what to aim for, the drill to practise");
         // The focus names its condition, and conditionLabel() names it as the list does.
         const QString focusId = focus.value(QStringLiteral("focusConditionId")).toString();
-        check(focusId == QStringLiteral("reverse_spine_p4")
-              && c.conditionLabel(focusId) == item(c, "reverse_spine_p4").value(QStringLiteral("name")).toString()
+        check(focusId == QStringLiteral("ball_back")
+              && c.conditionLabel(focusId) == item(c, "ball_back").value(QStringLiteral("name")).toString()
               && !c.conditionLabel(focusId).isEmpty() && c.conditionLabel(focusId) != focusId,
-              "focusConditionId is the focus fault's condition, and conditionLabel() gives the name the list shows");
+              "focusConditionId is the focus habit's condition, and conditionLabel() gives the name the list shows");
         check(c.conditionLabel(QStringLiteral("no_such_condition")) == QStringLiteral("no_such_condition")
               && c.conditionLabel(QString()).isEmpty(),
               "conditionLabel() falls back to the id for a condition the pack does not know, \"\" for \"\"");

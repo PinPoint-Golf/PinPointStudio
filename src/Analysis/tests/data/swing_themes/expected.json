@@ -8195,6 +8195,19 @@
     true,
     true
    ]
+  },
+  {
+   "id": "ball_too_far",
+   "share": 0.3884593837535014,
+   "sessionsSeen": 1,
+   "sessionsJudged": 4,
+   "trend": "growing",
+   "pips": [
+    false,
+    false,
+    false,
+    true
+   ]
   }
  ],
  "lines": {
@@ -9128,6 +9141,14 @@
  },
  "focusOrder": [
   {
+   "key": "drill.armsHangSetup",
+   "drill": "drill.armsHangSetup",
+   "when": 1,
+   "conditionIds": [
+    "ball_too_far"
+   ]
+  },
+  {
    "key": "drill.trailHipLoad",
    "drill": "drill.trailHipLoad",
    "when": 4,
@@ -9310,47 +9331,57 @@
   "note": "",
   "focus": {
    "present": true,
-   "title": "Trail hip load and hold",
+   "title": "Hinge and let the arms hang",
    "aimFor": [
-    "Your trail knee keeps its flex going back",
-    "Your hips turn in place going back"
+    "Your arms hang freely at address, with room between your hands and your thighs"
    ],
    "rightNow": [
     {
-     "text": "Your trail leg straightens going back",
-     "share": 0.9723349753694581,
-     "frequency": "almost every swing",
-     "trend": 0,
-     "pips": [
-      true,
-      true,
-      true,
-      true
-     ]
-    },
-    {
-     "text": "Your hips sway away from the target going back",
-     "share": 0.5976118226600986,
+     "text": "You stand too far from the ball",
+     "share": 0.3884593837535014,
      "frequency": "more than half your swings",
      "trend": 1,
      "pips": [
       false,
-      true,
-      true,
+      false,
+      false,
       true
      ]
     }
    ],
-   "why": "A straight trail leg lets your hips slide instead of turn, so you lose power. When your hips slide away, the bottom of your swing moves and contact gets harder to repeat.",
-   "practiseLabel": "Trail hip load and hold",
-   "practise": "Take your address position, make a slow backswing turn, and stop at the top. Feel the pressure in the trail hip socket rather than on the outside of the trail foot. Hold for three seconds, then return.",
-   "reason": "Picked first: it comes earliest in your swing and covers two of the things on your list.",
+   "why": "Reaching for the ball pulls your shoulders forward and tips your balance toward your toes, so contact gets harder to repeat.",
+   "practiseLabel": "Hinge and let the arms hang",
+   "practise": "Stand tall holding the club out in front of you at chest height. Push your hips back and tip your chest forward until the club touches the ground, then let your knees soften. Let your arms hang straight down from your shoulders, and step in or out until the club sits behind the ball with about a hand's width between your hands and your thighs. Rehearse it five times before each practice session.",
+   "reason": "Picked first: it comes earliest in your swing.",
    "conditionIds": [
-    "trail_knee_straighten",
-    "sway"
+    "ball_too_far"
    ]
   },
   "next": [
+   {
+    "text": "Your trail leg straightens going back",
+    "share": 0.9723349753694581,
+    "frequency": "almost every swing",
+    "trend": 0,
+    "pips": [
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   {
+    "text": "Your hips sway away from the target going back",
+    "share": 0.5976118226600986,
+    "frequency": "more than half your swings",
+    "trend": 1,
+    "pips": [
+     false,
+     true,
+     true,
+     true
+    ]
+   },
    {
     "text": "You lean toward the target at the top",
     "share": 0.9597635467980296,
@@ -9368,30 +9399,6 @@
     "share": 0.9545064039408867,
     "frequency": "almost every swing",
     "trend": 0,
-    "pips": [
-     true,
-     true,
-     true,
-     true
-    ]
-   },
-   {
-    "text": "You stand up through the ball",
-    "share": 1.0,
-    "frequency": "every swing",
-    "trend": 0,
-    "pips": [
-     true,
-     true,
-     true,
-     true
-    ]
-   },
-   {
-    "text": "Your hips haven't turned enough by impact",
-    "share": 0.855432512315271,
-    "frequency": "most swings",
-    "trend": 1,
     "pips": [
      true,
      true,

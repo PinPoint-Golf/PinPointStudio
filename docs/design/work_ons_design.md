@@ -52,7 +52,14 @@ at the next refresh.
    ≥ 0.30). Selection chooses among them; it never promotes a Watching condition.
 2. **Only things a golfer can work on.** `Fault` and `Setup` conditions. `Outcome`, `Capacity`,
    `Intent` and `Equipment` are never listed. `Delivery` numbers are listed only to bring a
-   session that measured fewer than three movements up to three.
+   session that measured fewer than three movements up to three. A condition the pack holds back
+   (`reportHold`: a reading not trusted enough to headline) is never listed, whatever its kind.
+   This class is one part of a condition's ROLE (`conditionRoleFor`,
+   `src/Coaching/condition_role_pack.h`), read off the pack once: Home's swing areas, the session
+   report, the shot outcome composer and Home → Your swing take the same role, so "something to
+   work on" names the same habits on every screen (14 Nov 2026, audit C-06 — Your swing follows
+   Work-ons). `condition_role_test` holds Your swing and this list to one answer for every
+   condition in the shipped pack.
 3. **Order:** faults still firing before ones the golfer fixed inside the session
    (`resolving`); roots before symptoms (a pattern with another of the session's patterns
    authored as its cause); then how far outside the corridor it goes when it goes

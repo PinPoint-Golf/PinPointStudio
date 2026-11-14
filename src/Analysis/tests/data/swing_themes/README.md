@@ -44,5 +44,6 @@ the fired/assessed counts and the in-band counts read from the copies equal the 
 Regenerate `expected.json` whenever core.json's orientation (measure `shape`, signal
 `direction`, `unwatchedTail`), reducers (anchor / window phases, which give each measure's swing
 position), golfer phrases (`golfer`, `golferWell`, `golferWhy`, `golferHigh`, `golferLow`) or a
-condition's `kind`, `detection`, `prominence`, `detectedBy` or `drills` change, `drills.json`'s
+condition's `kind`, `reportHold` (a hold takes it out of Your swing, rule v4), `detection`,
+`prominence`, `detectedBy` or `drills` change, `drills.json`'s
 ids, labels or instructions change, or the algorithm in `tools/themes/` does.
