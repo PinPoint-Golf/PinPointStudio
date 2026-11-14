@@ -1099,6 +1099,14 @@ set(DIAG_PACK ${DIAG}/engine/pack_io.cpp    # the shared issue vocabulary and Lo
               ${DIAG}/packs/reference_pack.cpp
               ${DIAG}/measures/measure_facets.cpp ${DIAG}/measures/anatomy_vocabulary.cpp)
 
+# atomicWrite(): the one write path for every session/athlete cache and user content set. Replaces an
+# existing file whole, leaves the original byte-identical on any failure (unwritable directory,
+# read-only file), and uses a unique temporary rather than a fixed <path>.tmp. pack_io.cpp alone —
+# the helper has no other dependency.
+pp_add_test(pack_io_test
+    SOURCES ${DIAG}/tests/pack_io_test.cpp ${DIAG}/engine/pack_io.cpp
+    INCLUDE ${DIAG})
+
 pp_add_test(characteristic_pack_test
     SOURCES ${DIAG}/tests/characteristic_pack_test.cpp ${DIAG_PACK}
     INCLUDE ${DIAG} ${SRC}/Metrics ${ANALYSIS})

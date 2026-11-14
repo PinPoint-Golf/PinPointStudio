@@ -19,8 +19,8 @@
 #include "pack_io.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
+#include <QSaveFile>
 #include <QJsonArray>
 #include <QSet>
 #include <QStandardPaths>
@@ -139,32 +139,34 @@ bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot)
 
     QDir().mkpath(QFileInfo(path).absolutePath());
 
-    const QString tmpPath = path + QStringLiteral(".tmp");
-    QFile         tmp(tmpPath);
-    if (!tmp.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (whyNot) *whyNot = QStringLiteral("Could not write to %1.").arg(tmpPath);
+    // QSaveFile writes to a uniquely named temporary beside `path` (two writers of one file, the
+    // app and tools/diagnostics/regrade_ledger, never share it), syncs it, and commit() renames it
+    // OVER the original in one step. There is no moment at which `path` is missing. The direct-write
+    // fallback is off (it is the default; set here so nobody has to look it up): when no temporary
+    // can be made beside the file, writing the file in place would bring back the very truncation
+    // this exists to prevent, so the save fails instead and the original is left alone.
+    QSaveFile out(path);
+    out.setDirectWriteFallback(false);
+    if (!out.open(QIODevice::WriteOnly)) {
+        if (whyNot) *whyNot = QStringLiteral("Could not write to %1.").arg(path);
         return false;
     }
 
-    // Both halves are checked, and a failure takes the temporary away with it: leaving a short
-    // `.tmp` beside the good file would be picked up by nothing and explain itself to nobody. The
-    // ORIGINAL is still whole at this point, which is the whole reason to write somewhere else
-    // first, and it stays that way.
-    const qint64 written = tmp.write(bytes);
-    tmp.close();   // flushes; a buffered write that fails only on flush surfaces in error() here
-    if (written != bytes.size() || tmp.error() != QFile::NoError) {
-        if (whyNot) *whyNot = QStringLiteral("Could not write to %1 — the disk may be full.").arg(tmpPath);
-        QFile::remove(tmpPath);
+    // Both halves are checked. A short write returns before commit(), and an uncommitted QSaveFile
+    // deletes its temporary when it goes out of scope; a buffered write that only fails when
+    // commit() flushes it is a WriteError, and commit() deletes the temporary itself. Either way the
+    // ORIGINAL is still whole, which is the whole reason to write somewhere else first.
+    const qint64 written = out.write(bytes);
+    if (written != bytes.size()) {
+        if (whyNot) *whyNot = QStringLiteral("Could not write to %1 — the disk may be full.").arg(path);
         return false;
     }
-
-    // remove-then-rename rather than a straight rename, because QFile::rename does not replace an
-    // existing file on every platform this ships to. The window between the two is the one thing
-    // this dance cannot close; it is microseconds wide and the content it would lose is still in
-    // the temporary beside it.
-    QFile::remove(path);
-    if (!QFile::rename(tmpPath, path)) {
-        if (whyNot) *whyNot = QStringLiteral("Could not replace %1.").arg(path);
+    if (!out.commit()) {
+        if (whyNot) {
+            *whyNot = out.error() == QFileDevice::RenameError
+                          ? QStringLiteral("Could not replace %1.").arg(path)
+                          : QStringLiteral("Could not write to %1 — the disk may be full.").arg(path);
+        }
         return false;
     }
     return true;

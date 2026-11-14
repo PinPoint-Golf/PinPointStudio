@@ -191,20 +191,26 @@ QString diagnosticsFilePath(const QString &fileName);
 //
 // The rename is the point: an interrupted save must not truncate content the author has spent time
 // on. A half-written pack is worse than no pack, because the app loads it, reports what survived,
-// and looks like it has merely lost the rest — which it has.
+// and looks like it has merely lost the rest — which it has. The same holds for the session and
+// athlete caches that go through here (diagnostics.json, club_baseline.json, the fault profile,
+// work_ons.json, the swing themes, tendencies.json).
 //
-// The four copies this replaces were behaviourally identical, so there was nothing to reconcile;
-// what they shared was one hazard, and it is fixed here once. All four ignored the result of the
-// WRITE. A full disk therefore produced a short temporary file, and the rename then put it over
-// the good one — the exact outcome the temporary file exists to prevent, arrived at through the
-// mechanism meant to prevent it. So the write and the close are both checked, and a failed write
-// leaves the original untouched and takes the temporary with it.
+// It is QSaveFile underneath, the same mechanism the swing document uses on the same share:
+//   - the temporary has a UNIQUE name beside `path`, so two processes saving one file (the app and
+//     tools/diagnostics/regrade_ledger) cannot write into each other's temporary;
+//   - commit() flushes it, asks the OS to sync it, and renames it OVER the original in one step
+//     (rename(2) on macOS and Linux, a replacing move on Windows). There is no moment at which
+//     `path` does not exist — a crash or a kill leaves either the old file or the new one;
+//   - the direct-write fallback is OFF, so a directory in which no temporary can be made fails the
+//     save rather than writing the file in place.
+// A failure at any step — open, a short write, a write error that only surfaces on the flush, the
+// rename — returns false and leaves the original byte-identical, and the temporary is deleted. An
+// existing file that is itself read-only is refused, not replaced.
 //
-// Deliberately NOT fsync'd. That would buy durability across a power cut, and what this is for is
-// atomicity across a crash or a kill — the rename gives that on every filesystem the app runs on.
-// Paying a sync on every keystroke-driven save of an authoring panel to insure against a case the
-// user would re-do anyway is the wrong trade, and it is worth saying so here rather than leaving
-// the next reader to wonder whether it was forgotten.
+// The four copies this once replaced all ignored the result of the WRITE, so a full disk produced a
+// short temporary that the rename then put over the good one — the exact outcome the temporary
+// exists to prevent. The write and the commit are both checked here for that reason; a write
+// failure says "the disk may be full", a failed rename says "could not replace".
 //
 // An EMPTY path is accepted and reported as "no writable application data location", because that
 // is what an empty path from diagnosticsFilePath() means and all four callers had to say so
