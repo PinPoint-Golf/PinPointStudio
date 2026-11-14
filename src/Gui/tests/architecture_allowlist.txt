@@ -1,0 +1,155 @@
+# Architecture lint allow-list (architecture_lint_test.cpp; docs/implementation/swe-audit/03-target-architecture.md §2, §11).
+#
+# One line per file and rule:   path under src/ | rule | findings allowed | WHY  # step N
+# Rules: A1 include into an outer ring · A2 QML creating a scoped type · A3 folder-name parsing · A4 a session/athlete
+#        file name outside its owner · A5 file I/O in a rules directory · A6 QVariantMap/QVariantList on the QML boundary
+#        · A7 a function over 300 lines in rings 1-2 · A8 Analysis past the Recording contract.
+# The tag is the refactor step that removes the entry (04-remediation-plan.md §3): `# step 1` … `# step 7`;
+# `# unplanned` for one no step 1-7 removes (listed for Mark in build/refactor/step-G/G3-NOTES.md); `# kept` for one
+# that is deliberate (the WHY says why).
+# Generated ONCE from the tree at the start of Step G (14 Nov 2026). A file that grows past its count fails the test;
+# one that drops below it is reported so the count can be lowered — the list only shrinks. Every entry needs a reason;
+# "legacy" is not one. Adding a NEW entry is an architecture decision: ask Mark first. Never add one to make the lint pass.
+
+# ── A1 includes from an inner ring into an outer one ──
+Analysis/swing_reanalyzer.cpp | A1 | 5 | re-analysis builds its own input from the store, the MP4 and a RAM ring; step 1's one Recording builder hands the analysis service a Recording instead  # step 1
+Club/ball_anchor.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
+Club/dtl_shaft_tracker.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
+Club/shaft_tracker.cpp | A1 | 1 | a measurement rule reads its inputs off ShotAnalysisJob (shot_analyzer.h, orchestration); step 1 gives the stages the Recording and its analysis context  # step 1
+Gui/shot/reanalysis_controller.cpp | A1 | 2 | re-analysis (an application service, 03 §2) reads the store itself; step 1 builds the same Recording for re-analysis as for live capture  # step 1
+Gui/shot/shot_processor.cpp | A1 | 16 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 splits ShotProcessor into capture and analysis services either side of the Recording (E-09); its device and ring includes move into the capture service and stay until 04's 'Later · The Acquisition session', as shot_controller's do  # step 1
+Gui/shot/shot_processor.h | A1 | 4 | an application service (03 §2) reaching into devices, the ring, app state and the store: step 1 splits ShotProcessor into capture and analysis services either side of the Recording (E-09); its device and ring includes move into the capture service and stay until 04's 'Later · The Acquisition session', as shot_controller's do  # step 1
+Analysis/swing_analysis.h | A1 | 9 | the shot's analysis record takes each stage's result type from the stage's own header (result types and algorithm in one file); step 7 moves the result types into the vocabulary  # step 7
+Coaching/session_report.h | A1 | 1 | a coaching rule uses SessionSpread, domain code that still lives in src/Gui/diagnostics; step 7 moves it down  # step 7
+Diagnostics/measures/measure_sample.cpp | A1 | 1 | a diagnostics measure reads swing documents through SwingStore itself; step 7: rules lose their I/O  # step 7
+Metrics/metric_descriptor.h | A1 | 1 | a metric definition uses a wrist type / reference band declared in src/Wrist (rules); step 7 moves the types into the vocabulary  # step 7
+Metrics/metric_provider.h | A1 | 1 | a metric definition uses a wrist type / reference band declared in src/Wrist (rules); step 7 moves the types into the vocabulary  # step 7
+Metrics/variability/variability_typicality.cpp | A1 | 1 | the variability rule uses the box statistics, which live in src/Gui/typeset; step 7 moves the maths down  # step 7
+Buffer/swing_payload_source.h | A1 | 1 | the Recording's frozen window is still a view onto the capture ring (source_ring); separating the two is 04's 'Later · The Acquisition session', outside steps 1-7  # unplanned
+Buffer/swing_window.h | A1 | 1 | the Recording's frozen window is still a view onto the capture ring (source_ring); separating the two is 04's 'Later · The Acquisition session', outside steps 1-7  # unplanned
+Gui/shot/shot_controller.cpp | A1 | 2 | the shot trigger (an application service, 03 §2) listens to the devices and the capture ring itself; that is 04's 'Later · The Acquisition session', outside steps 1-7  # unplanned
+Gui/shot/shot_controller.h | A1 | 1 | the shot trigger (an application service, 03 §2) listens to the devices and the capture ring itself; that is 04's 'Later · The Acquisition session', outside steps 1-7  # unplanned
+
+# ── A2 QML creating a session/athlete-scoped type ──
+Gui/diagnostics/PpSessionDiagnosticsPanel.qml | A2 | 1 | the stage panel creates a private SessionDiagnosticsModel; step 3 points it at the session's SessionDiagnostics owner  # step 3
+Gui/charts/PpChartsPanel.qml | A2 | 6 | the Charts panel creates its own SessionSeriesModel and the five presenters; step 5 gives each session one SessionSeries and the presenters to it  # step 5
+Gui/diagnostics/PpConsistencyView.qml | A2 | 3 | the Consistency view creates its own SessionSeriesModel and presenters; step 5 moves them onto the session  # step 5
+Gui/trust/PpTrustInlineFor.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
+Gui/trust/PpTrustPanel.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
+Gui/trust/PpTrustSummaryFold.qml | A2 | 2 | a trust view creates its own SessionSeriesModel and TrustPresenter; step 5 moves them onto the session  # step 5
+Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
+Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 covers the Charts panel and the report only, and no step 1-7 moves it  # unplanned
+
+# ── A3 folder-name parsing outside SwingPaths / SessionIdentity ──
+Analysis/swing_reanalyzer.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Coaching/club_distances.h | A3 | 1 | reads a swing/session folder name itself (a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Export/swing_doc.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/athlete/athlete_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/charts/charts_delivery_presenter.cpp | A3 | 3 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/charts/charts_posture_presenter.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/charts/charts_traces_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/charts/charts_wrist_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/charts/session_series_model.cpp | A3 | 2 | reads a swing/session folder name itself (the shot number after the last '_', a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/diagnosticmodel/model_browser.cpp | A3 | 2 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/diagnostics/session_diagnostics_model.cpp | A3 | 10 | reads a swing/session folder name itself (the shot number after the last '_', the date in the first 10 characters, a swing_ prefix test, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/diagnostics/work_ons_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/launchmonitor/launch_monitor_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the shot number after the last '_'); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/report/report_meta.h | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/report/session_report_list_model.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/report/session_report_model.cpp | A3 | 5 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/review/session_review_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/settings/archive_controller.cpp | A3 | 3 | reads a swing/session folder name itself (a swing_* name glob, a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+Gui/swing3d/swing_rig_driver.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
+
+# ── A4 session/athlete file names outside their owner ──
+Gui/charts/charts_posture_presenter.cpp | A4 | 2 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
+Gui/charts/session_series_model.cpp | A4 | 1 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
+Gui/diagnostics/work_ons_controller.cpp | A4 | 2 | spells club_baseline.json, diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
+Gui/athlete/athlete_controller.cpp | A4 | 2 | spells diagnostics.json, tendencies.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
+Gui/report/session_report_list_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
+Gui/report/session_report_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
+
+# ── A5 file I/O in a rules directory ──
+# Note: src/Diagnostics/packs is outside A5 (as briefed), but its pack LOADER does file I/O too —
+#   packs/file_pack_provider.cpp (11 lines), drill_pack.cpp, gate_words_pack.cpp, reference_pack.cpp and
+#   screen_pack.cpp (3 each). Step 3 (one pack snapshot, B-02) removes it.  # step 3
+Coaching/club_distances.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Coaching/shot_factors.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Coaching/strike_from_flight.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/engine/pack_io.cpp | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/engine/provider_leaf_p.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/measures/measure_sample.cpp | A5 | 9 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/norms/file_norm_provider.cpp | A5 | 10 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+
+# ── A6 QVariantMap/QVariantList on the QML boundary ──
+Gui/athlete/athlete_controller.h | A6 | 9 | athlete records reach QML as QVariantMaps; step 2's Athlete objects (AthleteRepository) replace them  # step 2
+Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
+Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
+Gui/diagnostics/wrist_diagnostics_model.h | A6 | 10 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
+Gui/charts/charts_consistency_presenter.h | A6 | 7 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_delivery_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_posture_presenter.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_relations_presenter.h | A6 | 10 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_traces_presenter.h | A6 | 8 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/charts_wrist_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/charts/session_series_model.h | A6 | 1 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/print/pdf_document_writer.h | A6 | 1 | the report's PDF writer takes its page options as a QVariantMap; step 5 moves the report onto the session with typed results  # step 5
+Gui/report/report_mailer.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/report/session_report_list_model.h | A6 | 3 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/report/session_report_model.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/trust/trust_presenter.h | A6 | 2 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
+Gui/launchmonitor/launch_monitor_controller.h | A6 | 1 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
+Gui/launchmonitor/lm_club_art.h | A6 | 3 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
+Gui/launchmonitor/lm_session_model.h | A6 | 2 | the LM board's readings reach QML as QVariantMaps; step 6 makes the board a presenter over typed measurements  # step 6
+Core/app_info.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Core/studio_profile.h | A6 | 4 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Export/swing_zip_exporter.h | A6 | 2 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/app/app_settings.h | A6 | 26 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/cameras/buffer_controller.h | A6 | 1 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/cameras/camera_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/cameras/camera_manager.h | A6 | 2 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/diagnosticmodel/model_browser.h | A6 | 73 | a tool's QML API (the diagnostic-model browser / the video markup), not a session presenter; no step 1-7 types it  # unplanned
+Gui/imu/imu_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/imu/imu_manager.h | A6 | 3 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/imu/trunk_ceremony_recorder.h | A6 | 2 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Gui/markup/markup_controller.h | A6 | 11 | a tool's QML API (the diagnostic-model browser / the video markup), not a session presenter; no step 1-7 types it  # unplanned
+Gui/media/llm_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/media/transcription_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/monitor/profiler_controller.h | A6 | 8 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/monitor/resource_monitor_controller.h | A6 | 4 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/review/chart_metrics.h | A6 | 21 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/review/device_filter_model.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/review/metric_catalog.h | A6 | 3 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/review/session_review_controller.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/review/swing_data_source.h | A6 | 8 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/review/timeline_labels.h | A6 | 6 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/settings/archive_controller.h | A6 | 1 | a settings, monitoring or tool object's QML API; not a presenter, and no step 1-7 types it  # unplanned
+Gui/shot/reanalysis_controller.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/shot/shot_controller.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/shot/shot_filter_proxy_model.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/shot/shot_list_model.h | A6 | 6 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/shot/shot_replay_controller.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/swing3d/swing_rig_driver.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/trust/trust_words.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Gui/viz/body_pose_adapter.h | A6 | 1 | a shot/review view's QML API; step 5 covers the Charts panel and the report only, and no step 1-7 types it  # unplanned
+Pose/motion_capture_probe.h | A6 | 1 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+Ppcp/ppcp_host_service.h | A6 | 6 | a device / capture object's QML API; no step 1-7 types it (04's 'Later · The Acquisition session')  # unplanned
+
+# ── A7 functions over 300 lines in rings 1-2 ──
+Metrics/gate_catalogue_body.h | A7 | 1 | the body gate catalogue is a table written as code (one entry per gate), not logic  # kept
+Metrics/gate_catalogue_club.h | A7 | 1 | the club gate catalogue is a table written as code (one entry per gate), not logic  # kept
+Metrics/metric_catalogue_manifest.cpp | A7 | 1 | the metric manifest is a table written as code (one entry per metric), not logic  # kept
+Body/dtl_posture.h | A7 | 1 | buildDtlPosture 439 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Body/lower_body_metrics.cpp | A7 | 1 | trackLowerBody 338 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Body/upper_body_metrics.cpp | A7 | 1 | trackUpperBody 630 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/engine/characteristic_engine.cpp | A7 | 1 | evaluate 353 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/engine/dag_layout.cpp | A7 | 1 | layoutDag 852 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/engine/relation_resolver.cpp | A7 | 1 | explain 374 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/measures/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Diagnostics/packs/characteristic_pack.cpp | A7 | 2 | validatePack 739, loadPack 529 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Kinematics/segment_rates.cpp | A7 | 1 | buildSegmentRates 761 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Pose/pose_runner.cpp | A7 | 1 | PoseRunner::run 722 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+Skeleton3d/skeleton3d_fit.cpp | A7 | 2 | frameResiduals 646, fitSkeleton 1390 lines; no step 1-7 splits it, a split needs its own plan  # unplanned
+
+# ── A8 Analysis past the Recording contract ──
+Analysis/swing_reanalyzer.cpp | A8 | 2 | re-analysis builds a RAM ring (ram_payload_source, source_ring) to feed the analysis; step 1: the analysis service takes only a Recording  # step 1

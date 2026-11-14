@@ -419,6 +419,19 @@ pp_add_test(design_system_lint_test
     COMPILE_OPTIONS -DPP_QML_ROOT="${GUI}"
                     -DPP_DS_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/design_system_allowlist.txt")
 
+# Architecture lint (docs/implementation/swe-audit/03-target-architecture.md §2, §11; refactor Step G).
+# Reads every C++ and QML source under src/ and fails on an include into an outer ring (A1), QML creating
+# a session/athlete-scoped type (A2), folder-name parsing (A3), a session/athlete file name outside its
+# owner (A4), file I/O in a rules directory (A5), QVariantMap/QVariantList on the QML boundary (A6), a
+# function over 300 lines in rings 1-2 (A7) and Analysis past the Recording contract (A8) — outside the
+# tagged entries in architecture_allowlist.txt. Plain C++ on Qt Core: no Python needed on any builder.
+pp_add_test(architecture_lint_test
+    SOURCES architecture_lint_test.cpp
+    INCLUDE ${GUI} ${SRC}
+    LINK    Qt6::Core
+    COMPILE_OPTIONS -DPP_SRC_ROOT="${SRC}"
+                    -DPP_ARCH_ALLOWLIST="${CMAKE_CURRENT_SOURCE_DIR}/architecture_allowlist.txt")
+
 # docs/design/system/tokens.json is generated from theme/Theme.qml: fail when it is stale, so the
 # design-system docs cannot drift from the code. Skipped (not failed) where there is no Python 3.
 find_package(Python3 COMPONENTS Interpreter QUIET)
