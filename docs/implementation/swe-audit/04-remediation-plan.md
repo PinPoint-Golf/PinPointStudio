@@ -333,7 +333,9 @@ start of step 3- so long as we know the migration works and no data is lost".
 - The corpus and the archive mirror are migrated the same way (dry run → Mark's OK → write → the same checks).
 - Deleted: `pps_migrate_step2` and its tests; the J-33 golfer-input fallback and carry-over; reading athletes from settings
   (J-27); the legacy D3 id derivation and folder-name day/order for sessions without `session.json` (J-56) — each only once
-  no folder anywhere still needs it (a check over the library, archive and corpus proves it).
+  no folder anywhere still needs it (a check over the library, archive and corpus proves it). The JSON-era library
+  converter (`Gui/settings/library_converter.cpp`, allowlist A5 ×5, P11) goes with the legacy-read paths (Mark, 15 Nov
+  2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint").
 - Tests: the legacy-read tests go with their code; a guard test proves a folder without `session.json` is reported, not guessed.
 
 #### Step 3 itself
@@ -445,7 +447,11 @@ start of step 3- so long as we know the migration works and no data is lost".
      still drops input) goes with the single writer;
    - the work-ons catch-up's write blocks are reported through `AthleteDiagnostics`, not only logged;
    - flight norms and the metric catalogue become immutable snapshots with the packs (03 §8);
-   - `Diagnostics/packs` joins lint A5 once its loader is a repository;
+   - the packs' lint A5 lines (`Diagnostics/packs`, in A5 since step 2's S1-g, and `Diagnostics/engine/pack_io`) go once
+     their loader is a repository;
+   - the analysis services read a shot's Recording through the `Shot`, not `RecordingReader` / the loader
+     (`Analysis/analysis_service.h`, `swing_reanalyzer.h`, `swing_reanalyzer.cpp`, allowlist A5, P11) (Mark, 15 Nov 2026:
+     `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint");
    - the pack loader's two long functions (`validatePack`, `loadPack`, allowlist A7) are split with B-11;
    - the pack and corridor editor (`Gui/diagnosticmodel/model_browser.h`, allowlist A6 ×73): it edits and saves the
      user pack and the user norm set (`user.json`, `user.norms.json`), so its writes go with the packs and norms
@@ -536,7 +542,10 @@ start of step 3- so long as we know the migration works and no data is lost".
 ### Step 7 · Rules down, words, namespaces (1–2 days; can overlap step 5)
 
 - **Domain code moves out of `src/Gui`**, about 5,000 lines (F-11, D-09, C-08).
-- **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06).
+- **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06). Ball and Pose too:
+  their stages' pinned inputs and baselines and the pose model fingerprint are read outside the rules
+  (`Ball/ball_baseline_io.h`, `Ball/ball_runner.cpp`, `Pose/pose_runner.cpp`, allowlist A5, P11) (Mark, 15 Nov 2026:
+  `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint").
 - **One words module;** domain reductions persist ids and numbers (C-04, B-10). The report's own frequency words (`everyWords` in
   `report_words.h`) fold into the one rule in `frequency_words.h` (Stage 0.13).
 - **One namespace per layer** (C-14, B-15, A-20). `src/Export` is renamed for the Recording contract.

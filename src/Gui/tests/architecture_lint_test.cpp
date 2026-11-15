@@ -32,7 +32,10 @@
 //         3 DomainModel  src/DomainModel (created in step 1 for RecordingRepository)
 //         4 Application  orchestration: the analysis pipeline, re-analysis, AppState, use cases
 //         5 Adapters     devices, the Recording store and other persistence, UI (all of src/Gui)
-//       A file may include its own ring or any ring inside it, never one outside.
+//       A file may include its own ring or any ring inside it, never one outside. Also (step 2, S1-g;
+//       Mark, 15 Nov 2026, DEC-146): an Adapters-ring file outside src/Gui (Export, Buffer, Video, the
+//       connectors, the device back-ends, …) or a src/Recording file never includes a src/Gui header —
+//       an include inside the Adapters ring that the ring check alone does not see.
 //   A2  QML creating a C++ type that is session- or athlete-scoped (scopedTypeRe() below — from
 //       data/seam_inventory.md). Its owner is the domain/application (03 §9), never a view.
 //   A3  folder-name parsing — the shot number after the last '_' (lastIndexOf / section / split), the
@@ -40,10 +43,23 @@
 //       test or a "swing_*" name glob — outside SwingPaths and (once it exists) SessionIdentity.
 //   A4  a session or athlete file name spelled as a literal ("diagnostics.json", "work_ons.json", …)
 //       outside the one file that owns it (ownedFiles() below; 03 §7 "one door per file").
-//   A5  file I/O (QFile, QSaveFile, QDir, QFileInfo, QDirIterator, QTemporaryFile, std::fstream,
-//       fopen) in a rules directory: src/Coaching, src/Diagnostics/engine|norms|measures, and the
-//       Rules-ring files of src/Analysis. One finding per line that names one. (Diagnostics/packs is
-//       left out for now: its loader is step 3's.)
+//   A5  P11 (Mark, 15 Nov 2026; DEC-161): an object's persistence is its own concern. Widened in step 2
+//       (S1-g) from "file I/O in a rules directory" to every C++ file outside the repositories:
+//       (a) file or directory access — QFile, QSaveFile, QDir, QFileInfo, QDirIterator, QTemporaryFile,
+//           QTemporaryDir, std::fstream, fopen, atomicWrite, FolderLock — one finding per line that names
+//           one. Pure path text is not access and is not counted: QDir's path-string statics (cleanPath,
+//           separator, the native-separator pair, isAbsolutePath / isRelativePath) and its enum values
+//           (QDir::Files, …), a temporary QDir(…) asked only for a path or its name (dirName, path,
+//           absolutePath, filePath, absoluteFilePath, relativeFilePath), and a temporary QFileInfo(…) asked
+//           only for a path or a name part (fileName, baseName, completeBaseName, suffix, completeSuffix, path,
+//           absolutePath, filePath, absoluteFilePath). An #include <QFile> line is not access either (its
+//           uses are); before S1-g it counted, so the rules directories' counts fell with the widening.
+//       (b) an #include "…" of a repository: the repository interfaces (isRepositoryHeader() below) and
+//           the stores and file doors that implement them.
+//       Allowed: src/Export (the stores and file doors), the Platform ring's own helpers (atomic_write,
+//       folder_lock, logging), and, for (b) only, src/DomainModel (the interfaces and the owning
+//       objects). The tools (tools/) and the tests are not scanned. The rules directories keep their
+//       own message; everything else is reported as a P11 finding.
 //   A6  a Q_INVOKABLE that returns or takes a QVariantMap / QVariantList, or a Q_PROPERTY of that
 //       type, or a public slot / signal that carries one, in any header under src/ (the QML boundary,
 //       03 §9: values become Q_GADGETs).
@@ -70,8 +86,10 @@
 //
 // THE ALLOW-LIST. Today's violations live in architecture_allowlist.txt beside this file, generated
 // once from the tree at the start of Step G — one line per file and rule, with the number of findings
-// allowed, WHY, and the refactor step that removes it (`# step 3`; `# unplanned` when no step 1-8
-// does — those go to Mark; `# kept` for a deliberate one). A file that grows past its count fails; one that
+// allowed, WHY, and the refactor step that removes it (`# step 3`, or a sub-step such as `# step 3.0`;
+// `# platform refactor (capture)` or `# platform refactor (settings)` for the refactor after step 8, 05 §1 / §2;
+// `# not domain (§8.3)` for a file the information model classes as not domain, kept allowlisted by Mark's answer;
+// `# unplanned` when nothing places it yet — those go to Mark; `# kept` or `# kept (reason)` for a deliberate one). A file that grows past its count fails; one that
 // drops below it is reported so the count can be lowered. The list can only shrink: adding a NEW
 // entry is an architecture decision — ask Mark first.
 //
@@ -84,7 +102,9 @@
 //     Buffer/types.h). An include whose basename is ambiguous resolves to nothing and is skipped.
 //   - A2 misses a module-qualified creation (`X.SessionSeriesModel {`).
 //   - A4 misses a file name built by concatenation ("club_baseline" + ".json").
-//   - A5 does not look for std::filesystem or QStandardPaths.
+//   - A5 does not look for std::filesystem or QStandardPaths, nor at QML/JS. It cannot tell a library
+//     path from any other: a model, log or download file counts like a session's file, so such a line
+//     is allowlisted with its reason. A QFileInfo variable used only for its name still counts.
 //   - A7 misses trailing-return functions (`auto f() -> T {`), as size_table.py does.
 //
 //   cmake --build build/tests --target architecture_lint_test -j 6
@@ -345,6 +365,46 @@ bool isRulesIoDir(const QString &rel)
         || rel.startsWith(QLatin1String("Diagnostics/norms/")) || rel.startsWith(QLatin1String("Diagnostics/measures/"));
 }
 
+// A5 (P11): the files allowed to touch the disk — the stores and file doors of src/Export, and the Platform
+// ring's own helpers (the atomic write, the folder lock, logging).
+bool a5Exempt(const QString &rel)
+{
+    return rel.startsWith(QLatin1String("Export/")) || ringOf(rel) == Platform;
+}
+
+// A5 (P11): the repositories — the interfaces the domain model defines (P4) and the stores and file doors in
+// src/Export that implement them. Only src/Export and src/DomainModel (the owning objects) include one.
+bool isRepositoryHeader(const QString &target)
+{
+    static const QSet<QString> t{
+        QStringLiteral("DomainModel/recording_repository"), QStringLiteral("DomainModel/recording_reader"),
+        QStringLiteral("DomainModel/session_repository"),   QStringLiteral("DomainModel/athlete_repository"),
+        QStringLiteral("Export/swing_store"),               QStringLiteral("Export/swing_store_repository"),
+        QStringLiteral("Export/recording_loader"),          QStringLiteral("Export/swing_doc"),
+        QStringLiteral("Export/session_store"),             QStringLiteral("Export/session_archiver"),
+        QStringLiteral("Export/session_files"),             QStringLiteral("Export/session_diagnostics_files"),
+        QStringLiteral("Export/athlete_store"),             QStringLiteral("Export/athlete_files"),
+    };
+    return t.contains(stemOf(target));
+}
+
+// A5: the line with its pure path text blanked (not access): QDir's path-string statics and enum values, a
+// temporary QDir asked only for a path or its name, and a temporary QFileInfo asked only for a path or a name part.
+QString withoutPathText(const QString &line)
+{
+    static const QRegularExpression dirPure(QStringLiteral(
+        R"(\bQDir::(?:cleanPath|separator|toNativeSeparators|fromNativeSeparators|isAbsolutePath|isRelativePath|listSeparator|[A-Z]\w*)\b)"));
+    static const QRegularExpression infoName(QStringLiteral(
+        R"(\bQFileInfo\s*\((?:[^()]|\([^()]*\))*\)\s*\.\s*(?:fileName|baseName|completeBaseName|suffix|completeSuffix|path|absolutePath|filePath|absoluteFilePath)\s*\(\s*\))"));
+    static const QRegularExpression dirName(QStringLiteral(
+        R"(\bQDir\s*\((?:[^()]|\([^()]*\))+\)\s*\.\s*(?:dirName|path|absolutePath|filePath|absoluteFilePath|relativeFilePath)\s*\()"));
+    QString l = line;
+    l.replace(infoName, QStringLiteral(" "));
+    l.replace(dirName, QStringLiteral(" ("));
+    l.replace(dirPure, QStringLiteral(" "));
+    return l;
+}
+
 // An include that takes src/Analysis past the Recording contract (A8).
 bool isAcquisitionOrAppState(const QString &target)
 {
@@ -601,19 +661,30 @@ QVector<Finding> scan(const Source &s, const Tree &tree)
                 out.append({ QStringLiteral("A1"), li + 1,
                              QStringLiteral("%1 → %2: includes %3").arg(QLatin1String(ringName(ring)),
                                                                          QLatin1String(ringName(tr)), target) });
+            else if ((ring == Adapters || rel.startsWith(QLatin1String("Recording/")))
+                     && !rel.startsWith(QLatin1String("Gui/")) && target.startsWith(QLatin1String("Gui/")))
+                out.append({ QStringLiteral("A1"), li + 1,
+                             QStringLiteral("an adapter outside Gui reaches the UI (DEC-146): includes %1").arg(target) });
+            if (!a5Exempt(rel) && !rel.startsWith(QLatin1String("DomainModel/")) && isRepositoryHeader(target))
+                out.append({ QStringLiteral("A5"), li + 1,
+                             QStringLiteral("includes %1: a repository outside its owner (P11: reach the object, never its repository)").arg(target) });
             if (rel.startsWith(QLatin1String("Analysis/")) && isAcquisitionOrAppState(target))
                 out.append({ QStringLiteral("A8"), li + 1,
                              QStringLiteral("Analysis reaches past the Recording contract: includes %1").arg(target) });
         }
-        // A5 — file I/O in a rules directory
-        if (isRulesIoDir(rel)) {
+        // A5 — file or directory access outside the repositories (P11); in a rules directory, its old message
+        if (!a5Exempt(rel)) {
             static const QRegularExpression io(QStringLiteral(
-                R"(\b(?:QFile|QSaveFile|QDir|QFileInfo|QDirIterator|QTemporaryFile|QTemporaryDir)\b|\bstd::[io]?fstream\b|\bfopen\s*\()"));
+                R"(\b(?:QFile|QSaveFile|QDir|QFileInfo|QDirIterator|QTemporaryFile|QTemporaryDir|atomicWrite\w*|FolderLock)\b|\bstd::[io]?fstream\b|\bfopen\s*\()"));
+            static const QRegularExpression includeLine(QStringLiteral(R"(^\s*#\s*include\b)"));
+            const bool rules = isRulesIoDir(rel);
             for (int li = 0; li < s.codeLines.size(); ++li) {
-                const auto m = io.match(s.codeLines.at(li));
+                if (includeLine.match(s.codeLines.at(li)).hasMatch()) continue;     // <QFile> is not access; its uses are
+                const auto m = io.match(withoutPathText(s.codeLines.at(li)));
                 if (m.hasMatch())
                     out.append({ QStringLiteral("A5"), li + 1,
-                                 m.captured(0) + QStringLiteral(": file I/O in a rules directory (repositories load, rules compute)") });
+                                 m.captured(0) + (rules ? QStringLiteral(": file I/O in a rules directory (repositories load, rules compute)")
+                                                        : QStringLiteral(": file access outside the repositories (P11: an object's persistence is its own)")) });
             }
         }
         // A6 — QVariantMap / QVariantList on the QML boundary
@@ -760,7 +831,8 @@ void selfTest()
     Tree t;
     for (const char *f : { "Gui/shot/shot_processor.h", "Gui/athlete/athlete_controller.h", "Coaching/shot_factors.h",
                            "Metrics/metric_catalogue.h", "Buffer/source_ring.h", "Buffer/types.h", "Core/pp_debug.h",
-                           "Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h" }) {
+                           "Analysis/swing_analysis.h", "Analysis/analysis_pipeline.h", "Export/session_store.h",
+                           "Export/swing_paths.h", "DomainModel/session_repository.h", "DomainModel/athlete.h" }) {
         t.files.insert(QString::fromLatin1(f));
         t.byName[QFileInfo(QString::fromLatin1(f)).fileName()].append(QString::fromLatin1(f));
     }
@@ -777,6 +849,12 @@ void selfTest()
           QStringLiteral("A1 ignores a commented-out include"));
     check(countRule(run("Analysis/swing_analysis.h", QStringLiteral("#include \"../Analysis/analysis_pipeline.h\"\n")), "A1") == 1,
           QStringLiteral("A1 uses the per-file ring of a straddling directory (Vocabulary → Application)"));
+    const auto exportToGui = run("Export/x.cpp", QStringLiteral("#include \"../Gui/athlete/athlete_controller.h\"\n#include \"swing_paths.h\"\n"));
+    check(countRule(exportToGui, "A1") == 1 && exportToGui.first().text.contains(QLatin1String("Gui/athlete/athlete_controller.h")),
+          QStringLiteral("A1 catches Export including a Gui header inside the Adapters ring (DEC-146); passes Export → Export"));
+    check(countRule(run("Buffer/source_ring.cpp", QStringLiteral("#include \"athlete_controller.h\"\n")), "A1") == 1
+              && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../athlete/athlete_controller.h\"\n")), "A1") == 0,
+          QStringLiteral("A1 catches any other adapter outside Gui including Gui; passes Gui → Gui"));
     check(countRule(run("Analysis/x.cpp", QStringLiteral("#include \"source_ring.h\"\n#include \"../Gui/athlete/athlete_controller.h\"\n"
                                                          "#include \"types.h\"\n")), "A8") == 2,
           QStringLiteral("A8 catches Analysis including the ring buffer and app state, passes the Recording's types"));
@@ -817,12 +895,28 @@ void selfTest()
     check(countRule(run("Export/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
               && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"fault_profile.json\";\n")), "A4") == 1,
           QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model no longer spells fault_profile.json)"));
-    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 3,
-          QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string"));
-    check(countRule(run("Gui/x/y.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 0, QStringLiteral("A5 reads only the rules directories"));
+    check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 2,
+          QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string or the <QFile> include"));
+    const auto charts = run("Gui/charts/x.cpp", QStringLiteral(
+        "QFile f(p);\nQDir(d).mkpath(\".\");\natomicWrite(p, bytes);\nFolderLock lock(dir);\n#include \"../../Export/session_store.h\"\n"
+        "auto n = QFileInfo(p).fileName();\nauto c = QDir::cleanPath(a + QDir::separator() + b);\nauto e = d.entryList(QDir::Files);\n"
+        "auto f = QDir(d).filePath(QFileInfo(p).absolutePath());\nauto g = QDir(QFileInfo(p).path()).dirName();\n"
+        "if (QFileInfo::exists(p)) {}\n"));
+    check(countRule(charts, "A5") == 6 && charts.first().text.contains(QLatin1String("P11")),
+          QStringLiteral("A5 (P11) catches a Charts file opening a QFile, making a folder, writing atomically, taking the lock, "
+                         "asking whether a file exists and including a store; passes a name part, path text and a QDir enum"));
+    check(countRule(run("Export/session_store.cpp", QStringLiteral("QFile f(p);\natomicWrite(p, b);\n#include \"../DomainModel/session_repository.h\"\n")), "A5") == 0
+              && countRule(run("Core/atomic_write.h", QStringLiteral("QSaveFile f(p);\n")), "A5") == 0,
+          QStringLiteral("A5 (P11) allows a store and the Platform ring's own helpers"));
+    check(countRule(run("DomainModel/athlete.cpp", QStringLiteral("#include \"session_repository.h\"\n#include \"athlete.h\"\n")), "A5") == 0
+              && countRule(run("DomainModel/athlete.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 1
+              && countRule(run("Gui/x/y.cpp", QStringLiteral("#include \"../../DomainModel/session_repository.h\"\n#include \"../../DomainModel/athlete.h\"\n")), "A5") == 1,
+          QStringLiteral("A5 (P11): the owning objects include their repository but touch no file; a view reaches the object, "
+                         "never its repository"));
+    const auto reanalyzer = run("Analysis/swing_reanalyzer.cpp", QStringLiteral("QFile f(p);\n"));
     check(countRule(run("Analysis/seg_resolve.h", QStringLiteral("QFile f(p);\n")), "A5") == 1
-              && countRule(run("Analysis/swing_reanalyzer.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 0,
-          QStringLiteral("A5 reads Analysis's rule files, not its orchestration"));
+              && countRule(reanalyzer, "A5") == 1 && reanalyzer.first().text.contains(QLatin1String("P11")),
+          QStringLiteral("A5 reads Analysis's rule files as a rules directory, its orchestration as P11"));
     const QString api = QStringLiteral(
         "class X : public QObject {\n  Q_PROPERTY(QVariantMap shot READ shot NOTIFY changed)\n"
         "  Q_PROPERTY(int n READ n NOTIFY changed)\n  Q_INVOKABLE QVariantList rows() const;\n"
@@ -871,7 +965,8 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
     QFile                f(path);
     *ok = f.open(QIODevice::ReadOnly | QIODevice::Text);
     if (!*ok) return out;
-    static const QRegularExpression tag(QStringLiteral(R"(#\s*(step\s+[1-8]|unplanned|kept)\s*$)"));
+    static const QRegularExpression tag(QStringLiteral(
+        R"(#\s*(step\s+[1-8](?:\.\d+)?|platform refactor \((?:capture|settings)\)|not domain \(§8\.3\)|unplanned|kept(?: \([^()]+\))?)\s*$)"));
     static const QRegularExpression ruleRe(QStringLiteral(R"(^A[1-8]$)"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
     for (int i = 0; i < lines.size(); ++i) {
@@ -884,7 +979,8 @@ QMap<QString, Allow> readAllowList(const QString &path, bool *ok, QMap<QString, 
         const bool        okLine = parts.size() >= 4 && ruleRe.match(parts.at(1).trimmed()).hasMatch()
                             && parts.at(2).trimmed().toInt() > 0 && t.hasMatch() && !why.isEmpty();
         if (!okLine) {
-            check(false, QStringLiteral("allow-list line %1 is path | rule | count | WHY # step N (or # unplanned / # kept): %2").arg(i + 1).arg(l));
+            check(false, QStringLiteral("allow-list line %1 is path | rule | count | WHY # step N (or # step N.n / # platform refactor (capture|settings) / "
+                                 "# not domain (§8.3) / # unplanned / # kept [(reason)]): %2").arg(i + 1).arg(l));
             continue;
         }
         Allow a;
@@ -961,11 +1057,11 @@ int main()
     for (const QString &u : unplaced) std::printf("      %s\n", qPrintable(u));
     check(unplaced.isEmpty(), QStringLiteral("every C++ file's directory has a ring in the table (a new directory is placed on purpose)"));
 
-    static const char *ruleNames[] = { "A1 includes from an inner ring into an outer one",
+    static const char *ruleNames[] = { "A1 includes from an inner ring into an outer one, or from an adapter outside Gui into Gui",
                                        "A2 QML creating a session/athlete-scoped type",
                                        "A3 folder-name parsing outside SwingPaths / SessionIdentity",
                                        "A4 session/athlete file names outside their owner",
-                                       "A5 file I/O in a rules directory",
+                                       "A5 file access or a repository include outside the repositories (P11)",
                                        "A6 QVariantMap/QVariantList on the QML boundary",
                                        "A7 functions over 300 lines in rings 1-2",
                                        "A8 Analysis past the Recording contract" };
