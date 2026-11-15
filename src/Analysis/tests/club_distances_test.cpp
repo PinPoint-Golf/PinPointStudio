@@ -65,13 +65,15 @@ static ConditionRow firedRow(const QString &id, int nSignals = 1, float confiden
     return r;
 }
 
-// A session on `day` with the given carries.
+// A session on `day` with the given carries. Its day and place in the day are handed in, as SessionIdentity
+// gives them (step 2.7a): the folder's name is a label, never read for its date.
 static ClubDistanceSession sessionOn(const QString &day, const QString &club, const std::vector<double> &carries,
                                      const char *suffix = "01")
 {
     ClubDistanceSession s;
     s.folder = day + QStringLiteral("_Mark_Range_") + QLatin1String(suffix);
-    s.day    = sessionDayOfFolder(s.folder);
+    s.day    = QDate::fromString(day, Qt::ISODate);
+    s.nOfDay = QString::fromLatin1(suffix).toInt();
     int id = 1;
     for (double c : carries) s.shots.push_back(shotWith(id++, club, c));
     return s;
@@ -206,11 +208,29 @@ int main()
               "and absent when zero");
     }
 
-    std::printf("session day from the folder name:\n");
+    std::printf("the day order is the place SessionIdentity gives, not the folder's name (step 2.7a):\n");
     {
-        check(sessionDayOfFolder(QStringLiteral("2026-11-08_Mark_Range_01")) == QDate(2026, 11, 8), "bare name");
-        check(sessionDayOfFolder(QStringLiteral("/lib/Mark/2026-11-08_Mark_Range_01/")) == QDate(2026, 11, 8), "a path");
-        check(!sessionDayOfFolder(QStringLiteral("no_date_here")).isValid(), "no date is invalid");
+        // Two sessions of one day whose names sort against the order they were played in (the second was
+        // started first: its place, n-of-day 1, is by its start time), and one the next day.
+        ClubDistanceSession later = sessionOn(QStringLiteral("2026-10-02"), k7i, { 170 }, "01");
+        later.nOfDay = 2;
+        ClubDistanceSession first = sessionOn(QStringLiteral("2026-10-02"), k7i, { 190 }, "02");
+        first.nOfDay = 1;
+        const ClubDistanceSession next = sessionOn(QStringLiteral("2026-10-03"), k7i, { 210 }, "01");
+        const std::vector<ClubDistanceSession> all{ next, later, first };
+        const std::vector<const ClubDistanceSession *> order = sessionsByDay(all);
+        check(order.size() == 3 && order[0]->folder == first.folder && order[1]->folder == later.folder
+                  && order[2]->folder == next.folder,
+              "within a day by n-of-day, whatever the names say");
+        ClubDistanceSession named = sessionOn(QStringLiteral("name-date-type"), k7i, { 150 });
+        named.day = QDate(2026, 10, 1);   // a folder whose name holds no date at the front still has its day
+        check(sessionsByDay({ named }).size() == 1, "a session's day is the one handed in, not its name's");
+        check(sessionPlaceBefore(first.place(), later.place()) && !sessionPlaceBefore(later.place(), first.place()),
+              "sessionPlaceBefore: day, then n-of-day");
+        ClubDistanceSession tie = first;
+        tie.folder = QStringLiteral("2026-10-02_Mark_Range_00");
+        check(sessionPlaceBefore(tie.place(), first.place()), "a tie the identity cannot break falls to the folder name");
+        check(sessionsByDay({ sessionOn(QStringLiteral("not-a-date"), k7i, { 150 }) }).empty(), "no day: ordered nowhere");
     }
 
     std::printf("as-of membership:\n");

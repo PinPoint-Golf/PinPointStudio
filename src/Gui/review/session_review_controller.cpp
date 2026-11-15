@@ -208,11 +208,10 @@ void SessionReviewController::refresh()
     rows.append(buildLiveRow(nowMs));        // live session pinned first
 
     const QString liveDir = liveSessionDir();
-    const QString root    = m_settings ? m_settings->athleteLibraryPath() : QString();
-    // The athlete's folder by its own name (D4: chosen once, kept on a rename), which the reader joins
-    // to the library as it always has.
-    const QString athlete = m_athlete  ? QFileInfo(m_athlete->currentFolder()).fileName() : QString();
-    for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(root, athlete)) {
+    // The athlete's folder itself (D4: chosen once, kept on a rename; step 2.7a: no longer re-joined to
+    // the library from its name).
+    const QString athleteDir = m_athlete ? m_athlete->currentFolder() : QString();
+    for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(athleteDir)) {
         // Skip the live session's own dir — it's already the synthesized row.
         if (!liveDir.isEmpty() && QFileInfo(sessionDir).absoluteFilePath() == liveDir)
             continue;

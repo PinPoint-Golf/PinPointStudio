@@ -945,19 +945,25 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
 
 QStringList SwingDocReader::findSwingDirs(const QString &sessionDir)
 {
-    QDir d(sessionDir);
+    // SwingPaths' one listing of a session's swing folders (P7, lint A3), ascending by name — so by
+    // swing number.
+    QStringList names = SwingPaths::swingFolders(sessionDir);
+    std::sort(names.begin(), names.end());
     QStringList out;
-    for (const QString &name : d.entryList(QStringList{ QStringLiteral("swing_*") },
-                                           QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name))
+    out.reserve(names.size());
+    for (const QString &name : std::as_const(names))
         out.append(sessionDir + QStringLiteral("/") + name);
     return out;
 }
 
-QString SwingDocReader::latestSessionDir(const QString &libraryRoot, const QString &athleteName)
+// THE ATHLETE'S FOLDER IS GIVEN, NEVER DERIVED FROM A NAME (refactor step 2.7a; D4, DEC-151): it is
+// Athlete::folder(), chosen once at creation and kept on a rename. Before, both functions joined the
+// library root to sanitise(name), one of the eight derivations that sent a renamed athlete to a folder
+// that does not exist (E-02).
+QString SwingDocReader::latestSessionDir(const QString &athleteDir)
 {
-    if (libraryRoot.isEmpty() || athleteName.isEmpty())
+    if (athleteDir.isEmpty())
         return {};
-    const QString athleteDir = libraryRoot + QStringLiteral("/") + SwingPaths::sanitise(athleteName);
     const QFileInfoList sessions =
         QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     if (sessions.isEmpty())
@@ -972,11 +978,10 @@ QString SwingDocReader::latestSessionDir(const QString &libraryRoot, const QStri
     return newest->absoluteFilePath();
 }
 
-QStringList SwingDocReader::sessionDirs(const QString &libraryRoot, const QString &athleteName)
+QStringList SwingDocReader::sessionDirs(const QString &athleteDir)
 {
-    if (libraryRoot.isEmpty() || athleteName.isEmpty())
+    if (athleteDir.isEmpty())
         return {};
-    const QString athleteDir = libraryRoot + QStringLiteral("/") + SwingPaths::sanitise(athleteName);
     QFileInfoList sessions =
         QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
     // Most-recently-modified first — same recency basis as latestSessionDir(),

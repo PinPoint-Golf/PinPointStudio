@@ -667,21 +667,18 @@ QString patternsExplained(int n)
 constexpr int kDetailMaxPaths = 8;
 constexpr int kDetailMaxDepth = 7;
 
-// THE LEDGER'S SHOT ID IS THE SWING FOLDER'S NUMBER (swing_0007 -> 7), on every path in. The
-// back-fill has always read it from there; the live path used to take ShotProcessor's id, which
-// is the carousel's own counter and agrees with the folder only in a session whose carousel was
-// never reloaded. Extend today's session and the next shot arrived as "91" beside folders 1–30:
-// filed under a number no reload would give it, so the next activation graded swing_0031 a
-// second time as 31, and in other orders the counter landed ON a number already held and the
-// shot was dropped as a repeat. −1 when the folder carries no number.
-int folderShotId(const QString &swingDir)
+// THE LEDGER'S SHOT ID IS THE SWING NUMBER (ID-SWING-NUMBER: swing_0007 -> 7), on every path in, and
+// "shot N" on the panel is that number (DEC-91; refactor step 2.7a, audit E-06). The back-fill has always
+// read it from the folder; the live path used to take ShotProcessor's id, which is the carousel's own
+// counter and agrees with the folder only in a session whose carousel was never reloaded. Extend today's
+// session and the next shot arrived as "91" beside folders 1–30: filed under a number no reload would give
+// it, so the next activation graded swing_0031 a second time as 31, and in other orders the counter landed
+// ON a number already held and the shot was dropped as a repeat. The number is read by SwingPaths, the one
+// reader of a swing folder's name (P7, lint A3). −1 when the folder is not named as a swing.
+int swingNumberOfFolder(const QString &swingDir)
 {
-    const QString name = QFileInfo(QDir::cleanPath(swingDir)).fileName();
-    const int us = name.lastIndexOf(QLatin1Char('_'));
-    if (us < 0) return -1;
-    bool ok = false;
-    const int id = name.mid(us + 1).toInt(&ok);
-    return (ok && id >= 0) ? id : -1;
+    const int n = pinpoint::SwingPaths::swingNumberOf(QFileInfo(QDir::cleanPath(swingDir)).fileName());
+    return n > 0 ? n : -1;
 }
 
 // The baseline's keys are canonical bag ids; the detection asks with whatever spelling the swing carries.
@@ -840,12 +837,10 @@ int SessionDiagnosticsModel::shotIdForSwingDir(const QString &dir) const
         if (QFileInfo(QDir::cleanPath(it.value())).fileName() == name && indexOfShot(it.key()) >= 0)
             return it.key();
 
-    if (name.startsWith(QLatin1String("swing_"))) {
-        bool ok = false;
-        const int n = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-        if (ok && indexOfShot(n) >= 0) return n;
-    }
-    return -1;
+    // The swing number, read by SwingPaths (step 2.7a). ⚠ Like the name match above, this does not ask
+    // whether the swing is this session's (audit E-05, R-APP-4): the selection by ShotRef is step 4's.
+    const int n = swingNumberOfFolder(want);
+    return (n >= 0 && indexOfShot(n) >= 0) ? n : -1;
 }
 
 Stage SessionDiagnosticsModel::effectiveStage() const
@@ -886,9 +881,9 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
                                                       : QDir::cleanPath(m_sessionDir));
         return;
     }
-    // The folder's number, whatever the caller numbered it (folderShotId above). The caller's id
-    // stands only for a folder that carries none.
-    if (const int fromFolder = folderShotId(swingDir); fromFolder >= 0) shotId = fromFolder;
+    // The swing number, whatever the caller numbered it (swingNumberOfFolder above). The caller's id
+    // stands only for a folder that is not named as a swing.
+    if (const int fromFolder = swingNumberOfFolder(swingDir); fromFolder >= 0) shotId = fromFolder;
     if (shotId < 0) return;
     // A CLOSED SESSION IS FROZEN. Closing is the one lifecycle transition that is an event
     // rather than a threshold, and the panel it produces is the session's summary — a shot
@@ -906,10 +901,8 @@ void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
     joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     // A re-analysis of another session's swing is that session's business: no warning, it is routine.
     if (!swingIsInSession(swingDir, m_sessionDir)) return;
-    const QString name = QFileInfo(swingDir).fileName();
-    bool ok = false;
-    const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-    if (!ok || id < 0) return;
+    const int id = swingNumberOfFolder(swingDir);
+    if (id < 0) return;
     if (!m_ingested.contains(id)) { ingestShot(id, swingDir); return; }
     m_swingDirs.insert(id, swingDir);
     queueDetect(id, swingDir, true);
@@ -945,7 +938,7 @@ void SessionDiagnosticsModel::forgetShot(const QString &swingDir)
     const QFileInfo fi(swingDir);
     if (QDir::cleanPath(fi.absolutePath()) != QDir::cleanPath(QFileInfo(m_sessionDir).absoluteFilePath()))
         return;
-    const int id = folderShotId(swingDir);
+    const int id = swingNumberOfFolder(swingDir);
     if (id < 0 || !dropShot(id)) return;
     resolveSelectedSwingDir();
     // Reduced and written as any arrival is — at once, or with the batch still landing.
@@ -1503,6 +1496,9 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     ++m_activationGen;
 
     m_sessionDir = sessionDir;
+    // Its day — the start time's, or a legacy folder's name's, read by SessionIdentity (step 2.7a) — read
+    // once here: the club baseline's predecessors and the carry against the usual are placed by it.
+    m_sessionIdentity = pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir, *m_sessions, *m_recordings);
     m_ledgerWriteBlocked = false;
     m_writeFailing = false;
     m_legacyGolfer = QJsonObject();
@@ -1637,12 +1633,12 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         }
 
         // A row filed under a number that is not its folder's was written by the live path
-        // before it took the folder's number (folderShotId). It is dropped here and the
+        // before it took the swing number (swingNumberOfFolder). It is dropped here and the
         // reconcile below grades the swing again under the right one — kept, the same swing
         // would stand in the ledger twice.
         for (auto it = m_swingDirs.begin(); it != m_swingDirs.end(); ) {
             const int id = it.key();
-            const int fromFolder = folderShotId(it.value());
+            const int fromFolder = swingNumberOfFolder(it.value());
             if (fromFolder < 0 || fromFolder == id) { ++it; continue; }
             m_shots.erase(std::remove_if(m_shots.begin(), m_shots.end(),
                                          [id](const ShotRecord &s) { return s.shotId == id; }),
@@ -1677,7 +1673,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // so the order is the one it always was. Anything that would act on the session before that (a shot, a
     // golfer command, closing it) first waits for the freeze to land (joinFreeze). Synchronous: inline.
     if (beginClubBaseline()) {
-        const QDate day = sessionDayOfFolder(sessionDir);
+        const QDate day = m_sessionIdentity.localDay();
         if (m_synchronous) {
             finishClubBaseline(day, readPredecessors(sessionDir, day));
         } else {
@@ -1716,7 +1712,7 @@ void SessionDiagnosticsModel::joinFreeze()
     }
     m_freezing = false;
     m_pending = std::max(0, m_pending - 1);
-    finishClubBaseline(sessionDayOfFolder(m_sessionDir), r);
+    finishClubBaseline(m_sessionIdentity.localDay(), r);
     continueActivation();
     emit busyChanged();
 }
@@ -1743,8 +1739,9 @@ void SessionDiagnosticsModel::continueActivation()
     // then would see this session's rows against that session's ledgers. Synchronously it is
     // also the state the back-fill's per-shot reductions ratchet from (stage, card order).
     const QDir dir(sessionDir);
-    QStringList swings = dir.entryList(QStringList{ QStringLiteral("swing_*") },
-                                       QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    // The session's swing folders: SwingPaths' one listing, by name (so by swing number).
+    QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);
+    std::sort(swings.begin(), swings.end());
 
     // The other half of the reconcile (#56): a row whose swing has LEFT the folder — moved to
     // the trash, here or in another copy of the app — is not a shot of this session any more.
@@ -1759,7 +1756,7 @@ void SessionDiagnosticsModel::continueActivation()
     if (dir.exists()) {
         QSet<int> onDisk;
         for (const QString &name : std::as_const(swings))
-            if (const int id = folderShotId(dir.filePath(name)); id >= 0) onDisk.insert(id);
+            if (const int id = swingNumberOfFolder(name); id >= 0) onDisk.insert(id);
         int dropped = 0;
         for (const int id : QSet<int>(m_ingested))
             if (m_swingDirs.contains(id) && !onDisk.contains(id) && dropShot(id)) ++dropped;
@@ -1773,9 +1770,8 @@ void SessionDiagnosticsModel::continueActivation()
     rebuild();
 
     for (const QString &name : swings) {
-        bool ok = false;
-        const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-        if (!ok) continue;
+        const int id = swingNumberOfFolder(name);
+        if (id < 0) continue;
         const QString swingDir = dir.filePath(name);
         if (!m_ingested.contains(id)) { ingestShot(id, swingDir); continue; }
 
@@ -2211,7 +2207,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     // ── Today's carry against the usual (§4.2), from the FROZEN sidecar ──
     ClubDistanceSession self;
     self.folder = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
-    self.day    = sessionDayOfFolder(m_sessionDir);
+    self.day    = m_sessionIdentity.localDay();      // SessionIdentity's (step 2.7a), never the folder's name
     self.shots  = m_shots;
     self.corrections = m_corrections;
     for (const ClubSessionPool &pool : poolSessionByClub(self, flightNorms())) {
@@ -2740,9 +2736,9 @@ bool SessionDiagnosticsModel::beginClubBaseline()
         || (m_baselineAuthority == BaselineAuthority::Live && m_reviewing))
         return false;
 
-    // A folder with no date has no predecessors, so a snapshot now would be empty for good. The catch-up
+    // A session with no day has no predecessors, so a snapshot now would be empty for good. The catch-up
     // still writes one (it has to reach an end); a panel leaves the session unfrozen.
-    if (m_baselineAuthority == BaselineAuthority::Live && !sessionDayOfFolder(m_sessionDir).isValid()) return false;
+    if (m_baselineAuthority == BaselineAuthority::Live && !m_sessionIdentity.localDay().isValid()) return false;
     return true;
 }
 
@@ -2752,29 +2748,29 @@ SessionDiagnosticsModel::PredecessorRead SessionDiagnosticsModel::readPredecesso
     PredecessorRead out;
     QElapsedTimer clock;
     clock.start();
-    // Predecessors: strictly earlier folder days, the newest ten that hold a session. A sibling with
-    // nothing recorded is not a session; one that cannot be read just gives no shots.
-    const QDir athlete = QFileInfo(QDir::cleanPath(sessionDir)).absoluteDir();
-    struct Candidate { QDate day; QString name; };
-    std::vector<Candidate> candidates;
-    if (day.isValid()) {
-        for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDate d = sessionDayOfFolder(name);
-            if (d.isValid() && d < day) candidates.push_back(Candidate{ d, name });
-        }
-        std::sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
-            return a.day != b.day ? a.day > b.day : a.name > b.name;
-        });
-    }
-
+    // Predecessors: sessions on strictly earlier days, the newest ten that hold a session — newest by day,
+    // then by place in the day, both SessionIdentity's (start times; step 2.7a), never parsed from a folder
+    // name. A sibling with nothing recorded is not a session; one that cannot be read just gives no shots.
     pinpoint::SessionStore                  sessions;
     pinpoint::SwingStoreRecordingRepository recordings(sessions);
+    const QString athleteDir = QFileInfo(QDir::cleanPath(sessionDir)).absolutePath();
+    std::vector<SessionPlace> candidates;
+    if (day.isValid()) {
+        for (const pinpoint::SessionIndexEntry &e :
+             pinpoint::SessionDiagnosticsFiles::athleteSessions(athleteDir, sessions, recordings)) {
+            const SessionPlace p{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
+            if (p.day.isValid() && p.day < day) candidates.push_back(p);
+        }
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const SessionPlace &a, const SessionPlace &b) { return sessionPlaceBefore(b, a); });
+    }
+
+    const QDir athlete(athleteDir);
     int taken = 0;
-    for (const Candidate &c : candidates) {
+    for (const SessionPlace &c : candidates) {
         if (taken >= kClubDistanceWindowSessions) break;
-        const QDir sessionFolder(athlete.filePath(c.name));
-        const bool hasSwings = !sessionFolder.entryList(QStringList{ QStringLiteral("swing_*") },
-                                                        QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
+        const QDir sessionFolder(athlete.filePath(c.folder));
+        const bool hasSwings = !pinpoint::SwingPaths::swingFolders(sessionFolder.path()).isEmpty();
         // Through the one reader. A file that is there and does not parse reads as an empty ledger, as
         // it always did here (the predecessor is out of date, not missing).
         const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(sessionFolder.path());
@@ -2787,8 +2783,9 @@ SessionDiagnosticsModel::PredecessorRead SessionDiagnosticsModel::readPredecesso
         if (ledgerObj.value(QStringLiteral("schemaVersion")).toInt() != kDiagSchemaVersion) out.allCurrent = false;
 
         ClubDistanceSession s;
-        s.folder = c.name;
+        s.folder = c.folder;
         s.day    = c.day;
+        s.nOfDay = c.nOfDay;
         s.shots  = fromJson(ledgerObj);
         // The golfer's corrections from their homes (each shot's review), the older keys as the fallback.
         s.corrections = pinpoint::SessionDiagnosticsFiles::golferInput(sessionFolder.path(), read.envelope.legacyGolferInput,
@@ -4284,20 +4281,21 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
 
     // ── the readout: one line per shot, for the line between the strip and the run ────────
     //
-    // WHAT THE HOVERED SHOT IS, in words, on one ruler: its number in the session, its reading
+    // WHAT THE HOVERED SHOT IS, in words, on one ruler: its swing number ("shot N" is always the swing
+    // number, never its place in the ledger: ID-SWING-NUMBER, DEC-91; step 2.7a, audit E-06), its reading
     // at the axis's own precision, where that sits against the bands drawn above it, and the
     // verdict the ledger recorded. A shot nobody measured reads "-" in every slot that would hold
     // a number — the panel's NA marker — and says so, rather than a zero or a blank.
     auto readoutOf = [&](int i) -> QString {
         const double v = values[size_t(i)];
         if (!std::isfinite(v))
-            return QStringLiteral("shot %1 · - · %2").arg(i + 1)
+            return QStringLiteral("shot %1 · - · %2").arg(m_shots[size_t(i)].shotId)
                 .arg(gatesOf[size_t(i)].on ? gatesOf[size_t(i)].words : QStringLiteral("not measured"));
         const QString verdict = states[size_t(i)] == QLatin1String("fired") ? QStringLiteral("fired")
                               : states[size_t(i)] == QLatin1String("clean") ? QStringLiteral("clean")
                                                                             : QStringLiteral("-");
         return QStringLiteral("shot %1 · %2 · %3 · %4")
-            .arg(i + 1)
+            .arg(m_shots[size_t(i)].shotId)
             .arg(fmtSpread(v, a.decimals, unit), spreadPositionWords(c, v, a.decimals), verdict);
     };
     out[QStringLiteral("currentReadout")] = (fi >= 0 && fi < n) ? readoutOf(fi) : QString();
@@ -4794,10 +4792,11 @@ QVariantMap SessionDiagnosticsModel::spreadOf(const QString &conditionId) const
 // ── Across sessions ─────────────────────────────────────────────────────────────────────
 
 std::vector<SessionDiagnosticsModel::HistorySession>
-SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
+SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing, int *selfNOfDay)
 {
     std::vector<HistorySession> out;
     if (missing) *missing = 0;
+    if (selfNOfDay) *selfNOfDay = 0;
     if (sessionDir.isEmpty()) return out;
 
     // THE SAME GOLFER is the session folder's PARENT — the athlete folder, the one place the fault
@@ -4807,6 +4806,10 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
     const QString selfCanon = self.canonicalFilePath().isEmpty() ? self.absoluteFilePath()
                                                                  : self.canonicalFilePath();
     const QDir athlete = self.absoluteDir();
+    // Each session's day and place in it, for the columns' labels: SessionIdentity's (step 2.7a).
+    const QList<pinpoint::SessionIndexEntry> index =
+        pinpoint::SessionDiagnosticsFiles::athleteSessions(athlete.absolutePath());
+    if (selfNOfDay) *selfNOfDay = pinpoint::SessionDiagnosticsFiles::placeOf(index, sessionDir).nOfDay;
     const QStringList dirs = athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QString &name : dirs) {
         const QString dir = athlete.filePath(name);
@@ -4821,8 +4824,7 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
             // A session with swings and no ledger yet — never opened with the panel. Counted, so
             // the caption can say so; reducing it here would be running detection on somebody
             // else's behalf from a read-only view.
-            if (missing && !QDir(dir).entryList(QStringList{ QStringLiteral("swing_*") },
-                                                QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+            if (missing && !pinpoint::SwingPaths::swingFolders(dir).isEmpty())
                 ++*missing;
             continue;
         }
@@ -4833,6 +4835,9 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
 
         HistorySession hs;
         hs.sessionDir = dir;
+        const SessionPlace place = pinpoint::SessionDiagnosticsFiles::placeOf(index, dir);
+        hs.day    = place.day;
+        hs.nOfDay = place.nOfDay;
         hs.firstMs = std::numeric_limits<qint64>::max();
         for (const ShotRecord &s : shots) {
             if (s.timestampMs > 0) hs.firstMs = std::min(hs.firstMs, s.timestampMs);
@@ -4864,25 +4869,26 @@ void SessionDiagnosticsModel::scanHistory()
 
     const QString dir = m_sessionDir;
     if (m_synchronous) {
-        int missing = 0;
-        const std::vector<HistorySession> got = readHistory(dir, &missing);
-        applyHistory(gen, got, missing);
+        int missing = 0, selfNOfDay = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing, &selfNOfDay);
+        applyHistory(gen, got, missing, selfNOfDay);
         return;
     }
     m_historyPool.start([this, gen, dir]() {
-        int missing = 0;
-        const std::vector<HistorySession> got = readHistory(dir, &missing);
-        QMetaObject::invokeMethod(this, [this, gen, got, missing]() { applyHistory(gen, got, missing); },
+        int missing = 0, selfNOfDay = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing, &selfNOfDay);
+        QMetaObject::invokeMethod(this, [this, gen, got, missing, selfNOfDay]() { applyHistory(gen, got, missing, selfNOfDay); },
                                   Qt::QueuedConnection);
     });
 }
 
 void SessionDiagnosticsModel::applyHistory(int generation, const std::vector<HistorySession> &sessions,
-                                           int missing)
+                                           int missing, int selfNOfDay)
 {
     if (generation != m_historyGen) return;     // a scan for a session no longer loaded
     m_history        = sessions;
     m_historyMissing = missing;
+    m_historySelfNOfDay = selfNOfDay;
     m_historyLoading = false;
     // Only the detail draws history, so only the detail is republished — the zones did not
     // change and a surfaceChanged here would re-run every card for nothing.
@@ -4902,8 +4908,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
     const QString unit      = measureUnitOf(measureId);
 
     // `clubs` and `contexts` run beside `v`, one per reading, for the funnel (one series per club).
-    struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v;
-                 std::vector<QString> clubs, contexts; };
+    struct Col { QString dir, label; qint64 firstMs = 0; QDate day; int nOfDay = 0; bool current = false;
+                 std::vector<double> v; std::vector<QString> clubs, contexts; };
     std::vector<Col> cols;
     auto onRuler = [&](const QString &m) { return measureId.isEmpty() || m == measureId; };
 
@@ -4911,6 +4917,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         Col c;
         c.dir = hs.sessionDir;
         c.firstMs = hs.firstMs;
+        c.day = hs.day;
+        c.nOfDay = hs.nOfDay;
         const auto it = hs.byCondition.constFind(l.id);
         if (it != hs.byCondition.constEnd())
             for (const HistoryReading &r : *it)
@@ -4925,6 +4933,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         Col c;
         c.dir = m_sessionDir;
         c.current = true;
+        c.day = m_sessionIdentity.localDay();
+        c.nOfDay = m_historySelfNOfDay;
         c.firstMs = std::numeric_limits<qint64>::max();
         for (const ShotRecord &s : m_shots) {
             if (s.timestampMs > 0) c.firstMs = std::min(c.firstMs, s.timestampMs);
@@ -4949,22 +4959,22 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         return a.dir < b.dir;
     });
 
-    // The label is the session's date: off the folder name the library writes (yyyy-MM-dd_…), and
-    // off the first swing only when the folder does not carry one. Two sessions on one day are
-    // told apart by the folder's trailing number.
+    // The label is the session's day — SessionIdentity's (its start time's; a session without a session
+    // file, its name's, read there: step 2.7a, audit F-06) — and off the first swing only when it has none.
+    // Two sessions on one day are told apart by their place in it ("2 Nov #02"), the n-of-day, written with
+    // two digits as the folders' own counters were.
     for (Col &c : cols) {
-        const QString name = QFileInfo(QDir::cleanPath(c.dir)).fileName();
-        QDate d = QDate::fromString(name.left(10), QStringLiteral("yyyy-MM-dd"));
+        QDate d = c.day;
         if (!d.isValid() && c.firstMs > 0) d = QDateTime::fromMSecsSinceEpoch(c.firstMs).date();
-        c.label = d.isValid() ? d.toString(QStringLiteral("d MMM")) : name;
+        c.label = d.isValid() ? d.toString(QStringLiteral("d MMM")) : QFileInfo(QDir::cleanPath(c.dir)).fileName();
     }
     for (size_t i = 0; i < cols.size(); ++i) {
         int same = 0;
         for (const Col &o : cols) same += (o.label == cols[i].label);
-        if (same > 1) {
-            const QString name = QFileInfo(QDir::cleanPath(cols[i].dir)).fileName();
-            cols[i].label += QStringLiteral(" #") + name.section(QLatin1Char('_'), -1);
-        }
+        if (same > 1)
+            cols[i].label += QStringLiteral(" #")
+                           + (cols[i].nOfDay > 0 ? QStringLiteral("%1").arg(cols[i].nOfDay, 2, 10, QLatin1Char('0'))
+                                                 : QFileInfo(QDir::cleanPath(cols[i].dir)).fileName());
     }
 
     // At most kHistoryMaxColumns, the newest — but never a window that leaves THIS session out,
@@ -5154,11 +5164,20 @@ void SessionDiagnosticsModel::buildHeader()
     h[QStringLiteral("recordedStageLabel")] = stageName(m_stage).toUpper();
     h[QStringLiteral("reachedEstablished")] = m_reachedEstablished;
 
+    // "SHOT N" IS THE SWING NUMBER (ID-SWING-NUMBER, DEC-91; step 2.7a, audit E-06): the number on the
+    // carousel's card, never the shot's place in the ledger, which a trashed swing or one with no document
+    // yet moves. Where the text says how far through the session it is and the two differ, it says both,
+    // apart: "shot 8 · 6 of 7" — the swing number names the shot, the position counts the ledger's shots (the
+    // lead's call J-54). Where they agree (a session with no gap) it reads as it always did: "shot 3 of 6".
+    const int focusNumber = fi >= 0 ? m_shots[size_t(fi)].shotId : -1;
+    const QString ofText = focusNumber == fi + 1
+                               ? QStringLiteral("shot %1 of %2").arg(focusNumber).arg(n)
+                               : QStringLiteral("shot %1 · %2 of %3").arg(focusNumber).arg(fi + 1).arg(n);
     h[QStringLiteral("shotLabel")] =
         n == 0 ? QStringLiteral("no shots yet")
                : (m_reviewing && fi >= 0
-                      ? QStringLiteral("shot %1 of %2").arg(fi + 1).arg(n)
-                      : QStringLiteral("shot %1").arg(n));
+                      ? ofText
+                      : QStringLiteral("shot %1").arg(m_shots.back().shotId));
 
     // A COUNT over all shots, and it says so — the review header's whole job is stating the
     // tense, because the panel deliberately does NOT rewind to what it knew at the selected
@@ -5171,7 +5190,7 @@ void SessionDiagnosticsModel::buildHeader()
             .arg(n == 1 ? QStringLiteral("shot") : QStringLiteral("shots"));
 
     h[QStringLiteral("reviewBadge")] =
-        m_reviewing && fi >= 0 ? QStringLiteral("REVIEWING · shot %1 of %2").arg(fi + 1).arg(n)
+        m_reviewing && fi >= 0 ? QStringLiteral("REVIEWING · ") + ofText
                                : QString();
     h[QStringLiteral("reviewNote")] =
         m_reviewing ? QStringLiteral("final session state · this shot read inside the finished ledger")

@@ -544,7 +544,11 @@ pp_add_test(swing_doc_test
     SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-    INCLUDE ${SRC}/LaunchMonitor
+            # the reader lists a session's swings through SwingPaths, the one swing_* listing (step 2.7a), so
+            # the real names file and its logging come with it (the sanitise() stub it replaced is gone)
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core
     DEFINES PP_SRC_DIR="${SRC}")
 
 # --- The one door to a swing file: RecordingRepository (refactor step 1.4) ---
@@ -1661,6 +1665,43 @@ pp_add_test(golfer_input_test
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(golfer_input_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
+# "SHOT N" IS THE SWING NUMBER, AND A SESSION IS PLACED BY ITS IDENTITY (refactor step 2.7a; audit E-06/F-07, E-05,
+# F-06): after a trashed swing and one with no document, the ledger's "shot N" — header, review badge, every readout
+# — is the swing number; another session's swing of the same number is never matched by its name; under the
+# name-date-type pattern a session still has its day (its club baseline finds the day before), and two sessions of
+# one day are placed by their session files' start times. The model test's link line (golfer_input_test's).
+pp_add_test(shot_number_test
+    SOURCES ${DIAG}/tests/shot_number_test.cpp
+            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+            ${DIAG}/packs/screen_pack.cpp
+            ${DIAG_NORM}
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${DIAG}/packs/merged_pack_provider.cpp
+            # The model dates each shot from clock.wallclock via SwingDocReader::readSwingSummary
+            # rather than the file's mtime, so the summary reader comes with it. swing_paths.cpp is
+            # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
+            # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
+            # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SESSION_DIAG_MARKS_SOURCES}
+            ${SESSION_DIAG_CATALOGUE_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    LINK    Qt6::Qml
+    AUTOMOC
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
+set_tests_properties(shot_number_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records

@@ -48,13 +48,10 @@
 #include "../LaunchMonitor/lm_session_reductions.h"
 
 #include <QDate>
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QHash>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 
@@ -81,24 +78,37 @@ struct ShotCorrection {
     QString family, from, to;
 };
 
-// One session as the reductions read it.
-struct ClubDistanceSession {
-    QString folder;     // session folder name
-    QDate   day;        // sessionDayOfFolder(); invalid = a folder with no date, ordered nowhere
-    std::vector<ShotRecord> shots;      // in strike order
-    QHash<int, std::vector<ShotCorrection>> corrections;      // keyed by shotId
+// WHERE A SESSION SITS IN THE ATHLETE'S HISTORY: its local day and its place in that day (n-of-day, from 1),
+// both SessionIdentity's (src/DomainModel/session_identity.h; refactor step 2.7a, audit F-06/C-11). The day and
+// the order come from the session's START TIME, never from its folder's name: under the `name-date-type` naming
+// pattern no folder starts with its date, and reading its first ten characters left it "ordered nowhere". A session
+// without a session file yet (every session before migration M2) is placed by SessionIdentity from its name — in
+// that one place. The rules take the place as a VALUE and never read a folder; the folder's name is kept only as
+// the last tie-break and as a label.
+struct SessionPlace {
+    QString folder;     // the session folder's name: a label and the last tie-break, never parsed here
+    QDate   day;        // SessionIdentity::localDay(); invalid = a session with no day, ordered nowhere
+    int     nOfDay = 0; // SessionIdentity::nOfDay(); 0 when not placed
 };
 
-// The leading yyyy-MM-dd of a session folder ("<date>_<athlete>_<type>_<nn>"). A session's day is the
-// day in its name, so re-analysis, copying and clock changes cannot reorder a golfer's history. Takes a
-// bare name or a path.
-inline QDate sessionDayOfFolder(const QString &folder)
+// Oldest first: by day, then by the place in the day, then (a tie the identity could not break) by folder name.
+inline bool sessionPlaceBefore(const SessionPlace &a, const SessionPlace &b)
 {
-    static const QRegularExpression re(QStringLiteral("^(\\d{4}-\\d{2}-\\d{2})"));
-    const QRegularExpressionMatch m = re.match(QFileInfo(QDir::cleanPath(folder)).fileName());
-    if (!m.hasMatch()) return QDate();
-    return QDate::fromString(m.captured(1), Qt::ISODate);
+    if (a.day != b.day) return a.day < b.day;
+    if (a.nOfDay != b.nOfDay) return a.nOfDay < b.nOfDay;
+    return a.folder < b.folder;
 }
+
+// One session as the reductions read it.
+struct ClubDistanceSession {
+    QString folder;     // session folder name (a label; never parsed)
+    QDate   day;        // SessionPlace::day; invalid = a session with no day, ordered nowhere
+    int     nOfDay = 0; // SessionPlace::nOfDay: its place within its day
+    std::vector<ShotRecord> shots;      // in strike order
+    QHash<int, std::vector<ShotCorrection>> corrections;      // keyed by shotId
+
+    SessionPlace place() const { return SessionPlace{ folder, day, nOfDay }; }
+};
 
 // A canonical club id for display ("7 IRON" -> "7 iron"). Keys stay uppercase.
 inline QString clubDistanceLabel(const QString &id)
@@ -292,8 +302,8 @@ inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession 
     return pools;
 }
 
-// The sessions in day order, oldest first, then by folder name within a day. Sessions with no date
-// are left out: nothing can say what comes before or after them.
+// The sessions in day order, oldest first, then by their place in the day (sessionPlaceBefore). Sessions
+// with no day are left out: nothing can say what comes before or after them.
 inline std::vector<const ClubDistanceSession *> sessionsByDay(const std::vector<ClubDistanceSession> &sessions)
 {
     std::vector<const ClubDistanceSession *> out;
@@ -301,7 +311,7 @@ inline std::vector<const ClubDistanceSession *> sessionsByDay(const std::vector<
     for (const ClubDistanceSession &s : sessions)
         if (s.day.isValid()) out.push_back(&s);
     std::stable_sort(out.begin(), out.end(), [](const ClubDistanceSession *a, const ClubDistanceSession *b) {
-        return a->day != b->day ? a->day < b->day : a->folder < b->folder;
+        return sessionPlaceBefore(a->place(), b->place());
     });
     return out;
 }

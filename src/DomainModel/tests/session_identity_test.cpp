@@ -40,6 +40,7 @@
 #include <QTimeZone>
 #include <QUuid>
 
+#include <algorithm>
 #include <cstdio>
 
 using namespace pinpoint;
@@ -255,7 +256,7 @@ static void testDayOrder()
               e.startedAtUtc().offsetFromUtc() == 0 && e.startedAtUtc() == utc(23, 30));
     }
 
-    // A legacy folder with no start time: the day is its name's, the order its _NN (today's order).
+    // A legacy folder with no start time: the day is its name's, the order its folder name's (today's).
     {
         QList<SessionIdentity> s = {
             SessionIdentity::fromLegacyFolder(kLib + "/" + kToken + "/" + composed("name-date-type", kToken, "Swing", 3), kAthlete),
@@ -266,9 +267,42 @@ static void testDayOrder()
         SessionIdentity::assignDayOrder(s);
         check(QStringLiteral("N9 no start time: the day is the name's, even under name-date-type"),
               s[0].localDay() == kDay && s[1].localDay() == kDay);
-        check(QStringLiteral("N10 a day where any start time is missing orders by _NN (got %1, %2, %3)")
+        check(QStringLiteral("N10 a day where any start time is missing orders by folder name (got %1, %2, %3)")
                   .arg(s[1].nOfDay()).arg(s[2].nOfDay()).arg(s[0].nOfDay()),
               s[1].nOfDay() == 1 && s[2].nOfDay() == 2 && s[0].nOfDay() == 3);
+    }
+
+    // Two types on one untimed day (step 2.7a): the order is the folders' names, as the app has always
+    // ordered a day — never the `_NN` alone, which counts per type ("…_Wrist_01" is not before "…_Swing_02").
+    for (const QString &p : kPatterns) {
+        QList<SessionIdentity> s = {
+            SessionIdentity::fromLegacyFolder(kLib + "/" + kToken + "/" + composed(p, kToken, "Wrist", 1), kAthlete),
+            SessionIdentity::fromLegacyFolder(kLib + "/" + kToken + "/" + composed(p, kToken, "Swing", 3), kAthlete),
+            SessionIdentity::fromLegacyFolder(kLib + "/" + kToken + "/" + composed(p, kToken, "Swing", 2), kAthlete),
+        };
+        SessionIdentity::assignDayOrder(s);
+        QList<int> byName = { 0, 1, 2 };
+        std::sort(byName.begin(), byName.end(), [&](int a, int b) { return s[a].folderName() < s[b].folderName(); });
+        check(QStringLiteral("N12 %1: an untimed day of two types orders by folder name (got %2, %3, %4)")
+                  .arg(p).arg(s[byName[0]].nOfDay()).arg(s[byName[1]].nOfDay()).arg(s[byName[2]].nOfDay()),
+              s[byName[0]].nOfDay() == 1 && s[byName[1]].nOfDay() == 2 && s[byName[2]].nOfDay() == 3);
+    }
+
+    // The upgrade day: a legacy session (no start time) and a session-file session made after it. The
+    // day has an untimed session, so it orders by folder name — the new session's counter is past the
+    // old one's, so it comes second (before step 2.7a it ranked first: its counter read as 0).
+    {
+        QList<SessionIdentity> s = {
+            SessionIdentity::fromSessionFile(SessionId::create(),
+                                             kLib + "/" + kToken + "/" + composed("date-name-type", kToken, "Swing", 2),
+                                             QStringLiteral("swing"), utc(14, 0), kZone),
+            SessionIdentity::fromLegacyFolder(kLib + "/" + kToken + "/" + composed("date-name-type", kToken, "Swing", 1),
+                                              kAthlete),
+        };
+        SessionIdentity::assignDayOrder(s);
+        check(QStringLiteral("N13 the upgrade day: the legacy morning 1st, the new session 2nd (got %1, %2)")
+                  .arg(s[1].nOfDay()).arg(s[0].nOfDay()),
+              s[1].nOfDay() == 1 && s[0].nOfDay() == 2);
     }
 
     // No day at all: no place.

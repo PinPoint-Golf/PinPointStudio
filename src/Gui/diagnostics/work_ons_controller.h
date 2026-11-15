@@ -454,7 +454,8 @@ private:
         bool    fresh = false;
         qint64  mtimeMs = 0;
         bool    hasBaseline = false;         // <session>/club_baseline.json exists
-        QDate   day;                         // the folder's day: what the catch-up order goes by when one is missing
+        QDate   day;                         // the session's day (SessionIdentity's; step 2.7a): what the catch-up
+        int     nOfDay = 0;                  // order goes by when a baseline is missing, with its place in the day
         pinpoint::analysis::SessionWorkOns record;   // valid when fresh
     };
     static std::vector<Scanned> scan(const QString &athleteDir, const QString &contentStamp);

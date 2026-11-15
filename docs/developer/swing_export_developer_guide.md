@@ -733,9 +733,11 @@ and no parsing when present-but-unconsumed:
   holds 51 floats (`layout: coco17:y,x,score`, normalised 0..1) against
   `frames.t_us`. Empty today (no producer).
 
-`latestSessionDir()` selects the most recent session by directory mtime, not by
+`latestSessionDir(athleteDir)` selects the most recent session by directory mtime, not by
 name — session folder names now embed the naming-pattern tokens, so a name sort
-no longer tracks recency.
+no longer tracks recency. It and `sessionDirs(athleteDir)` take the athlete's folder
+(`Athlete::folder()`, D4), never a name joined to the library (step 2.7a); `findSwingDirs` lists
+through `SwingPaths::swingFolders`.
 
 ---
 
@@ -831,7 +833,8 @@ bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `la
 | `resume(id, type)` | that session in progress again with **the same `SessionId`**; refused for any other day or type; any other in-progress session of the athlete ended first. A refused or failed resume starts a new session instead, and says so (the notice `session.resume.failed`) | `beginSessionFolder(type, extend = true)` |
 | `end(id, discardIfEmpty)` | ended, with `endedAt`. **The empty discard is unchanged** (DEC-93): only a session this run's `start` made, and only while it holds no `swing_*` folder, goes to the trash; a resumed session never does | `ShotProcessor::endSessionFolder` (a failed write is posted as the notice `session.file.failed`) |
 | `restartInLibrary(id, owner, pattern)` | **D7** (DEC-154): the library was re-pointed mid-session — the session ends (written if its folder is still reachable; else it stays in progress until the athlete's next Start there; a failed end of an old session whose folder is still there — a held lock, a read-only file — is posted as `session.file.failed`), an empty one is discarded as at End, and a new session of the same type starts under the new library. The club and the declared focus are `SessionController`'s and carry over; the focus applies from the new session's first shot | `ShotProcessor`, on `athleteLibraryPathChanged` |
-| `enumerate(owner)` | one typed `SessionIndexEntry` per session folder (identity, status, start/end, `hasSessionFile`, `readOnly`, `archived`) with n-of-day by start time (MD-07: DEC-136). A folder is a session when it has a file, a name this app made, or a swing | `todaysSession` |
+| `enumerate(owner)` | one typed `SessionIndexEntry` per session folder (identity, status, start/end, `hasSessionFile`, `readOnly`, `archived`) with n-of-day by start time (MD-07: DEC-136); a day with an untimed (legacy) session orders by folder name (step 2.7a). A folder is a session when it has a file, a name this app made, or a swing | `todaysSession` |
+| `enumerateFolder(athleteDir, legacyAthlete)` (the store, not the interface; step 2.7a) | the same for a caller that holds an athlete's folder (the diagnostics model, the work-ons controller and their tools, through `SessionDiagnosticsFiles::athleteSessions` / `identityOf`): a legacy session's D3 id from `legacyAthlete` (J-39's owner: `SwingStoreRecordingRepository::legacyOwnerOf`); with none, it is still listed and placed by its name (`SessionIdentity::placeOfLegacyFolder`) with a null id, and never held | the day and place in the day the club baseline, club distances, tendencies and the history columns go by |
 | `allocateSwing(id)` | the next swing number (below), under the session's lock; a `ShotRef` and the folder | `ShotProcessor::buildSwingExportJob`, and `LaunchMonitorController`'s standalone shot — **one allocator** (D10: DEC-157), so a device-only shot goes into the running session, never a `…_session_NN` folder of its own |
 | `archive(id, options, progress)`, `restore(id, progress)` | the whole session to its archive mirror and back (below). **Refused while the session file says in progress** — read afresh, so another computer's live session, or one a crash left open, is refused too (D11: DEC-158); `archive` also refuses a newer build's session file (read-only) | `ArchiveController` (the Archiving tab, the review's "restore", housekeeping), each job in a `SessionArchiveRun` of its own |
 | `trash(id, &where)` | the whole session folder to the OS trash, else the library's own `.pinpoint-trash` (FILE-LIB-01). Refused while its session file says in progress, or while another writer holds its lock (`Locked`; the lock is taken for a moment and let go **before** the move: a lock file must not travel with the folder, and Windows will not move a folder holding an open file). The identity map lets the session go | `SessionReviewController::trashSession` (the drawer's delete, the bulk delete): the row's folder translated once with `openFolder` (D3 from the current athlete for a legacy session) |

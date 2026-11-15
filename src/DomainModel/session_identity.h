@@ -88,6 +88,14 @@ public:
                                             const QDateTime &startedAtUtc = {},
                                             const QTimeZone &zone = QTimeZone::systemTimeZone());
 
+    // Where a session without a session file sits, when no athlete can be named for its D3 id (a folder
+    // with no athlete.json and no swing that records its athlete): its day, type and counter as
+    // fromLegacyFolder reads them, and NO id — isNull() is true, so nothing can hold or command it. For a
+    // caller that needs only the day and the order (step 2.7a: the diagnostics' day order). Empty for a
+    // path with no folder name.
+    static SessionIdentity placeOfLegacyFolder(const QString &folder, const QDateTime &startedAtUtc = {},
+                                               const QTimeZone &zone = QTimeZone::systemTimeZone());
+
     // D3: the id of a session older than step 2. Null when either part is.
     static SessionId legacySessionId(const AthleteId &athlete, const QString &folderName);
 
@@ -102,8 +110,9 @@ public:
 
     // Sets n-of-day on every identity in `sessions` (one athlete's): its place, from 1, among the
     // sessions of its local day. By start time when every session of that day has one; otherwise by
-    // the folder name's counter (the order today's names give). Ties by folder name. A session
-    // with no day keeps n-of-day 0.
+    // folder name (the order the app has always given a day: step 2.7a — a `_NN` counter is per type,
+    // so it cannot order two types' sessions). Ties by folder name. A session with no day keeps
+    // n-of-day 0.
     static void assignDayOrder(QList<SessionIdentity> &sessions);
 
     bool      isNull() const { return m_id.isNull(); }
@@ -130,7 +139,6 @@ private:
     QDate     m_localDay;
     QString   m_type;
     int       m_nOfDay = 0;
-    int       m_counter = 0;   // a legacy name's _NN: the order when start times are missing
     bool      m_legacy = false;
 };
 

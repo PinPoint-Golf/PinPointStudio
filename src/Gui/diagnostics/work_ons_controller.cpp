@@ -42,6 +42,7 @@
 #include "../../Export/swing_store.h"
 #include "../../Export/session_diagnostics_files.h"   // the session's files, and the golfer's input (step 2.5)
 #include "../../Export/session_files.h"
+#include "../../Export/swing_paths.h"
 #include "../../Export/athlete_files.h"
 
 #include <limits>
@@ -155,12 +156,15 @@ QString tendencyClubGroup(const ContextTree &tree, const QString &club)
 // keys) and the shots read off it. The outcome scope reads a session through here too, so the two can never
 // disagree about a shot. WORKER THREAD: the golfer's input — the run of intent from session_input.json, each
 // shot's intent and corrections from its review, the older keys as the fallback (J-33) — is read with a reader
-// of its own (SessionDiagnosticsFiles::golferInput), never the app's.
-void tendencySessionFromLedger(const QString &dir, const QJsonObject &legacy, std::vector<ShotRecord> shots,
-                               TendencySessionInput &out)
+// of its own (SessionDiagnosticsFiles::golferInput), never the app's. `place` is where the session sits in the
+// athlete's history: SessionIdentity's day and n-of-day (SessionDiagnosticsFiles::placeOf; step 2.7a), never
+// parsed from the folder's name.
+void tendencySessionFromLedger(const QString &dir, const SessionPlace &place, const QJsonObject &legacy,
+                               std::vector<ShotRecord> shots, TendencySessionInput &out)
 {
     out.session.folder = QFileInfo(dir).fileName();
-    out.session.day    = sessionDayOfFolder(out.session.folder);
+    out.session.day    = place.day;
+    out.session.nOfDay = place.nOfDay;
     out.session.shots  = std::move(shots);
     const pinpoint::GolferInput g = SessionDiagnosticsFiles::golferInput(dir, legacy);
     out.session.corrections = g.corrections;
@@ -181,7 +185,7 @@ void tendencySessionFromLedger(const QString &dir, const QJsonObject &legacy, st
 }
 
 // One session as the tendency reduction reads it. False with no readable ledger (it adds nothing).
-bool readTendencySession(const QString &dir, TendencySessionInput &out)
+bool readTendencySession(const QString &dir, const SessionPlace &place, TendencySessionInput &out)
 {
     const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(dir);
     if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) return false;
@@ -190,7 +194,7 @@ bool readTendencySession(const QString &dir, TendencySessionInput &out)
                  << qPrintable(read.error);
         return false;
     }
-    tendencySessionFromLedger(dir, read.envelope.legacyGolferInput, fromJson(read.envelope.ledger), out);
+    tendencySessionFromLedger(dir, place, read.envelope.legacyGolferInput, fromJson(read.envelope.ledger), out);
     return true;
 }
 
@@ -277,11 +281,14 @@ TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const S
 {
     const QFileInfo session{ QDir::cleanPath(sessionDir) };
     std::vector<TendencySessionInput> sessions;
-    const QFileInfoList folders = QDir(session.absolutePath()).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QFileInfo &fi : folders) {
-        if (!tendencySessionCounts(fi.fileName(), session.fileName())) continue;
+    // The athlete's sessions, each placed by SessionIdentity (its day and place in the day; step 2.7a).
+    const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(session.absolutePath());
+    const SessionPlace asOf = SessionDiagnosticsFiles::placeOf(index, sessionDir);
+    for (const pinpoint::SessionIndexEntry &e : index) {
+        const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, e.folder);
+        if (!tendencySessionCounts(place, asOf)) continue;
         TendencySessionInput in;
-        if (readTendencySession(fi.absoluteFilePath(), in)) sessions.push_back(std::move(in));
+        if (readTendencySession(e.folder, place, in)) sessions.push_back(std::move(in));
     }
     return tendencySetFromSessions(sessions, pack, norms.contexts());
 }
@@ -467,12 +474,16 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
                                                                 const QString &contentStamp)
 {
     std::vector<Scanned> out;
+    // Each session's day and place in it, SessionIdentity's (start times; a legacy folder by its name, read
+    // there): the catch-up's order (step 2.7a, audit F-06).
+    const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(athleteDir);
     const QFileInfoList sessions = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &fi : sessions) {
         const QString sessionDir = fi.absoluteFilePath();
         const QDir d(sessionDir);
-        const QStringList swings = d.entryList(QStringList{ QStringLiteral("swing_*") },
-                                               QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        // SwingPaths' one listing, by name (so by swing number): the fingerprint hashes them in this order.
+        QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);
+        std::sort(swings.begin(), swings.end());
         if (swings.isEmpty()) continue;     // nothing was hit; there is nothing to say
 
         Scanned s;
@@ -493,7 +504,9 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
         // again. Its absence simply queues the session (applyScan), and that is the only thing it does.
         s.hasBaseline = SessionDiagnosticsFiles::clubBaselineExists(sessionDir)
                      && !clubBaselineIsOutdated(SessionFiles::clubBaselineFile(sessionDir));
-        s.day         = sessionDayOfFolder(fi.fileName());
+        const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, sessionDir);
+        s.day         = place.day;
+        s.nOfDay      = place.nOfDay;
 
         const pinpoint::JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionDir);
         if (f.exists) {
@@ -524,14 +537,15 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     m_sessionsFound = int(rows.size());
 
     // Newest first: the latest session is the one the golfer is about to look for. BUT while any session
-    // still lacks its frozen baseline, oldest first by FOLDER DAY (Contract A): a session's baseline is read
-    // off its predecessors' rows, so they have to be current before it is frozen. A folder's mtime
-    // says nothing about when it was played.
+    // still lacks its frozen baseline, oldest first by THE SESSION'S DAY and its place in it (Contract A;
+    // SessionIdentity's, step 2.7a): a session's baseline is read off its predecessors' rows, so they have to
+    // be current before it is frozen. A folder's mtime says nothing about when it was played.
     const bool catchingUp = std::any_of(rows.begin(), rows.end(), [](const Scanned &s) { return !s.hasBaseline; });
     if (catchingUp)
         std::sort(rows.begin(), rows.end(), [](const Scanned &a, const Scanned &b) {
             if (a.day.isValid() != b.day.isValid()) return a.day.isValid();
             if (a.day != b.day) return a.day < b.day;
+            if (a.nOfDay != b.nOfDay) return a.nOfDay < b.nOfDay;
             return a.sessionDir < b.sessionDir;
         });
     else
@@ -603,11 +617,14 @@ void WorkOnsController::finishDerive()
 
     SessionWorkOns rec = m_model->sessionWorkOns();
     if (rec.startMs <= 0) {
-        // No shot carried a clock. The folder's own date, then its mtime — a session with no
-        // date at all would sort before every other and age everything behind it.
-        const QDate d = QDate::fromString(rec.sessionId.left(10), Qt::ISODate);
-        rec.startMs = d.isValid() ? d.startOfDay().toMSecsSinceEpoch()
-                                  : m_dirMtime.value(dir, QFileInfo(dir).lastModified().toMSecsSinceEpoch());
+        // No shot carried a clock. The session's own start (its session file's), else the start of its day
+        // (a legacy folder's, read by SessionIdentity: step 2.7a), then its mtime — a session with no date
+        // at all would sort before every other and age everything behind it.
+        const pinpoint::SessionIdentity id = m_model->sessionIdentity();
+        const QDate d = id.localDay();
+        rec.startMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
+                    : d.isValid()                  ? d.startOfDay().toMSecsSinceEpoch()
+                                                   : m_dirMtime.value(dir, QFileInfo(dir).lastModified().toMSecsSinceEpoch());
         rec.endMs = rec.startMs;
     }
 
@@ -1655,6 +1672,9 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
     // ── 2. Every session's ledger ──
     std::vector<ThemeSessionInput> sessions;
     sessions.reserve(size_t(job.sessionDirs.size()));
+    // Each session's day and place in it (SessionIdentity's; step 2.7a), for the shot filter's tendency reads.
+    const QList<pinpoint::SessionIndexEntry> placeIndex =
+        job.outcome.isAll() ? QList<pinpoint::SessionIndexEntry>() : SessionDiagnosticsFiles::athleteSessions(job.athleteDir);
     for (const QString &dir : job.sessionDirs) {
         if (cancel && cancel->load()) return out;
         const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(dir);
@@ -1681,7 +1701,8 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
             if (!whole) in.shots = shotsInScope(in.shots, job.scope);
             if (!job.outcome.isAll() && !in.shots.empty()) {
                 TendencySessionInput tin;
-                tendencySessionFromLedger(dir, read.envelope.legacyGolferInput, std::move(sessionShots), tin);
+                tendencySessionFromLedger(dir, SessionDiagnosticsFiles::placeOf(placeIndex, dir), read.envelope.legacyGolferInput,
+                                          std::move(sessionShots), tin);
                 QHash<int, ShotFactors> judged = judgedShotFactors(tin, *job.outcomePack, shippedFlightNorms());
                 // Tendencies leaves out a club with no group (a putter, an undeclared club), so its shots are
                 // judged by nothing here either: in no choice but All, and no one's other shot.
@@ -2084,13 +2105,14 @@ WorkOnsController::TendenciesOutcome WorkOnsController::runTendencies(const Tend
         }
     }
 
-    // ── 3. Every session, re-composed shot by shot ──
+    // ── 3. Every session, re-composed shot by shot, each placed by SessionIdentity (step 2.7a) ──
     std::vector<TendencySessionInput> sessions;
     sessions.reserve(size_t(job.sessionDirs.size()));
+    const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(job.athleteDir);
     for (const QString &dir : job.sessionDirs) {
         if (cancel && cancel->load()) return out;
         TendencySessionInput in;
-        if (readTendencySession(dir, in)) sessions.push_back(std::move(in));
+        if (readTendencySession(dir, SessionDiagnosticsFiles::placeOf(index, dir), in)) sessions.push_back(std::move(in));
     }
 
     TendencySet set = tendencySetFromSessions(sessions, job.pack, job.norms->contexts(), cancel);

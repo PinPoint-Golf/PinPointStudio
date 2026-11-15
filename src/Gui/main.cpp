@@ -370,8 +370,7 @@ int main(int argc, char *argv[])
     // restart (read-only for now — SwingDocReader parses the unified swing.json;
     // rating/note aren't persisted yet so they come back cleared).
     {
-        const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName());
+        const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder());
         shotModel.loadSessionDir(sessionDir);   // one disk-load path (also used on wrist entry)
         if (shotModel.activeCount())
             ppInfo() << "[Reload] restored" << shotModel.activeCount() << "shots from" << sessionDir;
@@ -491,9 +490,8 @@ int main(int argc, char *argv[])
     // currentAthleteChanged fires on a SWITCH only (step 2.3): a record edit never reloads the live
     // carousel mid-session (E-03), so no gate is needed.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
-                     &shotModel, [&shotModel, &appSettings, &athleteController]() {
-        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName()));
+                     &shotModel, [&shotModel, &athleteController]() {
+        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder()));
     });
     // THE WRIST REFERENCE ★ ON THE ATHLETE'S RECORD (D5: DEC-152). The Charts views still carry it as
     // a swing folder (appSettings.wristReferenceSwingDir); the controller translates at its edge. A ★

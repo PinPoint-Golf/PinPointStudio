@@ -255,18 +255,37 @@ SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJs
 
 QList<SessionIndexEntry> SessionStore::enumerate(const SessionOwner &owner)
 {
-    const QString athleteDir = athleteFolder(owner);
     QList<SessionIndexEntry> entries;
-    QList<QJsonObject>       files;
-    const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QString &name : names) {
-        QJsonObject             file;
-        const SessionIndexEntry e = readFolder(athleteDir + QLatin1Char('/') + name, owner.athlete, file, true);
+    for (const SessionIndexEntry &e : enumerateFolder(athleteFolder(owner), owner.athlete)) {
         if (e.identity.isNull())
-            continue;
+            continue;   // a legacy session with no athlete to name it (no athlete selected): as before step 2.7a
         if (e.hasSessionFile && !owner.athlete.isNull() && !e.athlete.isNull() && e.athlete != owner.athlete)
             ppWarn() << "[SessionStore] the session file of" << e.folder << "names another athlete ("
                      << e.athlete.toString() << ") - listed, not re-owned";
+        entries.append(e);
+    }
+    return entries;
+}
+
+QList<SessionIndexEntry> SessionStore::enumerateFolder(const QString &athleteDir, const AthleteId &legacyAthlete)
+{
+    QList<SessionIndexEntry> entries;
+    QList<QJsonObject>       files;
+    if (athleteDir.isEmpty())
+        return entries;
+    const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString &name : names) {
+        QJsonObject             file;
+        SessionIndexEntry e = readFolder(athleteDir + QLatin1Char('/') + name, legacyAthlete, file, true);
+        if (e.identity.isNull()) {
+            // Not a session folder (readFolder gave nothing), or a legacy session no athlete can be named for:
+            // with no owner it is still placed — its day and order — but has no id, and is never held.
+            if (e.folder.isEmpty() || !legacyAthlete.isNull())
+                continue;
+            e.identity = SessionIdentity::placeOfLegacyFolder(e.folder, {}, m_zone);
+            if (e.identity.folder().isEmpty())
+                continue;
+        }
         entries.append(e);
         files.append(file);
     }
@@ -280,7 +299,8 @@ QList<SessionIndexEntry> SessionStore::enumerate(const SessionOwner &owner)
 
     for (qsizetype i = 0; i < entries.size(); ++i) {
         entries[i].identity = ids.at(i);
-        entries[i]          = hold(entries.at(i), files.at(i)).entry;
+        if (!entries.at(i).identity.isNull())      // an unnamed legacy session (no owner) is placed, never held
+            entries[i] = hold(entries.at(i), files.at(i)).entry;
     }
     return entries;
 }

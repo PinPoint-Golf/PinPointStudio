@@ -353,10 +353,14 @@ public:
 
     // This model's id for a swing folder, or -1. Exact path first, then the folder's name (a
     // ledger written on another host records the same swing under a different mount), then the
-    // swing_NNN number when that is a shot this ledger holds.
+    // swing number (SwingPaths) when that is a shot this ledger holds. Neither fallback asks whether
+    // the folder is this session's (audit E-05): the selection by ShotRef is step 4's (R-APP-4).
     Q_INVOKABLE int shotIdForSwingDir(const QString &dir) const;
 
     QString sessionDir() const { return m_sessionDir; }
+    // The held session's identity: its day (the start time's; a legacy folder's name's, read by
+    // SessionIdentity) and its start time (C++ only; step 2.7a: the work-ons record's clock fallback).
+    pinpoint::SessionIdentity sessionIdentity() const { return m_sessionIdentity; }
     QString stage() const;
     bool    closed() const { return m_closed; }
     int     shotCount() const { return int(m_shots.size()); }
@@ -1067,6 +1071,12 @@ private:
 
     // ── Lifecycle + intent ──────────────────────────────────────────────────────────
     QString m_sessionDir;
+    // WHERE THIS SESSION SITS: its identity (id, local day, type), read once per activation through the
+    // session store (SessionDiagnosticsFiles::identityOf; step 2.7a, audit F-06/C-11). The session's day is
+    // its start time's, and for a session without a session file its name's — read by SessionIdentity,
+    // never parsed here. Empty with no session held; a null id (and still a day) for a legacy folder no
+    // athlete can be named for.
+    pinpoint::SessionIdentity m_sessionIdentity;
     pinpoint::analysis::Stage m_stage = pinpoint::analysis::Stage::Cold;
     // DID THIS SESSION EVER ACTUALLY ESTABLISH? `m_stage` cannot answer it once the session is
     // closed, because sessionStage() returns Closing outright for a closed session and the
@@ -1152,12 +1162,16 @@ private:
         QString sessionDir;
         QString label;
         qint64  firstMs = 0;
+        QDate   day;          // SessionIdentity's local day (step 2.7a); invalid when it has none
+        int     nOfDay = 0;   // its place in that day; 0 when not placed
         QHash<QString, std::vector<HistoryReading>> byCondition;
     };
-    static std::vector<HistorySession> readHistory(const QString &sessionDir, int *missing);
+    // `selfNOfDay`: this session's own place in its day, from the same listing of the athlete's sessions.
+    static std::vector<HistorySession> readHistory(const QString &sessionDir, int *missing, int *selfNOfDay);
     void scanHistory();
-    void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing);
+    void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing, int selfNOfDay);
     std::vector<HistorySession> m_history;
+    int m_historySelfNOfDay = 0;
 
     // ── The frozen baseline, read at activation; the worker reads it, activateSession() waits for
     //    the worker before changing it.

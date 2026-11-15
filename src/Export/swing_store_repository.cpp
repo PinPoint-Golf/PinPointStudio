@@ -82,13 +82,23 @@ ShotRef SwingStoreRecordingRepository::shotOfFolder(const QString &swingDir, con
     // athlete the swing records it was captured for (`athlete.uuid`, the document's root alone). The
     // swings' uuids were minted on the machine that captured them and need not be the owner's (H-09).
     const QString athleteDir = QFileInfo(QFileInfo(QDir::cleanPath(swingDir)).path()).path();
+    const AthleteId owner = legacyOwnerOf(athleteDir, swingDir);
+    return owner.isNull() ? ShotRef() : m_sessions->openSwingFolder(swingDir, owner);
+}
+
+AthleteId SwingStoreRecordingRepository::legacyOwnerOf(const QString &athleteDir, const QString &swingDir) const
+{
+    if (athleteDir.isEmpty())
+        return {};
     AthleteId owner = m_ownerOf ? m_ownerOf(athleteDir) : AthleteId();
     if (owner.isNull())
         owner = AthleteFiles::ownerOf(athleteDir);
-    if (owner.isNull())
-        owner = AthleteId::fromString(SwingStore::loadParts(swingDir, {}).value(QStringLiteral("athlete")).toObject()
-                                          .value(QStringLiteral("uuid")).toString());
-    return owner.isNull() ? ShotRef() : m_sessions->openSwingFolder(swingDir, owner);
+    if (!owner.isNull())
+        return owner;
+    if (swingDir.isEmpty())
+        return {};
+    return AthleteId::fromString(SwingStore::loadParts(swingDir, {}).value(QStringLiteral("athlete")).toObject()
+                                     .value(QStringLiteral("uuid")).toString());
 }
 
 QString SwingStoreRecordingRepository::swingFolder(const ShotRef &shot) const

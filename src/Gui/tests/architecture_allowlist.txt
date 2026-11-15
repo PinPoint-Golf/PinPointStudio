@@ -37,17 +37,12 @@ Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmS
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
 # ── A3 folder-name parsing outside SwingPaths / SessionIdentity ──
-Export/recording_header.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters: the legacy context's club set, moved from swing_reanalyzer.cpp in step 1.2); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Coaching/club_distances.h | A3 | 1 | reads a swing/session folder name itself (a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Export/swing_doc_reader.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_delivery_presenter.cpp | A3 | 3 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_posture_presenter.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_traces_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_wrist_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/session_series_model.cpp | A3 | 2 | reads a swing/session folder name itself (the shot number after the last '_', a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/diagnosticmodel/model_browser.cpp | A3 | 2 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnostics/session_diagnostics_model.cpp | A3 | 10 | reads a swing/session folder name itself (the shot number after the last '_', the date in the first 10 characters, a swing_ prefix test, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnostics/work_ons_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/launchmonitor/launch_monitor_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the shot number after the last '_'); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/report/report_meta.h | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/report/session_report_list_model.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
@@ -67,7 +62,7 @@ Gui/report/session_report_model.cpp | A4 | 1 | spells work_ons.json itself to re
 # Note: src/Diagnostics/packs is outside A5 (as briefed), but its pack LOADER does file I/O too —
 #   packs/file_pack_provider.cpp (11 lines), drill_pack.cpp, gate_words_pack.cpp, reference_pack.cpp and
 #   screen_pack.cpp (3 each). Step 3 (one pack snapshot, B-02) removes it.  # step 3
-Coaching/club_distances.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Coaching/club_distances.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Coaching/shot_factors.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Coaching/strike_from_flight.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Diagnostics/engine/pack_io.cpp | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7

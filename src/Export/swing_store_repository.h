@@ -70,6 +70,11 @@ public:
     // athlete the swing's own header records. Owner thread, like shotOfFolder.
     using OwnerOf = std::function<AthleteId(const QString &athleteFolder)>;
     void setOwnerOf(OwnerOf ownerOf) { m_ownerOf = std::move(ownerOf); }
+    // That chain for an athlete folder (shotOfFolder's, without the caller's athlete): the resolver, then
+    // athlete.json, then the athlete `swingDir`'s header records (skipped when it is empty). Null when none
+    // does. For a caller that holds the athlete's folder and lists its sessions (SessionStore::enumerateFolder;
+    // step 2.7a), which names one of its swings.
+    AthleteId legacyOwnerOf(const QString &athleteFolder, const QString &swingDir = {}) const;
 
     // The markup truth's file names (FILE-SHOT-12): "truth.json" (face-on), "truth_dtl.json".
     static QString truthFileName(TruthView view);

@@ -89,8 +89,6 @@
 #include <cstdio>
 #include <cstdlib>
 
-// Stub — avoids linking swing_paths.cpp (and its logging deps), as swing_doc_test does.
-
 // THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeSwingDir, which needs the
 // whole pipeline. This test is about the write half, so the analysis it gets is the one set here.
 namespace {
@@ -827,13 +825,17 @@ void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
 
 
 // ── Test 13 ───────────────────────────────────────────────────────────────────────────────────
-// A pre-step-1 camera shot: no analysisContext block, its session folder dated 20 Oct 2026.
+// A pre-step-1 camera shot: no analysisContext block, captured on 20 Oct 2026 (its clock.wallclock: the swing's
+// date since step 2.7a, which no longer reads session.dir's name).
 QJsonObject legacyShot(const QString &club = QStringLiteral("7 IRON"))
 {
     QJsonObject h = cameraHeader(club);
     h[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("name"), QStringLiteral("Jess Ratcliffe") },
                                                 { QStringLiteral("handedness"), QStringLiteral("Right") } };
     h[QStringLiteral("session")] = QJsonObject{ { QStringLiteral("dir"), QStringLiteral("2026-10-20_Jess-Ratcliffe_Wrist_01") } };
+    QJsonObject clock = h.value(QStringLiteral("clock")).toObject();
+    clock[QStringLiteral("wallclock")] = QStringLiteral("2026-10-20T10:00:00.000Z");
+    h[QStringLiteral("clock")] = clock;
     return h;
 }
 
@@ -909,7 +911,8 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
               && ctxBlock(j.path()).value(QStringLiteral("club")).toObject().value(QStringLiteral("standardLengthMm")).toDouble()
                      == double(standardClub(QStringLiteral("7 IRON"), ClubSet::Junior, 1.50).lengthMm),
           "...the junior set, its standard length from the height");
-    // No session folder: the capture's wallclock date. 18 on 2 Jun 2027 → the men's set.
+    // No session folder (and the folder's name is never read anyway): the capture's wallclock date. 18 on 2 Jun
+    // 2027 → the men's set.
     QTemporaryDir w;
     QJsonObject noSession = legacyShot();
     noSession.remove(QStringLiteral("session"));

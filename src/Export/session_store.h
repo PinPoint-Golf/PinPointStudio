@@ -111,6 +111,15 @@ public:
     SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
     WriteResult          trash(const SessionId &id, QString *where = nullptr) override;
 
+    // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
+    // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every
+    // session folder in `athleteDir`, its day and its place in the day by start time (SessionIdentity), each one
+    // held as enumerate holds it. `legacyAthlete` names the D3 ids of the sessions without a session file
+    // (J-39: the folder's owner). With it null such a session cannot be named: it is still LISTED, placed
+    // by its name (SessionIdentity::placeOfLegacyFolder: its day, type and n-of-day), with a null id, and
+    // is never held — so no command can reach it, and a caller that needs only the order still has it.
+    QList<SessionIndexEntry> enumerateFolder(const QString &athleteDir, const AthleteId &legacyAthlete);
+
     // The archive's file work (not owned; outlives the store's use of it). Null: archive and restore refuse.
     void setArchiving(SessionArchiving *archiving) { m_archiving = archiving; }
 

@@ -768,7 +768,7 @@ inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &inp
     sessions.reserve(input.size());
     for (const TendencySessionInput &s : input) sessions.push_back(&s);
     std::stable_sort(sessions.begin(), sessions.end(), [](const TendencySessionInput *a, const TendencySessionInput *b) {
-        return a->session.day != b->session.day ? a->session.day < b->session.day : a->session.folder < b->session.folder;
+        return sessionPlaceBefore(a->session.place(), b->session.place());
     });
 
     // Every shot that counts, composed from its row, corrections and intent, and read factor by factor.
@@ -1331,13 +1331,13 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
 }
 
 // Tendencies as of one session (the golfer report): sessions on an earlier day, and those of the same day up to and
-// including it by folder order. Undated folders have no place in the order, so one counts only as itself.
-inline bool tendencySessionCounts(const QString &folder, const QString &asOfFolder)
+// including it by their place in the day (SessionPlace: SessionIdentity's day and n-of-day, from start times — never
+// the folder's name; step 2.7a). A session with no day has no place in the order, so one counts only as itself.
+inline bool tendencySessionCounts(const SessionPlace &session, const SessionPlace &asOf)
 {
-    if (folder == asOfFolder) return true;
-    const QDate day = sessionDayOfFolder(folder), asOf = sessionDayOfFolder(asOfFolder);
-    if (!day.isValid() || !asOf.isValid()) return false;
-    return day != asOf ? day < asOf : folder < asOfFolder;
+    if (session.folder == asOf.folder) return true;
+    if (!session.day.isValid() || !asOf.day.isValid()) return false;
+    return sessionPlaceBefore(session, asOf);
 }
 
 // The usual distance a Tendencies row shows: the club's full swing carry as stored. A part swing has none.

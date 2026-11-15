@@ -75,6 +75,7 @@
 #include "../DomainModel/session_input.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -84,6 +85,7 @@
 #include <QThreadPool>
 
 #include <atomic>
+#include <optional>
 
 #include <QHash>
 #include <QJsonObject>
@@ -201,6 +203,25 @@ public:
     // The same with a reader of its own (a SessionStore and a swing door made for this call): for a worker
     // thread, which may not touch the app's (2.3's J6, 2.4's J4).
     static GolferInput golferInput(const QString &sessionDir, const QJsonObject &legacy);
+
+    // ── Where a session sits in its athlete's history (step 2.7a; audit F-06/C-11) ─────────────────────
+    // The day and the place in the day are SessionIdentity's — by start time, and for a session without a
+    // session file (every session before migration M2) from its folder's name, in SessionIdentity and nowhere
+    // else — never parsed out of a folder name by a caller. A legacy session's D3 id is the folder OWNER's (J-39:
+    // the resolver, athlete.json, else the athlete the first swing records). `sessions` and `recordings` belong
+    // to the calling thread; the forms without them make a pair of their own (a worker).
+    //
+    // The athlete folder's sessions as SessionStore::enumerateFolder lists them, each with its n-of-day.
+    static QList<SessionIndexEntry> athleteSessions(const QString &athleteDir, SessionStore &sessions,
+                                                    SwingStoreRecordingRepository &recordings);
+    static QList<SessionIndexEntry> athleteSessions(const QString &athleteDir);
+    // One session's identity (its day; n-of-day is not set: that needs the whole folder, athleteSessions).
+    // A legacy session no athlete can be named for is placed by its name with a null id; empty for no folder.
+    static SessionIdentity identityOf(const QString &sessionDir, SessionStore &sessions,
+                                      SwingStoreRecordingRepository &recordings);
+    // `sessionDir`'s place in `index`, matched by its cleaned absolute folder; just the folder's name (no day,
+    // ordered nowhere) when it is not listed.
+    static analysis::SessionPlace placeOf(const QList<SessionIndexEntry> &index, const QString &sessionDir);
 
     // ── FILE-SESS-04, 05 ─────────────────────────────────────────────────────────────────────────────
     static bool         clubBaselineExists(const QString &sessionDir);
@@ -658,6 +679,71 @@ inline GolferInput SessionDiagnosticsFiles::golferInput(const QString &sessionDi
     SessionStore                  sessions;
     SwingStoreRecordingRepository recordings(sessions);
     return golferInput(sessionDir, legacy, recordings);
+}
+
+// ── Where a session sits (step 2.7a) ───────────────────────────────────────────────────────────────
+
+namespace session_diagnostics_detail {
+// The first swing folder under `sessionDir`, or under any session of `athleteDir` when `sessionDir` is empty or
+// has none: what the owner chain's last step reads (the athlete the swing records). "" when there is none.
+inline QString firstSwingFolder(const QString &athleteDir, const QString &sessionDir)
+{
+    if (!sessionDir.isEmpty())
+        if (const QStringList own = SwingPaths::swingFolders(sessionDir); !own.isEmpty())
+            return QDir(sessionDir).filePath(own.first());
+    const QDir athlete(athleteDir);
+    for (const QString &session : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        const QString dir = athlete.filePath(session);
+        if (const QStringList swings = SwingPaths::swingFolders(dir); !swings.isEmpty())
+            return QDir(dir).filePath(swings.first());
+    }
+    return {};
+}
+
+inline QString cleanAbsolute(const QString &folder)
+{
+    return QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
+}
+} // namespace session_diagnostics_detail
+
+inline QList<SessionIndexEntry> SessionDiagnosticsFiles::athleteSessions(const QString &athleteDir, SessionStore &sessions,
+                                                                         SwingStoreRecordingRepository &recordings)
+{
+    if (athleteDir.isEmpty()) return {};
+    const AthleteId owner =
+        recordings.legacyOwnerOf(athleteDir, session_diagnostics_detail::firstSwingFolder(athleteDir, QString()));
+    return sessions.enumerateFolder(athleteDir, owner);
+}
+
+inline QList<SessionIndexEntry> SessionDiagnosticsFiles::athleteSessions(const QString &athleteDir)
+{
+    SessionStore                  sessions;
+    SwingStoreRecordingRepository recordings(sessions);
+    return athleteSessions(athleteDir, sessions, recordings);
+}
+
+inline SessionIdentity SessionDiagnosticsFiles::identityOf(const QString &sessionDir, SessionStore &sessions,
+                                                          SwingStoreRecordingRepository &recordings)
+{
+    if (sessionDir.isEmpty()) return {};
+    const QString athleteDir = QFileInfo(QDir::cleanPath(sessionDir)).absolutePath();
+    const AthleteId owner =
+        recordings.legacyOwnerOf(athleteDir, session_diagnostics_detail::firstSwingFolder(athleteDir, sessionDir));
+    const SessionId id = sessions.openFolder(sessionDir, owner);
+    if (id.isNull())
+        // No athlete to name a legacy session by: still placed by its name, with no id (as enumerateFolder lists it).
+        return owner.isNull() ? SessionIdentity::placeOfLegacyFolder(sessionDir) : SessionIdentity();
+    const std::optional<SessionIndexEntry> e = sessions.open(id);
+    return e ? e->identity : SessionIdentity();
+}
+
+inline analysis::SessionPlace SessionDiagnosticsFiles::placeOf(const QList<SessionIndexEntry> &index, const QString &sessionDir)
+{
+    const QString want = session_diagnostics_detail::cleanAbsolute(sessionDir);
+    for (const SessionIndexEntry &e : index)
+        if (session_diagnostics_detail::cleanAbsolute(e.folder) == want)
+            return analysis::SessionPlace{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
+    return analysis::SessionPlace{ QFileInfo(want).fileName(), QDate(), 0 };
 }
 
 // ── FILE-SESS-04, 05 ─────────────────────────────────────────────────────────────────────────────────

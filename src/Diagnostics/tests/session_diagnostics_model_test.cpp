@@ -3619,7 +3619,7 @@ int main(int argc, char **argv)
         check(m->stage() == QLatin1String("closing"), "review holds the final state");
         check(m->headerInfo().value(QStringLiteral("reviewBadge")).toString()
                   == QStringLiteral("REVIEWING · shot 3 of 6"),
-              "the header badges the reviewed shot inside the finished ledger");
+              "the header badges the reviewed shot inside the finished ledger (no gap: today's text)");
         check(m->headerInfo().value(QStringLiteral("countLine")).toString()
                   .contains(QLatin1String("counted over all 6 shots")),
               "…and states that the counts are session totals");
