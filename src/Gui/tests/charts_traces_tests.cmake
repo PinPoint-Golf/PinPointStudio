@@ -10,6 +10,7 @@
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_traces_presenter_test
     SOURCES charts_traces_presenter_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_traces_presenter.cpp
             ${GUI}/charts/session_series_model.cpp
             ${CHARTS_WRIST_SRC}

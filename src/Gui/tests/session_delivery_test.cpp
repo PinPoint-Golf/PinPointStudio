@@ -33,6 +33,7 @@
 //     n 16 fit and is shown; Nick's day is refused; Mark's 5 Oct (one session) keeps the session's words.
 
 #include "charts/session_delivery.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_series_types.h"
 #include "../../LaunchMonitor/lm_inferred_reads.h"   // the launch monitor card's classifier, which the shapes must agree with
 
@@ -135,6 +136,7 @@ class SessionDeliveryTest : public QObject
 private slots:
     void initTestCase()
     {
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_rows = loadRows();
         QVERIFY2(m_rows.size() == 138, qPrintable(QStringLiteral("the fixture has %1 rows").arg(m_rows.size())));
         m_mark   = shotsOf(m_rows, QStringLiteral("Mark"), QStringLiteral("2026-10-05"));

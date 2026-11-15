@@ -88,6 +88,9 @@
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "../Diagnostics/packs/pack_provider.h"
+#include "../DomainModel/rule_data.h"     // RuleData: the packs and norms, one per machine (step 3.2)
+#include "../Export/rule_data_install.h" // the process's one RuleData, over its store
+#include "../Metrics/metric_catalogue.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
@@ -283,6 +286,19 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
+    // THE PACKS AND NORMS, ONE OWNER (RuleData, refactor step 3.2; D5: DEC-170). Made here, on the GUI
+    // thread, before anything grades, so no reader ever builds them first on a worker (audit B-03); its
+    // store is the one door to <AppData>/diagnostics/, the shipped content and SET-06 / SET-15. Installed
+    // as the process's one for the readers not yet handed it (they read RuleData::current()), and as the
+    // source of the shared norm slot the analysis passes read. The metric catalogue rides in its snapshot
+    // (A-19). NEVER DESTROYED, as in the tools: a worker still holding a snapshot's reference when main
+    // returns (the global pool drains in ~QCoreApplication, after main's locals) must not read freed memory.
+    pinpoint::RuleData &ruleData = pinpoint::installProcessRuleData(
+        std::make_shared<const pinpoint::analysis::MetricCatalogue>(pinpoint::analysis::makeMetricCatalogue()));
+    // SET-06 and SET-15 stay where they are stored (the v1.9 reviewer's condition), and the settings page's
+    // two AppSettings properties become a view of RuleData: read from its snapshot, written through its
+    // commands, notified on its EVT-12 — so its repository is their only reader and writer.
+    appSettings.bindRuleData(&ruleData);
     // THE ONE DOOR TO A SESSION'S OWN FILES AND ITS SWING NUMBERS (SessionRepository, step 2.2): the
     // session file, Start / resume / End, and the one swing allocator (D10) — handed to the capture
     // pipeline and the launch monitor below. GUI thread only, except swingFolder (any thread), which
@@ -471,12 +487,13 @@ int main(int argc, char *argv[])
         QObject::connect(&sessionController, &SessionController::activeSessionTypeChanged,
                          &sessionReportList, followLive);
         followLive();
-        sessionReportList.setGoalResolver(
-            [pack = std::shared_ptr<pinpoint::analysis::ICharacteristicPackProvider>()](const QString &id) mutable {
-                if (!pack) pack = pinpoint::analysis::makeCharacteristicPackProvider();
-                const pinpoint::analysis::Condition *c = pack->pack().condition(id);
-                return c ? c->goal : QString();
-            });
+        // The goal from the CURRENT snapshot, so a saved edit to a condition's goal reaches the list as it
+        // reaches a report made after it (audit B-02: this used to freeze a private pack at first use).
+        sessionReportList.setGoalResolver([&ruleData](const QString &id) {
+            const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = ruleData.snapshot();
+            const pinpoint::analysis::Condition *c = rules->pack->pack().condition(id);
+            return c ? c->goal : QString();
+        });
         QObject::connect(&workOns, &WorkOnsController::itemsChanged, &sessionReportList, &SessionReportListModel::refresh);
         QObject::connect(&workOns, &WorkOnsController::tendenciesLanded, &athleteController, &AthleteController::clubDistancesChanged);
         QTimer::singleShot(3'500, &sessionReportList, repoint);

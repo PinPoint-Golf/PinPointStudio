@@ -1,10 +1,10 @@
-// Standalone tests for pinpoint::analysis::atomicWrite() (src/Diagnostics/engine/pack_io.h), which is now
-// a FORWARDING call: the mechanism moved to the Platform ring as pinpoint::atomicWrite()
-// (src/Core/atomic_write.h, refactor step 2.0) and its tests moved with it (src/Core/tests/
-// atomic_write_test.cpp). What is left here is what the forwarder adds: an empty path is reported as
-// "no writable application data location" (what an empty diagnosticsFilePath() means), and a write
-// reaches the helper — a missing directory made, the bytes written whole, a failure reported in words.
-// This test goes when the forwarder does (its callers write through their repositories).
+// Standalone tests for the yes/no form of pinpoint::atomicWrite() (src/Core/atomic_write.h), which
+// pack_io.h used to wrap from a rules directory and which moved beside the helper it wrapped in refactor
+// step 3.2 (its writers write through RuleData's repository now). The mechanism's own tests are
+// src/Core/tests/atomic_write_test.cpp. What is checked here is what the yes/no form adds: an empty path
+// is reported as "no writable application data location" (what an empty diagnosticsFilePath() means),
+// and a write reaches the helper — a missing directory made, the bytes written whole, a failure reported
+// in words.
 //
 //   cmake --build build/tests --target pack_io_test -j 6
 //   ctest --test-dir build/tests -R '^pack_io_test$' --output-on-failure
@@ -45,7 +45,7 @@ int main()
     {
         const QString path = tmp.filePath(QStringLiteral("made/on/demand/user.json"));
         QString why = QStringLiteral("untouched");
-        check(atomicWrite(path, bytes, &why), "a write into a missing directory returns true");
+        check(pinpoint::atomicWrite(path, bytes, &why), "a write into a missing directory returns true");
         check(readAll(path) == bytes, "the file holds the bytes");
         check(why == QStringLiteral("untouched"), "whyNot is left alone on success");
     }
@@ -59,18 +59,18 @@ int main()
         f.close();
         const QString path = blocker + QStringLiteral("/user.json");
         QString why;
-        check(!atomicWrite(path, bytes, &why), "the write returns false");
+        check(!pinpoint::atomicWrite(path, bytes, &why), "the write returns false");
         check(why.contains(path), "whyNot is the helper's sentence, naming the file");
-        check(!atomicWrite(path, bytes), "a null whyNot is allowed");
+        check(!pinpoint::atomicWrite(path, bytes, nullptr), "a null whyNot is allowed");
     }
 
     std::printf("An empty path\n");
     {
         QString why;
-        check(!atomicWrite(QString(), bytes, &why), "an empty path returns false");
+        check(!pinpoint::atomicWrite(QString(), bytes, &why), "an empty path returns false");
         check(why == QStringLiteral("No writable application data location."),
               "whyNot says there is no writable application data location");
-        check(!atomicWrite(QString(), bytes), "a null whyNot is allowed");
+        check(!pinpoint::atomicWrite(QString(), bytes, nullptr), "a null whyNot is allowed");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");

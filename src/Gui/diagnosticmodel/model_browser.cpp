@@ -17,6 +17,7 @@
  */
 
 #include "model_browser.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Diagnostics/norms/corridor_plot.h"
 #include "../../Diagnostics/engine/dag_layout.h"
@@ -809,7 +810,7 @@ private:
 
 ModelBrowser::ModelBrowser(QObject *parent)
     : QObject(parent)
-    , m_core(makeResourcePackProvider())
+    , m_core(shippedPackProvider())     // RuleData's shipped layer (step 3.2): no private parse
     , m_coreNorms(makeResourceNormProvider())
     , m_norms(sharedNormProvider())
     , m_cat(makeMetricCatalogue())
@@ -842,7 +843,7 @@ ModelBrowser::ModelBrowser(QObject *parent)
     // an empty working copy and the first save would erase every override the user had.
     QFile f(userPackPath());
     if (f.open(QIODevice::ReadOnly)) {
-        PackLoadResult res = loadPack(f.readAll(), userPackPath());
+        PackLoadResult res = loadPack(f.readAll(), userPackPath(), &sharedReferenceSet());
         if (res.parsed) m_savedUser = std::move(res.pack);
     }
     if (m_savedUser.id.isEmpty()) {
@@ -2266,7 +2267,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             // files, so a drill written here a minute ago and attached to a habit read as a dangling
             // reference until it was saved — the strip accusing the author of a fault the save they
             // had not yet made would cure.
-            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills))
+            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills, &sharedReferenceSet()))
                 issues.push_back(i);
         }
         // The gate words the draft holds (#60): a clause left empty, or one with a capital or a number
@@ -7293,6 +7294,12 @@ Norm *ModelBrowser::workingNorm(const QString &measureId, const QString &context
     copy.measureId = measureId;
     copy.contextId = contextId;   // seated HERE, even when it was inherited from an ancestor
     copy.cohort    = Cohort{};
+    // The shipped row's STANDING is not the user's (refactor step 3.2, DEC-127): "provisional, decided
+    // by Mark" describes the shipped figure, not the one being nudged here. Copied, it would put that
+    // decision on the user's own numbers and lift user.norms.json to schema 3 with no standing added.
+    copy.standing  = NormStanding::Unstated;
+    copy.decidedBy.clear();
+    copy.decidedOn = QDate();
     m_workingNorms.norms.push_back(copy);
     return &m_workingNorms.norms.back();
 }

@@ -27,6 +27,7 @@
 // and a diagnostics.json ledger with rows for shot 1.
 
 #include "session_series_model.h"
+#include "../../Export/rule_data_install.h"
 
 #include "../../Coaching/diagnostic_ledger.h"
 #include "../../Metrics/metric_reducer.h"
@@ -294,6 +295,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);   // the user's own packs stay out of it
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         QVERIFY(m_tmp.isValid());
         m_session = m_tmp.path() + QStringLiteral("/Athlete/2026-10-14_Test_01");
         m_other   = m_tmp.path() + QStringLiteral("/Athlete/2026-10-13_Test_01");

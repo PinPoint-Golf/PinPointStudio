@@ -5,6 +5,7 @@
 // (against the grader run on its own) and the templates' placeholders.
 
 #include "charts/charts_consistency_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/consistency_env.h"
 #include "charts/consistency_grades.h"
 #include "charts/variability_env.h"
@@ -184,6 +185,7 @@ class ChartsConsistencyPresenterTest : public QObject
 private slots:
     void initTestCase()
     {
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_oct = sessionOf(QStringLiteral("/session_1005.json"));
         m_july = sessionOf(QStringLiteral("/session_0704.json"));
         QVERIFY(m_oct->count() == 31);

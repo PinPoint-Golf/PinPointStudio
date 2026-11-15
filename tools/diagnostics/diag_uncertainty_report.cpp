@@ -25,6 +25,8 @@
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, regrade_ledger.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "../../src/Export/rule_data_install.h"
+#include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_files.h"
 #include "Diagnostics/packs/pack_provider.h"
@@ -109,6 +111,9 @@ DetectionResult sessionEvidence(const std::map<QString, ConditionLedger> &ledger
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // The packs and norms: this process's one RuleData, over the files the PINPOINT_CORE_* seams name
+    // (refactor step 3.2). Made here, on the main thread, before anything grades.
+    pinpoint::installProcessRuleData();
     QString     outDir, library;
     QStringList dirs;
     for (int i = 1; i < argc; ++i) {

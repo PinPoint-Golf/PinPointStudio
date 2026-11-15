@@ -78,6 +78,28 @@ const Row<AgeBand> kAgeBands[] = {
 
 QString normSourceName(NormSource s) { return nameOf(kNormSources, s); }
 bool    normSourceFromName(const QString &s, NormSource &out) { return fromName(kNormSources, s, out); }
+
+QString normStandingName(NormStanding s)
+{
+    switch (s) {
+    case NormStanding::Provisional: return QStringLiteral("provisional");
+    case NormStanding::Decided:     return QStringLiteral("decided");
+    case NormStanding::Unstated:    break;
+    }
+    return QString();
+}
+
+bool normStandingFromName(const QString &s, NormStanding &out)
+{
+    if (s == QLatin1String("provisional")) { out = NormStanding::Provisional; return true; }
+    if (s == QLatin1String("decided"))     { out = NormStanding::Decided;     return true; }
+    return false;
+}
+
+bool normHasStanding(const Norm &n)
+{
+    return n.standing != NormStanding::Unstated || !n.decidedBy.isEmpty() || n.decidedOn.isValid();
+}
 QString normSourceLabel(NormSource s) { return labelOf(kNormSources, s); }
 
 QString gradeName(Grade g) { return nameOf(kGrades, g); }

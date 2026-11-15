@@ -18,7 +18,7 @@
 
 #include "norm_provider.h"
 
-#include "../engine/pack_io.h"
+#include "../engine/pack_io.h"   // diagnosticsDataDir, diagnosticsFilePath
 #include "../engine/provider_leaf_p.h"
 
 #include <QDir>
@@ -33,7 +33,7 @@ namespace {
 // User norm sets live alongside user characteristic packs, distinguished by suffix: `*.norms.json`
 // for norms, `*.json` otherwise. One directory, because a user thinks of their diagnostics content
 // as one thing, and two directories would guarantee that a backup captured half of it.
-const QLatin1String kNormSuffix(".norms.json");
+const QLatin1String kNormSuffix(kNormSetSuffix);
 
 // The file name the user's OWN norm set is written under. Three decisions key on it — where
 // saveUserNormPack() writes, which file normSetFilesIn() layers first, and which file is LocalUser
@@ -43,7 +43,7 @@ QString userNormFileName() { return QStringLiteral("user") + kNormSuffix; }
 // The context tree the whole directory shares, under a fixed name so there is exactly one place to
 // look. Not a norm set and never enumerated as one: a set describes corridors, this describes the
 // shape of the tree they hang on.
-const QLatin1String kContextsName("contexts.json");
+const QLatin1String kContextsName(kContextTreeFileName);
 
 // ONE user norm set from disk, plus optionally the directory's shared context tree. A set that
 // fails to parse is REPORTED and skipped, never fatal: a single malformed community set must not
@@ -178,14 +178,6 @@ std::vector<std::unique_ptr<INormProvider>> makeFileNormProviders(const QString 
 QString userNormPath()
 {
     return diagnosticsFilePath(userNormFileName());
-}
-
-bool saveUserNormPack(const NormPack &pack, QString *whyNot)
-{
-    // Temporary-and-rename, so an interrupted save cannot truncate a norm set the user has spent
-    // time seating — see atomicWrite().
-    return atomicWrite(userNormPath(),
-                       QJsonDocument(saveNormPack(pack)).toJson(QJsonDocument::Indented), whyNot);
 }
 
 } // namespace pinpoint::analysis

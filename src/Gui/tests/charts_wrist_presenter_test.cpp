@@ -27,6 +27,7 @@
 //   shot 3  nothing fired, every wrist row clean — but bowed/cupped −60° at the top, outside any band (W-D6)
 
 #include "charts/charts_wrist_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
 #include "report/report_wrist.h"
@@ -161,6 +162,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         warmWristBands();
         m_snap = std::make_shared<SessionSnapshot>();
         m_snap->sessionDir = QStringLiteral("/wx/2026-08-18_Mark-Liversedge_Wrist_02");

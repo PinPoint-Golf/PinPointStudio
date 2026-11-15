@@ -7,6 +7,7 @@
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(session_posture_test
     SOURCES session_posture_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/session_series_model.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp
@@ -41,6 +42,7 @@ set(POSTURE_VARIABILITY_SRC
     ${SRC}/Metrics/variability/variability_typicality.cpp)
 pp_add_test(charts_posture_presenter_test
     SOURCES charts_posture_presenter_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_posture_presenter.cpp
             ${POSTURE_VARIABILITY_SRC}
             ${GUI}/charts/posture_picture.cpp

@@ -28,6 +28,24 @@ find_package(Qt6 REQUIRED COMPONENTS Qml Concurrent Test)
 set(GUI ${CMAKE_CURRENT_SOURCE_DIR}/..)   # src/Gui
 set(SRC ${GUI}/..)                         # src
 
+# RuleData and its store (refactor step 3.2: the packs and norms under one owner; D5, DEC-170): every
+# target that reads the packs, the norms or the content sets through RuleData's snapshot, or builds a
+# provider from a file by path, links these. With what they read: the registries, the pack and norm
+# providers and the pack loader. RuleData is a QObject, so such a target is AUTOMOC.
+set(RULE_DATA_SOURCES
+    ${SRC}/DomainModel/rule_data.cpp ${SRC}/Export/rule_data_store.cpp
+    ${SRC}/Diagnostics/packs/drill_pack.cpp ${SRC}/Diagnostics/packs/screen_pack.cpp
+    ${SRC}/Diagnostics/packs/reference_pack.cpp ${SRC}/Diagnostics/packs/gate_words_pack.cpp
+    ${SRC}/Diagnostics/packs/resource_pack_provider.cpp ${SRC}/Diagnostics/packs/file_pack_provider.cpp
+    ${SRC}/Diagnostics/packs/merged_pack_provider.cpp ${SRC}/Diagnostics/packs/memory_pack_provider.cpp
+    ${SRC}/Diagnostics/norms/resource_norm_provider.cpp ${SRC}/Diagnostics/norms/file_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/merged_norm_provider.cpp ${SRC}/Diagnostics/norms/memory_norm_provider.cpp
+    ${SRC}/Diagnostics/norms/norm.cpp ${SRC}/Diagnostics/norms/norm_pack.cpp ${SRC}/Diagnostics/norms/context_tree.cpp
+    ${SRC}/Diagnostics/engine/pack_io.cpp ${SRC}/Diagnostics/packs/characteristic_pack.cpp
+    ${SRC}/Diagnostics/engine/characteristic.cpp ${SRC}/Diagnostics/measures/measure_facets.cpp
+    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp)
+
 # TimelineLabels — 1-D label distribution solver + nearest/active searches + phase names.
 pp_add_test(timeline_labels_test
     SOURCES timeline_labels_test.cpp ${GUI}/review/timeline_labels.cpp
@@ -283,6 +301,7 @@ pp_add_test(shot_ledger_test
 pp_require_gspro()
 # The board's model and everything it links, as a list: report_lm_test (report_model_tests.cmake) runs the same board.
 set(PP_LM_BOARD_SOURCES
+    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/launchmonitor/lm_session_model.cpp
             ${GUI}/shot/shot_list_model.cpp
             ${GUI}/trust/trust_readings.cpp
@@ -336,6 +355,7 @@ set(PP_LM_BOARD_INCLUDES ${GUI} ${GUI}/shot ${GUI}/launchmonitor ${GUI}/charts $
     ${SRC}/LaunchMonitor ${SRC}/Export ${SRC}/Analysis ${SRC}/Diagnostics ${SRC}/Metrics)
 pp_add_test(lm_session_model_test
     SOURCES lm_session_model_test.cpp ${PP_LM_BOARD_SOURCES}
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${PP_LM_BOARD_INCLUDES}
     LINK    Qt6::Qml Qt6::Network Qt6::Test gspro  AUTOMOC)
 set_tests_properties(lm_session_model_test PROPERTIES

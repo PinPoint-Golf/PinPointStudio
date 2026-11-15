@@ -500,6 +500,20 @@ std::optional<Norm> readNorm(const QJsonObject &o, ValidationReport &rep)
     if (!setOn.isEmpty())
         n.setOn = QDate::fromString(setOn, Qt::ISODate);
 
+    // The standing (DEC-127, IM-S3-6). Absent on a row written before the keys existed, which reads
+    // exactly as it did. A token this build does not know is reported and read as unstated: standing
+    // is provenance, so guessing a stronger one would overclaim and dropping the row would lose a
+    // corridor over a label.
+    const QString standing = o.value(QStringLiteral("standing")).toString();
+    if (!standing.isEmpty() && !normStandingFromName(standing, n.standing))
+        warn(rep, QStringLiteral("unknownStanding"), n.measureId,
+             QStringLiteral("Norm for '%1' at '%2' has a standing '%3' this build does not know; "
+                            "read as unstated.").arg(n.measureId, n.contextId, standing));
+    n.decidedBy = o.value(QStringLiteral("decidedBy")).toString();
+    const QString decidedOn = o.value(QStringLiteral("decidedOn")).toString();
+    if (!decidedOn.isEmpty())
+        n.decidedOn = QDate::fromString(decidedOn, Qt::ISODate);
+
     // The shipped values this override was made against. Written only on a user row; a shipped set
     // carrying one would be claiming to override itself. Read unconditionally so a hand-edited file
     // round-trips, and validated only in the sense that a partial object is taken as absent —
@@ -556,6 +570,10 @@ QJsonObject writeNorm(const Norm &n)
     if (!n.author.isEmpty())     o.insert(QStringLiteral("author"), n.author);
     if (!n.citation.isEmpty())   o.insert(QStringLiteral("citation"), n.citation);
     if (n.setOn.isValid())       o.insert(QStringLiteral("setOn"), n.setOn.toString(Qt::ISODate));
+    // Written only when stated, so a row without a standing round-trips byte-identically.
+    if (n.standing != NormStanding::Unstated) o.insert(QStringLiteral("standing"), normStandingName(n.standing));
+    if (!n.decidedBy.isEmpty())  o.insert(QStringLiteral("decidedBy"), n.decidedBy);
+    if (n.decidedOn.isValid())   o.insert(QStringLiteral("decidedOn"), n.decidedOn.toString(Qt::ISODate));
 
     if (n.basedOn.has_value()) {
         const NormBasis &b = *n.basedOn;
@@ -638,9 +656,12 @@ NormPackLoadResult loadNormPack(const QByteArray &json, const QString &sourceLab
 
 int requiredNormSchemaVersion(const NormPack &pack)
 {
-    for (const Norm &n : pack.norms)
-        if (!n.cohort.isUnqualified()) return 2;
-    return 1;
+    int v = 1;
+    for (const Norm &n : pack.norms) {
+        if (normHasStanding(n)) return 3;
+        if (!n.cohort.isUnqualified()) v = 2;
+    }
+    return v;
 }
 
 QJsonObject saveNormPack(const NormPack &pack)

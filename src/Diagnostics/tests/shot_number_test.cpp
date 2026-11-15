@@ -34,6 +34,7 @@
 //   ctest --test-dir build/tests -R '^shot_number_test$' --output-on-failure
 
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Export/rule_data_install.h"
 #include "../../Export/session_diagnostics_files.h"
 #include "../../Export/session_files.h"
 #include "../../Export/swing_paths.h"
@@ -314,6 +315,7 @@ static void testDayOrder(const QTemporaryDir &tmp)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     QTemporaryDir tmp;
     if (!tmp.isValid()) { std::printf("no temporary folder\n"); return 1; }
 

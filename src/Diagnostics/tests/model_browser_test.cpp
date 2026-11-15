@@ -24,6 +24,9 @@
 //   ctest --test-dir build/analyzer-tests -R model_browser --output-on-failure
 
 #include "model_browser.h"
+#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/characteristic_pack.h"
 #include "../packs/pack_provider.h"
@@ -603,6 +606,7 @@ static void reportContentEditing(ModelBrowser &m)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
 
     // The user pack is written by save(); XDG_DATA_HOME is isolated by the test properties so this
     // never touches a real profile. Start from nothing so the baseline is knowable.
@@ -1940,6 +1944,40 @@ int main(int argc, char **argv)
         const NormResolution back = sharedNormProvider()->resolve(QStringLiteral("m_ballPosition"),
                                                                   QStringLiteral("driver"));
         check(back.found() && back.norm->mu == oldMu, "and the app's norm set is back on the old corridor");
+    }
+
+    std::printf("=== a nudge to a shipped corridor does not take its standing (refactor step 3.2) ===\n");
+    {
+        // The shipped m_takeawayPlane row is "provisional, decided by Mark" (DEC-127, IM-S3-6). The user's
+        // nudged copy is THEIR figure: it must carry no standing, and an edit that adds none must not lift
+        // user.norms.json to schema 3.
+        ModelBrowser  c;
+        const QString mid = QStringLiteral("m_takeawayPlane"), ctx = QStringLiteral("any");
+        const Norm   *shipped = sharedNormProvider()->shippedNorm(mid, ctx);
+        check(shipped && shipped->standing == NormStanding::Provisional && shipped->decidedBy == QStringLiteral("Mark"),
+              "the shipped row carries its typed standing");
+        const double mu = shipped ? shipped->mu : 0.0;
+        check(okOf(c.setField(QStringLiteral("corridors"), QStringLiteral("norm:%1@%2").arg(mid, ctx),
+                              QStringLiteral("mu"), mu + 0.5)),
+              "the corridor is nudged");
+        check(okOf(c.save()), "and saved");
+        QFile f(userNormPath());
+        const QJsonObject root = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+        bool row = false, clean = true;
+        for (const QJsonValue &v : root.value(QStringLiteral("norms")).toArray()) {
+            const QJsonObject o = v.toObject();
+            if (o.value(QStringLiteral("measure")).toString() != mid) continue;
+            row   = true;
+            clean = clean && !o.contains(QStringLiteral("standing")) && !o.contains(QStringLiteral("decidedBy"))
+                    && !o.contains(QStringLiteral("decidedOn"));
+        }
+        check(row && clean, "the user's row is written with no standing, decidedBy or decidedOn");
+        check(root.value(QStringLiteral("schemaVersion")).toInt() < 3, "and user.norms.json stays below schema 3");
+        check(sharedNormProvider()->shippedNorm(mid, ctx) && sharedNormProvider()->shippedNorm(mid, ctx)->standing
+                                                                   == NormStanding::Provisional,
+              "the shipped row keeps its standing");
+        c.undo();
+        check(okOf(c.save()), "the nudge is undone and saved");
     }
 
     std::printf("=== save writes, and does NOT clear the stack ===\n");

@@ -41,6 +41,7 @@
 // NOT A TEST, and not registered with ctest — it writes into the folders it is given.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "../../src/Export/rule_data_install.h"
 #include "Core/PpMessageLog.h"
 #include "Export/session_files.h"
 #include "parity_json.h"
@@ -115,6 +116,9 @@ bool removeIfThere(const QString &path, int *removed)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // The packs and norms: this process's one RuleData, over the files the PINPOINT_CORE_* seams name
+    // (refactor step 3.2). Made here, on the main thread, before anything grades.
+    pinpoint::installProcessRuleData();
     PpMessageLog::instance()->setEchoToStderr(true);
 
     QString     outPath;

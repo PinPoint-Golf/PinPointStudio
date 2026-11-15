@@ -8,6 +8,9 @@
 //   ctest --test-dir build/analyzer-tests -R core_pack --output-on-failure
 
 #include "../packs/area_regroup_table.h"
+#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../packs/characteristic_pack.h"
 #include "../norms/context_tree.h"
 #include "../norms/norm_pack.h"
@@ -47,6 +50,7 @@ static void check(bool c, const char *label)
 
 int main()
 {
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("core_pack_test\n");
 
     QFile f(QStringLiteral(PP_CORE_PACK_PATH));
@@ -2341,6 +2345,7 @@ int main()
         // a bare run of the binary gets it from here, as swing_themes_golden_test does for drills.
         if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_GATE_WORDS"))
             qputenv("PINPOINT_CORE_GATE_WORDS", gwPath.toLocal8Bit());
+        pinpoint::installProcessRuleData().reload(pinpoint::RuleData::GateWords);   // the seam (step 3.2)
         check(coreGateWordSet().readOnly && coreGateWordSet().gates.size() == gw.pack.gates.size()
                   && gateWordsFor(coreGateWordSet(), QStringLiteral("sequence.sightedBand"))
                          == gateWordsFor(gw.pack, QStringLiteral("sequence.sightedBand"))
@@ -2430,8 +2435,10 @@ int main()
         QString whyNot;
         check(saveUserGateWordSet(user, &whyNot), "gate words: the user layer saves");
         if (!whyNot.isEmpty()) std::printf("        %s\n", qPrintable(whyNot));
-        check(gateWordsFor(sharedGateWordSet(), id) == shipped,
-              "gate words: the shared set is cached until it is reset");
+        // The save is RuleData's command (refactor step 3.2): it publishes the new set at once (EVT-13), so
+        // the "cached until it is reset" state is gone; the reset below re-reads the same file.
+        check(gateWordsFor(sharedGateWordSet(), id) == edited,
+              "gate words: the save publishes the new set at once");
         resetSharedGateWordSet();
         const GateWordSet merged = sharedGateWordSet();   // a copy: reset below frees the cache
         check(gateWordsFor(merged, id) == edited && !merged.readOnly

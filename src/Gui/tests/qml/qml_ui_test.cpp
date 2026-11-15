@@ -53,6 +53,7 @@
 // module registers its own types now, so naming them here would claim a dependency this file
 // does not have.
 #include "app_settings.h"
+#include "../../../Export/rule_data_install.h"
 
 // The Charts panel's fixture feeder (below): the presenters' setSnapshot is C++-only.
 #include "charts/charts_relations_presenter.h"
@@ -412,6 +413,10 @@ public:
             if (!qEnvironmentVariableIsSet(s.var))
                 qputenv(s.var, QDir::toNativeSeparators(dir.filePath(QLatin1String(s.file))).toLocal8Bit());
         }
+        // The packs and norms, read once through the seams just set (refactor step 3.2): every reader in
+        // the module takes RuleData's snapshot, so with none installed they would all read EMPTY — the
+        // empty-pack failures the note above describes.
+        pinpoint::installProcessRuleData();
     }
 
 public slots:
@@ -443,6 +448,8 @@ public slots:
                    "settings path under the working directory.", qPrintable(m_scratch.errorString()));
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
                            m_scratch.filePath(QStringLiteral("file%1").arg(++m_fileCount)));
+        // SET-06 / SET-15 are RuleData's: re-read them from this file's fresh store.
+        pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Settings);
 
         // Owned by the engine, so it goes with the file it served.
         auto *settings = new AppSettings(engine);

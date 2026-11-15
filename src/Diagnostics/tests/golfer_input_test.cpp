@@ -35,6 +35,7 @@
 //   ctest --test-dir build/tests -R '^golfer_input_test$' --output-on-failure
 
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
+#include "../../Export/rule_data_install.h"
 #include "../../Export/session_diagnostics_files.h"
 #include "../../Export/session_files.h"
 #include "../../Export/session_store.h"
@@ -548,6 +549,7 @@ static void filesSuite(const QTemporaryDir &tmp)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("golfer_input_test\n");
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) {
         std::printf("PINPOINT_CORE_PACK is unset — run this through ctest, which sets the shipped content.\n");

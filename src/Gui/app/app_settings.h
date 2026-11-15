@@ -30,6 +30,7 @@
 #include <QUrl>
 #include <QRegularExpression>
 #include <atomic>
+#include <functional>
 #include <cmath>
 #include <memory>
 #include "pp_settings.h"
@@ -49,6 +50,8 @@ public:
     QString volumeName;
 };
 Q_DECLARE_METATYPE(StorageInfo)
+
+namespace pinpoint { class RuleData; }
 
 class AppSettings : public QObject
 {
@@ -416,12 +419,11 @@ public:
         m_wristReferenceSwingDir = ppSettings().value(QStringLiteral("ui/wristReferenceSwingDir"), QString()).toString();
         m_timelineSnapToPhases = ppSettings().value(QStringLiteral("ui/timelineSnapToPhases"), false).toBool();
         m_metricsHidePlanned = ppSettings().value(QStringLiteral("ui/metricsHidePlanned"), false).toBool();
-        m_diagnosticsGradePolicy = ppSettings().value(QStringLiteral("ui/diagnosticsGradePolicy"),
-                                                      QStringLiteral("standard")).toString();
         m_sessionDiagnosticsCadence = ppSettings().value(QStringLiteral("ui/sessionDiagnosticsCadence"),
                                                         QStringLiteral("bandwidth")).toString();
-        m_diagnosticsNormSetsOff = ppSettings().value(QStringLiteral("ui/diagnosticsNormSetsOff"),
-                                                      QStringList()).toStringList();
+        // diagnosticsGradePolicy (SET-15) and diagnosticsNormSetsOff (SET-06) are NOT read here: they
+        // are RuleData's (refactor step 3.2; D5: DEC-170), and its repository is their one reader and
+        // writer. This object is a view of them once the composition root binds it (bindRuleData()).
         m_diagnosticsBaseModelWarningAck =
             ppSettings().value(QStringLiteral("ui/diagnosticsBaseModelWarningAck"), false).toBool();
         m_sessionsHintSeen =
@@ -819,11 +821,13 @@ public:
         emit metricsHidePlannedChanged();
     }
 
+    // SET-15: through RuleData's command once bound (its EVT-12 brings the value back and the NOTIFY);
+    // unbound (a test with no composition root), held in memory only and never persisted.
     void setDiagnosticsGradePolicy(const QString &v)
     {
         if (m_diagnosticsGradePolicy == v) return;
+        if (m_ruleSetGradePolicy) { m_ruleSetGradePolicy(v); return; }
         m_diagnosticsGradePolicy = v;
-        ppSettings().setValue(QStringLiteral("ui/diagnosticsGradePolicy"), v);
         emit diagnosticsGradePolicyChanged();
     }
 
@@ -842,13 +846,21 @@ public:
         emit sessionDiagnosticsCadenceChanged();
     }
 
+    // SET-06: as SET-15 above.
     void setDiagnosticsNormSetsOff(const QStringList &v)
     {
         if (m_diagnosticsNormSetsOff == v) return;
+        if (m_ruleSetNormSetsOff) { m_ruleSetNormSetsOff(v); return; }
         m_diagnosticsNormSetsOff = v;
-        ppSettings().setValue(QStringLiteral("ui/diagnosticsNormSetsOff"), v);
         emit diagnosticsNormSetsOffChanged();
     }
+
+    // Make the two rule-data settings (SET-06, SET-15) a VIEW over RuleData (refactor step 3.2): the
+    // getters answer its snapshot, the setters call its commands, and its EVT-12 (normsChanged) raises
+    // the NOTIFYs. RuleData's repository is then their only reader and writer, under today's keys.
+    // Called once by the composition root; defined in app_settings_rule_data.cpp, so a target that
+    // never binds links no RuleData.
+    void bindRuleData(pinpoint::RuleData *ruleData);
 
     void setDiagnosticsBaseModelWarningAck(bool v)
     {
@@ -1812,6 +1824,8 @@ private:
     QString m_diagnosticsGradePolicy = QStringLiteral("standard");
     QString m_sessionDiagnosticsCadence = QStringLiteral("bandwidth");
     QStringList m_diagnosticsNormSetsOff;
+    std::function<void(const QString &)>     m_ruleSetGradePolicy;   // RuleData's commands, once bound
+    std::function<void(const QStringList &)> m_ruleSetNormSetsOff;
     bool        m_diagnosticsBaseModelWarningAck = false;
     bool        m_sessionsHintSeen = false;
     bool        m_settingsNavCollapsed = false;

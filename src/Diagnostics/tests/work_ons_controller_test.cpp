@@ -47,6 +47,8 @@
 // a library that already has its ledgers, which is the one the app meets first.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
 #include "Coaching/frequency_words.h"
 #include "Coaching/swing_themes.h"
@@ -1587,6 +1589,7 @@ static void checkShotFilter(const QString &root)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("work_ons_controller_test\n");
 
     QTemporaryDir tmp;

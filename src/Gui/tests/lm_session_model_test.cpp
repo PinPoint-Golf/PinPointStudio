@@ -35,6 +35,8 @@
 // the reset, it grades exactly as it did.
 
 #include "launchmonitor/lm_session_model.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "variability/variability_measures.h"
 #include "shot/shot_list_model.h"
 #include "shot/qml_payload.h"
@@ -169,6 +171,7 @@ static int headlineId(const LmSessionModel &b)  { return b.graphics().value(QStr
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     // NO QML engine, on purpose (#173). The shot model's AnalysisDetailRole is the row's JavaScript
     // object (qml_payload.h) and with no engine registered it is undefined — so a board that read
     // its numbers through the role would see no readings, and every case that needs one would fail.
@@ -427,6 +430,7 @@ int main(int argc, char **argv)
         QTemporaryDir runDir(dataBase + QStringLiteral("/lm_session_model_test-XXXXXX"));
         QCoreApplication::setOrganizationName(QString());
         QCoreApplication::setApplicationName(QFileInfo(runDir.path()).fileName());
+        pinpoint::installProcessRuleData().reload();   // the data location just moved (step 3.2)
         check("N0 the user norm set goes in this run's own temporary directory",
               runDir.isValid()
                   && QFileInfo(analysis::userNormPath()).absolutePath().startsWith(QFileInfo(runDir.path()).absoluteFilePath()));
@@ -468,9 +472,9 @@ int main(int argc, char **argv)
             pack.norms.push_back(wider);
             QString why;
             check("N3 a user norm set widening it is written", analysis::saveUserNormPack(pack, &why));
-            board.setFocusedShotId(idOf(shots, 4));
-            check("N4 before the reset (save() makes it), the board still grades as it did",
-                  varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath") == path0);
+            // The save is RuleData's command (refactor step 3.2): it publishes the new norms and resets the
+            // shared slot itself, so the old "N4: before the reset the board grades as it did" state is gone.
+            // The reset below is what ModelBrowser::save() still calls; it re-asks the same snapshot.
             analysis::resetSharedNormProvider();
             board.setFocusedShotId(idOf(shots, 5));                // the next grade pass
             const QVariantMap path1 = varOf(clubStats(board, QStringLiteral("7 IRON")), "lm.clubPath");

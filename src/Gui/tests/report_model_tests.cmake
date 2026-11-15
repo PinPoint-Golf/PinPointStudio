@@ -23,6 +23,7 @@
 set(_pp_report_diag ${SRC}/Resources/diagnostics)
 pp_add_test(report_model_test
     SOURCES report_model_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Export/swing_paths.cpp   # report_swing_no.h: an unlisted swing's number off its folder (step 2.7b)
             ${SRC}/Diagnostics/engine/pack_io.cpp
             ${SRC}/Diagnostics/engine/characteristic.cpp
@@ -48,7 +49,8 @@ pp_add_test(report_model_test
             ${GUI}/charts/session_curves.cpp
             ${GUI}/charts/session_warp.cpp
             ${GUI}/charts/session_traces.cpp
-    INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis)
+    INCLUDE ${GUI} ${SRC} ${SRC}/Diagnostics ${SRC}/Metrics ${SRC}/Analysis
+    AUTOMOC)
 set_tests_properties(report_model_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${_pp_report_diag}/core.json;PINPOINT_CORE_DRILLS=${_pp_report_diag}/drills.json;PINPOINT_CORE_GATE_WORDS=${_pp_report_diag}/gate_words.json;PINPOINT_CORE_REFERENCES=${_pp_report_diag}/references.json")
 

@@ -482,6 +482,27 @@ declaring a QML module from a test directory will hit the same wall.
 - **Every test window holds a `View3DKeepAlive`** (in `support/CalibDriver.qml`, `support/SetupDriver.qml` and the files that use neither). Qt 6.11.0's DEBUG Quick 3D crashes the render thread when a window's LAST View3D is destroyed — every time, on a plain View3D unloaded from a Loader; Qt's release libraries survive it. That was the suite's crash in the HackMotion calibration file (`QSSGRenderCamera::markDirty` + `0xfeeefeee`). The app holds one in each top-level window for the same reason; `src/Gui/viz/View3DKeepAlive.qml` has the bisection, `src/Gui/tests/probes/view3d_unload.qml` checks the app.
 - **The test target embeds the shaders the app's QML loads** (view gain, topo background, Bayer demosaic) at the app's resource paths. A missing one is an "Empty shader passed to graphics pipeline" warning on a real D3D11 window — and a failed case.
 
+### The packs and norms — `RULE_DATA_SOURCES` and `installProcessRuleData()`
+
+Since refactor step 3.2 the packs, norms and content sets have one owner, `RuleData`
+(`src/DomainModel/rule_data.h`), and one door to their files, `RuleDataStore`
+(`src/Export/rule_data_store.h`). Nothing assembles a private pack any more: every reader takes
+`RuleData::current()`'s snapshot, directly or through the interim accessors
+(`makeCharacteristicPackProvider()`, `sharedDrillSet()`, …). So a test that reads them:
+
+- links `${RULE_DATA_SOURCES}` (defined in `src/Analysis/tests/CMakeLists.txt` and `src/Gui/tests/CMakeLists.txt`)
+  and is `AUTOMOC` (`RuleData` is a QObject);
+- calls `pinpoint::installProcessRuleData()` (`src/Export/rule_data_install.h`) on the main thread, after it
+  has set its `PINPOINT_CORE_*` seams and moved its data location (`QStandardPaths::setTestModeEnabled`,
+  `setApplicationName`), and before anything reads. With none installed every accessor answers from an
+  empty snapshot;
+- after changing a seam or a data location mid-run, calls `installProcessRuleData().reload(parts)`: one
+  snapshot per change, so a test that swaps the core pack is a change RuleData must be told about.
+
+A save through RuleData's commands publishes at once (EVT-12 / EVT-13); there is no "written but not yet
+reset" state. `shared_norm_provider_test` deliberately installs none: it is the headless norm slot's test.
+`rule_data_test` is the owner's own.
+
 ### The architecture lint — `architecture_lint_test`
 
 `src/Gui/tests/architecture_lint_test.cpp` is the guard for the refactor (`docs/implementation/swe-audit/03-target-architecture.md` §2 and §11). It is shaped like `design_system_lint_test`: it reads the source tree at run time (every C++ and QML/JS file under `src/`, skipping `tests/`, `Testing/`, `third_party/` and `build/`), so it needs no rebuild when the code changes, and it is plain C++ on Qt Core, so it runs on every builder without Python.

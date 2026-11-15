@@ -17,6 +17,7 @@
  */
 
 #include "charts_wrist_presenter.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "charts_relations_presenter.h"     // movesWith(): the Relations ledger, asked our own question
 #include "box_map.h"

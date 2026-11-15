@@ -36,6 +36,7 @@
 // 4 + 2 shots.
 
 #include "report/report_lm.h"
+#include "../../Export/rule_data_install.h"
 #include "report/report_words.h"
 #include "launchmonitor/lm_session_model.h"
 #include "shot/shot_list_model.h"
@@ -102,6 +103,7 @@ static QVariantMap tileOf(const QVariant &ball, const QString &club, const QStri
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     QmlPayload::setEngine(nullptr);   // the board reads the C++ map, never the QML role (#173)
     std::printf("report_lm_test — the report's launch monitor figures honour the board (F-03)\n");
 

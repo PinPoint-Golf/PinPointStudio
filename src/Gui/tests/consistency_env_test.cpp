@@ -21,6 +21,8 @@
 // its tie-break on a pack made here, and the norm sigma rule (CONTRACT "Norm sigma of a reading").
 
 #include "charts/consistency_env.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/pack_provider.h"
@@ -147,6 +149,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);       // the user's own packs stay out of it
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_env = consistencyEnvFromPacks();
         QVERIFY(m_env.areaOf);
         QVERIFY(m_env.normSigma);

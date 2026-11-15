@@ -71,6 +71,22 @@ enum class NormSource {
     Measured,
 };
 
+// A norm's STANDING: whether its figure is settled (DEC-127; refactor step 3.2, audit B-05). Typed keys
+// in the norm files (`standing`, `decidedBy`, `decidedOn`; IM-S3-6: DEC-186), read by everything that
+// asks — the release dashboard (tools/metrics/gen_release_status.py) among them — instead of being
+// parsed out of `citation` prose. Like NormSource it is PROVENANCE ONLY and never changes a grade.
+//
+//   Unstated     the file says nothing (every row written before the keys existed, and most rows
+//                today): exactly what it meant before
+//   Provisional  a figure in use until something settles it — with `decidedBy`, a figure the owner
+//                accepted for now ("Mark's decision 13 Nov 2026, provisional; to be seated at #109");
+//                without, one still waiting for that decision
+//   Decided      the owner's settled figure
+//
+// `decidedBy` / `decidedOn` say who made the decision and when; a recorded decision is what the release
+// gate asks of a heuristic norm, so a provisional figure the owner accepted reads as decided there.
+enum class NormStanding { Unstated, Provisional, Decided };
+
 // The grade bands, best first. `NotMeasured` is not a band — it means no norm resolved, or the
 // measure had no value. It must never be collapsed into a passing grade: "we could not assess this"
 // and "this is fine" are different statements, and merging them turns a capture gap into a clean
@@ -338,6 +354,11 @@ struct Norm {
     QString    author;
     QString    citation;                          // DOI/PMID, or the note explaining a provisional figure
     QDate      setOn;
+
+    // The figure's standing (NormStanding above): typed, so nothing has to read it out of `citation`.
+    NormStanding standing = NormStanding::Unstated;
+    QString      decidedBy;                       // who decided it; empty when nobody has
+    QDate        decidedOn;
 
     // Set only on a row in a non-core layer, at save time — see NormBasis. Absent on every shipped
     // row, and absent on user rows written before it existed, where "has core moved?" is genuinely
@@ -664,6 +685,11 @@ QString normWeakReason(const Norm &n);
 // ── Enum <-> string (the JSON spelling) ─────────────────────────────────────
 QString    normSourceName(NormSource s);
 bool       normSourceFromName(const QString &s, NormSource &out);
+// The tokens the files spell (`provisional`, `decided`); Unstated has none — it is the key's absence.
+QString    normStandingName(NormStanding s);
+bool       normStandingFromName(const QString &s, NormStanding &out);
+// True when the row carries any of the standing keys, which is what needs schema version 3.
+bool       normHasStanding(const Norm &n);
 
 QString    sexName(Sex s);
 bool       sexFromName(const QString &s, Sex &out);

@@ -23,7 +23,7 @@ The **norm basis** says where a graded measure's norm comes from:
 - **heuristic**: authored, not yet seated on evidence.
 - **literature**: from published sources.
 - **measured**: seated on our own measurements.
-- **decided**: Mark has made a recorded decision on it.
+- **decided**: Mark has made a recorded decision on it — *decided, provisional* when he accepted the figure for now (to be seated later), from the norm's typed `standing` / `decidedBy` / `decidedOn` keys in `norms.json`. A norm marked *provisional* alone is still waiting for that decision.
 
 Release needs the golfer-facing readings at **Validated** and **Live**, with norms that are **literature, measured or decided**. A heuristic norm going live without a conscious decision is a release blocker.
 
@@ -48,7 +48,7 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 
 **Measures:** 218 in the fault model, of which 204 are live and 105 are graded by at least one fault.
 
-**Norm basis of the 105 graded measures:** heuristic 78, none 17, decided 4, literature 3, measured 3.
+**Norm basis of the 105 graded measures:** heuristic 77, none 17, decided 5, literature 3, measured 3.
 
 **Faults:** 192 in all: active 97, draft 94, held from report 1.
 
@@ -62,7 +62,7 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 | `trailElbowHeight` | Arms | Built | faceOn | heuristic |
 | `trailForearmAngle` | Arms | Built | dtl | heuristic |
 | `pelvisRotation` | Body rotation | Built | pelvisImu, faceOn+dtl | heuristic; none (rule-based) |
-| `shoulderTiltVsBend` | Body rotation | Verified | trunkImus, thoraxImu+dtl, faceOn+dtl, trunkImus+faceOn+dtl | heuristic (decided) |
+| `shoulderTiltVsBend` | Body rotation | Verified | trunkImus, thoraxImu+dtl, faceOn+dtl, trunkImus+faceOn+dtl | heuristic (decided, provisional) |
 | `thoraxRotation` | Body rotation | Built | thoraxImu, faceOn+dtl | heuristic; none (rule-based) |
 | `xFactorStretch` | Body rotation | Built | trunkImus, faceOn+dtl | heuristic |
 | `lagAngle` | Club delivery | Built | faceOnClub | heuristic |
@@ -105,10 +105,10 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 | Metric | Stage | Live | Sources built | Sources planned | Measures (live / held) | Faults (active / draft) | Norm basis | Evidence |
 |---|---|---|---|---|---|---|---|---|
 | `armHang` | Built | draft | dtl | — | 1 / 0 | 0 / 1 | heuristic | — |
-| `armLiftTop` | Verified | draft | dtl, faceOn+dtl | — | 1 / 0 | 0 / 2 | heuristic (decided) | Verified (2026-11-13): Frame sheet (Jess against Nick, 20 Oct): the down-the-line image angle reproduces what the eye sees; the 3-D gap was mostly a steep 3-D shoulder line. |
+| `armLiftTop` | Verified | draft | dtl, faceOn+dtl | — | 1 / 0 | 0 / 2 | heuristic (decided, provisional) | Verified (2026-11-13): Frame sheet (Jess against Nick, 20 Oct): the down-the-line image angle reproduces what the eye sees; the 3-D gap was mostly a steep 3-D shoulder line. |
 | `leadArmFlexion3d` | Built | no | faceOn+dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `leadArmToTorso` | Built | shown | faceOn | — | 1 / 0 | 0 / 0 | heuristic | — |
-| `leadElbowBendChange3d` | Built | draft | faceOn+dtl | — | 1 / 0 | 0 / 1 | heuristic (decided) | — |
+| `leadElbowBendChange3d` | Built | draft | faceOn+dtl | — | 1 / 0 | 0 / 1 | heuristic (decided, provisional) | — |
 | `leadHandWidth` | Built | yes | faceOn | — | 1 / 0 | 1 / 0 | heuristic | — |
 | `leadUpperArmToChest` | Built | yes | faceOn | — | 1 / 0 | 1 / 1 | heuristic | — |
 | `trailElbowHeight` | Built | yes | faceOn | — | 1 / 0 | 2 / 0 | heuristic | — |
@@ -145,8 +145,8 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 | `pelvisRotation` | Built | yes | pelvisImu, faceOn+dtl | — | 4 / 0 | 3 / 2 | heuristic; none (rule-based) | — |
 | `pelvisRotationSigned` | Built | draft | pelvisImu, faceOn+dtl | — | 1 / 0 | 0 / 1 | heuristic | — |
 | `shoulderPlaneAngle` | Built | no | faceOn | — | 0 / 0 | 0 / 0 | — | — |
-| `shoulderPlaneAngle3d` | Verified | shown | thoraxImu, faceOn+dtl | — | 1 / 0 | 0 / 0 | heuristic (decided) | Verified (2026-11-13): Re-fit on real swings after the cross-view shoulder fix; the fit's shoulder line agrees with the down-the-line image to 0.1–1.6°. Simulated only (2026-11-13): The chest-sensor route is tested on a simulated body only; needs the worn session (#109). |
-| `shoulderTiltVsBend` | Verified | yes | trunkImus, thoraxImu+dtl, faceOn+dtl, trunkImus+faceOn+dtl | — | 1 / 0 | 2 / 0 | heuristic (decided) | Verified (2026-11-13): One-swing re-run before and after the 3-D shoulder fix (Chris −26.1° → −11.9°, Mark −24.9° → −3.0°) and two library sweeps. |
+| `shoulderPlaneAngle3d` | Verified | shown | thoraxImu, faceOn+dtl | — | 1 / 0 | 0 / 0 | heuristic (decided, provisional) | Verified (2026-11-13): Re-fit on real swings after the cross-view shoulder fix; the fit's shoulder line agrees with the down-the-line image to 0.1–1.6°. Simulated only (2026-11-13): The chest-sensor route is tested on a simulated body only; needs the worn session (#109). |
+| `shoulderTiltVsBend` | Verified | yes | trunkImus, thoraxImu+dtl, faceOn+dtl, trunkImus+faceOn+dtl | — | 1 / 0 | 2 / 0 | heuristic (decided, provisional) | Verified (2026-11-13): One-swing re-run before and after the 3-D shoulder fix (Chris −26.1° → −11.9°, Mark −24.9° → −3.0°) and two library sweeps. |
 | `thoraxRotation` | Built | yes | thoraxImu, faceOn+dtl | — | 3 / 0 | 1 / 2 | heuristic; none (rule-based) | — |
 | `thoraxRotationSigned` | Built | no | thoraxImu, faceOn+dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `trailHipInternalRotation` | Built | no | pelvisImu+faceOn+dtl, pelvisImu | — | 0 / 0 | 0 / 0 | — | Simulated only (2026-11-12): Hip sensor minus the 3-D thigh turn; simulated body only (#109). |
@@ -253,14 +253,14 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 
 | Metric | Stage | Live | Sources built | Sources planned | Measures (live / held) | Faults (active / draft) | Norm basis | Evidence |
 |---|---|---|---|---|---|---|---|---|
-| `clubSlotTop` | Verified | draft | dtl | — | 1 / 0 | 0 / 2 | heuristic | Verified (2026-11-13): Frame sheet (Mark 4 July, 7 and 8 Oct): lines reproduce the stored values, but the reading moves with the down-the-line camera's set-up; it carries a camera warning until calibration. |
+| `clubSlotTop` | Verified | draft | dtl | — | 1 / 0 | 0 / 2 | heuristic (decided, provisional) | Verified (2026-11-13): Frame sheet (Mark 4 July, 7 and 8 Oct): lines reproduce the stored values, but the reading moves with the down-the-line camera's set-up; it carries a camera warning until calibration. |
 | `handPathLoop` | Built | yes | dtl | — | 1 / 0 | 1 / 0 | heuristic | — |
 | `handPlaneCurve` | Built | no | dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `handPlaneSteepening` | Built | no | dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `shoulderPlane` | Built | no | dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `swingPlane` | Built | no | dtl | — | 0 / 0 | 0 / 0 | — | — |
 | `swingPlaneAngle` | Built | no | dtl | — | 0 / 0 | 0 / 0 | — | — |
-| `swingPlaneCurve` | Verified | draft | dtl | — | 5 / 0 | 0 / 6 | heuristic; heuristic (decided) | Verified (2026-11-13): The takeaway (plane at P2 − address) is steady across four camera set-ups (Mark −2.6 to −4.0°) and predicts the hand-path loop within a session (ρ −0.51, 168 swings). |
+| `swingPlaneCurve` | Verified | draft | dtl | — | 5 / 0 | 0 / 6 | heuristic; heuristic (decided, provisional) | Verified (2026-11-13): The takeaway (plane at P2 − address) is steady across four camera set-ups (Mark −2.6 to −4.0°) and predicts the hand-path loop within a session (ρ −0.51, 168 swings). |
 | `transitionPlaneDelta` | Built | draft | faceOnClub | — | 1 / 0 | 0 / 1 | heuristic | — |
 
 ### Tempo & sequence
@@ -296,7 +296,7 @@ Of the 39 validated metrics, 37 are device readings taken as their own reference
 | `hm.forearmRotation` | Validated | no | hackMotion | — | 0 / 0 | 0 / 0 | — | Validated (undated, vs HackMotion wG3): HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference. |
 | `hm.leadWristFlexExt` | Validated | no | hackMotion | — | 0 / 0 | 0 / 0 | — | Validated (undated, vs HackMotion wG3): HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference. |
 | `hm.leadWristRadUln` | Validated | no | hackMotion | — | 0 / 0 | 0 / 0 | — | Validated (undated, vs HackMotion wG3): HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference. |
-| `leadArmFlexion` | Verified | draft | wristImus, faceOn | — | 1 / 8 | 0 / 1 | heuristic | Verified (2026-11-13): Face-on elbow fold after impact: frame sheet of four flagged swings showed all four were occlusion artefacts; the visibility gate now refuses them. Library audit: 217 of 244 swings gradeable. |
+| `leadArmFlexion` | Verified | draft | wristImus, faceOn | — | 1 / 8 | 0 / 1 | heuristic (provisional) | Verified (2026-11-13): Face-on elbow fold after impact: frame sheet of four flagged swings showed all four were occlusion artefacts; the visibility gate now refuses them. Library audit: 217 of 244 swings gradeable. |
 | `leadWristFlexExt` | Validated | yes | wristImus, via hm.leadWristFlexExt | — | 10 / 0 | 2 / 2 | heuristic; none (rule-based) | Validated (undated, vs HackMotion wG3): HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference. |
 | `leadWristRadUln` | Validated | yes | wristImus, via hm.leadWristRadUln | — | 8 / 0 | 4 / 0 | heuristic | Validated (undated, vs HackMotion wG3): HackMotion is the criterion instrument for the lead wrist; its readings are taken as the reference. |
 | `trailWristFlexExt` | Built | shown | faceOn | — | 7 / 0 | 0 / 0 | heuristic; none (rule-based) | — |

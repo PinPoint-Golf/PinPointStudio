@@ -17,6 +17,7 @@
  */
 
 #include "session_diagnostics_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Diagnostics/measures/session_measure_source.h"
@@ -3727,7 +3728,7 @@ void SessionDiagnosticsModel::updateProfile()
     root[QStringLiteral("conditions")]    = conds;
     root[QStringLiteral("updatedAtMs")]   = double(QDateTime::currentMSecsSinceEpoch());
     m_profile = root;
-    atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact));
+    (void)pinpoint::atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), nullptr);
 }
 
 // ── Work-ons ────────────────────────────────────────────────────────────────────────────

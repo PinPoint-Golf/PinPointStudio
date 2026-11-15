@@ -16,6 +16,7 @@
  */
 
 #include "lm_session_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../LaunchMonitor/launch_monitor_base.h"
 #include "../../LaunchMonitor/launch_monitor_factory.h"

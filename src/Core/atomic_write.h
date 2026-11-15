@@ -184,6 +184,21 @@ inline AtomicWriteResult atomicWrite(const QString &path, const QByteArray &byte
     return f.commit();
 }
 
+// The yes/no form, for a caller that wants only whether it landed and, when not, the reason in the user's
+// words. An empty `path` is refused in its own words: it is what a caller gets from an app-data location
+// that does not exist (`diagnosticsFilePath`), and "could not write ''" would say nothing. Moved here from
+// src/Diagnostics/engine/pack_io (refactor step 3.2), where it wrapped this helper from a rules directory.
+inline bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot)
+{
+    if (path.isEmpty()) {
+        if (whyNot) *whyNot = QStringLiteral("No writable application data location.");
+        return false;
+    }
+    const AtomicWriteResult r = atomicWrite(path, bytes);
+    if (!r.ok && whyNot) *whyNot = r.error;
+    return r.ok;
+}
+
 // The callback form: `writer` streams the content into `out` and returns false to abandon the write,
 // optionally with a reason in `whyNot` (otherwise the result says the disk may be full).
 using AtomicWriter = std::function<bool(QIODevice &out, QString &whyNot)>;

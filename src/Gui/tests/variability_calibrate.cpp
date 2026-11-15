@@ -51,6 +51,7 @@
 // NaN is written as an empty CSV field and as JSON null. Numbers are never rounded.
 
 #include "charts/consistency_env.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_consistency.h"
 #include "charts/session_curves.h"
 #include "charts/session_sequence.h"
@@ -993,6 +994,7 @@ void defaultEnv(const char *name, const char *file)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     if (argc != 4) {
         std::fprintf(stderr, "usage: variability_calibrate <fixtures-root> <ks-root> <out-dir>\n");
         return 2;

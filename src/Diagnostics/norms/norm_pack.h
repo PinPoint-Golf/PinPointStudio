@@ -43,7 +43,12 @@ namespace pinpoint::analysis {
 // 2 adds the optional `cohort` on a norm row. The bump is what stops an older build from silently
 // dropping the key and grading everyone against a row that describes women over 65 — precisely the
 // failure `schemaTooNew` exists to prevent.
-inline constexpr int kNormPackSchemaVersion = 2;
+// 3 adds a norm's standing: `standing` (provisional | decided), `decidedBy`, `decidedOn` (DEC-127;
+// IM-S3-6: DEC-186; refactor step 3.2, audit B-05). An older build would drop them and the next save
+// would lose who decided a figure, so a set that carries them declares 3. A set without them still
+// declares what its content needs (requiredNormSchemaVersion), so an old `user.norms.json` loads
+// unchanged and is written as before until its next edit adds a standing.
+inline constexpr int kNormPackSchemaVersion = 3;
 
 struct NormPack {
     QString id;                 // "core", or a community pack's namespace
@@ -136,6 +141,9 @@ QVariantMap cohortToMap(const Cohort &cohort);
 //                        both tails — conservative. Falling back here would mean UNQUALIFIED, a
 //                        corridor that applies to everybody, and applying a segment's numbers to
 //                        the whole population is the one outcome worse than having no row
+//   unknownStanding      (a WARNING) a `standing` token this build does not know. The row is kept and
+//                        read as unstated: standing is provenance and never grades, so the safe
+//                        reading is the weaker claim (refactor step 3.2)
 //
 // STANDALONE (validateNormPack) — ERRORS:
 //   duplicateNorm        two rows share (measureId, contextId, cohort). The cohort is part of the

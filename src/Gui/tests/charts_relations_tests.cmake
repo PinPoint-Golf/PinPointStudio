@@ -10,6 +10,7 @@
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_relations_presenter_test
     SOURCES charts_relations_presenter_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_relations_presenter.cpp
             # R8 typicality (Apart, Readings, the key figures, Replay's "now"): the session window and the façade's payload
             ${GUI}/variability/variability_facade.cpp
@@ -63,6 +64,7 @@ set_tests_properties(charts_relations_presenter_test PROPERTIES
 # monitor and its Consistency golden, and 4 July, with none.
 pp_add_test(charts_consistency_presenter_test
     SOURCES charts_consistency_presenter_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_consistency_presenter.cpp
             ${GUI}/charts/consistency_grades.cpp
             ${GUI}/charts/variability_clubs.cpp

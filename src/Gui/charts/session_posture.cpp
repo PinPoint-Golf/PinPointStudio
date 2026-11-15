@@ -17,6 +17,7 @@
  */
 
 #include "session_posture.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "charts_words.h"
 #include "../../Diagnostics/engine/characteristic.h"

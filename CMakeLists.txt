@@ -713,6 +713,7 @@ qt_add_executable(PinPointStudio
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
     src/Gui/app/app_settings.h               src/Gui/app/app_settings.cpp
+    src/Gui/app/app_settings_rule_data.cpp   # SET-06 / SET-15 as a view over RuleData (step 3.2)
     src/Gui/settings/library_converter.h     src/Gui/settings/library_converter.cpp
     src/Gui/settings/archive_controller.h    src/Gui/settings/archive_controller.cpp
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp

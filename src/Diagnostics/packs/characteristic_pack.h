@@ -45,8 +45,24 @@ namespace pinpoint::analysis {
 
 // The schema version this build writes. A pack declaring a HIGHER version is refused rather than
 // partially read: silently dropping fields it does not understand would let a newer pack round-trip
-// through an older build and lose content.
+// through an older build and lose content. The rule data's repository also keeps a USER pack that
+// declares a higher version read-only, so this build's next save cannot overwrite it (audit B-20;
+// RuleDataRepository, src/Export/rule_data_store.cpp).
+//
+// THE LOG. Every field added since 1 is OPTIONAL and absent means what it always meant, so a pack
+// written before it reads exactly as it did, and none needed a bump:
+//   1  the format (characteristics, signals, conditions, edges)
+//      + `retiredEdges`, `reportHold`, `picture` (each optional; absent = none, not held, none)
+//      + `groupsRevision` (kPackGroupsRevision below): the marker that a file's condition groups are
+//        the regrouped swing areas. It is a SIDE revision, not a schema bump, because a pack without
+//        it is still read correctly — through the regroup alias — and only the marker says which
+//        tokens a golfer refiled on purpose. The shipped core.json carries it too (from refactor
+//        step 3.2, B-20), so the alias never reinterprets a shipped row.
+// A field that an older build would MISREAD by dropping (as the norm set's `cohort` would be) is a
+// bump; see kNormPackSchemaVersion for the one that has happened on the norm side.
 inline constexpr int kPackSchemaVersion = 1;
+
+struct ReferenceSet;   // reference_pack.h — the bibliography the loader's book gate reads
 
 // ── Validation ──────────────────────────────────────────────────────────────
 //
@@ -268,8 +284,17 @@ using PackLoadResult = LoadResult<CharacteristicPack>;
 
 // Parse + validate. Parse failures land in `report` as errors rather than being thrown or logged,
 // so a bad community pack surfaces in the UI instead of vanishing.
-PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel = QString());
-PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel = QString());
+//
+// `refs` is the bibliography the BOOK GATE reads: a Supported or Established edge or condition whose
+// citation resolves to a book (an ISBN and no DOI or PMID) is demoted to Indirect. It is handed in
+// (the rule data's repository passes the snapshot's assembled references) rather than read from a
+// process-wide registry, which is what the loader did before refactor step 3.2 (audit B-03, B-12).
+// Null means no bibliography: nothing resolves and the gate is a no-op — the SAFE direction, since
+// the gate can only ever soften a claim.
+PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel = QString(),
+                        const ReferenceSet *refs = nullptr);
+PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel = QString(),
+                        const ReferenceSet *refs = nullptr);
 
 QJsonObject savePack(const CharacteristicPack &pack);
 
@@ -282,7 +307,8 @@ QJsonObject savePack(const CharacteristicPack &pack);
 // savePack() writes this key at the top level of every pack, holding this revision. It is the
 // difference between a row an old build wrote and a row a golfer has deliberately refiled: without
 // it, the id alias would bounce a moved condition back to its table area on every load. core.json
-// carries no marker and needs none, because its tokens are already current.
+// carries it too (refactor step 3.2, audit B-20): its tokens were already current, and without the
+// marker a shipped row refiled under a pre-regroup token would be bounced by the alias.
 inline constexpr int kPackGroupsRevision = 2;
 
 // True when this file was written after the regroup.

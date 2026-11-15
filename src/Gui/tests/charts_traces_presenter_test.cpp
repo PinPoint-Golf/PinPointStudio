@@ -22,6 +22,7 @@
 // budgets of build/charts-build/STEP2A.md are MEASURED and reported, not asserted.
 
 #include "charts_maths_fixture.h"
+#include "../../Export/rule_data_install.h"
 
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_words.h"
@@ -234,6 +235,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_fx = charts_test::loadFixture(QStringLiteral(CHARTS_MATHS_DATA "/session_0704.json"));
         QVERIFY(m_fx.ok);
         QCOMPARE(int(m_fx.session.shots.size()), 15);

@@ -20,9 +20,9 @@
 
 // What the swing themes (src/Coaching/swing_themes.h) need from the diagnostics pack, marshalled
 // so that no pack type reaches the arithmetic — the same split work_ons.h keeps with WorkOnClass.
-// Header-only; links nothing beyond what holding a CharacteristicPack already needs — except the
-// drill registry (drill_pack.cpp), which the two functions that name drills read through
-// sharedDrillSet() unless the caller passes a DrillSet of its own.
+// Header-only; links nothing beyond what holding a CharacteristicPack already needs. The two functions
+// that name drills take the drill registry as an argument (RuleData's snapshot's, for a caller reading
+// the app's library; refactor step 3.2 retired the process-wide registry they used to default to).
 //
 //   themeMeasureInfo()       per measure: which way is MORE OF THE FAULT, where in the swing it
 //                            is read, and its metricKey
@@ -140,7 +140,7 @@ inline QHash<QString, ThemeMeasureInfo> themeMeasureInfo(const CharacteristicPac
 }
 
 inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const CharacteristicPack &pack,
-                                                             const DrillSet &drills = sharedDrillSet())
+                                                             const DrillSet &drills)
 {
     // measure id -> its metricKey's root (themeFamilyRoot: pelvisRotationSigned is pelvisRotation),
     // or its own id when it has none; and its swing position.
@@ -182,7 +182,7 @@ inline QHash<QString, ThemeConditionInfo> themeConditionInfo(const Characteristi
 }
 
 // The phrases are copied out, so the result outlives the pack and the drill set it came from.
-inline ThemePhrases themePhrases(const CharacteristicPack &pack, const DrillSet &drills = sharedDrillSet())
+inline ThemePhrases themePhrases(const CharacteristicPack &pack, const DrillSet &drills)
 {
     QHash<QString, QString> golfer, well, why, high, low, family;
     for (const Condition &c : pack.conditions) {

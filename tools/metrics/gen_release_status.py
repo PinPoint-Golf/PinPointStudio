@@ -5,11 +5,16 @@ metrics, measures and norms.
 It reads, and never edits:
   src/Metrics/metric_catalogue_manifest.cpp   every metric and its routes (a route marked PLANNED has no producer)
   src/Resources/diagnostics/core.json         measures (status), signals, conditions (draft / active / held from the report)
-  src/Resources/diagnostics/norms.json        norm rows and their source (heuristic / literature / measured)
+  src/Resources/diagnostics/norms.json        norm rows, their source (heuristic / literature / measured) and their
+                                              STANDING: the typed keys `standing` (provisional | decided),
+                                              `decidedBy`, `decidedOn` (DEC-127; IM-S3-6: DEC-186; refactor
+                                              step 3.2, audit B-05) — never the prose in `citation`
   docs/validation/metric_evidence.json        the hand-kept evidence: verified, validated, synthetic-only
 
 Run it from the repo root whenever any of those change:  python3 tools/metrics/gen_release_status.py
-Add --check to exit 1 when the committed dashboard is stale.
+Add --check to exit 1 when the committed dashboard is stale, or when a norm row's standing keys are malformed,
+or when the two rows audit B-05 found misread (m_takeawayPlane, m_clubSlotTop: one standing in two wordings)
+read differently.
 """
 import json, re, sys, collections, datetime, os
 
@@ -60,6 +65,43 @@ def evidence_for(key, ev):
     return e
 
 
+STANDINGS = ('provisional', 'decided')
+
+
+def standing_suffix(rows):
+    """A norm's standing from its TYPED keys (DEC-127, IM-S3-6), never from the citation's prose. A recorded
+    decision (`decidedBy`) is what the release gate asks of a heuristic norm, so a figure the owner accepted
+    provisionally reads 'decided, provisional'; one still waiting for that decision reads 'provisional'."""
+    if any(r.get('standing') == 'decided' for r in rows):
+        return ' (decided)'
+    if any(r.get('decidedBy') for r in rows):
+        return ' (decided, provisional)'
+    if any(r.get('standing') == 'provisional' for r in rows):
+        return ' (provisional)'
+    return ''
+
+
+def standing_problems(norms):
+    """The typed standing keys, checked: a known token, an ISO date, and who decided whenever when is said."""
+    out = []
+    for r in norms:
+        key = f"{r.get('measure')} @ {r.get('context')}"
+        st = r.get('standing')
+        if st is not None and st not in STANDINGS:
+            out.append(f'{key}: standing {st!r} is not one of {", ".join(STANDINGS)}')
+        on = r.get('decidedOn')
+        if on is not None:
+            try:
+                datetime.date.fromisoformat(on)
+            except (TypeError, ValueError):
+                out.append(f'{key}: decidedOn {on!r} is not an ISO date')
+            if not r.get('decidedBy'):
+                out.append(f'{key}: decidedOn without decidedBy')
+        if (r.get('decidedBy') or on) and st is None:
+            out.append(f'{key}: a decision recorded with no standing')
+    return out
+
+
 def main(check=False):
     cat = parse_manifest()
     core, norms, ev = load()
@@ -80,8 +122,7 @@ def main(check=False):
         if not rows:
             return 'none (rule-based)'
         srcs = sorted({r.get('source', '?') for r in rows})
-        decided = any('Mark' in (r.get('citation') or '') and 'decision' in (r.get('citation') or '') for r in rows)
-        return '/'.join(srcs) + (' (decided)' if decided else '')
+        return '/'.join(srcs) + standing_suffix(rows)
 
     # metric -> measures
     by_metric = collections.defaultdict(list)
@@ -156,7 +197,7 @@ def main(check=False):
     L.append('- **heuristic**: authored, not yet seated on evidence.')
     L.append('- **literature**: from published sources.')
     L.append('- **measured**: seated on our own measurements.')
-    L.append('- **decided**: Mark has made a recorded decision on it.\n')
+    L.append('- **decided**: Mark has made a recorded decision on it — *decided, provisional* when he accepted the figure for now (to be seated later), from the norm\'s typed `standing` / `decidedBy` / `decidedOn` keys in `norms.json`. A norm marked *provisional* alone is still waiting for that decision.\n')
     L.append('Release needs the golfer-facing readings at **Validated** and **Live**, with norms that are **literature, measured or decided**. A heuristic norm going live without a conscious decision is a release blocker.\n')
 
     L.append('## Progress at a glance\n')
@@ -209,11 +250,19 @@ def main(check=False):
         L.append('')
     text = '\n'.join(L) + '\n'
     if check:
+        bad = standing_problems(norms)
+        # Audit B-05: the pair Mark approved together on 13 Nov 2026 read 'decided' and 'heuristic' when the
+        # standing was parsed out of prose. One standing, so one reading.
+        pair = {norm_basis(m) for m in ('m_takeawayPlane', 'm_clubSlotTop')}
+        if len(pair) != 1:
+            bad.append('m_takeawayPlane and m_clubSlotTop read different standings: ' + ' / '.join(sorted(pair)))
+        for b in bad:
+            print('norm standing: ' + b)
         cur = open(OUT, encoding='utf-8').read() if os.path.exists(OUT) else ''
         if cur != text:
             print('release_status.md is stale: run python3 tools/metrics/gen_release_status.py')
             return 1
-        return 0
+        return 1 if bad else 0
     open(OUT, 'w', encoding='utf-8').write(text)
     print(f'wrote {OUT}: {tot} metrics, {len(core["measures"])} measures')
     return 0

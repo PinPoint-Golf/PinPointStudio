@@ -32,6 +32,7 @@
 //     trail_knee_straighten (fired on this swing) is a finding.
 
 #include "charts/charts_posture_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/posture_picture.h"
 #include "charts/session_posture.h"
 #include "charts/session_series_model.h"
@@ -274,6 +275,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         warmWristBands();
         QVERIFY(postureSharedEnv()->pack);
         const QJsonObject root = readJson("PP_POSTURE_FIXTURE");

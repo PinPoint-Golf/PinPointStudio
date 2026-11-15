@@ -17,8 +17,8 @@
  */
 
 #include "gate_words_pack.h"
+#include "layered_set.h"
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -31,7 +31,7 @@ namespace pinpoint::analysis {
 
 namespace {
 
-QString userGateWordsPath() { return diagnosticsFilePath(QStringLiteral("gate_words.json")); }
+QString userGateWordsPath() { return diagnosticsFilePath(QLatin1String(kGateWordSetFileName)); }
 
 const GateWord *findWord(const std::vector<GateWord> &list, const QString &wid)
 {
@@ -195,88 +195,23 @@ QByteArray saveGateWordSet(const GateWordSet &set)
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
-namespace {
-
-GateWordSet loadCoreGateWordSet()
+ContentLayers<GateWordSet> assembleGateWordLayers(const RuleFile &core, const RuleFile &user)
 {
-    const QByteArray override = qgetenv("PINPOINT_CORE_GATE_WORDS");
-    const QString    corePath = override.isEmpty() ? QStringLiteral(":/diagnostics/gate_words.json")
-                                                   : QString::fromLocal8Bit(override);
-
-    GateWordSet out;
-    QFile       f(corePath);
-    if (f.open(QIODevice::ReadOnly)) {
-        GateWordLoadResult res = loadGateWordSet(f.readAll(), corePath);
-        out = std::move(res.pack);
-    }
-    out.readOnly = true;
-    return out;
-}
-
-// Each list merged on its own, by id: a user entry replaces core's, and one core does not carry is
-// appended. Two lists rather than one keyed space, because a subject and a gate are looked up by
-// different callers for different halves of one line.
-void overlay(std::vector<GateWord> &into, const std::vector<GateWord> &from)
-{
-    for (const GateWord &w : from) {
-        auto it = std::find_if(into.begin(), into.end(),
-                               [&](const GateWord &x) { return x.id == w.id; });
-        if (it != into.end()) *it = w;
-        else                  into.push_back(w);
-    }
-}
-
-GateWordSet assembleGateWordSet()
-{
-    GateWordSet       out  = loadCoreGateWordSet();
-    const GateWordSet user = loadUserGateWordSet();
-    if (!user.gates.empty() || !user.subjects.empty()) {
-        overlay(out.gates, user.gates);
-        overlay(out.subjects, user.subjects);
-        out.readOnly = false;
+    ContentLayers<GateWordSet> out;
+    out.core   = detail::shippedContent<GateWordSet>(core, &loadGateWordSet, QStringLiteral("gate words"), out.report);
+    out.user   = detail::userContent<GateWordSet>(user, &loadGateWordSet, QStringLiteral("user gate words"), out.report);
+    out.merged = out.core;
+    // Each list merged on its own, by id: a user entry replaces core's, and one core does not carry is
+    // appended. Two lists rather than one keyed space, because a subject and a gate are looked up by
+    // different callers for different halves of one line.
+    if (!out.user.gates.empty() || !out.user.subjects.empty()) {
+        overlayById(out.merged.gates, out.user.gates);
+        overlayById(out.merged.subjects, out.user.subjects);
+        out.merged.readOnly = false;
     }
     return out;
-}
-
-GateWordSet *g_gateWords = nullptr;
-GateWordSet *g_core      = nullptr;
-
-} // namespace
-
-// The two layers apart — see screen_pack.h for why an editor needs them that way.
-const GateWordSet &coreGateWordSet()
-{
-    if (!g_core) g_core = new GateWordSet(loadCoreGateWordSet());
-    return *g_core;
 }
 
 QString userGateWordSetPath() { return userGateWordsPath(); }
-
-GateWordSet loadUserGateWordSet()
-{
-    // `parsed`, not `loaded`, for the same reason the screen layer is read that way.
-    const QString path = userGateWordsPath();
-    QFile         f(path);
-    if (path.isEmpty() || !f.open(QIODevice::ReadOnly)) return {};
-    GateWordLoadResult res = loadGateWordSet(f.readAll(), path);
-    return res.parsed ? std::move(res.pack) : GateWordSet{};
-}
-
-bool saveUserGateWordSet(const GateWordSet &set, QString *whyNot)
-{
-    return atomicWrite(userGateWordSetPath(), saveGateWordSet(set), whyNot);
-}
-
-const GateWordSet &sharedGateWordSet()
-{
-    if (!g_gateWords) g_gateWords = new GateWordSet(assembleGateWordSet());
-    return *g_gateWords;
-}
-
-void resetSharedGateWordSet()
-{
-    delete g_gateWords;
-    g_gateWords = nullptr;
-}
 
 } // namespace pinpoint::analysis

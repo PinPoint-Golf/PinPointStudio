@@ -19,15 +19,18 @@
 #pragma once
 
 #include "characteristic_pack.h"
+#include "../engine/pack_io.h"   // RuleFile
 
 #include <QString>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
-// The pack provider seam. Assembled ON DEMAND (makeCharacteristicPackProvider), mirroring
-// makeMetricCatalogue() and makeReferenceBandProvider() — no self-registering statics, no startup
-// registration, nothing that runs before main().
+// The pack provider seam: providers over content that is already in hand. Nothing here reads a file
+// (refactor step 3.2): RuleData (src/DomainModel/rule_data.h) owns the one assembled library, and its
+// repository (src/Export/rule_data_store.cpp) is the one door to the files. No self-registering
+// statics, no startup registration, nothing that runs before main().
 
 namespace pinpoint::analysis {
 
@@ -100,45 +103,46 @@ public:
     }
 };
 
-// Where the user's own pack lives. Exposed so the editor writes to the same file the provider
-// reads, rather than each guessing the path.
+// Where the user's own pack lives, and its file name. A PATH, not an access: the rule data's repository
+// (src/Export/rule_data_store.cpp) reads and writes the file (refactor step 3.2; FILE-APP-01), and the
+// editor names it for its own reads of the working copy until it writes through RuleData (item 3.9).
 QString userPackPath();
+QString userPackFileName();
 
-// Persist the user's pack. Returns false (with `whyNot` set) rather than throwing, so a failed save
-// surfaces in the UI instead of silently losing an edit.
-bool saveUserPack(const CharacteristicPack &pack, QString *whyNot = nullptr);
+// The shipped core pack, from the bytes the repository read (the Qt resource, or the file
+// PINPOINT_CORE_PACK names). Read-only. `refs` is the bibliography the loader's book gate reads
+// (loadPack()); null leaves the gate off.
+std::unique_ptr<ICharacteristicPackProvider> makeResourcePackProvider(const RuleFile &core,
+                                                                      const ReferenceSet *refs = nullptr);
 
-// The shipped core pack, read from the Qt resource. Read-only.
-std::unique_ptr<ICharacteristicPackProvider> makeResourcePackProvider(
-    const QString &resourcePath = QStringLiteral(":/diagnostics/core.json"));
+// Which of the `*.json` files in the diagnostics directory are characteristic packs, in LAYERING
+// ORDER: `user.json` first if present, then the rest alphabetically. Every *.json is a pack EXCEPT the
+// sibling registries that share the directory (`*.norms.json`, `screens.json`, `drills.json`,
+// `gate_words.json`, `references.json`, `contexts.json`). Pure: the repository lists the directory and
+// asks this which files to read, so the skip list and the order are ONE decision with one home.
+QStringList characteristicPackFileOrder(const QStringList &jsonFileNames);
 
-// Every characteristic pack file in a directory (QStandardPaths::AppDataLocation/diagnostics by
-// default), in LAYERING ORDER: `user.json` first if present, then the rest alphabetically. Every
-// *.json is a pack EXCEPT the sibling registries that share the directory (`*.norms.json`,
-// `screens.json`, `drills.json`, `references.json`, `contexts.json`).
-//
-// Exposed because the skip list and the ordering are ONE decision with two callers — the provider
-// factory below, and any tool or test that needs to know what the app will read — and a second copy
-// of either would eventually disagree with this one. The argument for both lives at the definition
-// in file_pack_provider.cpp.
-QStringList characteristicPackFilesIn(const QString &directory = QString());
-
-// ONE pack file (userPackPath() by default). A missing file is not an error — no user pack is the
-// normal case; an unreadable or malformed one is reported through report() and yields an empty
-// pack, so a broken community pack costs the library that pack and nothing else.
+// ONE pack file's bytes. A missing file is not an error — no user pack is the normal case; an
+// unreadable or malformed one is reported through report() and yields an empty pack, so a broken
+// community pack costs the library that pack and nothing else.
 std::unique_ptr<ICharacteristicPackProvider> makeFilePackProvider(
-    const QString &packFile = QString(), PackOrigin origin = PackOrigin::LocalUser);
+    const RuleFile &packFile, PackOrigin origin = PackOrigin::LocalUser,
+    const ReferenceSet *refs = nullptr);
 
-// One provider per pack file in the directory, in characteristicPackFilesIn() order, with the
-// origin each file's name implies: `user.json` is LocalUser (the editor writes it), everything else
-// is Community (it was imported from someone else). Feed the result straight to
-// makeMergedPackProvider().
+// One provider per pack file, in the order given (characteristicPackFileOrder()), with the origin each
+// file's name implies: `user.json` is LocalUser (the editor writes it), everything else is Community
+// (it was imported from someone else). Feed the result straight to makeMergedPackProvider().
 //
-// One provider PER FILE, which is what the merger has always expected and what nothing built until
-// now: a single directory-wide provider can only hold one pack, so every pack after the first was
-// parsed, had its faults reported, and then had its content silently dropped.
+// One provider PER FILE, which is what the merger has always expected: a single directory-wide provider
+// can only hold one pack, so every pack after the first was parsed, had its faults reported, and then
+// had its content silently dropped.
 std::vector<std::unique_ptr<ICharacteristicPackProvider>> makeFilePackProviders(
-    const QString &directory = QString());
+    const std::vector<RuleFile> &files, const ReferenceSet *refs = nullptr);
+
+// The user's own pack with the swing-area regroup applied (characteristic_pack.h), or nothing when it
+// is already current or is not a JSON object. Pure: the repository applies it once, after taking a
+// backup, before it reads the user's pack.
+std::optional<QByteArray> userPackRegrouped(const QByteArray &bytes);
 
 // Core + user layers, in that order, and any number of user layers. Collision policy depends on
 // origin (see PackOrigin):
@@ -150,8 +154,9 @@ std::unique_ptr<ICharacteristicPackProvider> makeMergedPackProvider(
     std::unique_ptr<ICharacteristicPackProvider> core,
     std::vector<std::unique_ptr<ICharacteristicPackProvider>> user);
 
-// The default assembly: shipped core plus whatever the user has installed.
-std::unique_ptr<ICharacteristicPackProvider> makeCharacteristicPackProvider();
+// The default assembly — shipped core plus whatever the user has installed — is RuleData's snapshot
+// (src/DomainModel/rule_data.h; refactor step 3.2, audit B-02): one assembly per change, shared by
+// every reader, rather than one per caller.
 
 // A provider over a pack that is already in memory, validated on construction exactly as a loaded
 // one is.

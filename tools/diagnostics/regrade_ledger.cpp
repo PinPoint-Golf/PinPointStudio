@@ -73,6 +73,7 @@
 // flight table would read no flight on any shot and say so silently.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "../../src/Export/rule_data_install.h"
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
 #include "Coaching/shot_factors.h"
@@ -324,6 +325,9 @@ void printUsage(FILE *to)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // The packs and norms: this process's one RuleData, over the files the PINPOINT_CORE_* seams name
+    // (refactor step 3.2). Made here, on the main thread, before anything grades.
+    pinpoint::installProcessRuleData();
     // A headless tool echoes the app log (PpMessageLog.h): the model reports through ppWarn — an
     // unreadable club baseline, a ledger set aside — and nothing else in this process reads it.
     PpMessageLog::instance()->setEchoToStderr(true);

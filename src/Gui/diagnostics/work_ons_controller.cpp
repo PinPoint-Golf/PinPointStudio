@@ -17,6 +17,7 @@
  */
 
 #include "work_ons_controller.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Coaching/tendency_flow_map.h"
 
 #include "session_diagnostics_model.h"
@@ -1816,7 +1817,7 @@ void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
         if (!out.outcome.scope.isAll()) root[QStringLiteral("outcome")] = outcomeToJson(out.outcome);
         const QString path = themesPath(out.athleteDir, out.scope, out.outcome.scope);
         QString why;
-        if (!atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
+        if (!pinpoint::atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
             ppWarn() << "[SwingThemes] could not write" << qPrintable(path) << "—" << qPrintable(why);
             emit storageProblem(tr("The swing summary"), out.athleteDir, why);     // said, not only logged (DEC-126)
         }
@@ -2146,7 +2147,7 @@ void WorkOnsController::applyTendencies(int generation, TendenciesOutcome out)
             { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
         };
         QString why;
-        if (!atomicWrite(tendenciesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
+        if (!pinpoint::atomicWrite(tendenciesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
             ppWarn() << "[Tendencies] could not write" << qPrintable(tendenciesPath(out.athleteDir)) << "—" << qPrintable(why);
             emit storageProblem(tr("The athlete's tendencies"), out.athleteDir, why);   // said, not only logged (DEC-126)
         }

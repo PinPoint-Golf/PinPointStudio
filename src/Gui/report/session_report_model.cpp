@@ -17,6 +17,7 @@
  */
 
 #include "session_report_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "report_meta.h"
 #include "report_lm.h"
@@ -236,9 +237,10 @@ QString athleteFolderKey(const QString &folder)
     return folder.trimmed().isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
 }
 
+// SET-15 as RuleData holds it (refactor step 3.2: its repository is the one reader of the settings key).
 QString gradePolicyName()
 {
-    const QString p = ppSettings().value(QStringLiteral("ui/diagnosticsGradePolicy"), QStringLiteral("standard")).toString();
+    const QString p = pinpoint::RuleData::current()->gradePolicy;
     return p.isEmpty() ? QStringLiteral("standard") : p;
 }
 
@@ -852,12 +854,10 @@ void SessionReportModel::build()
     x.pack    = &packProv->pack();
     x.drills  = &sharedDrillSet();
     // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
-    // page reaches the next report. The Diagnostic Model drops this cache when it saves, but so does
-    // every make, because the user layer is a file in the data directory and nothing else watches it.
-    // The drills are left to save(): the work-ons controller holds that set too, and a reset here is not
-    // this builder's to make. The gate words have no reader but this one, on this (the UI) thread, so
-    // dropping them cannot pull the set out from under anything. One small file, read once per report.
-    resetSharedGateWordSet();
+    // page reaches the next report. No re-read here (refactor step 3.2): the Gates page's save is
+    // RuleData's command, which publishes the new set at once, so this make already reads it. A re-read
+    // per make would publish a snapshot (and an EVT-13) on every report, for nothing. A gate-words file
+    // edited by hand outside the app is read at the next launch, as every other rule-data file is.
     x.gateWords = &sharedGateWordSet();
     x.rpack   = R::reportPackOf(*x.pack);
     x.model   = m;

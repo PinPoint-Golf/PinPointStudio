@@ -17,10 +17,10 @@
  */
 
 #include "reference_pack.h"
+#include "layered_set.h"
 
 #include "../engine/pack_io.h"
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -114,7 +114,7 @@ const Reference *ReferenceSet::byCitation(const QString &c) const
 
 namespace {
 
-QString userReferencePath() { return diagnosticsFilePath(QStringLiteral("references.json")); }
+QString userReferencePath() { return diagnosticsFilePath(QLatin1String(kReferenceSetFileName)); }
 
 } // namespace
 
@@ -134,11 +134,6 @@ QString citationLabel(const QString &citation, const ReferenceSet &set)
     if (looksLikeIsbn(c)) return QStringLiteral("ISBN ") + c;
     const bool allDigits = std::all_of(c.begin(), c.end(), [](QChar ch) { return ch.isDigit(); });
     return allDigits ? QStringLiteral("PMID ") + c : c;
-}
-
-QString citationLabel(const QString &citation)
-{
-    return citationLabel(citation, sharedReferenceSet());
 }
 
 ValidationReport validateReferenceSet(const ReferenceSet &set)
@@ -426,93 +421,24 @@ QByteArray exportReferenceSetCsl(const ReferenceSet &set)
     return QJsonDocument(items).toJson(QJsonDocument::Indented);
 }
 
-namespace {
-
-ReferenceSet loadCoreReferenceSet()
+ContentLayers<ReferenceSet> assembleReferenceLayers(const RuleFile &core, const RuleFile &user)
 {
-    const QByteArray override = qgetenv("PINPOINT_CORE_REFERENCES");
-    const QString    corePath = override.isEmpty()
-                                    ? QStringLiteral(":/diagnostics/references.json")
-                                    : QString::fromLocal8Bit(override);
-
-    ReferenceSet out;
-    QFile        f(corePath);
-    if (f.open(QIODevice::ReadOnly)) {
-        ReferenceLoadResult res = loadReferenceSet(f.readAll(), corePath);
-        out = std::move(res.pack);
-    }
-    out.readOnly = true;
-    return out;
-}
-
-ReferenceSet assembleReferenceSet()
-{
-    ReferenceSet out = loadCoreReferenceSet();
-
-    // The user's own layer, by id. A user record REPLACES the shipped one rather than merging field
-    // by field: half of one paper's metadata carrying half of another's is worse than either, and
-    // the identifier is the join key — a record whose DOI came from one source and whose title came
-    // from another is the "plausible-looking identifier" this registry's header calls worse than no
+    ContentLayers<ReferenceSet> out;
+    out.core   = detail::shippedContent<ReferenceSet>(core, &loadReferenceSet, QStringLiteral("bibliography"), out.report);
+    out.user   = detail::userContent<ReferenceSet>(user, &loadReferenceSet, QStringLiteral("user bibliography"), out.report);
+    out.merged = out.core;
+    // The user's own layer, by id. A user record REPLACES the shipped one rather than merging field by
+    // field: half of one paper's metadata carrying half of another's is worse than either, and the
+    // identifier is the join key — a record whose DOI came from one source and whose title came from
+    // another is the "plausible-looking identifier" this registry's header calls worse than no
     // citation at all.
-    const ReferenceSet user = loadUserReferenceSet();
-    if (!user.references.empty()) {
-        for (const Reference &ref : user.references) {
-            auto it = std::find_if(out.references.begin(), out.references.end(),
-                                   [&](const Reference &x) { return x.id == ref.id; });
-            if (it != out.references.end()) *it = ref;
-            else                            out.references.push_back(ref);
-        }
-        out.readOnly = false;
+    if (!out.user.references.empty()) {
+        overlayById(out.merged.references, out.user.references);
+        out.merged.readOnly = false;
     }
     return out;
-}
-
-ReferenceSet *g_refs = nullptr;
-ReferenceSet *g_core = nullptr;
-
-} // namespace
-
-const ReferenceSet &coreReferenceSet()
-{
-    if (!g_core) g_core = new ReferenceSet(loadCoreReferenceSet());
-    return *g_core;
 }
 
 QString userReferenceSetPath() { return userReferencePath(); }
-
-ReferenceSet loadUserReferenceSet()
-{
-    // `parsed`, NOT `loaded`, for the reason the screen and drill layers are read that way. A user
-    // bibliography holds the records that author added, so it fails nothing standalone — but it is
-    // read through the same door, and a door that behaved differently here would be a difference
-    // nobody could explain later.
-    const QString path = userReferencePath();
-    QFile         f(path);
-    if (path.isEmpty() || !f.open(QIODevice::ReadOnly)) return {};
-    ReferenceLoadResult res = loadReferenceSet(f.readAll(), path);
-    return res.parsed ? std::move(res.pack) : ReferenceSet{};
-}
-
-bool saveUserReferenceSet(const ReferenceSet &set, QString *whyNot)
-{
-    return atomicWrite(userReferenceSetPath(), saveReferenceSet(set), whyNot);
-}
-
-const ReferenceSet &sharedReferenceSet()
-{
-    // Cached process-wide, exactly like sharedScreenSet(). Not thread-safe against concurrent
-    // readers — call resetSharedReferenceSet() from the UI thread after writing a user layer, or
-    // every reader keeps the assembly it already has.
-    if (!g_refs) g_refs = new ReferenceSet(assembleReferenceSet());
-    return *g_refs;
-}
-
-void resetSharedReferenceSet()
-{
-    delete g_refs;
-    g_refs = nullptr;
-    // The core layer is immutable and cached separately, so it deliberately survives — nothing a
-    // user write can do changes what shipped.
-}
 
 } // namespace pinpoint::analysis

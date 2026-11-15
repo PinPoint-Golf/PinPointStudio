@@ -33,6 +33,7 @@
 //     swing is counted ("One of them was cached before its swing was last changed."), its rebuilt grid is not.
 
 #include "charts/charts_delivery_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_delivery.h"
 #include "charts/session_series_types.h"
 #include "Diagnostics/measures/measure_sample.h"
@@ -159,6 +160,7 @@ class ChartsDeliveryPresenterTest : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase() { pinpoint::installProcessRuleData(); }   // this process's packs and norms (refactor step 3.2)
     void emptyModel()
     {
         ChartsDeliveryPresenter p;

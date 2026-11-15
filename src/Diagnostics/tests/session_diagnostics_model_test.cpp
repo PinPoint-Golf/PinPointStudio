@@ -29,6 +29,8 @@
 //   ctest --test-dir build/analysis-tests -R session_diagnostics_model --output-on-failure
 
 #include "../../Gui/typeset/box_stats.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../Core/PpMessageLog.h"                // the unreadable-ledger warning (H-04)
 #include "../../Export/session_diagnostics_files.h"   // the golfer's input, out of the cache (step 2.5)
@@ -2355,8 +2357,10 @@ static void heldMeasureSuite(const QTemporaryDir &tmp)
         m->ingestShot(1, swingDirFor(liveDir, 1));
     }
     qputenv("PINPOINT_CORE_PACK", heldPath.toLocal8Bit());
+    pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Packs);   // one snapshot per change (step 3.2)
     auto heldModel = freshModel();          // reads the pack at construction, so the env can be put back now
     qputenv("PINPOINT_CORE_PACK", shipped);
+    pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Packs);
     heldModel->activateSession(heldDir);
     heldModel->ingestShot(1, swingDirFor(heldDir, 1));
     heldModel->ingestShot(2, swingDirFor(heldDir, 2));
@@ -2425,8 +2429,10 @@ static void heldMeasureSuite(const QTemporaryDir &tmp)
         m->ingestShot(1, swingDirFor(lmLiveDir, 1));
     }
     qputenv("PINPOINT_CORE_PACK", lmHeldPath.toLocal8Bit());
+    pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Packs);   // one snapshot per change (step 3.2)
     auto lmModel = freshModel();
     qputenv("PINPOINT_CORE_PACK", shipped);
+    pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Packs);
     lmModel->activateSession(lmHeldDir);
     lmModel->ingestShot(1, swingDirFor(lmHeldDir, 1));
     const auto shotOf = [](const QString &dir) {
@@ -2606,13 +2612,12 @@ static void normEditSuite(const QTemporaryDir &tmp)
     pack.norms.push_back(edited);
     QString why;
     check(saveUserNormPack(pack, &why), "a user norm set moving that corridor is written");
-    m->activateSession(dir);
+    // The save is RuleData's command (refactor step 3.2): it publishes the new norms (EVT-12) and resets
+    // the shared slot itself, so there is no longer a "written but not yet announced" state to check.
+    // What still holds is that the announcement alone regrades nothing: the open model regrades at its
+    // next activation.
     check(m->contentStamp() == stamp0 && ledgerOf() == ledger0,
-          "…which, until the shared set is reset (as save() does), regrades nothing");
-
-    // ── The reset, as ModelBrowser::save() makes it: the open model regrades at its next activation ──
-    resetSharedNormProvider();
-    check(m->contentStamp() == stamp0, "the reset alone regrades nothing: the open session waits for its next activation");
+          "the save alone regrades nothing: the open session waits for its next activation");
     m->activateSession(dir);
     const QString stamp1 = m->contentStamp();
     check(!stamp1.isEmpty() && stamp1 != stamp0, "at the next activation the content stamp moves with the norms");
@@ -2643,6 +2648,7 @@ static void normEditSuite(const QTemporaryDir &tmp)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("session_diagnostics_model_test\n");
 
     // ⚠ Fail here, loudly, rather than 400 lines later with a SIGSEGV.

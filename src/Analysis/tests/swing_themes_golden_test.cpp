@@ -34,6 +34,8 @@
 // time of the reduction is printed too — it is the cost the app pays on a catch-up.
 
 #include "../../Coaching/swing_themes.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../../Diagnostics/packs/swing_themes_pack.h"
 
 #include <QDir>
@@ -142,8 +144,10 @@ int main()
 
     // The shipped drill registry, beside core.json, through the app's own loader.
     QStandardPaths::setTestModeEnabled(true);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_DRILLS"))
         qputenv("PINPOINT_CORE_DRILLS", QFileInfo(QStringLiteral(PP_CORE_PACK_PATH)).dir().filePath(QStringLiteral("drills.json")).toLocal8Bit());
+    pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Drills);   // the seam just set (step 3.2)
     check(!sharedDrillSet().drills.empty() && loadUserDrillSet().drills.empty(),
           "the shipped drills load, with no user drill layer");
 
@@ -160,8 +164,8 @@ int main()
     check(sessions.size() == size_t(exp.value(QStringLiteral("sessions")).toArray().size()), "every fixture session loads");
 
     const QHash<QString, ThemeMeasureInfo>   info       = themeMeasureInfo(pack.pack);
-    const QHash<QString, ThemeConditionInfo> conditions = themeConditionInfo(pack.pack);
-    const ThemePhrases                       phrase     = themePhrases(pack.pack);
+    const QHash<QString, ThemeConditionInfo> conditions = themeConditionInfo(pack.pack, sharedDrillSet());
+    const ThemePhrases                       phrase     = themePhrases(pack.pack, sharedDrillSet());
 
     // ── The table, orientation and the prepared matrix ───────────────────────────────────────────
     const auto sorted = themes::sortedSessions(sessions);

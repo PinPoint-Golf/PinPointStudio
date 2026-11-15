@@ -66,6 +66,7 @@
 #include <QTemporaryDir>
 
 #include "app_settings.h"
+#include "../../../Export/rule_data_install.h"
 
 // Same as qml_ui_test: the bundled faces, so text measures the way the app draws it.
 static void loadBundledFonts()
@@ -482,6 +483,9 @@ public slots:
                    qPrintable(m_scratch.errorString()));
         QSettings::setPath(QSettings::IniFormat, QSettings::UserScope,
                            m_scratch.filePath(QStringLiteral("file%1").arg(++m_fileCount)));
+        // The packs and norms (refactor step 3.2): the process's RuleData, made once through the seams, and
+        // SET-06 / SET-15 re-read from this file's fresh store.
+        pinpoint::installProcessRuleData().reload(pinpoint::RuleData::Settings);
 
         // One engine per tst_*.qml file; each gets its own objects.
         auto *settings = new AppSettings(engine);

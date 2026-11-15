@@ -17,10 +17,10 @@
  */
 
 #include "screen_pack.h"
+#include "layered_set.h"
 
 #include "../engine/pack_io.h"
 
-#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -39,7 +39,7 @@ const Screen *ScreenSet::screen(const QString &sid) const
 
 namespace {
 
-QString userScreenPath() { return diagnosticsFilePath(QStringLiteral("screens.json")); }
+QString userScreenPath() { return diagnosticsFilePath(QLatin1String(kScreenSetFileName)); }
 
 } // namespace
 
@@ -168,92 +168,22 @@ QByteArray saveScreenSet(const ScreenSet &set)
     return QJsonDocument(root).toJson(QJsonDocument::Indented);
 }
 
-namespace {
-
-ScreenSet loadCoreScreenSet()
+ContentLayers<ScreenSet> assembleScreenLayers(const RuleFile &core, const RuleFile &user)
 {
-    const QByteArray override = qgetenv("PINPOINT_CORE_SCREENS");
-    const QString    corePath = override.isEmpty() ? QStringLiteral(":/diagnostics/screens.json")
-                                                   : QString::fromLocal8Bit(override);
-
-    ScreenSet out;
-    QFile     f(corePath);
-    if (f.open(QIODevice::ReadOnly)) {
-        ScreenLoadResult res = loadScreenSet(f.readAll(), corePath);
-        out = std::move(res.pack);
-    }
-    out.readOnly = true;
-    return out;
-}
-
-ScreenSet assembleScreenSet()
-{
-    ScreenSet out = loadCoreScreenSet();
-
+    ContentLayers<ScreenSet> out;
+    out.core   = detail::shippedContent<ScreenSet>(core, &loadScreenSet, QStringLiteral("screen set"), out.report);
+    out.user   = detail::userContent<ScreenSet>(user, &loadScreenSet, QStringLiteral("user screen set"), out.report);
+    out.merged = out.core;
     // The user's own layer, by id. A user row REPLACES the shipped one rather than merging field by
-    // field: a half-overridden protocol describing one movement with another's pass criterion would
-    // be worse than either.
-    const ScreenSet user = loadUserScreenSet();
-    if (!user.screens.empty()) {
-        for (const Screen &s : user.screens) {
-            auto it = std::find_if(out.screens.begin(), out.screens.end(),
-                                   [&](const Screen &x) { return x.id == s.id; });
-            if (it != out.screens.end()) *it = s;
-            else                          out.screens.push_back(s);
-        }
-        out.readOnly = false;
+    // field: a half-overridden protocol describing one movement with another's pass criterion would be
+    // worse than either.
+    if (!out.user.screens.empty()) {
+        overlayById(out.merged.screens, out.user.screens);
+        out.merged.readOnly = false;
     }
     return out;
-}
-
-ScreenSet *g_screens = nullptr;
-ScreenSet *g_core    = nullptr;
-
-} // namespace
-
-const ScreenSet &coreScreenSet()
-{
-    if (!g_core) g_core = new ScreenSet(loadCoreScreenSet());
-    return *g_core;
 }
 
 QString userScreenSetPath() { return userScreenPath(); }
-
-ScreenSet loadUserScreenSet()
-{
-    // `parsed`, NOT `loaded`. A user layer routinely fails STANDALONE validation — it holds two
-    // screens, not the shipped thirteen — and keying off `loaded` would silently drop every override
-    // the author had, then let the next save write the empty result over them.
-    const QString path = userScreenPath();
-    QFile         f(path);
-    if (path.isEmpty() || !f.open(QIODevice::ReadOnly)) return {};
-    ScreenLoadResult res = loadScreenSet(f.readAll(), path);
-    return res.parsed ? std::move(res.pack) : ScreenSet{};
-}
-
-bool saveUserScreenSet(const ScreenSet &set, QString *whyNot)
-{
-    // Temporary-and-rename, so an interrupted save cannot truncate a set the author has spent time
-    // on — see atomicWrite(), which is where that argument now lives for all four writers.
-    return atomicWrite(userScreenSetPath(), saveScreenSet(set), whyNot);
-}
-
-const ScreenSet &sharedScreenSet()
-{
-    // Cached process-wide, like sharedNormProvider() but WITHOUT its snapshot and lock (audit B-03):
-    // not thread-safe against concurrent readers — call resetSharedScreenSet() from the UI thread
-    // after writing a user set, or every reader keeps the assembly it already has and the edit looks
-    // like it did nothing.
-    if (!g_screens) g_screens = new ScreenSet(assembleScreenSet());
-    return *g_screens;
-}
-
-void resetSharedScreenSet()
-{
-    delete g_screens;
-    g_screens = nullptr;
-    // The core layer is immutable and cached separately, so it deliberately survives — nothing a
-    // user write can do changes what shipped.
-}
 
 } // namespace pinpoint::analysis

@@ -36,6 +36,7 @@ set(DELIVERY_PICTURE_SRC
     ${SRC}/Body/head_track.cpp)
 pp_add_test(charts_delivery_presenter_test
     SOURCES charts_delivery_presenter_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_delivery_presenter.cpp
             ${DELIVERY_PICTURE_SRC}
             ${GUI}/charts/session_delivery.cpp
@@ -61,6 +62,7 @@ set_tests_properties(charts_delivery_presenter_test PROPERTIES
 # thisShot.picture (the frames' notes from the plane story, the still maker filling `src`).
 pp_add_test(delivery_picture_test
     SOURCES delivery_picture_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/charts_delivery_presenter.cpp
             ${DELIVERY_PICTURE_SRC}
             ${GUI}/charts/session_delivery.cpp

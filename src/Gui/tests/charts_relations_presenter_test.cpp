@@ -25,6 +25,7 @@
 // launch-monitor fixture against that session's golden.
 
 #include "charts/charts_relations_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/charts_words.h"
 #include "charts/consistency_env.h"
 #include "charts/session_consistency.h"
@@ -452,6 +453,7 @@ private slots:
 
     void initTestCase()
     {
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_fx = charts_test::loadFixture(kDataDir + QStringLiteral("/session_0704.json"));
         QVERIFY2(m_fx.ok, "the 4 July fixture did not load");
         m_snap = withDirs(m_fx.session);

@@ -2,6 +2,7 @@
   "id": "core",
   "version": "1.0.0",
   "schemaVersion": 1,
+  "groupsRevision": 2,
   "measures": [
     {
       "id": "m_ballPosition",

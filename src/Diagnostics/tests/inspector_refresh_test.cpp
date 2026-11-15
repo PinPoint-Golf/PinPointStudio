@@ -40,6 +40,8 @@
 //   ctest --test-dir build/analyzer-tests -R inspector_refresh --output-on-failure
 
 #include "model_browser.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/pack_provider.h"
 #include "../norms/norm_provider.h"
@@ -141,6 +143,7 @@ Item {
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
 
     QFile::remove(userPackPath());
     QFile::remove(userNormPath());

@@ -717,6 +717,15 @@ set(PP_QML_SOURCES
     src/Diagnostics/norms/resource_norm_provider.cpp
     src/Diagnostics/norms/file_norm_provider.cpp
     src/Diagnostics/norms/merged_norm_provider.cpp
+    src/Diagnostics/packs/layered_set.h
+    # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository
+    # interface, and the store that is the one door to their files.
+    src/DomainModel/rule_data_repository.h
+    src/DomainModel/rule_data.h
+    src/DomainModel/rule_data.cpp
+    src/Export/rule_data_store.h
+    src/Export/rule_data_store.cpp
+    src/Export/rule_data_install.h
     src/Gui/diagnostics/wrist_diagnostics_model.h
     src/Gui/diagnostics/wrist_diagnostics_model.cpp
     src/Gui/diagnostics/session_diagnostics_model.h

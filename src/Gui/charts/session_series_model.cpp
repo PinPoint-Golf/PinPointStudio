@@ -17,6 +17,7 @@
  */
 
 #include "session_series_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Analysis/swing_analysis.h"              // Phase::Impact
 #include "../../Analysis/uncertainty_json.h"            // copyPhaseSampleSigma — σ keys, one spelling

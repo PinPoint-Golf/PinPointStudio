@@ -16,6 +16,7 @@
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)
 pp_add_test(charts_series_model_test
     SOURCES charts_series_model_test.cpp
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${GUI}/charts/session_series_model.cpp
             ${CHARTS_WRIST_SRC}
             ${SRC}/Diagnostics/packs/resource_pack_provider.cpp

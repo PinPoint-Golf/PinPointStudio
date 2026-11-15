@@ -388,6 +388,9 @@ bool isRepositoryHeader(const QString &target)
         QStringLiteral("Export/session_store"),             QStringLiteral("Export/session_archiver"),
         QStringLiteral("Export/session_files"),             QStringLiteral("Export/session_diagnostics_files"),
         QStringLiteral("Export/athlete_store"),             QStringLiteral("Export/athlete_files"),
+        // The packs and norms' door (refactor step 3.2; D5: DEC-170): RuleData includes the interface,
+        // the store implements it. A composition root reaches the owner through Export/rule_data_install.h.
+        QStringLiteral("DomainModel/rule_data_repository"), QStringLiteral("Export/rule_data_store"),
     };
     return t.contains(stemOf(target));
 }

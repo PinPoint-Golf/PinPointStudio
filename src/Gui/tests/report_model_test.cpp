@@ -48,6 +48,8 @@
 // and reads them back through exactly those three calls and the back page's own sentence.
 
 #include "report/report_words.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "report/report_posture.h"
 #include "report/report_wrist.h"
 #include "report/report_consistency.h"
@@ -114,6 +116,7 @@ int main(int argc, char **argv)
     // studio left in the real one, and the end-to-end block's writes never land there.
     QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setApplicationName(QStringLiteral("report_model_test"));
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     removeUserLayers();
 
     std::printf("counts — the noun once, never a percentage\n");

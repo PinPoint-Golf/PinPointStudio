@@ -22,6 +22,7 @@
 #include "norm_pack.h"
 #include "../packs/pack_provider.h" // PackOrigin
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -156,10 +157,16 @@ public:
 };
 
 // ── User norm set on disk ───────────────────────────────────────────────────
-// Exposed so the corridor editor writes to the same file the provider reads, rather than each
-// guessing the path.
+// The user's own norm set's path, exposed so the one writer (the rule data's repository,
+// src/Export/rule_data_store.cpp; refactor step 3.2, FILE-APP-02) writes the file the provider reads,
+// rather than each guessing the path. The write itself is RuleData's command (saveUserNorms), not a
+// function here.
 QString userNormPath();
-bool    saveUserNormPack(const NormPack &pack, QString *whyNot = nullptr);
+
+// The names the norm side owns in the shared diagnostics directory: the suffix that marks a norm set
+// and the context tree's file. The pack enumeration's skip list reads them (audit B-13).
+inline constexpr const char kNormSetSuffix[]       = ".norms.json";
+inline constexpr const char kContextTreeFileName[] = "contexts.json";
 
 // ── Concrete providers ──────────────────────────────────────────────────────
 
@@ -264,19 +271,27 @@ std::unique_ptr<INormProvider> makeMemoryNormProvider(
 //
 // THREADS. Taking it, building it on first use and resetting it are all safe from any thread at once:
 // the slot is guarded by a lock and the build happens under it, so two first callers cannot both
-// assemble it, and a reset that lands during a build discards that build. (The PACK side is a
-// different matter — makeCharacteristicPackProvider() still reads the unsynchronised flat registries,
-// audit B-03 — so a caller that builds a pack and a norm set together has its own thread rule; see
-// consistency_env.h.)
+// assemble it, and a reset that lands during a build discards that build. (The pack side's lazy
+// registries are gone since refactor step 3.2: the pack is RuleData's snapshot, built at launch.)
 //
-// AFTER A WRITE. Call resetSharedNormProvider() after writing a user norm set (ModelBrowser::save()
-// and resetToStandard() do), or every later take returns the set from before the write until the next
-// launch. The reset moves sharedNormProviderGeneration(); a holder that derives something expensive
+// AFTER A WRITE. RuleData's command that writes a user norm set resets the slot as it publishes
+// (refactor step 3.2); a process with no RuleData that writes a norm file itself calls
+// resetSharedNormProvider() after it, or every later take returns the set from before the write until
+// the next launch. The reset moves sharedNormProviderGeneration(); a holder that derives something expensive
 // from the norms (a band grid, a memo) compares the generation it built at with the current one to
 // know it is stale. `generation`, when given, receives the generation of the snapshot returned, read
 // under the same lock, so the pair is consistent.
+//
+// ITS SOURCE (refactor step 3.2, Q-02: DEC-170). Where a RuleData owns the packs and norms (the app,
+// and any tool or test that installs one), it installs itself here as the slot's source: the slot
+// then hands out RuleData's snapshot's norms and never assembles from the files itself, so every
+// reader in the process grades against the one norm set RuleData published. RuleData resets the
+// slot whenever it publishes. With no source installed (a test or tool with no RuleData), the slot
+// assembles makeNormProvider() on first use, as it always did. `source` is called under the slot's
+// lock and must not take it again; an empty function uninstalls.
 std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation = nullptr);
 quint64                              sharedNormProviderGeneration();
 void                                 resetSharedNormProvider();
+void installSharedNormSource(std::function<std::shared_ptr<const INormProvider>()> source);
 
 } // namespace pinpoint::analysis

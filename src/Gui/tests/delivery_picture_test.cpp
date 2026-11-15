@@ -33,6 +33,7 @@
 //     the still maker filling `src` (synchronous).
 
 #include "charts/charts_delivery_presenter.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/delivery_picture.h"
 #include "charts/posture_picture.h"
 #include "charts/session_series_types.h"
@@ -144,6 +145,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         QVERIFY2(!fixture().isEmpty(), "PP_DELIVERY_PICTURE");
     }
 
