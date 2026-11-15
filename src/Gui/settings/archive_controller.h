@@ -21,12 +21,16 @@
 // ArchiveController — the Archiving settings tab (swing_storage_impl.md, Phase 2 stage 6).
 //
 //   · the library's sessions, with their size and whether they are archived;
-//   · archive / restore one session (SessionArchiver: verified copy, stubs, marker);
+//   · archive / restore one session — through SessionRepository::archive / restore BY ITS SessionId (step
+//     2.6): each job makes a SessionArchiveRun of its own (it runs on a worker, never the app's identity
+//     map), translates the row's folder to the SessionId once, at this edge, and the repository refuses a
+//     session its session file says is in progress (SessionArchiver: verified copy, stubs, marker);
 //   · space: the free space as HOURS of capture at the swing size THIS library actually records
 //     (measured over its most recent swings, not assumed);
 //   · housekeeping at startup, every piece of it OFF until the user sets it: empty the library's
 //     .pinpoint-trash of entries older than N days; archive sessions older than N days; archive
-//     the oldest sessions while free space is below a floor.
+//     the oldest sessions while free space is below a floor. The trash is emptied by ONE purge
+//     (purgeTrash: MD-08, DEC-137), for "Empty now" and the retention pass alike.
 //
 // Every file operation runs on a worker thread, one at a time.
 

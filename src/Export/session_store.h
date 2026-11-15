@@ -41,7 +41,18 @@
 // Keys this build does not know are kept on every rewrite.
 //
 // ⚠ A READ NEVER WRITES. enumerate, todaysSession, open and openFolder only read; a session without a
-// file is read from its folder's name, in memory (D3). Only start, resume, end and allocateSwing write.
+// file is read from its folder's name, in memory (D3). Only start, resume, end, allocateSwing, archive,
+// restore and trash write.
+//
+// THE ARCHIVE AND THE TRASH (step 2.6). archive / restore check the session (held, not InProgress by a
+// FRESH read of its file — another machine's live session, or one a crash left open, is refused — and not
+// a newer build's) and hand its folder to the archive's file work, SessionArchiving: SessionArchiver
+// (session_archiver.h), set by whoever composes a store that archives (SessionArchiveRun, there). The
+// store does not link the archiver, so the many targets that compile this file need none of the swing
+// writer's sources; a store with none set refuses an archive. trash checks the same way, takes the
+// session's lock for a moment (no other PinPoint writer is mid-write), lets it go — a lock file must not
+// travel with the folder, and Windows will not move a folder holding an open file — and moves the folder
+// (SwingPaths::trashPath).
 //
 // THE ATHLETE'S FOLDER (until step 2.3): `<libraryRoot>/<sanitise(name), else sanitise(uuid)>`, with
 // `<AppDataLocation>/swings` for an empty library — today's derivation, made here only (athleteFolder).
@@ -64,6 +75,16 @@
 
 namespace pinpoint {
 
+// The archive's file work, on a session folder the store has checked (session_archiver.h implements it).
+class SessionArchiving
+{
+public:
+    virtual ~SessionArchiving() = default;
+    virtual SessionArchiveResult archiveFolder(const QString &sessionDir, const SessionArchiveOptions &options,
+                                               const SessionArchiveProgress &progress) = 0;
+    virtual SessionArchiveResult restoreFolder(const QString &sessionDir, const SessionArchiveProgress &progress) = 0;
+};
+
 class SessionStore final : public SessionRepository
 {
 public:
@@ -85,6 +106,13 @@ public:
     SwingAllocation allocateSwing(const SessionId &id) override;
     QList<ShotRef>  shots(const SessionId &id) const override;
     QString         swingFolder(const ShotRef &shot) const override;
+    SessionArchiveResult archive(const SessionId &id, const SessionArchiveOptions &options,
+                                 const SessionArchiveProgress &progress = {}) override;
+    SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
+    WriteResult          trash(const SessionId &id, QString *where = nullptr) override;
+
+    // The archive's file work (not owned; outlives the store's use of it). Null: archive and restore refuse.
+    void setArchiving(SessionArchiving *archiving) { m_archiving = archiving; }
 
     // Today's athlete-folder derivation (until 2.3's Athlete::folder()).
     static QString athleteFolder(const SessionOwner &owner);
@@ -114,6 +142,9 @@ private:
                                  bool requireSessionName) const;
     // Write `h`'s entry into its folder's session file (merged over h.file), under the folder's lock.
     WriteResult write(Held &h);
+    // Why `h`'s session may not be archived, restored or trashed now — "" when it may. Reads its session
+    // file afresh: the held entry may be older than another writer's change.
+    WriteResult checkNotLive(const Held &h, bool refuseReadOnly) const;
     // End every other InProgress session in `athleteDir` (their end time: unknown).
     void endOthersInProgress(const QString &athleteDir, const SessionId &except);
     // Bring an entry read from disk into the identity map, keeping what only the map knows.
@@ -128,6 +159,7 @@ private:
     std::function<QDateTime()>  m_now;
     QTimeZone                   m_zone = QTimeZone::systemTimeZone();
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
+    SessionArchiving           *m_archiving  = nullptr;
 };
 
 } // namespace pinpoint

@@ -67,6 +67,12 @@ public:
     SessionId       openFolder(const QString &, const AthleteId &) override { return {}; }
     SwingAllocation allocateSwing(const SessionId &) override { return {}; }
     QList<ShotRef>  shots(const SessionId &) const override { return {}; }
+    SessionArchiveResult archive(const SessionId &, const SessionArchiveOptions &, const SessionArchiveProgress &) override
+    {
+        return {};
+    }
+    SessionArchiveResult restore(const SessionId &, const SessionArchiveProgress &) override { return {}; }
+    WriteResult          trash(const SessionId &, QString *) override { return {}; }
 
     ShotRef openSwingFolder(const QString &swingFolder, const AthleteId & = {}) override
     {

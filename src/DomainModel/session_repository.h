@@ -48,6 +48,13 @@
 //                    keyed by ShotRef: step 2.4). THE ONE METHOD SAFE FROM ANY THREAD: it reads the folders
 //                    the identity map publishes, so a worker writing a shot (the live join, re-analysis)
 //                    resolves it without touching the map
+//   archive, restore the whole session out of the library into its archive mirror and back (FILE-SESS-06,
+//                    FILE-LIB-02; brief §4.12; step 2.6). Refused while the session file says InProgress
+//                    (D11: DEC-158 — the session file's status is what keeps a second writer off a live
+//                    session). The session's advisory lock is taken around EACH write into the library —
+//                    one stub, one file put back, the marker — never across the run (J-11)
+//   trash            the whole session folder to the recoverable trash (FILE-LIB-01), refused while its
+//                    session file says InProgress; the identity map lets it go (step 2.6)
 //
 // THE IDENTITY MAP. One record per SessionId while held, on the owner thread (the GUI thread in the
 // app; one thread in a tool). The open session's folder lives here and is never re-resolved per shot
@@ -65,7 +72,9 @@
 // writer's advisory lock (FolderLock, R-PERS-6) past the wait is Locked, with the holder named (J-22).
 //
 // INTERIM (IM-S2-4: DEC-160): until step 3 the callers are today's — ShotProcessor's session-folder
-// commands and the launch monitor's standalone shot (one allocator: D10, DEC-157). Step 3's
+// commands and the launch monitor's standalone shot (one allocator: D10, DEC-157); the Archiving tab and
+// housekeeping (ArchiveController: archive, restore) and the drawer's delete (SessionReviewController:
+// trash), from step 2.6. Step 3's
 // Athlete::startSession / resumeSession and Session::end / addShot take them over.
 //
 // Domain model ring (src/DomainModel): names no store type.
@@ -78,6 +87,7 @@
 #include <QList>
 #include <QString>
 
+#include <functional>
 #include <optional>
 
 namespace pinpoint {
@@ -107,6 +117,8 @@ struct SessionIndexEntry {
                                    // session ended by the athlete's next start after a crash)
     bool            hasSessionFile = false;   // false: read from its name (D3), never written by a read
     bool            readOnly = false;         // a newer build's session file: every write refuses it
+    bool            archived = false;         // its archive marker (archived.json, FILE-SESS-06) is there:
+                                              // the library holds its stubs, the archive the rest (step 2.6)
 
     SessionId id() const { return identity.id(); }
 };
@@ -127,6 +139,30 @@ struct SwingAllocation {
     WriteResult result;
     bool ok() const { return !shot.isNull() && !swingFolder.isEmpty() && result.ok(); }
 };
+
+// THE ARCHIVE (FILE-SESS-06, FILE-LIB-02; brief §4.12; step 2.6). What is asked for, and what happened.
+struct SessionArchiveOptions {
+    QString archiveRoot;      // SET-13: the session is mirrored at <archiveRoot>/<athlete folder>/<session folder>
+    bool    keepRaw = true;   // SET-14: false leaves the raw sensor frames out of the archive AND the library —
+                              // a permanent delete of raw frames (DEC-137); never the default
+};
+
+struct SessionArchiveResult {
+    bool                ok = false;   // a member, not a function: report_meta.h's keepReportCurrent reads it
+    WriteResult::Status status = WriteResult::Status::Failed;   // Written when ok; else Failed, ReadOnly or
+                                                                // Locked (the session lock held past the wait)
+    QString error;                    // why, for the user, when !ok
+    QString archivePath;              // the mirror folder
+    int     swings      = 0;
+    int     members     = 0;          // files copied
+    qint64  bytesPacked = 0;          // written into the archive
+    qint64  bytesFreed  = 0;          // removed from the library (archive) / put back (restore)
+};
+
+// done / total in files, between files (never during one); return false to stop. An archive stopped before
+// its copies are all made and proven leaves the library untouched; a restore stopped part-way stays marked
+// archived, and restoring again finishes it.
+using SessionArchiveProgress = std::function<bool(int done, int total)>;
 
 class SessionRepository
 {
@@ -170,6 +206,18 @@ public:
     virtual QList<ShotRef> shots(const SessionId &id) const = 0;
     // "" when the session is not held or the ref is null. Safe from any thread.
     virtual QString swingFolder(const ShotRef &shot) const = 0;
+
+    // The archive (step 2.6). The session must be held (enumerate, open, openFolder). Refused while its
+    // session file says InProgress, and for a newer build's session file (ReadOnly). Owner thread, like
+    // every method but swingFolder: a worker that archives makes a repository of its own.
+    virtual SessionArchiveResult archive(const SessionId &id, const SessionArchiveOptions &options,
+                                         const SessionArchiveProgress &progress = {}) = 0;
+    virtual SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) = 0;
+
+    // The whole session folder to the recoverable trash (the OS trash, else the library's own:
+    // FILE-LIB-01). Refused while its session file says InProgress (Failed) or another writer holds its
+    // lock (Locked). `where`, when given, names where it went. The identity map lets the session go.
+    virtual WriteResult trash(const SessionId &id, QString *where = nullptr) = 0;
 };
 
 } // namespace pinpoint

@@ -106,6 +106,14 @@ WriteResult readOnly(const QString &folder)
                  .arg(folder) };
 }
 
+SessionArchiveResult archiveRefused(const WriteResult &why)
+{
+    SessionArchiveResult r;
+    r.status = why.status;
+    r.error  = why.error;
+    return r;
+}
+
 } // namespace
 
 // ── The athlete's folder (until step 2.3) ────────────────────────────────────────────────────────
@@ -177,6 +185,7 @@ SessionStore::FileState SessionStore::readFile(const QString &folder, SessionInd
     out.endedAtUtc     = parseUtc(o.value(QStringLiteral("endedAt")));
     out.hasSessionFile = true;
     out.readOnly       = version > 1;
+    out.archived       = QFileInfo::exists(SessionFiles::archiveMarker(folder));
     file = o;
     return FileState::Read;
 }
@@ -204,6 +213,7 @@ SessionIndexEntry SessionStore::readFolder(const QString &folder, const AthleteI
     e.hasSessionFile = false;
     // A session file that cannot be read is kept as it is for someone to look at: never overwritten.
     e.readOnly       = state == FileState::Unreadable;
+    e.archived       = QFileInfo::exists(SessionFiles::archiveMarker(folder));
     return e;
 }
 
@@ -651,6 +661,106 @@ SwingAllocation SessionStore::allocateSwing(const SessionId &id)
     out.sessionFolderName = it->entry.identity.folderName();
     out.result            = written();
     return out;
+}
+
+// ── The archive and the trash (step 2.6) ─────────────────────────────────────────────────────────
+
+WriteResult SessionStore::checkNotLive(const Held &h, bool refuseReadOnly) const
+{
+    const QString &folder = h.entry.folder;
+    const auto live = [&folder] {
+        return failed(QStringLiteral("The session %1 is still in progress (being recorded here or on another "
+                                     "computer, or left open by a crash until its athlete's next session); "
+                                     "it was not changed.").arg(folder));
+    };
+    if (h.createdHere && h.entry.status == SessionStatus::InProgress)
+        return live();   // this run's own running session
+    // Afresh: the held entry may be older than another writer's change (the other machine's Start).
+    SessionIndexEntry fresh;
+    QJsonObject       file;
+    const FileState   state = readFile(folder, fresh, file);
+    if (state == FileState::Read && fresh.status == SessionStatus::InProgress)
+        return live();
+    if (refuseReadOnly && (state == FileState::Unreadable || (state == FileState::Read && fresh.readOnly)))
+        return readOnly(folder);
+    return unchanged();
+}
+
+SessionArchiveResult SessionStore::archive(const SessionId &id, const SessionArchiveOptions &options,
+                                           const SessionArchiveProgress &progress)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return archiveRefused(failed(QStringLiteral("That session is not known.")));
+    // A newer build's (or an unreadable) session file: the stubs and the marker are writes this build does
+    // not make into it, like every other write (DEC-126 read-only rule).
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/true); !c.ok())
+        return archiveRefused(c);
+    if (!m_archiving)
+        return archiveRefused(failed(QStringLiteral("Archiving is not available here.")));
+    const QString folder = it->entry.folder;
+    SessionArchiveResult r = m_archiving->archiveFolder(folder, options, progress);
+    if (const auto h = m_held.find(id); h != m_held.end())   // found again: the run may have grown the map
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(folder));
+    return r;
+}
+
+SessionArchiveResult SessionStore::restore(const SessionId &id, const SessionArchiveProgress &progress)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return archiveRefused(failed(QStringLiteral("That session is not known.")));
+    // Not refused for a newer build's session file: a restore puts the session's own bytes back as they
+    // were archived and writes nothing of this build's into it (the review merge goes through the swing
+    // door, which refuses a newer document by itself).
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/false); !c.ok())
+        return archiveRefused(c);
+    if (!m_archiving)
+        return archiveRefused(failed(QStringLiteral("Restoring is not available here.")));
+    const QString folder = it->entry.folder;
+    SessionArchiveResult r = m_archiving->restoreFolder(folder, progress);
+    if (const auto h = m_held.find(id); h != m_held.end())
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(folder));
+    return r;
+}
+
+WriteResult SessionStore::trash(const SessionId &id, QString *where)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return failed(QStringLiteral("That session is not known."));
+    const QString folder = it->entry.folder;
+    if (!QFileInfo::exists(folder))
+        return failed(QStringLiteral("The session %1 is no longer there.").arg(folder));
+    // Not refused for a read-only session file: moving the folder writes nothing into it, and the trash
+    // is recoverable.
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/false); !c.ok()) {
+        ppWarn() << "[SessionStore] not moved to the trash:" << c.error;
+        return c;
+    }
+    {
+        // No other PinPoint writer is mid-write in it (a tool, the other machine): taken for a moment and
+        // let go BEFORE the move — a lock file must not travel into the trash with the folder, and Windows
+        // will not move a folder that holds an open file. A folder where no lock can be made at all is
+        // left to the move to decide (allocateSwing's rule).
+        FolderLock lock(folder);
+        if (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
+            ppWarn() << "[SessionStore] not moved to the trash, the folder is locked by" << lock.holder() << ":" << folder;
+            return locked(folder, lock.holder());
+        }
+    }
+    QString to;
+    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: a network share has no OS trash (2 Sept 2026).
+    if (!SwingPaths::trashPath(folder, &to)) {
+        ppWarn() << "[SessionStore] could not move the session to the trash:" << folder;
+        return failed(QStringLiteral("The session %1 could not be moved to the trash.").arg(folder));
+    }
+    ppInfo() << "[SessionStore] session moved to the trash (" << to << "):" << folder;
+    if (where)
+        *where = to;
+    unpublish(id);
+    m_held.remove(id);
+    return written();
 }
 
 } // namespace pinpoint

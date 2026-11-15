@@ -238,7 +238,7 @@ inline bool restampReportFingerprint(const QString &sessionDir, const QString &f
 // every document's size and mtime, so swingsIdentity — and the fingerprint with it — moves while every
 // sentence of the report still holds. A report that was current before `rewrite` is re-stamped after it
 // succeeds; one already out of date stays so, and a failed rewrite re-stamps nothing. `rewrite` returns
-// something with `ok` (SessionArchiver::Result); with no fingerprint function it simply runs.
+// something with `ok` (SessionArchiveResult); with no fingerprint function it simply runs.
 template <typename Rewrite>
 auto keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint, Rewrite &&rewrite)
 {

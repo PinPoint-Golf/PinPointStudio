@@ -35,10 +35,13 @@
 //                             (session_diagnostics_files.h, step 2.5)
 //     .pinpoint-last-swing    FILE-SESS-10: the highest swing number the session has issued (DEC-91)
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
+//     archived.json           FILE-SESS-06: the archive marker — the session's swings are stubs, the rest is
+//                             in the archive mirror it names. Written and read by the archive only
+//                             (session_archiver.h, behind SessionRepository::archive / restore; step 2.6)
 //     swing_NNNN/             one folder per shot (SwingPaths composes the name)
 //
 // ⚠ THE OTHER SESSION FILES JOIN HERE WITH THE ITEM THAT MOVES THEIR READER OR WRITER, not before:
-// `archived.json` comes with the archive (2.6); the report folder, its meta file and the PDF, and the
+// `archived.json` joined with the archive (2.6); the report folder, its meta file and the PDF, and the
 // trunk ceremony, come with 2.8's A4 extension as path functions their writers call (D9). Lint A4 names
 // this file the owner of every name above that it spells (IM-S2-6).
 //
@@ -90,6 +93,9 @@ public:
     static QString clubBaselineFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + clubBaselineFileName(); }
     static QString workOnsFileName() { return QStringLiteral("work_ons.json"); }
     static QString workOnsFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + workOnsFileName(); }
+    // "archived.json"
+    static QString archiveMarkerFileName() { return QStringLiteral("archived.json"); }
+    static QString archiveMarker(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + archiveMarkerFileName(); }
 
     // ".pinpoint-lock": FolderLock's own (src/Core/folder_lock.h), named here so the list is complete.
     static QString lockFileName() { return FolderLock::fileName(); }

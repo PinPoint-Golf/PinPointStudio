@@ -34,7 +34,9 @@
 #include "session_summary.h"
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
+#include "../DomainModel/athlete.h"
 #include "../DomainModel/recording_repository.h"
+#include "../DomainModel/session_repository.h"
 
 namespace {
 
@@ -349,13 +351,27 @@ bool SessionReviewController::trashSession(const QString &sessionId)
         ppWarn() << "[SessionReviewController] refused: the live session cannot be trashed:" << sessionId;
         return false;
     }
-    // Move the whole session folder to the OS trash (recoverable there). On
-    // failure keep everything in place — the files are still on disk.
-    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash — see its note: a
-    // network share has no OS trash, and this is where every session delete
-    // on the SwingData share was failing (2 Sept 2026).
-    if (!pinpoint::SwingPaths::trashPath(sessionId)) {
-        ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId;
+    // THROUGH THE SESSION REPOSITORY, BY SessionId (refactor step 2.6; brief §4.4): the row's folder is
+    // translated once, here at the edge (DEC-90) — its session file's id, or, for a session older than
+    // step 2, D3's from the athlete whose sessions the drawer lists (the id the athlete's index holds it
+    // under, J-39). The repository refuses a session its session file says is in progress (here, on the
+    // other computer, or left open by a crash) and one another writer holds locked; it moves the whole
+    // folder to the OS trash, else the library's own (a share has none), recoverable either way. On a
+    // refusal or a failure everything stays in place.
+    pinpoint::SessionRepository *sessions = m_athlete ? m_athlete->sessionRepository() : nullptr;
+    pinpoint::Athlete           *athlete  = m_athlete ? m_athlete->currentAthlete() : nullptr;
+    if (!sessions) {
+        ppWarn() << "[SessionReviewController] no session repository: cannot trash" << sessionId;
+        return false;
+    }
+    const pinpoint::SessionId id = sessions->openFolder(QDir::cleanPath(QFileInfo(sessionId).absoluteFilePath()),
+                                                        athlete ? athlete->id() : pinpoint::AthleteId());
+    const pinpoint::WriteResult r = id.isNull()
+        ? pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
+                                 QStringLiteral("the session cannot be named (no session file, and no athlete)") }
+        : sessions->trash(id);
+    if (!r.ok()) {
+        ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId << "-" << r.error;
         return false;
     }
     // If we just trashed the session being reviewed, drop back to live so the

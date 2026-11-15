@@ -97,6 +97,10 @@ public:
 
     // ── C++ only (not QML) ───────────────────────────────────────────────────────────────────────
     pinpoint::Athlete     *currentAthlete() const { return m_current; }
+    // The session repository the composition root handed in (the app's one SessionStore), for a view
+    // controller that acts on one of the current athlete's sessions by its SessionId — the session trash
+    // (step 2.6) — until step 3's Athlete::trashSession takes it over.
+    pinpoint::SessionRepository *sessionRepository() const { return m_sessions; }
     // The current athlete's folder (D4: where its athlete.json is found; a settings athlete's: today's
     // derivation), "" when none. What the work-ons, the report list and the carousel follow.
     QString                currentFolder() const { return m_current ? m_current->folder() : QString(); }
