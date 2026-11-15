@@ -690,6 +690,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/engine/characteristic_engine.cpp
     src/Diagnostics/engine/relation_resolver.h
     src/Diagnostics/engine/relation_resolver.cpp
+    src/Diagnostics/engine/fire_findings.h
+    src/Diagnostics/engine/fire_findings.cpp
     src/Diagnostics/engine/dag_layout.h
     src/Diagnostics/engine/dag_layout.cpp
     src/Diagnostics/norms/norm.h

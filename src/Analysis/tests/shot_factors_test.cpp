@@ -467,7 +467,7 @@ int main()
 
         // #176: A HELD READING NEVER MOVES A VERDICT. The same eight thins with the monitor's launch angle
         // held (ShotRecord::ungradedReadings): the readings are kept as recorded (they are still shown),
-        // but the flight check reads through gradedReadings(), so there is no launch to judge a strike
+        // but the flight check reads through GradedReadings, so there is no launch to judge a strike
         // against and every measured thin stands as detected.
         {
             std::vector<ShotRecord> held;
@@ -501,12 +501,21 @@ int main()
             check(classifySwingLength(pitchy.shaftAngleP4, pitchy.lmClubSpeed, &usual, pitchy.ballSpeed) == QStringLiteral("partial"),
                   "a short turn and slow club read live: partial");
             pitchy.ungradedReadings = { QStringLiteral("m_shaftAngleP4"), QStringLiteral("m_lmClubheadSpeed") };
-            ShotRecord scratch;
-            const ShotRecord &g = gradedReadings(pitchy, scratch);
+            const GradedReadings graded(pitchy);
+            const ShotRecord &g = graded.record();
             check(classifySwingLength(g.shaftAngleP4, g.lmClubSpeed, &usual, g.ballSpeed) == QStringLiteral("full")
                       && pitchy.shaftAngleP4 == 30.0,
                   "held_swing_length: the same readings held do not decide it — full, from the live ball speed");
-            check(&gradedReadings(aug[0], scratch) == &aug[0], "…and a shot with nothing held is read in place, uncopied");
+            check(graded.masked() && &g != &pitchy, "…a shot with a reading held is read through the owner's own masked copy");
+            const GradedReadings inPlace(aug[0]);
+            check(!inPlace.masked() && &inPlace.record() == &aug[0], "…and a shot with nothing held is read in place, uncopied");
+            {
+                // C-16: the masked copy is the owner's, so it stays valid however the owner is moved.
+                GradedReadings moved = GradedReadings(pitchy);
+                const GradedReadings kept = std::move(moved);
+                check(std::isnan(kept.record().shaftAngleP4) && kept.record().ballSpeed == 108.0,
+                      "…and an owner moved keeps its masked readings (no reference into a caller's scratch)");
+            }
         }
 
         // An overruled thin is read, so a low launch can't be read as a thin from the flight in its place.

@@ -1,0 +1,40 @@
+{
+    "about": "fireFindings() on the live_swings fixtures (rule_version_golden_test.cpp). Re-record with PP_RECORD_RULE_GOLDEN=1 only after moving the version the change belongs to.",
+    "fixtures": {
+        "lm_7iron": {
+            "checks": 13,
+            "fired": 1,
+            "notAssessable": 137,
+            "rows": 163,
+            "sha1": "17ac008a8326ff83ea3b83305d2e432160bb3b03"
+        },
+        "lm_partial": {
+            "checks": 13,
+            "fired": 0,
+            "notAssessable": 151,
+            "rows": 163,
+            "sha1": "0a051fe88134944b2aa989a3da7c1999c371993c"
+        },
+        "rich_7iron": {
+            "checks": 13,
+            "fired": 8,
+            "notAssessable": 107,
+            "rows": 163,
+            "sha1": "6cd2230a3ac3e763488893cab1417218cd55383f"
+        },
+        "sparse_noclub": {
+            "checks": 13,
+            "fired": 1,
+            "notAssessable": 161,
+            "rows": 163,
+            "sha1": "38b3805943c56a9af39278214655f2903eb5d01e"
+        }
+    },
+    "frozenContent": "72eeb4189aee4810",
+    "versions": {
+        "diagSchema": 15,
+        "phaseGrid": 10,
+        "rowGrading": 1,
+        "rowWords": 1
+    }
+}

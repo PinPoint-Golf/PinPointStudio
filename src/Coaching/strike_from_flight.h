@@ -98,8 +98,8 @@ inline QHash<QString, ClubFlightUsual> sessionFlightUsuals(const std::vector<Sho
     struct Pool { std::vector<double> launch, smash, attack, carry; };
     QHash<QString, Pool> pools;
     for (const ShotRecord &recorded : shots) {
-        ShotRecord scratch;
-        const ShotRecord &s = gradedReadings(recorded, scratch);   // a held reading never sets a usual (#176)
+        const GradedReadings graded(recorded);
+        const ShotRecord &s = graded.record();   // a held reading never sets a usual (#176)
         if (s.swingLength == QLatin1String("partial")) continue;
         const QString club = canonicalClubId(s.club);
         if (club.isEmpty()) continue;
@@ -136,8 +136,8 @@ inline bool strikeHeightUnread(const ShotRecord &s)
 // rule's alone (flightSaysSky), so this never names it.
 inline QString strikeFromFlight(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings judge (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &s = graded.record();       // only live readings judge (#176)
     if (s.swingLength == QLatin1String("partial")) return QString();
     if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return QString();
 
@@ -178,8 +178,8 @@ inline QString strikeFromFlight(const ShotRecord &s, const QHash<QString, ClubFl
 // are never mirrored, so a left-hander is judged the same way.
 inline bool measuredStrikeFlightAgrees(const ShotRecord &recorded, const QString &conditionId, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings overrule (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &s = graded.record();       // only live readings overrule (#176)
     if (s.swingLength == QLatin1String("partial")) return true;
     if (conditionId == QLatin1String("thin") || conditionId == QLatin1String("top")) {
         if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return true;
@@ -386,8 +386,8 @@ inline double modelledDescentAngle(const ShotRecord &shot)
 // category, or nothing the shot has that a method reads.
 inline std::optional<FlightReading> classifyFlight(const ShotRecord &recorded, const FlightNorms &norms)
 {
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);    // a flight band is a verdict (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();    // a flight band is a verdict (#176)
     FlightReading r;
     r.category = flightClubCategory(norms, shot.club);
     if (r.category.isEmpty()) return std::nullopt;
@@ -482,8 +482,8 @@ inline bool isSkyClub(const QString &clubId)
 // usual. Every reading has to be there; with one missing it stays High. `usual` is the shot's own club's.
 inline bool flightSkied(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);    // only live readings call a sky (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();    // only live readings call a sky (#176)
     if (!isSkyClub(shot.club)) return false;
     if (!std::isfinite(shot.attackAngle) || !std::isfinite(usual.attack)) return false;
     if (!std::isfinite(shot.carry) || !std::isfinite(usual.carry) || !(usual.carry > 0.0)) return false;

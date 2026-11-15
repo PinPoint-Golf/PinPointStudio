@@ -131,7 +131,7 @@ applied on every path a verdict rests on (`packMeasureGrades()` asks it of a pac
 `evaluateSignal`, order-chain fallback links and `requiresBeforeImpact` companions, for per-swing and
 session-scope sources alike. Outside the engine, `packMeasureGrades()` gates the session model's reads a
 verdict rests on (timing-spread peak times, swing length), and every flight verdict reads a shot's
-launch-monitor readings through `gradedReadings()` (`ShotRecord::ungradedReadings`, schema 15) — the
+launch-monitor readings through `GradedReadings` (`ShotRecord::ungradedReadings`, schema 15) — the
 strike and Sky checks, the session's usual flight, the flight band, the strike factor, the carry lost,
 which shots leave the club distances (`shotMishitKind`, "far short" included) and the carry block's
 breakdown of a short carry. Display is the named exception: club distances' reductions, the consistency
@@ -396,7 +396,7 @@ Two fallbacks that look similar and are not:
 | **empty** | resolves at the default context (`full_swing`); `NormMeasureSource` marks each reading *inferred* and the engine demotes its confidence ×0.7 (`kInferredContextConfidence`, rule `rule.diag.inferredContext`, "club assumed") |
 | **unknown to the tree** | resolves to **nothing**. Grading it against full-swing norms would be a wrong answer wearing a right answer's clothes |
 
-**How a live shot reaches the empty row.** A swing's club is the *declared* one (`swingDocDeclaredClub`: `review.club`, else `capture.club.name`), never the picker's "DRIVER" stub, so it is empty for a swing that declared none. `LiveMeasureSource::contextInferred()` says so, and `detectForSwing()` then hands `NormMeasureSource` no context (it resolves at the default node) while the condition bindings and `LiveDetection::contextId` still read the default node; `LiveDetection::contextInferred` is set. `SessionDiagnosticsModel` copies it onto every row of the shot (`ConditionRow::contextInferred`), and the ranking demotes those rows again (−0.05, `rankScores`, `work_ons.h`). A context named through `detectForSwing`'s override is a declared one and is never inferred. The rule is versioned in the ledger's content stamp (`kRowGradingVersion`), so a ledger graded before it regrades once on activation.
+**How a live shot reaches the empty row.** A swing's club is the *declared* one (`swingDocDeclaredClub`: `review.club`, else `capture.club.name`), never the picker's "DRIVER" stub, so it is empty for a swing that declared none. `LiveMeasureSource::contextInferred()` says so, and `detectForSwing()` then hands `NormMeasureSource` no context (it resolves at the default node) while the condition bindings and `LiveDetection::contextId` still read the default node; `LiveDetection::contextInferred` is set. `fireFindings()` (`src/Diagnostics/engine/fire_findings.h`, which `SessionDiagnosticsModel::detectShot` calls; refactor step 3.3) copies it onto every row of the shot (`ConditionRow::contextInferred`), and the ranking demotes those rows again (−0.05, `rankScores`, `work_ons.h`). A context named through `detectForSwing`'s override is a declared one and is never inferred. The rule is versioned in the ledger's content stamp (`kRowGradingVersion`, declared beside the rule in `fire_findings.h` and checked by `rule_version_golden_test`), so a ledger graded before it regrades once on activation.
 
 ### The pair, composed (`metric_corridor.h`)
 

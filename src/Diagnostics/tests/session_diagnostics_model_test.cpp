@@ -2400,7 +2400,7 @@ static void heldMeasureSuite(const QTemporaryDir &tmp)
 
     // ONE OF THE SHOT'S FOURTEEN READINGS HELD: the monitor's launch angle on lm_7iron. detectShot reads the
     // pack's status into the shot's ungradedReadings, and stores the reading itself unchanged, so it is
-    // still shown while every flight verdict reads it through gradedReadings().
+    // still shown while every flight verdict reads it through GradedReadings.
     QJsonObject lmPack = QJsonDocument::fromJson([&] { QFile f(QString::fromLocal8Bit(shipped)); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }()).object();
     QJsonArray lmMeasures = lmPack.value(QStringLiteral("measures")).toArray();
     bool lmFound = false;

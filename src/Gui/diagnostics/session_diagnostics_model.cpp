@@ -24,6 +24,7 @@
 #include "../../Diagnostics/measures/measure_facets.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/engine/condition_reading.h"
+#include "../../Diagnostics/engine/fire_findings.h"   // the shot's findings and derived data, pure (refactor step 3.3)
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
@@ -68,15 +69,6 @@ namespace PV = pinpoint::variability;
 
 namespace {
 
-// THE AUTHORED NUMBER A THRESHOLD SIGNAL FIRES AT, or NaN for any other test (#16): a threshold reading's
-// distance is measured against its own line (ConditionRow::faultAt), not the band its measure carries.
-double thresholdOf(const CharacteristicPack &pack, const QString &signalId)
-{
-    const Signal *s = pack.signal(signalId);
-    return s && s->test == SignalTest::Threshold && s->threshold ? *s->threshold
-                                                                 : std::numeric_limits<double>::quiet_NaN();
-}
-
 // WHETHER A SWING FOLDER IS ONE OF THIS SESSION'S: its parent is the session folder, compared as
 // cleaned absolute paths (so "…/lib//athlete/…" and "…/lib/athlete/…" agree). False with no session
 // held or no folder. The one rule ingestShot() and regradeShot() both apply (audit E-01): a swing of
@@ -98,23 +90,6 @@ bool swingIsInSession(const QString &swingDir, const QString &sessionDir)
 // gained a field.
 constexpr int kEnvelopeVersion = pinpoint::SessionDiagnosticsFiles::kEnvelopeVersion;
 
-// WHAT A NOT-JUDGED ROW SAYS, versioned apart from the row shape: the shape did not change when the rows
-// began naming the engine rule behind a refusal and the capture gate behind an excluded shot (trust stage 6
-// session 2), but a ledger written before did not fill them. Hashed into the content stamp, so such a
-// ledger regrades once on activation.
-constexpr int kRowWordsVersion = 1;
-
-// HOW A ROW IS GRADED, versioned apart from the row shape and the words: a change to what detection
-// decides for a swing, with no new field to fill, would otherwise leave every stored ledger looking
-// current. Hashed into the content stamp, so a ledger graded under an older rule regrades once on
-// activation (re-reading each swing's stored readings; it never re-runs pose, ball or shaft).
-// 1 (14 Nov 2026, audit B-07): a swing that declares no club is graded as an undeclared context — its
-//   corridor readings carry the engine's inferred-context demotion (×0.7, "club assumed") and its rows
-//   ConditionRow::contextInferred. Before, the live path graded it as a declared full swing at full
-//   confidence and every row said not inferred.
-constexpr int kRowGradingVersion = 1;
-
-
 // What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
 constexpr int kDiagObservedMissMin = 3;
 
@@ -125,19 +100,6 @@ const QString kProvisionalSuffix = QStringLiteral("|provisional");
 // −0 as 0. Brief §6: the value slot and the corridor slot must agree, and a hyphen-minus beside a
 // typographic one in the same cell is the kind of thing a golfer reads as a bug in the numbers.
 namespace F = pinpoint::figures;
-
-// The corridor's shape as the ledger row records it — the one translation between
-// MeasureEvidence's two open-side flags and CorridorShape, so there is exactly one place
-// that decides what a missing scale means.
-CorridorShape corridorShapeOf(const MeasureEvidence &e)
-{
-    if (!e.hasCorridor) return CorridorShape::None;              // graded against a number
-    if (!(e.corridorHi - e.corridorLo > 0.0)) return CorridorShape::None;   // degenerate band
-    if (e.lowOpen && e.highOpen) return CorridorShape::None;     // nothing to normalise by
-    if (e.lowOpen)  return CorridorShape::Ceiling;
-    if (e.highOpen) return CorridorShape::Floor;
-    return CorridorShape::TwoSided;
-}
 
 // ── The strength meter's fields, written in ONE place ───────────────────────────────────
 //
@@ -185,26 +147,6 @@ QString compositeShareWord(double share)
     if (share >= kShareMost)  return QStringLiteral("most of it");
     if (share >= kShareSome)  return QStringLiteral("some");
     return QStringLiteral("a little");
-}
-
-// A measure that is not live (held, planned, no producer…) is not graded at all: say it is held back,
-// which is the honest reason, rather than "not measured" — the series may well be on the swing. ONE
-// sentence for a composite's unread part and a plain row the engine refused as NotLive (#176), so the
-// two can never word the same fact differently. `status` is measureStatusName's spelling.
-QString notLiveWords(const QString &status)
-{
-    return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")
-                                           : QStringLiteral("not graded yet");
-}
-
-// The status of the first measure in `measureIds` the pack does not grade — the one behind a NotLive
-// refusal (the engine names it among the signal's missing measures). Empty when none is non-live.
-QString notLiveStatusOf(const CharacteristicPack &pack, const QStringList &measureIds)
-{
-    for (const QString &mid : measureIds)
-        if (const Measure *m = pack.measure(mid); m && !measureStatusGrades(m->status))
-            return measureStatusName(m->status);
-    return QString();
 }
 
 // Why a composite part was not read (CompositeUnreadRow::reason), in the trust fold's words.
@@ -316,39 +258,6 @@ QString gatedClause(const ConditionRow &r, const RowGate &g)
 {
     if (g.rule || g.subject == QLatin1String("shot") || r.notAssessableReason.isEmpty()) return g.words;
     return r.notAssessableReason;
-}
-
-// The reason a row or a sequence check reads when the engine refused a reading it HAD (Finding::refusal)
-// — the sequence checks' existing sentences where they have one, else a mechanical one of the same kind.
-// Empty for a refusal that is not one of the engine's rules (signalRefusalRuleId).
-QString refusalReason(SignalRefusal k, const QString &measureId)
-{
-    switch (k) {
-    case SignalRefusal::NoCorridor:             return QStringLiteral("no range to judge it against on this shot");
-    case SignalRefusal::NonPositiveDenominator: return QStringLiteral("the ratio could not be formed on this swing");
-    case SignalRefusal::MixedScale:             return sequenceGapReason(SequenceGap::MixedScale, measureId);
-    case SignalRefusal::Implausible:            return sequenceGapReason(SequenceGap::Implausible, measureId);
-    case SignalRefusal::PeakAfterImpact:        return sequenceGapReason(SequenceGap::PeakAfterImpact, measureId);
-    case SignalRefusal::CompositeCoverage:      return missingReasonText(MissingKind::CompositeCoverage);
-    default:                                    return QString();
-    }
-}
-
-// A composite's parts and coverage, from the engine's evidence into the ledger's row (schema 9). The
-// two structs are copies of one shape — the ledger header stands apart from the Diagnostics module —
-// and this is the one place the copy is made. Empty for any measure that is not a composite.
-CompositeRowEvidence compositeRowOf(const MeasureEvidence &e)
-{
-    CompositeRowEvidence c;
-    c.weightRead  = e.partsWeightRead;
-    c.weightTotal = e.partsWeightTotal;
-    c.parts.reserve(e.parts.size());
-    for (const CompositePart &p : e.parts)
-        c.parts.push_back({ p.name, p.measureId, p.value, p.unit, p.z, p.weight, p.share, p.sign,
-                            p.atStart, p.atEnd });
-    for (const CompositeUnread &u : e.partsUnread)
-        c.unread.push_back({ u.name, u.measureId, u.reason, u.status });
-    return c;
 }
 
 // "4 measures not assessable on this capture", and of those, the ones a gate or rule accounts for, by
@@ -680,42 +589,6 @@ int swingNumberOfFolder(const QString &swingDir)
     return n > 0 ? n : -1;
 }
 
-// The baseline's keys are canonical bag ids; the detection asks with whatever spelling the swing carries.
-class CanonicalClubBaseline final : public IClubBaselineProvider {
-public:
-    explicit CanonicalClubBaseline(std::shared_ptr<IClubBaselineProvider> inner) : m_inner(std::move(inner)) {}
-    std::optional<ClubBaselineEntry> forClub(const QString &club) const override
-    {
-        return m_inner->forClub(pinpoint::canonicalClubId(club));
-    }
-private:
-    std::shared_ptr<IClubBaselineProvider> m_inner;
-};
-
-// The reading a measure records, NaN when the capture had none (absent is never zero). A PLAIN read, for
-// a number that is shown or stored: it does not ask the measure's status. A read a verdict rests on goes
-// through gradedOrNaN() instead.
-double measuredOrNaN(const LiveMeasureSource &src, const char *measureId)
-{
-    const auto v = src.value(QLatin1String(measureId));
-    return (v && std::isfinite(v->value)) ? v->value : std::numeric_limits<double>::quiet_NaN();
-}
-
-// THE SAME READ FOR A VERDICT (#176): NaN — "not read" — when the measure is not live in the pack
-// (packMeasureGrades, the engine's own rule), whatever the producer emitted.
-double gradedOrNaN(const LiveMeasureSource &src, const CharacteristicPack &pack, const char *measureId)
-{
-    return packMeasureGrades(pack, QLatin1String(measureId)) ? measuredOrNaN(src, measureId)
-                                                             : std::numeric_limits<double>::quiet_NaN();
-}
-
-QString normaliseHandedness(const QString &raw)
-{
-    if (raw.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0)  return QStringLiteral("Left");
-    if (raw.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0) return QStringLiteral("Right");
-    return QString();
-}
-
 } // namespace
 
 // ── Construction ────────────────────────────────────────────────────────────────────────
@@ -1024,22 +897,15 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
     // so there only the grid can parse. Local to this call: the worker threads that run
     // detectShot() never see each other's.
     //
-    // Both reads happen HERE, before detection, and the document is released straight after them:
-    // nothing below needs it, and holding a ~33 MB swing's parse through detectForSwing() and the
+    // Both reads happen HERE, before the findings fire, and the document is released straight after
+    // them: nothing below needs it, and holding a ~33 MB swing's parse through fireFindings() and the
     // rows would keep it alive longer than either reader ever did on its own.
     pinpoint::SwingStore::LazyDocument parsed(swingDir);
 
     // writeSidecar true: the phase grid is cached beside the swing, so a re-activation of the
     // same session costs a small read rather than a second fat parse of every document.
-    LiveMeasureSource src(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
-    src.setWithSigma(m_withSigma);
-    // Null while unfrozen: the two history measures then read as not earned, and nothing else changes.
-    // A part swing never sees them either: "short" is judged on full swings only (design §3.3), so
-    // a pitch falls through to the duff guard rather than being measured against a full-swing carry.
-    if (m_clubBaseline
-        && classifySwingLength(gradedOrNaN(src, pack, "m_shaftAngleP4"), gradedOrNaN(src, pack, "m_lmClubheadSpeed"),
-                               usualFor(src.club()), gradedOrNaN(src, pack, "m_lmBallSpeed")) != QLatin1String("partial"))
-        src.setClubBaselineProvider(m_clubBaseline);
+    FiringReadings readings;
+    readings.grid = readLivePhaseGrid(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
 
     // ⚠ THE INSTANT THE DOCUMENT RECORDS, NOT THE INSTANT THE FILE WAS LAST TOUCHED.
     // This read the file's mtime, which is only incidentally the capture time: copying, moving or
@@ -1064,290 +930,36 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
             : pinpoint::SwingStore::info(swingDir).mtimeMs;
     parsed.release();
 
-    // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
-    // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
-    const LiveDetection     d = detectForSwing(src, pack, norms, gradePolicyByName(m_policyName),
-                                               {}, QString(), sequenceCheckSignalIds());
+    // The document's own facts the findings read: the hand, and the two recording-integrity facts that
+    // withhold the whole shot (a refused club track also carries the warning but withholds nothing).
+    readings.handedness    = summary.handedness;
+    readings.dataWarning   = summary.dataWarning;
+    readings.captureBroken = summary.dataWarningDetail.value(QStringLiteral("capture")).toBool();
+    readings.imuBroken     = summary.dataWarningDetail.value(QStringLiteral("imu")).toBool();
 
-    ShotRecord rec;
-    rec.shotId      = shotId;
-    rec.club        = d.club;
-    rec.contextId   = d.contextId;
-    rec.timestampMs = timestampMs;
+    // THE FIRING INPUTS (fire_findings.h; refactor step 3.3), read from this model exactly where and when
+    // detectShot always read them: on the worker, from the members activateSession() holds still while a
+    // job is in flight. The pack is this model's own view of a RuleData snapshot, held without ownership —
+    // the model outlives every job it queues (its destructor waits for its pool). The grade policy is read
+    // live, as before (audit D-12; refactor 3.5's snapshot fixes it). No cohort yet: unqualified, as before
+    // (D6 lands with 3.5). SET-06 is not held here; it is recorded, never applied, so the findings are the
+    // same. The flight table and the usuals are layer 3's and play no part in the findings.
+    FiringInputs inputs;
+    inputs.pack        = std::shared_ptr<const ICharacteristicPackProvider>(std::shared_ptr<const void>(), m_packProv.get());
+    inputs.norms       = norms;
+    inputs.gradePolicy = m_policyName;
+    inputs.withSigma   = m_withSigma;
+    if (m_clubBaseline) inputs.clubBaseline = m_baselineClubs;
 
-    rec.rows.reserve(d.result.findings.size());
-    for (const Finding &f : d.result.findings) {
-        // A SESSION-scope condition has no per-swing verdict (§10.8 E2, NR-04/NR-11): its measures
-        // are refused on every swing, and a row here would draw a tick, a pip and a "not assessable"
-        // for a question no swing is asked. rebuild() reads it over the session instead.
-        if (isSessionScopeCondition(pack, f.conditionId)) continue;
-        ConditionRow r;
-        r.conditionId      = f.conditionId;
-        r.confidence       = f.confidence;
-        r.material         = f.material;
-        r.sharp            = f.sharp;
-        r.pFire            = f.pFire;        // §A8.4 — −1 when not formed
-        r.grossRisk        = f.grossRisk;
-        r.quantified       = f.quantified;
-        r.contextId        = d.contextId;
-        r.firedSignalCount = int(f.firedSignals.size());
-        // "CLUB ASSUMED" (rule.diag.inferredContext): the swing declared no club, so it was graded at
-        // the default context and detect() already demoted its corridor readings. The row carries
-        // the shot's fact so the ranking demotes it too (rankScores, work_ons.h).
-        r.contextInferred  = d.contextInferred;
-
-        switch (f.state) {
-        case FindingState::Fired:
-            r.state     = ShotState::Fired;
-            r.direction = (f.direction == Direction::High) ? 1 : -1;
-            break;
-        case FindingState::NotFired:
-            r.state     = ShotState::Clean;
-            r.direction = 0;
-            break;
-        case FindingState::Unavailable:
-            r.state = ShotState::NotAssessable;
-            // Never blank (ConditionRow's contract): the review strip prints this where a
-            // corridor would go. The source knows WHY for the measure that failed; where a
-            // condition names several, the first is the one that stopped it.
-            if (!f.missingMeasures.isEmpty())
-                r.notAssessableReason = src.missingReason(f.missingMeasures.first());
-            // A value the producer measured but marked not for judging (KB-18): its own reason.
-            if (r.notAssessableReason.isEmpty() && !f.missingMeasures.isEmpty())
-                if (const auto w = src.value(f.missingMeasures.first()); w && !w->withheld.isEmpty())
-                    r.notAssessableReason = w->withheld;
-            if (r.notAssessableReason.isEmpty())
-                r.notAssessableReason = missingReasonText(MissingKind::MetricNotProduced);
-            // A REFUSAL THE ENGINE MADE ON A READING IT HAD (trust stage 6 session 2): no range to judge
-            // against, a reading not believed, two scales, no ratio, a peak after impact. The measure
-            // read, so the absence reasons above say nothing true ("metric not produced") — the row says
-            // the refusal and carries the engine RULE behind it (rule.diag.*), with no subject: a rule
-            // leaves no per-swing record, so there is no Trust-panel reading to open, only its words.
-            // Re-derived on every read, so it holds on a swing analysed before records existed too.
-            if (const char *rule = signalRefusalRuleId(f.refusal)) {
-                r.notAssessableReason = refusalReason(f.refusal, f.missingMeasures.value(0));
-                r.notJudgedGate       = QString::fromLatin1(rule);
-                r.notJudgedSubject.clear();
-                // A MEASURE THE PACK DOES NOT GRADE (#176): held, planned, no producer. Its value may be on
-                // the swing, so "not produced" would be false; the row says it is held back and carries
-                // the status, the token-plus-status a composite's unread part already carries.
-                if (f.refusal == SignalRefusal::NotLive) {
-                    r.notLiveStatus       = notLiveStatusOf(pack, f.missingMeasures);
-                    r.notAssessableReason = notLiveWords(r.notLiveStatus);
-                }
-            } else {
-                // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
-                // standing on a sequence node a gate refused says which gate, in its words, and the row
-                // carries the gate and the reading so the Trust panel can list what each gate blocked.
-                for (const QString &mid : f.missingMeasures) {
-                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
-                    if (gc.gate.isEmpty()) continue;
-                    r.notJudgedGate       = gc.gate;
-                    r.notJudgedSubject    = gc.subject;
-                    r.notAssessableReason = gc.clause;      // "pelvis peak out of sight"
-                    break;
-                }
-            }
-            break;
-        }
-
-        if (f.evidence.hasEvidence) {
-            r.drivingMeasureId = f.evidence.drivingMeasureId;
-            r.value            = f.evidence.value;
-            r.corridorLo       = f.evidence.corridorLo;
-            r.corridorHi       = f.evidence.corridorHi;
-            r.z                = f.evidence.z;
-            // WHICH SIDE THE BAND IS OPEN, recorded here because this is the only place it is
-            // known: MeasureEvidence carries the flags, the ledger row carries the number they
-            // scale, and the strength meter downstream cannot read one without the other.
-            // Every branch that left z at 0 for want of a scale records None, so a meter is
-            // never drawn over a reading that was graded against an authored number.
-            r.corridorShape    = corridorShapeOf(f.evidence);
-            // …and which of the band's ends THIS condition fires on (schema 10, #16), so a clean
-            // reading out on the end it never fires on is not scored as a near miss.
-            r.firingSide       = conditionFiringSide(pack, f.conditionId, r.drivingMeasureId);
-            // …the threshold test's own line when one decided it, and whether every signal must fire —
-            // what a clean row's distance is read against (rowStrength).
-            r.faultAt          = thresholdOf(pack, f.evidence.drivingSignalId);
-            if (const Condition *pc = pack.condition(f.conditionId)) r.allOf = pc->detection == DetectionMode::All;
-            // Schema 9: a composite's parts and coverage, the evidence its detail page draws.
-            r.composite        = compositeRowOf(f.evidence);
-        }
-        // Every signal's measure, when there is more than one to show (schema 4).
-        if (f.readings.size() > 1) {
-            for (const MeasureEvidence &e : f.readings) {
-                MeasureRow m;
-                m.measureId     = e.drivingMeasureId;
-                m.signalId      = e.drivingSignalId;
-                m.value         = e.value;
-                m.corridorLo    = e.corridorLo;
-                m.corridorHi    = e.corridorHi;
-                m.z             = e.z;
-                m.corridorShape = corridorShapeOf(e);
-                m.firingSide    = conditionFiringSide(pack, f.conditionId, m.measureId);
-                m.faultAt       = thresholdOf(pack, e.drivingSignalId);
-                m.fired         = e.fired;
-                m.composite     = compositeRowOf(e);
-                r.readings.push_back(std::move(m));
-            }
-        }
-        rec.rows.push_back(std::move(r));
-    }
-
-    // Each sequence check's own verdict (schema 5), and why one could not be assessed — in golfer
-    // words, naming the missing piece where the engine's refusal says which it was.
-    rec.signalRows.reserve(d.signalOutcomes.size());
-    for (const SignalOutcome &o : d.signalOutcomes) {
-        SignalRow g;
-        g.signalId = o.signalId;
-        if (o.available) {
-            g.state      = o.fired ? ShotState::Fired : ShotState::Clean;
-            g.pFire      = o.pFire;
-            g.quantified = o.quantified;
-            g.comparedWith = o.comparedWith;
-        } else {
-            g.state = ShotState::NotAssessable;
-            const QString first = o.missing.value(0);
-            SequenceGap gap = SequenceGap::Unknown;
-            switch (o.refusal) {
-            case SignalRefusal::MeasureMissing:
-                // The KS keys are emitted only for placed nodes (§10.9 P3), so "not produced" on
-                // one of them IS an unplaced node. Every other reason (no analysis, no impact)
-                // is the pipeline's, and says so in its own words below.
-                if (src.missingKind(first) == MissingKind::MetricNotProduced) gap = SequenceGap::NotPlaced;
-                break;
-            case SignalRefusal::MixedScale:  gap = SequenceGap::MixedScale;  break;
-            case SignalRefusal::Implausible: gap = SequenceGap::Implausible; break;
-            case SignalRefusal::PeakAfterImpact: gap = SequenceGap::PeakAfterImpact; break;
-            case SignalRefusal::Withheld:    gap = SequenceGap::Withheld;    break;
-            default: break;
-            }
-            g.reason = sequenceGapReason(gap, first);
-            if (gap == SequenceGap::Unknown && o.refusal == SignalRefusal::MeasureMissing) {
-                const MissingKind k = src.missingKind(first);
-                if (k != MissingKind::None && k != MissingKind::MetricNotProduced)
-                    g.reason = missingReasonText(k);
-            }
-            // the gate behind an unplaced or withheld peak, as for the condition rows above
-            if (o.refusal == SignalRefusal::MeasureMissing || o.refusal == SignalRefusal::Withheld)
-                for (const QString &mid : o.missing) {
-                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
-                    if (gc.gate.isEmpty()) continue;
-                    g.notJudgedGate    = gc.gate;
-                    g.notJudgedSubject = gc.subject;
-                    g.reason           = gc.clause;
-                    break;
-                }
-            // ...and the engine rule behind a refusal on a reading it had, as for the rows above: the
-            // sentence the gap already chose (or the rule's own where the gap had none), no subject
-            if (const char *rule = signalRefusalRuleId(o.refusal)) {
-                if (gap == SequenceGap::Unknown) {
-                    const QString why = refusalReason(o.refusal, first);
-                    if (!why.isEmpty()) g.reason = why;
-                }
-                g.notJudgedGate = QString::fromLatin1(rule);
-                g.notJudgedSubject.clear();
-                if (o.refusal == SignalRefusal::NotLive) {      // as the condition rows above (#176)
-                    g.notLiveStatus = notLiveStatusOf(pack, o.missing);
-                    g.reason        = notLiveWords(g.notLiveStatus);
-                }
-            }
-        }
-        rec.signalRows.push_back(std::move(g));
-    }
-    // The placed peak instants the session's timing spread is reduced from (schema 6, §10.9 P8). Only
-    // placed nodes emit, so an absent value IS an unplaced node; a time a signal refused as
-    // implausible on this swing is a capture fault, not a reading, and stays out of the spread too.
-    for (const SequenceSpreadSegmentDef &seg : sequenceSpreadSegments()) {
-        const QString mid = QLatin1String(seg.measureId);
-        // The spread is graded (m_ksTimingSpread), so a peak time the pack does not grade — held,
-        // planned — stays out of it, exactly as the engine refuses it on the order checks (#176).
-        if (!packMeasureGrades(pack, mid)) continue;
-        bool implausible = false;
-        for (const SignalOutcome &o : d.signalOutcomes)
-            if (o.refusal == SignalRefusal::Implausible && o.missing.contains(mid)) implausible = true;
-        if (implausible) continue;
-        // Nor does a time its producer marked not for judging (the camera club peak, KB-18).
-        if (const auto v = src.value(mid); v && std::isfinite(v->value) && v->withheld.isEmpty()) {
-            PeakTimeRow t;
-            t.measureId = mid;
-            t.valueMs   = v->value;
-            t.sigmaMs   = v->sigma;
-            rec.peakTimes.push_back(std::move(t));
-        }
-    }
-
-    // The ranking's last tie-break: the measured clubhead speed where there is one, else ours.
-    for (const char *mid : { "m_lmClubheadSpeed", "m_clubheadSpeedImpact" }) {
-        if (const auto v = src.value(QLatin1String(mid)); v && std::isfinite(v->value)) {
-            rec.clubheadSpeed = v->value;
-            break;
-        }
-    }
-
-    // Schema 11: the monitor's readings the per-club distances are reduced from, the backswing, and
-    // how far the swing went against this club's frozen usual numbers (Contract E). Read PLAINLY and kept
-    // as recorded, from the one table (shotReadingFields: carry, total, offline, ball and club speed,
-    // smash, the P4 shaft angle; schema 12/13 launch, start direction, attack, descent, apex in feet,
-    // spin and its axis), so a reading is shown whatever its measure's status; one whose measure is not
-    // live is named in ungradedReadings (schema 15), and every verdict reads them through gradedReadings().
-    for (const ShotReadingField &f : shotReadingFields()) {
-        rec.*(f.field) = measuredOrNaN(src, f.measureId);
-        if (!packMeasureGrades(pack, QLatin1String(f.measureId))) rec.ungradedReadings << QLatin1String(f.measureId);
-    }
-    rec.handedness   = normaliseHandedness(summary.handedness);
-    {
-        // The swing length decides what may be judged (a part swing is never short), so it is a verdict's input.
-        ShotRecord scratch;
-        const ShotRecord &g = gradedReadings(rec, scratch);
-        rec.swingLength = classifySwingLength(g.shaftAngleP4, g.lmClubSpeed, usualFor(rec.club), g.ballSpeed);
-    }
-
-    // Data-integrity exclusion. A shot whose recording is known broken — frames lost
-    // during capture (captureIntegrity), or an IMU record that does not reproduce
-    // (imuIntegrity) — is still drawn on the strip, still carries the ⚠ the card shows,
-    // but says nothing to the session: every row becomes NotAssessable, which rule 1
-    // already keeps out of every denominator (diagnostic_ledger.h tierAtPrefix). Done
-    // here rather than in the ledger arithmetic so the reason reads in the corridor
-    // slot like any other withheld row, and the ledger needs no new rule.
-    // A refused CLUB track (dataWarningDetail.clubRefused, 2026-10-01) also carries
-    // the ⚠ but withholds nothing here: its club rows are already absent (the
-    // track is invalid, so no club-derived producer ran) and the body/wrist rows
-    // are untouched by it. Only the two recording-integrity facts exclude the shot.
-    if (summary.dataWarning) rec.dataWarning = true;
-    if (summary.dataWarning
-        && (summary.dataWarningDetail.value(QStringLiteral("capture")).toBool()
-            || summary.dataWarningDetail.value(QStringLiteral("imu")).toBool())) {
-        // THE GATE IS THE SHOT'S, NOT WHATEVER THE ROW NAMED BEFORE (trust stage 6 session 2): the
-        // integrity record on `shot` (frames missing, sensor recording inconsistent) replaces a gate or
-        // rule the detection left on the row, which no longer explains it. Empty on a swing analysed
-        // before records existed — the stale names are cleared, never kept.
-        const LiveMeasureSource::GateCause shotGate = src.gateForSubject(QStringLiteral("shot"));
-        for (ConditionRow &r : rec.rows) {
-            r.state               = ShotState::NotAssessable;
-            r.direction           = 0;
-            r.notAssessableReason = missingReasonText(MissingKind::CaptureDataIssue);
-            r.notJudgedGate       = shotGate.gate;
-            r.notJudgedSubject    = shotGate.subject;
-            r.notLiveStatus.clear();
-        }
-        for (SignalRow &g : rec.signalRows) {
-            g.state            = ShotState::NotAssessable;
-            g.pFire            = -1.f;
-            g.quantified       = false;
-            g.reason           = missingReasonText(MissingKind::CaptureDataIssue);
-            g.notJudgedGate    = shotGate.gate;
-            g.notJudgedSubject = shotGate.subject;
-            g.notLiveStatus.clear();
-        }
-        rec.peakTimes.clear();
-    }
-
-    out.record           = std::move(rec);
-    out.hasLaunchMonitor = src.hasLaunchMonitor();
-    out.ok               = true;
+    FiredShot fired = fireFindings(std::move(readings), inputs);
+    fired.record.shotId      = shotId;
+    fired.record.timestampMs = timestampMs;
+    out.record           = std::move(fired.record);
+    out.hasLaunchMonitor = fired.hasLaunchMonitor;
+    out.ok               = fired.ok;
     return out;
 }
+
 
 void SessionDiagnosticsModel::applyIngested(const Ingested &in)
 {
@@ -2244,6 +1856,10 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     // it as not read. ──
     QStringList mixClubs;
     struct ClubFactorMix { int judged = 0; ShotFactorTally strike, direction, flight; };
+    // The factors are the shot's derived data (layer 3; fire_findings.h): the flight table and the session's usuals.
+    FiringInputs derivedFrom;
+    derivedFrom.flightNorms = flightNorms();
+    derivedFrom.usuals      = facts.flightUsuals;
     QHash<QString, ClubFactorMix> mixByClub;
     for (size_t i = 0; i < m_composed.size() && i < m_shots.size(); ++i) {
         const ShotOutcome &o = m_composed[i];
@@ -2251,7 +1867,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         if (!o.ready || club.isEmpty()) continue;
         if (!mixByClub.contains(club)) mixClubs << club;
         ClubFactorMix &mix = mixByClub[club];
-        const ShotFactors f = shotFactors(m_shots[i], o, m_outcomePack, flightNorms(), facts.flightUsuals);
+        const ShotFactors f = deriveShotFactors(m_shots[i], o, m_outcomePack, derivedFrom);
         if (f.judged()) ++mix.judged;
         const auto tally = [this](ShotFactorTally &t, const ShotFactor &part) {
             if (!part.read) { ++t.notRead; return; }
@@ -2343,8 +1959,10 @@ ShotFactors SessionDiagnosticsModel::shotFactorsOf(int shotId) const
     const int at = indexOfShot(shotId);
     if (at < 0 || size_t(at) >= m_composed.size() || size_t(at) >= m_shots.size()) return ShotFactors{};
     // The club mix's own call (ensureOutcomes), on the same composed shot and the same session facts.
-    return shotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, flightNorms(),
-                       outcomeSessionFacts().flightUsuals);
+    FiringInputs derivedFrom;
+    derivedFrom.flightNorms = flightNorms();
+    derivedFrom.usuals      = outcomeSessionFacts().flightUsuals;
+    return deriveShotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, derivedFrom);
 }
 
 QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
@@ -2708,7 +2326,7 @@ void SessionDiagnosticsModel::adoptClubBaseline(const QHash<QString, ClubBaselin
 {
     m_baselineClubs = clubs;
     // The sidecar's keys are canonical; the provider asks with the swing's own spelling.
-    m_clubBaseline  = std::make_shared<CanonicalClubBaseline>(makeClubBaselineProvider(clubs));
+    m_clubBaseline  = canonicalClubBaselineProvider(clubs);
 }
 
 bool SessionDiagnosticsModel::beginClubBaseline()

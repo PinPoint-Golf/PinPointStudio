@@ -185,8 +185,8 @@ inline QString shotMishitKind(const ShotRecord &recorded, const std::vector<Shot
 {
     // Which shots leave the usual is a JUDGEMENT, so every reading below is the graded one (#176): a carry,
     // launch or smash whose measure is not live never calls a shot short, thin or skied.
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();
     QString corrected;
     QStringList removed;
     for (const ShotCorrection &c : corrections) {

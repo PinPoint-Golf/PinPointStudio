@@ -70,17 +70,24 @@ QString missingReasonText(MissingKind k)
 
 // ── Construction ────────────────────────────────────────────────────────────
 
-LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
-                                     bool writeSidecar, const PhaseGridConfig &cfg,
-                                     SwingStore::LazyDocument *parsed)
-    : m_grid(readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed)),
-      m_pack(pack)
+SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack, bool writeSidecar,
+                                 const PhaseGridConfig &cfg, SwingStore::LazyDocument *parsed)
 {
+    SwingPhaseGrid grid = readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed);
     // readPhaseGrid() sets swingDir on every path it returns a grid from, but not on the empty
     // grid it returns for a missing or unreadable document — and a source that cannot say which
     // swing it failed on is unloggable.
-    if (m_grid.swingDir.isEmpty())
-        m_grid.swingDir = swingDir;
+    if (grid.swingDir.isEmpty())
+        grid.swingDir = swingDir;
+    return grid;
+}
+
+LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
+                                     bool writeSidecar, const PhaseGridConfig &cfg,
+                                     SwingStore::LazyDocument *parsed)
+    : m_grid(readLivePhaseGrid(swingDir, pack, writeSidecar, cfg, parsed)),
+      m_pack(pack)
+{
 }
 
 LiveMeasureSource::LiveMeasureSource(SwingPhaseGrid grid, const CharacteristicPack &pack)

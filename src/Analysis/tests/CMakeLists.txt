@@ -1625,6 +1625,9 @@ set_tests_properties(club_baseline_provider_test PROPERTIES
 # (variability_clubs.cpp, which needs the Consistency maths for its R2a half). Every target that compiles
 # session_diagnostics_model.cpp links these: the model test and the regrade / report / rank-diff tools.
 set(SESSION_DIAG_MARKS_SOURCES
+    # The shot's findings and derived data, pure (Diagnostics/engine/fire_findings.*, refactor step 3.3): the
+    # model's detectShot and its factor compositions call them.
+    ${SRC}/Diagnostics/engine/fire_findings.cpp
     ${SRC}/Metrics/variability/variability_result.cpp
     ${SRC}/Metrics/variability/variability_grader.cpp
     ${SRC}/Metrics/variability/variability_trend.cpp
@@ -1950,6 +1953,49 @@ pp_add_test(measure_dump_test
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
 set_tests_properties(measure_dump_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
+# FIRING A SHOT'S FINDINGS, PURE (refactor step 3.3; Diagnostics/engine/fire_findings.*). fire_findings_test: one
+# swing (lm_7iron), and every input of FiringInputs shown to matter — the stamp moves with each, and the findings or
+# the derived data with each one they read. rule_version_golden_test (R-STAMP-3, audit C-05): fireFindings' output on
+# the four live_swings fixtures against data/rule_version_golden/golden.json, keyed by the rule versions;
+# it fails when the output moves and no version did. It reads a FROZEN copy of the pack, norms and contexts
+# (data/rule_version_golden/), never the shipped files, so a content edit cannot move it. Re-record:
+# PP_RECORD_RULE_GOLDEN=1 (see the test's header).
+# The measure-dump link line (the model's, less the model) plus fire_findings.cpp.
+set(FIRE_FINDINGS_TEST_SOURCES
+    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
+    ${DIAG}/engine/fire_findings.cpp
+    ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+    ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+    ${DIAG}/packs/screen_pack.cpp
+    ${DIAG_NORM}
+    ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+    ${DIAG}/norms/merged_norm_provider.cpp
+    ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+    ${DIAG}/packs/merged_pack_provider.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+    ${SRC}/Export/swing_doc_reader.cpp
+    ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+    ${SRC}/Export/swing_paths.cpp
+    ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+    ${SRC}/Core/pp_log_stream.cpp
+    ${SRC}/Core/PpMessageLog.cpp)
+pp_add_test(fire_findings_test
+    SOURCES ${DIAG}/tests/fire_findings_test.cpp ${FIRE_FINDINGS_TEST_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(fire_findings_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+pp_add_test(rule_version_golden_test
+    SOURCES ${DIAG}/tests/rule_version_golden_test.cpp ${FIRE_FINDINGS_TEST_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+                    -DPP_RULE_VERSION_GOLDEN_DIR="${DIAG}/tests/data/rule_version_golden"
+    AUTOMOC)
+set_tests_properties(rule_version_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
