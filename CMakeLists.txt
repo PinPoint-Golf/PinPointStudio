@@ -2917,6 +2917,11 @@ target_sources(PinPointStudio PRIVATE
     # builder, and the store side — the one header writer and the Recording loader (1.2).
     src/Recording/recording.h
     src/Recording/analysis_context.h
+    # The identity types (refactor step 2.1; Vocabulary, DEC-148) and the session's identity
+    # (Domain model): AthleteId, SessionId, ShotRef; SessionIdentity (D3's legacy id, n-of-day).
+    src/Identity/identity.h
+    src/DomainModel/session_identity.h
+    src/DomainModel/session_identity.cpp
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h

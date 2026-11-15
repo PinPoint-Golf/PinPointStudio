@@ -698,7 +698,8 @@ no longer tracks recency.
 ```
 <athleteLibraryPath>/
   <athlete-name-sanitised>/            athlete level
-    <YYYY-MM-DD_session-NN>/           session level — date + per-day index
+    <session-folder>_NN/               session level — named by the naming pattern + per-day _NN
+      .pinpoint-last-swing             the highest swing number ever issued (never reissued)
       swing_0001/
         <faceOnAlias>.mp4
         <dtlAlias>.mp4
@@ -707,19 +708,40 @@ no longer tracks recency.
         …
 ```
 
-### Session allocation policy
+A folder's name is a property and provenance, never an identity: a session is a `SessionId`, a shot
+a `ShotRef` (`src/Identity/identity.h`; information_model.md §5.2). Only two classes read a folder's
+name (P7, lint A3): `SwingPaths` (composing names, a swing folder's number) and `SessionIdentity`
+(`src/DomainModel/session_identity.*`: a session without a session file — its date, type and `_NN`
+under every naming pattern, and D3's name-based `SessionId`).
 
-The session folder is allocated **lazily on the first save and cached for the
-lifetime of the `SwingPaths` instance** — i.e. per app run. All swings recorded
-today by the same athlete into the same library share one `session-NN`, across
-Stop/Start cycles. The cache key is `(athleteUuid, todayISO, libraryRoot)`; a new
-day, an athlete switch, or a library-root change reallocates. `NN` is
-`max(existing for today) + 1`, zero-padded to two digits.
+### The names (static; refactor step 2.1)
+
+| Function | Gives |
+|---|---|
+| `sessionFolderBase(pattern, day, athleteToken, typeLabel)` | the base before `_NN`: `date-name-type` (default, and any unknown key) `2026-06-05_Mark-Liversedge_Swing`; `date-type-name`; `name-date-type` `Mark-Liversedge_2026-06-05_Swing`; `date-only` `2026-06-05`. An empty type label is `session` |
+| `sessionFolderName(base, n)` | `<base>_NN`, at least two digits |
+| `nextSessionCounter(athleteDir, base)` | one past the highest `_NN` of that base under the athlete folder |
+| `swingFolderName(n)` / `swingNumberOf(name)` | `swing_0007` ↔ 7 (0 for a name that is not a swing folder) |
+| `swingFolders(sessionDir)` | the one `swing_*` listing of a session's swing folders |
+| `trashPath(path)` | the OS trash, or the library-local `.pinpoint-trash` on a volume without one |
+
+### Session allocation policy (moves to `SessionRepository` in step 2.2)
+
+The instance half — `allocateSwingDir`, `findTodaySessionDir`, `beginSession`, `endSession` and the
+session cache behind them — is today's allocator. Between `beginSession()` and `endSession()` the
+session's folder is fixed (E-01): a rename, midnight, or a pattern/type change keeps it; only a
+library re-pointed mid-session moves it (logged). Outside a session the folder is allocated lazily on
+the first save and cached per `(library, athleteUuid, day, base)`; `NN` is the next counter. Step 2.2
+moves this into `SessionRepository` (the folder fixed at Start, D7 for a library change) and deletes
+it here.
 
 ### Swing allocation
 
-Count of existing `swing_*` directories + 1, formatted `swing_%04d`, probed upward
-until unused (gaps and collisions are tolerated), then created with `mkpath`.
+One past the highest number the session has ever issued — the highest `swing_*` folder present or
+the recorded `.pinpoint-last-swing`, whichever is higher — formatted by `swingFolderName`, probed
+upward past any collision, then created with `mkpath`. A trashed swing records its number on the way
+out, so a deleted swing's number is never issued again (#56). The high-water file is written whole
+through the one atomic write (`src/Core/atomic_write.h`, into the existing session folder only).
 
 ### Fallbacks
 
@@ -799,7 +821,7 @@ The exporter reuses existing keys — **do not invent parallel settings**.
 | Key | Used as |
 |---|---|
 | `general/athleteLibraryPath` | Library root for `SwingPaths` |
-| `storage/sessionNamingPattern` | Composes the session-folder name (`date`/athlete/session-type tokens) in `SwingPaths::allocateSwingDir` |
+| `storage/sessionNamingPattern` | Composes the session-folder name (`date`/athlete/session-type tokens) in `SwingPaths::sessionFolderBase` |
 | `storage/videoCodec` | Factory key (`"h264"` → libx264, `"h265"` → libx265; other → h264 fallback). `FfmpegVideoEncoder` |
 | `storage/videoQuality` | CRF: `low`=28 (**default** since 23 Sept 2026, shown as "Compact"), `medium`=23 ("Standard"), `high`=18, `lossless`=0 |
 | `storage/videoContainer` | `mp4`/`mov`/`mkv` — sets the clip file extension; the muxer is guessed from it |
@@ -1034,8 +1056,8 @@ src/Export/
 ├── frame_decode.h              DemosaicPlan / frameGeometry / decodeFrame — the
 ├── frame_decode.cpp              ONE decode path, shared with the analyzer (§3)
 │
-├── swing_paths.h               SwingPaths — session/swing dir allocation + cache
-├── swing_paths.cpp             sanitise(), per-app-run session policy
+├── swing_paths.h               SwingPaths — the library's names (static) + today's
+├── swing_paths.cpp               session allocator (until step 2.2), sanitise()
 │
 ├── swing_exporter.h            SwingExportJob/Camera/Result, the stream structs,
 ├── swing_exporter.cpp            SwingExporter::run + analysisOnlyHeader(); per-camera

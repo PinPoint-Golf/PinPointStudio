@@ -20,17 +20,30 @@
 
 #include <QDate>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 
 namespace pinpoint {
 
-// Resolves and creates the on-disk layout for swing exports:
+// The library's names: the one place that COMPOSES a session or swing folder name, reads the number
+// of a `swing_NNNN` folder, and lists a session's swing folders (P7, lint A3; refactor step 2.1,
+// brief §4.2). Reading a SESSION folder's name — its date, type and `_NN` — is SessionIdentity's
+// (src/DomainModel/session_identity.h), and only for a session without a session file.
 //
 //   <athleteLibraryPath>/
 //     <athlete-name-sanitised>/          athlete level
 //       <session-folder>_NN/             session level — name per naming pattern
 //         swing_0001/                    one folder per swing
+//
+// A folder's name is a property and provenance, never an identity: a session is a SessionId, a shot a
+// ShotRef (src/Identity/identity.h).
+//
+// TWO HALVES, ONE OF THEM LEAVING. The static functions below ("Names") are what SwingPaths is for
+// and stay. The instance half (allocateSwingDir, findTodaySessionDir, beginSession, endSession and
+// the session cache behind them) is today's session allocator; it moves into SessionRepository in
+// refactor step 2.2, where the session's folder is fixed at Start and never re-resolved per shot
+// (E-01's folder half), and is deleted from here then. Until then it behaves exactly as below.
 //
 // The session-folder leaf is composed from the AppSettings sessionNamingPattern
 // (date / athlete / session-type tokens) plus a per-day uniqueness counter.
@@ -52,15 +65,34 @@ namespace pinpoint {
 // settings — the remedy the "Swings are not being saved" errors offer after a
 // share drops), the next swing goes into a new session folder under the new
 // library, with a warning naming both roots, rather than on into the old,
-// unreachable one. The session then keeps that folder.
+// unreachable one. The session then keeps that folder. (Step 2.2 replaces this
+// with D7: the session ends and a new one starts in the new library.)
 class SwingPaths {
 public:
-    struct Allocation {
-        QString swingDir;     // absolute path, created; empty on failure
-        QString sessionId;    // e.g. "2026-06-05_Mark-Liversedge_Swing_01"
-        QString swingId;      // e.g. "swing_0007"
-        int     swingIndex = 0;
-    };
+    // ── Names ──────────────────────────────────────────────────────────────
+    // Filesystem-safe token: trim, whitespace/path-hostile chars -> '-',
+    // collapse separators, truncate; "unknown" when nothing survives.
+    static QString sanitise(const QString& raw);
+
+    // The base of a new session folder's name (before its "_NN"), per the naming pattern
+    // (SET-04: "date-name-type" (the default, and any unknown key) | "date-type-name" |
+    // "name-date-type" | "date-only"). `athleteToken` is already sanitised (the athlete folder's
+    // name); `sessionTypeLabel` is the human label ("Swing", "Wrist", "GRF", "Coach"), sanitised
+    // here, "session" when empty.
+    static QString sessionFolderBase(const QString& namingPattern, const QDate& day,
+                                     const QString& athleteToken, const QString& sessionTypeLabel);
+    // "<base>_NN", the counter at least two digits: ("2026-06-05_Mark_Swing", 3) -> "…_Swing_03".
+    static QString sessionFolderName(const QString& base, int counter);
+    // One past the highest "_NN" of the "<base>_NN" folders under athleteDir (1 when there are none).
+    static int nextSessionCounter(const QString& athleteDir, const QString& base);
+
+    // "swing_0007" for 7; "" for a number below 1.
+    static QString swingFolderName(int swingNumber);
+    // The number of a "swing_NNNN" folder name; 0 when the name is not one.
+    static int swingNumberOf(const QString& folderName);
+    // THE one listing of a session's swing folders: the names of its "swing_*" sub-folders, by name.
+    // Read each one's number with swingNumberOf.
+    static QStringList swingFolders(const QString& sessionDir);
 
     // ⭐ DELETE = TRASH, AND THE VOLUME MAY NOT HAVE ONE (2 Sept 2026).  Every
     // delete in this application is a move to the OS trash, so it is
@@ -73,7 +105,17 @@ public:
     // hidden from every listing (dot-prefixed; the enumerators do not pass
     // QDir::Hidden) and as recoverable as the OS trash would have been.  `where`
     // names the destination for the log.
+    // (Stays with the names; step 2.3 adds the athlete case, §3.6.)
     static bool trashPath(const QString& path, QString* where = nullptr);
+
+    // ── The session allocator (moves to SessionRepository in step 2.2) ─────
+    struct Allocation {
+        QString swingDir;     // absolute path, created; empty on failure
+        QString sessionId;    // the session FOLDER's name, e.g. "2026-06-05_Mark-Liversedge_Swing_01":
+                              // provenance only, never a key (ID-SESSION; the SessionId is the key)
+        QString swingId;      // the swing folder's name, e.g. "swing_0007"
+        int     swingIndex = 0;   // its swing number
+    };
 
     // Allocates (and creates) the next swing directory.  libraryRoot may be
     // empty — falls back to <AppDataLocation>/swings with a warning.
@@ -132,10 +174,6 @@ public:
     // Discarding is for tidying away a folder this session made and left empty;
     // it was never a licence to delete work that was already there.
     void endSession(bool discardIfNoNewSwings);
-
-    // Filesystem-safe token: trim, whitespace/path-hostile chars -> '-',
-    // collapse separators, truncate; "unknown" when nothing survives.
-    static QString sanitise(const QString& raw);
 
     // True from beginSession() until endSession() — the session folder is then fixed.
     bool sessionOpen() const { return m_sessionOpen; }

@@ -615,6 +615,27 @@ pp_add_test(swing_paths_test
     INCLUDE ${SRC}/Export ${SRC}/Export/tests ${SRC}/Core
     AUTOMOC)
 
+# --- The identity types and SessionIdentity (refactor step 2.1) ---------------
+# identity_test: AthleteId, SessionId, ShotRef (src/Identity/identity.h, header-only Q_GADGETs; the
+# header is listed so AUTOMOC makes their metaobjects): round trips of their own text, no constructor
+# from a path or folder name (static_asserts), hashing, order, QVariant.
+pp_add_test(identity_test
+    SOURCES ${SRC}/Identity/tests/identity_test.cpp
+            ${SRC}/Identity/identity.h
+    INCLUDE ${SRC}/Identity
+    AUTOMOC)
+# session_identity_test: a legacy folder's name read under every naming pattern (against the names
+# SwingPaths composes), D3's name-based id against Python's uuid5, n-of-day by start time.
+pp_add_test(session_identity_test
+    SOURCES ${SRC}/DomainModel/tests/session_identity_test.cpp
+            ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/DomainModel ${SRC}/Export ${SRC}/Core
+    AUTOMOC)
+
 # --- Orientation filters (Phase 0.4): Madgwick (header-only) + ESKF (Eigen) ---
 # The ESKF .cpp pulls the vendored imu_ekf headers through the Arduino-style
 # <Eigen.h>/<Wire.h> shims in imu_ekf_compat (which MUST precede imu_ekf on the

@@ -134,6 +134,7 @@ const QVector<QPair<QString, int>> &dirRings()
     static const QVector<QPair<QString, int>> t{
         { QStringLiteral("Metrics/"), Vocabulary },
         { QStringLiteral("Recording/"), Vocabulary },     // the Recording contract's types (step 1, IM-6)
+        { QStringLiteral("Identity/"), Vocabulary },      // AthleteId, SessionId, ShotRef (step 2.1; D1, DEC-148)
         { QStringLiteral("Core/"), Vocabulary },          // device / logging files below
         { QStringLiteral("Pose/"), Rules },
         { QStringLiteral("Club/"), Rules },

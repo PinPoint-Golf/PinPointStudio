@@ -871,6 +871,72 @@ static void testSessionKeepsItsFolder()
     }
 }
 
+// ---------------------------------------------------------------------------
+// M — the names (refactor step 2.1): SwingPaths is the one composer of a
+// session or swing folder's name and the one reader of a swing folder's number
+// ---------------------------------------------------------------------------
+
+static void testNames()
+{
+    std::printf("\nM — the names\n");
+
+    const QDate day(2026, 6, 5);
+    // The documented token orders, spelled out here from the header, not read back.
+    checkEq(QStringLiteral("M1 date-name-type base"),
+            SwingPaths::sessionFolderBase(QStringLiteral("date-name-type"), day, kToken, kType),
+            QStringLiteral("2026-06-05_Mark-Liversedge_Swing"));
+    checkEq(QStringLiteral("M2 date-type-name base"),
+            SwingPaths::sessionFolderBase(QStringLiteral("date-type-name"), day, kToken, kType),
+            QStringLiteral("2026-06-05_Swing_Mark-Liversedge"));
+    checkEq(QStringLiteral("M3 name-date-type base"),
+            SwingPaths::sessionFolderBase(QStringLiteral("name-date-type"), day, kToken, kType),
+            QStringLiteral("Mark-Liversedge_2026-06-05_Swing"));
+    checkEq(QStringLiteral("M4 date-only base"),
+            SwingPaths::sessionFolderBase(QStringLiteral("date-only"), day, kToken, kType),
+            QStringLiteral("2026-06-05"));
+    checkEq(QStringLiteral("M5 an unknown pattern key is the default"),
+            SwingPaths::sessionFolderBase(QStringLiteral("no-such-pattern"), day, kToken, kType),
+            QStringLiteral("2026-06-05_Mark-Liversedge_Swing"));
+    checkEq(QStringLiteral("M6 no session type says \"session\""),
+            SwingPaths::sessionFolderBase(QStringLiteral("date-name-type"), day, kToken, QString()),
+            QStringLiteral("2026-06-05_Mark-Liversedge_session"));
+    checkEq(QStringLiteral("M7 the counter has at least two digits"),
+            SwingPaths::sessionFolderName(QStringLiteral("b"), 3), QStringLiteral("b_03"));
+    checkEq(QStringLiteral("M8 …and more when it needs them"),
+            SwingPaths::sessionFolderName(QStringLiteral("b"), 123), QStringLiteral("b_123"));
+
+    checkEq(QStringLiteral("M9 swing 7's folder"), SwingPaths::swingFolderName(7), QStringLiteral("swing_0007"));
+    checkEq(QStringLiteral("M10 swing 12345's folder"), SwingPaths::swingFolderName(12345), QStringLiteral("swing_12345"));
+    check(QStringLiteral("M11 no folder for swing 0 or below"),
+          SwingPaths::swingFolderName(0).isEmpty() && SwingPaths::swingFolderName(-1).isEmpty());
+    checkEqInt(QStringLiteral("M12 the number of swing_0007"), SwingPaths::swingNumberOf(QStringLiteral("swing_0007")), 7);
+    checkEqInt(QStringLiteral("M13 a name and its number round-trip"),
+               SwingPaths::swingNumberOf(SwingPaths::swingFolderName(42)), 42);
+    check(QStringLiteral("M14 names that are not a swing folder have no number"),
+          SwingPaths::swingNumberOf(QStringLiteral("swing_")) == 0
+              && SwingPaths::swingNumberOf(QStringLiteral("swing_abc")) == 0
+              && SwingPaths::swingNumberOf(QStringLiteral("swing_0000")) == 0
+              && SwingPaths::swingNumberOf(QStringLiteral("2026-06-05_Mark_Swing_07")) == 0
+              && SwingPaths::swingNumberOf(QString()) == 0);
+
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("M15–M17"), QStringLiteral("no temp dir")); return; }
+    const QString session = lib.root() + QStringLiteral("/") + kToken + QStringLiteral("/s_01");
+    QDir().mkpath(session + QStringLiteral("/swing_0002"));
+    QDir().mkpath(session + QStringLiteral("/swing_0001"));
+    QDir().mkpath(session + QStringLiteral("/notes"));
+    QFile f(session + QStringLiteral("/swing_0003"));   // a FILE of that name is not a swing folder
+    check(QStringLiteral("M15 (setup) a file named swing_0003"), f.open(QIODevice::WriteOnly));
+    f.close();
+    const QStringList got = SwingPaths::swingFolders(session);
+    checkEq(QStringLiteral("M15 the session's swing folders, by name, and nothing else"),
+            got.join(QLatin1Char(',')), QStringLiteral("swing_0001,swing_0002"));
+    check(QStringLiteral("M16 a missing session folder has none"),
+          SwingPaths::swingFolders(session + QStringLiteral("/gone")).isEmpty());
+    checkEqInt(QStringLiteral("M17 the next counter is one past the highest _NN of that base"),
+               SwingPaths::nextSessionCounter(lib.root() + QStringLiteral("/") + kToken, QStringLiteral("s")), 2);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QStandardPaths / QTemporaryDir
@@ -883,6 +949,7 @@ int main(int argc, char **argv)
     testEndSession();
     testTrashPath();
     testSessionKeepsItsFolder();
+    testNames();
     std::printf("\n%d checks, %d failed, %d skipped\n", g_run, g_fail, g_skip);
     return g_fail == 0 ? 0 : 1;
 }
