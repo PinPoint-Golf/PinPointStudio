@@ -1336,6 +1336,7 @@ pp_add_test(diagnostics_catalogue_integrity_test
     SOURCES ${DIAG}/tests/diagnostics_catalogue_integrity_test.cpp ${DIAG_PACK}
             ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/reference_pack.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
+            ${SRC}/Export/swing_paths.cpp   # the model browser's library scans list swings through SwingPaths (step 2.7b)
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/norms/corridor_plot.cpp
             ${DIAG}/packs/memory_pack_provider.cpp ${DIAG}/norms/memory_norm_provider.cpp
             # The model's health list spans the norm set now, and its corpus check reads phase grids.
@@ -2073,6 +2074,7 @@ set_tests_properties(manifest_migration_test PROPERTIES
 pp_add_test(model_browser_test
     SOURCES ${DIAG}/tests/model_browser_test.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
+            ${SRC}/Export/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp
@@ -2105,6 +2107,7 @@ set_tests_properties(model_browser_test PROPERTIES
 pp_add_test(inspector_refresh_test
     SOURCES ${DIAG}/tests/inspector_refresh_test.cpp
             ${SRC}/Gui/diagnosticmodel/model_browser.cpp
+            ${SRC}/Export/swing_paths.cpp   # the library scans list swings through SwingPaths (step 2.7b)
             ${DIAG}/norms/corridor_plot.cpp ${DIAG}/measures/measure_sample.cpp
             ${DIAG}/engine/dag_layout.cpp ${DIAG}/engine/diagnostics_health.cpp
             ${DIAG}/packs/drill_pack.cpp ${DIAG}/packs/gate_words_pack.cpp ${DIAG}/packs/screen_pack.cpp ${DIAG}/packs/reference_pack.cpp

@@ -431,7 +431,13 @@ private slots:
             const QVariantMap m = v.toMap();
             QVERIFY(!m.value(QStringLiteral("session")).toString().startsWith(QStringLiteral("2026-10-21")));
             if (m.value(QStringLiteral("thisSession")).toBool()) ++mine;
-            else { ++theirs; QCOMPARE(m.value(QStringLiteral("session")).toString(), QStringLiteral("2026-10-20_Golfer_Wrist_02")); }
+            else {
+                ++theirs;
+                QCOMPARE(m.value(QStringLiteral("session")).toString(), QStringLiteral("2026-10-20_Golfer_Wrist_02"));
+                // named by its place in the day (SessionIdentity's n-of-day, step 2.7b), numbered by its swing folder
+                QCOMPARE(m.value(QStringLiteral("sessionLabel")).toString(), QStringLiteral("session 2"));
+                QCOMPARE(m.value(QStringLiteral("shotNo")).toInt(), m.value(QStringLiteral("ordinal")).toInt());
+            }
             if (m.value(QStringLiteral("picked")).toBool()) { ++picked; QVERIFY(m.value(QStringLiteral("thisSession")).toBool()); }
         }
         QCOMPARE(mine, 6);
@@ -483,6 +489,73 @@ private slots:
         p.setPickedSwingDir(snap->shots[2]->swingDir);
         QCOMPARE(nOf(p.thisShot()), 13);
         QCOMPARE(reportN(), 13);
+    }
+
+    // THE DAY UNDER EVERY NAMING PATTERN, AND "SHOT N" AFTER A GAP (step 2.7b, audit F-06 and E-06). The golfer's day is
+    // SessionIdentity's: under `name-date-type` no folder starts with its date, so the day used to be empty (no pool, the
+    // fit refused on six shots); now the sibling is pooled and named "session 2". This session lost swing 4 to the trash:
+    // its six shots are swings 1–3 and 5–7, and the kicker names the picked one by its swing number.
+    void golfersDayNameDateType()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString golfer = tmp.filePath(QStringLiteral("Golfer"));
+        const QString cur = golfer + QStringLiteral("/Golfer_2026-10-20_Wrist_02");
+        const QString sib = golfer + QStringLiteral("/Golfer_2026-10-20_Wrist_01");
+        const QString other = golfer + QStringLiteral("/Golfer_2026-10-21_Wrist_01");
+        const auto writeGrid = [](const QString &session, int folder, int i) {
+            const QString dir = session + QStringLiteral("/swing_%1").arg(folder, 4, 10, QLatin1Char('0'));
+            QDir().mkpath(dir);
+            pinpoint::analysis::SwingPhaseGrid g = deliveryPhaseGridOf(*makeShot(i));
+            g.sessionId = QFileInfo(session).fileName();
+            g.ordinal = folder;
+            QFile f(dir + QStringLiteral("/swing_phasegrid.json"));
+            if (!f.open(QIODevice::WriteOnly)) return false;
+            f.write(QJsonDocument(pinpoint::analysis::savePhaseGrid(g, 1234, 5678)).toJson(QJsonDocument::Compact));
+            return true;
+        };
+        QVERIFY(QDir().mkpath(cur));
+        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(sib, k, 6 + k));
+        for (int k = 1; k <= 8; ++k) QVERIFY(writeGrid(other, k, k));      // another date: never pooled
+
+        auto snap = std::make_shared<SessionSnapshot>();
+        snap->sessionDir = cur;
+        for (int i = 1; i <= 6; ++i) {
+            auto s = makeShot(i);
+            s->shotId = i < 4 ? i : i + 1;                                  // swing 4 trashed
+            s->swingDir = cur + QStringLiteral("/swing_%1").arg(s->shotId, 4, 10, QLatin1Char('0'));
+            snap->shots.push_back(s);
+        }
+        ChartsDeliveryPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(snap);
+        p.setPickedSwingDir(snap->shots[5]->swingDir);
+        const QVariantMap t = p.thisShot();
+        QCOMPARE(t.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 7 · 6 of 6  ·  7 iron  ·  Club delivery"));
+        const QVariantMap flight = t.value(QStringLiteral("flight")).toMap();
+        QCOMPARE(flight.value(QStringLiteral("fit")).toMap().value(QStringLiteral("n")).toInt(), 14);
+        const QVariantMap pool = flight.value(QStringLiteral("pool")).toMap();
+        QCOMPARE(pool.value(QStringLiteral("date")).toString(), QStringLiteral("2026-10-20"));
+        QCOMPARE(pool.value(QStringLiteral("sessions")).toInt(), 2);
+        int theirs = 0;
+        for (const QVariant &v : flight.value(QStringLiteral("scatter")).toMap().value(QStringLiteral("points")).toList()) {
+            const QVariantMap m = v.toMap();
+            if (m.value(QStringLiteral("thisSession")).toBool()) {
+                QVERIFY(m.value(QStringLiteral("sessionLabel")).toString().isEmpty());
+                const int ord = m.value(QStringLiteral("ordinal")).toInt();
+                QCOMPARE(m.value(QStringLiteral("shotNo")).toInt(), ord < 4 ? ord : ord + 1);   // the swing number
+                continue;
+            }
+            ++theirs;
+            QCOMPARE(m.value(QStringLiteral("session")).toString(), QStringLiteral("Golfer_2026-10-20_Wrist_01"));
+            QCOMPARE(m.value(QStringLiteral("sessionLabel")).toString(), QStringLiteral("session 1"));   // first in the day
+        }
+        QCOMPARE(theirs, 8);
+        // the shape grid's marks carry the number their label prints
+        const QVariantList marks = p.session().value(QStringLiteral("shapes")).toMap().value(QStringLiteral("marks")).toList();
+        QCOMPARE(marks.size(), 6);
+        QCOMPARE(marks[3].toMap().value(QStringLiteral("ordinal")).toInt(), 4);
+        QCOMPARE(marks[3].toMap().value(QStringLiteral("shotNo")).toInt(), 5);
     }
 
     // A COPIED DAY (issue #174). macOS's rsync -a (openrsync) keeps each swing document's mtime to the whole second while its

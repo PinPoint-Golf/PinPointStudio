@@ -36,20 +36,6 @@ Gui/trust/PpTrustSummaryFold.qml | A2 | 2 | a trust view creates its own Session
 Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
-# ── A3 folder-name parsing outside SwingPaths / SessionIdentity ──
-Gui/charts/charts_delivery_presenter.cpp | A3 | 3 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_posture_presenter.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_traces_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_wrist_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/session_series_model.cpp | A3 | 2 | reads a swing/session folder name itself (the shot number after the last '_', a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnosticmodel/model_browser.cpp | A3 | 2 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/launchmonitor/launch_monitor_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the shot number after the last '_'); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/report_meta.h | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/session_report_list_model.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/session_report_model.cpp | A3 | 5 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/review/session_review_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/swing3d/swing_rig_driver.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-
 # ── A4 session/athlete file names outside their owner ──
 Gui/charts/charts_posture_presenter.cpp | A4 | 2 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
 Gui/charts/session_series_model.cpp | A4 | 1 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2

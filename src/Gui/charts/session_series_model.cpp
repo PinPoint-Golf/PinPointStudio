@@ -28,6 +28,7 @@
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
 #include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Kinematics/kinematic_sequence_json.h"  // retimeKinematicSequence — one shape, four paths
 #include "session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
@@ -41,6 +42,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QLocale>
 #include <QMetaObject>
 #include <QMutexLocker>
 
@@ -196,12 +198,21 @@ qint64 SessionSeriesModel::relUs(const QJsonValue &v, qint64 originUs)
 
 int SessionSeriesModel::folderShotId(const QString &swingDir)
 {
-    const QString name = QFileInfo(QDir::cleanPath(swingDir)).fileName();
-    const int us = name.lastIndexOf(QLatin1Char('_'));
-    if (us < 0) return -1;
-    bool ok = false;
-    const int id = name.mid(us + 1).toInt(&ok);
-    return (ok && id >= 0) ? id : -1;
+    // The swing number (ID-SWING-NUMBER, DEC-91), read by SwingPaths — the one reader of a swing folder's
+    // name (step 2.7b, lint A3), as the diagnostics model reads it (step 2.7a).
+    const int n = pinpoint::SwingPaths::swingNumberOf(QFileInfo(QDir::cleanPath(swingDir)).fileName());
+    return n > 0 ? n : -1;
+}
+
+QString SessionSeriesModel::swingLabelOf(const QString &swingDir)
+{
+    const int id = folderShotId(swingDir);
+    const QDate d = swingDir.isEmpty() ? QDate()
+                  : pinpoint::SessionDiagnosticsFiles::identityOf(QFileInfo(QDir::cleanPath(swingDir)).absolutePath()).localDay();
+    QStringList parts;
+    if (id >= 0) parts << QStringLiteral("shot %1").arg(id);
+    if (d.isValid()) parts << QLocale(QLocale::English).toString(d, QStringLiteral("d MMM yyyy"));
+    return parts.join(QStringLiteral(", "));
 }
 
 std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &root,
@@ -620,9 +631,8 @@ SessionSeriesModel::Result SessionSeriesModel::runJob(const Job &job)
         shared().recent.prepend(job.dir);
         while (shared().recent.size() > 2) shared().recent.removeLast();
         evictOtherSessions();
-        // The carousel's own enumeration (SwingDocReader::findSwingDirs): swing_* by name.
-        const QStringList names = QDir(job.dir).entryList(QStringList{ QStringLiteral("swing_*") },
-                                                          QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        // The carousel's own enumeration: THE one listing of a session's swings (SwingPaths, step 2.7b).
+        const QStringList names = pinpoint::SwingPaths::swingFolders(job.dir);
         for (const QString &n : names) m_wDirs << job.dir + QLatin1Char('/') + n;
         for (const QString &d : std::as_const(m_wDirs)) ensureShot(d, false);
         readLedgerIfChanged();

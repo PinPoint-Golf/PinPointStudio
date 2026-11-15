@@ -337,6 +337,24 @@ int main(int argc, char **argv)
     check(QStringLiteral("G1 no ball block, no numbers, no carry row"), !none.has() && report::lmBallBlock(none).isNull()
               && report::lmNumbersBlock(none, true, {}, 0).isNull() && report::lmGridCarry(none).isEmpty() && report::lmAppendixBlock(none, {}).isNull());
 
+    // I — the report numbers a swing by its swing number (step 2.7b, audit E-06/F-07): after a gap (swing 4 trashed, so the
+    // seven swings are 1–3 and 5–8) the left-out swing, the table's rows and the notes say the number on its card.
+    std::printf("\nI — the swing number after a gap\n");
+    {
+        const report::LmFigures g = report::lmFiguresOf(bs, dirs, ledgerClubs, QStringLiteral("GC Quad"), false, { 1, 2, 3, 5, 6, 7, 8 });
+        check(QStringLiteral("I1 each swing carries its swing number"), g.N() == 7 && g.swings[2].number == 3 && g.swings[3].number == 5
+                                                                           && g.swings[6].number == 8);
+        check(QStringLiteral("I2 the left-out swing is swing 7, the 6th"), g.leftOut == QList<int>{ 7 });
+        const QVariantList gr = report::lmNumbersBlock(g, true, {}, 0).toMap().value(QStringLiteral("rows")).toList();
+        auto gcell = [&](int row, int col) { return gr.value(row).toMap().value(QStringLiteral("cells")).toStringList().value(col); };
+        checkStr(QStringLiteral("I3 the 4th row is swing 5"), gcell(3, 0), QStringLiteral("5"));
+        checkStr(QStringLiteral("I4 the left-out row is swing 7"), gcell(5, 0), QStringLiteral("7 out"));
+        check(QStringLiteral("I5 the cover's note names swing 7"),
+              report::lmBallBlock(g).toMap().value(QStringLiteral("note")).toString().contains(QLatin1String("Swing 7 is left out")));
+        const report::LmFigures plain = report::lmFiguresOf(bs, dirs, ledgerClubs, QStringLiteral("GC Quad"), false);
+        check(QStringLiteral("I6 without numbers: 1..N, as before"), plain.swings[3].number == 4 && plain.leftOut == QList<int>{ 6 });
+    }
+
     board.setShotModel(nullptr);
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

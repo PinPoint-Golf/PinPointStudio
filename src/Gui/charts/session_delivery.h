@@ -165,6 +165,8 @@ struct DeliveryShotInput {
     int     shotId  = -1;
     QString swingDir, club;
     QString session;                                  // the session folder's name ("2026-10-20_Jess-Ratcliffe_Wrist_02")
+    int     sessionOfDay = 0;                         // its session's place in the golfer's day (SessionIdentity's n-of-day,
+                                                      // by start time: step 2.7b); 0 unknown
     bool    thisSession = true;                       // false: another session of the golfer's day (decision 13)
     bool    leftHanded = false;                       // the words mirror (§4.6); the snapshot carries none today
 

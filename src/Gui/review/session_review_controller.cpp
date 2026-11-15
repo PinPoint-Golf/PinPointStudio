@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include "../../Export/swing_paths.h"
+#include "../../Export/session_diagnostics_files.h"   // SessionIdentity of a folder (step 2.7b)
 #include "../../Export/session_archiver.h"
 #include <QTime>
 #include <QTimer>
@@ -180,17 +181,19 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
         // indexes the session and the next refresh fills in the rest.
         row.shotCount = swingDirs.size();
         if (row.dayLabel.isEmpty()) {
-            // Prefer the date the session folder is named for. The dir's mtime is its LAST
-            // write (the final swing), while an indexed row's dayLabel comes from the
-            // EARLIEST shot — those disagree across midnight, and the label would then
-            // change as the session finished indexing. The naming pattern is
-            // user-configurable, so fall back to the mtime when there is no leading date.
-            const QDate named =
-                QDate::fromString(QFileInfo(sessionDir).fileName().left(10),
-                                  QStringLiteral("yyyy-MM-dd"));
+            // Prefer the session's own start time, else its day: SessionIdentity's (step 2.7b,
+            // F-06) — the session file's start, or for a session older than step 2 the day its
+            // folder's name records, under every naming pattern (it was read here as the name's
+            // first ten characters, which `name-date-type` never starts with). The dir's mtime is
+            // its LAST write (the final swing), while an indexed row's dayLabel comes from the
+            // EARLIEST shot — those disagree across midnight, and the label would then change as
+            // the session finished indexing; so the mtime only when neither is known.
+            const pinpoint::SessionIdentity id =
+                pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir);
             const qint64 anchorMs =
-                named.isValid() ? QDateTime(named, QTime(0, 0)).toMSecsSinceEpoch()
-                                : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
+                id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
+                : id.localDay().isValid()   ? QDateTime(id.localDay(), QTime(0, 0)).toMSecsSinceEpoch()
+                                            : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
             row.dayLabel = pinpoint::relativeDayLabel(anchorMs, nowMs);
             // Leave timeLabel blank: the drawer renders "day · time" only when time is
             // non-empty, so an unknown fact reads honestly instead of showing a dir mtime

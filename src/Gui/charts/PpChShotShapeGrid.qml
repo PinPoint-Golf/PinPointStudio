@@ -115,8 +115,10 @@ Column {
                                 anchors.fill: parent; anchors.margins: -3
                                 hoverEnabled: true; enabled: gr.interactive
                                 cursorShape: Qt.PointingHandCursor
-                                onContainsMouseChanged: gr.hoverText = containsMouse ? "Shot " + dt.modelData.ordinal + "  " + (dt.modelData.word || "")
-                                                                                     : (gr.hoverText.indexOf("Shot " + dt.modelData.ordinal + " ") === 0 ? "" : gr.hoverText)
+                                // "Shot N" is the swing number (modelData.shotNo, step 2.7b); the click still names the shot by its ordinal
+                                readonly property int shotNo: dt.modelData.shotNo || dt.modelData.ordinal
+                                onContainsMouseChanged: gr.hoverText = containsMouse ? "Shot " + shotNo + "  " + (dt.modelData.word || "")
+                                                                                     : (gr.hoverText.indexOf("Shot " + shotNo + " ") === 0 ? "" : gr.hoverText)
                                 onClicked: gr.shotActivated(dt.modelData.ordinal)
                             }
                         }

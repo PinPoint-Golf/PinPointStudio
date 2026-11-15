@@ -104,6 +104,10 @@ public:
     // The current athlete's folder (D4: where its athlete.json is found; a settings athlete's: today's
     // derivation), "" when none. What the work-ons, the report list and the carousel follow.
     QString                currentFolder() const { return m_current ? m_current->folder() : QString(); }
+    // Any athlete's folder, by its uuid, through its Athlete (D4) — so a RENAMED athlete is still found in the
+    // folder it has always had, never in one derived from its name (J-29; step 2.7b: the session report). "" when
+    // there is no such athlete.
+    QString                folderOf(const QString &uuid) const;
     // Who the current athlete's sessions belong to, as SessionRepository takes it (capture's session
     // folder, through capture::athleteIdentity).
     pinpoint::SessionOwner currentSessionOwner() const;

@@ -42,6 +42,7 @@
 
 #include "../../Core/atomic_write.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
 
 #include <QCryptographicHash>
 #include <QDate>
@@ -110,8 +111,7 @@ inline QString reportFileName(const QDate &sessionDate, const QString &golferNam
 inline QByteArray swingsIdentity(const QString &sessionDir)
 {
     const QDir d(sessionDir);
-    const QStringList swings = d.entryList(QStringList{ QStringLiteral("swing_*") },
-                                           QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
     QByteArray out;
     for (const QString &name : swings) {
         const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(d.filePath(name));

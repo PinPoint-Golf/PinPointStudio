@@ -57,6 +57,7 @@
 //    trust: [string] (≤ kDeliveryReportTrustCap), trustMore ("" | "N more") }
 #include "../charts/session_delivery.h"   // kDeliverySessionBandShots: the band's floor, the screen's own
 
+#include "report_swing_no.h"   // a swing's number: the swing number, never a rank (step 2.7b)
 #include <QDir>
 #include <QHash>
 #include <QString>
@@ -93,8 +94,7 @@ inline QVariant deliveryReportBlock(const QVariantMap &payload, const QHash<QStr
     if (payload.value(QStringLiteral("planeShots")).toInt() <= 0) return none;
     const auto fin = [](const QVariant &v) { return !v.isNull() && v.isValid() && std::isfinite(v.toDouble()); };
     const auto swingOf = [&](const QVariantMap &m) {
-        const QString dir = QDir::cleanPath(m.value(QStringLiteral("swingDir")).toString());
-        return swingNoOfDir.value(dir, m.value(QStringLiteral("ordinal")).toInt());
+        return reportSwingNo(swingNoOfDir, m);
     };
 
     QVariantMap out;

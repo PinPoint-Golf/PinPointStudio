@@ -584,6 +584,11 @@ struct Ctx {
     // A shot's own ordinal from its 1-based position in S (identity in a session; not in a club's subset).
     int ord(int pos) const { return pos >= 1 && pos <= int(S.shots.size()) ? S.shots[size_t(pos - 1)]->ordinal : pos; }
     std::vector<int> ords(const std::vector<int> &pos) const { std::vector<int> o; for (int p : pos) o.push_back(ord(p)); return o; }
+    // The swing number of the shot at 1-based position `pos` in S: what "shot N" prints (step 2.7b, words::shotNumber).
+    int no(int pos) const
+    {
+        return pos >= 1 && pos <= int(S.shots.size()) ? words::shotNumber(S.shots[size_t(pos - 1)]->shotId, S.shots[size_t(pos - 1)]->ordinal) : pos;
+    }
 
     const SessionReading &r(int i) const { return c.readings[size_t(i)]; }
     const ReadingMeta &m(int i) const { return c.meta[size_t(i)]; }
@@ -1038,7 +1043,7 @@ QString cannotCompare(const Ctx &x, bool swingOnly)
                                  : QStringLiteral("This shot has no camera or launch-monitor readings to compare.");
     const QString &club = in.shots[size_t(x.pick)].club;
     const int sameClub = int(std::count_if(in.shots.begin(), in.shots.end(), [&](const ConsistencyShot &s) { return s.club == club; }));
-    const int ordinal = in.shots[size_t(x.pick)].ordinal;
+    const int ordinal = words::shotNumber(in.shots[size_t(x.pick)].shotId, in.shots[size_t(x.pick)].ordinal);   // "shot N" = the swing number
     if (sameClub < kConsistencyMinClubShots) return QStringLiteral("There are too few shots with this club to set shot %1 against them.").arg(ordinal);
     return QStringLiteral("There are too few shots in the session to set shot %1 against them.").arg(ordinal);
 }
@@ -1140,8 +1145,8 @@ QVariantMap traceMap(const Ctx &x, const SessionReading &r, TraceCurve *keep)
     if (keep) *keep = c;
     return { { QStringLiteral("readingId"), r.id }, { QStringLiteral("key"), r.key }, { QStringLiteral("label"), r.label },
              { QStringLiteral("tag"), x.v.tag(r.phase) }, { QStringLiteral("unit"), r.unit }, { QStringLiteral("unitText"), unitText(r.unit) },
-             { QStringLiteral("caption"), instants.isEmpty() ? QStringLiteral("%1, shot %2").arg(r.label).arg(s.ordinal)
-                                                             : QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(s.ordinal).arg(x.n) },
+             { QStringLiteral("caption"), instants.isEmpty() ? QStringLiteral("%1, shot %2").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal))
+                                                             : QStringLiteral("%1, shot %2; at each P-position a box of all %3 shots").arg(r.label).arg(words::shotNumber(s.shotId, s.ordinal)).arg(x.n) },
              { QStringLiteral("window"), QVariantMap{ { QStringLiteral("t0"), t0 }, { QStringLiteral("t1"), t1 } } },
              { QStringLiteral("yRange"), rangeMap(ylo - pad, yhi + pad) },
              { QStringLiteral("curve"), QVariantMap{ { QStringLiteral("t"), tt }, { QStringLiteral("v"), vv }, { QStringLiteral("raw"), rr }, { QStringLiteral("ok"), ok } } },
@@ -1403,7 +1408,7 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
         return m;
     }
     const ShotSeries &ps = *x.S.shots[size_t(x.pick)];
-    m.insert(QStringLiteral("kicker"), QStringLiteral("Shot %1 of %2").arg(ps.ordinal).arg(x.n)
+    m.insert(QStringLiteral("kicker"), words::shotOfText(ps.shotId, ps.ordinal, x.n)
                                        + (ps.club.isEmpty() ? QString() : QStringLiteral("  ·  ") + ps.club.toLower()));
     m.insert(QStringLiteral("keyFigures"), keyFiguresMap(x, fam));
     // the family's lead reading on this shot — this shot's own, so published at any n
@@ -1439,13 +1444,13 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
     m.insert(QStringLiteral("apart"), apart);
     m.insert(QStringLiteral("head"), (na ? Sentence().append(words::cap1(words::word(na)) + (na == 1 ? QStringLiteral(" reading") : QStringLiteral(" readings"))
                                                              + QStringLiteral(" apart from the session"))
-                                         : !cannot.isEmpty() ? Sentence().append(QStringLiteral("Shot %1 cannot be compared").arg(ps.ordinal))
-                                                             : Sentence().append(QStringLiteral("Nothing stood out on shot %1").arg(ps.ordinal))).toVariant());
+                                         : !cannot.isEmpty() ? Sentence().append(QStringLiteral("Shot %1 cannot be compared").arg(words::shotNumber(ps.shotId, ps.ordinal)))
+                                                             : Sentence().append(QStringLiteral("Nothing stood out on shot %1").arg(words::shotNumber(ps.shotId, ps.ordinal)))).toVariant());
     Sentence st;
     if (!cannot.isEmpty()) st.append(cannot);
-    else if (!na) st.append(QStringLiteral("Set against the other shots, club for club, nothing on shot %1 stood out.").arg(ps.ordinal));
+    else if (!na) st.append(QStringLiteral("Set against the other shots, club for club, nothing on shot %1 stood out.").arg(words::shotNumber(ps.shotId, ps.ordinal)));
     else {
-        st.append(QStringLiteral("Set against the other shots, club for club, shot %1 stood out on ").arg(ps.ordinal));
+        st.append(QStringLiteral("Set against the other shots, club for club, shot %1 stood out on ").arg(words::shotNumber(ps.shotId, ps.ordinal)));
         if (na == 1) st.append(QStringLiteral("one reading: ") + ap[0].words + QStringLiteral("."));
         else st.append(words::word(na) + QStringLiteral(" readings, starting with ") + ap[0].words + QStringLiteral("."));
     }
@@ -1502,8 +1507,8 @@ QVariantMap thisShotMap(const Ctx &x, const Cache::Family *fam, Output *out)
                                  { QStringLiteral("answer"), QStringLiteral("Relations opens on it.") }, { QStringLiteral("lit"), QVariantList{} },
                                  { QStringLiteral("go"), QStringLiteral("relations") }, { QStringLiteral("upId"), x.r(ap[0].reading).id } });
     if (x.c.kinds.method != KindsMethod::None)
-        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("kind") }, { QStringLiteral("text"), QStringLiteral("Shot %1: which kind of swing was it?").arg(ps.ordinal) },
-                                 { QStringLiteral("answer"), QStringLiteral("Kinds opens with shot %1 marked.").arg(ps.ordinal) },
+        asks.append(QVariantMap{ { QStringLiteral("id"), QStringLiteral("kind") }, { QStringLiteral("text"), QStringLiteral("Shot %1: which kind of swing was it?").arg(words::shotNumber(ps.shotId, ps.ordinal)) },
+                                 { QStringLiteral("answer"), QStringLiteral("Kinds opens with shot %1 marked.").arg(words::shotNumber(ps.shotId, ps.ordinal)) },
                                  { QStringLiteral("lit"), QVariantList{ ps.ordinal } }, { QStringLiteral("go"), QStringLiteral("kinds") }, { QStringLiteral("upId"), QString() } });
     m.insert(QStringLiteral("asks"), asks);
     return m;
@@ -1718,7 +1723,7 @@ QVariantMap relationsMap(Ctx &x, const QString &upWanted, const QString &acrossW
             kind = QStringLiteral("half"); name = QStringLiteral("Session half");
             for (const FacetGroup &g : h.groups)
                 if (!g.ordinals.empty())
-                    panels.push_back({ QStringLiteral("Shots %1 to %2").arg(g.ordinals.front()).arg(g.ordinals.back()), g.ordinals });
+                    panels.push_back({ QStringLiteral("Shots %1 to %2").arg(x.no(g.ordinals.front())).arg(x.no(g.ordinals.back())), g.ordinals });
             fs.append(QStringLiteral("The first and second halves of the session. "));
         } else if (facetWanted == QLatin1String("club") && club) {
             kind = QStringLiteral("club"); name = QStringLiteral("Club");
@@ -2050,13 +2055,13 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
         const bool inB = std::find(k.groupB.begin(), k.groupB.end(), o) != k.groupB.end();
         if (inA || inB) {
             pickedKind = inA ? nm[0] : nm[1];
-            const QString ps = QStringLiteral("Shot %1 is one of the %2%3.").arg(x.ord(o)).arg(words::word(inA ? nA : nB))
+            const QString ps = QStringLiteral("Shot %1 is one of the %2%3.").arg(x.no(o)).arg(words::word(inA ? nA : nB))
                                .arg(km ? QStringLiteral(" in ") + pickedKind : QLatin1Char(' ') + pickedKind.toLower());
             st.append(ps);
             m.insert(QStringLiteral("pickedSentence"), ps);
         } else if (std::find(missing.begin(), missing.end(), o) != missing.end()) {
-            const QString ps = km ? QStringLiteral("Shot %1 could not be grouped.").arg(x.ord(o))
-                                  : QStringLiteral("Shot %1 has no %2, so it is in neither.").arg(x.ord(o)).arg(x.readingText(k.splitReading));
+            const QString ps = km ? QStringLiteral("Shot %1 could not be grouped.").arg(x.no(o))
+                                  : QStringLiteral("Shot %1 has no %2, so it is in neither.").arg(x.no(o)).arg(x.readingText(k.splitReading));
             st.append(ps);
             m.insert(QStringLiteral("pickedSentence"), ps);
         }
@@ -2074,7 +2079,7 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
         QVariantList members;
         for (int o : *gs[g]) { QVariantMap mk = x.shotMark(o - 1); mk.insert(QStringLiteral("picked"), o - 1 == x.pick); members.append(mk); }
         groups.append(QVariantMap{ { QStringLiteral("name"), nm[g] }, { QStringLiteral("n"), int(gs[g]->size()) }, { QStringLiteral("members"), members },
-                                   { QStringLiteral("medoid"), x.ord(meds[g]) }, { QStringLiteral("medoidText"), QStringLiteral("most typical: shot %1").arg(x.ord(meds[g])) },
+                                   { QStringLiteral("medoid"), x.ord(meds[g]) }, { QStringLiteral("medoidText"), QStringLiteral("most typical: shot %1").arg(x.no(meds[g])) },
                                    { QStringLiteral("neutral"), false } });
     }
     if (nM) {
@@ -2177,14 +2182,14 @@ QVariantMap kindsCore(Ctx &x, const Cache::Family *fam)
                 const ShapeSplit sp = shapeSplit(per, t0->tMs, t1->tMs);
                 if (sp.found) {
                     const auto g = [&](int med, const std::vector<int> &ords) {
-                        return QVariantMap{ { QStringLiteral("name"), QStringLiteral("shaped like shot %1").arg(med) },
-                                            { QStringLiteral("label"), QStringLiteral("shaped like shot %1 · %2").arg(med).arg(ords.size()) },
+                        return QVariantMap{ { QStringLiteral("name"), QStringLiteral("shaped like shot %1").arg(x.no(med)) },
+                                            { QStringLiteral("label"), QStringLiteral("shaped like shot %1 · %2").arg(x.no(med)).arg(ords.size()) },
                                             { QStringLiteral("medoid"), med }, { QStringLiteral("n"), int(ords.size()) }, { QStringLiteral("ordinals"), ints(ords) } };
                     };
                     sm = { { QStringLiteral("found"), true }, { QStringLiteral("groups"), QVariantList{ g(sp.medoidA, sp.groupA), g(sp.medoidB, sp.groupB) } },
                            { QStringLiteral("sentence"), Sentence().append(QStringLiteral("By the shape of their ") + lowerLabel(fk)
                                                                            + QStringLiteral(" curves from P4 to P8, a second grouping: shaped like shot %1 (%2) and like shot %3 (%4).")
-                                                                                 .arg(sp.medoidA).arg(sp.groupA.size()).arg(sp.medoidB).arg(sp.groupB.size())).toVariant() } };
+                                                                                 .arg(x.no(sp.medoidA)).arg(sp.groupA.size()).arg(x.no(sp.medoidB)).arg(sp.groupB.size())).toVariant() } };
                 }
             }
             it = c.shapes.insert(fk, sm);
@@ -2522,7 +2527,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
         clubs = QStringLiteral("The clubs are mixed: ") + words::list(parts) + QStringLiteral("; every shot is shown together unless split by club.");
     }
     st.insert(QStringLiteral("clubsSentence"), clubs);
-    st.insert(QStringLiteral("kicker"), ps ? QStringLiteral("Shot %1 of %2").arg(ps->ordinal).arg(x.n) + (clubText.isEmpty() || club ? QString() : QStringLiteral("  ·  ") + clubText)
+    st.insert(QStringLiteral("kicker"), ps ? words::shotOfText(ps->shotId, ps->ordinal, x.n) + (clubText.isEmpty() || club ? QString() : QStringLiteral("  ·  ") + clubText)
                                            : QStringLiteral("%1 shots").arg(x.n));
     st.insert(QStringLiteral("family"), fam ? fam->name : QString());
     st.insert(QStringLiteral("readingCount"), int(cache.readings.size()));
@@ -2532,7 +2537,7 @@ static std::shared_ptr<ChartsRelationsPresenter::Output> computeRelations(const 
                                   { QStringLiteral("swingDir"), sh->swingDir }, { QStringLiteral("club"), sh->club } });
     st.insert(QStringLiteral("shots"), shots);
     // the profile's column heads (ProfileTable: "Shot 8" over the value, "15 shots, low to high" over the box)
-    st.insert(QStringLiteral("shotLabel"), ps ? QStringLiteral("Shot %1").arg(ps->ordinal) : QString());
+    st.insert(QStringLiteral("shotLabel"), ps ? QStringLiteral("Shot %1").arg(words::shotNumber(ps->shotId, ps->ordinal)) : QString());
     st.insert(QStringLiteral("countLabel"), QStringLiteral("%1 shots, low to high").arg(x.n));
     st.insert(QStringLiteral("countLabelShort"), QStringLiteral("%1 shots").arg(x.n));
     st.insert(QStringLiteral("refused"), x.n < 3);

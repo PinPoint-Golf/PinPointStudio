@@ -388,6 +388,9 @@ private slots:
         Athlete *a = c.currentAthlete();
         QVERIFY(a);
         QCOMPARE(a->id().toString(), uuid);
+        const QString folder = c.folderOf(uuid);                                                      // J-29 (step 2.7b)
+        QVERIFY(!folder.isEmpty());
+        QCOMPARE(folder, a->folder());
 
         QSignalSpy record(a, &Athlete::recordChanged);
         QSignalSpy switched(&c, &AthleteController::currentAthleteChanged);
@@ -398,6 +401,12 @@ private slots:
         QCOMPARE(record.count(), 2);
         QCOMPARE(switched.count(), 0);
         QCOMPARE(c.currentName(), QStringLiteral("Edited"));
+        // J-29: the renamed athlete is still found in the folder it always had (the report's lookup), never in
+        // one its new name would sanitise to; an athlete nobody knows has no folder
+        QCOMPARE(c.folderOf(uuid), folder);
+        QVERIFY(!folder.endsWith(QStringLiteral("/Edited")));
+        QCOMPARE(c.folderOf(QUuid::createUuid().toString(QUuid::WithoutBraces)), QString());
+        QCOMPARE(c.folderOf(QString()), QString());
         QCOMPARE(c.saveAthlete(uuid, QStringLiteral("Edited")), uuid);                               // E3 the same Save again:
         QCOMPARE(record.count(), 2);                                                                 //    nothing changed, nothing said
         c.clearCurrentAthlete();                                                                     // E4 a switch (to none)

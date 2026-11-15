@@ -23,6 +23,7 @@
 set(_pp_report_diag ${SRC}/Resources/diagnostics)
 pp_add_test(report_model_test
     SOURCES report_model_test.cpp
+            ${SRC}/Export/swing_paths.cpp   # report_swing_no.h: an unlisted swing's number off its folder (step 2.7b)
             ${SRC}/Diagnostics/engine/pack_io.cpp
             ${SRC}/Diagnostics/engine/characteristic.cpp
             ${SRC}/Diagnostics/packs/characteristic_pack.cpp

@@ -985,6 +985,33 @@ private slots:
             return l.startsWith(QStringLiteral("Not read at address on this capture:")) && l.contains(QStringLiteral("down the line camera")); }));
     }
 
+    // ── "At address": EARLIER is SessionIdentity's place, never folder-name order (step 2.7b, F-06) ─────────────────
+    // Under `name-date-type`, a later session whose folder sorts first (here an athlete renamed "Henn" since, so its
+    // newer folders start "Henn_…") was taken as history, and the order of the day lost.
+    void addressHistoryByPlace()
+    {
+        QTemporaryDir tmp;
+        QVERIFY(tmp.isValid());
+        const QString athlete = tmp.path() + QStringLiteral("/Nick-Henn");
+        const QString cur = athlete + QStringLiteral("/Nick-Henn_2026-10-20_Wrist_03");
+        const QString earlier = athlete + QStringLiteral("/Nick-Henn_2026-10-13_Wrist_01");
+        const QString later = athlete + QStringLiteral("/Henn_2026-10-25_Wrist_01");          // sorts first by name
+        for (const QString &s : { cur, earlier, later })
+            QVERIFY(writeSwingDoc(s, QStringLiteral("18277032"), QStringLiteral("17453937")));
+        QVERIFY(writeLedger(earlier, QJsonArray{ ledgerShot(1, 38.0, 4.0, -1.0), ledgerShot(2, 39.0, 5.0, -2.0), ledgerShot(3, 41.0, 6.0, -3.0) }));
+        QVERIFY(writeLedger(later, QJsonArray{ ledgerShot(1, 50.0, 12.0, 4.0) }));
+        QVERIFY(writeLedger(cur, QJsonArray{}));
+        auto snap = std::make_shared<SessionSnapshot>(*m_five);
+        snap->sessionDir = cur;
+        snap->revision = 9;
+        ChartsPosturePresenter p;
+        setUp(p, snap, 3);
+        const QVariantMap bend = addressRowOf(p.thisShot(), QStringLiteral("m_spineBendAtAddress"));
+        QCOMPARE(bend.value(QStringLiteral("historyN")).toInt(), 3);          // the 13th only; the 25th never counts
+        QCOMPARE(bend.value(QStringLiteral("historySessions")).toInt(), 1);
+        QCOMPARE(bend.value(QStringLiteral("history")).toMap().value(QStringLiteral("med")).toDouble(), 39.0);
+    }
+
     // ── "At address": the golfer's earlier sessions from the same set-up, off the athlete folder's ledgers ─────────
     void addressHistory()
     {

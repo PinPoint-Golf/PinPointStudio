@@ -26,6 +26,10 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Diagnostics/packs/characteristic_pack.cpp
     ${SRC}/Diagnostics/packs/reference_pack.cpp
     ${SRC}/Diagnostics/measures/measure_facets.cpp
-    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp)
+    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
+    # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
+    ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Export/swing_paths.cpp
+    ${SRC}/Core/folder_lock.cpp)
 set(CHARTS_NORM_ENV
     "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

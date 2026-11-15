@@ -84,6 +84,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/charts_delivery_tests.cmake OPTIONAL)
 # interpolation, the scene frame, tiers. Header-only rig/JSON; the store reads the document.
 pp_add_test(swing_rig_driver_test
     SOURCES swing_rig_driver_test.cpp ${GUI}/swing3d/swing_rig_driver.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
+            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the session's swings by SwingPaths, keyed by swing number (step 2.7b)
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
     LINK    Qt6::Qml  AUTOMOC)
 
@@ -93,6 +94,7 @@ pp_add_test(swing_rig_driver_test
 pp_add_test(swing_annotation_geometry_test
     SOURCES swing_annotation_geometry_test.cpp ${GUI}/swing3d/swing_annotation_mesh.cpp
             ${GUI}/swing3d/swing_rig_driver.cpp
+            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the rig driver's session listing (step 2.7b)
     INCLUDE ${GUI} ${GUI}/swing3d ${SRC} ${SRC}/Core ${SRC}/Export
     LINK    Qt6::Qml  AUTOMOC)
 
@@ -385,6 +387,7 @@ set_tests_properties(pdf_document_writer_test PROPERTIES ENVIRONMENT "QT_QPA_PLA
 # Links pinpoint_swingstore (pp_add_test does) for SwingStore::info.
 pp_add_test(report_meta_test
     SOURCES report_meta_test.cpp
+            ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp   # the report's swing fingerprint lists swings through SwingPaths (step 2.7b)
     INCLUDE ${GUI} ${SRC})
 
 # The rest of the session report's C++ tests, one fragment per part of the build so the parts can be

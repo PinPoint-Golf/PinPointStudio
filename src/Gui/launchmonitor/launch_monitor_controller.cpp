@@ -26,6 +26,7 @@
 #include "standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
 #include "../../DomainModel/session_repository.h"   // the one allocator (D10)
 
@@ -448,9 +449,11 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     meta.swingIndex = swingIndex;
     if (swingIndex == 0) {
-        // "swing_0007" → 7. Falls back to 0, which is only an ordering hint.
-        const QString digits = meta.swingId.section(QLatin1Char('_'), -1);
-        meta.swingIndex = digits.toInt();
+        // The rescue path's folder is capture's allocation: its swing number is the folder's, read by
+        // SwingPaths, the one reader of a swing folder's name (step 2.7b, lint A3). 0 when the folder is
+        // not a "swing_NNNN" one, which is only an ordering hint. The session's folder name above stays
+        // provenance (DeviceOnlyMeta::sessionId), never read back as a key.
+        meta.swingIndex = pinpoint::SwingPaths::swingNumberOf(dir.dirName());
     }
     if (m_athletes) {
         meta.athleteName = m_athletes->currentName();

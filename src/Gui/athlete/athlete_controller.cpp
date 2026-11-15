@@ -133,6 +133,12 @@ Athlete *AthleteController::athleteFor(const QString &uuid) const
     return (m_repo && !id.isNull()) ? m_repo->load(id) : nullptr;
 }
 
+QString AthleteController::folderOf(const QString &uuid) const
+{
+    const Athlete *a = athleteFor(uuid);
+    return a ? a->folder() : QString();
+}
+
 // The standard set a bag that was never stored shows (driver, 5-9 iron, GW, SW, putter, with factory
 // defaults for the athlete's set). Shown, NOT written: a read never writes (until the first club edit
 // stores the bag). An intentionally emptied bag is stored, and stays empty.

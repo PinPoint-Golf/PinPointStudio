@@ -100,6 +100,7 @@ struct ConsistencyEnv {
 
 struct ConsistencyShot {
     int     ordinal = 0;
+    int     shotId  = -1;       // the swing number (ShotSeries::shotId): what "Shot N" prints (step 2.7b)
     QString club;
     bool    guarded = false;    // see consistencyGuarded
     double  carry = kNaN;       // lm.carryDistance, NaN without one

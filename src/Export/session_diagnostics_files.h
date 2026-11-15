@@ -219,6 +219,17 @@ public:
     // A legacy session no athlete can be named for is placed by its name with a null id; empty for no folder.
     static SessionIdentity identityOf(const QString &sessionDir, SessionStore &sessions,
                                       SwingStoreRecordingRepository &recordings);
+    // ── Where a session sits, for a caller that needs only its DAY and its PLACE (step 2.7b) ─────────────
+    // Charts, the report, the Sessions row: the day, the start time and n-of-day, not the id. A SessionStore of
+    // the call's own, so any thread, and no swing door: no owner is looked up, so a session older than step 2
+    // is placed by its folder's name with a NULL id (SessionIdentity::placeOfLegacyFolder; J2 of step 2.7a) —
+    // its day and order are the same as with its id. A session with a session file reads as it is.
+    //
+    // One session (n-of-day not set: that needs the whole folder, sessionPlaces).
+    static SessionIdentity identityOf(const QString &sessionDir);
+    // The athlete folder's sessions as SessionStore::enumerateFolder lists them with no owner, each with its
+    // n-of-day.
+    static QList<SessionIndexEntry> sessionPlaces(const QString &athleteDir);
     // `sessionDir`'s place in `index`, matched by its cleaned absolute folder; just the folder's name (no day,
     // ordered nowhere) when it is not listed.
     static analysis::SessionPlace placeOf(const QList<SessionIndexEntry> &index, const QString &sessionDir);
@@ -735,6 +746,23 @@ inline SessionIdentity SessionDiagnosticsFiles::identityOf(const QString &sessio
         return owner.isNull() ? SessionIdentity::placeOfLegacyFolder(sessionDir) : SessionIdentity();
     const std::optional<SessionIndexEntry> e = sessions.open(id);
     return e ? e->identity : SessionIdentity();
+}
+
+inline SessionIdentity SessionDiagnosticsFiles::identityOf(const QString &sessionDir)
+{
+    if (sessionDir.isEmpty()) return {};
+    SessionStore    sessions;
+    const SessionId id = sessions.openFolder(sessionDir, AthleteId());   // a session file names its own id
+    if (!id.isNull())
+        if (const std::optional<SessionIndexEntry> e = sessions.open(id)) return e->identity;
+    return SessionIdentity::placeOfLegacyFolder(sessionDir);
+}
+
+inline QList<SessionIndexEntry> SessionDiagnosticsFiles::sessionPlaces(const QString &athleteDir)
+{
+    if (athleteDir.isEmpty()) return {};
+    SessionStore sessions;
+    return sessions.enumerateFolder(athleteDir, AthleteId());
 }
 
 inline analysis::SessionPlace SessionDiagnosticsFiles::placeOf(const QList<SessionIndexEntry> &index, const QString &sessionDir)

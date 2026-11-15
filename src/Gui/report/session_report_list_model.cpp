@@ -409,7 +409,7 @@ void SessionReportListModel::refresh()
 // THE SUMMARY IS THE DRAWER'S (SessionReviewController::buildDiskRow): each swing's cheap summary read
 // with writeSidecar=false — a list read never fat-parses and never writes — folded by summarizeSession.
 // An un-indexed swing still counts as a swing (the directory listing knows it), and a session none of
-// whose swings say when they were hit is dated from its folder name, else its mtime.
+// whose swings say when they were hit is dated by its SessionIdentity (start time, else day), else its mtime.
 QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString &athleteDir, qint64 nowMs)
 {
     QVector<Row> out;
@@ -436,9 +436,13 @@ QVector<SessionReportListModel::Row> SessionReportListModel::scan(const QString 
         if (startMs > 0) {
             r.sortMs = startMs;
         } else {
-            const QDate named = QDate::fromString(fi.fileName().left(10), QStringLiteral("yyyy-MM-dd"));
-            r.sortMs = named.isValid() ? QDateTime(named, QTime(0, 0)).toMSecsSinceEpoch()
-                                       : fi.lastModified().toMSecsSinceEpoch();
+            // No swing says when: the session's own start time (its session file), else its day
+            // (SessionIdentity: for a session older than step 2, the day its folder's name records —
+            // under every naming pattern, F-06), else the folder's mtime. Never parsed here (lint A3).
+            const pinpoint::SessionIdentity id = pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir);
+            r.sortMs = id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
+                     : id.localDay().isValid()     ? QDateTime(id.localDay(), QTime(0, 0)).toMSecsSinceEpoch()
+                                                   : fi.lastModified().toMSecsSinceEpoch();
         }
         r.dateLabel = QLocale::c().toString(QDateTime::fromMSecsSinceEpoch(r.sortMs).date(),
                                             QStringLiteral("ddd d MMM yyyy"));

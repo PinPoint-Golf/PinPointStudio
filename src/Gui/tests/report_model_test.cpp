@@ -571,7 +571,22 @@ int main(int argc, char **argv)
         check(mk.size() == 10, "every shot's mark");
         check(mk.at(0).toMap().value(QStringLiteral("swing")).toInt() == 21 && mk.at(8).toMap().value(QStringLiteral("swing")).toInt() == 29,
               "marks numbered as the report numbers its swings");
-        check(mk.at(9).toMap().value(QStringLiteral("swing")).toInt() == 10, "a shot the report does not number keeps its ordinal");
+        check(mk.at(9).toMap().value(QStringLiteral("swing")).toInt() == 12,
+              "a shot the report does not number is numbered by its swing number (swing_0012), never its rank (10)");
+        {
+            // the one rule every remap (Posture, Wrist, Delivery, Consistency) falls back through (step 2.7b, F-07)
+            using pinpoint::report::reportSwingNo;
+            const QHash<QString, int> none;
+            check(reportSwingNo(swingNo, QVariantMap{ { QStringLiteral("swingDir"), dir.arg(3, 4, 10, QLatin1Char('0')) }, { QStringLiteral("ordinal"), 1 } }) == 21,
+                  "a swing the report numbers: the report's number");
+            check(reportSwingNo(none, QVariantMap{ { QStringLiteral("swingDir"), QStringLiteral("/x/s/swing_0009") }, { QStringLiteral("ordinal"), 7 },
+                                                    { QStringLiteral("shotId"), 9 } }) == 9, "unlisted: the payload's shotId, never the ordinal");
+            check(reportSwingNo(none, QVariantMap{ { QStringLiteral("swingDir"), QStringLiteral("/x/s/swing_0009") }, { QStringLiteral("ordinal"), 7 },
+                                                    { QStringLiteral("shotNo"), 9 } }) == 9, "unlisted: the payload's shotNo (the delivery marks)");
+            check(reportSwingNo(none, QVariantMap{ { QStringLiteral("swingDir"), QStringLiteral("/x/s/swing_0009") }, { QStringLiteral("ordinal"), 7 } }) == 9,
+                  "unlisted, no id in the payload: its folder's swing number");
+            check(reportSwingNo(none, QVariantMap{ { QStringLiteral("ordinal"), 7 } }) == 7, "no folder and no id: the ordinal, the last resort");
+        }
         check(mk.at(6).toMap().value(QStringLiteral("differs")).toBool() && !mk.at(3).toMap().value(QStringLiteral("ok")).toBool(), "ringed and unread marks carried");
         eq(b.value(QStringLiteral("strip")).toMap().value(QStringLiteral("more")).toString(), QString(), "no strip ending under the cap");
         check(b.value(QStringLiteral("departures")).toList().size() == 6, "departures capped at six");
@@ -763,8 +778,8 @@ int main(int argc, char **argv)
         check(c0.value(QStringLiteral("wash")).toString() == QLatin1String("none") && c0.value(QStringLiteral("bandLo")).isNull(), "no band at P1: no wash");
         eq(r0.value(QStringLiteral("boxes")).toList().at(3).toMap().value(QStringLiteral("wideText")).toString(), QStringLiteral("2° wide"), "the width words verbatim");
         const QVariantList sp = b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("points")).toList();
-        check(sp.size() == N && sp.at(0).toMap().value(QStringLiteral("swing")).toInt() == 201 && sp.at(9).toMap().value(QStringLiteral("swing")).toInt() == 10,
-              "score points numbered as the report numbers its swings (an unnumbered one keeps its ordinal)");
+        check(sp.size() == N && sp.at(0).toMap().value(QStringLiteral("swing")).toInt() == 201 && sp.at(9).toMap().value(QStringLiteral("swing")).toInt() == 12,
+              "score points numbered as the report numbers its swings (an unnumbered one by its swing number, swing_0012, never its rank 10)");
         eq(sp.at(3).toMap().value(QStringLiteral("text")).toString(), QStringLiteral("-"), "an unscored swing is \"-\"");
         check(b.value(QStringLiteral("scoreRun")).toMap().value(QStringLiteral("ticks")).toList().size() == 3, "the score run's ticks carried to paper");
         const QVariantMap st = b.value(QStringLiteral("styles")).toMap();
@@ -988,7 +1003,8 @@ int main(int argc, char **argv)
         check(wsc.value(QStringLiteral("line")).isNull() && !wsc.value(QStringLiteral("clear")).toBool() && wsc.value(QStringLiteral("points")).toList().size() == 9,
               "the fit refused: every dot, no line");
         check(wsc.value(QStringLiteral("xTicks")).toList().isEmpty(), "no ticker: no ticks");
-        check(wsc.value(QStringLiteral("points")).toList()[0].toMap().value(QStringLiteral("ordinal")).toInt() == 1, "a swing the report does not number keeps its ordinal");
+        check(wsc.value(QStringLiteral("points")).toList()[0].toMap().value(QStringLiteral("ordinal")).toInt() == 3,
+              "a swing the report does not number is numbered by its swing number (swing_0003), never its rank (1)");
         eq(wb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("text")).toString(), QString(), "the head says the fit: not said twice");
         eq(wb.value(QStringLiteral("flight")).toMap().value(QStringLiteral("legend")).toString(),
            QStringLiteral("A dot per swing with both readings: this session's in ink, the day's other sessions faint. No line: the fit does not hold."), "the refused fit's legend");

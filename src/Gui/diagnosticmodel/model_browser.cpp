@@ -26,6 +26,7 @@
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
+#include "../../Export/swing_paths.h"
 
 #include <QDateTime>
 #include <QFile>
@@ -8440,8 +8441,7 @@ void ModelBrowser::scanGates()
             const QDir aDir(rootDir.filePath(athlete));
             for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
                 const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : sDir.entryList({ QStringLiteral("swing_*") },
-                                                           QDir::Dirs, QDir::Name)) {
+                for (const QString &swing : pinpoint::SwingPaths::swingFolders(sDir.path())) {   // THE one listing (2.7b)
                     if (c.swings >= kMaxSwings) {
                         c.capped = true;
                         c.valid  = true;
@@ -8508,8 +8508,7 @@ void ModelBrowser::scanCorridor(const QString &measureId)
             const QDir aDir(rootDir.filePath(athlete));
             for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
                 const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : sDir.entryList({ QStringLiteral("swing_*") },
-                                                           QDir::Dirs, QDir::Name)) {
+                for (const QString &swing : pinpoint::SwingPaths::swingFolders(sDir.path())) {   // THE one listing (2.7b)
                     if (out.size() >= kMaxScan) return out;
                     // The expensive part is reading the phase grid, which is sidecar-cached and
                     // pack-independent — which is exactly why measure_sample caches the grid rather

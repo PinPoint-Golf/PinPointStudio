@@ -583,9 +583,9 @@ QVariantMap shotDetail(const ConsistencyReadingRows &rows, const ConsistencyGrad
 
     const int total = int(in.shots.size()), count = int(ball.size() + club.size()) + n;
     return { { QStringLiteral("available"), true }, { QStringLiteral("ordinal"), shot.ordinal },
-             { QStringLiteral("kicker"), QStringLiteral("Shot %1 of %2").arg(shot.ordinal).arg(total)
+             { QStringLiteral("kicker"), words::shotOfText(shot.shotId, shot.ordinal, total)
                                          + (shot.club.isEmpty() ? QString() : QStringLiteral("  ·  ") + shot.club.toLower()) },
-             { QStringLiteral("shotLabel"), QStringLiteral("Shot %1").arg(shot.ordinal) },
+             { QStringLiteral("shotLabel"), QStringLiteral("Shot %1").arg(words::shotNumber(shot.shotId, shot.ordinal)) },
              { QStringLiteral("countLabel"), QStringLiteral("%1 %2").arg(total).arg(words::plural(total, QStringLiteral("shot"), QStringLiteral("shots"))) },
              { QStringLiteral("headLabel"), QStringLiteral("What stood out") }, { QStringLiteral("lm"), lmWords(in, res, shot) },
              { QStringLiteral("sentence"), s.toVariant() }, { QStringLiteral("carry"), carry }, { QStringLiteral("guarded"), shot.guarded },
@@ -677,7 +677,7 @@ computeConsistency(const std::shared_ptr<const SessionSnapshot> &snapshot, const
     out->key = cache.key;
     out->keyMarks = keyMarks();
     out->matrix = matrixMap(in, res, cache.grades, ordinal, openCell, screen);
-    out->cell = cellDetail(rows, cache.grades, openCell, pick, pick >= 0 ? QStringLiteral("Shot %1").arg(ordinal) : QString(), screen);
+    out->cell = cellDetail(rows, cache.grades, openCell, pick, pick >= 0 ? QStringLiteral("Shot %1").arg(words::shotNumber(in.shots[size_t(pick)].shotId, ordinal)) : QString(), screen);
     out->shot = shotDetail(rows, scales, pick, screen);
     out->ready = true;
     out->thread = QThread::currentThread();

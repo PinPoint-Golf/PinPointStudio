@@ -35,6 +35,7 @@
 #include "../../Skeleton3d/skeleton3d_rig.h"
 #include "../../Skeleton3d/skeleton3d_synthesis.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
 
 namespace sk = pinpoint::skeleton3d;
 
@@ -260,7 +261,7 @@ struct SwingRigDriver::SessionData {
         bool uncertain = false;
     };
     QString dir, fingerprint;
-    QHash<QString, Keys> shots;                    // by swing folder name
+    QHash<int, Keys> shots;                        // by swing number (the ShotRef's, read by SwingPaths: step 2.7b)
     std::map<QString, std::shared_ptr<const Entry>> entries;
 };
 
@@ -602,10 +603,11 @@ void SwingRigDriver::startShotLoad()
 void SwingRigDriver::startSessionLoad()
 {
     const QFileInfo fi(m_swingDir);
-    const QString sessionDir = fi.absolutePath(), folder = fi.fileName();
+    const QString sessionDir = fi.absolutePath();
+    const int number = pinpoint::SwingPaths::swingNumberOf(fi.fileName());
     // Another shot of a session already worked out: a lookup and a retime, no file read.
     if (!m_sessionCheck && m_session && m_session->dir == sessionDir) {
-        const auto keys = m_session->shots.constFind(folder);
+        const auto keys = m_session->shots.constFind(number);
         if (keys != m_session->shots.constEnd() && m_session->entries.count(keys->club)) {
             ++m_generation;
             adoptSession(m_session, false);
@@ -623,8 +625,8 @@ void SwingRigDriver::startSessionLoad()
     emit revisionChanged();
     QPointer<SwingRigDriver> self(this);
     std::shared_ptr<const SessionData> previous = m_session;
-    QThreadPool::globalInstance()->start([self, sessionDir, folder, previous, gen]() {
-        auto data = prepareSession(sessionDir, folder, previous);
+    QThreadPool::globalInstance()->start([self, sessionDir, number, previous, gen]() {
+        auto data = prepareSession(sessionDir, number, previous);
         QMetaObject::invokeMethod(self, [self, data, gen]() {
             if (!self || gen != self->m_generation) return;
             self->adoptSession(data, false);
@@ -636,7 +638,7 @@ void SwingRigDriver::adoptSession(std::shared_ptr<const SessionData> data, bool 
 {
     m_session = std::move(data);
     m_sessionCheck = false;
-    const SessionData::Keys keys = m_session->shots.value(QFileInfo(m_swingDir).fileName());
+    const SessionData::Keys keys = m_session->shots.value(pinpoint::SwingPaths::swingNumberOf(QFileInfo(m_swingDir).fileName()));
     const auto it = m_session->entries.find(keys.club);
     const std::shared_ptr<const SessionData::Entry> entry = it == m_session->entries.end() ? nullptr : it->second;
     if (!entry || !entry->canon) {
@@ -694,15 +696,15 @@ bool SwingRigDriver::loadSessionNow(const QString &swingDir)
     m_sessionScope = true;
     ++m_generation;
     const QFileInfo fi(swingDir);
-    adoptSession(prepareSession(fi.absolutePath(), fi.fileName(), m_session), true);
+    adoptSession(prepareSession(fi.absolutePath(), pinpoint::SwingPaths::swingNumberOf(fi.fileName()), m_session), true);
     return available();
 }
 
-std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSession(const QString &sessionDir, const QString &shotFolder,
+std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSession(const QString &sessionDir, int shotNumber,
                                                                                   std::shared_ptr<const SessionData> previous)
 {
-    // The carousel's own enumeration (SwingDocReader::findSwingDirs): swing_* by name.
-    const QStringList folders = QDir(sessionDir).entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    // The carousel's own enumeration: THE one listing of a session's swings (SwingPaths, step 2.7b).
+    const QStringList folders = pinpoint::SwingPaths::swingFolders(sessionDir);
     QString fingerprint;
     for (const QString &name : folders) {
         const pinpoint::SwingStore::DocInfo d = pinpoint::SwingStore::info(sessionDir + QLatin1Char('/') + name);
@@ -710,7 +712,7 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
     }
     const bool sameFiles = previous && previous->dir == sessionDir && previous->fingerprint == fingerprint;
     if (sameFiles) {
-        const auto keys = previous->shots.constFind(shotFolder);
+        const auto keys = previous->shots.constFind(shotNumber);
         if (keys != previous->shots.constEnd() && previous->entries.count(keys->club)) return previous;
     }
 
@@ -748,8 +750,9 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
             s.pSource[size_t(p - 1)] = po.value(QStringLiteral("source")).toInt();
         }
         for (size_t k = 0; k < 7; ++k) s.pUs[k] = keys.p[k];
-        out->shots.insert(name, keys);
-        if (name == shotFolder) {
+        const int number = pinpoint::SwingPaths::swingNumberOf(name);
+        out->shots.insert(number, keys);
+        if (number == shotNumber) {
             const QString hand = root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("handedness")).toString();
             if (!hand.isEmpty()) leadIsLeft = hand.compare(QLatin1String("left"), Qt::CaseInsensitive) != 0;
         }
@@ -770,7 +773,7 @@ std::shared_ptr<const SwingRigDriver::SessionData> SwingRigDriver::prepareSessio
         }
     }
 
-    const QString club = out->shots.value(shotFolder).club;
+    const QString club = out->shots.value(shotNumber).club;
     const sk::SynthResult r = sk::synthesiseSession(swings, club, leadIsLeft);
     auto entry = std::make_shared<SessionData::Entry>();
     if (r.valid) {

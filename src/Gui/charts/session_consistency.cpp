@@ -193,6 +193,7 @@ ConsistencyInput consistencyInput(const SessionSnapshot &s, const SessionAlignme
     for (const auto &sh : s.shots) {
         ConsistencyShot shot;
         shot.ordinal = sh->ordinal;
+        shot.shotId = sh->shotId;
         shot.club = sh->club;
         shot.guarded = consistencyGuarded(*sh, al.warpFor(sh->ordinal));
         shot.carry = ballReading(*sh, QStringLiteral("lm.carryDistance"));

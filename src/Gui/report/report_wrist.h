@@ -82,6 +82,7 @@
 //    Session view draws no numbers-only row — the lead elbow has no corridor and the screen's Session leaves it off)
 //  (posture-only keys the wrist row does not carry: present, style, faultHi/faultLo, alt*, warned — the QML reads
 //   them as absent.)
+#include "report_swing_no.h"   // a swing's number: the swing number, never a rank (step 2.7b)
 #include <QDir>
 #include <QHash>
 #include <QString>
@@ -117,7 +118,7 @@ inline QVariant wristReportBlock(const QVariantMap &payload, const QHash<QString
     const QVariant none = QVariant::fromValue(nullptr);
     if (!payload.value(QStringLiteral("available")).toBool()) return none;
     const auto swingOf = [&](const QVariantMap &m) {
-        return swingNoOfDir.value(QDir::cleanPath(m.value(QStringLiteral("swingDir")).toString()), m.value(QStringLiteral("ordinal")).toInt());
+        return reportSwingNo(swingNoOfDir, m);
     };
 
     // the profile: the presenter's rows on the posture row's keys

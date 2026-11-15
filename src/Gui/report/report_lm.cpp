@@ -156,14 +156,15 @@ std::vector<double> LmFigures::series(const QString &key, const QString *club) c
 }
 
 LmFigures lmFiguresOf(const std::vector<pinpoint::lm::LmBoardShot> &board, const QStringList &swingDirs,
-                      const QStringList &ledgerClubs, const QString &device, bool leftHanded)
+                      const QStringList &ledgerClubs, const QString &device, bool leftHanded,
+                      const QList<int> &swingNumbers)
 {
     LmFigures f;
     f.device = device;
     f.leftHanded = leftHanded;
     for (int k = 0; k < swingDirs.size(); ++k) {
         LmSwing s;
-        s.number = k + 1;
+        s.number = k < swingNumbers.size() && swingNumbers[k] > 0 ? swingNumbers[k] : k + 1;
         s.ledgerClub = k < ledgerClubs.size() ? ledgerClubs[k] : QString();
         const QString dir = QDir::cleanPath(swingDirs[k]);
         for (const pinpoint::lm::LmBoardShot &b : board)
