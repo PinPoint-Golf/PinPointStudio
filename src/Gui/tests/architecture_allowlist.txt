@@ -107,7 +107,7 @@ Audio/audio_stream_saver.h | A5 | 1 | P11: an audio capture written to the Deskt
 Ball/ball_baseline_io.h | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
 Ball/ball_runner.cpp | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
 Core/studio_profile.cpp | A5 | 9 | P11: the studio profile (FILE-APP-06) reads and writes its own folder; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
-Gui/app/app_settings.cpp | A5 | 1 | P11: a settings or monitoring object sizes the library or writes the app's logs (EXT-03, not domain); the platform refactor (settings, monitoring), outside steps 1-8 (05 §2)  # not domain (§8.3)
+Gui/app/app_settings.cpp | A5 | 1 | P11: the settings page sizes the athlete library with its own walk; library sizing is domain, so housekeeping and the repositories report sizes (Mark, 15 Nov 2026: DEC-188)  # step 3
 Gui/cameras/camera_role_probe.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/charts/delivery_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
 Gui/charts/posture_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
@@ -115,23 +115,23 @@ Gui/imu/hm_instance.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-
 Gui/imu/imu_instance.cpp | A5 | 5 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/imu/imu_instance.h | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 Gui/imu/trunk_ceremony_recorder.cpp | A5 | 7 | P11: the trunk ceremony recorder writes FILE-SESS-11 itself, on a pool thread; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
-Gui/launchmonitor/lm_club_art.cpp | A5 | 4 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader), not domain; no step 1-8 moves it  # not domain (§8.3)
+Gui/launchmonitor/lm_club_art.cpp | A5 | 4 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 Gui/main.cpp | A5 | 8 | P11: the composition root constructs the stores and hands them to their owners; it also lists the bundled fonts and probes a folder; no step 1-8 moves it (Mark, 15 Nov 2026: kept)  # kept (composition root)
 Gui/media/llm_controller.cpp | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
 Gui/media/tts_controller.cpp | A5 | 4 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
 Gui/monitor/profiler_controller.cpp | A5 | 2 | P11: a settings or monitoring object sizes the library or writes the app's logs (EXT-03, not domain); the platform refactor (settings, monitoring), outside steps 1-8 (05 §2)  # not domain (§8.3)
 Gui/monitor/resource_monitor_controller.cpp | A5 | 1 | P11: a settings or monitoring object sizes the library or writes the app's logs (EXT-03, not domain); the platform refactor (settings, monitoring), outside steps 1-8 (05 §2)  # not domain (§8.3)
-Gui/print/pdf_document_writer.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader), not domain; no step 1-8 moves it  # not domain (§8.3)
+Gui/print/pdf_document_writer.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 Gui/settings/library_converter.cpp | A5 | 5 | P11: the JSON-era library converter reads and converts swing files through the stores from the settings page; step 3.0 deletes it with the legacy-read paths (Mark, 15 Nov 2026)  # step 3.0
-Gui/swing3d/swing_hull_geometry.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader), not domain; no step 1-8 moves it  # not domain (§8.3)
+Gui/swing3d/swing_hull_geometry.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 LLM/LocalLlmEngine.cpp | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
 LaunchMonitor/gcquad_monitor.cpp | A5 | 6 | P11: a launch-monitor connector reads the device's own files (EXT-01, not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
 LaunchMonitor/premier_monitor.cpp | A5 | 8 | P11: a launch-monitor connector reads the device's own files (EXT-01, not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
-Pose/person_segmenter.cpp | A5 | 3 | P11: a pose back-end loads its model files or probes the machine (not domain); no step 1-8 moves it  # not domain (§8.3)
-Pose/pose_backend.cpp | A5 | 1 | P11: a pose back-end loads its model files or probes the machine (not domain); no step 1-8 moves it  # not domain (§8.3)
-Pose/pose_estimator_mediapipe.cpp | A5 | 5 | P11: a pose back-end loads its model files or probes the machine (not domain); no step 1-8 moves it  # not domain (§8.3)
-Pose/pose_estimator_movenet.cpp | A5 | 4 | P11: a pose back-end loads its model files or probes the machine (not domain); no step 1-8 moves it  # not domain (§8.3)
-Pose/pose_estimator_vitpose.cpp | A5 | 15 | P11: a pose back-end loads its model files or probes the machine (not domain); no step 1-8 moves it  # not domain (§8.3)
+Pose/person_segmenter.cpp | A5 | 3 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_backend.cpp | A5 | 1 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_mediapipe.cpp | A5 | 5 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_movenet.cpp | A5 | 4 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_vitpose.cpp | A5 | 15 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 Pose/pose_runner.cpp | A5 | 2 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
 Ppcp/ppcp_annotation_store.cpp | A5 | 4 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
 Ppcp/ppcp_bundle_transport.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
@@ -150,13 +150,13 @@ Update/appimage_update.cpp | A5 | 6 | P11: update payloads and runtime installs 
 Update/cuda_runtime_controller.cpp | A5 | 2 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
 Update/linux_appimage_backend.cpp | A5 | 14 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
 Update/win_sparkle_update.cpp | A5 | 4 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
-Video/bayer_video_item.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader), not domain; no step 1-8 moves it  # not domain (§8.3)
+Video/bayer_video_item.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
 Video/spinnaker_runtime.cpp | A5 | 2 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
 
 # ── A6 QVariantMap/QVariantList on the QML boundary ──
-Gui/athlete/athlete_controller.h | A6 | 9 | athlete records reach QML as QVariantMaps; step 2's Athlete objects (AthleteRepository) replace them  # step 3
-Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
-Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
+Gui/athlete/athlete_controller.h | A6 | 9 | athlete records reach QML as QVariantMaps; step 2's Athlete objects (AthleteRepository) replace them; its QML surface goes with app.athlete (Mark, 15 Nov 2026: DEC-176, D12, reversing J-68)  # step 4
+Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
+Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
 Gui/diagnostics/wrist_diagnostics_model.h | A6 | 10 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
 Gui/charts/charts_consistency_presenter.h | A6 | 7 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_delivery_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
@@ -180,7 +180,7 @@ Gui/app/app_settings.h | A6 | 26 | a settings, monitoring or tool object's QML A
 Gui/cameras/buffer_controller.h | A6 | 1 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_manager.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
-Gui/diagnosticmodel/model_browser.h | A6 | 73 | the pack and corridor editor's QML API (it edits and saves user.json and user.norms.json): core diagnostics persistence; step 3 types it with the packs and norms owner (B-02; the lead's call, 14 Nov 2026)  # step 3
+Gui/diagnosticmodel/model_browser.h | A6 | 73 | the pack and corridor editor's QML API (it edits and saves user.json and user.norms.json): core diagnostics persistence; step 3 types it with the packs and norms owner (B-02; Mark, 15 Nov 2026: DEC-177, D2)  # step 3
 Gui/imu/imu_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/imu/imu_manager.h | A6 | 3 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/imu/trunk_ceremony_recorder.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned

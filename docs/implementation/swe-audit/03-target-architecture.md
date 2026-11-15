@@ -68,7 +68,7 @@
     - contexts and rings are different cuts (§0);
     - §10 is numbered as the steps of `04-remediation-plan.md`.
   - **Open, to decide (Mark, step 3):** the owner and repository of packs and norms (the user's pack and corridor
-    edits) → reference Q-02; where session status and start/end times are stored → settled, reference DEC-41.
+    edits) → reference Q-02, closed by DEC-170 (`RuleData`); where session status and start/end times are stored → settled, reference DEC-41.
 - Draft 2.1, 14 Nov 2026. It adds §0, the context map: three contexts, the Recording contract and Studio/Rig.
 - Draft 2. It is rewritten around design principles. Draft 1 was organised around the findings,
   and it put the selection in the domain model, which Mark rightly challenged.
@@ -432,7 +432,7 @@ step 3).
 | `<athlete>/tendencies.json`, `swing_themes.json` | derived (cache) | `AthleteDiagnostics` | `AthleteRepository` |
 | `<athlete>/outcome_corrections.jsonl` | derived: the tuning log, append-only (→ reference DEC-43: a source fact) | the athlete level (`AthleteDiagnostics`), on `LabelCorrected`, never the session (Mark, 14 Nov) (→ reference DEC-43: the `Athlete` root) | `AthleteRepository` |
 | `<athlete>/fault_profile.json` | to be deleted (H-11, step 3) | — | — |
-| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Mark, step 3) | to decide (Mark, step 3) |
+| `<AppData>/diagnostics/user.json`, `user.norms.json`, community `*.json` (packs and norms; the corridor editor writes `user.norms.json`) | source (the user's edits); community sets read-only | owner: to decide (Mark, step 3) (→ reference DEC-170: `RuleData`) | to decide (Mark, step 3) (→ reference DEC-170: `RuleDataRepository`) |
 | `SessionSeries` | in memory only, not persisted | — | — |
 
 The table covers the athlete, session and shot files and the rule data they are graded against. Studio and
@@ -588,7 +588,7 @@ step 1's choices D1–D9 as DEC-31…DEC-39):
 | 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Mark, 14 Nov 2026) (→ reference DEC-133: follow-club stores the device club beside the captured club and never overwrites it; today's overwrite a known interim until step 6.) |
 | 28 | The interim writers (IM-5) | Until step 3 the swing file's later writers are today's callers, through `RecordingRepository`; the `Session` takes them over in step 3 (§7). (Mark, 14 Nov 2026) |
 | 29 | Two new directories (IM-6) | `src/Recording` (Vocabulary: the Recording contract's types) and `src/DomainModel` (the repository interfaces) are created in step 1; step 7 then renames only the store (§2, decision 16). (Mark, 14 Nov 2026) |
-| 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Mark, 14 Nov 2026) |
+| 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Mark, 14 Nov 2026) (→ reference DEC-171: from the athlete record on the shot's date, recorded in the stamp.) |
 
 ## 14. Keeping it this way
 

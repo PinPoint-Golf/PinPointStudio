@@ -316,6 +316,9 @@ PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
 
+**Split in two** (Mark, 15 Nov 2026; DEC-162): **3A** = items 3.0–3.4b, **3B** = items 3.5–3.10, as numbered in step 3's
+brief (`build/refactor/step-3/BRIEF.md` §6; approved 15 Nov 2026, its §8 answered as DEC-162…DEC-189).
+
 #### Step 3.0 · Migrated data only: the corpus and archive copies migrated, then the tool and the legacy-read paths deleted
 Mark, 15 Nov 2026: "the only user is me, so the migration tool is a one off right now" … "yes, put it in the plan at the
 start of step 3- so long as we know the migration works and no data is lost".
@@ -455,13 +458,16 @@ start of step 3- so long as we know the migration works and no data is lost".
    - the pack loader's two long functions (`validatePack`, `loadPack`, allowlist A7) are split with B-11;
    - the pack and corridor editor (`Gui/diagnosticmodel/model_browser.h`, allowlist A6 ×73): it edits and saves the
      user pack and the user norm set (`user.json`, `user.norms.json`), so its writes go with the packs and norms
-     owner and repository (item 7, B-02) and its QML API is typed here (the lead's call, 14 Nov 2026).
+     owner and repository (item 7, B-02) and its QML API is typed here (the lead's call, 14 Nov 2026; kept by Mark against
+     the brief's recommendation, 15 Nov 2026; DEC-177).
 
 - **Closes:** D-01…D-07, D-13, H-03, H-11, C-05, G-03/C-01, B-02 (one pack snapshot), B-03 (the pack registries'
   lazy singletons go with the one snapshot; the norm set's half was Stage 0.4), the session half of E-13, B-05 (a norm's standing
   typed; Mark, 14 Nov 2026), and the follow-up noted in 0.5 (Tendencies, Consistency, the kicker and work-on facts honour the board's annotations);
   A-19, B-04, B-11, B-13, B-20, B-22, C-10, C-15, C-16, D-12, D-14, D-15, D-17, D-18, D-19, E-12, E-13 (the athlete
-  half), G-08, G-09, G-10, G-14, H-06 (triage, Mark 14 Nov 2026).
+  half), G-08, G-09, G-10, G-14 (triage, Mark 14 Nov 2026); H-06 in part (Mark, 15 Nov 2026; DEC-183): the re-fires and
+  the diagnosis leave the GUI thread, and the commands' whole-document rewrites stay on it, recorded open
+  (`information_model.md` §11.1) for Mark to place.
 - **Re-run:** a re-fire of the findings, if the stamps change.
 
 ### Step 4 · AppState, the selection, the carousel summary (~½ day)
@@ -485,6 +491,8 @@ start of step 3- so long as we know the migration works and no data is lost".
 - **The QML APIs of the carousel, the replay and the shot controller** are typed with the selection (allowlist A6:
   `shot_list_model.h`, `shot_filter_proxy_model.h`, `shot_replay_controller.h`, `shot_controller.h`) (triage, Mark
   14 Nov 2026).
+- **The athlete controller's QML API** (allowlist A6: `athlete_controller.h`) is typed when `app.athlete` arrives, not in
+  step 3 (Mark, 15 Nov 2026; DEC-176, D12, reversing J-68).
 - **Closes:** E-04, E-05, E-08, E-14, E-01 (the switch half); E-15, H-07 (triage, Mark 14 Nov 2026).
 
 ### Step 5 · Charts and the report onto the session (~2 days; can overlap step 3's cut-over)
