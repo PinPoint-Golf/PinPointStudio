@@ -18,6 +18,7 @@
 
 #include "session_store.h"
 
+#include "session_diagnostics_io.h"   // the diagnostics files' file work (J-42)
 #include "session_files.h"
 #include "swing_paths.h"
 
@@ -329,6 +330,12 @@ SessionId SessionStore::todaysSession(const SessionOwner &owner, const QString &
     return best ? best->id() : SessionId();
 }
 
+QString SessionStore::heldFolder(const SessionId &id) const
+{
+    const auto it = m_held.constFind(id);
+    return it == m_held.constEnd() ? QString() : it->entry.folder;
+}
+
 std::optional<SessionIndexEntry> SessionStore::open(const SessionId &id) const
 {
     const auto it = m_held.constFind(id);
@@ -627,7 +634,7 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
     if (discardIfEmpty && h.createdHere && QFileInfo::exists(h.entry.folder)
         && SwingPaths::swingFolders(h.entry.folder).isEmpty()) {
         QString where;
-        if (SwingPaths::trashPath(h.entry.folder, &where)) {
+        if (SwingPaths::trashPath(h.entry.folder, &where, m_osTrash)) {
             ppInfo() << "[SwingExport] discarded session (to" << where << "):" << h.entry.folder;
             unpublish(id);
             m_held.erase(it);
@@ -826,7 +833,7 @@ WriteResult SessionStore::trash(const SessionId &id, QString *where)
     }
     QString to;
     // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: a network share has no OS trash (2 Sept 2026).
-    if (!SwingPaths::trashPath(folder, &to)) {
+    if (!SwingPaths::trashPath(folder, &to, m_osTrash)) {
         ppWarn() << "[SessionStore] could not move the session to the trash:" << folder;
         return failed(QStringLiteral("The session %1 could not be moved to the trash.").arg(folder));
     }
@@ -836,6 +843,142 @@ WriteResult SessionStore::trash(const SessionId &id, QString *where)
     unpublish(id);
     m_held.remove(id);
     return written();
+}
+
+// ── One shot to the trash (step 3.4a; J-24) ──────────────────────────────────────────────────────────
+
+WriteResult SessionStore::trashShot(const ShotRef &shot, QString *where)
+{
+    const QString folder = heldFolder(shot.session());
+    if (shot.isNull() || folder.isEmpty())
+        return failed(QStringLiteral("That shot's session is not open."));
+    const QString swingDir = folder + QLatin1Char('/') + SwingPaths::swingFolderName(shot.swingNumber());
+    if (!QFileInfo::exists(swingDir))
+        return failed(QStringLiteral("The swing %1 is no longer there.").arg(swingDir));
+    // One write under the session's lock: the number recorded, then the folder moved (allocateSwing's rule
+    // for a folder where no lock file can be made: the move decides).
+    FolderLock lock(folder);
+    if (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
+        ppWarn() << "[SessionStore] swing not moved to the trash, the session folder is locked by" << lock.holder()
+                 << ":" << swingDir;
+        return locked(folder, lock.holder());
+    }
+    // ⚠ THE NUMBER FIRST (DEC-91): a swing leaving its session takes its number with it, never back into
+    // circulation; a session recorded before the high-water existed has none, so this records it. Best
+    // effort, as the allocation's: a failed write costs only the never-reissued guarantee, and is logged.
+    if (const AtomicWriteResult w = SessionFiles::raiseSwingHighWater(folder, shot.swingNumber()); !w.ok)
+        ppWarn() << "[SessionStore] could not record the last swing number in" << folder << "-" << w.detail;
+    QString to;
+    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: a network share has no OS trash (2 Sept 2026). Its own
+    // high-water raise for a swing folder (kept for the carousel's trash until step 3.4b moves it here) finds
+    // the number already recorded and writes nothing.
+    if (!SwingPaths::trashPath(swingDir, &to, m_osTrash)) {
+        ppWarn() << "[SessionStore] could not move the swing to the trash:" << swingDir;
+        return failed(QStringLiteral("The swing %1 could not be moved to the trash.").arg(swingDir));
+    }
+    ppInfo() << "[SessionStore] swing moved to the trash (" << to << "):" << swingDir;
+    if (where)
+        *where = to;
+    return written();
+}
+
+// ── The session's diagnostics files by its id (step 3.4a; J-42) ──────────────────────────────────────
+
+namespace {
+const QString kNotHeld = QStringLiteral("That session is not known.");
+}
+
+DiagnosticsRead SessionStore::readDiagnostics(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        DiagnosticsRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readDiagnostics(folder);
+}
+
+WriteResult SessionStore::writeDiagnostics(const SessionId &id, const QJsonObject &session, const QJsonObject &ledger,
+                                           const QJsonObject &legacyFallback, DiagnosticsRead::State *state)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeDiagnostics(folder, session, ledger, legacyFallback, state);
+}
+
+WriteResult SessionStore::backupDiagnostics(const SessionId &id, const QString &tag, QString *backupPath)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::backupDiagnostics(folder, tag, backupPath);
+}
+
+WriteResult SessionStore::setAsideDiagnostics(const SessionId &id, QString *asidePath)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::setAsideDiagnostics(folder, asidePath);
+}
+
+SessionInputRead SessionStore::readSessionInput(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        SessionInputRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readSessionInput(folder);
+}
+
+WriteResult SessionStore::writeSessionInput(const SessionId &id, const SessionInput &input)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeSessionInput(folder, input);
+}
+
+JsonFileRead SessionStore::readClubBaseline(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        JsonFileRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readClubBaseline(folder);
+}
+
+WriteResult SessionStore::writeClubBaseline(const SessionId &id, const QJsonObject &root)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeClubBaseline(folder, root);
+}
+
+JsonFileRead SessionStore::readWorkOns(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        JsonFileRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readWorkOns(folder);
+}
+
+WriteResult SessionStore::writeWorkOns(const SessionId &id, const QJsonObject &root)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeWorkOns(folder, root);
 }
 
 } // namespace pinpoint

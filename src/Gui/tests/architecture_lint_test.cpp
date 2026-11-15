@@ -170,7 +170,7 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Coaching/"), Rules },
         { QStringLiteral("DomainModel/"), DomainModel },  // repository interfaces (step 1, IM-6)
         { QStringLiteral("Analysis/"), Application },
-        { QStringLiteral("App/"), Application },          // AppState's home in 03 §2 (not created yet)     // the stages' shared types and rules below
+        { QStringLiteral("App/"), Application },          // AppState's home in 03 §2 (created in step 3.4a: app)     // the stages' shared types and rules below
         { QStringLiteral("Buffer/"), Adapters },          // the Recording contract's stream types below
         { QStringLiteral("Video/"), Adapters },
         { QStringLiteral("Audio/"), Adapters },
@@ -387,6 +387,8 @@ bool isRepositoryHeader(const QString &target)
         QStringLiteral("Export/recording_loader"),          QStringLiteral("Export/swing_doc"),
         QStringLiteral("Export/session_store"),             QStringLiteral("Export/session_archiver"),
         QStringLiteral("Export/session_files"),             QStringLiteral("Export/session_diagnostics_files"),
+        // The diagnostics files' file work, moved out of session_diagnostics_files.h for the store (step 3.4a, J-42).
+        QStringLiteral("Export/session_diagnostics_io"),
         QStringLiteral("Export/athlete_store"),             QStringLiteral("Export/athlete_files"),
         // The packs and norms' door (refactor step 3.2; D5: DEC-170): RuleData includes the interface,
         // the store implements it. A composition root reaches the owner through Export/rule_data_install.h.

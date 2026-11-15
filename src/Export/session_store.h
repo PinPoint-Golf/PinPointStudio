@@ -46,7 +46,8 @@
 //
 // ⚠ A READ NEVER WRITES. enumerate, todaysSession, open and openFolder only read; a session without a
 // file is read from its folder's name, in memory (D3). Only start, resume, end, allocateSwing, archive,
-// restore and trash write.
+// restore, trash and trashShot write the session's own files and folders; the write* methods of its
+// diagnostics files (J-42, step 3.4a) write those, through session_diagnostics_io.h's file work.
 //
 // THE ARCHIVE AND THE TRASH (step 2.6). archive / restore check the session (held, not InProgress by a
 // FRESH read of its file — another machine's live session, or one a crash left open, is refused — and not
@@ -118,6 +119,22 @@ public:
                                  const SessionArchiveProgress &progress = {}) override;
     SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
     WriteResult          trash(const SessionId &id, QString *where = nullptr) override;
+    WriteResult          trashShot(const ShotRef &shot, QString *where = nullptr) override;
+
+    // The session's diagnostics files by its id (J-42): session_diagnostics_io.h's file work on the held
+    // session's folder.
+    DiagnosticsRead  readDiagnostics(const SessionId &id) override;
+    WriteResult      writeDiagnostics(const SessionId &id, const QJsonObject &session, const QJsonObject &ledger,
+                                      const QJsonObject &legacyFallback,
+                                      DiagnosticsRead::State *state = nullptr) override;
+    WriteResult      backupDiagnostics(const SessionId &id, const QString &tag, QString *backupPath = nullptr) override;
+    WriteResult      setAsideDiagnostics(const SessionId &id, QString *asidePath = nullptr) override;
+    SessionInputRead readSessionInput(const SessionId &id) override;
+    WriteResult      writeSessionInput(const SessionId &id, const SessionInput &input) override;
+    JsonFileRead     readClubBaseline(const SessionId &id) override;
+    WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) override;
+    JsonFileRead     readWorkOns(const SessionId &id) override;
+    WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) override;
 
     // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
     // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every
@@ -160,6 +177,9 @@ public:
     void setClockForTest(std::function<QDateTime()> nowUtc) { m_now = std::move(nowUtc); }
     void setTimeZoneForTest(const QTimeZone &zone) { m_zone = zone; }
     void setLockWaitForTest(int ms) { m_lockWaitMs = ms; }
+    // Tests: never use the OS trash — the empty discard, trash and trashShot move into the library's own
+    // `.pinpoint-trash` (FILE-LIB-01) instead, inside the test's temporary folder (AthleteStore's seam).
+    void setOsTrashForTest(bool on) { m_osTrash = on; }
 
 private:
     struct Held {
@@ -185,6 +205,8 @@ private:
     void endOthersInProgress(const QString &athleteDir, const SessionId &except);
     // The latest capture end of `folder`'s swings (m_captureEndOf); invalid when none records one.
     QDateTime inferredEnd(const QString &folder) const;
+    // The held session's folder; "" when `id` is not held.
+    QString heldFolder(const SessionId &id) const;
     // Bring an entry read from disk into the identity map, keeping what only the map knows.
     Held &hold(const SessionIndexEntry &entry, const QJsonObject &file);
     // The folder of a held session, for swingFolder on any thread.
@@ -197,6 +219,7 @@ private:
     std::function<QDateTime()>  m_now;
     QTimeZone                   m_zone = QTimeZone::systemTimeZone();
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
+    bool                        m_osTrash    = true;
     SessionArchiving           *m_archiving  = nullptr;
     CaptureEndOf                m_captureEndOf;
 };

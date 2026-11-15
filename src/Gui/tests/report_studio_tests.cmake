@@ -16,6 +16,8 @@ pp_add_test(report_studio_test
             # The athlete's record through its one door (refactor step 2.3): the Athlete, AthleteStore and
             # the session repository its index reads through.
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/Export/athlete_store.cpp
             ${SRC}/Export/session_store.cpp
             ${SRC}/DomainModel/session_identity.cpp

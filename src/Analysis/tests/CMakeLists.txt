@@ -824,6 +824,22 @@ pp_add_test(recording_store_test
     STD 20
     AUTOMOC)
 
+# The Session, its Shots and the lifecycle (refactor step 3.4a; build/refactor/step-3/BRIEF.md §6 row 3.4a):
+# the Athlete's startSession / resumeSession / trashSession / sessionAt, Session::addShot / trashShot / end, the
+# Shot as its Session's child, RecordingSource, app.sessionAt and the id-keyed diagnostics files (J-42) — over
+# the real session store, swing door and reading door (the Recording store's link line) on a temporary library.
+pp_add_test(session_test
+    SOURCES ${SRC}/DomainModel/tests/session_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/App/app.h ${SRC}/App/app.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+
 # Shaft v3.0-r1 evidence engines (E1 discrete band + E2 polarity ridge sweep) —
 # Qt-free math core (shaft_tracker_math). -O2: the suites set no build type and
 # these assert real hot-loop cost.
@@ -1768,6 +1784,7 @@ pp_add_test(migrate_step2_test
     SOURCES ${PP_REPO_ROOT}/tools/migrate/tests/migrate_step2_test.cpp
             ${PP_REPO_ROOT}/tools/migrate/migrate_step2.cpp ${PP_REPO_ROOT}/tools/migrate/migrate_step2.h
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/Export/swing_paths.cpp
             ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
             ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_writer.cpp

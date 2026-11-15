@@ -44,6 +44,7 @@ struct AthleteTestLibrary {
         athletes->setOsTrashForTest(false);
         athletes->setLockWaitForTest(200);
         sessions.setLockWaitForTest(200);
+        sessions.setOsTrashForTest(false);   // a discarded empty session goes to the library's own trash, never ~/.Trash
     }
 
     QString root() const { return dir.path(); }

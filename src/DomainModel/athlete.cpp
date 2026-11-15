@@ -18,8 +18,10 @@
 
 #include "athlete.h"
 #include "athlete_repository.h"
+#include "session.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QTime>
 
 #include <algorithm>
@@ -235,6 +237,142 @@ AthleteRemoval Athlete::remove()
         return out;
     }
     return m_repository->trash(m_id);
+}
+
+// ── Its sessions (step 3.4a) ─────────────────────────────────────────────────────────────────────
+
+namespace {
+WriteResult refused(const QString &why) { return { WriteResult::Status::Failed, why }; }
+}
+
+bool Athlete::ensureHeld(const SessionId &id)
+{
+    if (!m_sessions || id.isNull())
+        return false;
+    if (!m_sessions->open(id))
+        m_sessions->enumerate(m_owner);   // the index read holds every session of the athlete
+    return m_sessions->open(id).has_value();
+}
+
+Session *Athlete::hold(const SessionId &id, bool startedHere)
+{
+    if (Session *s = m_loaded.value(id))
+        return s;
+    const auto e = m_sessions ? m_sessions->open(id) : std::nullopt;
+    if (!e || e->athlete != m_id)
+        return nullptr;   // not held, or another athlete's session
+    Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere);
+    m_loaded.insert(id, s);
+    return s;
+}
+
+void Athlete::endRunningSessions(const SessionId &except)
+{
+    const QList<Session *> loaded = m_loaded.values();
+    for (Session *s : loaded)
+        if (s->id() != except && s->runningHere() && s->inProgress())
+            s->endSession(/*discardIfEmpty=*/false);   // EVT-09; never the empty discard (today's rule)
+}
+
+Session *Athlete::startSession(const QString &type, const QString &namingPattern, WriteResult *result)
+{
+    if (!m_sessions) {
+        if (result)
+            *result = refused(QStringLiteral("No session store."));
+        return nullptr;
+    }
+    endRunningSessions({});   // one InProgress per athlete (DEC-78); a crash's leftovers: the store's start
+    const SessionStartResult r = m_sessions->start(m_owner, type, namingPattern);
+    if (result)
+        *result = r.result;
+    if (!r.ok())
+        return nullptr;
+    Session *s = hold(r.id, /*startedHere=*/true);
+    if (s)
+        emit sessionStarted(r.id);   // EVT-17
+    return s;
+}
+
+SessionId Athlete::todaysSession(const QString &type) const
+{
+    return m_sessions ? m_sessions->todaysSession(m_owner, type) : SessionId();
+}
+
+Session *Athlete::resumeSession(const SessionId &id, const QString &type, WriteResult *result)
+{
+    if (!ensureHeld(id)) {
+        if (result)
+            *result = refused(QStringLiteral("That session is not known."));
+        return nullptr;
+    }
+    if (m_sessions->open(id)->athlete != m_id) {
+        if (result)
+            *result = refused(QStringLiteral("That session is another athlete's."));
+        return nullptr;
+    }
+    // The session running here is ended FIRST, with its end observed (DEC-134: "any other InProgress session of
+    // the athlete is ended first"), as today's extend does; then the repository judges the resume: only a
+    // session started today, of the same type, with its own SessionId (DEC-77, DEC-134). A refused resume
+    // leaves that earlier session ended, as today (the caller then starts a new one).
+    endRunningSessions(id);
+    const WriteResult r = m_sessions->resume(id, type);
+    if (result)
+        *result = r;
+    if (!r.ok())
+        return nullptr;
+    Session *s = hold(id, /*startedHere=*/false);
+    if (!s)
+        return nullptr;
+    s->m_startedHere = false;   // somebody's earlier work: never the empty discard's
+    s->m_runningHere = true;
+    emit sessionResumed(id);   // EVT-23
+    return s;
+}
+
+WriteResult Athlete::trashSession(const SessionId &id, QString *where)
+{
+    if (!ensureHeld(id))
+        return refused(QStringLiteral("That session is not known."));
+    if (m_sessions->open(id)->athlete != m_id)
+        return refused(QStringLiteral("That session is another athlete's."));
+    const WriteResult r = m_sessions->trash(id, where);   // refused while in progress (J-46)
+    if (!r.ok())
+        return r;
+    Session *s = m_loaded.take(id);
+    emit sessionTrashed(id);   // EVT-20
+    if (s)
+        s->deleteLater();      // a view still bound to it reads a live object until the event loop runs
+    return r;
+}
+
+Session *Athlete::sessionAt(const QString &folder)
+{
+    if (!m_sessions || folder.isEmpty())
+        return nullptr;
+    // The folder translated ONCE, here, at the edge (DEC-90): the session file's id, or D3's for a session
+    // older than step 2, named for this athlete as its folder's owner.
+    // Only a session folder in this athlete's folder is one of its sessions (path text only, nothing read).
+    if (QDir::cleanPath(folder + QStringLiteral("/..")) != QDir::cleanPath(m_folder))
+        return nullptr;
+    const SessionId id = m_sessions->openFolder(folder, m_id);
+    return id.isNull() ? nullptr : hold(id, /*startedHere=*/false);
+}
+
+Session *Athlete::session(const SessionId &id)
+{
+    if (Session *s = m_loaded.value(id))
+        return s;
+    return ensureHeld(id) ? hold(id, /*startedHere=*/false) : nullptr;
+}
+
+QList<Session *> Athlete::sessions()
+{
+    QList<Session *> out;
+    for (const SessionIndexEntry &e : index())
+        if (!e.id().isNull())
+            if (Session *s = hold(e.id(), /*startedHere=*/false))
+                out.append(s);
+    return out;
 }
 
 } // namespace pinpoint

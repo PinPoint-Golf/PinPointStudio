@@ -106,6 +106,11 @@ public:
     static WriteResult appendTuningLog(const QString &logFile, const QByteArray &line,
                                        int lockWaitMs = FolderLock::kWaitMs);
 
+    // The doors every Athlete this store makes hands down to its sessions' shots (refactor step 3.4a): the
+    // composition root's RecordingRepository and RecordingReader. Set once, before the athletes are used;
+    // the athletes already made get them too.
+    void setShotDoors(const ShotDoors &doors);
+
     // The library folder the athletes are listed from (the app-data fallback when SET-03 is empty).
     QString libraryDir() const;
 
@@ -142,6 +147,7 @@ private:
     std::vector<std::unique_ptr<Athlete>> m_owned;       // every Athlete ever handed out, for the store's life
     QHash<AthleteId, QJsonObject>         m_files;       // each library athlete's athlete.json as last read
     QHash<AthleteId, QString>             m_settingsKey; // each settings athlete's group name
+    ShotDoors                             m_shotDoors;
     bool                                  m_osTrash    = true;
     int                                   m_lockWaitMs = -1;
 };

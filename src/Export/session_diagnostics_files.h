@@ -56,12 +56,17 @@
 // session folder's advisory lock for that one write (FolderLock, R-PERS-6; J-11) and is atomic (atomicWrite,
 // R-PERS-2).
 //
+// THE FILE WORK ITSELF (the reads and writes of FILE-SESS-02…05 and 12) lives in session_diagnostics_io.h since
+// step 3.4a, unchanged, so the session store can serve the same files by SessionId (J-42) without this header's
+// golfer-input resolver; the folder-keyed functions below forward to it.
+//
 // INTERIM (IM-S2-4: DEC-160; step 2.5's J1). Keyed by the session FOLDER, like SessionFiles (2.2's J14) and
 // AthleteFiles (2.3's J7), because every caller today holds a folder — the diagnostics model (made by QML),
 // the work-ons catch-up, Charts, the report and the tools. Step 3's `Session` reaches the same functions
 // through SessionRepository by its id. Stateless, so safe from any thread (each worker passes its own
 // RecordingRepository to golferInput()).
 
+#include "session_diagnostics_io.h"   // the file work itself (step 3.4a)
 #include "session_files.h"
 #include "session_store.h"
 #include "swing_paths.h"
@@ -101,45 +106,8 @@
 
 namespace pinpoint {
 
-// diagnostics.json as read: the cache half, and the older shape's golfer keys kept apart.
-struct DiagnosticsEnvelope {
-    int         schemaVersion = 0;   // the envelope's own version (kEnvelopeVersion), not the ledger's
-    QJsonObject session;             // the session block (stage, shot count, the swing folders, the stamps)
-    QJsonObject ledger;              // diagnostic_ledger.h's object, nested, with ITS schemaVersion
-    QJsonObject legacyGolferInput;   // the older shape's golfer keys, verbatim (legacyGolferKeys())
-    QJsonObject other;               // any other top-level key this build does not know: kept on rewrite
-};
-
-struct DiagnosticsRead {
-    enum class State {
-        Missing,      // no file: nothing reduced yet (or the cache was deleted)
-        Read,         // parsed and of this build's schema or older
-        Newer,        // parsed, but a newer build's: read what can be read, write nothing (READ-ONLY)
-        Unparseable,  // it opens but is not a JSON object: the file itself is bad (set it aside)
-        Unopenable,   // it is there and cannot be opened: met at a bad moment (a share, a permission)
-    };
-    State               state = State::Missing;
-    DiagnosticsEnvelope envelope;
-    QString             error;     // why, for Unparseable / Unopenable / Newer
-    bool exists() const { return state != State::Missing; }
-    bool parsed() const { return state == State::Read || state == State::Newer; }
-};
-
-struct SessionInputRead {
-    enum class State { Missing, Read, Newer, Unparseable };
-    State        state = State::Missing;
-    SessionInput input;            // each field present only when the file holds it
-    QString      error;
-    bool readOnly() const { return state == State::Newer || state == State::Unparseable; }
-};
-
-// A small JSON file read whole (club_baseline.json, work_ons.json).
-struct JsonFileRead {
-    bool        exists = false;   // the file is there
-    bool        ok = false;       // it opened and is a JSON object
-    QJsonObject root;
-    QString     error;
-};
+// DiagnosticsEnvelope, DiagnosticsRead, SessionInputRead and JsonFileRead are SessionRepository's values now
+// (src/DomainModel/session_repository.h; refactor step 3.4a, J-42), so its id-keyed methods can return them.
 
 // THE GOLFER'S INPUT FOR ONE SESSION, RESOLVED: each field from its new home, else the older copy (J-33).
 struct GolferInput {
@@ -165,8 +133,8 @@ public:
     // The envelope's own schema tag (`schemaVersion` at its top level), separate from the ledger's
     // kDiagSchemaVersion: two contracts on two schedules. 1: every envelope written so far (the golfer keys
     // inside it before step 2.5 are the "older shape", told by the keys, not the number).
-    static constexpr int kEnvelopeVersion = 1;
-    static constexpr const char *kSessionInputSchema = "pinpoint.session-input/1";
+    static constexpr int kEnvelopeVersion = session_diagnostics_io::kEnvelopeVersion;
+    static constexpr const char *kSessionInputSchema = session_diagnostics_io::kSessionInputSchema;
 
     // The older shape's golfer keys, in the order they are reported.
     static const QStringList &legacyGolferKeys();
@@ -247,91 +215,6 @@ public:
 
 namespace session_diagnostics_detail {
 
-inline WriteResult failed(const QString &why) { return { WriteResult::Status::Failed, why }; }
-inline WriteResult written() { return { WriteResult::Status::Written, {} }; }
-inline WriteResult readOnly(const QString &file, const QString &why)
-{
-    return { WriteResult::Status::ReadOnly,
-             QStringLiteral("%1 is not changed by this build: %2").arg(QFileInfo(file).fileName(), why) };
-}
-
-// The session folder's advisory lock, for one write (R-PERS-6; J-11). Empty = acquired.
-inline WriteResult lockFor(FolderLock &lock, const QString &sessionDir, bool *acquired)
-{
-    *acquired = false;
-    switch (lock.lock(FolderLock::kWaitMs)) {
-    case FolderLock::Result::Acquired:
-        *acquired = true;
-        return written();
-    case FolderLock::Result::Locked:
-        return { WriteResult::Status::Locked,
-                 QStringLiteral("The session %1 is being changed by %2; it was not saved.")
-                     .arg(sessionDir, lock.holder().isEmpty() ? QStringLiteral("another program") : lock.holder()) };
-    case FolderLock::Result::Failed:
-        break;
-    }
-    return failed(lock.errorString().isEmpty() ? QStringLiteral("The session folder %1 could not be locked.").arg(sessionDir)
-                                               : lock.errorString());
-}
-
-// One JSON file into a session folder that must already be there: locked, atomic.
-inline WriteResult writeJson(const QString &sessionDir, const QString &file, const QJsonObject &root,
-                      QJsonDocument::JsonFormat format)
-{
-    if (sessionDir.isEmpty())
-        return failed(QStringLiteral("No session folder was given."));
-    FolderLock lock(sessionDir);
-    bool acquired = false;
-    const WriteResult l = lockFor(lock, sessionDir, &acquired);
-    if (!acquired) {
-        ppWarn() << "[SessionFiles] not written:" << qPrintable(file) << "—" << qPrintable(l.error);
-        return l;
-    }
-    const AtomicWriteResult w = atomicWrite(file, QJsonDocument(root).toJson(format),
-                                            AtomicWriteOptions::intoExistingFolder());
-    if (!w.ok) {
-        ppWarn() << "[SessionFiles]" << qPrintable(w.error) << "—" << qPrintable(w.detail);
-        return failed(w.error);
-    }
-    return written();
-}
-
-inline JsonFileRead readJsonFile(const QString &file)
-{
-    JsonFileRead r;
-    if (!QFileInfo::exists(file)) return r;
-    r.exists = true;
-    QFile f(file);
-    if (!f.open(QIODevice::ReadOnly)) {
-        r.error = f.errorString();
-        return r;
-    }
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError) {
-        r.error = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
-        return r;
-    }
-    if (!doc.isObject()) {
-        r.error = QStringLiteral("not a JSON object");
-        return r;
-    }
-    r.ok   = true;
-    r.root = doc.object();
-    return r;
-}
-
-// "pinpoint.session-input/1" → 1; 0 for anything else.
-inline int sessionInputSchemaNumber(const QString &schema)
-{
-    static const QString prefix = QStringLiteral("pinpoint.session-input/");
-    if (!schema.startsWith(prefix)) return 0;
-    bool ok = false;
-    const int n = schema.mid(prefix.size()).toInt(&ok);
-    return ok ? n : 0;
-}
-
-inline constexpr int kSessionInputVersion = 1;
 
 // The reviews' readers (golferInput): I/O-bound, so more than the cores; their own pool, so a caller waiting on
 // them never waits behind the global pool's work, and a worker calling golferInput (the tendencies) cannot
@@ -384,220 +267,48 @@ inline std::vector<analysis::ShotCorrection> toShotCorrections(const QVector<Lab
 } // namespace session_diagnostics_detail
 
 
-// ── The older shape ──────────────────────────────────────────────────────────────────────────────────
+// ── The older shape, FILE-SESS-03, FILE-SESS-02: the file work is session_diagnostics_io.h's (step 3.4a) ───
 
 inline const QStringList &SessionDiagnosticsFiles::legacyGolferKeys()
 {
-    static const QStringList keys{ QStringLiteral("intent"),     QStringLiteral("screens"),
-                                   QStringLiteral("shotIntent"), QStringLiteral("intentFrom"),
-                                   QStringLiteral("corrections") };
-    return keys;
+    return session_diagnostics_io::legacyGolferKeys();
 }
 
 inline QJsonObject SessionDiagnosticsFiles::legacyGolferInputOf(const QJsonObject &envelopeRoot)
 {
-    QJsonObject out;
-    for (const QString &k : legacyGolferKeys())
-        if (envelopeRoot.contains(k)) out.insert(k, envelopeRoot.value(k));
-    return out;
+    return session_diagnostics_io::legacyGolferInputOf(envelopeRoot);
 }
-
-// ── FILE-SESS-03 ─────────────────────────────────────────────────────────────────────────────────────
 
 inline DiagnosticsRead SessionDiagnosticsFiles::readDiagnostics(const QString &sessionDir)
 {
-    DiagnosticsRead r;
-    if (sessionDir.isEmpty()) return r;
-    const QString path = SessionFiles::diagnosticsFile(sessionDir);
-    if (!QFileInfo::exists(path)) return r;
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        r.state = DiagnosticsRead::State::Unopenable;
-        r.error = f.errorString();
-        return r;
-    }
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    f.close();
-    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
-        r.state = DiagnosticsRead::State::Unparseable;
-        r.error = err.error != QJsonParseError::NoError
-                      ? QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset)
-                      : QStringLiteral("not a JSON object");
-        return r;
-    }
-    const QJsonObject root = doc.object();
-    DiagnosticsEnvelope &e = r.envelope;
-    e.schemaVersion     = root.value(QStringLiteral("schemaVersion")).toInt(0);
-    e.session           = root.value(QStringLiteral("session")).toObject();
-    e.ledger            = root.value(QStringLiteral("ledger")).toObject();
-    e.legacyGolferInput = legacyGolferInputOf(root);
-    for (auto it = root.constBegin(); it != root.constEnd(); ++it) {
-        const QString &k = it.key();
-        if (k == QLatin1String("schemaVersion") || k == QLatin1String("session") || k == QLatin1String("ledger")
-            || legacyGolferKeys().contains(k))
-            continue;
-        e.other.insert(k, it.value());
-    }
-    if (e.schemaVersion > kEnvelopeVersion) {
-        r.state = DiagnosticsRead::State::Newer;
-        r.error = QStringLiteral("saved by a newer PinPoint Studio (envelope version %1; this build reads up to %2)")
-                      .arg(e.schemaVersion).arg(kEnvelopeVersion);
-    } else {
-        r.state = DiagnosticsRead::State::Read;
-    }
-    return r;
+    return session_diagnostics_io::readDiagnostics(sessionDir);
 }
 
 inline WriteResult SessionDiagnosticsFiles::writeDiagnostics(const QString &sessionDir, const QJsonObject &session,
                                                       const QJsonObject &ledger, const QJsonObject &legacyFallback,
                                                       DiagnosticsRead::State *state)
 {
-    const QString path = SessionFiles::diagnosticsFile(sessionDir);
-    // What is on disk NOW: its older golfer keys are carried as they stand (J-33), and it decides whether
-    // this write may be made at all.
-    const DiagnosticsRead now = readDiagnostics(sessionDir);
-    if (state) *state = now.state;
-    switch (now.state) {
-    case DiagnosticsRead::State::Newer:
-        return session_diagnostics_detail::readOnly(path, now.error);
-    case DiagnosticsRead::State::Unparseable:
-    case DiagnosticsRead::State::Unopenable:
-        return session_diagnostics_detail::failed(QStringLiteral("%1 could not be read (%2), so it was not session_diagnostics_detail::written over.")
-                          .arg(QFileInfo(path).fileName(), now.error));
-    case DiagnosticsRead::State::Missing:
-    case DiagnosticsRead::State::Read:
-        break;
-    }
-    QJsonObject root = now.parsed() ? now.envelope.other : QJsonObject();
-    const QJsonObject carried = now.parsed() ? now.envelope.legacyGolferInput : legacyGolferInputOf(legacyFallback);
-    for (auto it = carried.constBegin(); it != carried.constEnd(); ++it) root.insert(it.key(), it.value());
-    root[QStringLiteral("schemaVersion")] = kEnvelopeVersion;
-    root[QStringLiteral("session")]       = session;
-    // Nested, so diagnostic_ledger.h's reader takes exactly the object its writer produced.
-    root[QStringLiteral("ledger")]        = ledger;
-    return session_diagnostics_detail::writeJson(sessionDir, path, root, QJsonDocument::Compact);
+    return session_diagnostics_io::writeDiagnostics(sessionDir, session, ledger, legacyFallback, state);
 }
 
 inline WriteResult SessionDiagnosticsFiles::backupDiagnostics(const QString &sessionDir, const QString &tag, QString *backupPath)
 {
-    const QString path   = SessionFiles::diagnosticsFile(sessionDir);
-    const QString backup = SessionFiles::diagnosticsBackupFile(sessionDir, tag);
-    if (backupPath) *backupPath = backup;
-    if (tag.isEmpty() || tag.contains(QLatin1Char('/')) || tag.contains(QLatin1Char('\\')))
-        return session_diagnostics_detail::failed(QStringLiteral("The backup's tag \"%1\" is not a plain name.").arg(tag));
-    if (QFileInfo::exists(backup))
-        return session_diagnostics_detail::failed(QStringLiteral("%1 already exists.").arg(QFileInfo(backup).fileName()));
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return session_diagnostics_detail::failed(QStringLiteral("%1 could not be read: %2").arg(QFileInfo(path).fileName(), f.errorString()));
-    const QByteArray bytes = f.readAll();
-    f.close();
-    FolderLock lock(sessionDir);
-    bool acquired = false;
-    const WriteResult l = session_diagnostics_detail::lockFor(lock, sessionDir, &acquired);
-    if (!acquired) return l;
-    // A copy, byte for byte: the live file stays where it is, so there is no moment without one.
-    const AtomicWriteResult w = atomicWrite(backup, bytes, AtomicWriteOptions::intoExistingFolder());
-    if (!w.ok) return session_diagnostics_detail::failed(w.error);
-    return session_diagnostics_detail::written();
+    return session_diagnostics_io::backupDiagnostics(sessionDir, tag, backupPath);
 }
 
 inline WriteResult SessionDiagnosticsFiles::setAsideDiagnostics(const QString &sessionDir, QString *asidePath)
 {
-    const QString path = SessionFiles::diagnosticsFile(sessionDir);
-    // A name of its own, never reused: a second unreadable file in the same second is a second copy.
-    const QString stem =
-        SessionFiles::diagnosticsAsideStem(sessionDir, QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss")));
-    QString aside = stem;
-    for (int n = 2; QFileInfo::exists(aside); ++n) aside = stem + QLatin1Char('-') + QString::number(n);
-    if (asidePath) *asidePath = aside;
-    FolderLock lock(sessionDir);
-    bool acquired = false;
-    const WriteResult l = session_diagnostics_detail::lockFor(lock, sessionDir, &acquired);
-    if (!acquired) return l;
-    if (!QFile::rename(path, aside))
-        return session_diagnostics_detail::failed(QStringLiteral("%1 could not be moved aside.").arg(QFileInfo(path).fileName()));
-    return session_diagnostics_detail::written();
+    return session_diagnostics_io::setAsideDiagnostics(sessionDir, asidePath);
 }
-
-// ── FILE-SESS-02 ─────────────────────────────────────────────────────────────────────────────────────
 
 inline SessionInputRead SessionDiagnosticsFiles::readSessionInput(const QString &sessionDir)
 {
-    SessionInputRead r;
-    if (sessionDir.isEmpty()) return r;
-    const JsonFileRead f = session_diagnostics_detail::readJsonFile(SessionFiles::sessionInputFile(sessionDir));
-    if (!f.exists) return r;
-    if (!f.ok) {
-        // Never overwritten, so it can be looked at; its fields fall back as if it were not there.
-        r.state = SessionInputRead::State::Unparseable;
-        r.error = f.error;
-        return r;
-    }
-    const int version = session_diagnostics_detail::sessionInputSchemaNumber(f.root.value(QStringLiteral("schema")).toString());
-    if (version > session_diagnostics_detail::kSessionInputVersion) {
-        r.state = SessionInputRead::State::Newer;
-        r.error = QStringLiteral("saved by a newer PinPoint Studio (%1)").arg(f.root.value(QStringLiteral("schema")).toString());
-    } else {
-        r.state = SessionInputRead::State::Read;
-    }
-    const QJsonObject &o = f.root;
-    SessionInput &in = r.input;
-    if (o.contains(QStringLiteral("declaredFocus"))) {
-        const QJsonObject d = o.value(QStringLiteral("declaredFocus")).toObject();
-        in.declaredFocus = DeclaredFocus{ d.value(QStringLiteral("conditionId")).toString(),
-                                          d.value(QStringLiteral("fromShot")).toInt(-1) };
-    }
-    if (o.contains(QStringLiteral("declaredMiss")))
-        in.declaredMiss = o.value(QStringLiteral("declaredMiss")).toString();
-    if (o.contains(QStringLiteral("screenAnswers"))) {
-        QMap<QString, bool> answers;
-        const QJsonObject a = o.value(QStringLiteral("screenAnswers")).toObject();
-        for (auto it = a.constBegin(); it != a.constEnd(); ++it) answers.insert(it.key(), it.value().toBool());
-        in.screenAnswers = answers;
-    }
-    if (o.contains(QStringLiteral("intentRuns"))) {
-        QVector<IntentRun> runs;
-        for (const QJsonValue &v : o.value(QStringLiteral("intentRuns")).toArray()) {
-            const QJsonObject run = v.toObject();
-            runs.append(IntentRun{ run.value(QStringLiteral("fromShot")).toInt(-1), run.value(QStringLiteral("shape")).toString() });
-        }
-        in.intentRuns = runs;
-    }
-    return r;
+    return session_diagnostics_io::readSessionInput(sessionDir);
 }
 
 inline WriteResult SessionDiagnosticsFiles::writeSessionInput(const QString &sessionDir, const SessionInput &input)
 {
-    const QString path = SessionFiles::sessionInputFile(sessionDir);
-    const JsonFileRead now = session_diagnostics_detail::readJsonFile(path);
-    if (now.exists && !now.ok)
-        return session_diagnostics_detail::readOnly(path, QStringLiteral("it could not be read (%1)").arg(now.error));
-    if (now.ok && session_diagnostics_detail::sessionInputSchemaNumber(now.root.value(QStringLiteral("schema")).toString()) > session_diagnostics_detail::kSessionInputVersion)
-        return session_diagnostics_detail::readOnly(path, QStringLiteral("it was saved by a newer PinPoint Studio"));
-
-    QJsonObject o = now.ok ? now.root : QJsonObject();     // keys this build does not know are kept
-    o.insert(QStringLiteral("schema"), QLatin1String(kSessionInputSchema));
-    if (input.declaredFocus)
-        o.insert(QStringLiteral("declaredFocus"),
-                 QJsonObject{ { QStringLiteral("conditionId"), input.declaredFocus->conditionId },
-                              { QStringLiteral("fromShot"),    input.declaredFocus->fromShot } });
-    if (input.declaredMiss)
-        o.insert(QStringLiteral("declaredMiss"), *input.declaredMiss);
-    if (input.screenAnswers) {
-        QJsonObject a;
-        for (auto it = input.screenAnswers->constBegin(); it != input.screenAnswers->constEnd(); ++it)
-            a.insert(it.key(), it.value());
-        o.insert(QStringLiteral("screenAnswers"), a);
-    }
-    if (input.intentRuns) {
-        QJsonArray runs;
-        for (const IntentRun &run : *input.intentRuns)
-            runs.append(QJsonObject{ { QStringLiteral("fromShot"), run.fromShot }, { QStringLiteral("shape"), run.shape } });
-        o.insert(QStringLiteral("intentRuns"), runs);
-    }
-    return session_diagnostics_detail::writeJson(sessionDir, path, o, QJsonDocument::Indented);
+    return session_diagnostics_io::writeSessionInput(sessionDir, input);
 }
 
 // ── The golfer's input, resolved (J-33) ─────────────────────────────────────────────────────────────────
@@ -778,27 +489,27 @@ inline analysis::SessionPlace SessionDiagnosticsFiles::placeOf(const QList<Sessi
 
 inline bool SessionDiagnosticsFiles::clubBaselineExists(const QString &sessionDir)
 {
-    return !sessionDir.isEmpty() && QFileInfo::exists(SessionFiles::clubBaselineFile(sessionDir));
+    return session_diagnostics_io::clubBaselineExists(sessionDir);
 }
 
 inline JsonFileRead SessionDiagnosticsFiles::readClubBaseline(const QString &sessionDir)
 {
-    return sessionDir.isEmpty() ? JsonFileRead() : session_diagnostics_detail::readJsonFile(SessionFiles::clubBaselineFile(sessionDir));
+    return session_diagnostics_io::readClubBaseline(sessionDir);
 }
 
 inline WriteResult SessionDiagnosticsFiles::writeClubBaseline(const QString &sessionDir, const QJsonObject &root)
 {
-    return session_diagnostics_detail::writeJson(sessionDir, SessionFiles::clubBaselineFile(sessionDir), root, QJsonDocument::Compact);
+    return session_diagnostics_io::writeClubBaseline(sessionDir, root);
 }
 
 inline JsonFileRead SessionDiagnosticsFiles::readWorkOns(const QString &sessionDir)
 {
-    return sessionDir.isEmpty() ? JsonFileRead() : session_diagnostics_detail::readJsonFile(SessionFiles::workOnsFile(sessionDir));
+    return session_diagnostics_io::readWorkOns(sessionDir);
 }
 
 inline WriteResult SessionDiagnosticsFiles::writeWorkOns(const QString &sessionDir, const QJsonObject &root)
 {
-    return session_diagnostics_detail::writeJson(sessionDir, SessionFiles::workOnsFile(sessionDir), root, QJsonDocument::Compact);
+    return session_diagnostics_io::writeWorkOns(sessionDir, root);
 }
 
 } // namespace pinpoint

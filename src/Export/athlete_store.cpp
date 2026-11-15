@@ -151,12 +151,20 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     return out;
 }
 
+void AthleteStore::setShotDoors(const ShotDoors &doors)
+{
+    m_shotDoors = doors;
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        a->setShotDoors(doors);
+}
+
 Athlete *AthleteStore::hold(const Found &f)
 {
     Athlete *a = m_held.value(f.id);
     if (!a) {
         m_owned.push_back(std::make_unique<Athlete>(this, m_sessions, f.id));
         a = m_owned.back().get();
+        a->setShotDoors(m_shotDoors);
         m_held.insert(f.id, a);
     }
     if (f.source == Athlete::Source::Library) {

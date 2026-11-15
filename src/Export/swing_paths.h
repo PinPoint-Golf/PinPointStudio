@@ -83,7 +83,9 @@ public:
     // (Stays with the names; step 2.3 adds the athlete case, §3.6.)
     // A swing that leaves takes its number with it: its session's high-water records it
     // (SessionFiles::raiseSwingHighWater), so the number is never issued again (DEC-91).
-    static bool trashPath(const QString& path, QString* where = nullptr);
+    // `useOsTrash` false skips the OS trash and goes straight to the library-local one: a test's seam
+    // (SessionStore::setOsTrashForTest), so a suite's trashes stay inside its temporary folder.
+    static bool trashPath(const QString& path, QString* where = nullptr, bool useOsTrash = true);
 };
 
 } // namespace pinpoint

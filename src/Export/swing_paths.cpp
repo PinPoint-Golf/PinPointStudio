@@ -148,7 +148,7 @@ QStringList SwingPaths::swingFolders(const QString& sessionDir)
     return QDir(sessionDir).entryList({QStringLiteral("swing_*")}, QDir::Dirs | QDir::NoDotAndDotDot);
 }
 
-bool SwingPaths::trashPath(const QString& path, QString* where)
+bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
 {
     if (path.isEmpty() || !QFileInfo::exists(path))
         return false;
@@ -164,7 +164,7 @@ bool SwingPaths::trashPath(const QString& path, QString* where)
         if (const AtomicWriteResult w = SessionFiles::raiseSwingHighWater(parent, swingNumberOf(name)); !w.ok)
             ppWarn() << "[SwingExport] could not record the last swing number in" << parent << "-" << w.detail;
     }
-    if (QFile::moveToTrash(path)) {
+    if (useOsTrash && QFile::moveToTrash(path)) {
         if (where) *where = QStringLiteral("the system trash");
         return true;
     }

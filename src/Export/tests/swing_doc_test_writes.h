@@ -73,6 +73,18 @@ public:
     }
     SessionArchiveResult restore(const SessionId &, const SessionArchiveProgress &) override { return {}; }
     WriteResult          trash(const SessionId &, QString *) override { return {}; }
+    WriteResult          trashShot(const ShotRef &, QString *) override { return {}; }
+    DiagnosticsRead  readDiagnostics(const SessionId &) override { return {}; }
+    WriteResult      writeDiagnostics(const SessionId &, const QJsonObject &, const QJsonObject &, const QJsonObject &,
+                                      DiagnosticsRead::State *) override { return {}; }
+    WriteResult      backupDiagnostics(const SessionId &, const QString &, QString *) override { return {}; }
+    WriteResult      setAsideDiagnostics(const SessionId &, QString *) override { return {}; }
+    SessionInputRead readSessionInput(const SessionId &) override { return {}; }
+    WriteResult      writeSessionInput(const SessionId &, const SessionInput &) override { return {}; }
+    JsonFileRead     readClubBaseline(const SessionId &) override { return {}; }
+    WriteResult      writeClubBaseline(const SessionId &, const QJsonObject &) override { return {}; }
+    JsonFileRead     readWorkOns(const SessionId &) override { return {}; }
+    WriteResult      writeWorkOns(const SessionId &, const QJsonObject &) override { return {}; }
 
     ShotRef openSwingFolder(const QString &swingFolder, const AthleteId & = {}) override
     {

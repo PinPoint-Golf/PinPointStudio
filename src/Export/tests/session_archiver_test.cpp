@@ -412,6 +412,7 @@ int main(int argc, char **argv)
         for (auto it = snap.begin(); it != snap.end(); ++it) same &= get(s4 + "/" + it.key()) == it.value();
         check(same, "…and the library is exactly as it was");
         SessionStore st;
+        st.setOsTrashForTest(false);   // never the OS trash (step 3.4a, review round 3)
         const SessionId id = st.openFolder(s4);
         const WriteResult t = st.trash(id);
         check(!id.isNull() && !t.ok() && QFileInfo(s4).isDir(), "trashing it is refused, and the folder stays");
@@ -702,6 +703,7 @@ int main(int argc, char **argv)
         makeSwing(s8 + "/swing_0001", 1, false);
         SessionStore st;
         st.setLockWaitForTest(200);
+        st.setOsTrashForTest(false);   // never the OS trash: into the library's own (step 3.4a, review round 3)
         const SessionId id = st.openFolder(s8, AthleteId::fromString(QString::fromLatin1(kAthleteUuid)));
         FolderLock other(s8);
         other.lock(0);
@@ -712,6 +714,9 @@ int main(int argc, char **argv)
         QString where;
         const WriteResult t = st.trash(id, &where);
         check(t.ok() && !QFileInfo::exists(s8) && !where.isEmpty(), "an ended session goes to the trash, whole");
+        check(where.startsWith(library + "/.pinpoint-trash/Test-Athlete/") && QFileInfo(where).isDir()
+                  && QFileInfo(where + "/swing_0001").isDir(),
+              "…into the library's own .pinpoint-trash, its swing with it");
         check(!st.open(id).has_value(), "…and the repository lets it go");
     }
 

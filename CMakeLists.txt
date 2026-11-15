@@ -2785,6 +2785,7 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_files.h
     # The session's diagnostics files and the golfer's input, one reader and writer (refactor step 2.5).
     src/Export/session_diagnostics_files.h
+    src/Export/session_diagnostics_io.h   # its file work, shared with the session store (step 3.4a, J-42)
     src/DomainModel/session_input.h
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
@@ -2942,6 +2943,13 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/athlete.h
     src/DomainModel/athlete.cpp
     src/DomainModel/athlete_repository.h
+    # The Session and its Shots (refactor step 3.4a; Domain model) and `app` (D1; Application, src/App).
+    src/DomainModel/session.h
+    src/DomainModel/session.cpp
+    src/DomainModel/shot.h
+    src/DomainModel/shot.cpp
+    src/App/app.h
+    src/App/app.cpp
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h
@@ -3296,6 +3304,7 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         tools/migrate/pps_migrate_step2.cpp
         tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
         src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Export/athlete_store.cpp   # AthleteRecord
+        src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
         src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
         src/Identity/identity.h
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp

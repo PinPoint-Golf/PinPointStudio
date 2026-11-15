@@ -182,42 +182,41 @@ static void testTrashPath()
     check(QStringLiteral("T2 a path that does not exist is refused"),
           !SwingPaths::trashPath(QStringLiteral("/no/such/path/anywhere-12345")));
 
+    // ⚠ NEVER THE OS TRASH: every trash here passes useOsTrash = false (step 3.4a, review round 3), so a run
+    // never puts a folder in the trash of the machine that runs it. The library-local trash is the very route a
+    // share without an OS trash takes, so it is the one tested: <root>/.pinpoint-trash/<athlete>/<stamp>_[<session>_]<name>.
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("T3"), QStringLiteral("no temp dir")); return; }
         const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 2);
         const QString swing   = session + QStringLiteral("/swing_0001");
         QString where;
-        const bool ok = SwingPaths::trashPath(swing, &where);
+        const bool ok = SwingPaths::trashPath(swing, &where, /*useOsTrash=*/false);
         check(QStringLiteral("T3 a swing folder can be trashed (to %1)").arg(where), ok);
         if (ok) {
             check(QStringLiteral("T4 it leaves its original location"), !TempLibrary::exists(swing));
             checkEqInt(QStringLiteral("T5 and its session keeps the others"),
                        TempLibrary::countSwings(session), 1);
+            const QString trash = lib.root() + QStringLiteral("/.pinpoint-trash/") + kToken + QLatin1Char('/');
+            check(QStringLiteral("T5b it is in the library's own trash, named for its session"),
+                  where.startsWith(trash) && TempLibrary::exists(where)
+                      && where.endsWith(QLatin1Char('_') + QFileInfo(session).fileName() + QStringLiteral("_swing_0001")));
         }
     }
 
     // The share case: no OS trash on the volume, so the folder must move into
     // the library-local .pinpoint-trash rather than being lost or left in place.
-    // Reachable only where the platform has no trash for the temp volume, so
-    // this reports SKIP rather than a false pass when the OS trash worked.
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("T6"), QStringLiteral("no temp dir")); return; }
         const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_02"), 1);
         QString where;
-        if (!SwingPaths::trashPath(session, &where)) {
-            check(QStringLiteral("T6 a session that cannot be trashed stays put"),
-                  TempLibrary::exists(session));
-        } else if (where == QStringLiteral("the system trash")) {
-            skip(QStringLiteral("T6 library-local trash fallback"),
-                 QStringLiteral("this volume has an OS trash, so the fallback never runs"));
-        } else {
-            check(QStringLiteral("T6 the fallback lands under .pinpoint-trash"),
-                  where.contains(QStringLiteral("/.pinpoint-trash/")));
-            check(QStringLiteral("T7 and the folder is recoverable there"),
-                  TempLibrary::exists(where));
-        }
+        const bool ok = SwingPaths::trashPath(session, &where, /*useOsTrash=*/false);
+        check(QStringLiteral("T6 the session lands under the library's own .pinpoint-trash (to %1)").arg(where),
+              ok && where.startsWith(lib.root() + QStringLiteral("/.pinpoint-trash/") + kToken + QLatin1Char('/'))
+                  && where.endsWith(QLatin1Char('_') + QFileInfo(session).fileName()));
+        check(QStringLiteral("T7 and the folder is recoverable there, gone from the library"),
+              ok && TempLibrary::exists(where) && !TempLibrary::exists(session));
     }
 }
 

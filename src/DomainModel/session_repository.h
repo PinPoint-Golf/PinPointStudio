@@ -55,6 +55,11 @@
 //                    one stub, one file put back, the marker — never across the run (J-11)
 //   trash            the whole session folder to the recoverable trash (FILE-LIB-01), refused while its
 //                    session file says InProgress; the identity map lets it go (step 2.6)
+//   trashShot        one shot's swing folder to the same trash, its number kept as the high-water (step 3.4a;
+//                    J-24), behind Session::trashShot
+//   readDiagnostics … writeWorkOns   the session's diagnostics files (FILE-SESS-02…05) by its id (step 3.4a;
+//                    J-42): the folder-keyed SessionDiagnosticsFiles' reads and writes, for the session held
+//                    under that id
 //
 // THE IDENTITY MAP. One record per SessionId while held, on the owner thread (the GUI thread in the
 // app; one thread in a tool). The open session's folder lives here and is never re-resolved per shot
@@ -75,15 +80,19 @@
 // commands and the launch monitor's standalone shot (one allocator: D10, DEC-157); the Archiving tab and
 // housekeeping (ArchiveController: archive, restore) and the drawer's delete (SessionReviewController:
 // trash), from step 2.6. Step 3's
-// Athlete::startSession / resumeSession and Session::end / addShot take them over.
+// Athlete::startSession / resumeSession / trashSession and Session::end / addShot / trashShot
+// (src/DomainModel/session.h, step 3.4a) take them over: the objects are built in run 3.4a-i, and their
+// callers move in run 3.4a-ii (capture, the launch monitor, the clip filer, AthleteController).
 //
 // Domain model ring (src/DomainModel): names no store type.
 
 #include "recording_repository.h"   // WriteResult (step 1's type)
 #include "session_identity.h"
+#include "session_input.h"          // SessionInput (FILE-SESS-02)
 #include "../Identity/identity.h"
 
 #include <QDateTime>
+#include <QJsonObject>
 #include <QList>
 #include <QString>
 
@@ -168,6 +177,49 @@ struct SessionArchiveResult {
 // archived, and restoring again finishes it.
 using SessionArchiveProgress = std::function<bool(int done, int total)>;
 
+// ── A SESSION'S DIAGNOSTICS FILES, AS READ (FILE-SESS-02…05; refactor step 2.5, moved here in 3.4a for
+//    J-42's id-keyed methods below). The rules for each: src/Export/session_diagnostics_files.h. ──────────
+
+// diagnostics.json as read: the cache half, and the older shape's golfer keys kept apart.
+struct DiagnosticsEnvelope {
+    int         schemaVersion = 0;   // the envelope's own version (kEnvelopeVersion), not the ledger's
+    QJsonObject session;             // the session block (stage, shot count, the swing folders, the stamps)
+    QJsonObject ledger;              // diagnostic_ledger.h's object, nested, with ITS schemaVersion
+    QJsonObject legacyGolferInput;   // the older shape's golfer keys, verbatim (legacyGolferKeys())
+    QJsonObject other;               // any other top-level key this build does not know: kept on rewrite
+};
+
+struct DiagnosticsRead {
+    enum class State {
+        Missing,      // no file: nothing reduced yet (or the cache was deleted)
+        Read,         // parsed and of this build's schema or older
+        Newer,        // parsed, but a newer build's: read what can be read, write nothing (READ-ONLY)
+        Unparseable,  // it opens but is not a JSON object: the file itself is bad (set it aside)
+        Unopenable,   // it is there and cannot be opened: met at a bad moment (a share, a permission)
+    };
+    State               state = State::Missing;
+    DiagnosticsEnvelope envelope;
+    QString             error;     // why, for Unparseable / Unopenable / Newer
+    bool exists() const { return state != State::Missing; }
+    bool parsed() const { return state == State::Read || state == State::Newer; }
+};
+
+struct SessionInputRead {
+    enum class State { Missing, Read, Newer, Unparseable };
+    State        state = State::Missing;
+    SessionInput input;            // each field present only when the file holds it
+    QString      error;
+    bool readOnly() const { return state == State::Newer || state == State::Unparseable; }
+};
+
+// A small JSON file read whole (club_baseline.json, work_ons.json).
+struct JsonFileRead {
+    bool        exists = false;   // the file is there
+    bool        ok = false;       // it opened and is a JSON object
+    QJsonObject root;
+    QString     error;
+};
+
 class SessionRepository
 {
 public:
@@ -222,6 +274,34 @@ public:
     // FILE-LIB-01). Refused while its session file says InProgress (Failed) or another writer holds its
     // lock (Locked). `where`, when given, names where it went. The identity map lets the session go.
     virtual WriteResult trash(const SessionId &id, QString *where = nullptr) = 0;
+
+    // ONE SHOT TO THE TRASH (refactor step 3.4a; J-24; behind Session::trashShot): its swing folder to the
+    // recoverable trash (the OS trash, else the library's own: FILE-LIB-01; where it goes is unchanged, D11:
+    // DEC-175), its number recorded first as the session's high-water (FILE-SESS-10), so it is never issued
+    // again (DEC-91). Under the session's lock for that one write (Locked when another writer holds it).
+    // Failed for a shot whose session is not held or whose folder is not there. `where` names where it went.
+    virtual WriteResult trashShot(const ShotRef &shot, QString *where = nullptr) = 0;
+
+    // ── THE SESSION'S DIAGNOSTICS FILES BY ITS ID (refactor step 3.4a; J-42) ─────────────────────────────
+    // The same reads and writes as SessionDiagnosticsFiles' folder-keyed functions, with the same rules
+    // (a newer file read-only, keys this build does not know kept, the session's lock for each write, an
+    // atomic write), for the session held under `id`. A session that is not held: every read answers
+    // empty (Missing / not there) with `error` saying so, every write Failed. Owner thread, like every
+    // method but swingFolder. Their callers come with step 3.5 (SessionDiagnostics); until then the
+    // folder-keyed functions stay the callers' door (IM-S2-4's interim).
+    virtual DiagnosticsRead  readDiagnostics(const SessionId &id) = 0;
+    virtual WriteResult      writeDiagnostics(const SessionId &id, const QJsonObject &session,
+                                              const QJsonObject &ledger, const QJsonObject &legacyFallback,
+                                              DiagnosticsRead::State *state = nullptr) = 0;
+    virtual WriteResult      backupDiagnostics(const SessionId &id, const QString &tag,
+                                               QString *backupPath = nullptr) = 0;
+    virtual WriteResult      setAsideDiagnostics(const SessionId &id, QString *asidePath = nullptr) = 0;
+    virtual SessionInputRead readSessionInput(const SessionId &id) = 0;
+    virtual WriteResult      writeSessionInput(const SessionId &id, const SessionInput &input) = 0;
+    virtual JsonFileRead     readClubBaseline(const SessionId &id) = 0;
+    virtual WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) = 0;
+    virtual JsonFileRead     readWorkOns(const SessionId &id) = 0;
+    virtual WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) = 0;
 };
 
 } // namespace pinpoint

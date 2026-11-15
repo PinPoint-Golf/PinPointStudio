@@ -36,6 +36,26 @@
 //   remove()      refused while one of its sessions is InProgress (DEC-99); else the whole folder goes
 //                 to the recoverable trash (DEC-79), purged later by housekeeping (DEC-80, DEC-137)
 //
+// ITS SESSIONS' LIFECYCLE (refactor step 3.4a; build/refactor/step-3/BRIEF.md §4.8; LC-SESSION, DEC-71,
+// DEC-73, DEC-77, DEC-78, DEC-134, DEC-143, DEC-164):
+//   startSession(type)   ends the athlete's session running here first (EVT-09; never the empty discard,
+//                 which only End itself makes, as today), then SessionRepository::start, which mints the
+//                 SessionId, writes the session file and ends any session a crash left in progress, its end
+//                 inferred (J-18) as today; EVT-17
+//   todaysSession(type), resumeSession(id, type)   today's session of that type, resumed with its own id
+//                 (DEC-77; only one started today, of the same type: DEC-134); the session running here is
+//                 ended first; EVT-23
+//   trashSession(id)   the whole session to the recoverable trash, refused while it is in progress (J-46);
+//                 EVT-20; its Session is let go and deleted later (deleteLater)
+//   sessionAt(folder)  THE EDGE TRANSLATION for a view that still holds a folder (D1: DEC-164; DEC-90): that
+//                 folder's Session, when it is one of this athlete's; null otherwise. app.sessionAt asks it
+//   session(id), sessions()   the Session for an id of the index, and every one (loaded when first asked)
+// ONE INSTANCE PER SessionId: the Athlete holds each Session it has loaded as its child, so the panel, the
+// report and a sweep asking for one get the same object (LIVE-2; Mark, 15 Nov 2026: DEC-190); the session
+// repository holds the records. Nothing releases one but a trash until step 3.5 (Q-18).
+// The events are Qt signals carrying the id, emitted after the repository write returned ok (DEC-69).
+// INTERIM (run 3.4a-i): no caller uses these yet; run 3.4a-ii moves capture and AthleteController onto them.
+//
 // recordChanged() is THE EDIT SIGNAL — the interim for EVT-14 until step 3's events. A switch of the
 // current athlete is not an Athlete's business: the holder replaces the Athlete (R-APP-1).
 //
@@ -55,15 +75,29 @@
 #include "../Identity/identity.h"
 
 #include <QDate>
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QVariant>
 #include <QVariantMap>
 
+#include <memory>
+
 namespace pinpoint {
 
 class AthleteRepository;
+class RecordingReader;
+class Session;
+
+// The doors a Session's shots read and (from step 3.4b) write through (refactor step 3.4a): the composition
+// root's one RecordingRepository and RecordingReader, handed down Athlete → Session → Shot by the athlete
+// repository that makes the Athlete. Not owned here (the reader is shared: every RecordingSource keeps it
+// alive). Null doors: the shots know no kind and read nothing (a tool or test that wires none).
+struct ShotDoors {
+    RecordingRepository             *recordings = nullptr;
+    std::shared_ptr<RecordingReader> reader;
+};
 
 // OBJ-ATHLETE-RECORD and OBJ-BAG: SET-01's keys exactly as stored today, so M1's move is lossless.
 // lastSessionAt and sessionCount are NOT here (DEC-89): they come from the index.
@@ -172,9 +206,25 @@ public:
     // THE REPOSITORY'S SIDE: what is stored now. Emits recordChanged() when the record differs.
     void setStored(const AthleteRecord &record, const QString &folder, const SessionOwner &owner,
                    Source source, bool readOnly);
+    // THE REPOSITORY'S SIDE: the doors its sessions' shots use (the sessions loaded before keep theirs).
+    void setShotDoors(const ShotDoors &doors) { m_shotDoors = doors; }
+
+    // ── Its sessions (step 3.4a) ─────────────────────────────────────────────────────────────────────
+    // `type` by name (DEC-88: "swing", "wrist", "grf", "coach", "" for none); `namingPattern` is SET-04,
+    // which the caller reads. Null on failure, with `*result` saying why (DEC-126); else `*result` the write's.
+    Session    *startSession(const QString &type, const QString &namingPattern, WriteResult *result = nullptr);
+    SessionId   todaysSession(const QString &type) const;
+    Session    *resumeSession(const SessionId &id, const QString &type, WriteResult *result = nullptr);
+    WriteResult trashSession(const SessionId &id, QString *where = nullptr);
+    Session    *sessionAt(const QString &folder);
+    Session    *session(const SessionId &id);
+    QList<Session *> sessions();
 
 signals:
     void recordChanged();
+    void sessionStarted(const pinpoint::SessionId &session);   // EVT-17
+    void sessionResumed(const pinpoint::SessionId &session);   // EVT-23
+    void sessionTrashed(const pinpoint::SessionId &session);   // EVT-20
 
 private:
     AthleteRepository *m_repository = nullptr;
@@ -185,6 +235,17 @@ private:
     AthleteRecord      m_record;
     Source             m_source   = Source::Library;
     bool               m_readOnly = false;
+    ShotDoors          m_shotDoors;
+    QHash<SessionId, Session *> m_loaded;   // each Session loaded, a child of this Athlete (one per id)
+
+    // The Session object for a session the repository holds, made once; `startedHere` marks the one this
+    // run's startSession made. Null when the repository does not hold it or it is not this athlete's.
+    Session *hold(const SessionId &id, bool startedHere);
+    // The session running here (started or resumed by this process and not ended), ended first by a start
+    // or a resume (DEC-78, DEC-134); `except` is left alone.
+    void endRunningSessions(const SessionId &except);
+    // Brings `id` into the repository's identity map if it is not there yet (the athlete's index).
+    bool ensureHeld(const SessionId &id);
 };
 
 } // namespace pinpoint

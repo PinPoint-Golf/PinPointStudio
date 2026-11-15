@@ -100,6 +100,7 @@
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
+#include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -333,8 +334,30 @@ int main(int argc, char *argv[])
     // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
     // controller, so it outlives every Athlete the controller holds.
     pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
+    // The doors the Athletes' sessions hand their shots (refactor step 3.4a): the one swing door and the one
+    // reading door above, shared, never owned (both are static and outlive every Athlete).
+    athleteStore.setShotDoors({ &recordingRepository,
+                                std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
+    // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
+    // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
+    // re-pointed needs no new ones). Their takers move onto them from run 3.4a-ii (AthleteController) and
+    // steps 3.6 and 3.8 (the catch-up, housekeeping and its purge); until then nothing calls them.
+    const pinpoint::AthleteCallables athleteCallables{
+        [&athleteStore] { return athleteStore.list(); },
+        [&athleteStore](const pinpoint::AthleteId &id) { return athleteStore.load(id); },
+        [&athleteStore](const pinpoint::AthleteRecord &record, pinpoint::WriteResult *result) {
+            const pinpoint::AthleteCreateResult made = athleteStore.create(record);
+            if (result)
+                *result = made.result;
+            return made.athlete;
+        },
+    };
+    Q_UNUSED(athleteCallables);
     AthleteController       athleteController;
     athleteController.setRepositories(&athleteStore, &sessionStore);
+    // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
+    // the current athlete. No QML calls it yet (the panels move in step 3.7).
+    pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
     // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
@@ -1173,6 +1196,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
+    engine.rootContext()->setContextProperty(QStringLiteral("app"),               &appObject);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);

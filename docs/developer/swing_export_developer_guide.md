@@ -788,7 +788,7 @@ under every naming pattern, and D3's name-based `SessionId`).
 | `nextSessionCounter(athleteDir, base)` | one past the highest `_NN` of that base under the athlete folder |
 | `swingFolderName(n)` / `swingNumberOf(name)` | `swing_0007` ↔ 7 (0 for a name that is not a swing folder) |
 | `swingFolders(sessionDir)` | the one `swing_*` listing of a session's swing folders |
-| `trashPath(path)` | the OS trash, or the library-local `.pinpoint-trash` on a volume without one |
+| `trashPath(path[, where, useOsTrash])` | the OS trash, or the library-local `.pinpoint-trash` on a volume without one; `useOsTrash` false goes straight to the library-local one (the tests' seam, `SessionStore::setOsTrashForTest`) |
 
 ### The session file — `session.json` (FILE-SESS-01; step 2.2)
 
@@ -855,7 +855,21 @@ bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `la
 | `allocateSwing(id)` | the next swing number (below), under the session's lock; a `ShotRef` and the folder | `ShotProcessor::buildSwingExportJob`, and `LaunchMonitorController`'s standalone shot — **one allocator** (D10: DEC-157), so a device-only shot goes into the running session, never a `…_session_NN` folder of its own |
 | `archive(id, options, progress)`, `restore(id, progress)` | the whole session to its archive mirror and back (below). **Refused while the session file says in progress** — read afresh, so another computer's live session, or one a crash left open, is refused too (D11: DEC-158); `archive` also refuses a newer build's session file (read-only) | `ArchiveController` (the Archiving tab, the review's "restore", housekeeping), each job in a `SessionArchiveRun` of its own |
 | `trash(id, &where)` | the whole session folder to the OS trash, else the library's own `.pinpoint-trash` (FILE-LIB-01). Refused while its session file says in progress, or while another writer holds its lock (`Locked`; the lock is taken for a moment and let go **before** the move: a lock file must not travel with the folder, and Windows will not move a folder holding an open file). The identity map lets the session go | `SessionReviewController::trashSession` (the drawer's delete, the bulk delete): the row's folder translated once with `openFolder` (D3 from the current athlete for a legacy session) |
+| `trashShot(ref, &where)` (step 3.4a; J-24) | one shot's swing folder to the same trash: its number recorded as the high-water first (`.pinpoint-last-swing`), so it is never issued again (DEC-91), then the folder moved (`SwingPaths::trashPath`), both under the session's lock (`Locked` when another writer holds it) | `Session::trashShot` (no app caller yet: the carousel moves to it in step 3.4b) |
+| `readDiagnostics(id)` … `writeWorkOns(id, …)` (step 3.4a; J-42) | the session's diagnostics files (`diagnostics.json`, its backups and set-aside copy, `session_input.json`, `club_baseline.json`, `work_ons.json`) by `SessionId`: the same file work as `SessionDiagnosticsFiles`' folder-keyed functions — both forward to `session_diagnostics_io.h` — on the held session's folder; a session not held reads empty and refuses every write | none yet (step 3.5's `SessionDiagnostics`) |
 | `shots(id)`, `swingFolder(ref)`, `open(id)`, `openFolder(path, athlete)` | the identity map's reads. A copied session keeps its id (D3, or a copied file): re-read from another folder, the map takes the fresh folder, so a library re-pointed to a copy never hands out the old library's folder — except the session this run started and is still running, which keeps its own | (2.4 onwards) |
+
+**The objects over it (step 3.4a; information_model.md LC-SESSION, LC-SHOT).** The `Athlete` starts, resumes and
+trashes its sessions (`startSession`, `todaysSession` / `resumeSession`, `trashSession`: the calls above, after
+ending the athlete's session running here, EVT-09) and hands out one `Session` per `SessionId`
+(`session(id)`, `sessions()`, and `sessionAt(folder)` — the edge translation `app.sessionAt` asks). A
+`Session` (`src/DomainModel/session.*`) adds a shot with `addShot()` — `allocateSwing`, then the `Shot` — and
+announces it (EVT-01) only when capture reports its document written (`shotDocumentWritten`); `trashShot`
+goes through `trashShot` above (EVT-03); `end()` ends it and, for an empty session this run started, asks
+its `Athlete` to trash it (EVT-20), the empty discard's new home. A `Shot` (`shot.*`) is reached only through
+its `Session`; its `RecordingSource` reads the Recording through the one `RecordingReader`, which resolves
+the folder only through `swingFolder`, so a source whose session is no longer held reads nothing. **Until
+step 3.4a-ii the callers in the table above are unchanged**: nothing in the app calls these objects yet.
 
 **The folder is fixed for the session's life** (E-01): `allocateSwing` takes only the `SessionId`, so a
 rename, midnight or a changed pattern or type cannot move it; nothing relocates (D7). The 0.3 stopgap
@@ -1247,6 +1261,10 @@ src/Export/
 ├── session_store.cpp             Start / resume / End, D7, enumerate, the one allocator (§7)
 ├── session_files.h             SessionFiles — the session folder's own file names, and the
 │                                 swing counter's reader and writer (header-only)
+├── session_diagnostics_io.h    the diagnostics files' file work (diagnostics.json,
+│                                 session_input.json, club_baseline.json, work_ons.json),
+│                                 shared by SessionDiagnosticsFiles and the store's id-keyed
+│                                 methods (header-only; step 3.4a, J-42)
 ├── session_archiver.h          SessionArchiver — the archive's file work behind
 ├── session_archiver.cpp          SessionRepository::archive / restore; SessionArchiveRun (§7)
 │

@@ -32,7 +32,8 @@
 //     club_baseline.json      FILE-SESS-04: the frozen club baseline
 //     work_ons.json           FILE-SESS-05: the session's work-ons record
 //                             The four above are read and written by SessionDiagnosticsFiles only
-//                             (session_diagnostics_files.h, step 2.5)
+//                             (session_diagnostics_files.h, step 2.5), and by id through the session
+//                             store (step 3.4a, J-42): both over session_diagnostics_io.h's file work
 //     .pinpoint-last-swing    FILE-SESS-10: the highest swing number the session has issued (DEC-91)
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
 //     archived.json           FILE-SESS-06: the archive marker — the session's swings are stubs, the rest is
