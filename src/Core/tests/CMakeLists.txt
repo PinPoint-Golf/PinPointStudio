@@ -70,6 +70,12 @@ pp_add_test(atomic_write_test
 pp_add_test(folder_lock_test
     SOURCES folder_lock_test.cpp ${CORE}/folder_lock.cpp
     INCLUDE ${CORE})
+# The one worker pool, its serial lanes and the post-to-owner receiver (work_pool.*, R-CON-5; refactor
+# step 3.1, D15): a lane keeps order; two lanes do not block each other; a cancelled lane drops its waiting
+# jobs; the receiver drops what it cannot resolve; the counter never repeats. Hand-rolled main, Qt Core only.
+pp_add_test(work_pool_test
+    SOURCES work_pool_test.cpp ${CORE}/work_pool.cpp
+    INCLUDE ${CORE})
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads

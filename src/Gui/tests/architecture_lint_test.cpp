@@ -24,7 +24,8 @@
 // QML; tests/, Testing/, third_party/ and build/ are skipped) and fails on:
 //
 //   A1  an #include "…" from an inner ring into an outer one. The rings, innermost first:
-//         0 Platform     logging, profiling, machine queries — any ring may include these (see below)
+//         0 Platform     logging, profiling, machine queries, the persistence helpers, the one worker pool —
+//                        any ring may include these (see below)
 //         1 Vocabulary   value types, ids, metric definitions + catalogue, club vocabulary, units, and
 //                        the Recording contract's types (§0.1)
 //         2 Rules        pure measurement algorithms, detection, diagnostics engine + packs/norms,
@@ -190,8 +191,8 @@ const QVector<QPair<QString, int>> &dirRings()
 const QHash<QString, int> &fileRings()
 {
     static const QHash<QString, int> t{
-        // Core: logging, profiling, machine queries and the two persistence mechanisms (the atomic
-        // write, the folder lock) are Platform; settings, the studio profile,
+        // Core: logging, profiling, machine queries, the two persistence mechanisms (the atomic
+        // write, the folder lock) and the one worker pool are Platform; settings, the studio profile,
         // app info and the device enumerator are adapters; the Kalman smoother is an algorithm.
         { QStringLiteral("Core/pp_debug"), Platform },
         { QStringLiteral("Core/pp_log_stream"), Platform },
@@ -208,6 +209,9 @@ const QHash<QString, int> &fileRings()
         // The persistence mechanisms every ring may use (refactor step 2.0; R-PERS-2, R-PERS-6).
         { QStringLiteral("Core/atomic_write"), Platform },
         { QStringLiteral("Core/folder_lock"), Platform },
+        // The one worker pool, its serial lanes and the post-to-owner receiver (refactor step 3.1; R-CON-5;
+        // Mark, 15 Nov 2026: D15, IM-S3-8).
+        { QStringLiteral("Core/work_pool"), Platform },
         { QStringLiteral("Core/kf3_smoother"), Rules },
         { QStringLiteral("Core/device_enumerator"), Adapters },
         { QStringLiteral("Core/app_info"), Adapters },
