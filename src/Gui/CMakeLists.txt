@@ -90,6 +90,8 @@ else()
         ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
         ${PP_ROOT}/src/Export/swing_paths.cpp
         ${PP_ROOT}/src/Core/folder_lock.cpp   # the tuning log's append (session_diagnostics_model.cpp, step 2.3)
+        # the golfer's input on each shot's review: the model's own session store (step 2.5)
+        ${PP_ROOT}/src/Export/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
         # the chest's gap bridge (session_bridge.cpp bridges older swings with it)
         ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
@@ -234,6 +236,7 @@ else()
             ${PP_ROOT}/src/Export/recording_header.cpp ${PP_ROOT}/src/Analysis/effective_context.cpp
             ${PP_ROOT}/src/Export/swing_paths.cpp
             ${PP_ROOT}/src/Core/folder_lock.cpp
+            ${PP_ROOT}/src/Export/session_store.cpp ${PP_ROOT}/src/DomainModel/session_identity.cpp   # step 2.5
             ${CMAKE_CURRENT_SOURCE_DIR}/shot/shot_list_model.cpp
             ${PP_ROOT}/src/Kinematics/gap_bridge.cpp
             ${PP_ROOT}/src/Metrics/variability/variability_result.cpp

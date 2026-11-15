@@ -695,18 +695,20 @@ WriteResult SwingDocWriter::editReview(const QString &swingDir, const ReviewEdit
     // The shot's own golfer input (IM-S2-3; FILE-SHOT-02): written only when set, and removed when set
     // back to none, like the annotations — so a document no golfer gave an intent or a correction stays
     // exactly as it was, and an old document without the keys reads as having none.
+    // keepEmptyGolferInput (step 2.5, J-33): the cleared answer is kept as an empty value while
+    // diagnostics.json's older copy would otherwise be read again in its place.
     if (edit.shotIntent) {
         const QString intent = edit.shotIntent->trimmed();
-        if (!intent.isEmpty()) review[QStringLiteral("shotIntent")] = intent;
-        else                   review.remove(QStringLiteral("shotIntent"));
+        if (!intent.isEmpty() || edit.keepEmptyGolferInput) review[QStringLiteral("shotIntent")] = intent;
+        else                                                review.remove(QStringLiteral("shotIntent"));
     }
     if (edit.labelCorrections) {
         QJsonArray list;
         for (const LabelCorrection &c : *edit.labelCorrections)
             list.append(QJsonObject{ { QStringLiteral("family"), c.family }, { QStringLiteral("from"), c.from },
                                      { QStringLiteral("to"), c.to } });
-        if (!list.isEmpty()) review[QStringLiteral("labelCorrections")] = list;
-        else                 review.remove(QStringLiteral("labelCorrections"));
+        if (!list.isEmpty() || edit.keepEmptyGolferInput) review[QStringLiteral("labelCorrections")] = list;
+        else                                              review.remove(QStringLiteral("labelCorrections"));
     }
 
     if (!always && review == before)
@@ -740,6 +742,8 @@ ShotReview SwingDocWriter::readReview(const QString &swingDir)
     }
     const QJsonObject review = root.value(QStringLiteral("review")).toObject();
     out.ok         = true;
+    out.hasShotIntent       = review.contains(QStringLiteral("shotIntent"));
+    out.hasLabelCorrections = review.contains(QStringLiteral("labelCorrections"));
     out.shotIntent = review.value(QStringLiteral("shotIntent")).toString();
     for (const QJsonValue &v : review.value(QStringLiteral("labelCorrections")).toArray()) {
         const QJsonObject c = v.toObject();

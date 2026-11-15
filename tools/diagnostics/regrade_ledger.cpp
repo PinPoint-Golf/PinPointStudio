@@ -9,24 +9,22 @@
 // way to see what the new pack says about an old session is to set the file aside and let the
 // model back-fill every shot again. That is the whole of this tool:
 //
-//   1. diagnostics.json is read and parsed. One that cannot be is left exactly as it is and the
-//      session is SKIPPED: it may hold the golfer's only copy of what they said.
-//   2. diagnostics.json  ->  diagnostics.json.<tag>   (default tag pre-regrade; never overwritten:
-//      refuses if present)
-//   3. THE GOLFER'S HALF IS CARRIED ACROSS. The file is half cache (the rows, the session meta) and
-//      half the only copy of what the golfer and coach said: SessionDiagnosticsModel::golferInputKeys()
-//      — the focus and declared miss (`intent`), screen answers, shot intent, a run of intent and
-//      outcome corrections. When the golfer said anything at all — a value, not a key: the app
-//      always writes `intent` and `screens`, empty or not — those keys, as they stood, are written
-//      as a seed diagnostics.json (golfer keys, no rows) before the model reads it, so the rebuilt
-//      file keeps them (audit H-04: a regrade used to drop them all, and one corpus session lost
-//      its declared focus that way). When the golfer said nothing no seed is written.
-//      If the model then writes no ledger (no swing_* folders, or every write failed), the
-//      original is PUT BACK from the backup and the seed removed: a ledger-less file is not left
-//      behind, because prepareClubBaseline reads it as an out-of-date predecessor and the
-//      golfer's later sessions would then never freeze their club baseline.
-//   4. SessionDiagnosticsModel::activateSession(dir), synchronously, which re-ingests every shot
-//      and writes a fresh diagnostics.json after each one
+//   1. diagnostics.json is read through its one reader (Export/session_diagnostics_files.h). One that
+//      cannot be read, or that a newer build saved, is left exactly as it is and the session is SKIPPED.
+//   2. diagnostics.json is COPIED to diagnostics.json.<tag> (default tag pre-regrade; never overwritten:
+//      refuses if present) — SessionDiagnosticsFiles::backupDiagnostics, through the session's files. The
+//      live file stays where it is: there is no moment without one.
+//   3. THE GOLFER'S INPUT IS NOT IN THE CACHE (refactor step 2.5, audit H-04). It lives in session_input.json
+//      and on each shot's review, which this tool never touches. A session written before step 2.5 still has
+//      its input in diagnostics.json's older keys (intent, screens, shotIntent, intentFrom, corrections): the
+//      model reads them as the fallback and every write of the file carries them over unchanged, so the
+//      regrade keeps them without a seed (step 2.5 deleted the seed) — the lead's call J-33; migration M3
+//      moves them. The tool checks it: the older keys after must equal those before, or it WARNs and exits 1.
+//   4. SessionDiagnosticsModel::activateSession(dir), synchronously, with setRebuildCache(true): the file's rows
+//      and session block are ignored (the older golfer keys are still read), so every shot is re-ingested and
+//      the stage starts from Cold, and a fresh diagnostics.json is written after each one. If the model writes
+//      no ledger (no swing_* folders, or every write failed) the original is still in place, untouched, and
+//      the copy is removed.
 //   5. one line per session on stdout: shots, stage, patterns, coverage, and what was carried —
 //      with a WARN, and exit 1, if the rebuilt file does not say the same as the old one did
 //
@@ -72,6 +70,7 @@
 // flight table would read no flight on any shot and say so silently.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "Export/session_diagnostics_files.h"
 #include "Coaching/shot_factors.h"
 #include "Core/PpMessageLog.h"
 #include "parity_json.h"
@@ -83,7 +82,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-#include <QSaveFile>
 #include <QStringList>
 
 #include <algorithm>
@@ -116,21 +114,6 @@ QString golferSummary(const QJsonObject &g)
     return parts.join(QStringLiteral(" · "));
 }
 
-// Read and parse a ledger. False, with the reason, when it is there and cannot be.
-bool readLedger(const QString &path, QJsonObject *root, QString *why)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) { *why = f.errorString(); return false; }
-    QJsonParseError err;
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-    if (err.error != QJsonParseError::NoError) {
-        *why = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
-        return false;
-    }
-    if (!doc.isObject()) { *why = QStringLiteral("not a JSON object"); return false; }
-    *root = doc.object();
-    return true;
-}
 
 // ── The parity dump (--dump) ─────────────────────────────────────────────────────────────────
 
@@ -382,64 +365,47 @@ int main(int argc, char **argv)
             ++failures;
             continue;
         }
-        const QString ledger = dir + QStringLiteral("/diagnostics.json");
-        const QString backup = ledger + QLatin1Char('.') + tag;
-        const QString name   = QFileInfo(dir).fileName();
+        using pinpoint::DiagnosticsRead;
+        using pinpoint::SessionDiagnosticsFiles;
+        const QString name = QFileInfo(dir).fileName();
         bool hadLedger = false;
-        QJsonObject carried;          // the golfer's half of the old file, as it stood
-        bool seeded = false;          // diagnostics.json is, for now, the carried golfer input alone
-        if (QFile::exists(ledger)) {
-            if (QFile::exists(backup)) {
-                std::printf("%-48s SKIP  %s already exists — pick another --tag\n",
-                            qPrintable(name), qPrintable(QFileInfo(backup).fileName()));
-                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("backup already exists")));
+        QString backup;
+        QJsonObject carried;          // the older golfer keys of the file, as they stood (J-33)
+        const DiagnosticsRead before = SessionDiagnosticsFiles::readDiagnostics(dir);
+        if (before.exists()) {
+            if (before.state != DiagnosticsRead::State::Read) {
+                const QString why = before.state == DiagnosticsRead::State::Newer
+                                        ? QStringLiteral("diagnostics.json was %1").arg(before.error)
+                                        : QStringLiteral("diagnostics.json cannot be read (%1)").arg(before.error);
+                std::printf("%-48s SKIP  %s — left as it is\n", qPrintable(name), qPrintable(why));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {},
+                                         before.state == DiagnosticsRead::State::Newer
+                                             ? QStringLiteral("diagnostics.json is a newer build's")
+                                             : QStringLiteral("diagnostics.json cannot be read")));
                 ++failures;
                 continue;
             }
-            QJsonObject old;
-            QString why;
-            if (!readLedger(ledger, &old, &why)) {
-                std::printf("%-48s SKIP  diagnostics.json cannot be read (%s) — left as it is\n",
-                            qPrintable(name), qPrintable(why));
-                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("diagnostics.json cannot be read")));
-                ++failures;
-                continue;
-            }
-            carried = SessionDiagnosticsModel::golferInput(old);
-            if (!QFile::rename(ledger, backup)) {
-                std::printf("%-48s SKIP  could not set the ledger aside\n", qPrintable(name));
-                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("could not set the ledger aside")));
+            const pinpoint::WriteResult b = SessionDiagnosticsFiles::backupDiagnostics(dir, tag, &backup);
+            if (!b.ok()) {
+                const bool exists = QFileInfo::exists(backup);
+                std::printf("%-48s SKIP  %s\n", qPrintable(name),
+                            exists ? qPrintable(QStringLiteral("%1 already exists — pick another --tag").arg(QFileInfo(backup).fileName()))
+                                   : qPrintable(QStringLiteral("could not back the ledger up (%1)").arg(b.error)));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {},
+                                         exists ? QStringLiteral("backup already exists")
+                                                : QStringLiteral("could not back the ledger up")));
                 ++failures;
                 continue;
             }
             hadLedger = true;
-            if (!golferSummary(carried).isEmpty()) {          // the golfer said something: carry it
-                // The seed the model reads: the golfer's keys and no rows, so every shot back-fills and
-                // each write carries them. Put back as it was if the seed cannot be written.
-                QJsonObject seed = carried;
-                if (old.contains(QStringLiteral("schemaVersion")))
-                    seed.insert(QStringLiteral("schemaVersion"), old.value(QStringLiteral("schemaVersion")));
-                QSaveFile out(ledger);
-                const bool written = out.open(QIODevice::WriteOnly)
-                                  && out.write(QJsonDocument(seed).toJson(QJsonDocument::Compact)) >= 0
-                                  && out.commit();
-                if (!written) {
-                    const bool restored = QFile::rename(backup, ledger);
-                    std::printf("%-48s SKIP  could not carry the golfer's input across (%s)%s\n",
-                                qPrintable(name), qPrintable(out.errorString()),
-                                restored ? " — ledger put back" : " — the ledger is in the backup");
-                    dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("could not carry the golfer's input across")));
-                    ++failures;
-                    continue;
-                }
-                seeded = true;
-            }
+            carried = before.envelope.legacyGolferInput;
         }
 
         SessionDiagnosticsModel m;
         m.setSynchronous(true);
         m.setCadence(QStringLiteral("everyShot"));
         m.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Never);   // a tool: no club_baseline.json
+        m.setRebuildCache(true);      // every shot graded again; the older golfer keys still read and carried
         m.activateSession(dir);
 
         std::printf("%-48s %s  shots %2d  stage %-11s patterns %2d  %s\n",
@@ -457,29 +423,25 @@ int main(int argc, char **argv)
         if (!patterns.isEmpty())
             std::printf("%-48s   patterns: %s\n", "", qPrintable(patterns.join(QLatin1Char(' '))));
         // Did the model write a ledger? Its write attempts are counted, not its successes, so the file
-        // itself is asked: a seed still standing has no `ledger`.
-        QJsonObject now;
-        QString why;
-        const bool readable = readLedger(ledger, &now, &why);
-        const bool modelWrote = m.persistCount() > 0 && readable && now.contains(QStringLiteral("ledger"));
+        // itself is asked.
+        const DiagnosticsRead now = SessionDiagnosticsFiles::readDiagnostics(dir);
+        const bool modelWrote = m.persistCount() > 0 && now.parsed() && !now.envelope.ledger.isEmpty()
+                             && (!hadLedger || now.envelope.session != before.envelope.session);
         if (!modelWrote) {
             QString what = QStringLiteral("no diagnostics.json was written (no swing_* directories?)");
             if (hadLedger) {
-                // Nothing was regraded: the session keeps the file it had, not a seed and not nothing.
-                const bool seedGone = !QFile::exists(ledger)
-                                   || (seeded && readable && !now.contains(QStringLiteral("ledger")) && QFile::remove(ledger));
-                const bool restored = seedGone && QFile::rename(backup, ledger);
-                what += restored ? QStringLiteral(" — the original is put back")
-                                 : QStringLiteral(" — could not put the original back; it is %1").arg(QFileInfo(backup).fileName());
-                if (!restored) ++failures;
+                // Nothing was regraded: the session keeps the file it had, which never moved; the copy goes.
+                what += QFile::remove(backup) ? QStringLiteral(" — the original is kept as it was")
+                                              : QStringLiteral(" — the original is kept as it was; its copy %1 is left")
+                                                    .arg(QFileInfo(backup).fileName());
             }
             std::printf("%-48s WARN  %s\n", qPrintable(name), qPrintable(what));
-        } else if (seeded) {
-            // What the rebuilt file says the golfer said, against what the old one did.
-            const QString before = golferSummary(carried);
-            const QString after  = golferSummary(SessionDiagnosticsModel::golferInput(now));
-            std::printf("%-48s   carried: %s\n", "", qPrintable(before));
-            if (after != before) {
+        } else if (!carried.isEmpty()) {
+            // The older golfer keys the rebuilt file carries, against what the old one held: they must be the same.
+            const QString summary = golferSummary(carried);
+            if (!summary.isEmpty()) std::printf("%-48s   carried: %s\n", "", qPrintable(summary));
+            if (now.envelope.legacyGolferInput != carried) {
+                const QString after = golferSummary(now.envelope.legacyGolferInput);
                 std::printf("%-48s WARN  the golfer's input did not survive: now %s — the old file is %s\n",
                             qPrintable(name), after.isEmpty() ? "nothing" : qPrintable(after),
                             qPrintable(QFileInfo(backup).fileName()));

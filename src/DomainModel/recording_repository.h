@@ -232,10 +232,15 @@ struct ReviewEdit {
     std::optional<QString> club;          // the popover's (declared) club
     std::optional<bool>    excluded;      // left out of the launch monitor board's statistics
     std::optional<QString> clubOverride;  // the board's club for the shot ("" = the default)
-    // IM-S2-3 (DEC-160): the shot's own golfer input, on its review. Written by nothing yet: moving it
-    // out of diagnostics.json is step 2.5 and migration M3 (2.8).
+    // IM-S2-3 (DEC-160): the shot's own golfer input, on its review. Written by the diagnostics model's
+    // commands since step 2.5; the older copy in diagnostics.json is moved by migration M3 (2.8).
     std::optional<QString>                  shotIntent;        // "fade", "draw", … ("" = none)
     std::optional<QVector<LabelCorrection>> labelCorrections;  // the whole list (empty = none)
+    // An empty shot intent or list is written as the key with an empty value ("" / []) — the golfer's
+    // explicit "none" — instead of removing the key. Only while diagnostics.json's older copy still holds
+    // an answer for the shot (step 2.5, the lead's call J-33): a removed key would let that older answer be
+    // read again as the fallback. Never set otherwise, so absence keeps meaning "never annotated".
+    bool keepEmptyGolferInput = false;
 };
 
 // The shot-level golfer input, as the review block holds it. A document older than the keys, or one
@@ -245,6 +250,10 @@ struct ShotReview {
     QString                  error;
     QString                  shotIntent;
     QVector<LabelCorrection> labelCorrections;
+    // Whether the review holds each key at all (step 2.5): a held key — empty included — is the shot's
+    // answer; an absent one sends the reader to diagnostics.json's older copy until migration M3 (J-33).
+    bool                     hasShotIntent = false;
+    bool                     hasLabelCorrections = false;
 };
 
 // ── writeTruth, truth (FILE-SHOT-12) ─────────────────────────────────────────────────────────────

@@ -441,6 +441,11 @@ signals:
     // A new set of tendencies is in hand (a reduction or the stored file), and not the busy flag moving:
     // the cue for anything that pays to read the file again.
     void tendenciesLanded();
+    // A FILE THIS CONTROLLER WRITES COULD NOT BE SAVED (DEC-126; refactor step 2.5, brief §4.11): a session's
+    // work_ons.json, the athlete's swing summary or tendencies. `what` names it in words, `where` is the
+    // session or athlete folder, `why` the store's reason. main.cpp posts it with the existing notification
+    // centre, one notice per folder. GUI thread.
+    void storageProblem(const QString &what, const QString &where, const QString &why);
 
 private:
     struct Scanned {

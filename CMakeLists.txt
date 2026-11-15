@@ -2782,6 +2782,9 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_store.h
     src/Export/session_store.cpp
     src/Export/session_files.h
+    # The session's diagnostics files and the golfer's input, one reader and writer (refactor step 2.5).
+    src/Export/session_diagnostics_files.h
+    src/DomainModel/session_input.h
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
     src/Export/athlete_store.h

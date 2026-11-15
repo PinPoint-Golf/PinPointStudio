@@ -36,6 +36,9 @@
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, diag_uncertainty_report.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "Core/atomic_write.h"
+#include "Export/session_diagnostics_files.h"
+#include "Export/session_files.h"
 #include "Coaching/sequence_checks.h"
 #include "Diagnostics/measures/live_measure_source.h"
 #include "Diagnostics/norms/norm_provider.h"
@@ -169,20 +172,31 @@ QString mirrorSession(const QString &sessionDir, const QString &workRoot,
         }
     }
 
-    // What the panel would carry over from the session's own ledger and that is NOT evidence: the
-    // declared focus and miss, the screens entered at the range, the ledger's gates. The rows are
-    // left behind so that every shot is detected under the pack being compared.
+    // What the panel would carry over from the session that is NOT evidence: the declared focus and
+    // miss and the screens entered at the range — the golfer's session input, from its home
+    // (session_input.json) or, for a session written before step 2.5, diagnostics.json's older keys
+    // (SessionDiagnosticsFiles::golferInput; J-33) — and the ledger's gates. The input goes into the
+    // mirror's own session_input.json; the rows are left behind so that every shot is detected under the
+    // pack being compared. (Each shot's intent and corrections came with its swing document.)
+    using pinpoint::SessionDiagnosticsFiles;
     QJsonObject root;
-    QFile f(src.filePath(QStringLiteral("diagnostics.json")));
-    if (f.open(QIODevice::ReadOnly)) {
-        const QJsonObject orig = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
-        for (const char *k : { "schemaVersion", "intent", "screens" })
-            if (orig.contains(QLatin1String(k))) root[QLatin1String(k)] = orig.value(QLatin1String(k));
-        const QJsonObject ledger = orig.value(QStringLiteral("ledger")).toObject();
-        if (ledger.contains(QStringLiteral("options")))
-            root[QStringLiteral("ledger")] = QJsonObject{ { QStringLiteral("options"), ledger.value(QStringLiteral("options")) } };
+    const pinpoint::DiagnosticsRead orig = SessionDiagnosticsFiles::readDiagnostics(sessionDir);
+    if (orig.parsed()) {
+        root[QStringLiteral("schemaVersion")] = orig.envelope.schemaVersion;
+        if (orig.envelope.ledger.contains(QStringLiteral("options")))
+            root[QStringLiteral("ledger")] = QJsonObject{ { QStringLiteral("options"), orig.envelope.ledger.value(QStringLiteral("options")) } };
     }
+    const pinpoint::GolferInput g =
+        SessionDiagnosticsFiles::golferInput(sessionDir, orig.parsed() ? orig.envelope.legacyGolferInput : QJsonObject());
+    pinpoint::SessionInput in;
+    in.declaredFocus = g.focus;
+    in.declaredMiss  = g.declaredMiss;
+    QMap<QString, bool> screens;
+    for (auto it = g.screens.constBegin(); it != g.screens.constEnd(); ++it) screens.insert(it.key(), it.value());
+    in.screenAnswers = screens;
+    in.intentRuns    = QVector<pinpoint::IntentRun>{};
+    if (const pinpoint::WriteResult w = SessionDiagnosticsFiles::writeSessionInput(work, in); !w.ok())
+        std::fprintf(stderr, "diag_rank_diff: the mirror's session input was not written: %s\n", qPrintable(w.error));
     intentDoc = QJsonDocument(root).toJson(QJsonDocument::Compact);
     return work;
 }
@@ -199,8 +213,9 @@ struct RunOut {
 RunOut runPack(const Pack &p, const QString &work, const QByteArray &intentDoc)
 {
     applyPack(p);
-    QFile lf(QDir(work).filePath(QStringLiteral("diagnostics.json")));
-    if (lf.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lf.write(intentDoc); lf.close(); }
+    // The mirror's seed (no rows): written whole, atomically (the scratch mirror only).
+    const pinpoint::AtomicWriteResult seeded = pinpoint::atomicWrite(pinpoint::SessionFiles::diagnosticsFile(work), intentDoc);
+    if (!seeded.ok) std::fprintf(stderr, "diag_rank_diff: %s\n", qPrintable(seeded.error));
 
     RunOut o;
     QElapsedTimer t;

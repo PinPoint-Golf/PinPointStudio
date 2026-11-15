@@ -25,6 +25,8 @@
 // NOT A TEST, not registered with ctest — precedent: rank_shift_report, regrade_ledger.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "Export/session_diagnostics_files.h"
+#include "Export/session_files.h"
 #include "Diagnostics/packs/pack_provider.h"
 
 #include <QCoreApplication>
@@ -58,7 +60,9 @@ struct RunOut {
 
 RunOut runMode(const QString &dir, const Mode &m)
 {
-    QFile::remove(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+    // The scratch layout's cache, deleted so each mode grades every shot. A copy of a session from before step 2.5
+    // loses the older golfer keys it carried with it — scratch only, never a library session.
+    QFile::remove(pinpoint::SessionFiles::diagnosticsFile(dir));
     SessionDiagnosticsModel model;
     model.setSynchronous(true);
     model.setCadence(QStringLiteral("everyShot"));
@@ -71,7 +75,7 @@ RunOut runMode(const QString &dir, const Mode &m)
         for (const ConditionRow &r : s.rows) o.rows[{ s.shotId, r.conditionId }] = r;
     for (const ConditionLedger &l : model.ledgerRows()) o.ledgers[l.id] = l;
     o.roots = model.explanation().roots;
-    QFile::remove(QDir(dir).filePath(QStringLiteral("diagnostics.json")));
+    QFile::remove(pinpoint::SessionFiles::diagnosticsFile(dir));
     return o;
 }
 
@@ -300,11 +304,12 @@ int main(int argc, char **argv)
         }
 
         // Screens entered in the LIBRARY's session (the scratch copy has none of its own).
+        // From the golfer's input (session_input.json, else diagnostics.json's older keys: step 2.5, J-33).
         if (!library.isEmpty()) {
-            QFile f(QDir(library).filePath(name + QStringLiteral("/diagnostics.json")));
-            if (f.open(QIODevice::ReadOnly))
-                screensSeen += QJsonDocument::fromJson(f.readAll()).object()
-                                   .value(QStringLiteral("screens")).toObject().size();
+            const QString libSession = QDir(library).filePath(name);
+            const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(libSession);
+            screensSeen += pinpoint::SessionDiagnosticsFiles::golferInput(
+                               libSession, read.parsed() ? read.envelope.legacyGolferInput : QJsonObject()).screens.size();
         }
         md << QString();
         sj[QStringLiteral("rootsBefore")] = QJsonArray::fromStringList(before);

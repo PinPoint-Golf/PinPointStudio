@@ -42,6 +42,7 @@
 
 #include "Gui/diagnostics/work_ons_controller.h"
 #include "Core/PpMessageLog.h"
+#include "Export/session_files.h"
 #include "parity_json.h"
 
 #include <QCoreApplication>
@@ -89,7 +90,9 @@ QStringList sessionDirs(const QString &athleteDir)
     const QFileInfoList kids = QDir(athleteDir).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &fi : kids) {
         const QDir d(fi.absoluteFilePath());
-        if (d.exists(QStringLiteral("diagnostics.json")) || d.exists(QStringLiteral("work_ons.json"))
+        // The session's files by their one owner's names (Export/session_files.h; step 2.5).
+        if (QFileInfo::exists(pinpoint::SessionFiles::diagnosticsFile(d.path()))
+            || QFileInfo::exists(pinpoint::SessionFiles::workOnsFile(d.path()))
             || !d.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
             out << fi.absoluteFilePath();
     }
@@ -216,7 +219,9 @@ int main(int argc, char **argv)
             const QVariant rec = parity::readJsonFile(WorkOnsController::recordPath(s), &w);
             entry.insert(QStringLiteral("workOns"), parity::scrub(rec, st));
             if (!rec.isValid()) entry.insert(QStringLiteral("workOnsWhy"), w);
-            const QVariant base = parity::readJsonFile(QDir(s).filePath(QStringLiteral("club_baseline.json")), &w);
+            // The canonical reader (parity_json.h), by the session files' own name: the dump's bytes must not
+            // depend on which JSON reader took the file in.
+            const QVariant base = parity::readJsonFile(pinpoint::SessionFiles::clubBaselineFile(QDir(s).path()), &w);
             entry.insert(QStringLiteral("clubBaseline"), parity::scrub(base, st));
             if (!base.isValid()) entry.insert(QStringLiteral("clubBaselineWhy"), w);
             sessionList.append(entry);

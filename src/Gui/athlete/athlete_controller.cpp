@@ -27,6 +27,9 @@
 #include "../../DomainModel/athlete_repository.h"
 #include "../../DomainModel/session_repository.h"
 #include "../../Export/swing_paths.h"           // a swing folder's number, at the Wrist ★'s edge
+#include "../../Export/athlete_files.h"         // tendencies.json's name (step 2.5)
+#include "../../Export/session_files.h"         // diagnostics.json's name (step 2.5)
+#include "../../Coaching/tendencies.h"           // kTendencySchemaVersion: the schema check
 #include <QDate>
 #include <QDir>
 #include <QFile>
@@ -666,18 +669,21 @@ QVariantMap AthleteController::clubDistances(const QString &uuid) const
     if (!a || a->folder().isEmpty()) return out;
 
     const QDir athleteDir(a->folder());
-    const QFileInfo file(athleteDir.filePath(QStringLiteral("tendencies.json")));
+    const QFileInfo file(pinpoint::AthleteFiles::tendenciesFile(athleteDir.path()));
     if (!file.exists()) return out;
 
     QFile f(file.absoluteFilePath());
     if (!f.open(QIODevice::ReadOnly)) return out;
     const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    // ITS SCHEMA CHECKED (H-08; step 2.5): a newer build's file is not read as ours — it reads as "being
+    // worked out". An older one is shown as before (the catch-up re-reduces it; the stale mark below says so).
+    if (root.value(QStringLiteral("schema")).toInt(-1) > pinpoint::analysis::kTendencySchemaVersion) return out;
     out[QStringLiteral("items")] = root.value(QStringLiteral("clubDistances")).toArray().toVariantList();
 
     // Older than the newest ledger: these numbers were reduced before that session was graded.
     qint64 newestLedger = 0;
     for (const QFileInfo &session : athleteDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        const QFileInfo ledger(QDir(session.absoluteFilePath()).filePath(QStringLiteral("diagnostics.json")));
+        const QFileInfo ledger(pinpoint::SessionFiles::diagnosticsFile(session.absoluteFilePath()));
         if (ledger.exists()) newestLedger = std::max(newestLedger, ledger.lastModified().toMSecsSinceEpoch());
     }
     const bool stale = file.lastModified().toMSecsSinceEpoch() < newestLedger;

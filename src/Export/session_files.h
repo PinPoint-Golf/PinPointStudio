@@ -25,16 +25,22 @@
 //   <session>/
 //     session.json            FILE-SESS-01: the session's id, athlete, type, status, start and end
 //                             times and origin (DEC-149, DEC-160: IM-S2-1). Written by SessionStore only
+//     session_input.json      FILE-SESS-02: the golfer's session-level input (DEC-160: IM-S2-3).
+//     diagnostics.json        FILE-SESS-03: the diagnostics cache (the ledger and the session block)
+//     diagnostics.json.<tag>  FILE-SESS-12: a dated backup of it (regrade_ledger)
+//     diagnostics.json.unreadable-<stamp>   one that could not be read, set aside
+//     club_baseline.json      FILE-SESS-04: the frozen club baseline
+//     work_ons.json           FILE-SESS-05: the session's work-ons record
+//                             The four above are read and written by SessionDiagnosticsFiles only
+//                             (session_diagnostics_files.h, step 2.5)
 //     .pinpoint-last-swing    FILE-SESS-10: the highest swing number the session has issued (DEC-91)
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
 //     swing_NNNN/             one folder per shot (SwingPaths composes the name)
 //
 // ⚠ THE OTHER SESSION FILES JOIN HERE WITH THE ITEM THAT MOVES THEIR READER OR WRITER, not before:
-// `diagnostics.json`, `club_baseline.json`, `work_ons.json` and `session_input.json` are owned today by
-// lint A4's table (src/Gui/tests/architecture_lint_test.cpp: the diagnostics model and the work-ons
-// controller), so spelling them here now would be a second spelling, not the one (2.5, and 2.8's A4
-// extension); `archived.json` comes with the archive (2.6); the report folder, its meta file and the
-// PDF, and the trunk ceremony, come with 2.8's A4 extension as path functions their writers call (D9).
+// `archived.json` comes with the archive (2.6); the report folder, its meta file and the PDF, and the
+// trunk ceremony, come with 2.8's A4 extension as path functions their writers call (D9). Lint A4 names
+// this file the owner of every name above that it spells (IM-S2-6).
 //
 // The swing counter's two accessors live here too, because two writers use it until step 3: the
 // repository's allocation, and SwingPaths::trashPath, which records the number of a swing that
@@ -64,6 +70,26 @@ public:
     {
         return sessionDir + QLatin1Char('/') + swingHighWaterFileName();
     }
+
+    // "session_input.json", "diagnostics.json", "club_baseline.json", "work_ons.json" (step 2.5)
+    static QString sessionInputFileName() { return QStringLiteral("session_input.json"); }
+    static QString sessionInputFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + sessionInputFileName(); }
+    static QString diagnosticsFileName() { return QStringLiteral("diagnostics.json"); }
+    static QString diagnosticsFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + diagnosticsFileName(); }
+    // FILE-SESS-12: "diagnostics.json.<tag>"
+    static QString diagnosticsBackupFile(const QString &sessionDir, const QString &tag)
+    {
+        return diagnosticsFile(sessionDir) + QLatin1Char('.') + tag;
+    }
+    // "diagnostics.json.unreadable-<stamp>": the stem; the caller numbers a second one in the same second.
+    static QString diagnosticsAsideStem(const QString &sessionDir, const QString &stamp)
+    {
+        return diagnosticsFile(sessionDir) + QStringLiteral(".unreadable-") + stamp;
+    }
+    static QString clubBaselineFileName() { return QStringLiteral("club_baseline.json"); }
+    static QString clubBaselineFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + clubBaselineFileName(); }
+    static QString workOnsFileName() { return QStringLiteral("work_ons.json"); }
+    static QString workOnsFile(const QString &sessionDir) { return sessionDir + QLatin1Char('/') + workOnsFileName(); }
 
     // ".pinpoint-lock": FolderLock's own (src/Core/folder_lock.h), named here so the list is complete.
     static QString lockFileName() { return FolderLock::fileName(); }

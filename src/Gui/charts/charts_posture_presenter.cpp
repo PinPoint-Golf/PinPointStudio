@@ -32,6 +32,7 @@
 #include "../../Diagnostics/engine/characteristic.h"
 #include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Coaching/diagnostic_ledger.h"   // the ledger's own deserialiser: the earlier sessions' readings
 
 #include <QCoreApplication>
@@ -682,7 +683,7 @@ QString addressHistoryStamp(const QString &sessionDir)
     QStringList parts{ fi.absoluteFilePath() };
     const QDir athlete = fi.dir();
     for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        const QFileInfo d(athlete.filePath(name) + QStringLiteral("/diagnostics.json"));
+        const QFileInfo d(pinpoint::SessionFiles::diagnosticsFile(athlete.filePath(name)));
         if (d.exists()) parts << QStringLiteral("%1:%2:%3").arg(name).arg(d.size()).arg(d.lastModified().toMSecsSinceEpoch());
     }
     return parts.join(QLatin1Char('|'));
@@ -710,12 +711,10 @@ PostureAddressHistory readAddressHistory(const QString &sessionDir, const Postur
     for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         if (name >= me) continue;   // earlier sessions only
         const QString dir = athlete.filePath(name);
-        QFile f(dir + QStringLiteral("/diagnostics.json"));
-        if (!f.open(QIODevice::ReadOnly)) continue;
-        QJsonParseError pe{};
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-        if (pe.error != QJsonParseError::NoError || !doc.isObject()) continue;
-        const std::vector<pa::ShotRecord> shots = pa::fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+        // Through the envelope's one reader (step 2.5).
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
+        if (!read.parsed()) continue;
+        const std::vector<pa::ShotRecord> shots = pa::fromJson(read.envelope.ledger);
         QHash<QString, std::vector<double>> got;
         std::array<int, 2> swingsWith{};
         // A swing with a data warning COUNTS, as it does in this session's box (the session's shots are boxed

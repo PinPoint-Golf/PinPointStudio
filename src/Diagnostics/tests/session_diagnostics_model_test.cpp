@@ -31,6 +31,11 @@
 #include "../../Gui/typeset/box_stats.h"
 #include "../../Gui/diagnostics/session_diagnostics_model.h"
 #include "../../Core/PpMessageLog.h"                // the unreadable-ledger warning (H-04)
+#include "../../Export/session_diagnostics_files.h"   // the golfer's input, out of the cache (step 2.5)
+#include "../../Export/session_files.h"
+#include "../../Export/session_store.h"
+#include "../../Export/swing_store.h"
+#include "../../Export/swing_store_repository.h"
 #include "../../Gui/variability/variability_facade.h"   // the per-club badges' variabilityResult
 #include "../../Coaching/sequence_checks.h"
 #include "../engine/characteristic_engine.h"
@@ -176,6 +181,22 @@ static QJsonObject diagnosticsJsonOf(const QString &sessionDir)
     QFile f(QDir(sessionDir).filePath(QStringLiteral("diagnostics.json")));
     if (!f.open(QIODevice::ReadOnly)) return QJsonObject();
     return QJsonDocument::fromJson(f.readAll()).object();
+}
+
+// The golfer's input since step 2.5 (audit H-04): session_input.json, and each shot's review.
+static QJsonObject sessionInputOf(const QString &sessionDir)
+{
+    QFile f(pinpoint::SessionFiles::sessionInputFile(sessionDir));
+    if (!f.open(QIODevice::ReadOnly)) return QJsonObject();
+    return QJsonDocument::fromJson(f.readAll()).object();
+}
+
+static pinpoint::ShotReview reviewOf(const QString &sessionDir, int shotId)
+{
+    pinpoint::SessionStore                  sessions;
+    pinpoint::SwingStoreRecordingRepository recordings(sessions);
+    return recordings.readReview(recordings.shotOfFolder(
+        QDir(sessionDir).filePath(QStringLiteral("swing_%1").arg(shotId, 4, 10, QLatin1Char('0')))));
 }
 
 static bool writeDiagnosticsJson(const QString &sessionDir, const QJsonObject &root)
@@ -1475,11 +1496,26 @@ std::vector<ShotRecord> fixture24(qint64 t0)
     return out;
 }
 
+// The rows as a tool would write them, each with a SWING DOCUMENT beside it (a small corpus fixture), filed under
+// its folder and stamped current, so the reconcile leaves the rows exactly as written. Since step 2.5 a shot's
+// intent and corrections live on its review, which needs a document to live on (audit H-04).
 bool writeOutcomeSession(const QString &dir, const std::vector<ShotRecord> &shots, const QJsonObject &extra = QJsonObject())
 {
+    const QString stamp = freshModel()->contentStamp();
+    QJsonObject dirs, graded;
+    for (const ShotRecord &s : shots) {
+        if (!stageShot(dir, s.shotId, "lm_7iron")) return false;
+        const QString swingDir = QDir(dir).filePath(QStringLiteral("swing_%1").arg(s.shotId, 4, 10, QLatin1Char('0')));
+        const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(swingDir);
+        dirs.insert(QString::number(s.shotId), swingDir);
+        graded.insert(QString::number(s.shotId), QJsonObject{ { QStringLiteral("size"), double(doc.size) },
+                                                              { QStringLiteral("mtimeMs"), double(doc.mtimeMs) },
+                                                              { QStringLiteral("content"), stamp } });
+    }
     QJsonObject root = extra;
     root[QStringLiteral("schemaVersion")] = 1;
     root[QStringLiteral("ledger")] = toJson(shots);
+    root[QStringLiteral("session")] = QJsonObject{ { QStringLiteral("swingDirs"), dirs }, { QStringLiteral("gradedFrom"), graded } };
     return writeDiagnosticsJson(dir, root);
 }
 
@@ -1660,9 +1696,10 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
 
     // ── A shot's words are the session's, but a correction leaves the rows ──
     check(ledgerBytesOf(dir) == before, "A6: corrections and intent leave the rows byte-identical");
-    check(!diagnosticsJsonOf(dir).value(QStringLiteral("corrections")).toObject().isEmpty()
-              && diagnosticsJsonOf(dir).value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("7")).toString() == QStringLiteral("fade"),
-          "corrections and intent are in the envelope");
+    check(!reviewOf(dir, 19).labelCorrections.isEmpty() && reviewOf(dir, 7).shotIntent == QStringLiteral("fade"),
+          "corrections and intent are on the shots' reviews (step 2.5)");
+    check(pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir).envelope.legacyGolferInput.isEmpty(),
+          "…and none of it is in diagnostics.json");
     check(QFile::exists(QFileInfo(dir).dir().filePath(QStringLiteral("outcome_corrections.jsonl"))),
           "the tuning log got the corrections");
 
@@ -1695,10 +1732,9 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
         panel->setShotIntent(7, QStringLiteral("fade"));
         panel->setIntentFrom(20, QStringLiteral("draw"));
         catchUp->declareFocusFrom(QStringLiteral("over_the_top"), 0);      // its write, from what it read before them
-        const QJsonObject onDisk = diagnosticsJsonOf(raceDir);
-        check(onDisk.value(QStringLiteral("corrections")).toObject().contains(QStringLiteral("19"))
-                  && onDisk.value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("7")).toString() == QStringLiteral("fade")
-                  && onDisk.value(QStringLiteral("intentFrom")).toObject().value(QStringLiteral("fromShot")).toInt() == 20,
+        const QJsonArray runs = sessionInputOf(raceDir).value(QStringLiteral("intentRuns")).toArray();
+        check(!reviewOf(raceDir, 19).labelCorrections.isEmpty() && reviewOf(raceDir, 7).shotIntent == QStringLiteral("fade")
+                  && runs.size() == 1 && runs.first().toObject().value(QStringLiteral("fromShot")).toInt() == 20,
               "a catch-up write keeps a correction, an intent and a run made since it read the file");
     }
 
@@ -1750,8 +1786,8 @@ static void shotOutcomesSuite(const QTemporaryDir &tmp)
               "a left-hander's slice row reads Hook, the row untouched");
         // The golfer's picks are in their own words: "pull" on a left-hander is a push row.
         ml->correctOutcome(3, QStringLiteral("direction"), QStringLiteral("pull"));
-        const QJsonArray corrections = diagnosticsJsonOf(leftDir).value(QStringLiteral("corrections")).toObject().value(QStringLiteral("3")).toArray();
-        check(corrections.size() == 1 && corrections.first().toObject().value(QStringLiteral("to")).toString() == QStringLiteral("push"),
+        const QVector<pinpoint::LabelCorrection> corrections = reviewOf(leftDir, 3).labelCorrections;
+        check(corrections.size() == 1 && corrections.first().to == QStringLiteral("push"),
               "a left-hander's correction is stored as the row's id");
     }
 }
@@ -1851,13 +1887,14 @@ static void flightCheckedStrikesSuite(const QTemporaryDir &tmp)
     check(allStand, "three shots: no usual, every thin back as detected");
 }
 
-// ── The golfer's half of diagnostics.json is never lost (audit H-04 / H-03 / D-03, Stage 0.1) ──
+// ── A diagnostics.json in trouble costs the golfer nothing (audit H-04 / H-03 / D-03, Stage 0.1; step 2.5) ──
 //
-// The file is half cache (rows, session meta) and half the only copy of what the golfer said
-// (golferInputKeys). A file found unreadable at load, or at the catch-up's write, is never written
-// over: one that does not parse is set aside; one that cannot be OPENED is left where it is and the
-// session's writes stop for that activation (Stage 0.4b, 14 Nov 2026 — a flaky share must not cost a good
-// file). The catch-up merges every golfer key, three ways, before it writes.
+// Since step 2.5 the file is a cache; the golfer's input lives in session_input.json and the shots' reviews
+// (golfer_input_test pins that). A file written before step 2.5 may still hold some of it in its older keys,
+// so a file found unreadable at load, or at a write, is never written over: one that does not parse is set
+// aside; one that cannot be OPENED is left where it is and the session's writes — the golfer's input's too —
+// stop for that activation (Stage 0.4b, 14 Nov 2026 — a flaky share must not cost a good file). The catch-up
+// re-reads the session input before it writes, so the stage it records is the golfer's.
 static QStringList unreadableAsides(const QString &sessionDir)
 {
     return QDir(sessionDir).entryList(QStringList{ QStringLiteral("diagnostics.json.unreadable-*") }, QDir::Files);
@@ -1918,7 +1955,7 @@ static void heard() { QCoreApplication::processEvents(); }
 
 static void golferInputSuite(const QTemporaryDir &tmp)
 {
-    std::printf("\nthe golfer's input in diagnostics.json is never lost\n");
+    std::printf("\na diagnostics.json in trouble costs the golfer nothing\n");
     const qint64 t0 = kStageEpochMs + 86400000LL * 310;
     // A truncated file — an interrupted copy onto the share — that still names the golfer's focus.
     const QByteArray truncated = QByteArrayLiteral(
@@ -1951,9 +1988,9 @@ static void golferInputSuite(const QTemporaryDir &tmp)
               "…and the model carries on: both swings back-filled into a fresh, readable file");
         m->declareMiss(QStringLiteral("slice"));                    // a persist after the activation
         check(unreadableAsides(dir) == asides && bytesOf(QDir(dir).filePath(asides.value(0))) == truncated
-                  && diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject()
-                         .value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
-              "…it survives the next write too, and that write lands in the new file");
+                  && sessionInputOf(dir).value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice")
+                  && m->persistCount() > 1,
+              "…it survives the next write too, and that write lands in the new files");
         auto again = freshModel();
         again->activateSession(dir);
         check(unreadableAsides(dir).size() == 1 && again->declaredMiss() == QStringLiteral("slice"),
@@ -1988,7 +2025,8 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             first->declareMiss(QStringLiteral("slice"));
         }
         const QByteArray good = bytesOf(path);
-        check(!good.isEmpty(), "…beside a good diagnostics.json holding the golfer's declared miss");
+        const QByteArray input = bytesOf(pinpoint::SessionFiles::sessionInputFile(dir));
+        check(!good.isEmpty() && !input.isEmpty(), "…beside a good diagnostics.json, the golfer's declared miss in session_input.json");
         if (!makeUnopenable(path)) {
             makeOpenable(path);
             std::printf("  [SKIP] a file without permissions still opens here (root?): the unopenable case cannot be made\n");
@@ -2007,7 +2045,8 @@ static void golferInputSuite(const QTemporaryDir &tmp)
                   "…and the app log says so: a WARN with the path and that it could not be opened");
             check(m->shotCount() == 2, "…the model still grades the swings in memory");
             m->declareMiss(QStringLiteral("hook"));                     // a write after the activation
-            check(m->persistCount() == 0, "…and writes nothing to the session this activation, not even after a change");
+            check(m->persistCount() == 0 && bytesOf(pinpoint::SessionFiles::sessionInputFile(dir)) == input,
+                  "…and writes nothing to the session this activation, not even the golfer's input after a change");
             makeOpenable(path);
             check(bytesOf(path) == good, "…so the file is exactly as it was, byte for byte");
             m->declareMiss(QStringLiteral("push"));
@@ -2025,9 +2064,8 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             check(later->blocked.isEmpty() && later->resumed == QStringList{ dir },
                   "…and says the session's writes are back (ledgerWritesResumed), so the warning can go");
             again->declareMiss(QStringLiteral("push"));
-            check(again->persistCount() > 0 && diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject()
-                         .value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("push"),
-                  "…and it does write: the next change lands in the file");
+            check(again->persistCount() > 0 && sessionInputOf(dir).value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("push"),
+                  "…and it does write: the next change lands in its file");
         }
     }
 
@@ -2057,7 +2095,8 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             check(notices->blocked == QStringList{ dir } && notices->resumed == QStringList{ dir },
                   "…and the golfer is told, at the write that found it (the activation had said writes were fine)");
             catchUp->setShotIntent(5, QStringLiteral("fade"));
-            check(bytesOf(path) == held, "…and writes nothing more this activation");
+            check(bytesOf(path) == held && !reviewOf(dir, 5).hasShotIntent,
+                  "…and writes nothing more this activation, the shot's review neither");
             heard();
             check(notices->blocked.size() == 1, "…told once, not again at the next change");
             catchUp->activateSession(dir);
@@ -2065,8 +2104,7 @@ static void golferInputSuite(const QTemporaryDir &tmp)
             check(notices->resumed.size() == 2 && notices->resumed.last() == dir && notices->blocked.size() == 1,
                   "the next activation opens the file and says the writes are back");
             catchUp->setShotIntent(5, QStringLiteral("fade"));
-            check(diagnosticsJsonOf(dir).value(QStringLiteral("shotIntent")).toObject()
-                      .value(QStringLiteral("5")).toString() == QStringLiteral("fade"),
+            check(reviewOf(dir, 5).shotIntent == QStringLiteral("fade") && bytesOf(path) != held,
                   "the next activation writes again");
         }
     }
@@ -2115,64 +2153,36 @@ static void golferInputSuite(const QTemporaryDir &tmp)
         panel->declareMiss(QStringLiteral("slice"));
         panel->recordScreenResult(QStringLiteral("early_extension"), true);
         catchUp->setShotIntent(3, QStringLiteral("draw"));          // its write, from what it read before them
-        const QJsonObject onDisk = diagnosticsJsonOf(dir);
-        const QJsonObject intent = onDisk.value(QStringLiteral("intent")).toObject();
-        check(intent.value(QStringLiteral("focusConditionId")).toString() == QStringLiteral("over_the_top")
-                  && intent.value(QStringLiteral("focusFromShot")).toInt() == 4,
+        const QJsonObject onDisk = sessionInputOf(dir);
+        const QJsonObject focus = onDisk.value(QStringLiteral("declaredFocus")).toObject();
+        check(focus.value(QStringLiteral("conditionId")).toString() == QStringLiteral("over_the_top")
+                  && focus.value(QStringLiteral("fromShot")).toInt() == 4,
               "a focus declared in the panel survives the catch-up's write");
-        check(intent.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
+        check(onDisk.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
               "…and a declared miss");
-        check(onDisk.value(QStringLiteral("screens")).toObject().value(QStringLiteral("early_extension")).toBool(),
+        check(onDisk.value(QStringLiteral("screenAnswers")).toObject().value(QStringLiteral("early_extension")).toBool(),
               "…and a screen answer");
-        check(onDisk.value(QStringLiteral("shotIntent")).toObject().value(QStringLiteral("3")).toString() == QStringLiteral("draw"),
-              "…while the catch-up's own change, to an entry the file had not moved, stands beside them");
+        check(reviewOf(dir, 3).shotIntent == QStringLiteral("draw"),
+              "…while the catch-up's own change, on the shot's review, stands beside them");
         check(catchUp->focusConditionId() == QStringLiteral("over_the_top") && catchUp->focusFromShot() == 4
                   && catchUp->declaredMiss() == QStringLiteral("slice"),
               "the catch-up adopts them: it reduces under the golfer's focus from then on");
 
         panel->clearFocus();                                        // withdrawn in the panel …
         catchUp->setShotIntent(5, QStringLiteral("fade"));          // … while the catch-up still holds it
-        const QJsonObject after = diagnosticsJsonOf(dir).value(QStringLiteral("intent")).toObject();
-        check(after.value(QStringLiteral("focusConditionId")).toString().isEmpty()
-                  && after.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice"),
-              "a focus withdrawn in the panel stays withdrawn, the miss beside it untouched");
+        const QJsonObject after = sessionInputOf(dir);
+        check(after.value(QStringLiteral("declaredFocus")).toObject().value(QStringLiteral("conditionId")).toString().isEmpty()
+                  && after.value(QStringLiteral("declaredMiss")).toString() == QStringLiteral("slice")
+                  && catchUp->focusConditionId().isEmpty(),
+              "a focus withdrawn in the panel stays withdrawn, the miss beside it untouched, and the catch-up adopts it");
     }
 
-    // ── The merge, three ways, on hand-built envelopes ──
-    {
-        auto corr = [](const char *to) {
-            return QJsonValue(QJsonArray{ QJsonObject{ { QStringLiteral("family"), QStringLiteral("strike") },
-                                                       { QStringLiteral("from"), QStringLiteral("chunk") },
-                                                       { QStringLiteral("to"), QLatin1String(to) } } });
-        };
-        auto env = [](const char *focus, int from, QJsonObject corrections) {
-            return QJsonObject{ { QStringLiteral("intent"), QJsonObject{ { QStringLiteral("focusConditionId"), QLatin1String(focus) },
-                                                                         { QStringLiteral("focusFromShot"), from },
-                                                                         { QStringLiteral("declaredMiss"), QString() } } },
-                                { QStringLiteral("corrections"), corrections } };
-        };
-        // The catch-up dropped shot 7 (its swing left the folder), which moved the focus split from 5 to 4;
-        // meanwhile a panel corrected shot 12.
-        const QJsonObject base   = env("over_the_top", 5, QJsonObject{ { QStringLiteral("7"), corr("thin") }, { QStringLiteral("9"), corr("top") } });
-        const QJsonObject ours   = env("over_the_top", 4, QJsonObject{ { QStringLiteral("9"), corr("top") } });
-        const QJsonObject theirs = env("over_the_top", 5, QJsonObject{ { QStringLiteral("7"), corr("thin") }, { QStringLiteral("9"), corr("top") },
-                                                                      { QStringLiteral("12"), corr("thin") } });
-        const QJsonObject merged = SessionDiagnosticsModel::mergeGolferInput(base, ours, theirs);
-        const QJsonObject mc = merged.value(QStringLiteral("corrections")).toObject();
-        check(!mc.contains(QStringLiteral("7")) && mc.contains(QStringLiteral("9")) && mc.contains(QStringLiteral("12")),
-              "merge: a shot the catch-up dropped stays dropped; the panel's new correction is kept");
-        check(merged.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusFromShot")).toInt() == 4,
-              "merge: the catch-up's moved focus split stands where the file did not move it");
-        const QJsonObject redeclared = env("early_extension", 6, theirs.value(QStringLiteral("corrections")).toObject());
-        const QJsonObject m2 = SessionDiagnosticsModel::mergeGolferInput(base, ours, redeclared);
-        check(m2.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusConditionId")).toString() == QStringLiteral("early_extension")
-                  && m2.value(QStringLiteral("intent")).toObject().value(QStringLiteral("focusFromShot")).toInt() == 6,
-              "merge: a focus re-declared in the file wins whole — its id with its own split");
-        check(SessionDiagnosticsModel::golferInputKeys()
-                  == QStringList({ QStringLiteral("intent"), QStringLiteral("screens"), QStringLiteral("shotIntent"),
-                                   QStringLiteral("intentFrom"), QStringLiteral("corrections") }),
-              "the golfer's keys are the five the envelope carries");
-    }
+    // ── The older shape's keys (step 2.5: SessionDiagnosticsFiles, the one reader; the three-way merge is gone —
+    //    session_input.json has its commands as its one writer, and the shots' reviews are their own) ──
+    check(pinpoint::SessionDiagnosticsFiles::legacyGolferKeys()
+              == QStringList({ QStringLiteral("intent"), QStringLiteral("screens"), QStringLiteral("shotIntent"),
+                               QStringLiteral("intentFrom"), QStringLiteral("corrections") }),
+          "the older shape's golfer keys are the five the envelope carried before step 2.5");
 }
 
 // Contract A: who writes the sidecar, and the provisional stamp's one regrade. Staged swings, because

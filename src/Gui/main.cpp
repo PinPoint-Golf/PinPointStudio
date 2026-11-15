@@ -834,6 +834,18 @@ int main(int argc, char *argv[])
             n.detail   = error;
             notificationCenter.post(n);
         });
+        // A session's work-ons record, or the athlete's swing summary or tendencies, could not be saved
+        // (DEC-126; step 2.5): said, one notice per folder, so a failure that repeats is one notice.
+        QObject::connect(&workOns, &WorkOnsController::storageProblem, &notificationCenter,
+                         [&notificationCenter](const QString &what, const QString &where, const QString &why) {
+            N::Notification n;
+            n.id       = QStringLiteral("storage.workons.failed:") + where;
+            n.severity = N::Warn;
+            n.kind     = N::Event;
+            n.title    = QObject::tr("%1 could not be saved").arg(what);
+            n.detail   = why;
+            notificationCenter.post(n);
+        });
         // "Continue today's session" refused or not saved (DEC-126): a new session started instead, and
         // the golfer is told why.
         QObject::connect(&shotProcessor, &ShotProcessor::sessionResumeFailed,

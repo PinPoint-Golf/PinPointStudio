@@ -312,13 +312,13 @@ struct OwnedFile {
 const QVector<OwnedFile> &ownedFiles()
 {
     static const QVector<OwnedFile> t{
-        { "diagnostics.json",   R"(diagnostics\.json)",                       "Gui/diagnostics/session_diagnostics_model" },
+        { "diagnostics.json",   R"(diagnostics\.json)",                       "Export/session_files" },   // step 2.5: SessionDiagnosticsFiles' names (IM-S2-6)
         { "fault_profile.json", R"(fault_profile\.json)",                     "Gui/diagnostics/session_diagnostics_model" },
-        { "club_baseline.json", R"(club_baseline\.json)",                     "Gui/diagnostics/session_diagnostics_model" },
-        { "work_ons.json",      R"(work_ons\.json)",                          "Gui/diagnostics/work_ons_controller" },
-        { "tendencies.json",    R"(tendencies\.json)",                        "Gui/diagnostics/work_ons_controller" },
-        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Gui/diagnostics/work_ons_controller" },
-        { "session_input.json", R"(session_input\.json)",                     "" },   // step 2: SessionRepository
+        { "club_baseline.json", R"(club_baseline\.json)",                     "Export/session_files" },   // step 2.5
+        { "work_ons.json",      R"(work_ons\.json)",                          "Export/session_files" },   // step 2.5
+        { "tendencies.json",    R"(tendencies\.json)",                        "Export/athlete_files" },   // step 2.5: names only; written by the work-ons controller until step 3
+        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Export/athlete_files" },   // step 2.5: likewise
+        { "session_input.json", R"(session_input\.json)",                     "Export/session_files" },   // step 2.5: SessionDiagnosticsFiles' names
         { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // step 2.3: AthleteRepository's names (IM-S2-6)
     };
     return t;
@@ -792,7 +792,7 @@ void selfTest()
         "// \"tendencies.json\" in a comment\n#include \"../../Coaching/swing_themes.h\"\n");
     check(countRule(run("Gui/x/y.cpp", names), "A4") == 3,
           QStringLiteral("A4 catches a name or a path ending in it; passes a log sentence, a comment and a header"));
-    check(countRule(run("Gui/diagnostics/work_ons_controller.cpp", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
+    check(countRule(run("Export/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
           QStringLiteral("A4 allows the owner"));
     check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 3,
           QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string"));

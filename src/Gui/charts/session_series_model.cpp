@@ -28,6 +28,7 @@
 #include "../../Diagnostics/engine/condition_reading.h" // condition → { metricKey, phase }
 #include "../../Diagnostics/packs/pack_provider.h"      // condition names and groups
 #include "../../Export/swing_store.h"
+#include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Kinematics/kinematic_sequence_json.h"  // retimeKinematicSequence — one shape, four paths
 #include "session_wrist.h"                               // the wrist checkpoint profile (CONTRACT I3)
 
@@ -51,9 +52,8 @@ namespace pinpoint::charts {
 
 namespace {
 
-// The session's diagnostics ledger, beside its swing folders — SessionDiagnosticsModel's
-// kDiagnosticsFile. READ here, never written: that model owns the file.
-const QString kLedgerFile = QStringLiteral("diagnostics.json");
+// The session's diagnostics ledger, beside its swing folders, is read through its one reader
+// (SessionDiagnosticsFiles, step 2.5). READ here, never written: the diagnostics model writes it.
 
 // The same folder spelt one way. The live processor and the carousel spell one session
 // differently ("…/lib//athlete/…" against "…/lib/athlete/…"), and the cache is keyed by it.
@@ -762,7 +762,7 @@ void SessionSeriesModel::keep(const QString &swingDir, const CacheEntry &e)
 
 bool SessionSeriesModel::readLedgerIfChanged()
 {
-    const QFileInfo fi(m_wSessionDir + QLatin1Char('/') + kLedgerFile);
+    const QFileInfo fi(pinpoint::SessionFiles::diagnosticsFile(m_wSessionDir));
     const bool exists = fi.exists();
     const qint64 size  = exists ? fi.size() : -2;
     const qint64 mtime = exists ? fi.lastModified().toMSecsSinceEpoch() : -2;
@@ -774,25 +774,23 @@ bool SessionSeriesModel::readLedgerIfChanged()
     m_ledgerWorkOnOrder.clear();
     if (!exists) return true;      // no diagnostics yet: every shot reads with none
 
-    QFile f(fi.absoluteFilePath());
-    if (!f.open(QIODevice::ReadOnly)) {
-        ppWarn() << "[Charts] cannot read" << fi.absoluteFilePath() << f.errorString();
+    const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(m_wSessionDir);
+    if (read.state == pinpoint::DiagnosticsRead::State::Missing) return true;   // gone since the stat
+    if (read.state == pinpoint::DiagnosticsRead::State::Unopenable) {
+        ppWarn() << "[Charts] cannot read" << fi.absoluteFilePath() << read.error;
         return true;
     }
-    QJsonParseError pe{};
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-    if (pe.error != QJsonParseError::NoError || !doc.isObject()) {
+    if (!read.parsed()) {
         // Possibly caught mid-write by a non-atomic writer elsewhere; the stamp is kept, so the
         // next refresh after the file settles reads it again.
-        ppWarn() << "[Charts] cannot parse" << fi.absoluteFilePath() << pe.errorString();
+        ppWarn() << "[Charts] cannot parse" << fi.absoluteFilePath() << read.error;
         m_ledgerSize = m_ledgerMtimeMs = -1;
         return true;
     }
     // The ledger's own deserialiser (diagnostic_ledger.h fromJson), so a row field added there
     // reaches this file without a second parser to update.
     pinpoint::analysis::LedgerOptions opt;
-    const std::vector<pinpoint::analysis::ShotRecord> shots =
-        pinpoint::analysis::fromJson(doc.object().value(QStringLiteral("ledger")).toObject(), &opt);
+    const std::vector<pinpoint::analysis::ShotRecord> shots = pinpoint::analysis::fromJson(read.envelope.ledger, &opt);
     for (const pinpoint::analysis::ShotRecord &s : shots)
         m_ledger.insert(s.shotId, diagnosticsOf(s, m_pack ? &m_pack->pack() : nullptr));
     // The session tiers, by the ledger's own reduction over the options the file was written with —

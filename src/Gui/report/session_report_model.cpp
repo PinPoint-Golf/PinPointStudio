@@ -59,6 +59,7 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 
@@ -957,12 +958,13 @@ void SessionReportModel::build()
             s.dir = QDir::cleanPath(fi.absoluteFilePath());
             s.self = s.dir == job.dir;
             if (!s.self) {
-                QFile f(QDir(s.dir).filePath(QStringLiteral("work_ons.json")));
+                const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(s.dir);
                 // A record from an earlier rule or schema is still that session's EVIDENCE (state, fired,
                 // assessable are the ledger's, not the order's), and "Earlier today" reads only that and the
-                // ids — so it is read as it stands rather than waiting for the catch-up to re-derive it.
-                if (f.open(QIODevice::ReadOnly)) {
-                    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+                // ids — so it is read as it stands rather than waiting for the catch-up to re-derive it. A
+                // NEWER schema is not read as ours (H-08; step 2.5): it is left out, as a session with none.
+                if (f.exists && f.root.value(QStringLiteral("schemaVersion")).toInt(0) <= kWorkOnSchemaVersion) {
+                    QJsonObject root = f.root;
                     if (!root.isEmpty()) {
                         root[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion;
                         root[QStringLiteral("ruleVersion")]   = kWorkOnRuleVersion;

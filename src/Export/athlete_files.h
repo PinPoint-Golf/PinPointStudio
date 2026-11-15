@@ -28,9 +28,13 @@
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
 //     <session folders>/      SessionFiles (session_files.h)
 //
+//     tendencies.json         FILE-ATH-02: the athlete's tendencies and club distances (step 2.5: named here;
+//                             written by the work-ons controller until step 3's AthleteDiagnostics)
+//     swing_themes[.<scope>[.<filter>]].json   FILE-ATH-03: the swing summary, per club scope and shot
+//                             filter (the same: named here, written by the work-ons controller)
+//
 // ⚠ THE OTHER ATHLETE FILES JOIN HERE WITH THE ITEM THAT MOVES THEIR READER OR WRITER, not before (as
-// SessionFiles does, step 2.2's J14): `tendencies.json` and `swing_themes*.json` are owned by lint A4's
-// table today (the work-ons controller; their writer is step 3's AthleteDiagnostics), `fault_profile.json`
+// SessionFiles does, step 2.2's J14): `fault_profile.json`
 // by the diagnostics model (deleted in step 3), and the tuning log `outcome_corrections.jsonl`
 // (FILE-ATH-04) is still spelled by the diagnostics model's tuningLogPath(), whose folder derivation is
 // 2.7a's — its APPEND already goes through the repository's appendTuningLine below, under the folder's
@@ -48,6 +52,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 
 namespace pinpoint {
 
@@ -71,6 +76,18 @@ public:
         if (!o.value(QStringLiteral("schema")).toString().startsWith(QLatin1String("pinpoint.athlete/")))
             return {};
         return AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
+    }
+
+    // "tendencies.json" (FILE-ATH-02)
+    static QString tendenciesFileName() { return QStringLiteral("tendencies.json"); }
+    static QString tendenciesFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + tendenciesFileName(); }
+    // "swing_themes.json", "swing_themes.<scope>.json", "swing_themes.<scope>.<filter>.json" (FILE-ATH-03): one
+    // ".<key>" per entry of `keys`, which the caller has made file-safe (clubScopeFileKey).
+    static QString themesFile(const QString &athleteDir, const QStringList &keys = {})
+    {
+        QString name = QStringLiteral("swing_themes");
+        for (const QString &k : keys) name += QLatin1Char('.') + k;
+        return athleteDir + QLatin1Char('/') + name + QStringLiteral(".json");
     }
 
     // ".pinpoint-lock": FolderLock's own, named here so the list is complete.

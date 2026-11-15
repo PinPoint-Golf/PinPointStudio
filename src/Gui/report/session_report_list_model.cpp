@@ -24,6 +24,7 @@
 #include "../../Coaching/work_ons.h"
 #include "../../Export/session_archiver.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 
 #include <QDate>
 #include <QDateTime>
@@ -84,11 +85,11 @@ struct WorkOnLine { bool known = false; QString id, name; };
 WorkOnLine readWorkOn1(const QString &sessionDir)
 {
     WorkOnLine out;
-    QFile f(QDir(sessionDir).filePath(QStringLiteral("work_ons.json")));
-    if (!f.open(QIODevice::ReadOnly)) return out;
+    // Through the session's one reader (Export/session_diagnostics_files.h; step 2.5).
+    const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(sessionDir);
+    if (!f.exists) return out;
     bool ok = false;
-    const pinpoint::analysis::SessionWorkOns rec =
-        pinpoint::analysis::sessionWorkOnsFromJson(QJsonDocument::fromJson(f.readAll()).object(), &ok);
+    const pinpoint::analysis::SessionWorkOns rec = pinpoint::analysis::sessionWorkOnsFromJson(f.root, &ok);
     if (!ok) return out;
     out.known = true;
     for (const pinpoint::analysis::WorkOnEntry &e : rec.entries) {
