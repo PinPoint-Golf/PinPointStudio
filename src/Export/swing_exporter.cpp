@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <variant>
 
 #include <QDateTime>
@@ -31,7 +32,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QTimeZone>
 
 #include <opencv2/imgproc.hpp>
@@ -44,6 +44,7 @@
 #include "swing_paths.h"
 #include "swing_window.h"
 #include "video_encoder.h"
+#include "../Core/atomic_write.h"
 #include "../Core/pp_debug.h"
 
 namespace pinpoint {
@@ -249,17 +250,22 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
         // Optional raw-payload sidecar (saveRawFrames): the undecoded sensor
         // bytes for every encoded frame, concatenated into one "<alias>.raw".
-        QFile rawSink;
+        // Through the atomic helper's streaming form (src/Core/atomic_write.h):
+        // written frame by frame into a temporary, renamed into the swing folder
+        // (which must already be there) only once every frame is in.
+        std::optional<pinpoint::AtomicFile> rawSink;
         if (job.saveRaw) {
             const QString rawName = cam.alias + QStringLiteral(".raw");
-            rawSink.setFileName(job.swingDir + QLatin1Char('/') + rawName);
-            if (rawSink.open(QIODevice::WriteOnly)) {
+            rawSink.emplace(job.swingDir + QLatin1Char('/') + rawName,
+                            pinpoint::AtomicWriteOptions::intoExistingFolder());
+            if (rawSink->open().ok) {
                 rec.rawFile       = rawName;
                 rec.rawStride     = stride;
                 rec.rawFrameBytes = minBytes;
             } else {
                 ppWarn() << "[SwingExport] could not open raw sidecar" << rawName
                          << "— continuing without raw frames";
+                rawSink.reset();
             }
         }
 
@@ -278,14 +284,12 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             // raw frame i corresponds to encoded frame i and t_us[i]. A short
             // write (disk full) would desync that mapping — drop the sidecar
             // instead of recording a truncated file as complete.
-            if (rawSink.isOpen()
-                && rawSink.write(reinterpret_cast<const char*>(handle.data),
-                                 static_cast<qint64>(minBytes))
-                       != static_cast<qint64>(minBytes)) {
+            if (rawSink
+                && !rawSink->write(reinterpret_cast<const char*>(handle.data),
+                                   static_cast<qint64>(minBytes))) {
                 ppWarn() << "[SwingExport] short write on raw sidecar" << rec.rawFile
                          << "— dropping raw frames (disk full?)";
-                rawSink.close();
-                rawSink.remove();
+                rawSink.reset();   // the temporary goes; nothing was ever at the sidecar's name
                 rec.rawFile.clear();
             }
 
@@ -305,8 +309,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             }
             rec.tUs.push_back(e.timestamp_us - t0);
         }
-        if (rawSink.isOpen())
-            rawSink.close();
+        if (rawSink) {
+            if (const pinpoint::AtomicWriteResult w = rawSink->commit(); !w.ok) {
+                ppWarn() << "[SwingExport] could not write raw sidecar" << rec.rawFile << "—" << w.detail
+                         << "— dropping raw frames (disk full?)";
+                rec.rawFile.clear();
+            }
+            rawSink.reset();
+        }
 
         // Every payload skipped (size/descriptor mismatch) would otherwise
         // "succeed" with an empty MP4 — fail loudly instead so the UI surfaces
@@ -515,11 +525,12 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         if (!rec.cam->ballBaselineBlob.isEmpty() && rec.cam->ballBaselineW > 0
             && rec.cam->ballBaselineH > 0 && !rec.cam->ballBaselineRoi.isEmpty()) {
             const QString blobName = rec.cam->alias + QStringLiteral(".ballbase.f32");
-            QFile bf(job.swingDir + QLatin1Char('/') + blobName);
-            if (bf.open(QIODevice::WriteOnly)) {
-                const qint64 want = static_cast<qint64>(rec.cam->ballBaselineBlob.size());
-                const bool ok = (bf.write(rec.cam->ballBaselineBlob) == want);
-                bf.close();
+            // Atomic, into the swing folder, which must already be there (src/Core/atomic_write.h).
+            pinpoint::AtomicFile bf(job.swingDir + QLatin1Char('/') + blobName,
+                                    pinpoint::AtomicWriteOptions::intoExistingFolder());
+            if (bf.open().ok) {
+                bf.write(rec.cam->ballBaselineBlob);   // a short write is remembered; commit() refuses
+                const bool ok = bf.commit().ok;
                 if (ok) {
                     const QRectF &br = rec.cam->ballBaselineRoi;
                     ballDetection[QStringLiteral("baseline")] = QJsonObject{
@@ -533,8 +544,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     };
                 } else {
                     ppWarn() << "[SwingExport] short write on baseline sidecar" << blobName
-                             << "— dropping (disk full?)";
-                    bf.remove();
+                             << "— dropping (disk full?)";   // the temporary is gone; nothing at blobName
                 }
             } else {
                 ppWarn() << "[SwingExport] could not open baseline sidecar" << blobName

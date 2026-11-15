@@ -18,11 +18,12 @@
 
 #include "ppcp_import_ledger.h"
 
+#include "../Core/atomic_write.h"
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QString>
 
 #include <ppcp/envelope.h>
@@ -598,13 +599,12 @@ bool PpcpImportLedger::save() const
     root["pending_commits"] = pending;
     root["declined_shots"] = declinedShots;
 
-    // QSaveFile, not QFile: a ledger torn in half by a crash mid-write would
-    // make the next import duplicate everything it could not read, which is the
-    // one failure I34 exists to prevent.
-    QSaveFile f(q(m_path));
-    if (!f.open(QIODevice::WriteOnly)) return false;
-    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    return f.commit();
+    // Atomic (src/Core/atomic_write.h), not QFile: a ledger torn in half by a
+    // crash mid-write would make the next import duplicate everything it could
+    // not read, which is the one failure I34 exists to prevent. Its folder is
+    // never made here (it never was).
+    return pinpoint::atomicWrite(q(m_path), QJsonDocument(root).toJson(QJsonDocument::Indented),
+                                 pinpoint::AtomicWriteOptions::intoExistingFolder()).ok;
 }
 
 std::size_t PpcpImportLedger::foldIn(const std::string &legacyPath)

@@ -65,7 +65,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QSysInfo>
 #include <QVariantMap>
 
@@ -85,6 +84,7 @@
 #include "imu_sample.h"
 #include "format_descriptor.h"
 
+#include "../../../src/Core/atomic_write.h"   // result.json and --dag, written whole
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
 #include "../../../src/Core/pp_debug.h"      // ppInfo / ppWarn
 #include "../../../src/IMU/imu_calibration.h" // solveTrunkSegment (--trunk-calib-from)
@@ -1290,7 +1290,7 @@ int main(int argc, char **argv)
         // result.json stays JSON — it is a research output read by the Python rigs, not a library
         // document. The production writer builds it (so it is exactly what write-back would store),
         // into the run dir as swing.ppsw; it is then re-emitted as JSON and the .ppsw dropped.
-        // Written with QSaveFile, so a reused --out dir gets the NEW result — the old
+        // Written atomically (src/Core/atomic_write.h), so a reused --out dir gets the NEW result — the old
         // rename-onto-an-existing-file failed silently and left the previous run's result behind.
         pinpoint::NewRecording resultDoc;
         resultDoc.header   = manifest;
@@ -1309,9 +1309,9 @@ int main(int argc, char **argv)
                     doc.insert(it.key(), it.value());
             if (!trunkCalib.isEmpty())                // --trunk-calib-from: what was solved and applied
                 doc.insert(QStringLiteral("trunkCalibration"), trunkCalib);
-            QSaveFile rf(outDir + "/result.json");
-            if (doc.isEmpty() || !rf.open(QIODevice::WriteOnly)
-                || rf.write(SwingStore::toJsonText(doc)) < 0 || !rf.commit())
+            if (doc.isEmpty()
+                || !pinpoint::atomicWrite(outDir + "/result.json", SwingStore::toJsonText(doc),
+                                          pinpoint::AtomicWriteOptions::intoExistingFolder()).ok)
                 std::fprintf(stderr, "[swinglab] result.json write failed %s\n",
                              werr.toUtf8().constData());
             QFile::remove(SwingStore::ppswPath(outDir));
@@ -1362,8 +1362,8 @@ int main(int argc, char **argv)
     if (cli.isSet(optDag)) {
         const QJsonObject dag = pinpoint::analysis::analysisGraphJson(
             result.detail ? &result.detail->timings.stages : nullptr, &job);
-        QSaveFile df(cli.value(optDag));
-        if (!df.open(QIODevice::WriteOnly) || df.write(QJsonDocument(dag).toJson()) < 0 || !df.commit())
+        if (!pinpoint::atomicWrite(cli.value(optDag), QJsonDocument(dag).toJson(),
+                                   pinpoint::AtomicWriteOptions::intoExistingFolder()).ok)
             std::fprintf(stderr, "[swinglab] cannot write --dag %s\n", cli.value(optDag).toUtf8().constData());
         else
             std::fprintf(stderr, "[swinglab] dag: %s\n", cli.value(optDag).toUtf8().constData());

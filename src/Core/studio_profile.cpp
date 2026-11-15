@@ -18,6 +18,7 @@
 
 #include "studio_profile.h"
 
+#include "atomic_write.h"
 #include "pp_debug.h"
 #include "pp_settings.h"
 
@@ -32,7 +33,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
-#include <QSaveFile>
 #include <QStandardPaths>
 #include <QUrl>
 #include <QtGlobal>
@@ -478,9 +478,8 @@ bool StudioProfile::importImage(const QString &path, const QString &baseName, co
         return false;
     }
     const QString dest = dir + QLatin1Char('/') + baseName + QLatin1Char('.') + ext;
-    QSaveFile out(dest);
-    if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size() || !out.commit()) {
-        ppWarn() << "StudioProfile: cannot write" << dest << out.errorString();
+    if (const pinpoint::AtomicWriteResult w = pinpoint::atomicWrite(dest, bytes); !w.ok) {
+        ppWarn() << "StudioProfile: cannot write" << dest << w.detail;
         return false;
     }
     // The earlier copy under another extension (logo.png → logo.svg) goes, so the folder holds one.

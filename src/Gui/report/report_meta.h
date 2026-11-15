@@ -40,6 +40,7 @@
 //
 // Pure apart from the file system; header-only; report_meta_test.
 
+#include "../../Core/atomic_write.h"
 #include "../../Export/swing_store.h"
 
 #include <QCryptographicHash>
@@ -52,7 +53,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLocale>
-#include <QSaveFile>
 #include <QString>
 #include <QStringList>
 #include <QVariantMap>
@@ -192,14 +192,11 @@ inline std::optional<ReportMeta> readReportMeta(const QString &sessionDir)
     return reportMetaFromJson(doc.object());
 }
 
-// Whole-file replace through QSaveFile, like the PDF itself.
+// Whole-file replace through the one atomic-write helper (src/Core/atomic_write.h), like the PDF itself.
 inline bool writeReportMeta(const QString &sessionDir, const ReportMeta &m)
 {
     if (!QDir().mkpath(reportDir(sessionDir))) return false;
-    QSaveFile f(reportMetaPath(sessionDir));
-    if (!f.open(QIODevice::WriteOnly)) return false;
-    f.write(QJsonDocument(toJson(m)).toJson(QJsonDocument::Indented));
-    return f.commit();
+    return pinpoint::atomicWrite(reportMetaPath(sessionDir), QJsonDocument(toJson(m)).toJson(QJsonDocument::Indented)).ok;
 }
 
 inline QString reportPdfPath(const QString &sessionDir, const ReportMeta &m)

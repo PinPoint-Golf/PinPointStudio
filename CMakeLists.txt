@@ -736,6 +736,7 @@ qt_add_executable(PinPointStudio
     # report state, the hand-off to the coach's mail app, and sending it over SMTP from the coach's own
     # account with the password in the system's secure store (platform halves below).
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
+    src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
     src/Coaching/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp

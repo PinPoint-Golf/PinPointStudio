@@ -312,6 +312,8 @@ QJsonObject loadParts(const QString &swingDir, const QStringList &chunkPaths, QS
     }
 }
 
+// The documented exception to the one atomic-write helper (src/Core/atomic_write.h, R-PERS-2; D8):
+// libppswing's own writeFileAtomic, which also syncs the folder.
 bool writeFile(const QString &path, const QJsonObject &root, QString *error)
 {
     try {

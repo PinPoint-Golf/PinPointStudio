@@ -18,6 +18,7 @@
 
 #include "ppcp_clip_filer.h"
 
+#include "../../Core/atomic_write.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"
 #include "../../Export/recording_header.h"   // the one header writer (the placeholder)
@@ -30,7 +31,6 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QFileInfo>
-#include <QSaveFile>
 #include <QStringList>
 
 #include <algorithm>
@@ -364,17 +364,19 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         Ppcp::PpcpImportSink::extensionForPayload(clip.container.toStdString(), "video");
     const QString path = s.swingDir + QLatin1Char('/') + alias + QString::fromStdString(ext);
 
-    // QSaveFile: a clip torn in half by a crash would be a file the document
+    // Atomic (src/Core/atomic_write.h): a clip torn in half by a crash would be a file the document
     // names and the replay cannot open.
     //
     // ⛔ AND A FAILURE BELOW DECLINES NOTHING.  A disk that would not take the
     // clip is transient and a decline is final: E80 withdrew `storage_full` so
     // that a receiver short of space stays SILENT rather than evicting the only
     // copy of a swing.  The phone keeps holding it, which is I38 working.
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly)) {
+    //
+    // Into the swing folder, which must already be there (a trashed folder is not re-made).
+    pinpoint::AtomicFile f(path, pinpoint::AtomicWriteOptions::intoExistingFolder());
+    if (const pinpoint::AtomicWriteResult opened = f.open(); !opened.ok) {
         ++m_stats.failed;
-        ppWarn() << "[ppcp] cannot write clip to" << path << "—" << f.errorString();
+        ppWarn() << "[ppcp] cannot write clip to" << path << "—" << opened.detail;
         o.transfer = QStringLiteral("failed");
         QString err;
         pinpoint::StreamArrival arrival;
@@ -383,9 +385,9 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         recordArrival(s.swingDir, arrival, &err);
         return false;
     }
-    f.write(clip.payload);
-    if (!f.commit()) {
-        ppWarn() << "[ppcp] cannot commit clip" << path << "—" << f.errorString();
+    f.write(clip.payload);   // a short write is remembered: commit() then refuses and keeps nothing
+    if (const pinpoint::AtomicWriteResult committed = f.commit(); !committed.ok) {
+        ppWarn() << "[ppcp] cannot commit clip" << path << "—" << committed.detail;
         o.transfer = QStringLiteral("failed");
         QString err;
         pinpoint::StreamArrival arrival;

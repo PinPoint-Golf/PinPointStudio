@@ -57,6 +57,19 @@ pp_add_test(height_text_test
     SOURCES height_text_test.cpp
     INCLUDE ${CORE}  LINK Qt6::Core
     GTEST)
+# The one atomic-write helper (atomic_write.h, header-only, R-PERS-2): replaces whole, a missing folder
+# made (or refused with intoExistingFolder), the original byte-identical on any failure — an unwritable
+# folder, a read-only file, a refused rename — the streaming forms, text mode. Moved here from
+# Diagnostics/tests/pack_io_test with the helper (refactor step 2.0). Hand-rolled main, Qt Core only.
+pp_add_test(atomic_write_test
+    SOURCES atomic_write_test.cpp
+    INCLUDE ${CORE})
+# The advisory folder lock (folder_lock.*, R-PERS-6): two lock objects on one folder — the second is
+# Locked until the first lets go; a lock from another machine freed only by age; a missing folder is
+# not made. Hand-rolled main, Qt Core only.
+pp_add_test(folder_lock_test
+    SOURCES folder_lock_test.cpp ${CORE}/folder_lock.cpp
+    INCLUDE ${CORE})
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads

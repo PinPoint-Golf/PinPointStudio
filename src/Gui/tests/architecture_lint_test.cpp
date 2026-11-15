@@ -169,7 +169,8 @@ const QVector<QPair<QString, int>> &dirRings()
 const QHash<QString, int> &fileRings()
 {
     static const QHash<QString, int> t{
-        // Core: logging, profiling and machine queries are Platform; settings, the studio profile,
+        // Core: logging, profiling, machine queries and the two persistence mechanisms (the atomic
+        // write, the folder lock) are Platform; settings, the studio profile,
         // app info and the device enumerator are adapters; the Kalman smoother is an algorithm.
         { QStringLiteral("Core/pp_debug"), Platform },
         { QStringLiteral("Core/pp_log_stream"), Platform },
@@ -183,6 +184,9 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Core/pp_gpu_metrics_mac"), Platform },
         { QStringLiteral("Core/pp_os_metrics"), Platform },
         { QStringLiteral("Core/pp_model_path"), Platform },
+        // The persistence mechanisms every ring may use (refactor step 2.0; R-PERS-2, R-PERS-6).
+        { QStringLiteral("Core/atomic_write"), Platform },
+        { QStringLiteral("Core/folder_lock"), Platform },
         { QStringLiteral("Core/kf3_smoother"), Rules },
         { QStringLiteral("Core/device_enumerator"), Adapters },
         { QStringLiteral("Core/app_info"), Adapters },

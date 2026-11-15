@@ -21,6 +21,7 @@
 #include "../../Metrics/series_reduce.h"
 #include "../../Metrics/fitted_curve.h"    // isFittedCurve — read at the instant, not around it
 #include "../../Metrics/line_angle.h"      // wrapLeanDeg — a lineAngle series' readings
+#include "../../Core/atomic_write.h"
 #include "../../Core/club_vocabulary.h"
 #include "../../Export/swing_store.h" // no FFmpeg: the store is its own library
 
@@ -30,7 +31,6 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QSaveFile>
 
 #include <algorithm>
 #include <cmath>
@@ -1005,12 +1005,10 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     if (!doc.stillCurrent() || doc.parsedInfo().size != size || doc.parsedInfo().mtimeMs != mtimeMs)
         return grid;
 
-    // Best-effort: a library on read-only media still browses, it just re-parses each time.
-    QSaveFile out(sidePath);
-    if (out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        out.write(QJsonDocument(savePhaseGrid(grid, size, mtimeMs)).toJson(QJsonDocument::Compact));
-        out.commit();
-    }
+    // Best-effort: a library on read-only media still browses, it just re-parses each time. Into the
+    // swing folder, which must already be there (a trashed folder is not re-made).
+    pinpoint::atomicWrite(sidePath, QJsonDocument(savePhaseGrid(grid, size, mtimeMs)).toJson(QJsonDocument::Compact),
+                          pinpoint::AtomicWriteOptions::intoExistingFolder());
     return grid;
 }
 

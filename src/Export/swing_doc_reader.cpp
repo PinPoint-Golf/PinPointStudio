@@ -34,7 +34,6 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QSaveFile>
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -44,6 +43,7 @@
 #include "swing_store.h"
 #include "../LaunchMonitor/lm_device.h"             // connector vs device: launchMonitor.device
 #include "../Analysis/swing_analysis.h"          // windowTimeUs — the one time rule
+#include "../Core/atomic_write.h"
 #include "../Core/club_vocabulary.h"
 #include "../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — the strip's instants
 #include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
@@ -398,15 +398,12 @@ bool writeSummaryFile(const SwingSummary &s, QString *error)
         { QStringLiteral("size"),     double(src.size()) },
         { QStringLiteral("mtime_ms"), double(src.lastModified().toMSecsSinceEpoch()) } });
 
+    // Into the swing folder, which must already be there (a trashed folder is not re-made).
     const QString path = summaryPath(s.swingDir);
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) {
-        if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, file.errorString());
-        return false;
-    }
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
-    if (!file.commit()) {
-        if (error) *error = QStringLiteral("failed to commit %1: %2").arg(path, file.errorString());
+    const pinpoint::AtomicWriteResult w = pinpoint::atomicWrite(
+        path, QJsonDocument(root).toJson(QJsonDocument::Compact), pinpoint::AtomicWriteOptions::intoExistingFolder());
+    if (!w.ok) {
+        if (error) *error = QStringLiteral("cannot write %1: %2").arg(path, w.detail.isEmpty() ? w.error : w.detail);
         return false;
     }
     return true;
