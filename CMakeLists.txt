@@ -3286,6 +3286,30 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Buffer src/Export src/LaunchMonitor src/Core)
     target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
+
+    # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
+    # §5.1) — athlete.json, session.json, the golfer's input out of diagnostics.json, the Wrist ★. A dry run
+    # unless --write, which refuses a library outside the share's scratch folder without Mark's approval flag.
+    # Its engine (migrate_step2.*) is shared with migrate_step2_test (the tests tree, Analysis suite).
+    add_executable(pps_migrate_step2
+        tools/migrate/pps_migrate_step2.cpp
+        tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
+        src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Export/athlete_store.cpp   # AthleteRecord
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Export/swing_paths.cpp
+        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Core/pp_log_stream.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(pps_migrate_step2 PRIVATE
+        src src/Buffer src/Export src/LaunchMonitor src/Core src/Analysis)
+    target_link_libraries(pps_migrate_step2 PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
 # ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────

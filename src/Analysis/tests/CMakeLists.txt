@@ -1704,6 +1704,25 @@ pp_add_test(shot_number_test
 set_tests_properties(shot_number_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# THE STEP-2 MIGRATIONS (refactor step 2.8a): pps_migrate_step2's engine (tools/migrate/migrate_step2.*) on a
+# fixture library in a temporary folder — legacy sessions, a renamed athlete, two uuids in one folder, golfer input
+# only a backup holds, an app-backfilled session.json (J-19), two machines' records. The dry-run report as expected;
+# a dry run writes nothing (every file hashed before and after); the guards refuse; a scratch write, read back
+# through the app's own doors; a second run writes nothing. The tool itself is built in the tools tree.
+pp_add_test(migrate_step2_test
+    SOURCES ${PP_REPO_ROOT}/tools/migrate/tests/migrate_step2_test.cpp
+            ${PP_REPO_ROOT}/tools/migrate/migrate_step2.cpp ${PP_REPO_ROOT}/tools/migrate/migrate_step2.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/Export/session_store.cpp ${SRC}/Export/swing_paths.cpp
+            ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC} ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core
+    AUTOMOC)
+
 # WORK ONS, the join: WorkOnsController over ledgers staged on disk — the catch-up that records
 # sessions which were never "ended", the fingerprint that leaves a current record alone and
 # re-derives a changed one, the pause while a session is live, and the home list's wording off
