@@ -22,9 +22,10 @@
 #include "swing_doc.h"
 #include "swing_store.h"
 
-#include "athlete_files.h"      // AthleteFiles::ownerOf: a legacy session's owner (J-39)
+#include "athlete_files.h"      // AthleteFiles::read: a legacy session's owner (J-39)
 
 #include "../Core/atomic_write.h"
+#include "../Core/folder_lock.h"
 #include "../DomainModel/session_repository.h"
 
 #include <QDir>
@@ -57,6 +58,30 @@ bool refusesExisting(const QString &swingDir, WriteResult *out)
 
 } // namespace
 
+// ── The session's lock, per write (step 2.8b; J-36, J-47) ───────────────────────────────────────
+
+// A swing file is guarded by its SESSION's advisory lock (brief §4.9), taken for this one write and let go
+// after it (J-11): lockOrJoin, so a write made inside the archiver's own hold of the session (the stub, the
+// review merged after a restore, the conversion) joins it rather than waiting for itself (J-47). Only a lock
+// HELD by another writer refuses the write (Locked, in the lock's words); a session folder where no lock file
+// can be made at all (FolderLock's Failed: a read-only or vanished folder) is left to the write itself, which
+// decides and reports — SessionStore::allocateSwing's rule, so nothing that wrote before the lock existed
+// fails now for the lock alone.
+bool SwingStoreRecordingRepository::refusedByLock(FolderLock &lock, WriteResult *refused) const
+{
+    if (lock.lockOrJoin(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) != FolderLock::Result::Locked)
+        return false;
+    *refused = status(WriteResult::Status::Locked,
+                      QStringLiteral("The session %1 is being changed by %2; the shot was not saved.")
+                          .arg(lock.folder(), lock.holder().isEmpty() ? QStringLiteral("another program") : lock.holder()));
+    return true;
+}
+
+QString SwingStoreRecordingRepository::sessionFolderOf(const QString &swingDir)
+{
+    return QFileInfo(QDir::cleanPath(swingDir)).path();
+}
+
 // ── The shot's folder ────────────────────────────────────────────────────────────────────────────
 
 QString SwingStoreRecordingRepository::folderOf(const ShotRef &shot, QString *why) const
@@ -77,7 +102,7 @@ ShotRef SwingStoreRecordingRepository::shotOfFolder(const QString &swingDir, con
     if (!ref.isNull() || !legacyAthlete.isNull() || swingDir.isEmpty())
         return ref;
     // A session without a session file (or not held), and no athlete from the caller: D3 names it from
-    // the athlete who OWNS its folder (J-39, proposed, for Mark) — the resolver's (the app's current
+    // the athlete who OWNS its folder (J-39; Mark, 15 Nov 2026) — the resolver's (the app's current
     // athlete), else the athlete folder's athlete.json — and only when no owner can be found, from the
     // athlete the swing records it was captured for (`athlete.uuid`, the document's root alone). The
     // swings' uuids were minted on the machine that captured them and need not be the owner's (H-09).
@@ -92,13 +117,18 @@ AthleteId SwingStoreRecordingRepository::legacyOwnerOf(const QString &athleteDir
         return {};
     AthleteId owner = m_ownerOf ? m_ownerOf(athleteDir) : AthleteId();
     if (owner.isNull())
-        owner = AthleteFiles::ownerOf(athleteDir);
+        owner = AthleteFiles::read(athleteDir).id;   // the athlete.json's owner: the one reader (J-40)
     if (!owner.isNull())
         return owner;
     if (swingDir.isEmpty())
         return {};
     return AthleteId::fromString(SwingStore::loadParts(swingDir, {}).value(QStringLiteral("athlete")).toObject()
                                      .value(QStringLiteral("uuid")).toString());
+}
+
+QDateTime SwingStoreRecordingRepository::captureEndOf(const QString &swingDir)
+{
+    return captureEndUtcOf(SwingStore::loadParts(swingDir, {}));
 }
 
 QString SwingStoreRecordingRepository::swingFolder(const ShotRef &shot) const
@@ -115,6 +145,10 @@ WriteResult SwingStoreRecordingRepository::create(const ShotRef &shot, const New
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return create(swingDir, recording, options);
 }
 
@@ -148,6 +182,10 @@ WriteResult SwingStoreRecordingRepository::create(const ShotRef &shot,
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return create(swingDir, reading, meta);
 }
 
@@ -170,6 +208,10 @@ WriteResult SwingStoreRecordingRepository::completeCapture(const ShotRef &shot,
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return completeCapture(swingDir, reading, followedClub, clubReplaced);
 }
 
@@ -188,6 +230,10 @@ WriteResult SwingStoreRecordingRepository::completeCapture(const ShotRef &shot,
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return completeCapture(swingDir, arrival);
 }
 
@@ -205,6 +251,10 @@ WriteResult SwingStoreRecordingRepository::writeAnalysis(const ShotRef &shot,
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (!options.dryRun && refusedByLock(lock, &refused))
+        return refused;
     return writeAnalysis(swingDir, outcome, options);
 }
 
@@ -253,6 +303,10 @@ WriteResult SwingStoreRecordingRepository::editReview(const ShotRef &shot, const
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return editReview(swingDir, edit);
 }
 
@@ -281,6 +335,12 @@ ConversionResult SwingStoreRecordingRepository::convert(const ShotRef &shot, boo
         ConversionResult r;
         r.error = why;
         return r;   // Failed
+    }
+    FolderLock lock(sessionFolderOf(swingDir));
+    if (WriteResult refused; refusedByLock(lock, &refused)) {
+        ConversionResult r;
+        r.error = refused.error;
+        return r;   // Failed: another writer holds the session
     }
     return convert(swingDir, deleteJson);
 }
@@ -312,6 +372,10 @@ WriteResult SwingStoreRecordingRepository::writeSummarySidecar(const ShotRef &sh
         return status(WriteResult::Status::Unchanged);
     PersistedShot at = summary;
     at.swingDir = swingDir;   // the key's folder, whatever the summary was read under
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return writeSummarySidecar(at);
 }
 
@@ -331,6 +395,10 @@ WriteResult SwingStoreRecordingRepository::writeArchiveStub(const ShotRef &shot,
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     return SwingDocWriter::writeArchiveStub(swingDir, stub);
 }
 
@@ -347,6 +415,10 @@ WriteResult SwingStoreRecordingRepository::writeTruth(const ShotRef &shot, Truth
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (refusedByLock(lock, &refused))
+        return refused;
     // Indented, as the markup tool always wrote it (SwingLab's label.py / score.py read it). Into the
     // swing folder as it is: a folder that has gone is not made again around a lone truth file.
     const AtomicWriteResult w = atomicWrite(swingDir + QLatin1Char('/') + truthFileName(view),
@@ -380,6 +452,10 @@ WriteResult SwingStoreRecordingRepository::backfillAnalysisContext(const ShotRef
     const QString swingDir = folderOf(shot, &why);
     if (swingDir.isEmpty())
         return status(WriteResult::Status::Failed, why);
+    FolderLock lock(sessionFolderOf(swingDir));
+    WriteResult refused;
+    if (!options.dryRun && refusedByLock(lock, &refused))
+        return refused;
     return backfillAnalysisContext(swingDir, facts, options);
 }
 

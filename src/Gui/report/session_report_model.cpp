@@ -326,26 +326,12 @@ QString SessionReportModel::contentStamp() const
 
 // ── Cheap reads: preflight, state, the fingerprint ───────────────────────────────────────────────
 
-QVariantMap SessionReportModel::athleteFor(const QString &sessionDir, const QString &uuid, const QString &name) const
+QVariantMap SessionReportModel::athleteFor(const QString &sessionDir) const
 {
-    if (!m_athletes) return {};
-    if (!uuid.isEmpty()) {
-        const QVariantMap d = m_athletes->reportDetails(uuid);
-        if (!d.isEmpty()) return d;
-    }
-    if (!name.isEmpty()) {
-        const QVariantMap d = m_athletes->reportDetails(name);
-        if (!d.isEmpty()) return d;
-    }
-    // The athlete whose folder the session is in, by the folder each Athlete holds (D4) — never the folder a name
-    // sanitises to, which a RENAMED athlete no longer matches (J-29; step 2.7b).
-    const QString folder = athleteFolderKey(QFileInfo(sessionDir).absolutePath());
-    for (const QVariant &v : m_athletes->athletes()) {
-        const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
-        if (!uuid.isEmpty() && athleteFolderKey(m_athletes->folderOf(uuid)) == folder)
-            return m_athletes->reportDetails(uuid);
-    }
-    return {};
+    // The athlete whose folder the session is in, by the folder each Athlete holds (D4), and only that (E-02;
+    // J-66, step 2.8b). Not the name a folder or a swing spells — a RENAMED athlete's old name can be another
+    // athlete's now — and not the uuid a swing recorded, which may be the capturing machine's (H-09).
+    return m_athletes ? m_athletes->reportDetailsForSession(sessionDir) : QVariantMap();
 }
 
 // The photo decision for a session (§7.3), off the session's day (sessionDayOf) so that state() can answer
@@ -376,8 +362,8 @@ QString SessionReportModel::fingerprintOf(const QString &sessionDir) const
 
 M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
 {
-    // athleteFor(dir)'s folder lookup, done for every athlete now: by the folder each Athlete holds (J-29), the
-    // first athlete listed for a folder winning, as there.
+    // athleteFor(dir)'s folder lookup (AthleteController::reportDetailsForSession), done for every athlete now:
+    // by the folder each Athlete holds (J-29, J-66), the first athlete listed for a folder winning, as there.
     QHash<QString, QVariantMap> byFolder;
     if (m_athletes) {
         for (const QVariant &v : m_athletes->athletes()) {
@@ -946,7 +932,7 @@ void SessionReportModel::build()
     x.preparedDate = QDateTime::fromMSecsSinceEpoch(job.preparedMs).date();
     if (x.name.isEmpty()) x.name = QFileInfo(QFileInfo(job.dir).absolutePath()).fileName().replace(QLatin1Char('-'), QLatin1Char(' '));
 
-    const QVariantMap athlete = athleteFor(job.dir, x.uuid, x.name);
+    const QVariantMap athlete = athleteFor(job.dir);
     QString first = athlete.value(QStringLiteral("greeting")).toString();
     if (first.isEmpty()) first = x.name.section(QLatin1Char(' '), 0, 0);
     const QDate sessionDay = sessionDayOf(job.dir);
@@ -1162,7 +1148,7 @@ void SessionReportModel::build()
     const QString stillsDir = [&] {
         const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
         const QString h = QString::fromLatin1(QCryptographicHash::hash((job.dir + job.fingerprint).toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
-        return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral("report-stills/") + h);
+        return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(pinpoint::SessionFiles::reportStillsFolderName() + QLatin1Char('/') + h);
     }();
     const bool wantStills = job.stills && photo.included && !isNote;
     const QString defaultCamera = [&] {
@@ -1965,7 +1951,7 @@ void SessionReportModel::printFinished(bool ok, const QString &path, int pages, 
     meta.sha256 = M::fileSha256(path);
     meta.sizeBytes = QFileInfo(path).size();
     meta.fingerprint = job.fingerprint;
-    if (!M::writeReportMeta(dir, meta)) ppWarn() << "[Report] could not write report_meta.json in" << dir;
+    if (!M::writeReportMeta(dir, meta)) ppWarn() << "[Report] could not write the report's meta file in" << dir;
     // A golfer renamed since the last make: the old file would sit beside the new one forever.
     if (!oldPdf.isEmpty() && QDir::cleanPath(oldPdf) != QDir::cleanPath(path) && QFileInfo::exists(oldPdf)) QFile::remove(oldPdf);
     ppInfo() << "[Report] wrote" << path << "(" << pages << "pages," << meta.sizeBytes << "bytes)";

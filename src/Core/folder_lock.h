@@ -37,7 +37,17 @@
 //   - lock() never makes the folder: a folder that is not there (trashed, never made) fails, it is not
 //     re-created around a lone lock file.
 //
-// Nothing calls it yet but its test; the repositories take it from step 2.2 on.
+// JOINING THIS THREAD'S OWN HOLD (step 2.8b; J-47). QLockFile is not re-entrant: a second lock object on a
+// folder whose lock this very thread already holds would wait for itself and answer Locked. lock() keeps
+// that (a second object is a second writer, on any thread). lockOrJoin() is for a write that may run
+// INSIDE another hold of the same folder on the same thread — the swing door's per-write lock, called by
+// the archiver while it holds the session's lock around one swing: when this thread already holds the
+// folder's lock (taken by lock() or lockOrJoin() on another object), it joins that hold — Acquired, no
+// file touched, and its unlock() lets nothing go; otherwise it is lock(). Another thread's hold is never
+// joined: it waits and answers Locked as lock() does, so the archiver's hold still shuts out the app's own
+// review edits on other threads (H-10). Holds nest like scopes: the joined object lets go first.
+//
+// The repositories take it from step 2.2 on; the swing door's writes (RecordingRepository) from 2.8b.
 //
 //   cmake --build build/tests --target folder_lock_test -j 6
 //   ctest --test-dir build/tests -R '^folder_lock_test$' --output-on-failure
@@ -72,8 +82,12 @@ public:
 
     // Take the lock, waiting up to `waitMs` for another holder. Holding it already answers Acquired.
     Result lock(int waitMs = kWaitMs);
+    // lock(), except that a hold of this folder that THIS THREAD already has (through another object) is
+    // joined instead of waited for (see the header). joined() says which happened.
+    Result lockOrJoin(int waitMs = kWaitMs);
     void unlock();
     bool isHeld() const;
+    bool joined() const { return m_joined; }
 
     const QString &folder() const { return m_folder; }
     QString lockPath() const;
@@ -84,8 +98,14 @@ public:
     QString errorString() const { return m_error; }
 
 private:
+    QString registryKey() const;
+
     QString                    m_folder;
     std::unique_ptr<QLockFile> m_lock;
+    bool                       m_joined = false;   // lockOrJoin() joined this thread's hold
+    QString                    m_key;              // the registry key taken when the file was acquired; the
+                                                   // entry is removed by it (never recomputed: a folder that
+                                                   // vanished mid-hold resolves to another spelling)
     QString                    m_holder;
     QString                    m_error;
 };

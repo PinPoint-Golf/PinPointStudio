@@ -288,7 +288,7 @@ public:
     // ── The edge translation, and the folder as a property ──────────────────────────────────────
     // `swingDir`'s ShotRef: its session's id (SessionRepository::openSwingFolder — the session file's,
     // or for a session without one D3's, from `legacyAthlete`, else from the athlete who owns its folder,
-    // the uuid the swing's own header records only when no owner is found: J-39, proposed, for Mark) and
+    // the uuid the swing's own header records only when no owner is found: J-39; confirmed by Mark, 15 Nov 2026) and
     // its swing number. Null when it is not a swing folder (no swing number) or its
     // session cannot be named. Owner thread only.
     virtual ShotRef shotOfFolder(const QString &swingDir, const AthleteId &legacyAthlete = {}) = 0;

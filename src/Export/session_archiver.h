@@ -79,7 +79,15 @@
 // Never across the run: a run is minutes, and a lock older than 60 s is taken over (J-11). A lock another
 // writer holds past the wait (5 s) stops the run with WriteResult::Status::Locked, in the lock's words.
 // The copies into the archive mirror and the reads of the library take no lock. What keeps a second
-// writer off a session that is being recorded is its session file's status, checked by the store.
+// writer off a session that is being recorded is its session file's status, checked by the store — at the
+// start, and again under the lock before EACH swing is thinned (step 2.8b; J-52), with the marker: if the
+// session has been resumed (InProgress) or its marker is gone or names another archive (a restore run from
+// another computer while this one was thinning), the archive stops there. A restore removes the marker
+// last, under the lock, and only when no swing in the library is still a stub; otherwise the marker stays
+// and the restore says so. Between the two, no swing can be left a stub without a marker.
+// The swing file's own writes (RecordingRepository) take the same lock per write since step 2.8b; the
+// archiver's stub, conversion and review merge are written INSIDE its hold, and join it
+// (FolderLock::lockOrJoin) rather than waiting for themselves (J-47).
 //
 // THE GOLFER'S REVIEW IS MERGED, NEVER OVERWRITTEN (step 1.4, round 3; H-10). A review can be edited on
 // the stub while archived, AND on the restored document while the restore is still running (the
@@ -90,12 +98,10 @@
 // old), mine = the restored document's at the moment of the merge. A field changed since archiving wins
 // over the base; when both sides changed it, the later edit — the one made on the restored document,
 // during the restore — wins, and the conflict is logged naming swing and field.
-// ⚠ WHAT THE LOCK DOES NOT YET COVER: the app's own review edits (RecordingRepository::editReview) do not
-// take the session lock yet (step 2.4's J7: the swing file's writes take it with the tools, step 2.8). So
-// against an edit made in the app at the very moment a swing's document lands, the window that remains
-// is the rename's instant (an edit that lands between the stub's read and the rename is lost), and an
-// edit whose write started on the stub and ends after the rename can still put the stub back over the
-// restored document (recoverable from the archive). Every writer that takes the lock is shut out.
+// The app's own review edits (RecordingRepository::editReview, on any other thread) take the session's lock
+// since step 2.8b (J-36), so they are shut out for the moment a swing's document lands and is merged: an
+// edit waits for the hold to end (or, past the wait, fails Locked and is reported) and is then made on the
+// restored document. H-10's window is closed against every PinPoint writer.
 
 #include <QJsonObject>
 #include <QString>
@@ -121,7 +127,8 @@ public:
     // SessionArchiving: the file work on a folder the store has checked. Call SessionRepository::archive /
     // restore, not these.
     SessionArchiveResult archiveFolder(const QString &sessionDir, const SessionArchiveOptions &options,
-                                       const SessionArchiveProgress &progress) override;
+                                       const SessionArchiveProgress &progress,
+                                       const StillArchivable &stillArchivable) override;
     SessionArchiveResult restoreFolder(const QString &sessionDir, const SessionArchiveProgress &progress) override;
 
     static QString markerPath(const QString &sessionDir);   // <session>/archived.json (SessionFiles)

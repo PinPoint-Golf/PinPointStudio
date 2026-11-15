@@ -139,6 +139,23 @@ QString AthleteController::folderOf(const QString &uuid) const
     return a ? a->folder() : QString();
 }
 
+QVariantMap AthleteController::reportDetailsForSession(const QString &sessionDir) const
+{
+    // An athlete folder as a key, however each side spelled it: absolute and cleaned.
+    const auto key = [](const QString &folder) {
+        return folder.trimmed().isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
+    };
+    if (sessionDir.trimmed().isEmpty())
+        return {};
+    const QString folder = key(QFileInfo(QDir::cleanPath(sessionDir)).absolutePath());
+    for (const QVariant &v : m_athletes) {
+        const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
+        if (!uuid.isEmpty() && key(folderOf(uuid)) == folder)
+            return reportDetails(uuid);
+    }
+    return {};
+}
+
 // The standard set a bag that was never stored shows (driver, 5-9 iron, GW, SW, putter, with factory
 // defaults for the athlete's set). Shown, NOT written: a read never writes (until the first club edit
 // stores the bag). An intentionally emptied bag is stored, and stays empty.

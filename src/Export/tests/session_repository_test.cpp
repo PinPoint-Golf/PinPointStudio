@@ -23,7 +23,8 @@
 // The contracts: src/DomainModel/session_repository.h and src/Export/session_store.h (the file's keys),
 // and the decisions they cite — DEC-91 (a swing number is never reissued), DEC-93 (the empty discard),
 // DEC-134 (resume: today's session of the same type, same id), DEC-78/DEC-73 (one InProgress per
-// athlete), DEC-136 (the typed entry), DEC-150 (an old session's id), DEC-154 (D7).
+// athlete), DEC-136 (the typed entry), DEC-150 (an old session's id), DEC-154 (D7), and J-18 (Mark, 15 Nov
+// 2026, build/refactor/step-2/JUDGEMENT-ANSWERS.md: a crash-left session's end inferred and marked so; J).
 //
 // Sections N, A, R, B, E and K are swing_paths_test's allocator sections, moved here with the allocator
 // (they were written against SwingPaths' instance half, deleted in this step); F, L, I, O, D, X are new.
@@ -40,6 +41,8 @@
 
 #include <QCoreApplication>
 #include <QDate>
+#include <QDateTime>
+#include <QTimeZone>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -482,7 +485,7 @@ static void testOneInProgress()
     const SessionStartResult s = store.start(owner(lib), QStringLiteral("wrist"), kPat);
     const QJsonObject f = sessionFile(crashed);
     checkEq(QStringLiteral("I1 the athlete's next Start ends the crash-left session"), f.value("status").toString(), QStringLiteral("ended"));
-    check(QStringLiteral("I2 with no made-up end time"), !f.contains("endedAt"));
+    check(QStringLiteral("I2 no swing records a capture time: no made-up end time"), !f.contains("endedAt") && !f.contains("endInferred"));
     int inProgress = 0;
     for (const SessionIndexEntry &e : store.enumerate(owner(lib)))
         inProgress += e.status == SessionStatus::InProgress ? 1 : 0;
@@ -495,6 +498,99 @@ static void testOneInProgress()
             sessionFile(s3.folder).value("status").toString(), QStringLiteral("ended"));
     checkEq(QStringLiteral("I5 and the resumed one is in progress"), sessionFile(crashed).value("status").toString(),
             QStringLiteral("inProgress"));
+}
+
+// ---------------------------------------------------------------------------
+// G — a tool meets a live session (D11: DEC-158; H-14): SessionStore::fileSaysInProgress, the one check every
+// writing tool asks before it writes into a session
+// ---------------------------------------------------------------------------
+static void testToolGuard()
+{
+    std::printf("\nG — the tools' in-progress check (D11)\n");
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("G"), QStringLiteral("no temp dir")); return; }
+    SessionStore store;
+    const SessionStartResult s = store.start(owner(lib), kType, kPat);
+    const SwingAllocation a = store.allocateSwing(s.id);
+    check(QStringLiteral("G1 a session being recorded: in progress"), SessionStore::fileSaysInProgress(s.folder));
+    check(QStringLiteral("G2 its swing's session folder is the session"),
+          QDir::cleanPath(SessionStore::sessionFolderOfSwing(a.swingFolder)) == QDir::cleanPath(s.folder));
+    const QByteArray before = bytesOf(SessionFiles::sessionFile(s.folder));
+    check(QStringLiteral("G3 the check writes nothing (no lock file, the session file byte-identical)"),
+          !TempLibrary::exists(s.folder + QLatin1Char('/') + SessionFiles::lockFileName())
+              && bytesOf(SessionFiles::sessionFile(s.folder)) == before);
+    const QString refusal = SessionStore::inProgressRefusal(s.folder);
+    check(QStringLiteral("G4 the refusal names the session and the override"),
+          refusal.contains(QDir::cleanPath(s.folder)) && refusal.contains(QStringLiteral("--allow-in-progress")));
+    store.end(s.id, false);
+    check(QStringLiteral("G5 ended: not in progress"), !SessionStore::fileSaysInProgress(s.folder));
+    const QString legacy = lib.makeSession(kToken, baseDefault() + QStringLiteral("_09"), 1);
+    check(QStringLiteral("G6 a session older than step 2 (no file): not in progress"), !SessionStore::fileSaysInProgress(legacy));
+    const QString broken = lib.makeSession(kToken, baseDefault() + QStringLiteral("_10"), 1);
+    plant(SessionFiles::sessionFile(broken), "{ \"status\": \"inProgress\"");
+    check(QStringLiteral("G7 an unreadable file: not in progress (read as nothing)"), !SessionStore::fileSaysInProgress(broken));
+    check(QStringLiteral("G8 no folder: not in progress"), !SessionStore::fileSaysInProgress(QString()));
+}
+
+// ---------------------------------------------------------------------------
+// J — J-18 (Mark, 15 Nov 2026): a crash-left session ended by the next Start gets its last swing's capture
+// end, MARKED AS INFERRED (`endInferred`); an observed End is never marked
+// ---------------------------------------------------------------------------
+static void testInferredEnd()
+{
+    std::printf("\nJ — the inferred end of a crash-left session (J-18)\n");
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("J"), QStringLiteral("no temp dir")); return; }
+    const QDateTime t1 = QDateTime(QDate(2026, 11, 14), QTime(10, 4, 5, 123), QTimeZone::UTC);
+    const QDateTime t3 = QDateTime(QDate(2026, 11, 14), QTime(10, 31, 0, 500), QTimeZone::UTC);
+    // The swings' capture ends as the swing door reads them: swing 2 records none (a crash mid-write).
+    const auto reader = [&](const QString &swingDir) -> QDateTime {
+        const QString name = QFileInfo(swingDir).fileName();
+        if (name == QLatin1String("swing_0001")) return t1;
+        if (name == QLatin1String("swing_0003")) return t3;
+        return {};
+    };
+    QString crashed;
+    {
+        SessionStore store;   // a run that crashed: started, three swings, never ended
+        const SessionStartResult s = store.start(owner(lib), kType, kPat);
+        crashed = s.folder;
+        for (int i = 0; i < 3; ++i) store.allocateSwing(s.id);
+    }
+    SessionStore store;
+    store.setCaptureEndReader(reader);
+    const SessionStartResult next = store.start(owner(lib), QStringLiteral("wrist"), kPat);
+    const QJsonObject f = sessionFile(crashed);
+    checkEq(QStringLiteral("J1 the next Start ends it"), f.value("status").toString(), QStringLiteral("ended"));
+    checkEq(QStringLiteral("J2 endedAt = the latest swing capture end (swing 3; swing 2 records none)"),
+            f.value("endedAt").toString(), QStringLiteral("2026-11-14T10:31:00.500Z"));
+    check(QStringLiteral("J3 marked as inferred"), f.value("endInferred").toBool());
+    SessionStore reader2;
+    const auto e = reader2.open(reader2.openFolder(crashed));
+    check(QStringLiteral("J4 read back: endInferred, the end time"), e && e->endInferred && e->endedAtUtc == t3);
+    // An observed End is never marked inferred, even over a file that was.
+    store.end(next.id, false);
+    store.resume(store.openFolder(crashed), kType);
+    check(QStringLiteral("J5 resumed: in progress, no end, no mark"),
+          sessionFile(crashed).value("status").toString() == QLatin1String("inProgress") && !sessionFile(crashed).contains("endedAt")
+              && !sessionFile(crashed).contains("endInferred"));
+    store.end(store.openFolder(crashed), false);
+    check(QStringLiteral("J6 ended by End: endedAt observed, no endInferred"),
+          sessionFile(crashed).contains("endedAt") && !sessionFile(crashed).contains("endInferred"));
+    // A crash-left session none of whose swings records a capture time: no end, no mark (as I2, with a reader).
+    QString bare;
+    {
+        SessionStore s0;
+        const SessionStartResult s = s0.start(owner(lib), QStringLiteral("grf"), kPat);
+        bare = s.folder;
+        s0.allocateSwing(s.id);   // a swing folder whose document (if any) records no capture time
+    }
+    SessionStore store2;
+    store2.setCaptureEndReader([](const QString &) { return QDateTime(); });
+    store2.start(owner(lib), QStringLiteral("grf"), kPat);
+    check(QStringLiteral("J7 no capture time anywhere: ended, end not known, not marked"),
+          sessionFile(bare).value("status").toString() == QLatin1String("ended") && !sessionFile(bare).contains("endedAt")
+              && !sessionFile(bare).contains("endInferred"));
 }
 
 // ---------------------------------------------------------------------------
@@ -871,6 +967,8 @@ int main(int argc, char **argv)
     testStartAndResume();
     testLegacy();
     testOneInProgress();
+    testInferredEnd();
+    testToolGuard();
     testEnumerate();
     testEnd();
     testFolderFixedAndD7();

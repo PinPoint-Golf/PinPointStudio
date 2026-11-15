@@ -525,12 +525,20 @@ int main(int argc, char **argv)
               "D3 M2 S1: session.json, the same id the dry run showed, ended, wrist");
         check(jsonOf(SessionFiles::sessionFile(mark + '/' + S1)).value(QStringLiteral("origin")).toObject().value(QStringLiteral("kind")).toString()
                   == QLatin1String("backfilled"), "D3 M2 S1: origin backfilled");
+        // J-18 (Mark, 15 Nov 2026): the same rule as the app's for a crash-left session — the latest swing's
+        // capture end (swing 2: 13:01:00 + its 2 s window), marked as inferred.
+        check(e1 && e1->endInferred
+                  && e1->endedAtUtc == QDateTime::fromString(QStringLiteral("2026-07-10T13:01:02.000Z"), Qt::ISODateWithMs)
+                  && jsonOf(SessionFiles::sessionFile(mark + '/' + S1)).value(QStringLiteral("endInferred")).toBool(),
+              "D3 M2 S1: endedAt = the latest swing's capture end, endInferred (J-18)");
         check(e3 && e3->identity.type() == QLatin1String("wrist"), "D3 M2 S3: the shots' type");
         check(e4 && e4->id().toString() == QLatin1String("44444444-4444-4444-8444-444444444444")
                   && e4->startedAtUtc == QDateTime::fromString(QStringLiteral("2026-07-14T10:00:00.000Z"), Qt::ISODateWithMs),
               "D3 M2 S4: the app's file kept its id, its start corrected");
-        check(e5 && e5->startedAtUtc == QDateTime(QDate(2026, 7, 15), QTime(0, 0), QTimeZone::systemTimeZone()).toUTC() && !e5->endedAtUtc.isValid(),
-              "D3 M2 S5: the folder's date, no end");
+        check(e5 && e5->startedAtUtc == QDateTime(QDate(2026, 7, 15), QTime(0, 0), QTimeZone::systemTimeZone()).toUTC() && !e5->endedAtUtc.isValid()
+                  && !e5->endInferred,
+              "D3 M2 S5: the folder's date, no end (and nothing marked inferred)");
+        check(e4 && !e4->endInferred, "D3 M2 S4: the app's own end time is left as the app wrote it (not marked)");
         check(!QFileInfo::exists(SessionFiles::sessionFile(fx.lib + QStringLiteral("/Jess-Ratcliffe/") + S6)), "D3 M2 S6: no owner, no file");
     }
     // M3, read back through the one reader of golfer input.

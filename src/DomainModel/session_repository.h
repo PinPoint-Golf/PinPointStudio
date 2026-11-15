@@ -113,8 +113,12 @@ struct SessionIndexEntry {
     AthleteId       athlete;       // the session file's athleteId; for a legacy folder, the owner's
     SessionStatus   status = SessionStatus::Ended;
     QDateTime       startedAtUtc;  // invalid for a legacy folder (its day is its name's)
-    QDateTime       endedAtUtc;    // invalid while InProgress, and when the end is not known (a
-                                   // session ended by the athlete's next start after a crash)
+    QDateTime       endedAtUtc;    // invalid while InProgress, and when the end is not known (a session
+                                   // ended by the athlete's next start after a crash, none of whose swings
+                                   // records a capture time)
+    bool            endInferred = false;   // endedAtUtc was INFERRED, not observed: the latest swing's capture
+                                           // end, for a session ended by the next start after a crash, or
+                                           // backfilled by migration M2 (J-18: Mark, 15 Nov 2026; FILE-SESS-01)
     bool            hasSessionFile = false;   // false: read from its name (D3), never written by a read
     bool            readOnly = false;         // a newer build's session file: every write refuses it
     bool            archived = false;         // its archive marker (archived.json, FILE-SESS-06) is there:

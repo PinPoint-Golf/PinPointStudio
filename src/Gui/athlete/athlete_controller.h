@@ -108,6 +108,12 @@ public:
     // folder it has always had, never in one derived from its name (J-29; step 2.7b: the session report). "" when
     // there is no such athlete.
     QString                folderOf(const QString &uuid) const;
+    // reportDetails() of the athlete a SESSION belongs to: the athlete whose folder (D4) holds the session's
+    // folder — and only that. Never by the name a folder spells, nor by the uuid a swing recorded (a swing's
+    // uuid may be the capturing machine's, H-09, or a moved session's previous athlete): E-02, J-66 (step
+    // 2.8b). The first athlete listed for the folder wins (two can resolve to one before M1: J-30). {} when no
+    // athlete's folder holds it. C++ only (the session report).
+    QVariantMap            reportDetailsForSession(const QString &sessionDir) const;
     // Who the current athlete's sessions belong to, as SessionRepository takes it (capture's session
     // folder, through capture::athleteIdentity).
     pinpoint::SessionOwner currentSessionOwner() const;

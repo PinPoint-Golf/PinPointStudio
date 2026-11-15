@@ -37,12 +37,6 @@ Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmS
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
 # ── A4 session/athlete file names outside their owner ──
-Gui/charts/charts_posture_presenter.cpp | A4 | 2 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/charts/session_series_model.cpp | A4 | 1 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/diagnostics/work_ons_controller.cpp | A4 | 2 | spells club_baseline.json, diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/athlete/athlete_controller.cpp | A4 | 2 | spells diagnostics.json, tendencies.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
-Gui/report/session_report_list_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
-Gui/report/session_report_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
 
 # ── A5 file I/O in a rules directory ──
 # Note: src/Diagnostics/packs is outside A5 (as briefed), but its pack LOADER does file I/O too —
@@ -51,9 +45,8 @@ Gui/report/session_report_model.cpp | A4 | 1 | spells work_ons.json itself to re
 Coaching/club_distances.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Coaching/shot_factors.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Coaching/strike_from_flight.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/engine/pack_io.cpp | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Diagnostics/engine/provider_leaf_p.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/measures/measure_sample.cpp | A5 | 9 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/measures/measure_sample.cpp | A5 | 7 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 Diagnostics/norms/file_norm_provider.cpp | A5 | 10 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
 
 # ── A6 QVariantMap/QVariantList on the QML boundary ──

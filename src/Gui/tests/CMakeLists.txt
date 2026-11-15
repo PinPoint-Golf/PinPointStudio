@@ -118,7 +118,7 @@ pp_add_test(presenter_pool_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -259,7 +259,7 @@ pp_add_test(tts_phrase_cache_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -288,7 +288,7 @@ set(PP_LM_BOARD_SOURCES
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_curves.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp

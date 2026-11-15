@@ -298,8 +298,9 @@ class SessionDiagnosticsModel : public QObject
     //   "live"    a live panel: only when every predecessor's ledger is schema 11, and never while reviewing.
     //   "never"   review panels and the session report: read only. Unknown words read as "never".
     // The default is "live", so a panel left on it behaves as a live one until it reviews.
-    // "always" also decides diagnostics.json's golfer keys: before each write that model merges every
-    // one of them from the file (persist, mergeGolferInput), because a panel may hold the same session.
+    // "always" also decides the golfer's input: before each cache write that model re-reads
+    // session_input.json and adopts it (persist), because a panel may hold the same session. (The older
+    // golfer keys' merge went in step 2.5: the input lives in session_input.json and the shots' reviews.)
     Q_PROPERTY(QString baselineAuthority READ baselineAuthorityName WRITE setBaselineAuthorityName NOTIFY baselineAuthorityChanged)
 
 public:

@@ -33,6 +33,10 @@
 //       "status":    "inProgress" | "ended",
 //       "startedAt": "2026-11-15T10:04:05.123Z", ISO 8601 UTC with milliseconds
 //       "endedAt":   "…",                        absent while InProgress, and when the end is not known
+//       "endInferred": true,                     endedAt was inferred, not observed (J-18; Mark, 15 Nov
+//                                                2026): the latest of its swings' capture ends, for a session
+//                                                a crash left open and the next Start ended (or M2's
+//                                                backfill); absent when endedAt was observed (End)
 //       "origin":    { "kind": "captured" }      written at Start; or { "kind": "backfilled", "tool",
 //                                                "version", "at", "read" } — how an inferred start was
 //                                                inferred (P1)
@@ -76,12 +80,16 @@
 namespace pinpoint {
 
 // The archive's file work, on a session folder the store has checked (session_archiver.h implements it).
+// `stillArchivable` is the store's check run again (a fresh read of the session file): "" while the session
+// may still be archived, else why not — the archive asks it before each swing it thins (J-52).
 class SessionArchiving
 {
 public:
+    using StillArchivable = std::function<QString()>;
     virtual ~SessionArchiving() = default;
     virtual SessionArchiveResult archiveFolder(const QString &sessionDir, const SessionArchiveOptions &options,
-                                               const SessionArchiveProgress &progress) = 0;
+                                               const SessionArchiveProgress &progress,
+                                               const StillArchivable &stillArchivable) = 0;
     virtual SessionArchiveResult restoreFolder(const QString &sessionDir, const SessionArchiveProgress &progress) = 0;
 };
 
@@ -129,6 +137,25 @@ public:
     // "" for none (the name then says "session").
     static QString folderTypeLabel(const QString &type);
 
+    // A TOOL MEETS A LIVE SESSION (D11: DEC-158; audit H-14). Whether `sessionFolder`'s session file says the
+    // session is in progress, read afresh (a read only: no lock, nothing written). False for a session without
+    // a file (older than step 2: never in progress) and for an unreadable one. Every tool that writes into a
+    // session refuses one in progress — being recorded here or on the other machine — unless the user passes
+    // `--allow-in-progress` (for one a crash left open, which the athlete's next Start would end: DEC-73);
+    // a dry run or a read-only mode needs no check. The archive and the trash use the store's own check.
+    static bool fileSaysInProgress(const QString &sessionFolder);
+    // The refusal a tool prints, naming the session and the override.
+    static QString inProgressRefusal(const QString &sessionFolder);
+    // The session folder a swing folder belongs to (its parent), for a tool handed a swing.
+    static QString sessionFolderOfSwing(const QString &swingFolder);
+
+    // When one swing's capture ended (UTC; invalid when its document records none): the swing door's
+    // captureEndOf (SwingStoreRecordingRepository), set by the composition root. The store reads no swing
+    // document itself (it links none of the swing store). With none set, a session a crash left open is
+    // ended with its end not known, as before J-18.
+    using CaptureEndOf = std::function<QDateTime(const QString &swingDir)>;
+    void setCaptureEndReader(CaptureEndOf reader) { m_captureEndOf = std::move(reader); }
+
     // Tests: the clock (UTC) and the zone "today" is read in; how long a write waits for a held lock.
     void setClockForTest(std::function<QDateTime()> nowUtc) { m_now = std::move(nowUtc); }
     void setTimeZoneForTest(const QTimeZone &zone) { m_zone = zone; }
@@ -154,8 +181,10 @@ private:
     // Why `h`'s session may not be archived, restored or trashed now — "" when it may. Reads its session
     // file afresh: the held entry may be older than another writer's change.
     WriteResult checkNotLive(const Held &h, bool refuseReadOnly) const;
-    // End every other InProgress session in `athleteDir` (their end time: unknown).
+    // End every other InProgress session in `athleteDir`: its end inferred from its swings (J-18).
     void endOthersInProgress(const QString &athleteDir, const SessionId &except);
+    // The latest capture end of `folder`'s swings (m_captureEndOf); invalid when none records one.
+    QDateTime inferredEnd(const QString &folder) const;
     // Bring an entry read from disk into the identity map, keeping what only the map knows.
     Held &hold(const SessionIndexEntry &entry, const QJsonObject &file);
     // The folder of a held session, for swingFolder on any thread.
@@ -169,6 +198,7 @@ private:
     QTimeZone                   m_zone = QTimeZone::systemTimeZone();
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
     SessionArchiving           *m_archiving  = nullptr;
+    CaptureEndOf                m_captureEndOf;
 };
 
 } // namespace pinpoint

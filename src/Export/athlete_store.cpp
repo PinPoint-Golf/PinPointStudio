@@ -39,7 +39,6 @@ namespace pinpoint {
 namespace {
 
 const QString kSettingsGroup = QStringLiteral("athletes");
-const QString kSchemaPrefix  = QStringLiteral("pinpoint.athlete/");
 
 WriteResult failed(const QString &why) { return { WriteResult::Status::Failed, why }; }
 WriteResult written() { return { WriteResult::Status::Written, {} }; }
@@ -94,26 +93,19 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     const QDir lib(libraryDir());
     for (const QString &name : lib.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         const QString dir = lib.filePath(name);
-        QFile f(AthleteFiles::athleteFile(dir));
-        if (!f.exists())
+        // The one reader of the file (AthleteFiles::read; R-PERS-1, J-40).
+        const AthleteFiles::Read rd = AthleteFiles::read(dir);
+        if (rd.state == AthleteFiles::Read::State::Missing)
             continue;   // not an athlete's folder (yet): a settings athlete's, the corpus, a scratch folder
-        if (!f.open(QIODevice::ReadOnly)) {
-            ppWarn() << "[AthleteStore] cannot read" << f.fileName() << "-" << f.errorString();
-            continue;
-        }
-        QJsonParseError pe{};
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-        const QJsonObject   o   = doc.object();
-        const QString       schema  = o.value(QStringLiteral("schema")).toString();
-        const int           version = schema.startsWith(kSchemaPrefix) ? schema.mid(kSchemaPrefix.size()).toInt() : 0;
-        const AthleteId     id      = AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
-        if (pe.error != QJsonParseError::NoError || !doc.isObject() || version < 1 || id.isNull()) {
+        if (!rd.isRead()) {
             // Kept as it is for someone to look at: never listed, never overwritten.
-            ppWarn() << "[AthleteStore] not an athlete file (schema" << schema << "):" << f.fileName();
+            ppWarn() << "[AthleteStore]" << rd.why;
             continue;
         }
+        const QJsonObject &o  = rd.json;
+        const AthleteId    id = rd.id;
         if (seen.contains(id)) {
-            ppWarn() << "[AthleteStore]" << f.fileName() << "names athlete" << id.toString()
+            ppWarn() << "[AthleteStore]" << AthleteFiles::athleteFile(dir) << "names athlete" << id.toString()
                      << "whose record is already in another folder - not listed twice";
             continue;
         }
@@ -128,7 +120,7 @@ QList<AthleteStore::Found> AthleteStore::scan() const
         fd.folder   = SessionStore::athleteFolder(fd.owner);
         fd.record   = AthleteRecord::fromMap(o.value(QStringLiteral("record")).toObject().toVariantMap());
         fd.source   = Athlete::Source::Library;
-        fd.readOnly = version > 1;
+        fd.readOnly = rd.readOnly;
         fd.file     = o;
         out.append(fd);
     }
@@ -396,10 +388,7 @@ AthleteRemoval AthleteStore::trash(const AthleteId &id)
     if (hasFolder) {
         // J-30 (a): the folder's athlete.json names ANOTHER athlete — never move someone else's folder.
         if (QFileInfo::exists(file)) {
-            QFile f(file);
-            const AthleteId owner = f.open(QIODevice::ReadOnly)
-                ? AthleteId::fromString(QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("athleteId")).toString())
-                : AthleteId();
+            const AthleteId owner = AthleteFiles::read(folder).id;   // the one reader (J-40); null if unreadable
             if (owner != id) {
                 QString other = QStringLiteral("another athlete");
                 if (const Athlete *o = m_held.value(owner)) other = o->record().name;

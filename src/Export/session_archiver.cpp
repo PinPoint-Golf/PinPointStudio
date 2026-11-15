@@ -338,7 +338,8 @@ bool SessionArchiver::putInPlace(const QString &src, const QString &dst, QString
 }
 
 SessionArchiveResult SessionArchiver::archiveFolder(const QString &sessionDirIn, const SessionArchiveOptions &opt,
-                                                    const SessionArchiveProgress &progress)
+                                                    const SessionArchiveProgress &progress,
+                                                    const StillArchivable &stillArchivable)
 {
     SessionArchiveResult r;
     const QString sessionDir = QDir::cleanPath(sessionDirIn);
@@ -463,6 +464,25 @@ SessionArchiveResult SessionArchiver::archiveFolder(const QString &sessionDirIn,
         FolderLock lock(sessionDir);
         SessionArchiveResult lr = r;
         if (!takeLock(lock, lockWait(), lr)) return partway(lr);
+        // RE-CHECKED UNDER THIS SWING'S HOLD (step 2.8b; J-52). A restore run from another computer while
+        // this one thins removes the marker when it ends: thinning on past that would leave stubs with no
+        // marker. So the marker must still be this run's, and the session still not live (resumed here or
+        // elsewhere since the start). A marker gone or naming another archive: stop at once, and never write
+        // it again — the restore has put the library back whole (it removes the marker only when no stub is
+        // left, under this same lock). The session live again: stop, the marker kept over the stubs made.
+        if (const Marker now = readMarker(sessionDir); now.state != Marker::State::Read || now.location != dest) {
+            ppWarn() << "[SessionArchiver] the archive marker of" << sessionDir << "is gone or names another archive:"
+                     << "the session was restored while it was being archived; archiving stopped before" << sd;
+            return failure(r, QStringLiteral("%1 was restored (or archived elsewhere) by another run while it was being "
+                                             "archived; archiving stopped before %2 — the library holds the restored session")
+                                  .arg(sessionDir, QFileInfo(sd).fileName()));
+        }
+        if (stillArchivable) {
+            if (const QString why = stillArchivable(); !why.isEmpty()) {
+                lock.unlock();   // the marker's write takes the lock itself
+                return partway(failure(r, why));
+            }
+        }
         const QJsonObject doc = SwingStore::load(sd);
         if (doc.isEmpty()) continue;   // no document: nothing to stub; its files are archived
         const QString thumb = doc.value(QStringLiteral("thumbnail")).toObject()
@@ -473,7 +493,7 @@ SessionArchiveResult SessionArchiver::archiveFolder(const QString &sessionDirIn,
         // Through the door (FILE-SHOT-10): a read-only (newer build's) document is refused, never thinned.
         const WriteResult w = m_swings.writeArchiveStub(m_swings.shotOfFolder(sd), stubOf(doc, block));
         if (!w.ok()) {
-            lock.unlock();   // the marker's write takes the lock itself: QLockFile is not re-entrant
+            lock.unlock();   // the marker's write takes the lock itself (lock(), not lockOrJoin: a second writer)
             return partway(failure(r, QStringLiteral("cannot write the stub for %1: %2").arg(sd, w.error)));
         }
         QDirIterator it(sd, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -571,6 +591,16 @@ SessionArchiveResult SessionArchiver::restoreFolder(const QString &sessionDirIn,
 
     FolderLock lock(sessionDir);
     if (!takeLock(lock, lockWait(), r)) return r;
+    // THE MARKER GOES LAST, AND ONLY OVER A WHOLE LIBRARY (step 2.8b; J-52). Under the lock, so no archive
+    // run can thin a swing between this check and the removal (it re-checks the marker under the same lock
+    // before each swing). A swing that is a stub again — another computer archiving the session while this
+    // restore ran — keeps the marker, which names where its full copy is.
+    for (const QString &sd : swingDirsOf(sessionDir)) {
+        if (!isStub(sd)) continue;
+        ppWarn() << "[SessionArchiver] restore:" << sd << "is a stub again (archived by another run meanwhile); the marker is kept";
+        return failure(r, QStringLiteral("%1 was archived again by another run while it was being restored (%2 is a stub); "
+                                         "it is still marked archived — restore it again").arg(sessionDir, QFileInfo(sd).fileName()));
+    }
     if (!QFile::remove(markerPath(sessionDir)))
         return failure(r, QStringLiteral("restored, but cannot remove the archive marker"));
     r.ok     = true;
@@ -620,7 +650,7 @@ SessionId SessionArchiveRun::openSession(const QString &sessionDirIn)
     if (sessionDirIn.isEmpty())
         return {};
     const QString sessionDir = QDir::cleanPath(sessionDirIn);
-    SessionId id = m_sessions.openFolder(sessionDir, AthleteFiles::ownerOf(QFileInfo(sessionDir).path()));
+    SessionId id = m_sessions.openFolder(sessionDir, AthleteFiles::read(QFileInfo(sessionDir).path()).id);
     if (!id.isNull())
         return id;
     // No session file and no athlete.json: the athlete its swings record, as the swing door names them —

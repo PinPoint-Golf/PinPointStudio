@@ -541,7 +541,7 @@ pp_add_test(shot_source_map_test
 # asserts that nothing in src/Analysis keys on it, the same shape of rule as
 # CT-I37 and for the same reason.
 pp_add_test(swing_doc_test
-    SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+    SOURCES ${SRC}/Export/tests/swing_doc_test.cpp ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             # the reader lists a session's swings through SwingPaths, the one swing_* listing (step 2.7a), so
@@ -558,7 +558,7 @@ pp_add_test(swing_doc_test
 # the one re-analysis write-back (reanalyse_and_persist.cpp; the analyzer stubbed in the test).
 pp_add_test(recording_repository_test
     SOURCES ${SRC}/Export/tests/recording_repository_test.cpp
-            ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_writer.cpp
             ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Analysis/reanalyse_and_persist.cpp
@@ -599,7 +599,7 @@ pp_add_test(session_archiver_test
     SOURCES ${SRC}/Export/tests/session_archiver_test.cpp ${SRC}/Export/session_archiver.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
             ${SRC}/Core/folder_lock.cpp ${SRC}/Identity/identity.h   # the archiver's door (step 2.4)
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -782,7 +782,7 @@ pp_add_test(mp4_frame_reader_test
 # writer and reader (swing_doc_test's line), the one job builder and the effective club.
 set(PP_RECORDING_STORE_SOURCES
     ${SRC}/Export/recording_loader.cpp ${SRC}/Export/recording_header.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
     ${ANALYSIS}/mp4_frame_reader.cpp ${SRC}/Buffer/swing_window.cpp
     ${ANALYSIS}/analysis_job_builder.cpp ${ANALYSIS}/effective_context.cpp
@@ -1480,7 +1480,7 @@ pp_add_test(measure_sample_test
 pp_add_test(shoulder_tilt_vs_bend_test
     SOURCES shoulder_tilt_vs_bend_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp   # INormProvider::resolve, which detectForSwing names
@@ -1494,7 +1494,7 @@ pp_add_test(shoulder_tilt_vs_bend_test
 pp_add_test(club_slot_top_test
     SOURCES club_slot_top_test.cpp ${DIAG}/measures/measure_sample.cpp ${DIAG_NORM}
             ${DIAG}/measures/live_measure_source.cpp ${DIAG}/engine/characteristic_engine.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Export/swing_paths.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/norms/resource_norm_provider.cpp
@@ -1615,7 +1615,7 @@ pp_add_test(session_diagnostics_model_test
             # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
             # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
             # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1653,7 +1653,7 @@ pp_add_test(golfer_input_test
             # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
             # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
             # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1690,7 +1690,7 @@ pp_add_test(shot_number_test
             # swing_doc_*.cpp's own dependency and logs through pp_debug.h — hence the log sources
             # below, which are now the REAL ones: pp_debug.cpp still drags whisper/ggml in for its
             # installer, but ppWarn() itself lives in pp_log_stream.cpp and costs neither.
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1716,7 +1716,7 @@ pp_add_test(migrate_step2_test
             ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
             ${SRC}/Export/session_store.cpp ${SRC}/Export/swing_paths.cpp
             ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
-            ${SRC}/Export/swing_store_repository.cpp ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp ${SRC}/Export/swing_doc_writer.cpp
             ${SRC}/Export/swing_doc_reader.cpp ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
@@ -1764,7 +1764,7 @@ pp_add_test(work_ons_controller_test
             ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
             ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
             ${DIAG}/packs/merged_pack_provider.cpp
-            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
             ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1799,7 +1799,7 @@ add_executable(regrade_ledger
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1845,7 +1845,7 @@ add_executable(athlete_dump
     ${DIAG}/norms/merged_norm_provider.cpp
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1876,7 +1876,7 @@ set(MEASURE_DUMP_SRC
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1913,7 +1913,7 @@ add_executable(diag_uncertainty_report
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
@@ -1947,7 +1947,7 @@ add_executable(diag_rank_diff
     ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
     ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
     ${DIAG}/packs/merged_pack_provider.cpp
-    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
+    ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
     ${SRC}/Export/swing_doc_reader.cpp
     ${SRC}/Export/swing_doc_analysis.cpp
     ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp

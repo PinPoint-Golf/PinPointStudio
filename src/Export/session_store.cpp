@@ -183,6 +183,7 @@ SessionStore::FileState SessionStore::readFile(const QString &folder, SessionInd
                              ? SessionStatus::InProgress : SessionStatus::Ended;
     out.startedAtUtc   = started;
     out.endedAtUtc     = parseUtc(o.value(QStringLiteral("endedAt")));
+    out.endInferred    = out.endedAtUtc.isValid() && o.value(QStringLiteral("endInferred")).toBool();
     out.hasSessionFile = true;
     out.readOnly       = version > 1;
     out.archived       = QFileInfo::exists(SessionFiles::archiveMarker(folder));
@@ -431,6 +432,10 @@ WriteResult SessionStore::write(Held &h)
     set("status", statusName(h.entry.status));
     set("startedAt", isoUtc(h.entry.startedAtUtc));
     set("endedAt", h.entry.status == SessionStatus::Ended ? isoUtc(h.entry.endedAtUtc) : QString());
+    if (h.entry.status == SessionStatus::Ended && h.entry.endedAtUtc.isValid() && h.entry.endInferred)
+        o.insert(QStringLiteral("endInferred"), true);   // J-18: an inferred end says so (P1)
+    else
+        o.remove(QStringLiteral("endInferred"));
     if (!o.value(QStringLiteral("origin")).isObject())
         o.insert(QStringLiteral("origin"), QJsonObject{ { QStringLiteral("kind"), QStringLiteral("captured") } });
 
@@ -458,6 +463,42 @@ WriteResult SessionStore::write(Held &h)
     return written();
 }
 
+bool SessionStore::fileSaysInProgress(const QString &sessionFolder)
+{
+    if (sessionFolder.isEmpty())
+        return false;
+    const SessionStore reader;   // a read of the file as it stands now, through the one reader
+    SessionIndexEntry  e;
+    QJsonObject        file;
+    return reader.readFile(QDir::cleanPath(sessionFolder), e, file) == FileState::Read
+        && e.status == SessionStatus::InProgress;
+}
+
+QString SessionStore::inProgressRefusal(const QString &sessionFolder)
+{
+    return QStringLiteral("%1 is in progress (its session.json says so: it is being recorded here or on another "
+                          "computer) - not written. A session a crash left open can be passed with "
+                          "--allow-in-progress (D11).").arg(QDir::cleanPath(sessionFolder));
+}
+
+QString SessionStore::sessionFolderOfSwing(const QString &swingFolder)
+{
+    return QFileInfo(QDir::cleanPath(swingFolder)).path();
+}
+
+QDateTime SessionStore::inferredEnd(const QString &folder) const
+{
+    if (!m_captureEndOf)
+        return {};
+    QDateTime latest;   // the latest of every swing's: the rule M2 uses for a session older than step 2
+    for (const QString &name : SwingPaths::swingFolders(folder)) {
+        const QDateTime t = m_captureEndOf(folder + QLatin1Char('/') + name);
+        if (t.isValid() && (!latest.isValid() || t > latest))
+            latest = t.toUTC();
+    }
+    return latest;
+}
+
 void SessionStore::endOthersInProgress(const QString &athleteDir, const SessionId &except)
 {
     const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
@@ -470,11 +511,14 @@ void SessionStore::endOthersInProgress(const QString &athleteDir, const SessionI
             continue;
         Held &h = hold(e, file);
         const SessionIndexEntry before = h.entry;
-        // Its real end is not known (a crash, or a session the app never ended): no end time is written
-        // rather than a made-up one (P1). One InProgress session per athlete (DEC-78, DEC-73).
-        h.entry.status     = SessionStatus::Ended;
-        h.entry.endedAtUtc = {};
-        h.createdHere      = false;
+        // Its real end is not known (a crash, or a session the app never ended). J-18 (Mark, 15 Nov 2026):
+        // its end is its last swing's capture end, MARKED AS INFERRED (`endInferred`, P1); when no swing
+        // records a capture time, no end time is written rather than a made-up one. One InProgress session
+        // per athlete (DEC-78, DEC-73).
+        h.entry.status      = SessionStatus::Ended;
+        h.entry.endedAtUtc  = inferredEnd(h.entry.folder);
+        h.entry.endInferred = h.entry.endedAtUtc.isValid();
+        h.createdHere       = false;
         if (const WriteResult r = write(h); r.ok()) {
             ppInfo() << "[SessionStore] ended a session still in progress:" << folder;
         } else {
@@ -554,8 +598,9 @@ WriteResult SessionStore::resume(const SessionId &id, const QString &type)
                                                      "creation times (the start)") },
         });
     }
-    h.entry.status     = SessionStatus::InProgress;
-    h.entry.endedAtUtc = {};
+    h.entry.status      = SessionStatus::InProgress;
+    h.entry.endedAtUtc  = {};
+    h.entry.endInferred = false;
     const WriteResult r = write(h);
     if (!r.ok()) {
         h.entry = before;
@@ -595,8 +640,9 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
         return readOnly(h.entry.folder);
 
     const SessionIndexEntry before = h.entry;
-    h.entry.status     = SessionStatus::Ended;
-    h.entry.endedAtUtc = nowUtc();
+    h.entry.status      = SessionStatus::Ended;
+    h.entry.endedAtUtc  = nowUtc();
+    h.entry.endInferred = false;   // observed: the End
     const WriteResult r = write(h);
     if (!r.ok())
         h.entry = before;   // still in progress, as its file says (DEC-73)
@@ -719,7 +765,16 @@ SessionArchiveResult SessionStore::archive(const SessionId &id, const SessionArc
     if (!m_archiving)
         return archiveRefused(failed(QStringLiteral("Archiving is not available here.")));
     const QString folder = it->entry.folder;
-    SessionArchiveResult r = m_archiving->archiveFolder(folder, options, progress);
+    // Asked again before each swing is thinned (J-52): another machine may resume the session meanwhile. By
+    // id, not by `it`: the run's own reads may grow the identity map under it.
+    const auto stillArchivable = [this, id]() -> QString {
+        const auto h = m_held.constFind(id);
+        if (h == m_held.constEnd())
+            return QStringLiteral("That session is not known.");
+        const WriteResult c = checkNotLive(*h, /*refuseReadOnly=*/true);
+        return c.ok() ? QString() : c.error;
+    };
+    SessionArchiveResult r = m_archiving->archiveFolder(folder, options, progress, stillArchivable);
     if (const auto h = m_held.find(id); h != m_held.end())   // found again: the run may have grown the map
         h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(folder));
     return r;

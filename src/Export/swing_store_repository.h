@@ -33,8 +33,8 @@
 //   every method      resolves the shot's folder through SessionRepository::swingFolder (any thread);
 //                     a shot it cannot resolve is Failed / empty, never guessed at
 //   shotOfFolder      SessionRepository::openSwingFolder, and for a session without a session file and
-//                     no athlete from the caller, the athlete who OWNS its folder (J-39, proposed, for
-//                     Mark): setOwnerOf's resolver, else the folder's athlete.json; the swing's own
+//                     no athlete from the caller, the athlete who OWNS its folder (J-39; Mark,
+//                     15 Nov 2026): setOwnerOf's resolver, else the folder's athlete.json; the swing's own
 //                     `athlete.uuid` (its root alone) only when no owner is found
 //   create            refuses to overwrite a document a newer build saved (when one is there)
 //   writeAnalysis     the re-analysis write-back: reads the document (the empty-document guard),
@@ -45,6 +45,15 @@
 //   writeArchiveStub  the stub as given (no summary rebuild), refused for a read-only document
 //   writeTruth/truth  truth.json / truth_dtl.json, written whole through atomicWrite (src/Core)
 //   backfillAnalysisContext  the step-1 backfill (DEC-34): the writer's recordBackfilledContext
+//
+// THE SESSION'S LOCK (step 2.8b; brief §4.9, D11; J-36, J-47): every write above takes the advisory lock of
+// the shot's SESSION folder (FolderLock, <session>/.pinpoint-lock) for that one write, and lets it go after
+// (J-11). A lock another writer holds past the wait (5 s) refuses the write as WriteResult::Status::Locked —
+// a tool's write-back meeting the app, or the app meeting a tool, the other machine or the archiver on
+// another thread. The lock is joined, not waited for, when THIS thread already holds it (FolderLock::
+// lockOrJoin): the archiver's own stub, conversion and review merge, written inside its hold of the session.
+// A dry run (writeAnalysis, backfillAnalysisContext) writes nothing and takes no lock, so it leaves no lock
+// file in a folder it only read. A folder where no lock can be made at all is left to the write to decide.
 //
 // A TOOL'S OWN OUTPUT is not a shot: writeOutsideLibrary writes a document into a folder that is no
 // session's (SwingLab's research outputs), by path, and is not on the interface.
@@ -57,16 +66,17 @@
 
 namespace pinpoint {
 
+class FolderLock;
 class SessionRepository;
 
 class SwingStoreRecordingRepository final : public RecordingRepository {
 public:
     explicit SwingStoreRecordingRepository(SessionRepository &sessions) : m_sessions(&sessions) {}
 
-    // THE OWNER OF A LEGACY SESSION (J-39, proposed, for Mark): D3's id is derived from the athlete who
+    // THE OWNER OF A LEGACY SESSION (J-39; confirmed by Mark, 15 Nov 2026): D3's id is derived from the athlete who
     // OWNS the session's folder. shotOfFolder asks, in order: the caller's athlete; this resolver (the
     // app's: the current athlete, when the folder is theirs — the athlete the app's session list derives
-    // the same id from); the athlete folder's athlete.json (AthleteFiles::ownerOf); and only then the
+    // the same id from); the athlete folder's athlete.json (AthleteFiles::read, the one reader); and only then the
     // athlete the swing's own header records. Owner thread, like shotOfFolder.
     using OwnerOf = std::function<AthleteId(const QString &athleteFolder)>;
     void setOwnerOf(OwnerOf ownerOf) { m_ownerOf = std::move(ownerOf); }
@@ -75,6 +85,14 @@ public:
     // does. For a caller that holds the athlete's folder and lists its sessions (SessionStore::enumerateFolder;
     // step 2.7a), which names one of its swings.
     AthleteId legacyOwnerOf(const QString &athleteFolder, const QString &swingDir = {}) const;
+
+    // When a swing's capture ended (recording_header.h's captureEndUtcOf, on the document's root alone);
+    // invalid when it records none. What SessionStore infers a crash-left session's end from (J-18): the
+    // composition root hands it this, so the session store reads no swing document itself. Any thread.
+    static QDateTime captureEndOf(const QString &swingDir);
+
+    // Tests: how long a write waits for another writer's lock (default FolderLock::kWaitMs).
+    void setLockWaitForTest(int ms) { m_lockWaitMs = ms; }
 
     // The markup truth's file names (FILE-SHOT-12): "truth.json" (face-on), "truth_dtl.json".
     static QString truthFileName(TruthView view);
@@ -138,9 +156,14 @@ private:
 
     // The shot's folder, or "" with *why set.
     QString folderOf(const ShotRef &shot, QString *why) const;
+    // The session folder a swing folder is in (its lock guards the swing's files).
+    static QString sessionFolderOf(const QString &swingDir);
+    // Take (or join) the session's lock for one write; true, with *refused set, when another writer holds it.
+    bool refusedByLock(FolderLock &lock, WriteResult *refused) const;
 
     SessionRepository *m_sessions;
     OwnerOf            m_ownerOf;
+    int                m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
 };
 
 } // namespace pinpoint

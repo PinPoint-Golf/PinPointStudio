@@ -19,6 +19,7 @@
 #include "trunk_ceremony_recorder.h"
 
 #include "../../Core/atomic_write.h"
+#include "../../Export/session_files.h"   // trunk_ceremony.json's name (FILE-SESS-11; lint A4)
 #include "pp_debug.h"
 #include "pp_version.h"
 #include "athlete_controller.h"
@@ -422,13 +423,13 @@ void TrunkCeremonyRecorder::write(const QString &sessionDir)
     // on a share (memory note: the 28 MB document froze the GUI).
     QThreadPool::globalInstance()->start([c, sessionDir]() {
         const QDir dir(sessionDir);
-        const QString path = dir.filePath(QString::fromLatin1(tcf::kFileName));
+        const QString path = dir.filePath(pinpoint::SessionFiles::trunkCeremonyFileName());   // FILE-SESS-11's name
         // Both files go INTO the session folder, which must already be there (src/Core/atomic_write.h).
         const pinpoint::AtomicWriteOptions inSession = pinpoint::AtomicWriteOptions::intoExistingFolder();
         if (QFile::exists(path)) {   // an extended session's earlier ceremony: kept, copied aside
             QString aside;
             for (int n = 2;; ++n) {
-                aside = dir.filePath(QStringLiteral("trunk_ceremony_%1.json").arg(n));
+                aside = dir.filePath(pinpoint::SessionFiles::trunkCeremonyAsideFileName(n));
                 if (!QFile::exists(aside)) break;
             }
             // COPIED, then the new one renamed over it — never moved away first, so the session never

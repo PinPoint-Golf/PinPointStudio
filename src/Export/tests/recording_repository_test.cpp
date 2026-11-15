@@ -1177,7 +1177,7 @@ void testUnresolvedShot()
           "and every read answers empty");
 }
 
-// ── Test 20 (step 2.4 round 2; J-39, proposed, for Mark) ─────────────────────────────────────
+// ── Test 20 (step 2.4 round 2; J-39; confirmed by Mark, 15 Nov 2026) ─────────────────────────────────────
 // A legacy session's D3 id is derived from the athlete who OWNS its folder, not the uuid its swings
 // recorded (they were minted on the capturing machine, H-09): the tool path reads the athlete folder's
 // athlete.json; the app path asks its resolver (the current athlete); the header only when neither knows.

@@ -230,6 +230,18 @@ built (reference §11.1, R-REC-8).
 
 ### Step 2 · Identity and repositories (~1 day)
 
+**Status (15 Nov 2026, item 2.8b, the close):** items 2.0–2.7b and 2.8a are committed (`528aaaf1`, `d0292bba`,
+`7efab713`, `640c1bf5`, `b5c0e6f8`, `1a5e6dfe`, `3c5da388`, `6a5b328c`, `45e32f36`, `78efbf74`); 2.8b closes the code
+(the swing file's writes under the session's lock, the archive's per-swing re-check, one reader of `athlete.json`,
+lint A4 over every session and athlete file name, J-18's inferred end, the report's athlete by its folder only, and
+every writing tool refusing a session in progress unless `--allow-in-progress`: D11, DEC-158).
+Parity, the Mac half (`build/refactor/step-2/parity-step2-vs-G.md`): run A (unmigrated copies) and run B (M1–M3
+written on scratch copies first) both agree with `stageG-aa5aee15` and with step 1's closing run exactly; the expected
+set of run B was empty. Still to do before the step is done: the cabin PC's dry run and export, Mark's id picks
+(J-58: answered — each athlete keeps the id its swings record) and the **real migrations** on the Mac and the cabin
+PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.md`); and J-55's
+`PpTypeset.shotNo` sheets (a design-system change, waiting for Mark).
+
 - **Before this step's brief** Mark decided the reference's open questions MD-01…MD-12 (§14), from the final re-audit
   (15 Nov 2026; reference v1.8, DEC-130…DEC-140); MD-05 (resume: DEC-134), MD-07 (the index entry: DEC-136) and MD-08
   (the purge: DEC-137) shape this step's repositories.

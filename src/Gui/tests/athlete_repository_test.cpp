@@ -414,6 +414,31 @@ private slots:
         QCOMPARE(record.count(), 2);
     }
 
+    // R1–R4 (J-66, step 2.8b): the session report's athlete is the one whose FOLDER holds the session — never the
+    // athlete a name spells. Jo Bloggs is renamed Jo Smith (her folder stays Jo-Bloggs); a new Jo Bloggs gets
+    // Jo-Bloggs-2. A session in Jo-Bloggs is Jo Smith's, though its folder's name reads "Jo Bloggs" (the old
+    // lookup by that name found the new athlete).
+    void theReportsAthleteIsTheFoldersOwner()
+    {
+        AthleteTestLibrary lib;
+        AthleteController &c = lib.makeController();
+        const QString first = c.saveAthlete(QString(), QStringLiteral("Jo Bloggs"));
+        QVERIFY(!first.isEmpty());
+        const QString firstFolder = c.folderOf(first);
+        QCOMPARE(c.saveAthlete(first, QStringLiteral("Jo Smith")), first);
+        QCOMPARE(c.folderOf(first), firstFolder);
+        const QString second = c.saveAthlete(QString(), QStringLiteral("Jo Bloggs"));
+        QVERIFY(!second.isEmpty() && second != first);
+        QVERIFY(clean(c.folderOf(second)) != clean(firstFolder));
+        const QString inFirst  = firstFolder + QStringLiteral("/2026-11-02_Jo-Bloggs_Swing_01");
+        const QString inSecond = c.folderOf(second) + QStringLiteral("/2026-11-03_Jo-Bloggs_Swing_01");
+        QCOMPARE(c.reportDetailsForSession(inFirst).value(QStringLiteral("uuid")).toString(), first);     // R1 the folder's owner
+        QCOMPARE(c.reportDetailsForSession(inFirst).value(QStringLiteral("name")).toString(), QStringLiteral("Jo Smith"));
+        QCOMPARE(c.reportDetailsForSession(inSecond).value(QStringLiteral("uuid")).toString(), second);   // R2
+        QVERIFY(c.reportDetailsForSession(lib.root() + QStringLiteral("/Nobody/2026-11-02_Nobody_Swing_01")).isEmpty());   // R3
+        QVERIFY(c.reportDetailsForSession(QString()).isEmpty());                                         // R4
+    }
+
     // R1–R4: a newer build's file is read-only; an unreadable one is never listed nor overwritten.
     void newerAndUnreadableFilesAreLeftAlone()
     {

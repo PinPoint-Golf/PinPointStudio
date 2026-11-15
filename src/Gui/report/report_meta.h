@@ -41,6 +41,7 @@
 // Pure apart from the file system; header-only; report_meta_test.
 
 #include "../../Core/atomic_write.h"
+#include "../../Export/session_files.h"   // the report documents' names (D9)
 #include "../../Export/swing_store.h"
 #include "../../Export/swing_paths.h"
 
@@ -88,10 +89,11 @@ struct ReportMeta {
 
 enum class ReportState { None, Current, Stale };
 
-inline QString reportDir(const QString &sessionDir) { return QDir(sessionDir).filePath(QStringLiteral("report")); }
+// The names are SessionFiles' (D9: names now, writes in step 5; lint A4).
+inline QString reportDir(const QString &sessionDir) { return QDir(sessionDir).filePath(pinpoint::SessionFiles::reportFolderName()); }
 inline QString reportMetaPath(const QString &sessionDir)
 {
-    return QDir(reportDir(sessionDir)).filePath(QStringLiteral("report_meta.json"));
+    return QDir(reportDir(sessionDir)).filePath(pinpoint::SessionFiles::reportMetaFileName());
 }
 
 // "2026-10-20_Nick-Henn_session-report.pdf": the SESSION date, so a coach's folder sorts by session (§8.4).
@@ -104,7 +106,7 @@ inline QString reportFileName(const QDate &sessionDate, const QString &golferNam
         if (c.isLetterOrNumber() || c == QLatin1Char('-') || c == QLatin1Char('_')) safe += c;
     if (safe.isEmpty()) safe = QStringLiteral("Golfer");
     return sessionDate.toString(QStringLiteral("yyyy-MM-dd")) + QLatin1Char('_') + safe
-           + QStringLiteral("_session-report.pdf");
+           + pinpoint::SessionFiles::reportPdfSuffix();
 }
 
 // Each swing document's identity, as WorkOnsController::scan hashes it.

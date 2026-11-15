@@ -311,15 +311,28 @@ struct OwnedFile {
 };
 const QVector<OwnedFile> &ownedFiles()
 {
+    // EVERY FILE-SESS AND FILE-ATH NAME (information_model.md §8.1), owned by SessionFiles / AthleteFiles
+    // (IM-S2-6: DEC-160; complete since step 2.8b). A writer outside the repositories (the report, the trunk
+    // ceremony, the diagnostics model) calls the owner's name function; it never spells the name itself.
     static const QVector<OwnedFile> t{
-        { "diagnostics.json",   R"(diagnostics\.json)",                       "Export/session_files" },   // step 2.5: SessionDiagnosticsFiles' names (IM-S2-6)
-        { "fault_profile.json", R"(fault_profile\.json)",                     "Gui/diagnostics/session_diagnostics_model" },
-        { "club_baseline.json", R"(club_baseline\.json)",                     "Export/session_files" },   // step 2.5
-        { "work_ons.json",      R"(work_ons\.json)",                          "Export/session_files" },   // step 2.5
-        { "tendencies.json",    R"(tendencies\.json)",                        "Export/athlete_files" },   // step 2.5: names only; written by the work-ons controller until step 3
-        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Export/athlete_files" },   // step 2.5: likewise
-        { "session_input.json", R"(session_input\.json)",                     "Export/session_files" },   // step 2.5: SessionDiagnosticsFiles' names
-        { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // step 2.3: AthleteRepository's names (IM-S2-6)
+        // the session folder (FILE-SESS-*)
+        { "session.json",       R"(session\.json)",                           "Export/session_files" },   // FILE-SESS-01 (step 2.2)
+        { "session_input.json", R"(session_input\.json)",                     "Export/session_files" },   // FILE-SESS-02 (step 2.5: SessionDiagnosticsFiles' names)
+        { "diagnostics.json",   R"(diagnostics\.json)",                       "Export/session_files" },   // FILE-SESS-03, -12 (step 2.5)
+        { "club_baseline.json", R"(club_baseline\.json)",                     "Export/session_files" },   // FILE-SESS-04 (step 2.5)
+        { "work_ons.json",      R"(work_ons\.json)",                          "Export/session_files" },   // FILE-SESS-05 (step 2.5)
+        { "archived.json",      R"(archived\.json)",                          "Export/session_files" },   // FILE-SESS-06 (step 2.6)
+        { "report_meta.json",   R"(report_meta\.json)",                       "Export/session_files" },   // FILE-SESS-07 (D9: names now, writes in step 5)
+        { "*_session-report.pdf", R"((?:[^/]*_)?session-report\.pdf)",        "Export/session_files" },   // FILE-SESS-08 (D9)
+        { "report-stills/",     R"(report-stills/?)",                          "Export/session_files" },   // FILE-SESS-09 (D9; in the cache)
+        { ".pinpoint-last-swing", R"(\.pinpoint-last-swing)",                 "Export/session_files" },   // FILE-SESS-10 (step 2.2)
+        { "trunk_ceremony*.json", R"(trunk_ceremony(?:_[^/]*)?\.json)",       "Export/session_files" },   // FILE-SESS-11 (names only; Studio/Rig writes it)
+        // the athlete folder (FILE-ATH-*)
+        { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // FILE-ATH-01 (step 2.3: AthleteRepository's names)
+        { "tendencies.json",    R"(tendencies\.json)",                        "Export/athlete_files" },   // FILE-ATH-02 (step 2.5: names only; written by the work-ons controller until step 3)
+        { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Export/athlete_files" },   // FILE-ATH-03 (step 2.5: likewise)
+        { "outcome_corrections.jsonl", R"(outcome_corrections\.jsonl)",       "Export/athlete_files" },   // FILE-ATH-04 (the append: AthleteFiles::appendTuningLine)
+        { "fault_profile.json", R"(fault_profile\.json)",                     "Export/athlete_files" },   // FILE-ATH-05 (deleted in step 3; named here until then)
     };
     return t;
 }
@@ -794,6 +807,16 @@ void selfTest()
           QStringLiteral("A4 catches a name or a path ending in it; passes a log sentence, a comment and a header"));
     check(countRule(run("Export/session_files.h", QStringLiteral("auto b = \"work_ons.json\";\n")), "A4") == 0,
           QStringLiteral("A4 allows the owner"));
+    check(countRule(run("Gui/x/y.cpp", QStringLiteral(
+              "auto a = QStringLiteral(\"session.json\");\nauto b = QStringLiteral(\"_session-report.pdf\");\n"
+              "auto c = dir.filePath(QStringLiteral(\"trunk_ceremony_%1.json\"));\nauto d = QStringLiteral(\"report-stills/\");\n"
+              "auto e = QStringLiteral(\"outcome_corrections.jsonl\");\nauto f = QStringLiteral(\"pinpoint.session/1\");\n"
+              "auto g = QStringLiteral(\"pinpoint.trunk_ceremony/1\");\n")), "A4") == 5,
+          QStringLiteral("A4 covers every session and athlete file (session.json, the report PDF, the ceremony, the stills, "
+                         "the tuning log); passes a schema name"));
+    check(countRule(run("Export/athlete_files.h", QStringLiteral("auto e = \"outcome_corrections.jsonl\";\n")), "A4") == 0
+              && countRule(run("Gui/diagnostics/session_diagnostics_model.cpp", QStringLiteral("auto p = \"fault_profile.json\";\n")), "A4") == 1,
+          QStringLiteral("A4: the athlete files' owner is AthleteFiles (the diagnostics model no longer spells fault_profile.json)"));
     check(countRule(run("Coaching/x.cpp", QStringLiteral("#include <QFile>\nQFile f(p);\nQString s = \"QDir\";\nstd::ifstream in(p);\n")), "A5") == 3,
           QStringLiteral("A5 catches file I/O lines in a rules directory, not a word in a string"));
     check(countRule(run("Gui/x/y.cpp", QStringLiteral("QFile f(p);\n")), "A5") == 0, QStringLiteral("A5 reads only the rules directories"));

@@ -25,6 +25,7 @@
 #include "../../src/DomainModel/session_input.h"
 #include "../../src/Export/athlete_files.h"
 #include "../../src/Export/athlete_store.h"
+#include "../../src/Export/recording_header.h"   // captureEndUtcOf: the inferred end's one rule (J-18)
 #include "../../src/Export/session_diagnostics_files.h"
 #include "../../src/Export/session_files.h"
 #include "../../src/Export/session_store.h"
@@ -166,7 +167,7 @@ struct SwingFacts {
     QString   dir;
     QString   doc;                 // the document's file ("" none)
     QDateTime wallclockUtc;        // the window start (clock.wallclock)
-    qint64    windowUs = 0;        // the window's length (0: device-only, or not recorded)
+    QDateTime captureEndUtc;       // the window's end (captureEndUtcOf: J-18's one rule, shared with the app)
     QString   type;                // capture.sessionType by name ("" not recorded)
     QString   athleteUuid, athleteName;
 };
@@ -238,13 +239,8 @@ SwingFacts readSwing(Run &run, const QString &swingDir, int number)
     QString err;
     const QJsonObject root = SwingStore::loadParts(swingDir, {}, &err);   // the root chunk only (header)
     const QJsonObject clock = root.value(QStringLiteral("clock")).toObject();
-    s.wallclockUtc = parseUtc(clock.value(QStringLiteral("wallclock")));
-    const QJsonObject w = root.value(QStringLiteral("window")).toObject();
-    const qint64 start = qint64(w.contains(QStringLiteral("start_us")) ? w.value(QStringLiteral("start_us")).toDouble()
-                                                                        : w.value(QStringLiteral("startUs")).toDouble());
-    const qint64 end   = qint64(w.contains(QStringLiteral("end_us")) ? w.value(QStringLiteral("end_us")).toDouble()
-                                                                      : w.value(QStringLiteral("endUs")).toDouble());
-    s.windowUs = end > start ? end - start : 0;
+    s.wallclockUtc  = parseUtc(clock.value(QStringLiteral("wallclock")));
+    s.captureEndUtc = captureEndUtcOf(root);
     s.type     = typeOfShot(root.value(QStringLiteral("capture")).toObject().value(QStringLiteral("sessionType")));
     const QJsonObject a = root.value(QStringLiteral("athlete")).toObject();
     s.athleteUuid = a.value(QStringLiteral("uuid")).toString().toLower().remove(QLatin1Char('{')).remove(QLatin1Char('}'));
@@ -655,7 +651,7 @@ void planSessions(Run &run)
                 p.shotTypes[w.type] += 1;
                 if (!w.athleteUuid.isEmpty() && !p.swingUuids.contains(w.athleteUuid)) p.swingUuids << w.athleteUuid;
                 if (!w.wallclockUtc.isValid()) continue;
-                const QDateTime end = w.wallclockUtc.addMSecs(w.windowUs / 1000);
+                const QDateTime end = w.captureEndUtc;
                 if (!p.startUtc.isValid() || w.wallclockUtc < p.startUtc) p.startUtc = w.wallclockUtc;
                 if (!p.endUtc.isValid() || end > p.endUtc) p.endUtc = end;
             }
@@ -1409,12 +1405,17 @@ void Writer::writeSessions()
             o.insert(QStringLiteral("athleteId"), p.owner.toString());
             if (!p.type.isEmpty()) o.insert(QStringLiteral("type"), p.type);
             o.insert(QStringLiteral("status"), QStringLiteral("ended"));
-            if (p.endUtc.isValid()) o.insert(QStringLiteral("endedAt"), isoUtc(p.endUtc));
+            // The end is inferred, never observed: the latest swing's capture end, marked so (J-18: Mark,
+            // 15 Nov 2026 — the app's rule for a session a crash left open, the same here; FILE-SESS-01).
+            if (p.endUtc.isValid()) {
+                o.insert(QStringLiteral("endedAt"), isoUtc(p.endUtc));
+                o.insert(QStringLiteral("endInferred"), true);
+            }
             read = p.timesFromFolderDate
                 ? QStringLiteral("the folder's name (the id, D3, from the owning athlete's id; the start: its date at local midnight; "
                                  "no end); no swing")
                 : QStringLiteral("the folder's name (the id, D3, from the owning athlete's id); the swings' capture times "
-                                 "(clock.wallclock: the start; the latest window's end: the end); the shots' capture.sessionType "
+                                 "(clock.wallclock: the start; the latest window's end: the end, marked endInferred); the shots' capture.sessionType "
                                  "(the type)%1").arg(p.typeNeedsDecision ? QStringLiteral(", chosen by Mark") : QString());
         }
         o.insert(QStringLiteral("schema"), QLatin1String(SessionStore::kSchema));
@@ -1432,6 +1433,7 @@ void Writer::writeSessions()
         const SessionId id = reader.openFolder(p.folder);
         const auto e = reader.open(id);
         if (id != p.id || !e || !e->hasSessionFile || e->startedAtUtc != p.startUtc || e->status != SessionStatus::Ended
+            || (p.outcome == SessionPlan::Outcome::Write && e->endInferred != p.endUtc.isValid())
             || e->identity.type() != (p.outcome == SessionPlan::Outcome::Write ? p.type : e->identity.type())) {
             fail(QStringLiteral("M2 %1/%2: session.json did not read back as written").arg(p.athleteToken, p.name));
             continue;

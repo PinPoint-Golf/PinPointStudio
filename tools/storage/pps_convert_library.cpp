@@ -18,7 +18,11 @@
 
 // pps_convert_library — convert every JSON-era swing under one or more roots to swing.ppsw.
 //
-//   pps_convert_library [--dry-run] [--keep-json] [--keep-going] [--csv report.csv] ROOT [ROOT ...]
+//   pps_convert_library [--dry-run] [--keep-json] [--keep-going] [--allow-in-progress] [--csv report.csv] ROOT [ROOT ...]
+//
+// A swing of a session whose session.json says it is in progress (being recorded here or on another
+// computer) is REFUSED, never converted (D11: DEC-158), unless --allow-in-progress — for one a crash left
+// open; the run goes on with the other sessions and exits 1. A dry run writes nothing and is never refused.
 //
 // A ROOT may be a library root, an athlete dir, a session dir or a single swing dir: every
 // directory beneath it holding a swing document is a swing. Dot-directories (.pinpoint-trash)
@@ -77,7 +81,9 @@ int main(int argc, char **argv)
     QCommandLineOption optKeep(QStringLiteral("keep-json"), QStringLiteral("Verify, but leave swing.json in place"));
     QCommandLineOption optGoOn(QStringLiteral("keep-going"), QStringLiteral("Do not stop at the first failure"));
     QCommandLineOption optCsv(QStringLiteral("csv"), QStringLiteral("Per-swing report"), QStringLiteral("file"));
-    cli.addOptions({ optDry, optKeep, optGoOn, optCsv });
+    QCommandLineOption optLive(QStringLiteral("allow-in-progress"),
+                               QStringLiteral("Also convert a session whose session.json says it is in progress (one a crash left open)"));
+    cli.addOptions({ optDry, optKeep, optGoOn, optCsv, optLive });
     cli.addHelpOption();
     cli.process(app);
 
@@ -101,7 +107,7 @@ int main(int argc, char **argv)
 
     SessionStore                  sessions;         // names each swing's ShotRef (step 2.4)
     SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
-    int converted = 0, already = 0, failed = 0, pending = 0;
+    int converted = 0, already = 0, failed = 0, pending = 0, refused = 0;
     qint64 jsonTotal = 0, ppswTotal = 0;
     QElapsedTimer total;
     total.start();
@@ -131,6 +137,13 @@ int main(int argc, char **argv)
                 continue;
             }
 
+            // A session in progress is never written by a tool (D11: DEC-158).
+            if (!cli.isSet(optLive) && SessionStore::fileSaysInProgress(SessionStore::sessionFolderOfSwing(dir))) {
+                out() << "  REFUSED  " << dir << "  — " << SessionStore::inProgressRefusal(SessionStore::sessionFolderOfSwing(dir)) << "\n";
+                if (csvOut.device()) csvOut << csvField(dir) << ",refused,0,0,0," << csvField(QStringLiteral("in progress")) << "\n";
+                ++refused;
+                continue;
+            }
             QElapsedTimer t;
             t.start();
             // The tool's edge (DEC-90): each swing folder found to its ShotRef, once.
@@ -181,12 +194,12 @@ int main(int argc, char **argv)
     if (dryRun) {
         out() << pending << " to convert, " << already << " already swing.ppsw\n";
     } else {
-        out() << converted << " converted, " << already << " already swing.ppsw, " << failed << " failed"
-              << " in " << total.elapsed() / 1000 << " s\n";
+        out() << converted << " converted, " << already << " already swing.ppsw, " << failed << " failed, "
+              << refused << " refused (in progress)" << " in " << total.elapsed() / 1000 << " s\n";
         if (converted > 0)
             out() << "  JSON " << jsonTotal << " bytes -> .ppsw " << ppswTotal << " bytes ("
                   << QString::number(double(jsonTotal) / double(qMax<qint64>(1, ppswTotal)), 'f', 1)
                   << "x)\n";
     }
-    return failed == 0 ? 0 : 1;
+    return failed == 0 && refused == 0 ? 0 : 1;
 }

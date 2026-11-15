@@ -25,6 +25,9 @@
 //      the stage starts from Cold, and a fresh diagnostics.json is written after each one. If the model writes
 //      no ledger (no swing_* folders, or every write failed) the original is still in place, untouched, and
 //      the copy is removed.
+//   0. A SESSION IN PROGRESS IS REFUSED (D11: DEC-158; H-14): one whose session.json says inProgress — being
+//      recorded here or on the other machine — is SKIPPED untouched (exit 1), unless --allow-in-progress (for one
+//      a crash left open).
 //   5. one line per session on stdout: shots, stage, patterns, coverage, and what was carried —
 //      with a WARN, and exit 1, if the rebuilt file does not say the same as the old one did
 //
@@ -71,6 +74,7 @@
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
 #include "Export/session_diagnostics_files.h"
+#include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
 #include "Coaching/shot_factors.h"
 #include "Core/PpMessageLog.h"
 #include "parity_json.h"
@@ -296,7 +300,7 @@ DumpEntry dumpEntry(const QString &dir, const QString &status, QVariantMap body,
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: regrade_ledger [--tag <backup-suffix>] [--dump <out.json>] <session-dir>...\n"
+        "usage: regrade_ledger [--tag <backup-suffix>] [--dump <out.json>] [--allow-in-progress] <session-dir>...\n"
         "\n"
         "Re-reduces each session's diagnostics.json under the CURRENT pack (PINPOINT_CORE_* at the checkout's\n"
         "src/Resources/diagnostics/*.json). The old file is kept as diagnostics.json.<tag> (default pre-regrade;\n"
@@ -310,6 +314,8 @@ void printUsage(FILE *to)
         "                     code paths. Canonical JSON (keys sorted, %%.17g numbers, no timestamps, folders as\n"
         "                     <session>/<athlete>), so two runs diff byte for byte. Needs every PINPOINT_CORE_*\n"
         "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
+        "  --allow-in-progress  also regrade a session whose session.json says it is in progress (one a crash\n"
+        "                     left open); without it such a session is skipped untouched (D11)\n"
         "  --help             this text\n");
 }
 
@@ -325,11 +331,13 @@ int main(int argc, char **argv)
     QString     tag = QStringLiteral("pre-regrade");
     QString     dumpPath;
     QStringList dirs;
+    bool        allowInProgress = false;
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--tag") && i + 1 < argc) { tag = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--dump") && i + 1 < argc) { dumpPath = QString::fromLocal8Bit(argv[++i]); continue; }
+        if (a == QLatin1String("--allow-in-progress")) { allowInProgress = true; continue; }
         if (a.startsWith(QLatin1String("--"))) {
             std::fprintf(stderr, "regrade_ledger: unknown option %s\n", argv[i]);
             printUsage(stderr);
@@ -368,6 +376,12 @@ int main(int argc, char **argv)
         using pinpoint::DiagnosticsRead;
         using pinpoint::SessionDiagnosticsFiles;
         const QString name = QFileInfo(dir).fileName();
+        if (!allowInProgress && pinpoint::SessionStore::fileSaysInProgress(dir)) {
+            std::printf("%-48s SKIP  %s\n", qPrintable(name), qPrintable(pinpoint::SessionStore::inProgressRefusal(dir)));
+            dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("in progress (D11)")));
+            ++failures;
+            continue;
+        }
         bool hadLedger = false;
         QString backup;
         QJsonObject carried;          // the older golfer keys of the file, as they stood (J-33)

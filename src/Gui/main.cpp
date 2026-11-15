@@ -297,6 +297,9 @@ int main(int argc, char *argv[])
     // THE READING DOOR (RecordingReader, step 1.5; by ShotRef since 2.4): what re-analysis reads a
     // stored shot through.
     static pinpoint::SwingStoreRecordingReader recordingReader(sessionStore);
+    // A session a crash left in progress, ended by the athlete's next Start, gets its last swing's capture
+    // end, marked as inferred (J-18: Mark, 15 Nov 2026): read through the swing door, which owns the format.
+    sessionStore.setCaptureEndReader(&pinpoint::SwingStoreRecordingRepository::captureEndOf);
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
     // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
@@ -316,7 +319,7 @@ int main(int argc, char *argv[])
     pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
     AthleteController       athleteController;
     athleteController.setRepositories(&athleteStore, &sessionStore);
-    // A legacy session's owner, for the swing door's edge translation (J-39, proposed, for Mark): the current
+    // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
     recordingRepository.setOwnerOf([&athleteController](const QString &athleteFolder) {

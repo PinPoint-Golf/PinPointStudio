@@ -16,7 +16,12 @@
 //     progress is neither archived nor trashed; the session's lock is held around each write and never
 //     across the run, and a lock another writer holds stops the run (Locked) with the library unchanged;
 //     a proven copy replaces its file in one rename — the file is there the moment before — and a failed
-//     rename leaves the file as it was; the index's `archived`; the session trash.
+//     rename leaves the file as it was; the index's `archived`; the session trash;
+//   · (step 2.8b) the swing door's writes take the session's lock — an edit from another thread while the
+//     restore puts a document back is refused Locked, the archiver's own writes join its hold (J-36, J-47);
+//     the archive re-checks the marker and the session's status before each swing and stops when a restore
+//     elsewhere removed the marker or the session was resumed; the restore keeps the marker while any swing is
+//     still a stub (J-52).
 
 #include "../session_archiver.h"
 #include "../session_files.h"
@@ -41,6 +46,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <system_error>
+#include <thread>
 
 using namespace pinpoint;
 
@@ -570,6 +576,124 @@ int main(int argc, char **argv)
         const auto b = restoreIt(s10);
         check(b.ok && get(s10 + "/swing_0001/swing.ppsw") == full1 && get(s10 + "/swing_0002/swing.ppsw") == full2,
               "restored: both documents whole, byte for byte");
+    }
+
+    std::printf("\n=== step 2.8b: the swing door's writes take the session's lock; the archiver's own join it (J-36, J-47) ===\n");
+    {
+        const QString s11 = library + "/Test-Athlete/2026-09-11_Test-Athlete_Wrist_01";
+        makeSwing(s11 + "/swing_0001", 1, false);
+        makeSwing(s11 + "/swing_0002", 2, false);
+        check(archiveIt(s11, store).ok, "archived (the stubs written through the door, inside the archiver's hold)");
+        check(pinpoint::testdoc::updateReview(s11 + "/swing_0001", 2, QStringLiteral("while archived"), QStringLiteral("PW")),
+              "a review made on the stub");
+        // While the restore holds the lock to put a swing's document back, the app's own review edit, made on
+        // ANOTHER thread through its own door, is shut out (Locked past its wait); the archiver's merge,
+        // made inside the hold on its own thread, joins it.
+        SessionArchiveRun run;
+        WriteResult::Status other = WriteResult::Status::Written;
+        bool tried = false;
+        run.setReplaceForTest([&](const QString &from, const QString &to, QString *why) {
+            if (!tried && QFileInfo(to).fileName() == QLatin1String("swing.ppsw")) {
+                tried = true;
+                const QString swingDir = QFileInfo(to).path();
+                std::thread t([&] {
+                    SessionStore st;
+                    SwingStoreRecordingRepository door(st);
+                    door.setLockWaitForTest(200);
+                    ReviewEdit e;
+                    e.rating = 5;
+                    other = door.editReview(door.shotOfFolder(swingDir, AthleteId::fromString(QString::fromLatin1(kAthleteUuid))), e).status;
+                });
+                t.join();
+            }
+            return renameOver(from, to, why);
+        });
+        const auto b = run.sessions().restore(run.openSession(s11));
+        check(tried && other == WriteResult::Status::Locked,
+              "an edit from another thread while a document is put back: refused, Locked (H-10 closed for the app's edits)");
+        check(b.ok && !SessionArchiver::isArchived(s11), "…and the restore, whose own review merge joins its hold, completes");
+        check(SwingDocReader::readSwingJson(s11 + "/swing_0001").note == QLatin1String("while archived"),
+              "…keeping the review made while archived (the merge was written)");
+        // Outside any hold, the same edit is written — and a lock another writer holds refuses it.
+        SessionStore st;
+        SwingStoreRecordingRepository door(st);
+        door.setLockWaitForTest(200);
+        const ShotRef shot = door.shotOfFolder(s11 + "/swing_0002", AthleteId::fromString(QString::fromLatin1(kAthleteUuid)));
+        ReviewEdit e;
+        e.rating = 3;
+        check(door.editReview(shot, e).ok(), "an edit with the session free: written");
+        WriteResult::Status heldOut = WriteResult::Status::Written;
+        {
+            FolderLock otherWriter(s11);
+            check(otherWriter.lock(0) == FolderLock::Result::Acquired, "a tool takes the session's lock");
+            std::thread t([&] { ReviewEdit e2; e2.rating = 1; heldOut = door.editReview(shot, e2).status; });
+            t.join();
+        }
+        check(heldOut == WriteResult::Status::Locked && SwingDocReader::readSwingJson(s11 + "/swing_0002").rating == 3,
+              "…an edit meanwhile: Locked, the document as it was");
+        check(!QFileInfo::exists(s11 + "/.pinpoint-lock"), "no lock file left behind");
+    }
+
+    std::printf("\n=== step 2.8b: the archive re-checks per swing; the restore removes the marker only over a whole library (J-52) ===\n");
+    {
+        // A restore run from another computer while this one thins: it puts swing 1 back and removes the marker.
+        const QString s12 = library + "/Test-Athlete/2026-09-12_Test-Athlete_Wrist_01";
+        makeSwing(s12 + "/swing_0001", 1, false);
+        makeSwing(s12 + "/swing_0002", 2, false);
+        const QByteArray full1 = get(s12 + "/swing_0001/swing.ppsw");
+        const QByteArray full2 = get(s12 + "/swing_0002/swing.ppsw");
+        const QString    d12   = SessionArchiver::archivePathFor(s12, store);
+        SessionArchiveRun run;
+        run.setBeforeThinForTest([&](int i, const QString &) {
+            if (i != 1) return;
+            put(s12 + "/swing_0001/swing.ppsw", get(d12 + "/swing_0001/swing.ppsw"));   // the other computer's restore
+            QFile::remove(SessionArchiver::markerPath(s12));
+        });
+        const auto a = run.sessions().archive(run.openSession(s12), SessionArchiveOptions{ store, true });
+        check(!a.ok && a.error.contains("restored"), "the marker gone before swing 2: archiving stops, and says why");
+        check(!SessionArchiver::isArchived(s12), "…the marker is not written again over the restored session");
+        check(get(s12 + "/swing_0001/swing.ppsw") == full1 && get(s12 + "/swing_0002/swing.ppsw") == full2,
+              "…no stub left without a marker: swing 1 as restored, swing 2 never thinned");
+    }
+    {
+        // The session resumed (InProgress) on another computer while it is thinned.
+        const QString s13 = library + "/Test-Athlete/2026-09-13_Test-Athlete_Wrist_01";
+        makeSwing(s13 + "/swing_0001", 1, false);
+        makeSwing(s13 + "/swing_0002", 2, false);
+        put(s13 + "/session.json", sessionFile(QStringLiteral("ended")));
+        const QByteArray full2 = get(s13 + "/swing_0002/swing.ppsw");
+        SessionArchiveRun run;
+        run.setBeforeThinForTest([&](int i, const QString &) {
+            if (i != 1) return;
+            QJsonObject o = QJsonDocument::fromJson(get(s13 + "/session.json")).object();
+            o.insert("status", "inProgress");
+            o.remove("endedAt");
+            put(s13 + "/session.json", QJsonDocument(o).toJson());
+        });
+        const auto a = run.sessions().archive(run.openSession(s13), SessionArchiveOptions{ store, true });
+        check(!a.ok && a.error.contains("in progress"), "resumed before swing 2: archiving stops (in progress)");
+        check(SessionArchiver::isArchived(s13) && get(s13 + "/swing_0002/swing.ppsw") == full2,
+              "…swing 2 never thinned, and the marker kept over swing 1's stub");
+    }
+    {
+        // Another run thins a swing again while this restore runs: the marker stays.
+        const QString s14 = library + "/Test-Athlete/2026-09-14_Test-Athlete_Wrist_01";
+        makeSwing(s14 + "/swing_0001", 1, false);
+        makeSwing(s14 + "/swing_0002", 2, false);
+        check(archiveIt(s14, store).ok, "archived");
+        const QByteArray stub2 = get(s14 + "/swing_0002/swing.ppsw");
+        SessionArchiveRun run;
+        run.setReplaceForTest([&](const QString &from, const QString &to, QString *why) {
+            const bool ok = renameOver(from, to, why);
+            if (ok && QDir::cleanPath(to) == QDir::cleanPath(s14 + "/swing_0002/swing.ppsw"))
+                put(to, stub2);   // another computer's archive thins it again
+            return ok;
+        });
+        const auto b = run.sessions().restore(run.openSession(s14));
+        check(!b.ok && b.error.contains("stub") && SessionArchiver::isArchived(s14),
+              "a stub again at the end of the restore: the marker is kept, and the restore says so");
+        const auto again = restoreIt(s14);
+        check(again.ok && !SessionArchiver::isArchived(s14), "…and the next restore completes");
     }
 
     std::printf("\n=== the session trash ===\n");

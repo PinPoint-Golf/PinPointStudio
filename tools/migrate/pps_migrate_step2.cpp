@@ -81,7 +81,8 @@
 //       A session with no session.json gets one (`origin: backfilled`, this tool, what it read): its id is
 //       D3's v5 uuid of the OWNING athlete's id (the one M1 settles, J-39) and the folder's name (J-12), its
 //       start the earliest swing's capture time (clock.wallclock: the window start), its end the latest
-//       window's end, its type the shots' capture.sessionType (else the name's token), status ended. A
+//       window's end, marked `endInferred: true` (J-18, Mark 15 Nov 2026: the app's rule for a session a
+//       crash left open, recording_header.h's captureEndUtcOf), its type the shots' capture.sessionType (else the name's token), status ended. A
 //       session.json the app backfilled at a resume (J-19: start from folder times) has its start corrected
 //       from the capture times. An archived session's mirror gets the same file. Reported: every session's
 //       id, start, end and type; type disagreements (the shots against the name; the shots among themselves,

@@ -113,8 +113,6 @@ constexpr int kRowWordsVersion = 1;
 //   confidence and every row said not inferred.
 constexpr int kRowGradingVersion = 1;
 
-const QString kProfileFile     = QStringLiteral("fault_profile.json");
-const QString kTuningLogFile   = QStringLiteral("outcome_corrections.jsonl");
 
 // What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
 constexpr int kDiagObservedMissMin = 3;
@@ -3261,7 +3259,7 @@ QString SessionDiagnosticsModel::tuningLogPath() const
     if (m_sessionDir.isEmpty()) return QString();
     QDir d(m_sessionDir);
     if (!d.cdUp()) return QString();
-    return d.filePath(kTuningLogFile);
+    return pinpoint::AthleteFiles::tuningLogFile(d.path());   // FILE-ATH-04's name (lint A4)
 }
 
 QString SessionDiagnosticsModel::faultProfilePath() const
@@ -3272,7 +3270,7 @@ QString SessionDiagnosticsModel::faultProfilePath() const
     if (m_sessionDir.isEmpty()) return QString();
     QDir d(m_sessionDir);
     if (!d.cdUp()) return QString();
-    return d.filePath(kProfileFile);
+    return pinpoint::AthleteFiles::faultProfileFile(d.path());   // FILE-ATH-05's name (lint A4)
 }
 
 // ── The golfer's input ──────────────────────────────────────────────────────────────────────

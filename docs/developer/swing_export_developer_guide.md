@@ -487,10 +487,10 @@ that still carries its folder until step 4 — turns it into the ShotRef once, w
 `RecordingRepository::shotOfFolder(swingDir[, legacyAthlete])` (→ `SessionRepository::openSwingFolder`):
 the swing number from the folder's name (`SwingPaths`), the session's id from its `session.json`, or —
 **a session older than step 2, with no session file** — D3's derived id (DEC-150) from the athlete who
-**owns** the session's folder (J-39, proposed, for Mark): the athlete the caller names; else the
+**owns** the session's folder (J-39; confirmed by Mark, 15 Nov 2026): the athlete the caller names; else the
 adapter's owner resolver (`setOwnerOf`: in the app, the current athlete when the folder is theirs — the
 athlete the session list derives the same id from); else the athlete folder's `athlete.json`
-(`AthleteFiles::ownerOf`); and only when no owner is found, the athlete the swing's own header records
+(`AthleteFiles::read`); and only when no owner is found, the athlete the swing's own header records
 (`athlete.uuid`, read from the document's root alone). The swings' uuids were minted on the capturing
 machine and need not be the owner's (H-09), so the header is the last resort. A folder already held keeps the id it was listed with. Not a `swing_NNNN`
 folder, or a legacy session whose athlete cannot be found: no ShotRef. Owner thread only (it reads the
@@ -534,7 +534,20 @@ Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, 
 the reason). `Locked` (J-22) is a folder another writer holds by its advisory lock past the wait — the
 session store's writes and the swing allocation answer it, in the lock's own words ("The session … is
 being changed by …"), and the live capture's "swing folder could not be created" notice carries those
-words instead of "check the library path". The swing writes take no lock of their own yet.
+words instead of "check the library path".
+
+**The session's lock, per write (step 2.8b; brief §4.9, D11; J-36, J-47).** Every write above takes the
+advisory lock of the shot's **session** folder (`FolderLock`, `<session>/.pinpoint-lock`) for that one write
+and lets it go after it (J-11): a tool's write-back, the other machine, the archiver on another thread and
+the app's own edits never write one session at once. A lock another writer holds past the wait (5 s)
+refuses the write as `Locked`. The door takes it with `FolderLock::lockOrJoin`: when **this thread** already
+holds the session's lock — the archiver, around one swing's stub, conversion or restored review — the write
+joins that hold instead of waiting for itself; another thread's hold is never joined. A dry run
+(`writeAnalysis`, `backfillAnalysisContext` with `dryRun`) writes nothing and takes no lock, so it leaves no
+lock file in a folder it only read. A session folder where no lock file can be made at all (read-only,
+vanished) is left to the write, which decides and reports — the allocation's rule. Measured on the share
+(15 Nov 2026): a 1.5 MB `swing.ppsw` writes in about 30 ms, so a GUI-thread edit that meets a worker's
+write in the same session waits that long, not seconds.
 
 **The writer contract** (R-REC-1; DEC-86), written in the header: capture creates; until step 3 the
 interim callers of R-REC-3 write on the shot's behalf; everything else reads.
@@ -791,7 +804,8 @@ Written only by `SessionStore` (`src/Export/session_store.*`, the adapter of
 | `athleteId` | the athlete's uuid; absent when no athlete was selected. A file naming another athlete than the folder it sits in is logged, never re-owned |
 | `type` | by name (DEC-88): `swing`, `wrist`, `grf`, `coach`; absent for none |
 | `status` | `inProgress` / `ended` |
-| `startedAt`, `endedAt` | ISO 8601 UTC with milliseconds (`2026-11-15T10:04:05.123Z`). `endedAt` is absent while in progress, cleared on resume, and absent when the end is not known (a session a crash left in progress, ended by the athlete's next Start) |
+| `startedAt`, `endedAt` | ISO 8601 UTC with milliseconds (`2026-11-15T10:04:05.123Z`). `endedAt` is absent while in progress and cleared on resume |
+| `endInferred` | `true` when `endedAt` was **inferred**, not observed (J-18: Mark, 15 Nov 2026; `build/refactor/step-2/JUDGEMENT-ANSWERS.md`): a session a crash left in progress, ended by the athlete's next Start, gets the latest of its swings' capture ends (`captureEndUtcOf`, `recording_header.h`: `clock.wallclock` plus the window; read through the swing door's `captureEndOf`, which `main.cpp` hands the store); when none of its swings records a capture time it gets no `endedAt` at all. M2 (step 2.8) writes an old session's end by the same rule and marks it the same way. Absent when the end was observed (End) |
 | `origin` | `{ "kind": "captured" }` at Start, or `{ "kind": "backfilled", "tool", "version", "at", "read" }` when the start had to be inferred (a session older than step 2 written for the first time by a resume: its start is its swing folders' earliest creation time; M2, step 2.8, writes the rest from the swings' capture times) |
 
 Keys this build does not know are kept on every rewrite. **A read never writes**: a session without a
@@ -821,6 +835,9 @@ bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `la
   the trashed folder carries it.
 - **The tuning log** `outcome_corrections.jsonl` is appended a line at a time under the same lock
   (`AthleteFiles::appendTuningLine`).
+- **One reader** (step 2.8b; J-40, R-PERS-1): `AthleteFiles::read(athleteDir)` parses the file and checks its
+  envelope (schema, `athleteId`); `AthleteStore` lists the records through it, and the legacy-owner lookup
+  (J-39: the swing door's `legacyOwnerOf`, `SessionArchiveRun::openSession`) reads the owner's id through it.
 - The session store composes a session's folder from `Athlete::sessionOwner()`: the athlete folder's own
   name for an athlete with `athlete.json` (`capture::athleteIdentity`).
 
@@ -881,9 +898,25 @@ archiver (the interface is virtual), so the targets that compile `session_store.
   library — one conversion, one swing's stub (its read, the stub, the removals), one file put back (with
   its review read and merge), the marker — and let go after it; never across the run. A lock another
   writer holds past 5 s stops the run as `Locked`: an archive before any swing is thinned leaves the
-  library as it was, a restore stays marked archived. The copies into the mirror take no lock. ⚠ The
-  app's own review edits do not take the lock yet (2.4's J7, with the swing file's writes in 2.8), so
-  against an edit made in the app at the instant a document lands the window left is the rename's.
+  library as it was, a restore stays marked archived. The copies into the mirror take no lock. The
+  swing file's own writes take the same lock since step 2.8b, so the app's review edits on other threads
+  are shut out while a document lands and is merged (H-10 closed); the archiver's stub, conversion and
+  merge are written inside its hold and join it (`lockOrJoin`).
+- **A tool meets a live session** (D11: DEC-158; step 2.8b for the five below): every tool that writes into a
+  session asks `SessionStore::fileSaysInProgress(sessionFolder)` (its `session.json` read afresh; nothing written)
+  and refuses one in progress — being recorded here or on the other machine — with
+  `SessionStore::inProgressRefusal`, unless `--allow-in-progress` (for one a crash left open): `regrade_ledger`
+  (the session skipped, exit 1), `swinglab_run --write-back`, `lm_repair`, `pps_convert_library` (the swing
+  refused, the run goes on, exit 1), `backfill_analysis_context --write` and `pps_migrate_step2 --write`. A dry run
+  or a read-only mode (`--out`) is never refused.
+- **Re-checked per swing** (step 2.8b; J-52): under each swing's hold, before it is thinned, the archive
+  reads its marker again (still there, still naming this archive) and asks the store again whether the
+  session is live (its session file read afresh). A marker gone or naming another archive — another
+  computer restored the session meanwhile — stops the archive at once, and the marker is not written again;
+  a session resumed meanwhile stops it with the marker kept over the stubs made. A restore removes the
+  marker last, under the lock, and only when no swing in the library is a stub; a swing thinned again by
+  another run meanwhile keeps the marker, and the restore says so. So no swing is ever a stub without a
+  marker.
 
 ### Swing allocation
 
@@ -1370,7 +1403,10 @@ or discarded when empty); a held `FolderLock` refusing the write, as `Locked` in
 End and for an allocation (J-22, step 2.4); and (step 2.4, S) a swing folder to its `ShotRef` and back — an
 allocation's, a fresh store's read of a session file, a legacy swing's D3 id with no file written, a held
 session keeping its listed id, no ShotRef for a non-swing folder — `swingFolder` read on a worker thread
-while the owner thread re-lists the sessions, and a discarded session's folder no longer published.
+while the owner thread re-lists the sessions, and a discarded session's folder no longer published; and
+(step 2.8b, J, J-18) a crash-left session ended by the next Start: `endedAt` the latest of its swings'
+capture ends (a swing with none passed over), `endInferred` set and read back; resumed, then ended by End,
+the mark gone; no capture time anywhere, no end and no mark.
 `swing_paths_test` keeps the names, `sanitise` and the trash.
 
 ### `session_archiver_test` — the archive and the session trash (step 2.6)
@@ -1387,8 +1423,12 @@ still written and swing 1 restored whole; the marker present before the first sw
 at swing 2 leaving the session marked archived, a re-archive refused, and — the marker lost — a re-archive
 keeping the archive's full documents (to another archive: refused); every file put back by one rename with the file present the
 moment before, and a failed rename leaving the stub byte for byte; the index's `archived`; the trash
-refused under a held lock, then the whole folder moved and let go. (The trash case puts one small temp
-folder in the macOS Trash, as `session_repository_test`'s discards do.)
+refused under a held lock, then the whole folder moved and let go; (step 2.8b) an edit from another thread
+while the restore puts a document back refused `Locked`, the restore's own merge joining its hold, an edit
+with the session free written and one under a tool's lock refused (J-36, J-47); the marker removed (a restore
+elsewhere) before swing 2 stopping the archive without re-marking, a session resumed meanwhile stopping it
+with the marker kept, and a swing thinned again during a restore keeping the marker (J-52). (The trash case
+puts one small temp folder in the macOS Trash, as `session_repository_test`'s discards do.)
 
 ### `athlete_repository_test` — the athlete file and its one door (step 2.3)
 
