@@ -316,6 +316,28 @@ PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
 
+#### Step 3.0 · Migrated data only: the corpus and archive copies migrated, then the tool and the legacy-read paths deleted
+Mark, 15 Nov 2026: "the only user is me, so the migration tool is a one off right now" … "yes, put it in the plan at the
+start of step 3- so long as we know the migration works and no data is lost".
+
+**Entry gate — all must hold first, each shown to Mark:**
+1. The real M1–M4 runs on the Mac and on GOLFSIMPC are done, each after its dry-run report and Mark's approval.
+2. **The migration works:** each run's read-back check passes; the written counts match the dry run's; a second run writes
+   nothing; the app opens every migrated session and the parity dumps of the live library (analysis, diagnostics, athlete)
+   are identical before and after the migration.
+3. **No data is lost:** every golfer key moved by M3 is present at its new home, field by field, before any is removed
+   (H-04); every athlete record's fields are present in `athlete.json`; the backups (`step2-backup-<stamp>`) are kept on the
+   share until Mark says they can go.
+
+**Then:**
+- The corpus and the archive mirror are migrated the same way (dry run → Mark's OK → write → the same checks).
+- Deleted: `pps_migrate_step2` and its tests; the J-33 golfer-input fallback and carry-over; reading athletes from settings
+  (J-27); the legacy D3 id derivation and folder-name day/order for sessions without `session.json` (J-56) — each only once
+  no folder anywhere still needs it (a check over the library, archive and corpus proves it).
+- Tests: the legacy-read tests go with their code; a guard test proves a folder without `session.json` is reported, not guessed.
+
+#### Step 3 itself
+
 1. **`Session`** (aggregate root, commands and events), the **`Shot`** entity it owns (one per `ShotRef`: its
    Recording, review facts and the read-only `ShotDiagnostics`; it replaces the row structs in `ShotListModel` and the
    phone-clip filer as the source of shot facts — Mark, 14 Nov 2026: a named deliverable), **`SessionDiagnostics`** and
