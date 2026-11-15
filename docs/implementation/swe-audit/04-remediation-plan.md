@@ -230,17 +230,19 @@ built (reference §11.1, R-REC-8).
 
 ### Step 2 · Identity and repositories (~1 day)
 
-- **Before this step's brief** Mark decides the reference's open questions MD-01…MD-12 (§14), from the final re-audit;
-  MD-05 (resume), MD-07 (the index entry) and MD-08 (the purge) shape this step's repositories.
-- **Identity types:** `AthleteId`, `SessionId`, `ShotRef`, `SessionIdentity` (no folder-name parsing anywhere
-  else). `RecordingRepository` is re-keyed from `swingDir` to `ShotRef`.
+- **Before this step's brief** Mark decided the reference's open questions MD-01…MD-12 (§14), from the final re-audit
+  (15 Nov 2026; reference v1.8, DEC-130…DEC-140); MD-05 (resume: DEC-134), MD-07 (the index entry: DEC-136) and MD-08
+  (the purge: DEC-137) shape this step's repositories.
+- **Identity types:** `AthleteId`, `SessionId`, `ShotRef` (in a new `src/Identity/`, Vocabulary: Mark, 15 Nov 2026; DEC-148),
+  `SessionIdentity` (no folder-name parsing anywhere else). `RecordingRepository` is re-keyed from `swingDir` to `ShotRef`.
 - **The session file** (Mark, 14 Nov 2026; DEC-41): `SessionId` is a uuid minted at Start and stored, with the
-  session's status and start/end times, in a session file in its folder (its name set in this step's brief); the
-  folder becomes a property only. `SessionRepository` writes it. A one-off migration (below) mints a `SessionId` for
-  every existing session and records its start and end times. `SessionRepository` and `AthleteRepository` carry
+  session's status and start/end times, in a session file in its folder, `session.json` (Mark, 15 Nov 2026; DEC-149); the
+  folder becomes a property only. `SessionRepository` writes it. A one-off migration (below) gives every existing session a `SessionId`, a
+  name-based (v5) uuid of its athlete's id and folder name (Mark, 15 Nov 2026; DEC-150), and records its start and end times. `SessionRepository` and `AthleteRepository` carry
   the identities the step-3 events carry: an event holds only the id of what changed (Mark, 14 Nov 2026; DEC-69).
   Extending today's session (`SwingPaths::beginSession`'s `extendExisting`) keeps the same `SessionId` (Mark, 14 Nov
-  2026; DEC-77). Whether the session file also holds the session type is the reference's RAT-06, for Mark.
+  2026; DEC-77): `Athlete::resumeSession`, for a session started today and of the same type only (Mark, 15 Nov 2026; DEC-134).
+  The session file holds the session type (DEC-88).
 - **Deleting an athlete** (Mark, 14 Nov 2026; DEC-79): `Athlete::delete` moves the whole athlete folder, its
   sessions included, to the recoverable trash through `AthleteRepository`, instead of today's `deleteAthlete`, which
   removes only the settings group and orphans the folder.
@@ -248,49 +250,53 @@ built (reference §11.1, R-REC-8).
   (FILE-SHOT-12, shot-owned source facts: Mark, 14 Nov 2026; DEC-83) through `RecordingRepository`; the archive stub
   (FILE-SHOT-10), which today still writes with the public `SwingStore::save`; `regrade_ledger`'s seed and backups
   (FILE-SESS-03, FILE-SESS-12) through `SessionRepository`.
-- **Decision for Mark in this step's brief:** where the wrist view's reference shot lives (SET-17, today a folder
-  path in settings; the reference's Q-21).
+- **The wrist view's reference shot** (SET-17, today a folder path in settings; the reference's Q-21): on the athlete
+  record, as a `ShotRef`, one per athlete (Mark, 15 Nov 2026; DEC-152).
 - **The `Athlete` aggregate** (Mark, 14 Nov 2026: a named deliverable): the athlete record as a C++ domain object in
   `src/DomainModel`, one instance per `AthleteId` (`AthleteRepository` is an identity map), replaced on an athlete
   switch; it replaces the athlete facts spread over `AthleteController` and QSettings.
 - **Repositories:**
-  - `AthleteRepository` (`athlete.json`, the folder stored on the record);
-  - `SessionRepository`, an identity map (`session_input.json`, `diagnostics.json`, `club_baseline.json`,
-    `work_ons.json`, `archived.json`, the report documents);
+  - `AthleteRepository` (`athlete.json`; the athlete's folder is where it is found, no `folder` key: Mark, 15 Nov 2026; DEC-151);
+  - `SessionRepository`, an identity map (`session.json`, `session_input.json`, `diagnostics.json`,
+    `club_baseline.json`, `work_ons.json`, `archived.json`; the report documents' names now and the report's meta read
+    through it, their writes in step 5: Mark, 15 Nov 2026; DEC-156);
   - **`RecordingRepository`'s writer contract** (Mark, 14 Nov 2026; P10, DEC-86): keyed by `ShotRef`, written by capture
     (`create`) and, after it, only by that shot's `Shot` (through its commands); every other caller reads. Until
     step 3 the interim callers (R-REC-3) keep writing through it under this contract;
   - `SessionFiles`/`AthleteFiles`: the one place each session or athlete file name is spelled, used only by the two
     repositories (H-12, lint A4). They cover every file of the reference's §8 (DEC-45), the swing counter
     `.pinpoint-last-swing` (FILE-SESS-10) and the session file among them;
-  - advisory lock files, so the CLI tools and the app never write one session or athlete folder at once;
+  - advisory lock files, so the CLI tools and the app never write one session or athlete folder at once: short locks
+    per write, and a tool refuses a session whose `session.json` says InProgress (`--allow-in-progress` for one a crash
+    left) (Mark, 15 Nov 2026; DEC-158);
   - **one atomic-write helper** (the lead's proposal; Mark agreed 14 Nov 2026): the repositories write through the shared
     `atomicWrite`, and the about 15 files that use `QSaveFile` directly, and the two that write a part file and
-    rename, move onto it.
+    rename, move onto it. libppswing's `writeFileAtomic` stays as the store's documented exception (Mark, 15 Nov 2026; DEC-155).
 - **The archive as a `Session` command** (the lead's proposal; Mark agreed 14 Nov 2026): `archived.json` and the archive move are
   written through `SessionRepository` in this step (the archiver stops writing the folder itself), and through
   `Session::archive()` once the `Session` exists in step 3.
 - **One-off migrations,** each with a dry-run report and backups on the share:
-  - the athlete folder recorded on the record;
+  - (no migration for the athlete folder: it is where `athlete.json` is found, DEC-151);
   - QSettings → `athlete.json` (every key of the reference's SET-01; `lastSessionAt` and `sessionCount` are derived
     from the `SessionIndex`, not carried over);
-  - a `SessionId` and the session file for every existing session (DEC-41);
-  - golfer input out of `diagnostics.json`, into the shot `review` block and `session_input.json`.
+  - a `SessionId` (v5, DEC-150) and the session file for every existing session (DEC-41);
+  - golfer input out of `diagnostics.json`, into the shot `review` block and `session_input.json`, its keys removed
+    from `diagnostics.json` only after a check, field by field, that every one is present at its target.
 - **Folds in 0.7:** athletes are replaced on switch, and an edit is not a switch.
 - **Removes the Stage 0.3 stopgap:** `ShotProcessor::startSwingSave` announcing a moved session folder
   (`activeSessionDirChanged`). The `Session` owns its location through the `SessionRepository`; capture asks the
-  session where to write; a mid-session library re-point is an explicit application command on the session, emitting
-  a domain event that the views bound to `app.session` follow.
-- **Decision for Mark in this step's brief:** when the library is re-pointed mid-session (a dropped share), should the
-  session continue in the new library (today's behaviour: one session split across two places), or end and start a
-  new session there? And can a past intent run be edited after its session ends (decision 20 covers edits during
-  the session only)? (triage, Mark 14 Nov 2026)
+  session where to write; a mid-session library re-point ends the session and starts a new one (same type and club,
+  declared focus carried), so no relocate command or event is needed (Mark, 15 Nov 2026; DEC-154).
+- **Decided in this step's brief** (Mark, 15 Nov 2026): a library re-pointed mid-session (a dropped share) ends the session
+  and a new one starts there (DEC-154); a past intent run is not edited after its session ends, except by resuming it
+  (DEC-159). One session allocator: a standalone launch-monitor shot goes into the running session, and the LM
+  controller's second allocator is deleted (DEC-157).
 - **Also in this step** (triage, Mark 14 Nov 2026):
   - a failed `atomicWrite` is surfaced in the app, the way Stage 0.4c reports a blocked `diagnostics.json`;
   - the advisory lock list names the tuning log, `outcome_corrections.jsonl`, which the app and a CLI tool can
     append at once;
   - from step 1's brief (§7): the live club-length prior is learned under the captured club even when the shot is
-    later corrected; it is athlete-level learned state held in per-machine settings, so this step's brief places it.
+    later corrected; placed by this step's brief as learned rig state, per machine, owner Studio/Rig (Mark, 15 Nov 2026; DEC-153).
 - **Closes:** E-02, E-03, F-06, F-07/E-06, E-07, H-09, H-12, H-04 (fully), H-14, E-01 (the folder half: the
   session owns its folder, so it is never re-resolved per shot), D-08 (one reader and writer of the `diagnostics.json`
   envelope, in `SessionRepository`), H-08 (the session and athlete files' half: schema checked on read); C-03, C-11,
@@ -306,33 +312,35 @@ built (reference §11.1, R-REC-8).
    `src/DomainModel`. **Findings** (Mark, 14 Nov 2026; DEC-100, superseding decision 19's "`SessionDiagnostics`
    grades every shot"): `SessionDiagnosticsModel::detectShot` becomes a pure function in `src/Diagnostics`, renamed
    for what it does (e.g. `fireFindings`). Each `Shot` fires its own findings, each number against its corridor, with
-   the club baseline, norms and effective club its `Session` passes down. The findings are the `Shot`'s facts, exposed
-   through `ShotDiagnostics` (read-only). `SessionDiagnostics` diagnoses the session from its shots' findings (tiers,
-   patterns, links, reasons, usuals, per-club mixes, the summary). The analysis pipeline never fires findings. A
+   the club baseline, norms and effective club its `Session` passes down. The findings are fired by the `Shot` and kept by its
+   `Session` (Mark, 15 Nov 2026; DEC-135), exposed through `ShotDiagnostics` (read-only). `SessionDiagnostics` diagnoses the session from its shots' findings (tiers,
+   patterns, links, reasons, per-club mixes, the summary), and may compute and hold the usuals, a session aggregate of
+   the shots' readings that is not part of the diagnosis (Mark, 15 Nov 2026; DEC-130). The analysis pipeline never fires findings. A
    corridor or norm edit makes the `Session` ask each shot to re-fire; a club correction re-fires that shot; neither
    re-analyses. Each shot has five layers (the reference's M-SHOT-LAYERS; Mark, 14 Nov 2026; DEC-121): acquired → processed
    and analysed → shot derived data (the outcome, its three factors, carry and the flight-check overlay, computed for the
-   shot with the session's usuals passed down) → assessment against the DAG → findings. The derived data feeds the
-   assessment and is not a finding. The derived data and the findings persist together in one stamped shot cache
-   (FILE-SHOT-13), written by the `Shot` and recomputed when its inputs change; readers never recompose it (Mark, 14
-   Nov 2026; DEC-124). In the reference, "assessment" names the shot's layer and the older cross-shot use is
+   shot with the session's usuals passed down) → assessment against the diagnostic graph (DEC-132) → findings. The derived data feeds the
+   assessment and is not a finding. The `Shot` posts its derived data and findings, stamped, to its `Session`, which keeps them
+   together per shot in `diagnostics.json`, recomputed when their inputs change; readers never recompose them (DEC-124,
+   moved by Mark, 15 Nov 2026; DEC-135). In the reference, "assessment" names the shot's layer and the older cross-shot use is
    "diagnosis" (DEC-125).
    - **`WristDiagnosticsModel` retires** (Mark, 14 Nov 2026; DEC-123): there is no separate wrist model. The wrist-pattern
      identification is an analysis of the shot, and its result becomes part of the shot's findings through the one
      diagnostic model. The QML-created model, its own score, findings and strengths, and its view's private
      derivation go.
-   - **Findings persist with their shot** (Mark, 14 Nov 2026; DEC-101, DEC-102): a stamped shot cache in the shot's
-     folder (FILE-SHOT-13, named in this brief), written by the `Shot` through `RecordingRepository`;
-     `diagnostics.json` keeps only the session's diagnosis. **The migration of today's `diagnostics.json`**: each
-     session's rows become its shots' findings caches (re-fired, or carried over where the stamp matches: this
-     brief chooses). The file is then rewritten to the diagnosis only. **Golfer input in `diagnostics.json` must
-     never be lost** (H-04, Stage 0.1): label corrections, shot intent and the session input (focus, declared miss,
-     screen answers, intent runs). The rewrite runs only after step 2's migration has moved each of these to the
-     shot's `review` block or `session_input.json`, and after a check, field by field, that every one is present at
-     its target. It runs as a one-off migration (R-PERS-7): a dry-run report to Mark first, backups on the share.
+   - **The `Session` keeps its shots' findings** (Mark, 15 Nov 2026; DEC-135, superseding DEC-102 and moving DEC-124): the
+     `Shot` fires its findings and computes its derived data and posts both, stamped; the `Session` keeps them per
+     shot as its collection in `diagnostics.json` (FILE-SESS-03), as today. FILE-SHOT-13 retires, so today's rows are
+     not moved into shot caches. **Golfer input in `diagnostics.json` must never be lost** (H-04, Stage 0.1): label
+     corrections, shot intent and the session input (focus, declared miss, screen answers, intent runs) leave it by
+     step 2's migration, to the shot's `review` block and `session_input.json`.
    - **The `Shot` is its own object** (Mark, 14 Nov 2026; P10, DEC-86, DEC-94, DEC-95): it has its own commands for
      its own facts (`rate`, `note`, `correctClub`, `excludeReading`, `correctLabel`, `setShotIntent`,
-     `setDeclaredClub`, and the `fireFindings` its `Session` calls), and it is obtainable only from its `Session`.
+     `setDeclaredClub`, and the `fireFindings` its `Session` calls), and it is obtainable only from its `Session`. It
+     is a QObject child of its `Session`, exposed to QML directly, and reads the snapshot (baseline, pack, norms)
+     from its parent (Mark, 15 Nov 2026; DEC-141). `Session::addShot` allocates the swing number, creates the folder through
+     `RecordingRepository::create` and returns the `Shot` (DEC-142); `Session::end` on an empty session asks
+     `Athlete::trashSession`, and EVT-20 fires (DEC-143).
      After capture it is the only writer of its swing folder, through `RecordingRepository` (replacing "then only by
      its `Session`"). Its commands' events (EVT-02, 04…07, 21, 22) reach the `Session`, which hears them in command
      order and propagates them (re-firing, the summary). The `Session` keeps the collection (`addShot`, `trashShot`,
@@ -353,7 +361,7 @@ built (reference §11.1, R-REC-8).
      `Session::trashShot`, a session by `Athlete::trashSession` (Mark, 14 Nov 2026; DEC-71), which replaces
      `SessionReviewController::trashSession`.
    - **Domain events** (Mark, 14 Nov 2026; DEC-69, DEC-70): delivered synchronously on the owner thread, in command
-     order, carrying only the id of what changed. The set is the reference's EVT-01…EVT-23: `ShotAnnotated` is
+     order, carrying only the id of what changed. The set is the reference's EVT-01…EVT-23 (EVT-11 removed: DEC-154): `ShotAnnotated` is
      split into `ShotClubCorrected` and `ShotReadingExcluded`, and `SessionStarted`, `SessionArchived`,
      `SessionRestored`, `SessionTrashed`, `ShotDeclaredClubChanged` (marks the analysis stale and re-fires its findings) and
      `ShotCaptureCompleted` (a late LM reading, follow-club or a phone clip: re-fire) are added.
@@ -386,12 +394,14 @@ built (reference §11.1, R-REC-8).
    DEC-30; Q-05); and, from the triage (Mark 14 Nov 2026), where `AthleteDiagnostics` caches the athlete baselines
    and distances (Q-06). Settled since: where session status is stored (DEC-41), P3's wording for the derived
    owners (DEC-42), the event mechanics and the events (DEC-69, DEC-70), who trashes a session (DEC-71), and the
-   crash rule (DEC-73). Also for this brief: the `Shot`'s C++ form (Q-17) and the memory cost of always-running
+   crash rule (DEC-73). Also for this brief: how a re-fire on a worker reads the `Shot`'s snapshot as an immutable copy and posts
+   its results to the GUI thread (the `Shot`'s form is settled: DEC-141), and the memory cost of always-running
    `SessionDiagnostics` in a sweep (Q-18), measured in the parallel run.
    - **Deliverables these decisions add** (Mark, 14 Nov 2026): `Athlete::startSession`, which starts every session and
-     first ends any of the athlete's sessions still InProgress (DEC-78, DEC-73); `Session::resume`, Ended →
-     InProgress → Ended with the same `SessionId` (DEC-77); housekeeping as the one application service that purges
-     (the "purged" end state) and auto-archives, through the roots' commands, in place of
+     first ends any of the athlete's sessions still InProgress (DEC-78, DEC-73); `Athlete::resumeSession`, Ended →
+     InProgress → Ended with the same `SessionId`, for a session started today and of the same type only (DEC-77;
+     Mark, 15 Nov 2026; DEC-134); housekeeping as the one application service that purges, with one purge command and
+     SET-14 off documented as a permanent delete of raw frames, shown with a warning (DEC-137) (the "purged" end state) and auto-archives, through the roots' commands, in place of
      `ArchiveController::runHousekeeping` and `emptyTrash` (DEC-80); the session summary as the one session-level
      product the report renders and the athlete level reads, with its typed result types (links, mixes, reasons: Q-19)
      as a deliverable of this step (DEC-81); the grade policy (SET-15) in the findings stamp, with packs and norms
@@ -444,7 +454,9 @@ built (reference §11.1, R-REC-8).
 - **Typed presenters**, one view at a time; the `QVariantMap` shapes go.
 - **The report as a `Session` command** (the lead's proposal; Mark agreed 14 Nov 2026): the report documents are saved through a
   `Session` command and `SessionRepository`, not by the report model directly. The report renders the session
-  summary step 3 defines; it computes none of its figures itself (Mark, 14 Nov 2026; DEC-81).
+  summary step 3 defines; it computes none of its figures itself (Mark, 14 Nov 2026; DEC-81). `report_meta.json` mixes
+  source facts (the coach's note and the send log: Mark, 15 Nov 2026; DEC-140, T5) with derived ones (the fingerprint,
+  the PDF name); this step's brief decides whether to split the file.
 - **QML through `app`:** as each view moves (from step 3's cut-over on), the 42 context globals shrink to devices,
   settings, logging and `app`.
 - **No domain rules in QML:** as each view moves to a typed presenter, its rules ("Clean" vs "Solid", shape by
@@ -472,7 +484,8 @@ built (reference §11.1, R-REC-8).
   findings, the board, every presenter and re-analysis (step 1). The board's private club handling goes. Until then
   the analysis and findings can name different clubs when only the popover names one: a known interim, accepted
   until this step (Mark, 14 Nov 2026; DEC-72). When the seed goes, follow-club's move of a seeded `review.club` goes
-  too: follow-club rewrites only the captured club (Mark, 14 Nov 2026; DEC-82).
+  too, and follow-club stops overwriting the captured club: it stores the device's club beside it, and the
+  effective-club rule prefers that club when follow-club is on (Mark, 15 Nov 2026; DEC-133, superseding DEC-82's rewrite).
 - **No DRIVER stub for an undeclared club** (the lead's proposal; Mark agreed 14 Nov 2026): capture records an undeclared club as
   undeclared, so its findings are fired as "club assumed" (B-07, G-07), instead of the athlete's primary club or the `"DRIVER"`
   stub, which reads back as a declared driver.

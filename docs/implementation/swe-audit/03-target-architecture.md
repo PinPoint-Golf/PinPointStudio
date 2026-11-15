@@ -23,7 +23,8 @@
   decision 6). Reference v1.6 (DEC-123…DEC-125): the wrist model retires into the findings; derived data and findings
   share one shot cache; "assessment" is the shot's layer and the old cross-shot use is "diagnosis". Reference v1.7
   marks the final re-audit's open questions (MD-01…MD-12) and registers DEC-126…DEC-128. This page is not changed for
-  them.
+  them. Reference v1.8 (DEC-130…DEC-160) records Mark's answers of 15 Nov 2026 to those questions and to step 2's
+  brief; only "→ reference" pointers are added here, on the lines they contradict.
 - Draft 2.3, 14 Nov 2026: Mark's answers to step 1's brief (its §8.2 and §9; reference DEC-24…DEC-39) recorded as
   decisions 24–30 (§13): the analysis context in the swing file, the input stamp and time base, the club rule until
   step 6, capture writing in stages, the interim writers, the two new directories, and no norm cohort in step 1
@@ -42,7 +43,7 @@
     - P1 gains a third kind, the **recorded input**: written once at first need, never regenerated, never deleted
       with the caches. The club baseline is one; it is rewritten only when its format is older than the current (→ reference DEC-46, DEC-84: on a rule-version change, recorded, with Mark's approval first.)
       rule, as today (§1, §3, §7).
-    - Five events: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated`, `RigChanged` (§5).
+    - Five events: `ShotTrashed`, `SessionEnded`, `IntentRunChanged`, `SessionRelocated`, `RigChanged` (§5). (→ reference DEC-154: `SessionRelocated` removed.)
     - With nothing being captured, the cast shows the session on screen (§4).
     - Every file is written only through its root: the archive and the report are `Session` commands; a shot's
       swing file is written once by capture, then only by its `Session`, which is how P3 holds for the Recording;
@@ -271,7 +272,7 @@ The target renames the first to `selection`.
 ```
 Athlete  (aggregate root · id: AthleteId)
  │  record: name, handedness, height, sex/dob, bag            ← source fact, athlete.json
- │  libraryFolder (stored on the record, not derived from the name)
+ │  libraryFolder (stored on the record, not derived from the name)   (→ reference DEC-151: where athlete.json is found)
  │  sessions: SessionIndex (SessionId → summary)             ← index only; sessions load on demand
  │  (no "live" or "open" slots: see the note below the diagram)
  ├─ AthleteDiagnostics      derived: tendencies, work-ons, themes, club baselines + distances,
@@ -381,15 +382,15 @@ it known-stale; re-analysis refreshes it.
 | Event | Recomputes |
 |---|---|
 | `ShotAdded`, `ShotReanalysed` | grade that shot → the session reduction → the session summary → marks the athlete level stale (→ reference §7.4, EVT-01…EVT-23: "fires its findings"; every chain that changes a summary ends at the athlete level, DEC-112.) |
-| `ShotTrashed` | the session reduction → the session summary → marks the athlete level stale |
-| `ShotAnnotated` (club correction) | marks the shot's analysis stale; **regrades** that shot with the corrected club, without re-analysis → the session reduction (→ reference EVT-04 `ShotClubCorrected`, DEC-70, DEC-100.) |
-| `ShotAnnotated` (excluded, a reading left out) | that shot's results → the session reduction (no regrade) |
-| `LabelCorrected` | that shot's results → the session reduction (no regrade); the athlete level appends to its tuning log (Mark, 14 Nov) |
+| `ShotTrashed` | the session reduction → the session summary → marks the athlete level stale (→ reference DEC-130: that club's usuals, and every same-club shot re-fires.) |
+| `ShotAnnotated` (club correction) | marks the shot's analysis stale; **regrades** that shot with the corrected club, without re-analysis → the session reduction (→ reference EVT-04 `ShotClubCorrected`, DEC-70, DEC-100.) (→ reference DEC-130: the usuals of the clubs whose pool changes.) |
+| `ShotAnnotated` (excluded, a reading left out) | that shot's results → the session reduction (no regrade) (→ reference DEC-130: the reading leaves its club's usuals, and every same-club shot re-fires.) |
+| `LabelCorrected` | that shot's results → the session reduction (no regrade); the athlete level appends to its tuning log (Mark, 14 Nov) (→ reference DEC-131: it re-fires.) |
 | `ShotIntentChanged` | no verdict: the intent shown on the shot → the session's intent summaries |
 | `IntentRunChanged` | pre-fills the intent of shots taken after the change; no shot already taken changes |
 | `SessionIntentChanged` (focus, declared miss) | the session reduction only |
 | `SessionEnded` | a status change: the session summary → marks the athlete level stale |
-| `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) |
+| `SessionRelocated` | pending the decision in step 2's brief (a library re-pointed mid-session) (→ reference DEC-154: removed; the session ends and a new one starts.) |
 | `NormsChanged`, `PackChanged` (a corridor edit among them) | regrade through the stamp (the rule version and the content of the inputs), without re-analysis — never "until relaunch" (B-01) |
 | `AthleteRecordChanged` | athlete-level facts. **Not** a session's club baseline or any Recording's analysis context: recorded inputs, frozen by design (E-03) |
 | `RigChanged` | named; designed with Studio/Rig in the platform refactor (capture) |
@@ -408,7 +409,7 @@ step 3).
 
 | Thing | Identity (type) | Properties, never keys |
 |---|---|---|
-| Athlete | `AthleteId` (uuid) | name; library folder (stored on the record, migrated once) |
+| Athlete | `AthleteId` (uuid) | name; library folder (stored on the record, migrated once) (→ reference DEC-151: the folder is where `athlete.json` is found; no `folder` key) |
 | Session | `SessionId` (→ reference §5.2, DEC-41: a uuid minted at Start, kept in the session file) | folder; start time; local day; n-of-day; type. Computed once by `SessionIdentity`; **no other code parses a folder name** (→ reference P7: `SessionIdentity` and `SwingPaths`) |
 | Shot | `ShotRef` = (`SessionId`, swing number) | folder; "Shot N" (always the swing number); a rank "n of N" only shown beside it |
 | Club | the effective club per shot, derived: the golfer's correction (the board's override), else the declared club (→ reference §5.8: four terms; until step 6 the analysis' club field by field, R-CLUB-3, and its known interim, DEC-72) | label (one table). An undeclared club is *undeclared* and graded as "club assumed", never a hidden DRIVER |
@@ -549,7 +550,7 @@ updates when `ShotReanalysed` or `ShotAdded` lands for the selected `ShotRef`.
 | 1 | The object model | Approved. **Every first-class domain object is C++**: Athlete, Session, Shot, the three diagnostic owners (→ reference §5.3: two owners, `SessionDiagnostics` and `AthleteDiagnostics`, and the view `ShotDiagnostics`), measurements, club, intent. QML holds no domain objects or rules. *(Draft 2: the selection is application state, §4, not domain.)* |
 | 2 | Cost | Always grade: every live shot is graded whether or not a panel is on. |
 | 3 | Golfer input | Stored at its level: shot intent on the shot, session intent in the session; aggregates derived (§7). |
-| 4 | Athlete library folder | Stored on the record; kept on rename; migrated once. |
+| 4 | Athlete library folder | Stored on the record; kept on rename; migrated once. (→ reference DEC-151: where `athlete.json` is found, no `folder` key.) |
 | 5 | Athlete profile | `athlete.json` in the library; settings keep only "current athlete". |
 | 6 | Flight check | A session-level overlay on unchanged rows. (→ reference DEC-122: superseded; the flight check is shot derived data) |
 | 7 | Direction | The pack's corridors everywhere; the LM classifier goes. |
@@ -584,7 +585,7 @@ step 1's choices D1–D9 as DEC-31…DEC-39):
 | 24 | The analysis context in the swing file (IM-1) | A new field family: one schema-tagged `analysisContext` block, written once by capture through the one header writer, the only source of the context for analysis: handedness, height, the club set (men / women / junior) as the cohort analysis consumes, the captured club with its geometry, length prior and standard length, and a snapshot of the bag's geometry so a corrected club is resolvable without a live profile. `capture.club` stays, as provenance (§0.1). (Mark, 14 Nov 2026) |
 | 25 | The input stamp and the time base (IM-2) | `analysis.versions.inputs` stamps the effective context an analysis used (`kAnalysisInputsVersion`): a corrected club makes the analysis known-stale, and no `k*StageVersion` moves when no stage changes. `analysis.timeBase: "window"`: the analysis is window-relative on disk, rebased once in the pipeline; older documents are guessed in one place, the repository's reader (§5, §7). (Mark, 14 Nov 2026) |
 | 26 | The club rule, until step 6 (IM-3) | The golfer's correction is the LM board's override (`review.clubOverride`); the swing-edit popover's `review.club` is the declared club. The effective club is the correction if set, else the captured club; undeclared stays undeclared (decision 18). (Mark, 14 Nov 2026) (→ reference R-CLUB-3: the effective club field by field) |
-| 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Mark, 14 Nov 2026) |
+| 27 | Capture writes in stages (IM-4) | "Written once by capture" means the shot first, then its late parts (a late LM reading, a phone clip's stream origin) through `RecordingRepository::completeCapture`; follow-club may rewrite the captured club, because the device named it (§0.1, §7). (Mark, 14 Nov 2026) (→ reference DEC-133: follow-club stores the device club beside the captured club and never overwrites it; today's overwrite a known interim until step 6.) |
 | 28 | The interim writers (IM-5) | Until step 3 the swing file's later writers are today's callers, through `RecordingRepository`; the `Session` takes them over in step 3 (§7). (Mark, 14 Nov 2026) |
 | 29 | Two new directories (IM-6) | `src/Recording` (Vocabulary: the Recording contract's types) and `src/DomainModel` (the repository interfaces) are created in step 1; step 7 then renames only the store (§2, decision 16). (Mark, 14 Nov 2026) |
 | 30 | No norm cohort in step 1 (IM-7) | The norm cohort (sex, age band) is not recorded in the Recording in step 1; whether grading reads it from the Recording is step 3's decision. (Mark, 14 Nov 2026) |
