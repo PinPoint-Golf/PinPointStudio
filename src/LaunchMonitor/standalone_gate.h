@@ -38,7 +38,7 @@ struct StandaloneFacts {
     bool connectorConfigured = false;   // a launch monitor is selected at all
     bool standaloneEnabled   = false;   // launchmonitor/standaloneShots
     bool libraryConfigured   = false;   // an athlete library path exists
-    bool athleteSelected     = false;   // allocateSwingDir needs a name and a uuid
+    bool athleteSelected     = false;   // the session needs a name and a uuid
     bool sessionRunning      = false;   // a session folder to land in
     bool captureActive       = false;   // the toolbar Capture/Stop state
 };

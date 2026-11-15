@@ -22,8 +22,6 @@
 #include <QString>
 #include <QStringList>
 
-#include <functional>
-
 namespace pinpoint {
 
 // The library's names: the one place that COMPOSES a session or swing folder name, reads the number
@@ -39,34 +37,11 @@ namespace pinpoint {
 // A folder's name is a property and provenance, never an identity: a session is a SessionId, a shot a
 // ShotRef (src/Identity/identity.h).
 //
-// TWO HALVES, ONE OF THEM LEAVING. The static functions below ("Names") are what SwingPaths is for
-// and stay. The instance half (allocateSwingDir, findTodaySessionDir, beginSession, endSession and
-// the session cache behind them) is today's session allocator; it moves into SessionRepository in
-// refactor step 2.2, where the session's folder is fixed at Start and never re-resolved per shot
-// (E-01's folder half), and is deleted from here then. Until then it behaves exactly as below.
-//
-// The session-folder leaf is composed from the AppSettings sessionNamingPattern
-// (date / athlete / session-type tokens) plus a per-day uniqueness counter.
-// It is allocated lazily on the first save and cached for the lifetime of this
-// object (i.e. per app run): all swings of one run share one session folder.
-// Outside a session, the cache is invalidated when the athlete, date, library
-// root, or composed session-base (pattern / session type) changes.
-//
-// ⚠ WITHIN A SESSION THE FOLDER IS FIXED (SWE audit E-01, Stage 0.8g). From
-// beginSession() to endSession(), every swing lands in the session folder that
-// session first allocated — the one beginSession() chose, or, if that failed,
-// the first one allocateSwingDir() made. A rename of the athlete (the name is
-// in the folder base), a session running past midnight (so is the date), or a
-// change of naming pattern or session type no longer re-allocates and silently
-// splits the session in two. The athlete's uuid cannot change while a session
-// runs (AthleteController refuses the switch); if it ever arrives different it
-// is logged as a warning and the session's folder is still kept.
-// The ONE exception is the LIBRARY ROOT: re-pointed mid-session (Storage
-// settings — the remedy the "Swings are not being saved" errors offer after a
-// share drops), the next swing goes into a new session folder under the new
-// library, with a warning naming both roots, rather than on into the old,
-// unreachable one. The session then keeps that folder. (Step 2.2 replaces this
-// with D7: the session ends and a new one starts in the new library.)
+// ONE HALF ONLY (refactor step 2.2). The session allocator that lived here — allocateSwingDir,
+// findTodaySessionDir, beginSession, endSession and their per-run session cache — is gone: a session's
+// folder is chosen ONCE, at Start, by SessionRepository (src/DomainModel/session_repository.h, adapter
+// src/Export/session_store.h), which keeps it for the session's life and issues its swing numbers.
+// What is left are pure names, the one swing_* listing and the trash.
 class SwingPaths {
 public:
     // ── Names ──────────────────────────────────────────────────────────────
@@ -106,114 +81,9 @@ public:
     // QDir::Hidden) and as recoverable as the OS trash would have been.  `where`
     // names the destination for the log.
     // (Stays with the names; step 2.3 adds the athlete case, §3.6.)
+    // A swing that leaves takes its number with it: its session's high-water records it
+    // (SessionFiles::raiseSwingHighWater), so the number is never issued again (DEC-91).
     static bool trashPath(const QString& path, QString* where = nullptr);
-
-    // ── The session allocator (moves to SessionRepository in step 2.2) ─────
-    struct Allocation {
-        QString swingDir;     // absolute path, created; empty on failure
-        QString sessionId;    // the session FOLDER's name, e.g. "2026-06-05_Mark-Liversedge_Swing_01":
-                              // provenance only, never a key (ID-SESSION; the SessionId is the key)
-        QString swingId;      // the swing folder's name, e.g. "swing_0007"
-        int     swingIndex = 0;   // its swing number
-    };
-
-    // Allocates (and creates) the next swing directory.  libraryRoot may be
-    // empty — falls back to <AppDataLocation>/swings with a warning.
-    // A number is never reissued within a session, even after the swing that
-    // had it is deleted: the session folder records the highest one issued
-    // (`.pinpoint-last-swing`) and the next swing is one past it.
-    // namingPattern is the AppSettings sessionNamingPattern key
-    // ("date-name-type" | "date-type-name" | "name-date-type" | "date-only");
-    // sessionTypeLabel is a human label ("Swing"/"Wrist"/...), empty when none.
-    Allocation allocateSwingDir(const QString& libraryRoot,
-                                const QString& athleteName,
-                                const QString& athleteUuid,
-                                const QString& namingPattern = QStringLiteral("date-name-type"),
-                                const QString& sessionTypeLabel = QString());
-
-    // ── Explicit per-session lifecycle ──────────────────────────────────────
-    // The session folder is normally allocated lazily on the first save (above).
-    // These let the folder be decided up front at session START instead, so the
-    // UI can offer "extend today's session vs start a new one" and discard a
-    // session that captured nothing.
-
-    // Most-recent existing session folder for TODAY matching this athlete +
-    // naming pattern + session type, or "" when none exists today. (The composed
-    // base embeds today's ISO date, so every "<base>_NN" match is a today folder.)
-    QString findTodaySessionDir(const QString& libraryRoot,
-                                const QString& athleteName,
-                                const QString& athleteUuid,
-                                const QString& namingPattern = QStringLiteral("date-name-type"),
-                                const QString& sessionTypeLabel = QString());
-
-    // Begin an explicit session. extendExisting reuses today's most-recent folder
-    // (no counter bump); otherwise a fresh "_NN" is allocated and created. Primes
-    // the allocation cache so every swing this session lands in it, and records a
-    // swing-count baseline for endSession(). Returns the folder path (empty on
-    // failure).
-    QString beginSession(const QString& libraryRoot,
-                         const QString& athleteName,
-                         const QString& athleteUuid,
-                         const QString& namingPattern = QStringLiteral("date-name-type"),
-                         const QString& sessionTypeLabel = QString(),
-                         bool extendExisting = false);
-
-    // The current (primed/cached) session folder, or "".
-    QString currentSessionDir() const { return m_cachedSessionDir; }
-
-    // End the session. When discardIfNoNewSwings, and this beginSession() CREATED
-    // the folder, and it holds no swings at all, move it to the OS trash
-    // (recoverable). Always clears the cache so the next session re-resolves.
-    //
-    // ⚠ THE FOLDER MUST BE ONE WE MADE.  The rule used to be "the swing_* count
-    // did not grow since we began", which is a count and not an identity: an
-    // EXTENDED session is a folder that already held an afternoon's work, its
-    // baseline was that count, and a session that then captured nothing — or
-    // captured one swing and had one older one deleted — read as "gained
-    // nothing" and took the whole folder to the trash with everything in it.
-    // Discarding is for tidying away a folder this session made and left empty;
-    // it was never a licence to delete work that was already there.
-    void endSession(bool discardIfNoNewSwings);
-
-    // True from beginSession() until endSession() — the session folder is then fixed.
-    bool sessionOpen() const { return m_sessionOpen; }
-
-    // Tests: the day "today" is (a session running past midnight). Unset = QDate::currentDate().
-    void setClockForTest(std::function<QDate()> today) { m_today = std::move(today); }
-
-private:
-    // Resolved, pattern-composed session identity (shared by allocate/find/begin).
-    struct Resolved {
-        QString root;         // library root, with AppData fallback applied
-        QString athleteDir;   // <root>/<athlete-token>
-        QString today;        // ISO yyyy-MM-dd
-        QString base;         // composed session-folder base (pre-"_NN" counter)
-    };
-    static Resolved resolveSession(const QString& libraryRoot, const QString& athleteName,
-                                   const QString& athleteUuid, const QString& namingPattern,
-                                   const QString& sessionTypeLabel, const QDate& today);
-    QDate today() const { return m_today ? m_today() : QDate::currentDate(); }
-    // The library root as the session cache compares it: QDir::cleanPath, so "lib/" and "lib"
-    // are one library. Used only for the key (m_cachedRoot), never to build a path.
-    static QString rootKey(const QString& root);
-    std::function<QDate()> m_today;
-
-    // Session cache key — a new session folder is allocated when any part changes.
-    QString m_cachedRoot;        // rootKey() of the library root
-    QString m_cachedAthleteUuid;
-    QString m_cachedDate;        // ISO yyyy-MM-dd
-    QString m_cachedBase;        // composed session-folder base (pre-counter)
-    QString m_cachedSessionDir;  // absolute path
-    QString m_cachedSessionId;   // folder name
-    // Did THIS beginSession() create the cached folder? Only then may endSession()
-    // discard it — see the warning on endSession() above. False for an extended
-    // session, for a lazily-allocated one, and whenever no session is in progress.
-    bool    m_sessionCreated = false;
-    // beginSession() .. endSession(): the session folder, once allocated, is kept whatever
-    // the name, date, pattern or type do; a library change moves it (see the class comment).
-    // m_keptLoggedFor: the last kept drift logged (uuid|date|base), so each new one logs once.
-    bool    m_sessionOpen    = false;
-    QString m_keptLoggedFor;
 };
 
 } // namespace pinpoint

@@ -94,6 +94,7 @@
 #include "../Export/swing_paths.h"
 #include "../Export/swing_zip_exporter.h"
 #include "../Export/swing_store_repository.h"
+#include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -284,6 +285,10 @@ int main(int argc, char *argv[])
     // this one instance. Stateless, so safe from the workers; static so the static phone-clip filer
     // further down never outlives it.
     static pinpoint::SwingStoreRecordingRepository recordingRepository;
+    // THE ONE DOOR TO A SESSION'S OWN FILES AND ITS SWING NUMBERS (SessionRepository, step 2.2): the
+    // session file, Start / resume / End, and the one swing allocator (D10) — handed to the capture
+    // pipeline and the launch monitor below. GUI thread only. Declared before both, so it outlives them.
+    pinpoint::SessionStore sessionStore;
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
     libraryConverter.setRecordingRepository(&recordingRepository);
@@ -509,6 +514,14 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
+    shotProcessor.setSessionRepository(&sessionStore);            // Start, End, every swing number (step 2.2)
+    // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one, same type and
+    // club, the declared focus carried — applying from the new session's first shot.
+    QObject::connect(&shotProcessor, &ShotProcessor::sessionRestartedForLibrary, &sessionController,
+                     [&sessionController] {
+        if (sessionController.focusFromShot() > 0)
+            sessionController.setFocusFromShot(0);
+    });
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect
 
@@ -530,6 +543,9 @@ int main(int argc, char *argv[])
                                                       &athleteController, &sessionController,
                                                       &cameraManager);
     launchMonitorController.setRecordingRepository(&recordingRepository);
+    // One allocator (D10): a standalone device-only shot goes into the running session.
+    launchMonitorController.setSessionRepository(&sessionStore);
+    launchMonitorController.setCaptureSession([&shotProcessor] { return shotProcessor.captureSession(); });
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);
@@ -762,6 +778,31 @@ int main(int argc, char *argv[])
                 n.title    = QObject::tr("%1 saved — analysis incomplete").arg(shot);
                 n.cause    = QStringLiteral("swing.save.no-directory");
             }
+            notificationCenter.post(n);
+        });
+
+        // The session's own file could not be written at End (DEC-126): said, not only logged. The session
+        // stays in progress on disk until the athlete's next Start ends it (DEC-73).
+        QObject::connect(&shotProcessor, &ShotProcessor::sessionFileFailed,
+                         &notificationCenter, [&notificationCenter](const QString &error) {
+            N::Notification n;
+            n.id       = QStringLiteral("session.file.failed");
+            n.severity = N::Warn;
+            n.kind     = N::Event;
+            n.title    = QObject::tr("The session's end could not be saved");
+            n.detail   = error;
+            notificationCenter.post(n);
+        });
+        // "Continue today's session" refused or not saved (DEC-126): a new session started instead, and
+        // the golfer is told why.
+        QObject::connect(&shotProcessor, &ShotProcessor::sessionResumeFailed,
+                         &notificationCenter, [&notificationCenter](const QString &error) {
+            N::Notification n;
+            n.id       = QStringLiteral("session.resume.failed");
+            n.severity = N::Warn;
+            n.kind     = N::Event;
+            n.title    = QObject::tr("Today's session could not be continued, so a new one started");
+            n.detail   = error;
             notificationCenter.post(n);
         });
 

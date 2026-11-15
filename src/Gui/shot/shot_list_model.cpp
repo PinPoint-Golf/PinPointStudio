@@ -132,8 +132,8 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
 {
     // ⚠ THE NUMBER COMES FROM THE DOCUMENT, NOT FROM COUNTING THE ROWS.
     //
-    // Two things number a swing: SwingPaths::allocateSwingDir, which counts
-    // swing_* folders and probes upward, and this, which used to take
+    // Two things number a swing: SessionRepository::allocateSwing, which reads
+    // the swing_* folders and the high-water and probes upward, and this, which used to take
     // max(ordinal) + 1 over the rows. They agree until a swing is deleted from
     // the middle of a session, and then they do not: a carousel reloaded from a
     // folder holding swing_0001 and swing_0005 called the next shot "Shot 6"

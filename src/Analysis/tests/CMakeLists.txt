@@ -636,6 +636,25 @@ pp_add_test(session_identity_test
     INCLUDE ${SRC}/DomainModel ${SRC}/Export ${SRC}/Core
     AUTOMOC)
 
+# --- SessionRepository and the session file (refactor step 2.2) ---------------
+# session_repository_test: SessionStore over a temp library — Start writes session.json (its keys; a
+# newer schema read-only; unknown keys kept); resume keeps the id (today's session of the same type
+# only); End and the empty discard (unchanged); a legacy folder read as D3 says without a write;
+# enumerate's typed entries and n-of-day; one InProgress per athlete; the allocator never reissues a
+# number (the allocator sections moved here from swing_paths_test); the folder fixed for the session's
+# life and D7's library change; a held FolderLock refuses the write.
+pp_add_test(session_repository_test
+    SOURCES ${SRC}/Export/tests/session_repository_test.cpp
+            ${SRC}/Export/session_store.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h
+            ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Core/pp_log_stream.cpp
+            ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/Export ${SRC}/Export/tests ${SRC}/DomainModel ${SRC}/Core
+    AUTOMOC)
+
 # --- Orientation filters (Phase 0.4): Madgwick (header-only) + ESKF (Eigen) ---
 # The ESKF .cpp pulls the vendored imu_ekf headers through the Arduino-style
 # <Eigen.h>/<Wire.h> shims in imu_ekf_compat (which MUST precede imu_ekf on the

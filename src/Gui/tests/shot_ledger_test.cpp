@@ -21,7 +21,7 @@
 //
 // ⚠ THE ORACLES ARE AGREEMENT AND ROUND-TRIP, NOT RECORDED OUTPUT.  Two things
 // in this application number a swing — ShotListModel::addShot() counts rows,
-// SwingPaths::allocateSwingDir() counts folders — and swing.json carries the
+// SessionRepository::allocateSwing() counts folders — and swing.json carries the
 // second while the carousel shows the first.  Nothing has ever checked that
 // they agree.  Likewise every user edit is written to disk and read back on the
 // next session, so what comes back must be what went in.  Neither kind of test
@@ -33,7 +33,7 @@
 #include "shot/shot_list_model.h"
 #include "swing_doc.h"
 #include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
-#include "swing_paths.h"
+#include "session_store.h"   // the one allocator (step 2.2)
 #include "temp_library.h"
 #include "swing_store.h"
 #include "Analysis/swing_analysis.h"
@@ -122,8 +122,8 @@ static int diskOrdinal(const QString &swingDir)
 
 // The suite's standard athlete/session identity, matching swing_paths_test.
 static const QString kName = QStringLiteral("Mark Liversedge");
-static const QString kUuid = QStringLiteral("uuid-0001");
-static const QString kType = QStringLiteral("Swing");
+static const QString kUuid = QStringLiteral("3f2c8a4e-1b7d-4c9a-9e21-6a0d5c1b2a10");
+static const QString kType = QStringLiteral("swing");   // by name (DEC-88)
 static const QString kPat  = QStringLiteral("date-name-type");
 
 // ---------------------------------------------------------------------------
@@ -198,8 +198,10 @@ static void testOrdinalAgreement()
     // A session from this morning: three swings, of which the middle one was
     // later deleted from the carousel. That leaves swing_0001 and swing_0003 —
     // an ordinary state, reachable by trashing one shot.
-    SwingPaths paths;
-    const QString session = paths.beginSession(lib.root(), kName, kUuid, kPat, kType, false);
+    SessionStore sessions;
+    const SessionOwner who{ AthleteId::fromString(kUuid), kName, lib.root() };
+    const SessionStartResult started = sessions.start(who, kType, kPat);
+    const QString session = started.folder;
     check(QStringLiteral("X0 fixture session created"), !session.isEmpty());
 
     const QDateTime base = QDateTime::currentDateTime().addSecs(-3600);
@@ -214,16 +216,16 @@ static void testOrdinalAgreement()
     checkInt(QStringLiteral("X1 both surviving swings reload"), m.rowCount(), 2);
 
     // ... and the golfer hits another. The document gets its number from
-    // SwingPaths; the row gets its number from the model.
-    const SwingPaths::Allocation alloc = paths.allocateSwingDir(lib.root(), kName, kUuid, kPat, kType);
-    check(QStringLiteral("X2 the new swing got a folder"), !alloc.swingDir.isEmpty());
-    writeSwingDoc(alloc.swingDir, alloc.swingIndex, QStringLiteral("7-iron"), true,
+    // the session repository; the row gets its number from the model.
+    const SwingAllocation alloc = sessions.allocateSwing(started.id);
+    check(QStringLiteral("X2 the new swing got a folder"), alloc.ok());
+    writeSwingDoc(alloc.swingFolder, alloc.shot.swingNumber(), QStringLiteral("7-iron"), true,
                   QDateTime::currentDateTime());
-    const int id = m.addShot(alloc.swingDir, QStringLiteral("14:00"), QStringLiteral("7-iron"),
+    const int id = m.addShot(alloc.swingFolder, QStringLiteral("14:00"), QStringLiteral("7-iron"),
                              true, QUrl(), {}, 75, {});
 
     checkInt(QStringLiteral("X3 the row and the document agree on the number"),
-             m.ordinalForId(id), diskOrdinal(alloc.swingDir));
+             m.ordinalForId(id), diskOrdinal(alloc.swingFolder));
 
     // And the same swing must keep that number across a restart — this is the
     // sharper form of the same claim: the number is a property of the shot, not
@@ -233,7 +235,7 @@ static void testOrdinalAgreement()
     int reloadedOrdinal = 0;
     for (int row = 0; row < reloaded.rowCount(); ++row) {
         const QModelIndex ix = reloaded.index(row);
-        if (reloaded.data(ix, ShotListModel::SwingDirRole).toString() == alloc.swingDir)
+        if (reloaded.data(ix, ShotListModel::SwingDirRole).toString() == alloc.swingFolder)
             reloadedOrdinal = reloaded.data(ix, ShotListModel::OrdinalRole).toInt();
     }
     checkInt(QStringLiteral("X4 the shot keeps its number across a restart"),

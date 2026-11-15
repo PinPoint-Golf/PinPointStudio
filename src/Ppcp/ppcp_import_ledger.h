@@ -121,7 +121,7 @@ std::string digestToHex(const ppcp_digest &d);
 // PPCP identity is OPAQUE and minted by the device: a Capture is `Capture.id`
 // scoped by `Session.id` and the minting `Peer.id` (I34, CORE 8.5c), and the
 // spec is explicit that the digest is not the identifier.  PinPoint Studio's
-// identity is DERIVED: `SwingPaths::allocateSwingDir()` composes a folder from
+// identity is DERIVED: `SessionRepository` composes a session folder (SwingPaths) from
 // athlete, date and a naming pattern, and it changes if the user changes a
 // preference.  Neither can be expressed in the other.
 //

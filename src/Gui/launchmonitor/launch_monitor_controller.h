@@ -19,7 +19,7 @@
 
 #include "launch_monitor_base.h"
 #include "shot_pairing.h"
-#include "../../Export/swing_paths.h"
+#include "../../Identity/identity.h"   // SessionId: the running session a standalone shot goes into
 
 #include <QHash>
 #include <QJsonObject>
@@ -36,7 +36,7 @@ class AthleteController;
 class CameraManager;
 class SessionController;
 class ShotListModel;
-namespace pinpoint { class RecordingRepository; }
+namespace pinpoint { class RecordingRepository; class SessionRepository; }
 
 // The launch monitor's place in the app (QML context property `launchMonitor`).
 //
@@ -137,6 +137,12 @@ public:
     // The one door to the swing files (main.cpp's): a device-only shot is created through it, and
     // every reading is folded in through completeCapture (IM-4). Without one nothing is written.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // ONE ALLOCATOR (D10: DEC-157): a standalone device-only shot goes into the RUNNING session, with
+    // the next swing number from the session repository, never a folder of its own. `captureSession`
+    // answers which session that is (ShotProcessor::captureSession, main.cpp's). Without both, no
+    // standalone shot is created.
+    void setSessionRepository(pinpoint::SessionRepository *sessions) { m_sessions = sessions; }
+    void setCaptureSession(std::function<pinpoint::SessionId()> session) { m_captureSession = std::move(session); }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -223,10 +229,9 @@ private:
     // createStandaloneShot — a shot is only ours to record while the user says they are
     // hitting, and no buffer state can answer that when there are no devices to register.
     CameraManager                 *m_cameras   = nullptr;
-    // Its own allocator. NOT shared with ShotProcessor's: that one caches the session
-    // folder for a capture session, and a standalone shot must not be able to disturb
-    // the folder a live capture is writing into.
-    pinpoint::SwingPaths           m_paths;
+    // The one allocator's door and the running session (D10): see setSessionRepository.
+    pinpoint::SessionRepository   *m_sessions = nullptr;
+    std::function<pinpoint::SessionId()> m_captureSession;
     pinpoint::lm::LaunchMonitorBase *m_monitor = nullptr;   // never null — see makeLaunchMonitor
     pinpoint::lm::ShotPairing      m_pairing;
     // Whether the destination the pairing knows about actually holds a document. False

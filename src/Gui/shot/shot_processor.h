@@ -40,10 +40,11 @@
 #include "../Analysis/shot_analyzer.h"
 #include "../Analysis/analysis_service.h"   // the one run + the Recording's integrity verdicts (step 1.5)
 #include "../Export/swing_exporter.h"
-#include "../Export/swing_paths.h"
+#include "../Export/swing_paths.h"   // SwingPaths::sanitise, for the camera files' names
+#include "../Identity/identity.h"      // SessionId: the session swings are written into
 #include "shot_outcome.h"
 
-namespace pinpoint { class EventBuffer; class RecordingRepository; }
+namespace pinpoint { class EventBuffer; class RecordingRepository; class SessionRepository; }
 namespace pinpoint::capture { struct CaptureSnapshot; }
 class AppSettings;
 class AthleteController;
@@ -103,11 +104,12 @@ class ShotProcessor : public QObject
     // handed to every reader by reference. As a QVariantMap it was copied on EVERY read
     // (~18 per shot) and froze the studio's GUI for 7.8 s per shot. See qml_payload.h.
     Q_PROPERTY(QJSValue replayAnalysisDetail READ replayAnalysisDetailJs NOTIFY replayAnalysisDetailChanged)
-    // The active session folder (absolute path), chosen at session start via
-    // beginSessionFolder(). Also announced when a swing's allocation moves it (startSwingSave): a
-    // library re-pointed mid-session, or the first swing of a session whose folder could not be made
-    // at start. "" when no session is in progress, unless a swing outside a session has had a folder
-    // made for it on demand, which it then names.
+    // The active session's folder (absolute path), as SessionRepository spells it: the session started
+    // or resumed by beginSessionFolder(). It changes only when a session starts or ends — a Start; the
+    // library re-pointed mid-session, which ends the session and starts a new one (D7: DEC-154); the
+    // first swing of a session whose folder could not be made at Start, which starts it then — and is
+    // announced each time. "" when no session is in progress, unless a swing outside a session has had
+    // a session started for it on demand, which it then names.
     Q_PROPERTY(QString activeSessionDir READ activeSessionDir NOTIFY activeSessionDirChanged)
 
 public:
@@ -151,6 +153,15 @@ public:
     // goes through it (create). Held by the composition root (main.cpp). Without one, a shot's
     // document is not written and the join says so.
     void setRecordingRepository(pinpoint::RecordingRepository *repository) { m_repository = repository; }
+    // THE ONE DOOR to the session's own files and its swing numbers (SessionRepository, step 2.2):
+    // Start, resume, End and every allocation. Held by the composition root (main.cpp). Without one no
+    // session starts and no swing is saved. Also follows the library setting (D7).
+    void setSessionRepository(pinpoint::SessionRepository *sessions);
+    // The session a swing captured NOW is written into — the one allocator's session (D10: DEC-157),
+    // asked by this processor's own allocation and by the launch monitor's standalone shot. Starts it
+    // when a session is in progress whose folder could not be made at Start, or, outside a session,
+    // on demand (today's behaviour); null when none can be.
+    pinpoint::SessionId captureSession();
 
     QString stateName()   const;
     bool    busy()        const { return m_state != State::Idle; }
@@ -162,7 +173,7 @@ public:
     QVariantMap replayAnalysisDetail()   const { return m_replayAnalysisDetail.map(); }   // C++ readers
     QJSValue    replayAnalysisDetailJs() const { return m_replayAnalysisDetail.js(); } // the QML property
     double  analysisProgress() const { return m_analysisProgress; }
-    QString activeSessionDir() const { return m_swingPaths.currentSessionDir(); }
+    QString activeSessionDir() const { return m_openSessionDir; }
     // False when beginSessionFolder() could not create the session folder — the
     // state a session used to start into silently.  Read by the session-start
     // preflight in main.cpp.
@@ -230,6 +241,17 @@ signals:
     // one toast, which is why ten occurrences of this on 1 September 2026 read
     // as one piece of news.
     void swingSaveBlocked(const QString &detail);
+    // The session's own file (session.json) could not be written at End, or at D7's end of the old
+    // session while its folder is still there (DEC-126): the session stays in progress on disk until the
+    // athlete's next Start. Posted by main.cpp as a notice.
+    void sessionFileFailed(const QString &detail);
+    // "Continue today's session" was asked for and refused or could not be written (DEC-126): a new
+    // session started instead. Posted by main.cpp as a notice.
+    void sessionResumeFailed(const QString &detail);
+    // D7 (DEC-154): the library was re-pointed mid-session, so the session ended and a new one started
+    // in the new library. Emitted just before activeSessionDirChanged. main.cpp makes the declared
+    // focus (SessionController's, carried over) apply from the new session's first shot.
+    void sessionRestartedForLibrary();
     // Analyzer returned !ok — the shot degrades to no-score/no-metrics but the
     // pipeline continues. Surfaced as a window-level toast (Main.qml), not a
     // log line: the user must see why a shot has no analysis.
@@ -430,5 +452,17 @@ private:
     pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip
     QString m_thumbnailPath;     // from SwingExportResult
     QJsonObject m_exportManifest; // raw manifest from the exporter, for the unified write
-    pinpoint::SwingPaths m_swingPaths;   // per-app-run session-folder cache
+
+    // ── The session swings are written into (SessionRepository's; step 2.2) ──
+    // Its folder is fixed for its life: never re-resolved per shot (E-01). A rename, midnight or a
+    // changed naming pattern or type keep it; a re-pointed library ends it and starts another (D7).
+    void setOpenSession(const pinpoint::SessionId &id);
+    void onLibraryChanged();
+    pinpoint::SessionRepository *m_sessions = nullptr;
+    pinpoint::SessionId m_openSession;     // null: none
+    QString m_openSessionDir;              // its folder, as the repository spells it
+    QString m_openLibraryKey;              // the library (cleaned) it was started in, for D7
+    bool    m_sessionBegun = false;        // beginSessionFolder() .. endSessionFolder()
+    bool    m_openedOnDemand = false;      // started for a swing outside a session: never discarded
+    QString m_onDemandKey;                 // athlete | library | day | type of that session
 };

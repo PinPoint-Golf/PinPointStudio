@@ -39,11 +39,13 @@
 #include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
+#include "../DomainModel/session_repository.h"   // the session's files and swing numbers (step 2.2)
 #include "pp_version.h"
 
 #include <QSysInfo>
 
 #include <QDateTime>
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSet>
@@ -159,17 +161,8 @@ constexpr std::chrono::milliseconds kWindowDuration{4000};
 // are converted with segmentRoleForPlacementRole (segment_role.h). segmentRoleForSlot
 // is deliberately NOT used here any more — it survives only for reading old swings.
 
-// Human label for a SessionController::Type, used in session-folder naming.
-QString sessionTypeLabel(int sessionType)
-{
-    switch (sessionType) {
-    case 0:  return QStringLiteral("Swing");
-    case 1:  return QStringLiteral("Wrist");
-    case 2:  return QStringLiteral("GRF");
-    case 3:  return QStringLiteral("Coach");
-    default: return QString();
-    }
-}
+// The session type's name for the session file and its folder's label: sessionTypeName(), beside
+// the session lifecycle below (the label is SessionStore::folderTypeLabel's, step 2.2).
 
 } // namespace
 
@@ -725,21 +718,11 @@ void ShotProcessor::startAnalysis()
 
 void ShotProcessor::startSwingSave()
 {
-    // ⚠ AN ALLOCATION CAN MOVE THE SESSION FOLDER, and must say so. Re-pointing the library mid-session
-    // (the remedy the "Swings are not being saved" notice offers) sends this swing to a new session
-    // folder under the new library (SwingPaths::allocateSwingDir); so does the first swing of a session
-    // whose folder could not be made at start. activeSessionDir moved with it, and every panel that
-    // binds to it (the diagnostics panels on the stage and the cast window, Charts) must re-point
-    // BEFORE this shot's shotProcessed, or each refuses it as another session's swing (audit E-01).
-    // Emitted here, on the GUI thread, before the export starts: shotProcessed comes only from the join.
-    // STOPGAP: ShotProcessor should not be announcing storage changes at all. In the target design the
-    // Session owns its location, and refactor step 2 removes this announce (04-remediation-plan.md).
-    const QString sessionBefore = m_swingPaths.currentSessionDir();
+    // The allocation never moves a session's folder (step 2.2: SessionRepository fixes it at Start). A
+    // session that STARTS here — the first swing of one whose folder could not be made at Start, or a
+    // swing outside a session — is announced by captureSession() as any Start is, before this shot's
+    // shotProcessed, so every panel bound to activeSessionDir is already on it (audit E-01).
     pinpoint::SwingExportJob job = buildSwingExportJob();
-    if (const QString sessionNow = m_swingPaths.currentSessionDir(); sessionNow != sessionBefore) {
-        ppInfo() << "[SwingExport] the session folder moved with this swing:" << sessionBefore << "->" << sessionNow;
-        emit activeSessionDirChanged();
-    }
     // Cache the job + dir up front: even when there is nothing to encode (no
     // cameras, or an encode failure), an analysis-only swing.json is written
     // from these at the join so the shot still survives a restart.
@@ -1229,60 +1212,214 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     if (snap)
         pinpoint::capture::fillExportFromSnapshot(job, *snap);
 
-    const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
-                                                     job.athleteName,
-                                                     job.athleteUuid,
-                                                     s->sessionNamingPattern(),
-                                                     sessionTypeLabel(m_sessionType));
-    job.swingDir   = alloc.swingDir;
-    job.swingId    = alloc.swingId;
-    job.swingIndex = alloc.swingIndex;
-    job.sessionId  = alloc.sessionId;
+    // One allocator (D10: DEC-157): the next swing number of the session this swing is written into.
+    const pinpoint::SessionId session = captureSession();
+    pinpoint::SwingAllocation alloc;
+    if (m_sessions && !session.isNull())
+        alloc = m_sessions->allocateSwing(session);
+    if (!alloc.ok())
+        ppWarn() << "[SwingExport] no swing folder:"
+                 << (session.isNull() ? QStringLiteral("no session could be started") : alloc.result.error);
+    job.swingDir   = alloc.ok() ? alloc.swingFolder : QString();
+    job.swingId    = alloc.swingName;
+    job.swingIndex = alloc.shot.swingNumber();
+    job.sessionId  = alloc.sessionFolderName;
     return job;
 }
 
 // ── Session folder lifecycle (QML) ──────────────────────────────────────────
-// Same library-path / athlete / naming-pattern accessors buildSwingExportJob
-// uses, so the folder chosen at session start matches the one swings save into.
+// Through SessionRepository (step 2.2), with the same library / athlete / naming-pattern settings for
+// Start, the extend prompt and every swing, so the session chosen at Start is the one swings save into.
+
+namespace {
+
+// The session type by name (DEC-88), as the session file records it; "" for none.
+QString sessionTypeName(int sessionType)
+{
+    switch (sessionType) {
+    case 0:  return QStringLiteral("swing");
+    case 1:  return QStringLiteral("wrist");
+    case 2:  return QStringLiteral("grf");
+    case 3:  return QStringLiteral("coach");
+    default: return QString();
+    }
+}
+
+// The library as D7 compares it: cleaned, so "lib/" and "lib" are one library.
+QString libraryKey(const QString &root)
+{
+    const QString r = root.trimmed();
+    return r.isEmpty() ? QString() : QDir::cleanPath(r);
+}
+
+pinpoint::SessionOwner ownerOf(const AthleteController *athlete, const AppSettings *settings)
+{
+    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(athlete);
+    return { pinpoint::AthleteId::fromString(who.uuid), who.name,
+             settings ? settings->athleteLibraryPath() : QString() };
+}
+
+} // namespace
+
+void ShotProcessor::setSessionRepository(pinpoint::SessionRepository *sessions)
+{
+    m_sessions = sessions;
+    // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one there.
+    if (m_appSettings)
+        connect(m_appSettings, &AppSettings::athleteLibraryPathChanged, this, &ShotProcessor::onLibraryChanged,
+                Qt::UniqueConnection);
+}
+
+void ShotProcessor::setOpenSession(const pinpoint::SessionId &id)
+{
+    m_openSession = id;
+    const auto entry = (m_sessions && !id.isNull()) ? m_sessions->open(id) : std::nullopt;
+    m_openSessionDir = entry ? entry->folder : QString();
+    if (id.isNull())
+        m_openedOnDemand = false;
+}
+
+pinpoint::SessionId ShotProcessor::captureSession()
+{
+    if (!m_sessions || !m_appSettings)
+        return {};
+    const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+    const QString type = sessionTypeName(m_sessionType);
+
+    if (m_sessionBegun) {
+        // A session whose folder could not be made at Start: its first swing makes it (as before).
+        if (m_openSession.isNull()) {
+            const pinpoint::SessionStartResult s =
+                m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+            if (s.ok()) {
+                setOpenSession(s.id);
+                m_openLibraryKey     = libraryKey(owner.libraryRoot);
+                m_sessionFolderReady = true;
+                emit activeSessionDirChanged();
+            }
+        }
+        // ⚠ WITHIN A SESSION THE FOLDER IS FIXED (E-01): the athlete's name, the date, the naming
+        // pattern and the type may move on; the session keeps its folder.
+        return m_openSession;
+    }
+
+    // Outside a session (no beginSessionFolder()): a session is started on demand and kept while the
+    // athlete, the library, the day and the type stay the same — as the folder was before step 2.2.
+    const QString key = owner.athlete.toString() + QLatin1Char('|') + libraryKey(owner.libraryRoot)
+                        + QLatin1Char('|') + QDate::currentDate().toString(Qt::ISODate) + QLatin1Char('|') + type;
+    if (!m_openSession.isNull() && key != m_onDemandKey) {
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
+        setOpenSession({});
+        emit activeSessionDirChanged();
+    }
+    if (m_openSession.isNull()) {
+        const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+        if (s.ok()) {
+            setOpenSession(s.id);
+            m_openedOnDemand = true;
+            m_onDemandKey    = key;
+            m_openLibraryKey = libraryKey(owner.libraryRoot);
+            emit activeSessionDirChanged();
+        }
+    }
+    return m_openSession;
+}
+
+void ShotProcessor::onLibraryChanged()
+{
+    if (!m_sessions || !m_appSettings || m_openSession.isNull())
+        return;
+    const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+    if (libraryKey(owner.libraryRoot) == m_openLibraryKey)
+        return;   // the same library, spelled differently
+
+    if (!m_sessionBegun) {
+        // A session started on demand for a swing outside a session: ended; the next swing starts one
+        // in the new library.
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
+        setOpenSession({});
+        emit activeSessionDirChanged();
+        return;
+    }
+    // ⚠ D7 (DEC-154): the session ENDS (written if the old library is still reachable; if not it stays
+    // in progress until the athlete's next Start there, DEC-73) and a NEW one of the same type starts
+    // in the new library. The club and the declared focus are SessionController's and carry over
+    // untouched; the focus applies from the new session's first shot. The views bound to
+    // activeSessionDir follow it as they follow any Start. (This replaces step 0.3's stopgap.)
+    QString oldEndProblem;
+    const pinpoint::SessionStartResult s =
+        m_sessions->restartInLibrary(m_openSession, owner, m_appSettings->sessionNamingPattern(), &oldEndProblem);
+    if (!oldEndProblem.isEmpty())
+        emit sessionFileFailed(oldEndProblem);   // the old library is still there, but its session's end was not saved
+    setOpenSession(s.ok() ? s.id : pinpoint::SessionId());
+    m_openedOnDemand     = false;
+    m_openLibraryKey     = libraryKey(owner.libraryRoot);
+    m_sessionFolderReady = s.ok();   // if not, the next swing tries again (captureSession)
+    emit sessionRestartedForLibrary();   // first: the focus's "from shot" is reset before the views re-point
+    emit activeSessionDirChanged();
+}
 
 QString ShotProcessor::todaySessionDir(int sessionType)
 {
-    if (!m_appSettings || !m_athlete)
+    if (!m_appSettings || !m_athlete || !m_sessions)
         return {};
-    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(m_athlete);
-    return m_swingPaths.findTodaySessionDir(m_appSettings->athleteLibraryPath(),
-                                            who.name,
-                                            who.uuid,
-                                            m_appSettings->sessionNamingPattern(),
-                                            sessionTypeLabel(sessionType));
+    const pinpoint::SessionId id =
+        m_sessions->todaysSession(ownerOf(m_athlete, m_appSettings), sessionTypeName(sessionType));
+    const auto entry = id.isNull() ? std::nullopt : m_sessions->open(id);
+    return entry ? entry->folder : QString();
 }
 
 void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
 {
-    m_sessionType = sessionType;   // so a shot's folder base uses the right type
-    // ⚠ THE RETURN VALUE IS THE POINT.  beginSession() answers {} when it could
-    // not create the session folder (swing_paths.cpp: mkpath failed), and this
-    // function used to throw that away — so a session started happily on an
-    // unwritable library and the first thing the golfer learned was a toast
-    // after a swing had already been lost.  That is precisely what happened on
-    // 1 September 2026 with /mnt/swingdata unmounted.  Keep it; the
-    // session-start preflight reads it through sessionFolderReady().
+    m_sessionType = sessionType;   // so a shot's session and its folder name use the right type
+    // ⚠ THE OUTCOME IS THE POINT.  A session that could not create its folder used to start happily on
+    // an unwritable library, and the first thing the golfer learned was a toast after a swing had
+    // already been lost — precisely what happened on 1 September 2026 with /mnt/swingdata unmounted.
+    // The session-start preflight reads it through sessionFolderReady().
     m_sessionFolderReady = false;
-    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(m_athlete);
-    if (m_appSettings && m_athlete)
-        m_sessionFolderReady =
-            !m_swingPaths.beginSession(m_appSettings->athleteLibraryPath(),
-                                       who.name,
-                                       who.uuid,
-                                       m_appSettings->sessionNamingPattern(),
-                                       sessionTypeLabel(sessionType),
-                                       extend).isEmpty();
+    if (m_sessions && !m_openSession.isNull())
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);   // one still open (on demand): ended
+    setOpenSession({});
+    m_sessionBegun = true;
+    if (m_sessions && m_appSettings && m_athlete) {
+        const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+        const QString type = sessionTypeName(sessionType);
+        pinpoint::SessionId id;
+        // Extend: today's latest session of this type, resumed with its own SessionId (MD-05: DEC-134).
+        // A resume that is refused or cannot be written starts a new session instead.
+        if (extend) {
+            id = m_sessions->todaysSession(owner, type);
+            if (!id.isNull()) {
+                if (const pinpoint::WriteResult r = m_sessions->resume(id, type); !r.ok()) {
+                    ppWarn() << "[SwingExport] today's session could not be continued - a new one starts:" << r.error;
+                    emit sessionResumeFailed(r.error);   // the golfer asked to continue: say why they did not
+                    id = {};
+                }
+            }
+        }
+        if (id.isNull()) {
+            const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+            if (!s.ok())
+                ppError() << "[SwingExport] no session started:" << s.result.error;
+            id = s.id;
+        }
+        setOpenSession(id);
+        m_openLibraryKey     = libraryKey(owner.libraryRoot);
+        m_sessionFolderReady = !id.isNull();
+    }
     emit activeSessionDirChanged();
 }
 
 void ShotProcessor::endSessionFolder()
 {
-    m_swingPaths.endSession(/*discardIfNoNewSwings=*/true);
+    if (m_sessions && !m_openSession.isNull()) {
+        // The empty discard (DEC-93): a session this Start made that captured nothing goes to the trash.
+        const pinpoint::WriteResult r = m_sessions->end(m_openSession, /*discardIfEmpty=*/!m_openedOnDemand);
+        if (!r.ok())
+            emit sessionFileFailed(r.error);
+    }
+    setOpenSession({});
+    m_sessionBegun = false;
     emit activeSessionDirChanged();
 }
 

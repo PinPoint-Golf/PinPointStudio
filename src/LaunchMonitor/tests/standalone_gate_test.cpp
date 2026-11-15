@@ -63,7 +63,7 @@ TEST(StandaloneGate, NoLibraryBlocks)
 
 TEST(StandaloneGate, NoAthleteBlocks)
 {
-    // allocateSwingDir needs a name and a uuid, and the uuid is what a norm cohort
+    // the session needs a name and a uuid, and the uuid is what a norm cohort
     // resolves through — a shot filed against nobody could never be graded.
     auto f = allGood(); f.athleteSelected = false;
     EXPECT_EQ(decideStandalone(f), StandaloneVerdict::NoAthlete);

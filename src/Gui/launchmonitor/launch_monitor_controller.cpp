@@ -27,6 +27,7 @@
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
 #include "../../DomainModel/recording_repository.h"
+#include "../../DomainModel/session_repository.h"   // the one allocator (D10)
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -519,18 +520,21 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
         return false;
     }
 
-    const auto alloc = m_paths.allocateSwingDir(m_settings->athleteLibraryPath(),
-                                                m_athletes->currentName(),
-                                                m_athletes->currentUuid(),
-                                                m_settings->sessionNamingPattern(),
-                                                QString());
-    if (alloc.swingDir.isEmpty()) {
-        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder";
+    // ONE ALLOCATOR (D10: DEC-157): the next swing number of the running session — the session the
+    // gate above requires — not a "…_session_NN" folder of its own, which split the session in two.
+    const pinpoint::SessionId session = m_captureSession ? m_captureSession() : pinpoint::SessionId();
+    if (!m_sessions || session.isNull()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — no session to record it in";
+        return false;
+    }
+    const pinpoint::SwingAllocation alloc = m_sessions->allocateSwing(session);
+    if (!alloc.ok()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << alloc.result.error;
         return false;
     }
 
-    return writeDeviceOnly(alloc.swingDir, reading, alloc.swingId, alloc.swingIndex,
-                           alloc.sessionId, /*existingShotId*/ -1, /*standalone*/ true);
+    return writeDeviceOnly(alloc.swingFolder, reading, alloc.swingName, alloc.shot.swingNumber(),
+                           alloc.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
 }
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)

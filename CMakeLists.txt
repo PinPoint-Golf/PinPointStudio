@@ -737,6 +737,8 @@ qt_add_executable(PinPointStudio
     # account with the password in the system's secure store (platform halves below).
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
     src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
+    src/Core/folder_lock.h                   # the advisory folder lock (R-PERS-6), taken by SessionStore from step 2.2
+    src/Core/folder_lock.cpp
     src/Coaching/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
@@ -2775,6 +2777,11 @@ target_sources(PinPointStudio PRIVATE
     src/Export/video_encoder.cpp
     src/Export/swing_paths.h
     src/Export/swing_paths.cpp
+    # The session's own files and the one swing allocator (refactor step 2.2): SessionRepository's
+    # adapter and the session files' names.
+    src/Export/session_store.h
+    src/Export/session_store.cpp
+    src/Export/session_files.h
     src/Export/frame_decode.h
     src/Export/frame_decode.cpp
     src/Export/swing_exporter.h
@@ -2922,6 +2929,7 @@ target_sources(PinPointStudio PRIVATE
     src/Identity/identity.h
     src/DomainModel/session_identity.h
     src/DomainModel/session_identity.cpp
+    src/DomainModel/session_repository.h
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h

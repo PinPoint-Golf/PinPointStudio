@@ -36,7 +36,7 @@
 4. [The Export Pipeline — Frame by Frame](#4-the-export-pipeline--frame-by-frame)
 5. [Resume Gating — the CameraManager Join](#5-resume-gating--the-cameramanager-join)
 6. [The `swing.json` Sidecar](#6-the-swingjson-sidecar)
-7. [On-Disk Layout — `SwingPaths`](#7-on-disk-layout--swingpaths)
+7. [On-Disk Layout — `SwingPaths`, the session file and `SessionRepository`](#7-on-disk-layout--swingpaths-the-session-file-and-sessionrepository)
 8. [The Encoder — `IVideoEncoder` / `FfmpegVideoEncoder`](#8-the-encoder--ivideoencoder--ffmpegvideoencoder)
 9. [Configuration — AppSettings Keys](#9-configuration--appsettings-keys)
 10. [Threading Model](#10-threading-model)
@@ -693,13 +693,15 @@ no longer tracks recency.
 
 ---
 
-## 7. On-Disk Layout — `SwingPaths`
+## 7. On-Disk Layout — `SwingPaths`, the session file and `SessionRepository`
 
 ```
 <athleteLibraryPath>/
   <athlete-name-sanitised>/            athlete level
     <session-folder>_NN/               session level — named by the naming pattern + per-day _NN
+      session.json                     the session file: id, athlete, type, status, times (step 2.2)
       .pinpoint-last-swing             the highest swing number ever issued (never reissued)
+      .pinpoint-lock                   the advisory lock, only while a write holds it
       swing_0001/
         <faceOnAlias>.mp4
         <dtlAlias>.mp4
@@ -725,21 +727,52 @@ under every naming pattern, and D3's name-based `SessionId`).
 | `swingFolders(sessionDir)` | the one `swing_*` listing of a session's swing folders |
 | `trashPath(path)` | the OS trash, or the library-local `.pinpoint-trash` on a volume without one |
 
-### Session allocation policy (moves to `SessionRepository` in step 2.2)
+### The session file — `session.json` (FILE-SESS-01; step 2.2)
 
-The instance half — `allocateSwingDir`, `findTodaySessionDir`, `beginSession`, `endSession` and the
-session cache behind them — is today's allocator. Between `beginSession()` and `endSession()` the
-session's folder is fixed (E-01): a rename, midnight, or a pattern/type change keeps it; only a
-library re-pointed mid-session moves it (logged). Outside a session the folder is allocated lazily on
-the first save and cached per `(library, athleteUuid, day, base)`; `NN` is the next counter. Step 2.2
-moves this into `SessionRepository` (the folder fixed at Start, D7 for a library change) and deletes
-it here.
+Written only by `SessionStore` (`src/Export/session_store.*`, the adapter of
+`src/DomainModel/session_repository.h`), whole, through `atomicWrite`, under the session folder's
+`FolderLock` held for that one write. The names are spelled once, in `SessionFiles`
+(`src/Export/session_files.h`).
+
+| Key | Meaning |
+|---|---|
+| `schema` | `"pinpoint.session/1"`, checked on read. A newer one is **read-only**: every write refuses it (`WriteResult::ReadOnly`); a file that cannot be parsed is never overwritten either |
+| `sessionId` | a random (v4) uuid minted at Start; for a session older than step 2, D3's v5 id (`SessionIdentity::legacySessionId`) |
+| `athleteId` | the athlete's uuid; absent when no athlete was selected. A file naming another athlete than the folder it sits in is logged, never re-owned |
+| `type` | by name (DEC-88): `swing`, `wrist`, `grf`, `coach`; absent for none |
+| `status` | `inProgress` / `ended` |
+| `startedAt`, `endedAt` | ISO 8601 UTC with milliseconds (`2026-11-15T10:04:05.123Z`). `endedAt` is absent while in progress, cleared on resume, and absent when the end is not known (a session a crash left in progress, ended by the athlete's next Start) |
+| `origin` | `{ "kind": "captured" }` at Start, or `{ "kind": "backfilled", "tool", "version", "at", "read" }` when the start had to be inferred (a session older than step 2 written for the first time by a resume: its start is its swing folders' earliest creation time; M2, step 2.8, writes the rest from the swings' capture times) |
+
+Keys this build does not know are kept on every rewrite. **A read never writes**: a session without a
+file is read from its folder's name in memory (`SessionIdentity::fromLegacyFolder`).
+
+### The session lifecycle — `SessionRepository` (step 2.2)
+
+| Call | Does | Caller (until step 3) |
+|---|---|---|
+| `start(owner, type, pattern)` | ends any other in-progress session of the athlete (one per athlete), names a new folder (`SwingPaths`, SET-04, the counter past any name taken), makes it, writes the file in progress. A file that cannot be written leaves no folder | `ShotProcessor::beginSessionFolder` (QML: the wizard's Start, the toolbar's Capture) |
+| `todaysSession(owner, type)` | the athlete's latest session **started today of that type** — a session-file session before a legacy one, then by start time, then its place in the day — the "extend" offer (MD-05: DEC-134) | `ShotProcessor::todaySessionDir` |
+| `resume(id, type)` | that session in progress again with **the same `SessionId`**; refused for any other day or type; any other in-progress session of the athlete ended first. A refused or failed resume starts a new session instead, and says so (the notice `session.resume.failed`) | `beginSessionFolder(type, extend = true)` |
+| `end(id, discardIfEmpty)` | ended, with `endedAt`. **The empty discard is unchanged** (DEC-93): only a session this run's `start` made, and only while it holds no `swing_*` folder, goes to the trash; a resumed session never does | `ShotProcessor::endSessionFolder` (a failed write is posted as the notice `session.file.failed`) |
+| `restartInLibrary(id, owner, pattern)` | **D7** (DEC-154): the library was re-pointed mid-session — the session ends (written if its folder is still reachable; else it stays in progress until the athlete's next Start there; a failed end of an old session whose folder is still there — a held lock, a read-only file — is posted as `session.file.failed`), an empty one is discarded as at End, and a new session of the same type starts under the new library. The club and the declared focus are `SessionController`'s and carry over; the focus applies from the new session's first shot | `ShotProcessor`, on `athleteLibraryPathChanged` |
+| `enumerate(owner)` | one typed `SessionIndexEntry` per session folder (identity, status, start/end, `hasSessionFile`, `readOnly`) with n-of-day by start time (MD-07: DEC-136). A folder is a session when it has a file, a name this app made, or a swing | `todaysSession` |
+| `allocateSwing(id)` | the next swing number (below), under the session's lock; a `ShotRef` and the folder | `ShotProcessor::buildSwingExportJob`, and `LaunchMonitorController`'s standalone shot — **one allocator** (D10: DEC-157), so a device-only shot goes into the running session, never a `…_session_NN` folder of its own |
+| `shots(id)`, `swingFolder(ref)`, `open(id)`, `openFolder(path, athlete)` | the identity map's reads. A copied session keeps its id (D3, or a copied file): re-read from another folder, the map takes the fresh folder, so a library re-pointed to a copy never hands out the old library's folder — except the session this run started and is still running, which keeps its own | (2.4 onwards) |
+
+**The folder is fixed for the session's life** (E-01): `allocateSwing` takes only the `SessionId`, so a
+rename, midnight or a changed pattern or type cannot move it; nothing relocates (D7). The 0.3 stopgap
+that announced a moved folder from `startSwingSave` is gone: `activeSessionDir` changes only when a
+session starts or ends. A session whose folder could not be made at Start is started by its first swing
+(as before), and a swing outside any session gets a session started on demand, kept while the athlete,
+library, day and type stay the same and never discarded.
 
 ### Swing allocation
 
 One past the highest number the session has ever issued — the highest `swing_*` folder present or
 the recorded `.pinpoint-last-swing`, whichever is higher — formatted by `swingFolderName`, probed
-upward past any collision, then created with `mkpath`. A trashed swing records its number on the way
+upward past any collision, then created with `mkpath` (`SessionStore::allocateSwing`, under the
+session's `FolderLock`; a lock held by another writer past 5 s refuses the allocation). A trashed swing records its number on the way
 out, so a deleted swing's number is never issued again (#56). The high-water file is written whole
 through the one atomic write (`src/Core/atomic_write.h`, into the existing session folder only).
 
@@ -1056,8 +1089,13 @@ src/Export/
 ├── frame_decode.h              DemosaicPlan / frameGeometry / decodeFrame — the
 ├── frame_decode.cpp              ONE decode path, shared with the analyzer (§3)
 │
-├── swing_paths.h               SwingPaths — the library's names (static) + today's
-├── swing_paths.cpp               session allocator (until step 2.2), sanitise()
+├── swing_paths.h               SwingPaths — the library's names (static), the one
+├── swing_paths.cpp               swing_* listing, sanitise(), trashPath()
+│
+├── session_store.h             SessionStore — SessionRepository's adapter: session.json,
+├── session_store.cpp             Start / resume / End, D7, enumerate, the one allocator (§7)
+├── session_files.h             SessionFiles — the session folder's own file names, and the
+│                                 swing counter's reader and writer (header-only)
 │
 ├── swing_exporter.h            SwingExportJob/Camera/Result, the stream structs,
 ├── swing_exporter.cpp            SwingExporter::run + analysisOnlyHeader(); per-camera
@@ -1183,6 +1221,20 @@ verdicts from this pass), the empty-document guard, `editReview`'s merge, `compl
 (rows current / stale / dry run), `convert` and the JSON-era sidecar, **every write refusing a
 newer document** (document schema or `analysisContext` block; the bytes unchanged), and
 `reanalyseAndPersist` with the analyzer stubbed.
+
+### `session_repository_test` — the session file and the one allocator (step 2.2)
+
+`src/Export/tests/session_repository_test.cpp` runs `SessionStore` on temp libraries: Start writes
+`session.json` with every key (a newer schema read-only and byte-identical after every refused write;
+unknown keys kept); the naming patterns; allocation, and a number never reissued after deletes, a
+restart or a trashed swing (these sections moved here from `swing_paths_test` with the allocator);
+resume keeps the `SessionId`, only for today's session of the same type; a legacy folder read with
+D3's id and never written by a read, its first write a backfilled file; one in-progress session per
+athlete; enumerate's typed entries and n-of-day under `name-date-type`; End and the empty discard,
+including the resumed morning session that must never be discarded; the folder fixed past midnight and
+a rename; D7 (a new session in the new library, the old ended, or left in progress when unreachable,
+or discarded when empty); a held `FolderLock` refusing the write. `swing_paths_test` keeps the names,
+`sanitise` and the trash.
 
 There is **no Export test project**. `swing_doc_test.cpp` lives in
 `src/Export/tests/` but is compiled by the **Analysis suite**
