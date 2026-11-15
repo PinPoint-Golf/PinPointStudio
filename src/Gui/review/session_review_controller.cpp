@@ -244,11 +244,16 @@ void SessionReviewController::loadSession(const QString &sessionId)
     // order, exactly as before; callers still find the session loaded when this returns.
     const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionId);
     pinpoint::RecordingRepository *repo = m_repo;
+    // The edge (DEC-90): each swing folder to its ShotRef HERE, on the GUI thread (the session is read
+    // into the identity map once; the rest find it held); the pool threads write by the ShotRef.
+    QList<QPair<QString, pinpoint::ShotRef>> swings;
+    for (const QString &sd : swingDirs)
+        swings.append({ sd, repo ? repo->shotOfFolder(sd) : pinpoint::ShotRef() });
     const QList<pinpoint::PersistedShot> parsed = QtConcurrent::blockingMapped(
-        swingDirs, [repo](const QString &sd) {
-            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
+        swings, [repo](const QPair<QString, pinpoint::ShotRef> &sw) {
+            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sw.first);
             if (ps.ok && repo)
-                repo->writeSummarySidecar(ps);
+                repo->writeSummarySidecar(sw.second, ps);
             return ps;
         });
 

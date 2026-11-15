@@ -33,4 +33,10 @@ ReanalyzeResult reanalyzeSwingDir(const QString & /*swingDir*/, const ReanalyzeO
     return {};   // ok == false; never observed by the seam test
 }
 
+ReanalyzeResult reanalyzeShot(pinpoint::RecordingReader & /*reader*/, const pinpoint::ShotRef & /*shot*/,
+                              const ReanalyzeOptions & /*opts*/)
+{
+    return {};   // the same, for the ShotRef door (step 2.4)
+}
+
 } // namespace pinpoint::analysis

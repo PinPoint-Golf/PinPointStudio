@@ -37,6 +37,7 @@
 #include "swing_doc.h"
 #include "swing_store.h"
 #include "swing_store_repository.h"   // the one door to the swing files
+#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
 
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -98,7 +99,8 @@ int main(int argc, char **argv)
         csvOut << "swing_dir,outcome,json_bytes,ppsw_bytes,ms,error\n";
     }
 
-    SwingStoreRecordingRepository repo;   // the composition root's one door
+    SessionStore                  sessions;         // names each swing's ShotRef (step 2.4)
+    SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
     int converted = 0, already = 0, failed = 0, pending = 0;
     qint64 jsonTotal = 0, ppswTotal = 0;
     QElapsedTimer total;
@@ -131,7 +133,8 @@ int main(int argc, char **argv)
 
             QElapsedTimer t;
             t.start();
-            const ConversionResult r = repo.convert(dir, /*deleteJson=*/!cli.isSet(optKeep));
+            // The tool's edge (DEC-90): each swing folder found to its ShotRef, once.
+            const ConversionResult r = repo.convert(repo.shotOfFolder(dir), /*deleteJson=*/!cli.isSet(optKeep));
             const qint64 ms = t.elapsed();
 
             QString outcome;

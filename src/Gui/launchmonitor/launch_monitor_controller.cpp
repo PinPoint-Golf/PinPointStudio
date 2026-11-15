@@ -467,7 +467,9 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
                  << ": no recording repository";
         return false;
     }
-    const pinpoint::WriteResult w = m_repo->create(swingDir, r, meta);
+    // The edge (DEC-90): the folder this shot was handed (its own allocation's, or a failed camera
+    // shot's on the rescue path) to its key, once.
+    const pinpoint::WriteResult w = m_repo->create(m_repo->shotOfFolder(swingDir), r, meta);
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << w.error;
         return false;
@@ -547,7 +549,8 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
     const pinpoint::WriteResult w =
-        m_repo ? m_repo->completeCapture(swingDir, r, captureClub, &clubReplaced) : pinpoint::WriteResult{};
+        m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(swingDir), r, captureClub, &clubReplaced)
+               : pinpoint::WriteResult{};
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
                  << (m_repo ? w.error : QStringLiteral("no recording repository"));
@@ -694,7 +697,8 @@ void LaunchMonitorController::flushUpdates()
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
 
-        const pinpoint::WriteResult w = m_repo ? m_repo->completeCapture(dir, r) : pinpoint::WriteResult{};
+        const pinpoint::WriteResult w =
+            m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(dir), r) : pinpoint::WriteResult{};
         if (!w.ok()) {
             ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
                      << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));

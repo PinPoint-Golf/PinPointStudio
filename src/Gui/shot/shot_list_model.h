@@ -29,6 +29,8 @@
 
 #include <functional>
 
+#include "../../Identity/identity.h"   // ShotRef (the row's key for the swing door, step 2.4)
+
 namespace pinpoint { class RecordingRepository; }
 
 // ShotListModel — the session-global list of captured shots, shared by every
@@ -270,6 +272,8 @@ private:
                                       // live shot; the role hands QML ONE JavaScript object per row
                                       // rather than a copy per read (see qml_payload.h)
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
+        pinpoint::ShotRef shot;       // the row's key for the swing door, from swingDir once (step 2.4;
+                                      // until step 4's selection carries it, rows still carry the folder)
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }
         QString      lmDevice;        // which device measured it (lm_device.h key); only reloaded shots carry it
@@ -287,6 +291,7 @@ public:
 private:
 
     int  rowForId(int id) const;
+    pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
     void persistReview(int row);   // write-through rating/note/club to swing.json
     void persistLmAnnotations(int row);   // write-through excluded/clubOverride
     pinpoint::RecordingRepository *m_repo = nullptr;

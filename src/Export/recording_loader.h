@@ -65,11 +65,19 @@ namespace pinpoint {
 LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOptions &opts = {});
 
 // THE ADAPTER of the domain's RecordingReader (src/DomainModel/recording_reader.h, step 1.5): the
-// swing store's reading of a Recording, i.e. loadRecording. The composition root holds one (each
-// tool's main) and hands it to the analysis service. Stateless.
+// swing store's reading of a Recording, i.e. loadRecording, keyed by the shot's ShotRef (step 2.4) —
+// the folder resolved through the SessionRepository it is made over (SessionRepository::swingFolder,
+// safe from any thread). The composition root holds one (each tool's main, the app's re-analysis) and
+// hands it to the analysis service. Stateless apart from that reference.
+class SessionRepository;
 class SwingStoreRecordingReader final : public RecordingReader {
 public:
-    LoadedRecording load(const QString &swingDir, const RecordingLoadOptions &options = {}) override;
+    explicit SwingStoreRecordingReader(SessionRepository &sessions) : m_sessions(&sessions) {}
+
+    LoadedRecording load(const ShotRef &shot, const RecordingLoadOptions &options = {}) override;
+
+private:
+    SessionRepository *m_sessions;
 };
 
 } // namespace pinpoint

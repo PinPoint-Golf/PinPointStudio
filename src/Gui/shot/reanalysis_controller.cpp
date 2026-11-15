@@ -69,10 +69,14 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
 
 bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
 {
-    if (!m_repo || !m_repo->isDeviceOnly(dir))
+    if (!m_repo)
+        return false;
+    // The edge (DEC-90): the queued folder to its ShotRef, on this (the owner) thread.
+    const pinpoint::ShotRef shot = m_repo->shotOfFolder(dir);
+    if (!m_repo->isDeviceOnly(shot))
         return false;
     const pinpoint::analysis::PersistedReanalysis p =
-        pinpoint::analysis::persistReanalysis(*m_repo, dir, nullptr, persistOptions());
+        pinpoint::analysis::persistReanalysis(*m_repo, shot, nullptr, persistOptions());
     if (p.ok()) {
         ++m_succeeded;
         emit reanalysed(dir);
@@ -120,9 +124,19 @@ void ReanalysisController::startNext()
     // onset v2 fixed that at source, so re-analysis follows the same span-bounded
     // two-pass path as a live shot. ReanalyzeOptions::fullWindow remains as an
     // escape hatch for SwingLab/debugging only.
-    m_watcher.setFuture(QtConcurrent::run([dir] {
+    // The edge (DEC-90): translated here, on the owner thread; the worker reads by the ShotRef, whose
+    // folder the session repository resolves from any thread.
+    m_currentShot = m_repo ? m_repo->shotOfFolder(dir) : pinpoint::ShotRef();
+    pinpoint::RecordingReader *reader = m_reader;
+    const pinpoint::ShotRef    shot   = m_currentShot;
+    m_watcher.setFuture(QtConcurrent::run([reader, shot] {
         pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-        return pinpoint::analysis::reanalyzeSwingDir(dir, pinpoint::analysis::ReanalyzeOptions{});
+        if (!reader) {
+            pinpoint::analysis::ReanalyzeResult none;
+            none.error = QStringLiteral("This shot couldn't be re-analysed: no swing reader is connected.");
+            return none;
+        }
+        return pinpoint::analysis::reanalyzeShot(*reader, shot, pinpoint::analysis::ReanalyzeOptions{});
     }));
 }
 
@@ -130,7 +144,9 @@ void ReanalysisController::onWorkerFinished()
 {
     const pinpoint::analysis::ReanalyzeResult r = m_watcher.result();
     const QString dir = m_current;
+    const pinpoint::ShotRef shot = m_currentShot;
     m_current.clear();
+    m_currentShot = {};
 
     if (!(r.ok && r.analysis.detail)) {
         ++m_failed;
@@ -156,7 +172,7 @@ void ReanalysisController::onWorkerFinished()
     // keypoints. An empty read (the folder was trashed mid-batch, a transient failure) writes
     // nothing: writing then would replace the whole document with only {schema, analysis}.
     const pinpoint::analysis::PersistedReanalysis p =
-        pinpoint::analysis::persistReanalysis(*m_repo, dir, &r, persistOptions());
+        pinpoint::analysis::persistReanalysis(*m_repo, shot, &r, persistOptions());
     if (p.ok()) {
         ++m_succeeded;
         emit reanalysed(dir);   // host refreshes the row in the active model

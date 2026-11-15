@@ -60,6 +60,8 @@ public:
 
     // The one door to the swing files (main.cpp's). Without one every write-back fails, loudly.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // The reading door the worker reads the shot through (step 2.4: by its ShotRef).
+    void setRecordingReader(pinpoint::RecordingReader *reader) { m_reader = reader; }
     // How a write-back is persisted, asked at each write (the "Save pose keypoints" setting can
     // change mid-batch). Unset: PersistOptions' defaults (pose kept).
     void setPersistOptions(std::function<pinpoint::PersistOptions()> options)
@@ -112,6 +114,8 @@ private:
     { return m_persistOptions ? m_persistOptions() : pinpoint::PersistOptions{}; }
 
     pinpoint::RecordingRepository             *m_repo = nullptr;
+    pinpoint::RecordingReader                 *m_reader = nullptr;
+    pinpoint::ShotRef                          m_currentShot;   // m_current's key, while in flight
     std::function<pinpoint::PersistOptions()>  m_persistOptions;
 
     QStringList m_queue;        // pending swing dirs

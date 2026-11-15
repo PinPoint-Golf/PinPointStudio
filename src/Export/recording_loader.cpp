@@ -18,6 +18,8 @@
 
 #include "recording_loader.h"
 
+#include "../DomainModel/session_repository.h"
+
 #include "recording_header.h"     // the analysisContext reader, the legacy context, the club review
 #include "swing_doc.h"            // analysisReadOriginUs — the one time-base guess
 #include "swing_store.h"          // the document, whichever format it is in
@@ -814,9 +816,18 @@ LoadedRecording loadRecording(const QString &swingDir, const RecordingLoadOption
     return out;
 }
 
-LoadedRecording SwingStoreRecordingReader::load(const QString &swingDir, const RecordingLoadOptions &options)
+LoadedRecording SwingStoreRecordingReader::load(const ShotRef &shot, const RecordingLoadOptions &options)
 {
+    const QString swingDir = shot.isNull() ? QString() : m_sessions->swingFolder(shot);
+    if (swingDir.isEmpty()) {
+        LoadedRecording none;
+        none.error = shot.isNull()
+                         ? QStringLiteral("no shot was named (its folder is not a swing of a known session)")
+                         : QStringLiteral("the shot %1 was not found: its session is not open").arg(shot.toString());
+        return none;
+    }
     return loadRecording(swingDir, options);
 }
+
 
 } // namespace pinpoint

@@ -57,6 +57,11 @@
 //   ctest --test-dir build/tests -R '^recording_repository_test$' --output-on-failure
 
 #include "../swing_store_repository.h"
+#include "../session_store.h"                    // a legacy ShotRef resolves (Test 15)
+#include "../session_files.h"
+#include "../athlete_files.h"                   // the owner of a legacy session (Test 20)
+#include "swing_doc_test_writes.h"               // testdoc::ref — the test's folder → ShotRef
+#include "../../DomainModel/session_identity.h"
 #include "../recording_header.h"                  // analysisContextJson (Test 12), the header (Test 14)
 #include "../swing_exporter.h"                    // SwingExportJob (Test 14)
 #include "../../Core/club_standards.h"            // standardClub (Test 12)
@@ -72,6 +77,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QTimeZone>
@@ -81,9 +87,9 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 // Stub — avoids linking swing_paths.cpp (and its logging deps), as swing_doc_test does.
-QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
 // THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeSwingDir, which needs the
 // whole pipeline. This test is about the write half, so the analysis it gets is the one set here.
@@ -97,6 +103,25 @@ ReanalyzeResult reanalyzeSwingDir(const QString &, const ReanalyzeOptions &)
     ++g_reanalysisCalls;
     return g_reanalysis;
 }
+ReanalyzeResult reanalyzeShot(RecordingReader &, const ShotRef &, const ReanalyzeOptions &)
+{
+    ++g_reanalysisCalls;
+    return g_reanalysis;
+}
+} // namespace pinpoint::analysis
+
+// The reading door the write-back is handed; the stubbed analysis never reads through it.
+namespace {
+struct NullReader final : pinpoint::RecordingReader {
+    // Never called (the analysis is the stub above), and never makes a LoadedRecording: that would pull
+    // the window's code into a test of the write half.
+    pinpoint::LoadedRecording load(const pinpoint::ShotRef &, const pinpoint::RecordingLoadOptions &) override
+    {
+        std::abort();
+    }
+} g_reader;
+}
+namespace pinpoint::analysis {
 } // namespace pinpoint::analysis
 
 using namespace pinpoint;
@@ -184,7 +209,7 @@ void testCreate(RecordingRepository &repo)
     rec.header     = cameraHeader();
     rec.analysis   = &a;
     rec.reviewClub = QStringLiteral("7 IRON");
-    const WriteResult w = repo.create(t.path(), rec);
+    const WriteResult w = repo.create(testdoc::ref(t.path()), rec);
     check(w.status == WriteResult::Status::Written && w.ok() && w.changed(), "the first write is Written");
     const QJsonObject root = doc(t.path());
     check(root.value(QStringLiteral("schema")).toString() == QLatin1String("pinpoint.swing/2"), "the schema stamped");
@@ -199,7 +224,7 @@ void testCreate(RecordingRepository &repo)
     QTemporaryDir t2;
     NewRecording bare;
     bare.header = cameraHeader();
-    check(repo.create(t2.path(), bare).ok(), "a header-only create");
+    check(repo.create(testdoc::ref(t2.path()), bare).ok(), "a header-only create");
     check(!doc(t2.path()).contains(QStringLiteral("review")), "no club: no review block");
     check(!doc(t2.path()).contains(QStringLiteral("analysis")), "no analysis: no analysis block");
 }
@@ -224,14 +249,14 @@ void testSavePose(RecordingRepository &repo)
     rec.analysis = &a;
     PersistOptions off;
     off.savePose = false;
-    check(repo.create(t.path(), rec, off).ok(), "create with savePose off");
+    check(repo.create(testdoc::ref(t.path()), rec, off).ok(), "create with savePose off");
     check(!hasPose(t.path()) && !hasPoseStamp(t.path()), "...no pose track and no pose stamp");
 
     AnalysisOutcome outcome;
     outcome.analysis = &a;
-    check(repo.writeAnalysis(t.path(), outcome, PersistOptions{}).ok(), "write-back with savePose on");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, PersistOptions{}).ok(), "write-back with savePose on");
     check(hasPose(t.path()) && hasPoseStamp(t.path()), "...the pose track and its stamp written");
-    check(repo.writeAnalysis(t.path(), outcome, off).ok(), "write-back with savePose off");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, off).ok(), "write-back with savePose off");
     check(!hasPose(t.path()) && !hasPoseStamp(t.path()),
           "...the pose track and its stamp dropped (re-analysis honours Save pose keypoints)");
 }
@@ -247,12 +272,12 @@ void testWriteAnalysis(RecordingRepository &repo)
     rec.header[QStringLiteral("captureIntegrity")] = QJsonObject{ { QStringLiteral("holes"), 3 } };
     rec.analysis   = &first;
     rec.reviewClub = QStringLiteral("DRIVER");
-    check(repo.create(t.path(), rec).ok(), "a captured shot");
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot");
     ReviewEdit e;
     e.rating = 4;
     e.note   = QStringLiteral("good tempo");
-    check(repo.editReview(t.path(), e).ok(), "rated and noted");
-    check(repo.completeCapture(t.path(), reading(92.0)).ok(), "a launch monitor reading folded in");
+    check(repo.editReview(testdoc::ref(t.path()), e).ok(), "rated and noted");
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(92.0)).ok(), "a launch monitor reading folded in");
     check(hasMetric(doc(t.path()), QStringLiteral("lm.clubheadSpeed")), "...its lm. row is in the analysis");
 
     const analysis::SwingAnalysis second = poseAnalysis(88);
@@ -263,7 +288,7 @@ void testWriteAnalysis(RecordingRepository &repo)
     AnalysisOutcome outcome;
     outcome.analysis     = &second;
     outcome.imuIntegrity = &imu;   // captureIntegrity nullptr: this pass reached no verdict
-    const WriteResult w = repo.writeAnalysis(t.path(), outcome);
+    const WriteResult w = repo.writeAnalysis(testdoc::ref(t.path()), outcome);
     check(w.status == WriteResult::Status::Written, "the write-back is Written");
     const QJsonObject root = doc(t.path());
     check(overallScoreFromAnalysis(root.value(QStringLiteral("analysis")).toObject()) == 88, "the analysis replaced");
@@ -282,7 +307,7 @@ void testWriteAnalysis(RecordingRepository &repo)
           "the capture-time capture verdict withdrawn (this pass reached none)");
     // The whole-shot gate records are appended once, in the writer: written twice, still one set.
     const QJsonArray gates1 = root.value(QStringLiteral("analysis")).toObject().value(QStringLiteral("gates")).toArray();
-    check(repo.writeAnalysis(t.path(), outcome).ok(), "the same write-back again");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome).ok(), "the same write-back again");
     const QJsonArray gates2 = doc(t.path()).value(QStringLiteral("analysis")).toObject()
                                   .value(QStringLiteral("gates")).toArray();
     check(gates1 == gates2, "the gate records do not accumulate");
@@ -296,13 +321,13 @@ void testEmptyDocumentGuard(RecordingRepository &repo)
     const analysis::SwingAnalysis a = poseAnalysis(50);
     AnalysisOutcome outcome;
     outcome.analysis = &a;
-    const WriteResult w = repo.writeAnalysis(t.path(), outcome);
+    const WriteResult w = repo.writeAnalysis(testdoc::ref(t.path()), outcome);
     check(w.status == WriteResult::Status::NoDocument && !w.ok() && !w.error.isEmpty(),
           "no document to read: NoDocument, with the reason");
     check(!SwingStore::hasDocument(t.path()), "...and no partial document was written");
     ReviewEdit e;
     e.rating = 3;
-    check(repo.editReview(t.path(), e).status == WriteResult::Status::NoDocument
+    check(repo.editReview(testdoc::ref(t.path()), e).status == WriteResult::Status::NoDocument
               && !SwingStore::hasDocument(t.path()),
           "a review edit on a folder with no document writes nothing");
 }
@@ -314,12 +339,12 @@ void testEditReview(RecordingRepository &repo)
     QTemporaryDir t;
     NewRecording rec;
     rec.header = cameraHeader();
-    check(repo.create(t.path(), rec).ok(), "a shot nobody reviewed");
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a shot nobody reviewed");
 
     ReviewEdit board;
     board.excluded     = true;
     board.clubOverride = QStringLiteral(" 7 IRON ");
-    check(repo.editReview(t.path(), board).status == WriteResult::Status::Written, "the board's annotations");
+    check(repo.editReview(testdoc::ref(t.path()), board).status == WriteResult::Status::Written, "the board's annotations");
     check(review(t.path()).value(QStringLiteral("excluded")).toBool()
               && review(t.path()).value(QStringLiteral("clubOverride")).toString() == QLatin1String("7 IRON")
               && !review(t.path()).contains(QStringLiteral("club")),
@@ -329,31 +354,31 @@ void testEditReview(RecordingRepository &repo)
     stars.rating = 9;
     stars.note   = QStringLiteral("n");
     stars.club   = QStringLiteral("DRIVER");
-    check(repo.editReview(t.path(), stars).ok(), "a rating edit");
+    check(repo.editReview(testdoc::ref(t.path()), stars).ok(), "a rating edit");
     check(review(t.path()).value(QStringLiteral("rating")).toInt() == 5, "the rating clamped to 5");
     check(review(t.path()).value(QStringLiteral("excluded")).toBool()
               && review(t.path()).value(QStringLiteral("clubOverride")).toString() == QLatin1String("7 IRON"),
           "a star rating never un-excludes the shot (merged, not replaced)");
 
     const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
-    check(repo.editReview(t.path(), board).status == WriteResult::Status::Unchanged,
+    check(repo.editReview(testdoc::ref(t.path()), board).status == WriteResult::Status::Unchanged,
           "the same annotations again: Unchanged");
     check(bytesOf(SwingStore::ppswPath(t.path())) == before, "...and the file was not rewritten");
-    check(repo.editReview(t.path(), stars).status == WriteResult::Status::Written,
+    check(repo.editReview(testdoc::ref(t.path()), stars).status == WriteResult::Status::Written,
           "the same rating again still rewrites (it always has: it re-indexes)");
 
     ReviewEdit clear;
     clear.excluded     = false;
     clear.clubOverride = QString();
-    check(repo.editReview(t.path(), clear).ok(), "the annotations cleared");
+    check(repo.editReview(testdoc::ref(t.path()), clear).ok(), "the annotations cleared");
     check(!review(t.path()).contains(QStringLiteral("excluded"))
               && !review(t.path()).contains(QStringLiteral("clubOverride"))
               && review(t.path()).value(QStringLiteral("club")).toString() == QLatin1String("DRIVER"),
           "their keys removed, the popover's fields kept");
 
     QTemporaryDir t2;
-    check(repo.create(t2.path(), rec).ok(), "another shot nobody reviewed");
-    check(repo.editReview(t2.path(), board).ok() && repo.editReview(t2.path(), clear).ok(),
+    check(repo.create(testdoc::ref(t2.path()), rec).ok(), "another shot nobody reviewed");
+    check(repo.editReview(testdoc::ref(t2.path()), board).ok() && repo.editReview(testdoc::ref(t2.path()), clear).ok(),
           "annotated, then cleared");
     check(!doc(t2.path()).contains(QStringLiteral("review")),
           "a block that held only annotations goes away when they are cleared");
@@ -369,12 +394,12 @@ void testCompleteCapture(RecordingRepository &repo)
     rec.header     = cameraHeader(QStringLiteral("DRIVER"));
     rec.analysis   = &a;
     rec.reviewClub = QStringLiteral("DRIVER");   // capture's seed
-    check(repo.create(t.path(), rec).ok(), "a captured shot, seeded with the session's club");
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot, seeded with the session's club");
 
     const QJsonObject premierClub{ { QStringLiteral("name"), QStringLiteral("7 IRON") },
                                    { QStringLiteral("lengthMm"), 940 } };
     bool replaced = false;
-    check(repo.completeCapture(t.path(), reading(85.0), premierClub, &replaced).ok() && replaced,
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), premierClub, &replaced).ok() && replaced,
           "a reading naming another club: follow-club replaces the captured club (IM-4)");
     const QJsonObject root = doc(t.path());
     check(root.value(QStringLiteral("capture")).toObject().value(QStringLiteral("club")).toObject()
@@ -388,9 +413,9 @@ void testCompleteCapture(RecordingRepository &repo)
     hand.rating = 0;
     hand.note   = QString();
     hand.club   = QStringLiteral("PW");
-    check(repo.editReview(t.path(), hand).ok(), "the golfer sets the club by hand");
+    check(repo.editReview(testdoc::ref(t.path()), hand).ok(), "the golfer sets the club by hand");
     const QJsonObject driverClub{ { QStringLiteral("name"), QStringLiteral("DRIVER") } };
-    check(repo.completeCapture(t.path(), reading(85.0), driverClub, &replaced).ok() && !replaced,
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(85.0), driverClub, &replaced).ok() && !replaced,
           "follow-club never replaces over a hand-set club");
 
     // A stream arrival: pending (no file), then landed.
@@ -398,7 +423,7 @@ void testCompleteCapture(RecordingRepository &repo)
     pending.alias            = QStringLiteral("phoneWide");
     pending.origin.transport = QStringLiteral("ppcp");
     pending.origin.transfer  = QStringLiteral("requested");
-    check(repo.completeCapture(t.path(), pending).ok(), "a clip asked for");
+    check(repo.completeCapture(testdoc::ref(t.path()), pending).ok(), "a clip asked for");
     const auto phone = [&t] {
         for (const QJsonValue &v : doc(t.path()).value(QStringLiteral("streams")).toArray())
             if (v.toObject().value(QStringLiteral("alias")).toString() == QLatin1String("phoneWide"))
@@ -413,14 +438,14 @@ void testCompleteCapture(RecordingRepository &repo)
     landed.frameTUs        = { 0, 4166, 8333 };
     landed.playbackFps     = 240.0;
     landed.framesClock     = QString::fromLatin1(SwingStore::kFramesClockClip);
-    check(repo.completeCapture(t.path(), landed).ok(), "the clip lands");
+    check(repo.completeCapture(testdoc::ref(t.path()), landed).ok(), "the clip lands");
     check(phone().value(QStringLiteral("file")).toString() == QLatin1String("phoneWide.mov")
               && phone().value(QStringLiteral("frames")).toObject().value(QStringLiteral("t_us")).toArray().size() == 3
               && !SwingStore::streamOnWindowClock(phone()),
           "...the same element names the file, its frames and their clock");
     check(doc(t.path()).value(QStringLiteral("streams")).toArray().size() == 2, "...one element, not two");
     StreamArrival noAlias;
-    check(repo.completeCapture(t.path(), noAlias).status == WriteResult::Status::Failed,
+    check(repo.completeCapture(testdoc::ref(t.path()), noAlias).status == WriteResult::Status::Failed,
           "an arrival with no alias is refused");
 }
 
@@ -436,14 +461,14 @@ void testDeviceOnly(RecordingRepository &repo)
     meta.athleteName = QStringLiteral("Test Golfer");
     meta.club        = QStringLiteral("7 IRON");
     meta.wallclockMs = 1794000000000;
-    check(repo.create(t.path(), reading(80.0), meta).ok(), "created from the reading alone");
-    check(repo.isDeviceOnly(t.path()), "isDeviceOnly");
+    check(repo.create(testdoc::ref(t.path()), reading(80.0), meta).ok(), "created from the reading alone");
+    check(repo.isDeviceOnly(testdoc::ref(t.path())), "isDeviceOnly");
     check(hasMetric(doc(t.path()), QStringLiteral("lm.clubheadSpeed")), "its lm. rows written");
-    check(repo.create(QTemporaryDir().path() + QStringLiteral("/x"), lm::LaunchMonitorReading{}, meta).status
+    check(repo.create(testdoc::ref(QTemporaryDir().path() + QStringLiteral("/x")), lm::LaunchMonitorReading{}, meta).status
               == WriteResult::Status::Failed,
           "a reading with no values is refused");
 
-    check(repo.writeAnalysis(t.path(), AnalysisOutcome{}).status == WriteResult::Status::Unchanged,
+    check(repo.writeAnalysis(testdoc::ref(t.path()), AnalysisOutcome{}).status == WriteResult::Status::Unchanged,
           "re-analysed: its rows are current, nothing written");
     // Make them stale: a document whose rows were written before a derivation existed.
     QJsonObject root = doc(t.path());
@@ -454,19 +479,19 @@ void testDeviceOnly(RecordingRepository &repo)
     const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
     PersistOptions dry;
     dry.dryRun = true;
-    check(repo.writeAnalysis(t.path(), AnalysisOutcome{}, dry).status == WriteResult::Status::Written,
+    check(repo.writeAnalysis(testdoc::ref(t.path()), AnalysisOutcome{}, dry).status == WriteResult::Status::Written,
           "a dry run says it WOULD write");
     check(bytesOf(SwingStore::ppswPath(t.path())) == before, "...and writes nothing");
-    check(repo.writeAnalysis(t.path(), AnalysisOutcome{}).status == WriteResult::Status::Written
+    check(repo.writeAnalysis(testdoc::ref(t.path()), AnalysisOutcome{}).status == WriteResult::Status::Written
               && hasMetric(doc(t.path()), QStringLiteral("lm.clubheadSpeed")),
           "re-analysed: the rows derived again from the recorded reading");
 
     QTemporaryDir camera;
     NewRecording rec;
     rec.header = cameraHeader();
-    check(repo.create(camera.path(), rec).ok() && !repo.isDeviceOnly(camera.path()),
+    check(repo.create(testdoc::ref(camera.path()), rec).ok() && !repo.isDeviceOnly(testdoc::ref(camera.path())),
           "a camera shot is not device-only");
-    check(!repo.isDeviceOnly(QTemporaryDir().path()), "nor is a folder with no document");
+    check(!repo.isDeviceOnly(testdoc::ref(QTemporaryDir().path())), "nor is a folder with no document");
 }
 
 // ── Test 8 ────────────────────────────────────────────────────────────────────────────────────
@@ -488,21 +513,21 @@ void testConvertAndSidecar(RecordingRepository &repo)
 
     const PersistedShot ps = SwingDocReader::readSwingJson(t.path());
     check(ps.ok, "a JSON-era swing reads");
-    check(repo.writeSummarySidecar(ps).status == WriteResult::Status::Written
+    check(repo.writeSummarySidecar(testdoc::ref(ps.swingDir), ps).status == WriteResult::Status::Written
               && QFile::exists(SwingStore::legacySummaryPath(t.path())),
           "its summary sidecar is written");
 
-    const ConversionResult c = repo.convert(t.path(), /*deleteJson=*/true);
+    const ConversionResult c = repo.convert(testdoc::ref(t.path()), /*deleteJson=*/true);
     check(c.outcome == ConversionResult::Outcome::Converted && c.jsonBytes > 0 && c.ppswBytes > 0,
           "converted, proven");
     check(SwingStore::info(t.path()).format == SwingStore::Format::Ppsw
               && !QFile::exists(SwingStore::jsonPath(t.path()))
               && !QFile::exists(SwingStore::legacySummaryPath(t.path())),
           "...swing.ppsw in place, the JSON and its sidecar gone");
-    check(repo.convert(t.path(), true).outcome == ConversionResult::Outcome::AlreadyConverted, "again: already");
-    check(repo.convert(QTemporaryDir().path(), true).outcome == ConversionResult::Outcome::NoDocument,
+    check(repo.convert(testdoc::ref(t.path()), true).outcome == ConversionResult::Outcome::AlreadyConverted, "again: already");
+    check(repo.convert(testdoc::ref(QTemporaryDir().path()), true).outcome == ConversionResult::Outcome::NoDocument,
           "no document: NoDocument");
-    check(repo.writeSummarySidecar(SwingDocReader::readSwingJson(t.path())).status
+    check(repo.writeSummarySidecar(testdoc::ref(t.path()), SwingDocReader::readSwingJson(t.path())).status
               == WriteResult::Status::Unchanged,
           "a swing.ppsw has no sidecar: Unchanged");
 }
@@ -525,35 +550,35 @@ void testReadOnlyRefused(RecordingRepository &repo)
         NewRecording rec;
         rec.header   = cameraHeader();
         rec.analysis = &a;
-        refused(repo.create(t.path(), rec), "create over it");
+        refused(repo.create(testdoc::ref(t.path()), rec), "create over it");
         DeviceOnlyMeta meta;
         meta.swingId = QStringLiteral("swing_0001");
-        refused(repo.create(t.path(), reading(80.0), meta), "a device-only create over it");
+        refused(repo.create(testdoc::ref(t.path()), reading(80.0), meta), "a device-only create over it");
         AnalysisOutcome outcome;
         outcome.analysis = &a;
-        refused(repo.writeAnalysis(t.path(), outcome), "writeAnalysis");
+        refused(repo.writeAnalysis(testdoc::ref(t.path()), outcome), "writeAnalysis");
         PersistOptions dry;
         dry.dryRun = true;
-        refused(repo.writeAnalysis(t.path(), outcome, dry), "a dry-run writeAnalysis");
-        refused(repo.writeAnalysis(t.path(), AnalysisOutcome{}), "writeAnalysis with no analysis (the rows)");
+        refused(repo.writeAnalysis(testdoc::ref(t.path()), outcome, dry), "a dry-run writeAnalysis");
+        refused(repo.writeAnalysis(testdoc::ref(t.path()), AnalysisOutcome{}), "writeAnalysis with no analysis (the rows)");
         ReviewEdit stars;
         stars.rating = 5;
-        refused(repo.editReview(t.path(), stars), "editReview (a rating)");
+        refused(repo.editReview(testdoc::ref(t.path()), stars), "editReview (a rating)");
         ReviewEdit board;
         board.excluded = true;
-        refused(repo.editReview(t.path(), board), "editReview (an annotation)");
+        refused(repo.editReview(testdoc::ref(t.path()), board), "editReview (an annotation)");
         bool replaced = true;
-        refused(repo.completeCapture(t.path(), reading(90.0), QJsonObject{ { QStringLiteral("name"), QStringLiteral("PW") } },
+        refused(repo.completeCapture(testdoc::ref(t.path()), reading(90.0), QJsonObject{ { QStringLiteral("name"), QStringLiteral("PW") } },
                                      &replaced),
                 "completeCapture (a reading)");
         check(!replaced, qPrintable(label + QStringLiteral(": ...and no club was replaced")));
         StreamArrival arrival;
         arrival.alias = QStringLiteral("phoneWide");
-        refused(repo.completeCapture(t.path(), arrival), "completeCapture (a stream arrival)");
+        refused(repo.completeCapture(testdoc::ref(t.path()), arrival), "completeCapture (a stream arrival)");
         AthleteRecordFacts facts;
         facts.heightM = 1.80;
-        refused(repo.backfillAnalysisContext(t.path(), facts), "backfillAnalysisContext");
-        refused(repo.backfillAnalysisContext(t.path(), facts, dry), "a dry-run backfillAnalysisContext");
+        refused(repo.backfillAnalysisContext(testdoc::ref(t.path()), facts), "backfillAnalysisContext");
+        refused(repo.backfillAnalysisContext(testdoc::ref(t.path()), facts, dry), "a dry-run backfillAnalysisContext");
     };
 
     QJsonObject newerSchema = cameraHeader();
@@ -569,7 +594,7 @@ void testReadOnlyRefused(RecordingRepository &repo)
     QTemporaryDir j;
     writeJsonDoc(j.path(), newerSchema);
     const QByteArray json = bytesOf(SwingStore::jsonPath(j.path()));
-    const ConversionResult c = repo.convert(j.path(), true);
+    const ConversionResult c = repo.convert(testdoc::ref(j.path()), true);
     check(c.outcome == ConversionResult::Outcome::Failed && !c.error.isEmpty(), "convert of a newer JSON document: Failed");
     check(bytesOf(SwingStore::jsonPath(j.path())) == json && !QFile::exists(SwingStore::ppswPath(j.path())),
           "...the JSON untouched, no swing.ppsw written");
@@ -579,7 +604,7 @@ void testReadOnlyRefused(RecordingRepository &repo)
     check(SwingStore::save(ok.path(), cameraHeader()), "a document of this build's schema");
     ReviewEdit stars;
     stars.rating = 2;
-    check(repo.editReview(ok.path(), stars).status == WriteResult::Status::Written, "...is written");
+    check(repo.editReview(testdoc::ref(ok.path()), stars).status == WriteResult::Status::Written, "...is written");
 }
 
 // ── Test 10 ───────────────────────────────────────────────────────────────────────────────────
@@ -594,7 +619,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     rec.header[QStringLiteral("imuIntegrity")] = QJsonObject{ { QStringLiteral("sourcesChecked"), 2 } };
     rec.analysis   = &captured;
     rec.reviewClub = QStringLiteral("DRIVER");
-    check(repo.create(t.path(), rec).ok(), "a captured shot");
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot");
 
     g_reanalysis = ReanalyzeResult{};
     g_reanalysis.ok = true;
@@ -606,7 +631,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     PersistOptions off;
     off.savePose = false;
     g_reanalysisCalls = 0;
-    const PersistedReanalysis p = reanalyseAndPersist(repo, t.path(), off);
+    const PersistedReanalysis p = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), off);
     check(g_reanalysisCalls == 1 && p.ok() && p.analysed && !p.deviceOnly && p.score == 91, "re-analysed and persisted");
     const QJsonObject root = doc(t.path());
     check(overallScoreFromAnalysis(root.value(QStringLiteral("analysis")).toObject()) == 91, "the new analysis on disk");
@@ -619,7 +644,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     g_reanalysis = ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no frames");
     const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
-    const PersistedReanalysis failed = reanalyseAndPersist(repo, t.path(), PersistOptions{});
+    const PersistedReanalysis failed = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
     check(!failed.ok() && !failed.analysed && failed.analysisError == QLatin1String("no frames")
               && bytesOf(SwingStore::ppswPath(t.path())) == before,
           "an analysis that fails writes nothing");
@@ -627,9 +652,9 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     QTemporaryDir lmOnly;
     DeviceOnlyMeta meta;
     meta.swingId = QStringLiteral("swing_0002");
-    check(repo.create(lmOnly.path(), reading(70.0), meta).ok(), "a launch-monitor-only shot");
+    check(repo.create(testdoc::ref(lmOnly.path()), reading(70.0), meta).ok(), "a launch-monitor-only shot");
     g_reanalysisCalls = 0;
-    const PersistedReanalysis d = reanalyseAndPersist(repo, lmOnly.path(), PersistOptions{});
+    const PersistedReanalysis d = reanalyseAndPersist(repo, g_reader, testdoc::ref(lmOnly.path()), PersistOptions{});
     check(d.ok() && d.deviceOnly && g_reanalysisCalls == 0 && d.write.status == WriteResult::Status::Unchanged,
           "...is not analysed: its rows are checked (current, Unchanged)");
 
@@ -637,7 +662,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     ReanalyzeResult r;
     r.ok = true;
     r.analysis.detail = std::make_shared<SwingAnalysis>(poseAnalysis(10));
-    const PersistedReanalysis g = persistReanalysis(repo, gone.path(), &r, PersistOptions{});
+    const PersistedReanalysis g = persistReanalysis(repo, testdoc::ref(gone.path()), &r, PersistOptions{});
     check(!g.ok() && g.analysed && g.write.status == WriteResult::Status::NoDocument
               && !SwingStore::hasDocument(gone.path()),
           "the document went missing mid-batch: NoDocument, nothing written");
@@ -676,7 +701,7 @@ void testPoseReuseKeepsKeypoints(RecordingRepository &repo)
     NewRecording rec;
     rec.header   = cameraHeader();
     rec.analysis = &captured;
-    check(repo.create(t.path(), rec).ok(), "a captured shot with a face-on and a DTL pose");
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "a captured shot with a face-on and a DTL pose");
     const QJsonObject pose0 = block(t.path(), "pose2d"), dtl0 = block(t.path(), "poseDtl");
     const QJsonObject poseStamp0 = stamp(t.path(), "pose"), dtlStamp0 = stamp(t.path(), "poseDtl");
     check(!pose0.isEmpty() && !dtl0.isEmpty() && !poseStamp0.isEmpty() && !dtlStamp0.isEmpty(),
@@ -691,7 +716,7 @@ void testPoseReuseKeepsKeypoints(RecordingRepository &repo)
     reused.path.reuse.insert(QStringLiteral("pose"), QStringLiteral("reused"));
     reused.path.reuse.insert(QStringLiteral("poseDtl"), QStringLiteral("reused"));
     outcome.analysis = &reused;
-    check(repo.writeAnalysis(t.path(), outcome, off).ok(), "a re-analysis that reused both poses, setting off");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, off).ok(), "a re-analysis that reused both poses, setting off");
     check(block(t.path(), "pose2d") == pose0 && block(t.path(), "poseDtl") == dtl0,
           "...both tracks written back byte-equal: never deleted");
     check(stamp(t.path(), "pose") == poseStamp0 && stamp(t.path(), "poseDtl") == dtlStamp0,
@@ -705,7 +730,7 @@ void testPoseReuseKeepsKeypoints(RecordingRepository &repo)
     mixed.path.reuse.insert(QStringLiteral("pose"), QStringLiteral("reused"));
     mixed.path.reuse.insert(QStringLiteral("poseDtl"), QStringLiteral("version 1, want 2"));
     outcome.analysis = &mixed;
-    check(repo.writeAnalysis(t.path(), outcome, off).ok(), "a re-analysis that re-inferred the DTL pose, setting off");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, off).ok(), "a re-analysis that re-inferred the DTL pose, setting off");
     check(block(t.path(), "pose2d") == pose0, "...the reused face-on track kept byte-equal");
     check(block(t.path(), "poseDtl").isEmpty() && stamp(t.path(), "poseDtl").isEmpty(),
           "...the newly inferred DTL track not written, and the superseded one gone with its stamp");
@@ -715,14 +740,14 @@ void testPoseReuseKeepsKeypoints(RecordingRepository &repo)
     fresh.path.reuse.insert(QStringLiteral("pose"), QStringLiteral("version 1, want 2"));
     fresh.path.reuse.insert(QStringLiteral("poseDtl"), QStringLiteral("no record"));
     outcome.analysis = &fresh;
-    check(repo.writeAnalysis(t.path(), outcome, PersistOptions{}).ok(), "a re-analysis that re-inferred both, setting on");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, PersistOptions{}).ok(), "a re-analysis that re-inferred both, setting on");
     const QJsonObject pose1 = block(t.path(), "pose2d");
     check(!pose1.isEmpty() && pose1 != pose0 && !block(t.path(), "poseDtl").isEmpty(),
           "...the newly inferred tracks written");
 
     // Re-inferred, setting OFF: the new keypoints are not kept, and the superseded ones go.
     outcome.analysis = &fresh;
-    check(repo.writeAnalysis(t.path(), outcome, off).ok(), "the same re-inference, setting off");
+    check(repo.writeAnalysis(testdoc::ref(t.path()), outcome, off).ok(), "the same re-inference, setting off");
     check(block(t.path(), "pose2d").isEmpty() && block(t.path(), "poseDtl").isEmpty()
               && stamp(t.path(), "pose").isEmpty() && stamp(t.path(), "poseDtl").isEmpty(),
           "...no pose and no pose stamps (as a live shot with the setting off)");
@@ -761,20 +786,20 @@ void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
     meta.swingIndex = 4;
     meta.sessionId = QStringLiteral("2026-11-14_session_01");
     meta.club = QStringLiteral("7 IRON");
-    check(repo.create(t.path(), r, meta).ok(), "a device-only shot, declared 7 iron");
+    check(repo.create(testdoc::ref(t.path()), r, meta).ok(), "a device-only shot, declared 7 iron");
     const double lp7 = lowPointOf(t.path());
     check(near(lp7, expectedLowPoint(-4.0, QStringLiteral("7 IRON"), ClubSet::Men)),
           "...its low point from the declared 7 iron's standard length (as before)");
     ReviewEdit board;
     board.clubOverride = QStringLiteral("PITCHING WEDGE");
-    check(repo.editReview(t.path(), board).ok(), "corrected on the board to a pitching wedge");
+    check(repo.editReview(testdoc::ref(t.path()), board).ok(), "corrected on the board to a pitching wedge");
     // Make the rows stale so the re-analysis derives them again (an edit of the review rewrites none).
     QJsonObject root = doc(t.path());
     QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
     an[QStringLiteral("metrics")] = QJsonArray{};
     root[QStringLiteral("analysis")] = an;
     check(SwingStore::save(t.path(), root), "its rows emptied");
-    check(repo.writeAnalysis(t.path(), AnalysisOutcome{}).status == WriteResult::Status::Written,
+    check(repo.writeAnalysis(testdoc::ref(t.path()), AnalysisOutcome{}).status == WriteResult::Status::Written,
           "re-analysed: the rows derived again");
     const double lpPw = lowPointOf(t.path());
     check(near(lpPw, expectedLowPoint(-4.0, QStringLiteral("PITCHING WEDGE"), ClubSet::Men)) && !near(lpPw, lp7),
@@ -793,8 +818,8 @@ void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
     rec.header[QStringLiteral("analysisContext")] = analysisContextJson(ctx);
     const analysis::SwingAnalysis a = poseAnalysis(50);   // the rows go into an analysis block
     rec.analysis = &a;
-    check(repo.create(w.path(), rec).ok(), "a camera shot, women's set recorded");
-    check(repo.completeCapture(w.path(), r).ok(), "a reading folded in");
+    check(repo.create(testdoc::ref(w.path()), rec).ok(), "a camera shot, women's set recorded");
+    check(repo.completeCapture(testdoc::ref(w.path()), r).ok(), "a reading folded in");
     const double lpW = lowPointOf(w.path());
     check(near(lpW, expectedLowPoint(-4.0, QStringLiteral("7 IRON"), ClubSet::Women)) && !near(lpW, lp7),
           "...its low point from the women's 7 iron");
@@ -825,10 +850,10 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     AthleteRecordFacts jess;
     jess.heightM = 1.60;
     jess.sex     = QStringLiteral("female");
-    const WriteResult d = repo.backfillAnalysisContext(t.path(), jess, dry);
+    const WriteResult d = repo.backfillAnalysisContext(testdoc::ref(t.path()), jess, dry);
     check(d.status == WriteResult::Status::Written && bytesOf(SwingStore::ppswPath(t.path())) == before,
           "a dry run says Written (would be) and leaves the bytes as they were");
-    check(repo.backfillAnalysisContext(t.path(), jess).status == WriteResult::Status::Written, "the backfill is Written");
+    check(repo.backfillAnalysisContext(testdoc::ref(t.path()), jess).status == WriteResult::Status::Written, "the backfill is Written");
     const QJsonObject b = ctxBlock(t.path());
     const QJsonObject ba = b.value(QStringLiteral("athlete")).toObject();
     const QJsonObject bc = b.value(QStringLiteral("club")).toObject();
@@ -846,7 +871,7 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     const AnalysisContextRead read = readAnalysisContext(doc(t.path()));
     check(read.recorded && !read.readOnly && read.context.clubSet == ClubSet::Women, "...read back as the recorded context");
     const QByteArray after = bytesOf(SwingStore::ppswPath(t.path()));
-    check(repo.backfillAnalysisContext(t.path(), jess).status == WriteResult::Status::Unchanged
+    check(repo.backfillAnalysisContext(testdoc::ref(t.path()), jess).status == WriteResult::Status::Unchanged
               && bytesOf(SwingStore::ppswPath(t.path())) == after,
           "again: Unchanged, a recorded block is never rewritten");
 
@@ -857,7 +882,7 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     ath[QStringLiteral("heightM")] = 1.75;
     withHeight[QStringLiteral("athlete")] = ath;
     check(SwingStore::save(h.path(), withHeight), "a shot whose document recorded a height");
-    check(repo.backfillAnalysisContext(h.path(), jess).ok()
+    check(repo.backfillAnalysisContext(testdoc::ref(h.path()), jess).ok()
               && ctxBlock(h.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("heightM")).toDouble() == 1.75,
           "...keeps its own 1.75 m, not the record's");
 
@@ -867,7 +892,7 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     const QByteArray nb = bytesOf(SwingStore::ppswPath(n.path()));
     AthleteRecordFacts nothing;
     nothing.sex = QStringLiteral("male");
-    check(repo.backfillAnalysisContext(n.path(), nothing).status == WriteResult::Status::Unchanged
+    check(repo.backfillAnalysisContext(testdoc::ref(n.path()), nothing).status == WriteResult::Status::Unchanged
               && bytesOf(SwingStore::ppswPath(n.path())) == nb,
           "facts that add nothing: Unchanged, no block frozen at \"unknown\"");
 
@@ -878,7 +903,7 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     junior.heightM = 1.50;
     junior.sex     = QStringLiteral("male");
     junior.dobIso  = QStringLiteral("2009-06-01");
-    check(repo.backfillAnalysisContext(j.path(), junior).ok()
+    check(repo.backfillAnalysisContext(testdoc::ref(j.path()), junior).ok()
               && ctxBlock(j.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("clubSet")).toString()
                      == QLatin1String("junior")
               && ctxBlock(j.path()).value(QStringLiteral("club")).toObject().value(QStringLiteral("standardLengthMm")).toDouble()
@@ -892,14 +917,14 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
     clock[QStringLiteral("wallclock")] = QStringLiteral("2027-06-02T09:00:00.000Z");
     noSession[QStringLiteral("clock")] = clock;
     check(SwingStore::save(w.path(), noSession), "a shot with no session folder, captured 2 Jun 2027");
-    check(repo.backfillAnalysisContext(w.path(), junior).ok()
+    check(repo.backfillAnalysisContext(testdoc::ref(w.path()), junior).ok()
               && ctxBlock(w.path()).value(QStringLiteral("athlete")).toObject().value(QStringLiteral("clubSet")).toString()
                      == QLatin1String("men"),
           "...18 on its wallclock date: the men's set");
 
     // No document: NoDocument, nothing created.
     QTemporaryDir e;
-    check(repo.backfillAnalysisContext(e.path(), jess).status == WriteResult::Status::NoDocument
+    check(repo.backfillAnalysisContext(testdoc::ref(e.path()), jess).status == WriteResult::Status::NoDocument
               && !SwingStore::hasDocument(e.path()),
           "no document: NoDocument, nothing written");
 }
@@ -922,19 +947,19 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
     rec.header   = recordingHeaderJson(recordingHeaderFor(job, 5'000'000, 3'000'000), QJsonArray{});
     rec.analysis = &captured;
     QTemporaryDir t;
-    check(repo.create(t.path(), rec).ok(), "an analysis-only shot");
-    check(!doc(t.path()).contains(QStringLiteral("shotKind")) && !repo.isDeviceOnly(t.path()),
+    check(repo.create(testdoc::ref(t.path()), rec).ok(), "an analysis-only shot");
+    check(!doc(t.path()).contains(QStringLiteral("shotKind")) && !repo.isDeviceOnly(testdoc::ref(t.path())),
           "no kind written; not device-only (no reading yet), as today");
 
-    check(repo.completeCapture(t.path(), reading(80.0), QJsonObject{}, nullptr).ok(), "a late reading lands");
+    check(repo.completeCapture(testdoc::ref(t.path()), reading(80.0), QJsonObject{}, nullptr).ok(), "a late reading lands");
     const QJsonObject withLm = doc(t.path());
     const bool today = withLm.value(QStringLiteral("streams")).toArray().isEmpty()
                     && !withLm.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
-    check(today && repo.isDeviceOnly(t.path()) && hasMetric(withLm, QStringLiteral("lm.clubheadSpeed")),
+    check(today && repo.isDeviceOnly(testdoc::ref(t.path())) && hasMetric(withLm, QStringLiteral("lm.clubheadSpeed")),
           "now device-only by today's content rule, its lm. rows written");
 
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis p = analysis::reanalyseAndPersist(repo, t.path(), PersistOptions{});
+    const analysis::PersistedReanalysis p = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
     check(p.ok() && p.deviceOnly && !p.analysed && g_reanalysisCalls == 0
               && p.write.status == WriteResult::Status::Unchanged,
           "re-analysis: not analysed, its launch monitor rows checked (current) — as today");
@@ -946,20 +971,20 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
     QTemporaryDir rescue;
     DeviceOnlyMeta meta;
     meta.swingId = QStringLiteral("swing_0004");   // standalone false: the rescue
-    check(repo.create(rescue.path(), reading(75.0), meta).ok(), "a rescued device-only document");
-    check(!doc(rescue.path()).contains(QStringLiteral("shotKind")) && repo.isDeviceOnly(rescue.path()),
+    check(repo.create(testdoc::ref(rescue.path()), reading(75.0), meta).ok(), "a rescued device-only document");
+    check(!doc(rescue.path()).contains(QStringLiteral("shotKind")) && repo.isDeviceOnly(testdoc::ref(rescue.path())),
           "the rescue records no kind; device-only by the content rule, as today");
     StreamArrival clip;
     clip.alias            = QStringLiteral("phoneWide");
     clip.origin.transport = QStringLiteral("ppcp");
     clip.origin.transfer  = QStringLiteral("requested");
-    check(repo.completeCapture(rescue.path(), clip).ok(), "the phone clip joins it");
-    check(!repo.isDeviceOnly(rescue.path()) && !doc(rescue.path()).contains(QStringLiteral("shotKind")),
+    check(repo.completeCapture(testdoc::ref(rescue.path()), clip).ok(), "the phone clip joins it");
+    check(!repo.isDeviceOnly(testdoc::ref(rescue.path())) && !doc(rescue.path()).contains(QStringLiteral("shotKind")),
           "now it has a stream: captured, as today");
     g_reanalysis = analysis::ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no video streams in swing.json");   // the clip has not landed
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis r = analysis::reanalyseAndPersist(repo, rescue.path(), PersistOptions{});
+    const analysis::PersistedReanalysis r = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(rescue.path()), PersistOptions{});
     check(g_reanalysisCalls == 1 && !r.deviceOnly,
           "re-analysis takes the capture path (the analyzer is called), as today");
 
@@ -968,16 +993,241 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
     DeviceOnlyMeta own;
     own.swingId    = QStringLiteral("swing_0005");
     own.standalone = true;
-    check(repo.create(standalone.path(), reading(75.0), own).ok()
+    check(repo.create(testdoc::ref(standalone.path()), reading(75.0), own).ok()
               && doc(standalone.path()).value(QStringLiteral("shotKind")).toString() == QLatin1String("deviceOnly")
-              && repo.isDeviceOnly(standalone.path()),
+              && repo.isDeviceOnly(testdoc::ref(standalone.path())),
           "a standalone device-only shot records shotKind \"deviceOnly\"");
+}
+
+// ── Test 15 (step 2.4) ────────────────────────────────────────────────────────────────────────
+// A ShotRef of a session older than step 2 (no session.json) resolves: D3's derived id (DEC-150),
+// through the REAL session repository, from the athlete the caller names or, with none, the athlete the
+// swing itself records. A fresh process (a tool) names the same shot the same way.
+void testLegacyShotRefResolves()
+{
+    std::printf("[Test 15] a legacy session's ShotRef resolves (D3)\n");
+    QTemporaryDir lib;
+    const AthleteId athlete = AthleteId::fromString(u"3f2c8a4e-1b7d-4c9a-9e21-6a0d5c1b2a10");
+    const QString   name    = QStringLiteral("2026-06-11_Mark-Liversedge_Wrist_01");
+    const QString   session = lib.path() + QStringLiteral("/Mark-Liversedge/") + name;
+    const QString   swing   = session + QStringLiteral("/swing_0003");
+    check(QDir().mkpath(swing), "a legacy session folder, no session.json, one swing folder");
+
+    SessionStore                  sessions;
+    SwingStoreRecordingRepository repo(sessions);
+    const ShotRef ref = repo.shotOfFolder(swing, athlete);
+    check(!ref.isNull() && ref.session() == SessionIdentity::legacySessionId(athlete, name) && ref.swingNumber() == 3,
+          "its ShotRef: D3's id from the athlete and the folder's name, swing 3");
+    check(QDir::cleanPath(repo.swingFolder(ref)) == QDir::cleanPath(swing), "the ShotRef resolves to its folder");
+
+    NewRecording rec;
+    rec.header = cameraHeader();
+    rec.header[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("name"), QStringLiteral("Mark") },
+                                                         { QStringLiteral("uuid"), athlete.toString() } };
+    check(repo.create(ref, rec).ok() && SwingStore::hasDocument(swing), "create by the ShotRef writes its folder");
+    check(!QFileInfo::exists(SessionFiles::sessionFile(session)), "and writes no session file (a read never does)");
+
+    // Another process — a tool given the path — with no athlete of its own: the swing records it.
+    SessionStore                  toolSessions;
+    SwingStoreRecordingRepository tool(toolSessions);
+    const ShotRef again = tool.shotOfFolder(swing);
+    check(again == ref, "a fresh store with no athlete names the same ShotRef (the swing's own athlete.uuid)");
+    ReviewEdit stars;
+    stars.rating = 4;
+    check(tool.editReview(again, stars).ok() && review(swing).value(QStringLiteral("rating")).toInt() == 4,
+          "and writes the same shot through it");
+
+    // A session WITH a session file: its file's id, whatever the athlete.
+    const SessionStartResult s = sessions.start({ athlete, QStringLiteral("Mark Liversedge"), lib.path() },
+                                                QStringLiteral("swing"), QStringLiteral("date-name-type"));
+    const SwingAllocation a = sessions.allocateSwing(s.id);
+    check(a.ok() && tool.shotOfFolder(a.swingFolder) == a.shot,
+          "a session with a session.json: the allocation's ShotRef, read back from the folder by another store");
+    check(repo.shotOfFolder(session).isNull() && repo.shotOfFolder(QString()).isNull(),
+          "a folder that is not a swing folder has no ShotRef");
+}
+
+// ── Test 16 (step 2.4) ────────────────────────────────────────────────────────────────────────
+// The markup truth (FILE-SHOT-12) through the door: both views round-trip, written atomically and
+// indented, and a shot with none reads {}.
+void testTruthRoundTrip(RecordingRepository &repo)
+{
+    std::printf("[Test 16] the markup truth round trip\n");
+    QTemporaryDir t;
+    const ShotRef ref = testdoc::ref(t.path());
+    check(repo.truth(ref, TruthView::FaceOn).isEmpty(), "a shot with no truth reads {}");
+    const QJsonObject face{
+        { QStringLiteral("shaft"), QJsonArray{ QJsonObject{ { QStringLiteral("t_us"), 1000 },
+                                                            { QStringLiteral("grip"), QJsonArray{ 10.5, 20.25 } },
+                                                            { QStringLiteral("head"), QJsonArray{ 30.0, 40.0 } } } } },
+        { QStringLiteral("events"), QJsonObject{ { QStringLiteral("t0_us"), 0 }, { QStringLiteral("p7_s"), 1.25 } } } };
+    const QJsonObject dtl{ { QStringLiteral("view"), QStringLiteral("DownTheLine") },
+                           { QStringLiteral("frame"), QJsonObject{ { QStringLiteral("w"), 512 }, { QStringLiteral("h"), 1024 } } },
+                           { QStringLiteral("shaft"), QJsonArray{} } };
+    check(repo.writeTruth(ref, TruthView::FaceOn, face).status == WriteResult::Status::Written, "face-on truth written");
+    check(repo.writeTruth(ref, TruthView::DownTheLine, dtl).status == WriteResult::Status::Written, "DTL truth written");
+    check(repo.truth(ref, TruthView::FaceOn) == face, "face-on reads back identical");
+    check(repo.truth(ref, TruthView::DownTheLine) == dtl, "DTL reads back identical, from its own file");
+    check(bytesOf(t.path() + QStringLiteral("/truth.json")) == QJsonDocument(face).toJson(QJsonDocument::Indented)
+              && QFileInfo::exists(t.path() + QStringLiteral("/truth_dtl.json")),
+          "truth.json is the indented JSON the markup tool always wrote; truth_dtl.json beside it");
+    check(QDir(t.path()).entryList(QDir::Files).size() == 2, "no temporary file left behind (atomic write)");
+
+    QTemporaryDir gone;
+    const ShotRef g = testdoc::ref(gone.path() + QStringLiteral("/swing_0001"));   // never made
+    check(repo.writeTruth(g, TruthView::FaceOn, face).status == WriteResult::Status::Failed
+              && !QFileInfo::exists(gone.path() + QStringLiteral("/swing_0001")),
+          "a folder that is not there is not made again around a lone truth file");
+}
+
+// ── Test 17 (step 2.4) ────────────────────────────────────────────────────────────────────────
+// The archive's stub (FILE-SHOT-10) through the door: written as given, a read-only document refused.
+void testArchiveStub(RecordingRepository &repo)
+{
+    std::printf("[Test 17] the archive stub through the door\n");
+    QTemporaryDir t;
+    const ShotRef ref = testdoc::ref(t.path());
+    const analysis::SwingAnalysis a = poseAnalysis(66);
+    NewRecording rec;
+    rec.header   = cameraHeader();
+    rec.analysis = &a;
+    check(repo.create(ref, rec).ok(), "a captured shot");
+    QJsonObject stub = doc(t.path());
+    QJsonObject an   = stub.value(QStringLiteral("analysis")).toObject();
+    an.remove(QStringLiteral("pose2d"));
+    stub.insert(QStringLiteral("analysis"), an);
+    stub.insert(QStringLiteral("archive"), QJsonObject{ { QStringLiteral("location"), QStringLiteral("/archive/x") } });
+    check(repo.writeArchiveStub(ref, stub).status == WriteResult::Status::Written, "the stub is written");
+    const QJsonObject back = doc(t.path());
+    check(back == stub, "and the document IS the stub, as given (no summary rebuilt)");
+
+    QTemporaryDir n;
+    QJsonObject newer = cameraHeader();
+    newer[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/99");
+    check(SwingStore::save(n.path(), newer), "a document saved by a newer build");
+    const QByteArray before = bytesOf(SwingStore::ppswPath(n.path()));
+    QJsonObject newerStub = newer;
+    newerStub.insert(QStringLiteral("archive"), QJsonObject{});
+    const WriteResult w = repo.writeArchiveStub(testdoc::ref(n.path()), newerStub);
+    check(w.status == WriteResult::Status::ReadOnly && bytesOf(SwingStore::ppswPath(n.path())) == before,
+          "a newer build's document is never thinned (ReadOnly, bytes unchanged)");
+    QTemporaryDir empty;
+    check(repo.writeArchiveStub(testdoc::ref(empty.path()), stub).status == WriteResult::Status::NoDocument,
+          "no document: nothing to stub (NoDocument)");
+}
+
+// ── Test 18 (step 2.4) ────────────────────────────────────────────────────────────────────────
+// The two new review keys (IM-S2-3: shotIntent, labelCorrections): written, read back, removed when
+// set back to none; a document older than them reads as none.
+void testReviewGolferInput(RecordingRepository &repo)
+{
+    std::printf("[Test 18] the shot's golfer input on its review\n");
+    QTemporaryDir t;
+    const ShotRef ref = testdoc::ref(t.path());
+    NewRecording rec;
+    rec.header     = cameraHeader();
+    rec.reviewClub = QStringLiteral("7 IRON");
+    check(repo.create(ref, rec).ok(), "a shot");
+    const ShotReview none = repo.readReview(ref);
+    check(none.ok && none.shotIntent.isEmpty() && none.labelCorrections.isEmpty(),
+          "a document without the keys reads as no intent and no corrections");
+
+    ReviewEdit e;
+    e.shotIntent       = QStringLiteral("fade");
+    e.labelCorrections = QVector<LabelCorrection>{ { QStringLiteral("direction"), QStringLiteral("pull"), QStringLiteral("") },
+                                                   { QStringLiteral("strike"), QStringLiteral("fat"), QStringLiteral("thin") } };
+    check(repo.editReview(ref, e).status == WriteResult::Status::Written, "intent and corrections written");
+    const ShotReview r = repo.readReview(ref);
+    check(r.ok && r.shotIntent == QLatin1String("fade") && r.labelCorrections == *e.labelCorrections,
+          "and read back exactly");
+    const QJsonObject rv = review(t.path());
+    check(rv.value(QStringLiteral("club")).toString() == QLatin1String("7 IRON")
+              && rv.value(QStringLiteral("labelCorrections")).toArray().size() == 2,
+          "merged into the review block: the declared club kept beside them");
+    check(repo.editReview(ref, e).status == WriteResult::Status::Unchanged, "the same edit again changes nothing");
+
+    ReviewEdit clear;
+    clear.shotIntent       = QString();
+    clear.labelCorrections = QVector<LabelCorrection>{};
+    check(repo.editReview(ref, clear).status == WriteResult::Status::Written
+              && !review(t.path()).contains(QStringLiteral("shotIntent"))
+              && !review(t.path()).contains(QStringLiteral("labelCorrections")),
+          "set back to none, both keys are removed (absence means none)");
+}
+
+// ── Test 19 (step 2.4) ────────────────────────────────────────────────────────────────────────
+// A shot the door cannot resolve is never guessed at.
+void testUnresolvedShot()
+{
+    std::printf("[Test 19] an unresolved shot\n");
+    SessionStore                  sessions;
+    SwingStoreRecordingRepository repo(sessions);
+    const ShotRef notOpen(SessionId::create(), 1);
+    NewRecording rec;
+    rec.header = cameraHeader();
+    const WriteResult w = repo.create(notOpen, rec);
+    check(w.status == WriteResult::Status::Failed && w.error.contains(QStringLiteral("not found")),
+          "a shot whose session is not open: Failed, \"not found\"");
+    check(repo.create(ShotRef(), rec).status == WriteResult::Status::Failed, "a null ShotRef: Failed");
+    check(!repo.readReview(notOpen).ok && repo.truth(notOpen, TruthView::FaceOn).isEmpty()
+              && !repo.isDeviceOnly(notOpen),
+          "and every read answers empty");
+}
+
+// ── Test 20 (step 2.4 round 2; J-39, proposed, for Mark) ─────────────────────────────────────
+// A legacy session's D3 id is derived from the athlete who OWNS its folder, not the uuid its swings
+// recorded (they were minted on the capturing machine, H-09): the tool path reads the athlete folder's
+// athlete.json; the app path asks its resolver (the current athlete); the header only when neither knows.
+void testLegacyOwnerIsTheFoldersAthlete()
+{
+    std::printf("[Test 20] a legacy session's id comes from its owning athlete (J-39)\n");
+    QTemporaryDir lib;
+    const AthleteId owner    = AthleteId::fromString(u"80e213d8-0000-4000-8000-00000000a001");
+    const AthleteId recorded = AthleteId::fromString(u"52ff45d8-0000-4000-8000-00000000b002");
+    const QString   name     = QStringLiteral("2026-07-08_Mark-Liversedge_Wrist_01");
+    const QString   athleteDir = lib.path() + QStringLiteral("/Mark-Liversedge");
+    const QString   swing    = athleteDir + QLatin1Char('/') + name + QStringLiteral("/swing_0001");
+    check(QDir().mkpath(swing), "a legacy session folder in the athlete's folder");
+    {
+        QFile f(AthleteFiles::athleteFile(athleteDir));
+        f.open(QIODevice::WriteOnly);
+        f.write(QJsonDocument(QJsonObject{ { QStringLiteral("schema"), QStringLiteral("pinpoint.athlete/1") },
+                                           { QStringLiteral("athleteId"), owner.toString() } }).toJson());
+    }
+    {
+        SessionStore                  s;
+        SwingStoreRecordingRepository r(s);
+        NewRecording rec;
+        rec.header = cameraHeader();
+        rec.header[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("uuid"), recorded.toString() } };
+        check(r.create(r.shotOfFolder(swing, recorded), rec).ok(),
+              "its swing records ANOTHER uuid than the folder's athlete.json (as every Mac swing does)");
+    }
+    const SessionId ownersId = SessionIdentity::legacySessionId(owner, name);
+
+    SessionStore                  toolSessions;   // the tool path: no resolver, athlete.json read
+    SwingStoreRecordingRepository tool(toolSessions);
+    check(tool.shotOfFolder(swing).session() == ownersId,
+          "the tool path derives the OWNER's id (athlete.json), not the header's");
+
+    SessionStore                  appSessions;    // the app path: the current athlete, by its folder
+    SwingStoreRecordingRepository app(appSessions);
+    app.setOwnerOf([&](const QString &folder) {
+        return QDir::cleanPath(folder) == QDir::cleanPath(athleteDir) ? owner : AthleteId();
+    });
+    check(app.shotOfFolder(swing).session() == ownersId, "the app path derives the same owner's id");
+
+    QFile::remove(AthleteFiles::athleteFile(athleteDir));
+    SessionStore                  bare;           // no owner anywhere: the header, as the last fallback
+    SwingStoreRecordingRepository last(bare);
+    check(last.shotOfFolder(swing).session() == SessionIdentity::legacySessionId(recorded, name),
+          "with no owner known, the swing's own athlete.uuid");
 }
 
 int main()
 {
-    std::printf("=== RecordingRepository (step 1.4) ===\n");
-    SwingStoreRecordingRepository repo;
+    std::printf("=== RecordingRepository (step 1.4; by ShotRef since 2.4) ===\n");
+    SwingStoreRecordingRepository repo(testdoc::shots());   // a test folder is a shot (swing_doc_test_writes.h)
     testCreate(repo);
     testSavePose(repo);
     testWriteAnalysis(repo);
@@ -992,6 +1242,12 @@ int main()
     testPoseReuseKeepsKeypoints(repo);
     testLowPointTakesTheEffectiveClub(repo);
     testBackfillAnalysisContext(repo);
+    testLegacyShotRefResolves();
+    testTruthRoundTrip(repo);
+    testArchiveStub(repo);
+    testReviewGolferInput(repo);
+    testUnresolvedShot();
+    testLegacyOwnerIsTheFoldersAthlete();
     std::printf("\n%s (%d failure%s)\n", g_fail == 0 ? "ALL PASS" : "FAILURES", g_fail, g_fail == 1 ? "" : "s");
     return g_fail == 0 ? 0 : 1;
 }

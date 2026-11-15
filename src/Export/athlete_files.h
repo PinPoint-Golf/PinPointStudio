@@ -40,9 +40,13 @@
 #include "../Core/atomic_write.h"   // AtomicWriteResult
 #include "../Core/folder_lock.h"
 
+#include "../Identity/identity.h"
+
 #include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QString>
 
 namespace pinpoint {
@@ -53,6 +57,21 @@ public:
     // "athlete.json"
     static QString athleteFileName() { return QStringLiteral("athlete.json"); }
     static QString athleteFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + athleteFileName(); }
+
+    // The athlete whose folder this is, by its athlete.json (`athleteId`, a schema `pinpoint.athlete/<n>`);
+    // null when the folder has none or it cannot be read. A read only: what a tool names a legacy session's
+    // owner by (J-39, proposed, for Mark: D3's id is derived from the OWNING athlete's id). AthleteStore
+    // remains the reader of the record itself.
+    static AthleteId ownerOf(const QString &athleteDir)
+    {
+        QFile f(athleteFile(athleteDir));
+        if (!f.open(QIODevice::ReadOnly))
+            return {};
+        const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+        if (!o.value(QStringLiteral("schema")).toString().startsWith(QLatin1String("pinpoint.athlete/")))
+            return {};
+        return AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
+    }
 
     // ".pinpoint-lock": FolderLock's own, named here so the list is complete.
     static QString lockFileName() { return FolderLock::fileName(); }

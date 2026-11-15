@@ -20,13 +20,13 @@
 
 namespace pinpoint::analysis {
 
-PersistedReanalysis persistReanalysis(RecordingRepository &repo, const QString &swingDir,
+PersistedReanalysis persistReanalysis(RecordingRepository &repo, const ShotRef &shot,
                                       const ReanalyzeResult *result, const PersistOptions &options)
 {
     PersistedReanalysis out;
     if (!result) {
         out.deviceOnly = true;
-        out.write = repo.writeAnalysis(swingDir, AnalysisOutcome{}, options);
+        out.write = repo.writeAnalysis(shot, AnalysisOutcome{}, options);
         return out;
     }
     if (!result->ok || !result->analysis.detail) {
@@ -40,17 +40,19 @@ PersistedReanalysis persistReanalysis(RecordingRepository &repo, const QString &
     outcome.analysis         = result->analysis.detail.get();
     outcome.imuIntegrity     = result->imuIntegrity ? &*result->imuIntegrity : nullptr;
     outcome.captureIntegrity = result->captureIntegrity ? &*result->captureIntegrity : nullptr;
-    out.write = repo.writeAnalysis(swingDir, outcome, options);
+    out.write = repo.writeAnalysis(shot, outcome, options);
     return out;
 }
 
-PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, const QString &swingDir,
+PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, RecordingReader &reader, const ShotRef &shot,
                                         const PersistOptions &options, const ReanalyzeOptions &reanalyse)
 {
-    if (repo.isDeviceOnly(swingDir))
-        return persistReanalysis(repo, swingDir, nullptr, options);
-    const ReanalyzeResult r = reanalyzeSwingDir(swingDir, reanalyse);
-    return persistReanalysis(repo, swingDir, &r, options);
+    if (repo.isDeviceOnly(shot))
+        return persistReanalysis(repo, shot, nullptr, options);
+    const ReanalyzeResult r = reanalyzeShot(reader, shot, reanalyse);
+    return persistReanalysis(repo, shot, &r, options);
 }
+
+
 
 } // namespace pinpoint::analysis

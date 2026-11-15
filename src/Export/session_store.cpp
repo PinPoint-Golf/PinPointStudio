@@ -90,6 +90,13 @@ QDateTime inferredLegacyStart(const QString &folder)
 }
 
 WriteResult failed(const QString &why) { return { WriteResult::Status::Failed, why }; }
+// Another writer holds the folder's advisory lock past the wait (J-22): the lock's own words.
+WriteResult locked(const QString &folder, const QString &holder)
+{
+    return { WriteResult::Status::Locked,
+             QStringLiteral("The session %1 is being changed by %2; it was not saved.")
+                 .arg(folder, holder.isEmpty() ? QStringLiteral("another program") : holder) };
+}
 WriteResult written() { return { WriteResult::Status::Written, {} }; }
 WriteResult unchanged() { return { WriteResult::Status::Unchanged, {} }; }
 WriteResult readOnly(const QString &folder)
@@ -203,8 +210,10 @@ SessionIndexEntry SessionStore::readFolder(const QString &folder, const AthleteI
 SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJsonObject &file)
 {
     auto it = m_held.find(entry.id());
-    if (it == m_held.end())
+    if (it == m_held.end()) {
+        publish(entry.id(), entry.folder);
         return *m_held.insert(entry.id(), Held{ entry, file, false });
+    }
     // Held already. Take the fresh read (its day order included) and what only the map knows.
     //
     // ⚠ THE SAME ID CAN BE READ FROM ANOTHER PLACE: a copied session keeps its SessionId (D3 for a
@@ -230,6 +239,7 @@ SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJs
     it->entry        = entry;
     it->entry.folder = folder;
     it->file         = file;
+    publish(entry.id(), folder);
     return *it;
 }
 
@@ -321,12 +331,53 @@ QList<ShotRef> SessionStore::shots(const SessionId &id) const
     return out;
 }
 
+ShotRef SessionStore::openSwingFolder(const QString &swingFolder, const AthleteId &legacyAthlete)
+{
+    if (swingFolder.isEmpty())
+        return {};
+    const QFileInfo swing(QDir::cleanPath(swingFolder));
+    const int       number = SwingPaths::swingNumberOf(swing.fileName());
+    if (number < 1)
+        return {};   // not a swing folder: no swing number, so no shot
+    const QString sessionFolder = swing.path();
+
+    // A session already held at this folder keeps the id it is held under: a folder the athlete's list
+    // read (enumerate, with the athlete as owner) names the same session for every later caller, and a
+    // second read of its file is saved.
+    const QString clean = QDir::cleanPath(sessionFolder);
+    for (auto it = m_held.cbegin(); it != m_held.cend(); ++it)
+        if (QDir::cleanPath(it->entry.folder) == clean)
+            return ShotRef(it.key(), number);
+
+    const SessionId id = openFolder(sessionFolder, legacyAthlete);
+    if (id.isNull())
+        ppDebug() << "[SessionStore] the session of" << swingFolder << "cannot be named (no session file,"
+                  << "and no athlete given for it)";
+    return ShotRef(id, number);
+}
+
 QString SessionStore::swingFolder(const ShotRef &shot) const
 {
-    const auto it = m_held.constFind(shot.session());
-    if (shot.isNull() || it == m_held.constEnd())
+    if (shot.isNull())
         return {};
-    return it->entry.folder + QLatin1Char('/') + SwingPaths::swingFolderName(shot.swingNumber());
+    // From the published folders, not the identity map: any thread may ask (a worker writing a shot).
+    const QMutexLocker guard(&m_publishedMutex);
+    const auto it = m_published.constFind(shot.session());
+    if (it == m_published.constEnd())
+        return {};
+    return *it + QLatin1Char('/') + SwingPaths::swingFolderName(shot.swingNumber());
+}
+
+void SessionStore::publish(const SessionId &id, const QString &folder)
+{
+    const QMutexLocker guard(&m_publishedMutex);
+    m_published.insert(id, folder);
+}
+
+void SessionStore::unpublish(const SessionId &id)
+{
+    const QMutexLocker guard(&m_publishedMutex);
+    m_published.remove(id);
 }
 
 // ── Writing ──────────────────────────────────────────────────────────────────────────────────────
@@ -360,9 +411,7 @@ WriteResult SessionStore::write(Held &h)
         break;
     case FolderLock::Result::Locked:
         ppWarn() << "[SessionStore] not written, the folder is locked by" << lock.holder() << ":" << h.entry.folder;
-        return failed(QStringLiteral("The session %1 is being changed by %2; it was not saved.")
-                          .arg(h.entry.folder, lock.holder().isEmpty() ? QStringLiteral("another program")
-                                                                        : lock.holder()));
+        return locked(h.entry.folder, lock.holder());
     case FolderLock::Result::Failed:
         ppWarn() << "[SessionStore] not written:" << lock.errorString();
         return failed(lock.errorString());
@@ -438,6 +487,7 @@ SessionStartResult SessionStore::start(const SessionOwner &owner, const QString 
     }
     const SessionId id = h.entry.id();
     m_held.insert(id, h);
+    publish(id, folder);
     ppInfo() << "[SwingExport] begin session:" << folder << "(new)";
     return { id, folder, r };
 }
@@ -504,6 +554,7 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
         QString where;
         if (SwingPaths::trashPath(h.entry.folder, &where)) {
             ppInfo() << "[SwingExport] discarded session (to" << where << "):" << h.entry.folder;
+            unpublish(id);
             m_held.erase(it);
             return written();
         }
@@ -569,7 +620,7 @@ SwingAllocation SessionStore::allocateSwing(const SessionId &id)
     if (QFileInfo::exists(folder)
         && lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
         ppWarn() << "[SwingExport] the session folder is locked by" << lock.holder() << ":" << folder;
-        out.result = failed(QStringLiteral("The session %1 is being changed by %2.").arg(folder, lock.holder()));
+        out.result = locked(folder, lock.holder());
         return out;
     }
 

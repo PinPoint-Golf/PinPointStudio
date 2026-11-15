@@ -29,7 +29,6 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QRegularExpression>
-#include <QSaveFile>
 
 #include <algorithm>
 #include <cmath>
@@ -45,10 +44,6 @@ double roundDp(double v, int dp)
     return std::round(v * m) / m;
 }
 
-QString truthPath(const QString &swingDir, MarkupView view)
-{
-    return QDir(swingDir).filePath(truthFileName(view));
-}
 
 QString viewTag(MarkupView view)
 {
@@ -56,15 +51,6 @@ QString viewTag(MarkupView view)
                                            : QStringLiteral("FaceOn");
 }
 
-QJsonObject loadObject(const QString &path)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    QJsonParseError pe{};
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-    if (pe.error != QJsonParseError::NoError || !doc.isObject()) return {};
-    return doc.object();
-}
 
 // A sidecar belongs to `view` unless it says otherwise. truth.json has never
 // carried a "view" key, so an absent one reads as the view that was asked for;
@@ -258,27 +244,11 @@ QJsonObject toJson(const TruthDoc &doc, const VideoStreamInfo &fo, MarkupView vi
     return root;
 }
 
-bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
-                MarkupView view, QString *error)
-{
-    const QJsonObject root = toJson(doc, fo, view);
-    QSaveFile f(truthPath(swingDir, view));
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (error) *error = f.errorString();
-        return false;
-    }
-    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    if (!f.commit()) {
-        if (error) *error = f.errorString();
-        return false;
-    }
-    return true;
-}
 
-TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupView view)
+
+TruthDoc fromJson(const QJsonObject &root, const VideoStreamInfo &fo, MarkupView view)
 {
     TruthDoc doc;
-    const QJsonObject root = loadObject(truthPath(swingDir, view));
     if (root.isEmpty()) return doc;
     // Never parse the other camera's pixels into this view's space.
     if (!objectMatchesView(root, view)) return doc;
@@ -348,10 +318,10 @@ TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupVie
     return doc;
 }
 
-TruthSummary summarize(const QString &swingDir, MarkupView view)
+
+TruthSummary summarizeJson(const QJsonObject &root, MarkupView view)
 {
     TruthSummary out;
-    const QJsonObject root = loadObject(truthPath(swingDir, view));
     if (root.isEmpty() || !objectMatchesView(root, view)) return out;
     out.exists     = true;
     out.shaftCount = root.value(QStringLiteral("shaft")).toArray().size();

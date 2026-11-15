@@ -60,7 +60,7 @@ IntegrityVerdicts AnalysisService::integrity(const pinpoint::recording::Recordin
     return integrityFor(recording);
 }
 
-pinpoint::LoadedRecording AnalysisService::load(const QString &swingDir,
+pinpoint::LoadedRecording AnalysisService::load(const pinpoint::ShotRef &shot,
                                                 const pinpoint::RecordingLoadOptions &options) const
 {
     if (!m_reader) {
@@ -68,7 +68,8 @@ pinpoint::LoadedRecording AnalysisService::load(const QString &swingDir,
         none.error = QStringLiteral("no Recording reader");
         return none;
     }
-    return m_reader->load(swingDir, options);
+    return m_reader->load(shot, options);
 }
+
 
 } // namespace pinpoint::analysis

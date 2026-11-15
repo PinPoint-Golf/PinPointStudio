@@ -130,8 +130,9 @@ public:
     // job (buildAnalysisJob, origin "replay"). Never opens the live EventBuffer. On failure returns
     // { ok=false, error set, window=nullopt }.
     static LoadedSwing load(const QString& swingDir, const SwingLoadOptions& opts = {});
-    // The same, reading the swing through the domain's RecordingReader (SwingLab's composition root).
-    static LoadedSwing load(pinpoint::RecordingReader& reader, const QString& swingDir,
+    // The same, reading the shot through the domain's RecordingReader by its ShotRef (SwingLab's
+    // composition root; the reader is keyed by ShotRef since step 2.4).
+    static LoadedSwing load(pinpoint::RecordingReader& reader, const pinpoint::ShotRef& shot,
                             const SwingLoadOptions& opts = {});
 };
 
@@ -179,5 +180,9 @@ struct ReanalyzeResult {
 // thrown analyzer degrades to { ok=false, error } rather than propagating. A read-only document
 // (LoadedSwing::readOnly: newer than this build) is refused before anything runs.
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts = {});
+// The same, reading the shot through the domain's RecordingReader by its ShotRef (step 2.4): what the
+// app's re-analysis and SwingLab's --write-back run (reanalyse_and_persist.h). Same rules, same result.
+ReanalyzeResult reanalyzeShot(pinpoint::RecordingReader& reader, const pinpoint::ShotRef& shot,
+                              const ReanalyzeOptions& opts = {});
 
 } // namespace pinpoint::analysis

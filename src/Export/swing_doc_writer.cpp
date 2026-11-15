@@ -692,6 +692,22 @@ WriteResult SwingDocWriter::editReview(const QString &swingDir, const ReviewEdit
         if (!ov.isEmpty()) review[QStringLiteral("clubOverride")] = ov;
         else               review.remove(QStringLiteral("clubOverride"));
     }
+    // The shot's own golfer input (IM-S2-3; FILE-SHOT-02): written only when set, and removed when set
+    // back to none, like the annotations — so a document no golfer gave an intent or a correction stays
+    // exactly as it was, and an old document without the keys reads as having none.
+    if (edit.shotIntent) {
+        const QString intent = edit.shotIntent->trimmed();
+        if (!intent.isEmpty()) review[QStringLiteral("shotIntent")] = intent;
+        else                   review.remove(QStringLiteral("shotIntent"));
+    }
+    if (edit.labelCorrections) {
+        QJsonArray list;
+        for (const LabelCorrection &c : *edit.labelCorrections)
+            list.append(QJsonObject{ { QStringLiteral("family"), c.family }, { QStringLiteral("from"), c.from },
+                                     { QStringLiteral("to"), c.to } });
+        if (!list.isEmpty()) review[QStringLiteral("labelCorrections")] = list;
+        else                 review.remove(QStringLiteral("labelCorrections"));
+    }
 
     if (!always && review == before)
         return result(WriteResult::Status::Unchanged);   // nothing to say — and no 28 MB rewrite to say it
@@ -710,6 +726,49 @@ WriteResult SwingDocWriter::editReview(const QString &swingDir, const ReviewEdit
     if (w.ok())
         clearJustWritten(swingDir);
     return w;
+}
+
+ShotReview SwingDocWriter::readReview(const QString &swingDir)
+{
+    ShotReview out;
+    QString err;
+    // The review is small and sits in the document's root: read the root alone, never the pose tracks.
+    const QJsonObject root = SwingStore::loadParts(swingDir, {}, &err);
+    if (root.isEmpty()) {
+        out.error = err.isEmpty() ? QStringLiteral("no swing document in %1").arg(swingDir) : err;
+        return out;
+    }
+    const QJsonObject review = root.value(QStringLiteral("review")).toObject();
+    out.ok         = true;
+    out.shotIntent = review.value(QStringLiteral("shotIntent")).toString();
+    for (const QJsonValue &v : review.value(QStringLiteral("labelCorrections")).toArray()) {
+        const QJsonObject c = v.toObject();
+        out.labelCorrections.append({ c.value(QStringLiteral("family")).toString(),
+                                      c.value(QStringLiteral("from")).toString(),
+                                      c.value(QStringLiteral("to")).toString() });
+    }
+    return out;
+}
+
+WriteResult SwingDocWriter::writeArchiveStub(const QString &swingDir, const QJsonObject &stub)
+{
+    // Read-only as for every rewrite: a newer build's document is never thinned by this one (its fields
+    // would be lost from the stub). The stub is the document thinned, its schema and analysisContext
+    // kept (SessionArchiver's stubOf), so the stub answers for the document without a second parse.
+    if (!SwingStore::hasDocument(swingDir))
+        return result(WriteResult::Status::NoDocument, QStringLiteral("no swing document in %1").arg(swingDir));
+    WriteResult refused;
+    if (stub.isEmpty())
+        return result(WriteResult::Status::Failed, QStringLiteral("an empty stub for %1").arg(swingDir));
+    if (SwingDocWriter::refusesWrite(stub, &refused))
+        return refused;
+    // The stub is written AS GIVEN (SwingStore's bytes, no summary rebuild): it carries the summary the
+    // document already held, which is what the session list keeps showing while the shot is archived.
+    QString err;
+    if (!SwingStore::save(swingDir, stub, &err))
+        return result(WriteResult::Status::Failed, err);
+    clearJustWritten(swingDir);
+    return result(WriteResult::Status::Written);
 }
 
 WriteResult SwingDocWriter::recordBackfilledContext(const QString &swingDir, const AthleteRecordFacts &facts,

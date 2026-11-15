@@ -3216,6 +3216,8 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
@@ -3242,6 +3244,8 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
@@ -3264,6 +3268,8 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
     # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
     add_executable(backfill_analysis_context
         tools/migrate/backfill_analysis_context.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
         src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
@@ -3306,6 +3312,9 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Export/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
+        src/DomainModel/session_identity.cpp
+        src/Core/folder_lock.cpp
         src/Analysis/effective_context.cpp  # the effective club (step 1.1)
         src/Analysis/reuse_gate.cpp         # the one reuse gate (step 1.6)
         src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)

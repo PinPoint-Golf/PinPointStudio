@@ -22,6 +22,8 @@
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
 #include "../../DomainModel/recording_repository.h"
+#include "../../Export/session_store.h"
+#include "../../Export/swing_store_repository.h"
 
 #include <QFileInfo>
 #include <QPointer>
@@ -83,13 +85,8 @@ void LibraryConverter::progress(int done, int failed, const QString &lastError)
 void LibraryConverter::convert()
 {
     if (m_running || !m_settings) return;
-    if (!m_repo) {
-        ppWarn() << "[LibraryConverter] no recording repository — nothing converted";
-        return;
-    }
     const QString root = m_settings->athleteLibraryPath();
     if (root.isEmpty()) return;
-    pinpoint::RecordingRepository *repo = m_repo;
 
     m_running = true;
     m_done = m_failed = m_total = 0;
@@ -116,7 +113,12 @@ void LibraryConverter::convert()
         if (m_pending < 0) count();
     });
 
-    m_watcher.setFuture(QtConcurrent::run([root, abort, self, repo]() -> int {
+    m_watcher.setFuture(QtConcurrent::run([root, abort, self]() -> int {
+        // This run's own door (step 2.4): a session reader of its own on this worker, so translating
+        // each folder to its ShotRef (DEC-90) never touches the app's identity map off its thread.
+        pinpoint::SessionStore                  sessions;
+        pinpoint::SwingStoreRecordingRepository door(sessions);
+        pinpoint::RecordingRepository          *repo = &door;
         const QStringList dirs = jsonSwings(root);
         QMetaObject::invokeMethod(self, [self, n = int(dirs.size())] {
             if (self) { self->m_total = n; self->progress(0, 0, {}); }
@@ -125,7 +127,7 @@ void LibraryConverter::convert()
         int converted = 0, failed = 0, done = 0;
         for (const QString &d : dirs) {
             if (abort->load()) break;
-            const pinpoint::ConversionResult r = repo->convert(d, /*deleteJson=*/true);
+            const pinpoint::ConversionResult r = repo->convert(repo->shotOfFolder(d), /*deleteJson=*/true);
             ++done;
             QString err;
             if (r.outcome == pinpoint::ConversionResult::Outcome::Converted) {

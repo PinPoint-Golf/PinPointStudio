@@ -21,6 +21,7 @@
 #include "swing_doc.h"
 #include "swing_store.h"
 #include "swing_store_repository.h"   // the one door to the swing files (step 1.4)
+#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
 #include "../Core/pp_debug.h"
 
 #include <QDateTime>
@@ -41,15 +42,16 @@ namespace {
 
 constexpr auto kMarkerSchema = "pinpoint.archive/1";
 
-// The swing files are written through RecordingRepository like every other writer's: the
-// conversion before archiving, and the review restored after. The archiver is part of the store
-// (src/Export) and the adapter is stateless, so it keeps its own. The one exception is the stub
-// (SwingStore::save below), which moves with the archive into step 2's SessionRepository.
-RecordingRepository &recordings()
-{
-    static SwingStoreRecordingRepository repo;
-    return repo;
-}
+// The swing files are written through RecordingRepository like every other writer's, by ShotRef
+// (step 2.4): the conversion before archiving, the stub (writeArchiveStub, FILE-SHOT-10), and the
+// review restored after. Each archive and restore makes the door for its own run, over a session
+// reader of its own (it may run on a worker, so it never shares the app's identity map); each swing
+// folder is translated to its ShotRef once, where the run finds it (DEC-90). Step 2.6 moves the
+// archive behind SessionRepository::archive / restore.
+struct Door {
+    SessionStore                  sessions;
+    SwingStoreRecordingRepository repo{ sessions };
+};
 
 // A swing document's review, read from its root chunk alone (the pose and the other tracks are
 // never decoded): the archive's copy can be a ~28 MB document on an external drive.
@@ -58,8 +60,8 @@ QJsonObject reviewOf(const QString &swingDir)
     return SwingStore::loadParts(swingDir, QStringList()).value(QStringLiteral("review")).toObject();
 }
 
-bool putBackReview(const QString &swingDir, const QString &archivedSwingDir, const QJsonObject &stubReview,
-                   QString *error);
+bool putBackReview(RecordingRepository &repo, const QString &swingDir, const QString &archivedSwingDir,
+                   const QJsonObject &stubReview, QString *error);
 
 // Regenerable caches: never archived, and removed with the rest when a swing is thinned.
 bool isCache(const QString &name)
@@ -210,10 +212,11 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
 
     // A JSON-era swing becomes swing.ppsw first (verified), so its stub can carry the summary the
     // document already holds rather than a second derivation of it.
+    Door door;
     const QStringList swings = swingDirsOf(sessionDir);
     for (const QString &sd : swings) {
         if (SwingStore::info(sd).format != SwingStore::Format::Json) continue;
-        const ConversionResult c = recordings().convert(sd, /*deleteJson=*/true);
+        const ConversionResult c = door.repo.convert(door.repo.shotOfFolder(sd), /*deleteJson=*/true);
         if (c.outcome == ConversionResult::Outcome::Failed) {
             r.error = QStringLiteral("cannot convert %1 before archiving: %2").arg(sd, c.error);
             return r;
@@ -248,9 +251,10 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
         const QJsonObject block{
             { QStringLiteral("location"),   dest + QLatin1Char('/') + QFileInfo(sd).fileName() },
             { QStringLiteral("archivedAt"), archivedAt } };
-        QString err;
-        if (!SwingStore::save(sd, stubOf(doc, block), &err)) {
-            r.error = QStringLiteral("cannot write the stub for %1: %2").arg(sd, err);
+        // Through the door (FILE-SHOT-10): a read-only (newer build's) document is refused, never thinned.
+        const WriteResult w = door.repo.writeArchiveStub(door.repo.shotOfFolder(sd), stubOf(doc, block));
+        if (!w.ok()) {
+            r.error = QStringLiteral("cannot write the stub for %1: %2").arg(sd, w.error);
             return r;
         }
         QDirIterator it(sd, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -287,6 +291,7 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
 Result restore(const QString &sessionDirIn, const Progress &progress)
 {
     Result r;
+    Door   door;
     const QString sessionDir = QDir::cleanPath(sessionDirIn);
     QFile mf(markerPath(sessionDir));
     if (!mf.open(QIODevice::ReadOnly)) { r.error = QStringLiteral("%1 is not archived").arg(sessionDir); return r; }
@@ -330,7 +335,7 @@ Result restore(const QString &sessionDirIn, const Progress &progress)
             return r;
         r.bytesFreed += QFileInfo(sessionDir + QLatin1Char('/') + rel).size();
         ++done;
-        if (isDocument && !putBackReview(swingDir, src + QLatin1Char('/') + QFileInfo(rel).path(),
+        if (isDocument && !putBackReview(door.repo, swingDir, src + QLatin1Char('/') + QFileInfo(rel).path(),
                                          stubReview, &r.error))
             return r;
     }
@@ -358,8 +363,8 @@ QString jsonText(const QJsonValue &v)
     return QString::fromUtf8(t.mid(1, t.size() - 2));
 }
 
-bool putBackReview(const QString &swingDir, const QString &archivedSwingDir, const QJsonObject &stubReview,
-                   QString *error)
+bool putBackReview(RecordingRepository &repo, const QString &swingDir, const QString &archivedSwingDir,
+                   const QJsonObject &stubReview, QString *error)
 {
     const QJsonObject archived = reviewOf(archivedSwingDir);
     const QJsonObject now      = reviewOf(swingDir);
@@ -370,7 +375,7 @@ bool putBackReview(const QString &swingDir, const QString &archivedSwingDir, con
                  << "restore) is kept:" << jsonText(now.value(f)) << "over" << jsonText(stubReview.value(f));
     if (!m.any)
         return true;
-    const WriteResult w = recordings().editReview(swingDir, m.edit);
+    const WriteResult w = repo.editReview(repo.shotOfFolder(swingDir), m.edit);
     if (!w.ok()) {
         if (error)
             *error = QStringLiteral("restored, but the review made while archived could not be kept for %1: %2")

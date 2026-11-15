@@ -66,6 +66,7 @@
 #include "swing_paths.h"
 #include "swing_store.h"
 #include "swing_store_repository.h"   // the one door to the swing files
+#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
 #include "recording_header.h"         // legacyAnalysisContext, backfilledAnalysisContext
 
 #include <QCoreApplication>
@@ -258,6 +259,15 @@ void visitSwing(RecordingRepository &repo, const QVector<AthleteRecord> &recs, c
     }
     t.matches.insert(how + QStringLiteral(" → ") + rec->name);
 
+    // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once, over
+    // a session reader of its own (a legacy session: D3's id from the athlete who owns its folder, by its athlete.json, else the
+    // athlete the swing records; J-39, proposed, for Mark).
+    const ShotRef shot = repo.shotOfFolder(swingDir);
+    if (shot.isNull()) {
+        ++t.failed;
+        t.notes << swing + QStringLiteral(": NOT written, its session cannot be named (no session file, no athlete)");
+        return;
+    }
     AthleteRecordFacts facts;
     facts.heightM = rec->heightM();
     facts.sex     = rec->sex;
@@ -271,7 +281,7 @@ void visitSwing(RecordingRepository &repo, const QVector<AthleteRecord> &recs, c
         // Ask first (a dry run of the same door), so only a swing that WILL be written is backed up.
         PersistOptions ask;
         ask.dryRun = true;
-        const WriteResult w = repo.backfillAnalysisContext(swingDir, facts, ask);
+        const WriteResult w = repo.backfillAnalysisContext(shot, facts, ask);
         if (w.status == WriteResult::Status::Written) {
             QString berr;
             if (!backUp(swingDir, backupRoot, athleteFolder + QLatin1Char('/') + sessionName + QLatin1Char('/') + swing, &berr)) {
@@ -282,7 +292,7 @@ void visitSwing(RecordingRepository &repo, const QVector<AthleteRecord> &recs, c
         }
     }
     const bool jsonEraDoc = SwingStore::info(swingDir).format == SwingStore::Format::Json;
-    const WriteResult w = repo.backfillAnalysisContext(swingDir, facts, opts);
+    const WriteResult w = repo.backfillAnalysisContext(shot, facts, opts);
     switch (w.status) {
     case WriteResult::Status::Written:
         ++t.change;
@@ -304,6 +314,10 @@ void visitSwing(RecordingRepository &repo, const QVector<AthleteRecord> &recs, c
     case WriteResult::Status::Failed:
         ++t.failed;
         t.notes << swing + QStringLiteral(": FAILED: ") + w.error;
+        return;
+    case WriteResult::Status::Locked:   // another writer holds the session folder (J-22): not written
+        ++t.failed;
+        t.notes << swing + QStringLiteral(": NOT written, the session is locked: ") + w.error;
         return;
     }
     const double docHeight = root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("heightM")).toDouble(0.0);
@@ -389,7 +403,8 @@ int main(int argc, char *argv[])
     }
 
     const QVector<AthleteRecord> recs = readRecords(ini);
-    SwingStoreRecordingRepository repo;   // the composition root's one door
+    SessionStore                  sessions;         // names each swing's ShotRef (step 2.4)
+    SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
 
     QStringList athletes = p.values(athOpt);
     if (athletes.isEmpty())

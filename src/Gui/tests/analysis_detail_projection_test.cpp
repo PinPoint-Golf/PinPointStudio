@@ -50,6 +50,7 @@
 
 #include "../../Export/swing_doc.h"
 #include "../../Export/swing_store_repository.h"   // the one door: create() writes the document
+#include "../../Export/tests/swing_doc_test_writes.h"   // testdoc::ref — the test folder's ShotRef
 #include "../../Export/swing_store.h"
 #include "../../Analysis/swing_analysis.h"
 #include "../../Export/tests/analysis_fixture.h"
@@ -216,12 +217,12 @@ QJsonObject makeManifest(int64_t t0)
 // step 1.5): the manifest as the header, the analysis, the session's club.
 bool createSwing(const QString &dir, const QJsonObject &manifest, const SwingAnalysis &a, QString *err)
 {
-    SwingStoreRecordingRepository repo;
+    SwingStoreRecordingRepository repo(testdoc::shots());   // a test folder is a shot
     NewRecording rec;
     rec.header     = manifest;
     rec.analysis   = &a;
     rec.reviewClub = QStringLiteral("7i");
-    const WriteResult r = repo.create(dir, rec, PersistOptions{});
+    const WriteResult r = repo.create(testdoc::ref(dir), rec, PersistOptions{});
     if (err) *err = r.error;
     return r.status == WriteResult::Status::Written;
 }

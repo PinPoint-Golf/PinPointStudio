@@ -454,7 +454,7 @@ LiveDocument writeLiveDocument(const LiveDocumentInput &in)
             doc.reviewClub = in.reviewClub;
             pinpoint::PersistOptions opts;
             opts.savePose = in.savePose;
-            const pinpoint::WriteResult w = in.repository->create(in.swingDir, doc, opts);
+            const pinpoint::WriteResult w = in.repository->create(in.shot, doc, opts);
             out.wrote = w.ok();
             if (!out.wrote)
                 out.error = w.error;

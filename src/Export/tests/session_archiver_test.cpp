@@ -67,6 +67,9 @@ static void makeSwing(const QString &dir, int index, bool withRaw)
     for (int i = 0; i < 50; ++i) tUs.append(qint64(i) * 6667);
     const QJsonObject manifest{
         { "schema", "pinpoint.swing/2" },
+        // Whose swing (every captured swing records it): what names a session without a session
+        // file (D3) when the archiver translates its folders to ShotRefs (step 2.4).
+        { "athlete", QJsonObject{ { "name", "Mark" }, { "uuid", "3f2c8a4e-1b7d-4c9a-9e21-6a0d5c1b2a10" } } },
         { "clock", QJsonObject{ { "t0_us", 0 }, { "wallclock", "2026-09-01T10:00:00.000Z" } } },
         { "swing", QJsonObject{ { "index", index }, { "id", QStringLiteral("swing_%1").arg(index, 4, 10, QLatin1Char('0')) } } },
         { "streams", QJsonArray{ QJsonObject{ { "kind", "video" }, { "alias", "Face-On" },

@@ -20,10 +20,10 @@
 
 // THE ONE RE-ANALYSIS WRITE-BACK (refactor step 1.4; step 1 design §4.7, A-09).
 //
-//   reanalyseAndPersist(repo, swing, PersistOptions)
+//   reanalyseAndPersist(repo, reader, shot, PersistOptions)
 //       a launch-monitor-only shot: its launch monitor rows derived again (nothing to analyse);
-//       any other: re-analyse it (reanalyzeSwingDir) → persistReanalysis
-//   persistReanalysis(repo, swing, result, PersistOptions)
+//       any other: re-analyse it (reanalyzeShot, read through `reader`) → persistReanalysis
+//   persistReanalysis(repo, shot, result, PersistOptions)
 //       the write half alone: RecordingRepository::writeAnalysis with the analysis and BOTH
 //       integrity verdicts the pass reached (a verdict it could not reach is withdrawn), the
 //       repository's empty-document guard, and PersistOptions::savePose (Save pose keypoints)
@@ -32,7 +32,11 @@
 // GUI thread, as it always has — so a rating or a launch monitor reading written on the GUI thread
 // meanwhile is never lost to a write-back that read the document before it. SwingLab's --write-back
 // calls reanalyseAndPersist (its --save-pose fills PersistOptions::savePose). The analysis half runs on
-// the analysis service (reanalyzeSwingDir → AnalysisService, step 1.5); the write half stays this one.
+// the analysis service (reanalyzeShot, reading through the RecordingReader → AnalysisService, steps 1.5
+// and 2.4); the write half stays this one.
+//
+// Keyed by the shot's ShotRef (step 2.4; IM-S2-2: DEC-160), as the repository and the reader are: a
+// caller holding a folder translates it once, at its edge (RecordingRepository::shotOfFolder).
 //
 // Application ring (src/Analysis): names the repository interface, never the store.
 
@@ -53,14 +57,16 @@ struct PersistedReanalysis {
     bool ok() const { return (deviceOnly || analysed) && write.ok(); }
 };
 
-// The write half. `result` null = a launch-monitor-only shot (its rows derived again).
-PersistedReanalysis persistReanalysis(RecordingRepository &repo, const QString &swingDir,
+// The write half, by the shot's ShotRef (step 2.4). `result` null = a launch-monitor-only shot (its
+// rows derived again).
+PersistedReanalysis persistReanalysis(RecordingRepository &repo, const ShotRef &shot,
                                       const ReanalyzeResult *result, const PersistOptions &options);
 
-// Both halves, on the calling thread. `reanalyse` is what re-analysis runs with (the app's defaults
-// unless a tool says otherwise).
-PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, const QString &swingDir,
+// Both halves, on the calling thread: the shot read through `reader` (reanalyzeShot), written through
+// `repo`. `reanalyse` is what re-analysis runs with (the app's defaults unless a tool says otherwise).
+PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, RecordingReader &reader, const ShotRef &shot,
                                         const PersistOptions &options,
                                         const ReanalyzeOptions &reanalyse = {});
+
 
 } // namespace pinpoint::analysis

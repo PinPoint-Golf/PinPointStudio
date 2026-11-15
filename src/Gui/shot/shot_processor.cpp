@@ -546,6 +546,8 @@ void ShotProcessor::finishGatherAndLaunch()
     m_integrity.reset();
     m_segmentation    = {};
     m_swingDir.clear();
+    m_shot = {};
+    m_allocResult = {};
     m_thumbnailPath.clear();
     setState(State::Processing);
 
@@ -732,8 +734,13 @@ void ShotProcessor::startSwingSave()
     if (job.swingDir.isEmpty()) {
         ppWarn() << "[SwingExport] could not allocate a swing directory — not saving";
         m_exportOutcome = Outcome::Skipped;
-        emit swingSaveBlocked(tr("The swing folder could not be created — check the "
-                                 "athlete library path in Settings"));
+        // A folder another writer holds (a tool, the other machine) says so in the lock's own words
+        // (J-22); anything else is the library path, as before.
+        if (m_allocResult.status == pinpoint::WriteResult::Status::Locked)
+            emit swingSaveBlocked(m_allocResult.error);
+        else
+            emit swingSaveBlocked(tr("The swing folder could not be created — check the "
+                                     "athlete library path in Settings"));
         return;
     }
     if (job.cameras.empty()) {
@@ -1221,6 +1228,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         ppWarn() << "[SwingExport] no swing folder:"
                  << (session.isNull() ? QStringLiteral("no session could be started") : alloc.result.error);
     job.swingDir   = alloc.ok() ? alloc.swingFolder : QString();
+    m_shot         = alloc.ok() ? alloc.shot : pinpoint::ShotRef();
+    m_allocResult  = alloc.result;
     job.swingId    = alloc.swingName;
     job.swingIndex = alloc.shot.swingNumber();
     job.sessionId  = alloc.sessionFolderName;
@@ -1564,6 +1573,7 @@ void ShotProcessor::maybeJoin()
 
             pinpoint::capture::LiveDocumentInput in;
             in.repository = m_repository;
+            in.shot       = m_shot;
             in.swingDir   = m_swingDir;
             in.persist    = persist;
             in.header     = header;

@@ -29,11 +29,12 @@
 //                                           re-analysis' reuse gate): the job must have come from
 //                                           buildAnalysisJob on this Recording
 //   integrity(recording)                    the verdicts alone: a capture that ran no analysis
-//   load(swingDir)                          a stored shot's Recording, through the RecordingReader
-//                                           the service was given (src/DomainModel/recording_reader.h)
+//   load(shot)                              a stored shot's Recording by its ShotRef, through the
+//                                           RecordingReader the service was given (recording_reader.h)
 //
 // Called by the live capture (ShotProcessor, on its analysis worker), re-analysis
-// (reanalyzeSwingDir: the app's ReanalysisController and the one write-back, reanalyseAndPersist)
+// (reanalyzeShot, by ShotRef through the RecordingReader: the app's ReanalysisController and the one
+// write-back, reanalyseAndPersist)
 // and SwingLab (swinglab_run --out / --doc-blocks / --write-back). So a shot analysed live and the
 // same shot re-analysed are run, and judged, by the same code.
 //
@@ -71,7 +72,7 @@ public:
     IntegrityVerdicts integrity(const pinpoint::recording::Recording &recording) const;
 
     // ok=false with an error when the service was given no reader.
-    pinpoint::LoadedRecording load(const QString &swingDir,
+    pinpoint::LoadedRecording load(const pinpoint::ShotRef &shot,
                                    const pinpoint::RecordingLoadOptions &options = {}) const;
 
 private:

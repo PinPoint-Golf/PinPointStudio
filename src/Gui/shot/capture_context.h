@@ -56,6 +56,7 @@
 #include <QVariantMap>
 #include <vector>
 
+#include "../../Identity/identity.h"           // ShotRef: the live join's write is keyed by it (step 2.4)
 #include "../../Recording/recording.h"
 #include "../../Analysis/swing_analysis.h"        // BallTrack2D, SwingAnalysis
 #include "../../Analysis/recording_integrity.h"   // IntegrityVerdicts
@@ -140,7 +141,8 @@ void fillExportFromSnapshot(pinpoint::SwingExportJob &job, const CaptureSnapshot
 // ── The live join's document ──────────────────────────────────────────────────────────────────
 struct LiveDocumentInput {
     pinpoint::RecordingRepository *repository = nullptr;
-    QString               swingDir;
+    pinpoint::ShotRef     shot;       // the key the allocation issued (step 2.4): what the write is keyed by
+    QString               swingDir;   // its folder: a property (the document path reported back)
     pinpoint::PersistPath persist = pinpoint::PersistPath::None;
     // The header written: the exporter's manifest (FullDocument) or the analysis-only header from
     // the one header writer (AnalysisOnlyDocument). The verdicts are put into it here.

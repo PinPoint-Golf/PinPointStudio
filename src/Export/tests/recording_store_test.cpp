@@ -542,7 +542,7 @@ void testShotKind()
     const QJsonObject cap = SwingStore::load(capDir.path());
     check(cap.value(QStringLiteral("shotKind")).toString() == QStringLiteral("captured")
               && readShotKind(cap).recorded && readShotKind(cap).kind == rec::ShotKind::Captured
-              && !repo.isDeviceOnly(capDir.path()),
+              && !repo.isDeviceOnly(testdoc::ref(capDir.path())),
           "new capture: shotKind \"captured\" written, read back as recorded");
 
     // The analysis-only shot (no media) writes no kind: it could still become either by content, so
@@ -562,7 +562,7 @@ void testShotKind()
     const QJsonObject dev = SwingStore::load(devDir.path());
     check(dev.value(QStringLiteral("shotKind")).toString() == QStringLiteral("deviceOnly")
               && readShotKind(dev).recorded && readShotKind(dev).kind == rec::ShotKind::DeviceOnly
-              && repo.isDeviceOnly(devDir.path()),
+              && repo.isDeviceOnly(testdoc::ref(devDir.path())),
           "device-only: shotKind \"deviceOnly\" written, read back as recorded");
 
     // The kind never changes: the later writes keep it as created.
@@ -584,7 +584,7 @@ void testShotKind()
         const ShotKindRead k = readShotKind(old);
         const bool today = todaysDeviceOnly(old);
         check(!k.recorded && (k.kind == rec::ShotKind::DeviceOnly) == today
-                  && repo.isDeviceOnly(oldDir.path()) == today
+                  && repo.isDeviceOnly(testdoc::ref(oldDir.path())) == today
                   && k.kind == readShotKind(recorded).kind,
               today ? "an old device-only file: device-only, as today's rule"
                     : "an old camera file: captured, as today's rule");
@@ -599,7 +599,7 @@ void testShotKind()
     unknown[QStringLiteral("shotKind")] = QStringLiteral("someNewKind");
     check(!readShotKind(unknown).recorded && readShotKind(unknown).kind == rec::ShotKind::DeviceOnly,
           "an unknown spelling: classified by today's rule");
-    check(!repo.isDeviceOnly(QTemporaryDir().path()), "no document: not device-only (as before)");
+    check(!repo.isDeviceOnly(testdoc::ref(QTemporaryDir().path())), "no document: not device-only (as before)");
 
     // The Recording carries it: the loader reads the recorded kind (and an old camera file's).
     QTemporaryDir synth;

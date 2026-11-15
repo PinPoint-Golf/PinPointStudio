@@ -26,6 +26,8 @@
 #include "../../Video/VideoInputPpcp.h"
 
 namespace Ppcp { class PpcpImportLedger; }
+#include "../../Identity/identity.h"   // ShotRef
+
 namespace pinpoint { class RecordingRepository; struct StreamArrival; }
 
 // PpcpClipFiler — where a phone's swing video becomes part of a swing.
@@ -142,19 +144,20 @@ private:
     };
     struct Shot {
         QString            shotId;
-        QString            swingDir;      // empty until the folder exists
+        QString            swingDir;      // empty until the folder exists (the clip's file goes here)
         std::vector<Asked> asked;
         std::vector<PpcpClip> parked;     // arrived before the folder did
         bool               abandoned = false;
+        pinpoint::ShotRef  shot;          // the swing's key, translated once from swingDir (step 2.4)
     };
 
     Shot *find(const QString &shotId);
     Shot *awaiting();
     QString aliasFor(const Shot &s, const PpcpClip &clip) const;
     bool file(Shot &s, const PpcpClip &clip);
-    bool ensureSwingDocument(const QString &swingDir);
+    bool ensureSwingDocument(const Shot &s);
     // The origin (and, once landed, the file) on the swing's `streams[]`; false + *error on failure.
-    bool recordArrival(const QString &swingDir, const pinpoint::StreamArrival &arrival, QString *error);
+    bool recordArrival(const Shot &s, const pinpoint::StreamArrival &arrival, QString *error);
 
     Stats                   m_stats;
     Ppcp::PpcpImportLedger *m_ledger = nullptr;

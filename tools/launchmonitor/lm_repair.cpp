@@ -59,6 +59,7 @@
 #include "swing_doc.h"
 #include "swing_store.h"
 #include "swing_store_repository.h"   // the one door to the swing files
+#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
 #include "launch_monitor_reading.h"
 #include "pp_debug.h"
 
@@ -168,6 +169,16 @@ void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, b
 
     ++t.visited;
     const QString name = QDir(swingDir).dirName();
+    // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once, over
+    // a session reader of its own (a legacy session: D3's id from the athlete who owns its folder, by its athlete.json, else the
+    // athlete the swing records; J-39, proposed, for Mark).
+    const pinpoint::ShotRef shot = repo.shotOfFolder(swingDir);
+    if (shot.isNull()) {
+        out() << "  " << name << ": FAILED — not a swing folder of a session this tool can name"
+                 " (a swing_NNNN folder whose session has a session.json, or whose owner or swing records its athlete)\n";
+        ++t.failed;
+        return;
+    }
 
     QJsonObject root;
     if (!loadDoc(swingDir, &root)) {
@@ -198,7 +209,7 @@ void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, b
         // which is left as it is (writeAnalysis with no analysis).
         pinpoint::PersistOptions probe;
         probe.dryRun = true;
-        const pinpoint::WriteResult would = repo.writeAnalysis(swingDir, pinpoint::AnalysisOutcome{}, probe);
+        const pinpoint::WriteResult would = repo.writeAnalysis(shot, pinpoint::AnalysisOutcome{}, probe);
         if (!would.ok()) {
             out() << "  " << name << ": FAILED — " << would.error << "\n";
             ++t.failed;
@@ -214,7 +225,7 @@ void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, b
             ++t.derived;
             return;
         }
-        const pinpoint::WriteResult w = repo.writeAnalysis(swingDir, pinpoint::AnalysisOutcome{});
+        const pinpoint::WriteResult w = repo.writeAnalysis(shot, pinpoint::AnalysisOutcome{});
         if (!w.ok()) {
             out() << "  " << name << ": FAILED — " << w.error << "\n";
             ++t.failed;
@@ -233,7 +244,7 @@ void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, b
         return;
     }
 
-    const pinpoint::WriteResult w = repo.completeCapture(swingDir, *reading);
+    const pinpoint::WriteResult w = repo.completeCapture(shot, *reading);
     if (!w.ok()) {
         out() << "  " << name << ": FAILED — " << w.error << "\n";
         ++t.failed;
@@ -281,7 +292,8 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    pinpoint::SwingStoreRecordingRepository repo;   // the composition root's one door
+    pinpoint::SessionStore                  sessions;         // names each swing's ShotRef
+    pinpoint::SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
     Tally t;
     for (const QString &p : paths) {
         const QString clean = QDir::cleanPath(p);

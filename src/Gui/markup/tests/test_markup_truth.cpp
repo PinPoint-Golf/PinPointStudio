@@ -29,6 +29,38 @@
 
 using namespace pinpoint::markup;
 
+// The sidecar on disk, written and read the way the door does (atomic, indented; RecordingRepository
+// writeTruth / truth, step 2.4) and score.py reads it: the conversions are what is under test here.
+static QString sidecarPath(const QString &swingDir, MarkupView view)
+{
+    return QDir(swingDir).filePath(truthFileName(view));
+}
+static bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
+                       MarkupView view = MarkupView::FaceOn, QString *error = nullptr)
+{
+    QFile f(sidecarPath(swingDir, view));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) { if (error) *error = f.errorString(); return false; }
+    f.write(QJsonDocument(toJson(doc, fo, view)).toJson(QJsonDocument::Indented));
+    return true;
+}
+static bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo, QString *error)
+{
+    return writeTruth(swingDir, doc, fo, MarkupView::FaceOn, error);
+}
+static QJsonObject sidecar(const QString &swingDir, MarkupView view)
+{
+    QFile f(sidecarPath(swingDir, view));
+    return f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+}
+static TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupView view = MarkupView::FaceOn)
+{
+    return fromJson(sidecar(swingDir, view), fo, view);
+}
+static TruthSummary summarize(const QString &swingDir, MarkupView view = MarkupView::FaceOn)
+{
+    return summarizeJson(sidecar(swingDir, view), view);
+}
+
 static int g_fails = 0;
 
 static bool check(bool ok, const char *what)

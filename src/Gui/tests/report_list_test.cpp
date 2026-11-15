@@ -177,6 +177,9 @@ static void makeDocSession(const QString &dir, int n, qint64 startMs)
         QDir().mkpath(sd);
         const QJsonObject manifest{
             { "schema", "pinpoint.swing/2" },
+            // Whose swing (every captured swing records it): what names a session without a session file
+            // (D3) when the archiver translates its folders to ShotRefs (step 2.4).
+            { "athlete", QJsonObject{ { "name", "I" }, { "uuid", "6b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e" } } },
             { "clock", QJsonObject{ { "t0_us", 0 }, { "wallclock",
                 QDateTime::fromMSecsSinceEpoch(startMs + qint64(i) * 60'000).toUTC().toString(Qt::ISODateWithMs) } } },
             { "swing", QJsonObject{ { "index", i }, { "id", id } } },

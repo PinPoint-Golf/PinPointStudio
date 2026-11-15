@@ -98,20 +98,38 @@ LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOption
     return fromRecording(loadRecording(swingDir, recordingLoadOptions(opts)));
 }
 
-LoadedSwing SwingDiskLoader::load(RecordingReader& reader, const QString& swingDir, const SwingLoadOptions& opts)
+
+LoadedSwing SwingDiskLoader::load(RecordingReader& reader, const ShotRef& shot, const SwingLoadOptions& opts)
 {
-    return fromRecording(reader.load(swingDir, recordingLoadOptions(opts)));
+    return fromRecording(reader.load(shot, recordingLoadOptions(opts)));
 }
+
+namespace {
+// The re-analysis of a loaded swing: everything after the read, whichever door the swing came in by.
+// `label` names the swing in the log (its folder, or its ShotRef).
+ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label);
+} // namespace
 
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts)
 {
-    ReanalyzeResult out;
-
     // The overrides reach the loader too: the MP4 readers it builds take the decode.*
     // keys (everything else in the map is applied by the stages, below).
     SwingLoadOptions lopts;
     lopts.tuningOverrides = opts.tuningOverrides;
-    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
+    return reanalyzeLoaded(SwingDiskLoader::load(swingDir, lopts), opts, swingDir);
+}
+
+ReanalyzeResult reanalyzeShot(RecordingReader& reader, const ShotRef& shot, const ReanalyzeOptions& opts)
+{
+    SwingLoadOptions lopts;
+    lopts.tuningOverrides = opts.tuningOverrides;
+    return reanalyzeLoaded(SwingDiskLoader::load(reader, shot, lopts), opts, shot.toString());
+}
+
+namespace {
+ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label)
+{
+    ReanalyzeResult out;
     if (!ls.ok) {
         out.error = ls.error;
         return out;
@@ -225,13 +243,13 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
     ls.job.path.reuse = gate.reasons(reloaded);
     {
         const QString stale = analysisInputsStaleness(facts.versions, facts.inputsNow);
-        ppInfo() << "[Reanalysis]" << swingDir << "inputs:"
+        ppInfo() << "[Reanalysis]" << label << "inputs:"
                  << (stale.isEmpty() ? QStringLiteral("current") : QStringLiteral("stale (%1)").arg(stale))
                  << "club" << (facts.inputsNow.club.isEmpty() ? QStringLiteral("(undeclared)") : facts.inputsNow.club)
                  << (ls.clubCorrected ? "(corrected)" : "");
     }
     if (!opts.forceRerun)
-        ppInfo() << "[Reanalysis]" << swingDir << "reuse: pose"
+        ppInfo() << "[Reanalysis]" << label << "reuse: pose"
                  << (reloaded.pose ? "recorded" : "re-run") << "ball"
                  << (reloaded.ball ? "recorded" : "re-run") << "shaft"
                  << (reloaded.shaft ? "recorded (synth refreshed)" : "re-run")
@@ -270,5 +288,6 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
 
     return out;
 }
+} // namespace
 
 } // namespace pinpoint::analysis

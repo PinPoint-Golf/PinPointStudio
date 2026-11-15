@@ -21,8 +21,12 @@
 // RecordingReader — READING A SHOT'S RECORDING BACK (refactor step 1.5; docs/developer/
 // information_model.md §2 "The Recording contract"; step 1 design §4.8 `load`).
 //
-//   load(swingDir) → { the disk-backed window, the Recording that points into it,
-//                      the shot's club review (ClubReview { correction, declared }), … }
+//   load(ShotRef) → { the disk-backed window, the Recording that points into it,
+//                     the shot's club review (ClubReview { correction, declared }), … }
+//
+// KEYED BY THE SHOT'S ShotRef (step 2.4; IM-S2-2: DEC-160), like RecordingRepository: the folder is
+// resolved through SessionRepository and is never the key. A caller holding a path translates it once,
+// at its edge (RecordingRepository::shotOfFolder; DEC-90).
 //
 // A SEPARATE, SMALL INTERFACE, NOT A METHOD OF RecordingRepository (the lead's call, 14 Nov 2026,
 // from 1.4's notes): its adapter decodes frames (OpenCV, the MP4 reader), and a `load` on the
@@ -30,8 +34,8 @@
 // one reader of Recordings — the analysis side (re-analysis, SwingLab) — names this interface.
 //
 // Its adapter is SwingStoreRecordingReader (src/Export/recording_loader.h), which the composition
-// root holds (each tool's main; the app when step 3's Session reads through it). Reading never
-// writes the document. Stateless and safe from worker threads.
+// root holds (each tool's main; the app's re-analysis). Reading never writes the document. Stateless
+// and safe from worker threads.
 //
 // Domain model ring (src/DomainModel): names no store type. The values it returns are the
 // Recording contract's (src/Recording) and the effective-club rule's input (ClubReview).
@@ -43,6 +47,7 @@
 #include <memory>
 #include <vector>
 
+#include "../Identity/identity.h"
 #include "../Recording/recording.h"
 #include "../Analysis/effective_context.h"   // pinpoint::analysis::ClubReview
 #include "../Analysis/gate_record.h"         // loadGates
@@ -96,9 +101,9 @@ struct LoadedRecording {
 class RecordingReader {
 public:
     virtual ~RecordingReader() = default;
-    // The Recording of the swing in `swingDir` and the shot's club review. On failure ok=false,
-    // error set, no window.
-    virtual LoadedRecording load(const QString &swingDir, const RecordingLoadOptions &options = {}) = 0;
+    // The Recording of the shot and its club review. On failure (no document, a shot whose session is
+    // not open) ok=false, error set, no window.
+    virtual LoadedRecording load(const ShotRef &shot, const RecordingLoadOptions &options = {}) = 0;
 };
 
 } // namespace pinpoint

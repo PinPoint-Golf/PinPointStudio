@@ -43,11 +43,16 @@
 //   shots            the session's swings, as ShotRefs (the one swing_* listing is SwingPaths')
 //   open, openFolder the identity map's record; openFolder is the translation of a foreign id (a
 //                    path from a tool or a picker) into a SessionId, once, at the edge (DEC-90)
-//   swingFolder      a shot's folder (for RecordingRepository's adapter, step 2.4)
+//   openSwingFolder  the same for a swing folder: its ShotRef (step 2.4)
+//   swingFolder      a shot's folder (for RecordingRepository's and RecordingReader's adapters, which are
+//                    keyed by ShotRef: step 2.4). THE ONE METHOD SAFE FROM ANY THREAD: it reads the folders
+//                    the identity map publishes, so a worker writing a shot (the live join, re-analysis)
+//                    resolves it without touching the map
 //
 // THE IDENTITY MAP. One record per SessionId while held, on the owner thread (the GUI thread in the
 // app; one thread in a tool). The open session's folder lives here and is never re-resolved per shot
-// (E-01): capture asks for the folder of the session it writes into.
+// (E-01): capture asks for the folder of the session it writes into. Workers read only the folders it
+// publishes (swingFolder; P8: "workers read immutable values out of them").
 //
 // A SESSION WITHOUT A SESSION FILE (every session before step 2's migration M2, a corpus or scratch
 // copy) is read from its folder's name with D3's identity (SessionIdentity::fromLegacyFolder; DEC-150),
@@ -57,7 +62,7 @@
 // A WRITE THAT FAILS SAYS SO (DEC-126, DEC-140): every write returns WriteResult, and the caller
 // surfaces a failure with the existing notifications. A newer session file (schema above this build's)
 // is read-only: every write refuses it (WriteResult::Status::ReadOnly). A folder held by another
-// writer's advisory lock (FolderLock, R-PERS-6) past the wait is Failed, with the holder named.
+// writer's advisory lock (FolderLock, R-PERS-6) past the wait is Locked, with the holder named (J-22).
 //
 // INTERIM (IM-S2-4: DEC-160): until step 3 the callers are today's — ShotProcessor's session-folder
 // commands and the launch monitor's standalone shot (one allocator: D10, DEC-157). Step 3's
@@ -154,11 +159,16 @@ public:
     // A session folder's SessionId: its session file's, or D3's from `legacyAthlete` and its name
     // (null when it has no file and `legacyAthlete` is null). Reads only.
     virtual SessionId openFolder(const QString &folder, const AthleteId &legacyAthlete = {}) = 0;
+    // A swing folder's ShotRef: its session's id and its swing number (SwingPaths reads the number; null
+    // when the folder is not named as a swing). The session is the held one at that folder if there is
+    // one (so a folder already listed keeps the id it was listed with), else openFolder's (null for a
+    // session without a file when `legacyAthlete` is null). Reads only.
+    virtual ShotRef openSwingFolder(const QString &swingFolder, const AthleteId &legacyAthlete = {}) = 0;
 
     virtual SwingAllocation allocateSwing(const SessionId &id) = 0;
     // By swing number.
     virtual QList<ShotRef> shots(const SessionId &id) const = 0;
-    // "" when the session is not held or the ref is null.
+    // "" when the session is not held or the ref is null. Safe from any thread.
     virtual QString swingFolder(const ShotRef &shot) const = 0;
 };
 

@@ -122,11 +122,42 @@ void MarkupController::loadSwing(const QString &swingDir)
     openSwing(0);
 }
 
+namespace {
+pinpoint::TruthView truthViewOf(MarkupView view)
+{
+    return view == MarkupView::DownTheLine ? pinpoint::TruthView::DownTheLine : pinpoint::TruthView::FaceOn;
+}
+} // namespace
+
+// The edge (DEC-90): a queued swing folder to its ShotRef, once per folder.
+pinpoint::ShotRef MarkupController::shotOf(const QString &swingDir)
+{
+    auto it = m_shots.find(swingDir);
+    if (it == m_shots.end())
+        it = m_shots.insert(swingDir, m_repo ? m_repo->shotOfFolder(swingDir) : pinpoint::ShotRef());
+    return *it;
+}
+
+QJsonObject MarkupController::truthJson(const QString &swingDir, MarkupView view)
+{
+    return m_repo ? m_repo->truth(shotOf(swingDir), truthViewOf(view)) : QJsonObject();
+}
+
+pinpoint::WriteResult MarkupController::saveTruth(const TruthDoc &doc, const VideoStreamInfo &vi, MarkupView view)
+{
+    if (!m_repo) {
+        pinpoint::WriteResult none;
+        none.error = QStringLiteral("no swing store is connected");
+        return none;
+    }
+    return m_repo->writeTruth(shotOf(currentSwingDir()), truthViewOf(view), toJson(doc, vi, view));
+}
+
 void MarkupController::rebuildSwingsCache()
 {
     m_swingsCache.clear();
     for (const QString &d : m_swingDirs) {
-        const TruthSummary s = summarize(d);
+        const TruthSummary s = summarizeJson(truthJson(d, MarkupView::FaceOn));
         QVariantMap m;
         m.insert(QStringLiteral("swingDir"),   d);
         m.insert(QStringLiteral("name"),       QDir(d).dirName());
@@ -165,8 +196,9 @@ void MarkupController::openSwing(int queueIndex)
     // this swing has, and each pane's labels are read in its own pixel space.
     m_fo       = readVideoStream(dir, MarkupView::FaceOn);
     m_dtl      = readVideoStream(dir, MarkupView::DownTheLine);
-    m_truth    = m_fo.ok  ? readTruth(dir, m_fo,  MarkupView::FaceOn)      : TruthDoc{};
-    m_dtlTruth = m_dtl.ok ? readTruth(dir, m_dtl, MarkupView::DownTheLine) : TruthDoc{};
+    m_truth    = m_fo.ok  ? fromJson(truthJson(dir, MarkupView::FaceOn), m_fo, MarkupView::FaceOn) : TruthDoc{};
+    m_dtlTruth = m_dtl.ok ? fromJson(truthJson(dir, MarkupView::DownTheLine), m_dtl, MarkupView::DownTheLine)
+                          : TruthDoc{};
     m_pose     = m_fo.ok  ? readPose2d(dir)                                : PoseTrack{};
     m_dirty    = false;
     m_dirtyDtl = false;
@@ -699,12 +731,16 @@ bool MarkupController::save()
     if (!hasSwing() || !m_fo.ok) { emit message(QStringLiteral("Nothing to save")); return false; }
     QString err;
     QStringList wrote;
-    bool ok = writeTruth(currentSwingDir(), m_truth, m_fo, MarkupView::FaceOn, &err);
+    pinpoint::WriteResult w = saveTruth(m_truth, m_fo, MarkupView::FaceOn);
+    bool ok = w.ok();
+    err = w.error;
     if (ok) { setDirty(false); wrote << truthFileName(MarkupView::FaceOn); }
 
     const bool haveDtlMarks = !m_dtlTruth.shaft.isEmpty() || m_dtlTruth.ball.has;
     if (ok && m_dtl.ok && (m_dirtyDtl || haveDtlMarks)) {
-        ok = writeTruth(currentSwingDir(), m_dtlTruth, m_dtl, MarkupView::DownTheLine, &err);
+        w   = saveTruth(m_dtlTruth, m_dtl, MarkupView::DownTheLine);
+        ok  = w.ok();
+        err = w.error;
         if (ok) { setDirtyDtl(false); wrote << truthFileName(MarkupView::DownTheLine); }
     }
 
@@ -726,8 +762,11 @@ bool MarkupController::save()
 void MarkupController::revert()
 {
     if (!hasSwing()) return;
-    m_truth    = m_fo.ok  ? readTruth(currentSwingDir(), m_fo,  MarkupView::FaceOn)      : TruthDoc{};
-    m_dtlTruth = m_dtl.ok ? readTruth(currentSwingDir(), m_dtl, MarkupView::DownTheLine) : TruthDoc{};
+    m_truth    = m_fo.ok  ? fromJson(truthJson(currentSwingDir(), MarkupView::FaceOn), m_fo, MarkupView::FaceOn)
+                          : TruthDoc{};
+    m_dtlTruth = m_dtl.ok ? fromJson(truthJson(currentSwingDir(), MarkupView::DownTheLine), m_dtl,
+                                     MarkupView::DownTheLine)
+                          : TruthDoc{};
     seedMetaDefaults();
     setDirty(false);
     setDirtyDtl(false);

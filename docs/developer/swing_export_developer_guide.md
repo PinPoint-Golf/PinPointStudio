@@ -466,54 +466,99 @@ type later is just another element of `streams[]` — readers must ignore unknow
 }
 ```
 
-### The one door — `RecordingRepository` (step 1.4)
+### The one door — `RecordingRepository` (step 1.4; keyed by `ShotRef` since step 2.4)
 
-Every write of a swing file goes through **`RecordingRepository`**
-(`src/DomainModel/recording_repository.h`, the domain-model ring), implemented on the
-store by **`SwingStoreRecordingRepository`** (`src/Export/swing_store_repository.*`).
-`SwingDocWriter`'s write functions are **private**: the adapter is their friend, and so is
-the live join (`ShotProcessor`) until step 1.5 moves it onto `create()`. The composition
-root holds the one instance — `main.cpp` hands it to `ShotListModel` (both carousels),
-`SessionReviewController`, `LaunchMonitorController`, `PpcpClipFiler`, `ReanalysisController`
-and `LibraryConverter`; `lm_repair`, `pps_convert_library` and `swinglab_run` make their own.
-The archiver (in the store itself) keeps a private one. It is stateless apart from the
-writer's one-entry just-written cache, so it is safe from workers.
+Every write of a swing file — and its archive stub and its markup truth — goes through
+**`RecordingRepository`** (`src/DomainModel/recording_repository.h`, the domain-model ring),
+implemented on the store by **`SwingStoreRecordingRepository`** (`src/Export/swing_store_repository.*`).
+`SwingDocWriter`'s write functions are **private**: the adapter is their friend.
+
+**The key is the shot's `ShotRef`** (its session's `SessionId` + its swing number; IM-S2-2, DEC-160),
+never its folder. The adapter is made over a `SessionRepository` and resolves each ShotRef's folder
+through `SessionRepository::swingFolder` — the one method of the session store safe from any thread,
+because it reads the folders the identity map *publishes* — so a worker (the live join, re-analysis)
+writes by ShotRef without touching the map. A ShotRef it cannot resolve (null, or its session not
+open) is never guessed at: every write is `Failed` ("not found"), every read empty. The reading door,
+**`RecordingReader::load(ShotRef)`** (`SwingStoreRecordingReader`, `src/Export/recording_loader.*`), is
+keyed and resolved the same way.
+
+**The edge translation** (DEC-90). Whoever holds a *path* — a tool's argument, a picker, a carousel row
+that still carries its folder until step 4 — turns it into the ShotRef once, where it comes in, with
+`RecordingRepository::shotOfFolder(swingDir[, legacyAthlete])` (→ `SessionRepository::openSwingFolder`):
+the swing number from the folder's name (`SwingPaths`), the session's id from its `session.json`, or —
+**a session older than step 2, with no session file** — D3's derived id (DEC-150) from the athlete who
+**owns** the session's folder (J-39, proposed, for Mark): the athlete the caller names; else the
+adapter's owner resolver (`setOwnerOf`: in the app, the current athlete when the folder is theirs — the
+athlete the session list derives the same id from); else the athlete folder's `athlete.json`
+(`AthleteFiles::ownerOf`); and only when no owner is found, the athlete the swing's own header records
+(`athlete.uuid`, read from the document's root alone). The swings' uuids were minted on the capturing
+machine and need not be the owner's (H-09), so the header is the last resort. A folder already held keeps the id it was listed with. Not a `swing_NNNN`
+folder, or a legacy session whose athlete cannot be found: no ShotRef. Owner thread only (it reads the
+session into the identity map). Where each caller translates:
+
+| Caller | Its edge |
+|---|---|
+| the live join (`ShotProcessor` → `capture::writeLiveDocument`) | none: the allocation's ShotRef (`SessionRepository::allocateSwing`) |
+| `ShotListModel` (both carousels) | each row's folder, on its first write; kept on the row (cleared by `attachSwingDir`) |
+| `PpcpClipFiler` | the folder `onSwingReady` announces |
+| `LaunchMonitorController` | the folder each write is handed (its own allocation's, or a failed camera shot's) |
+| `ReanalysisController` | each queued folder as it starts (GUI thread); the worker reads by the ShotRef |
+| `SessionReviewController` (the JSON-era sidecar) | every swing of the session, on the GUI thread, before the pool threads write |
+| `MarkupController` (the truth) | each queued folder, once |
+| `LibraryConverter`, `SessionArchiver` | each folder they walk — over a `SessionStore` of the run's own (they run on workers, so they never touch the app's identity map) |
+| `lm_repair`, `pps_convert_library`, `swinglab_run`, `backfill_analysis_context` | each folder they are given or find, in `main`'s own `SessionStore` |
+
+`main.cpp` holds the one `SessionStore` and, over it, the one `SwingStoreRecordingRepository` and the
+one `SwingStoreRecordingReader` (all three static, the store first, so the static phone-clip filer
+never outlives them); it hands them to the callers above.
 
 | Method | Does | Callers |
 |---|---|---|
-| `create(dir, NewRecording{header, analysis, reviewClub}, PersistOptions)` | the first write: header + streams (+ analysis), `review.club` seeded | phone-clip placeholder, swinglab's scratch/result documents (the live join in 1.5) |
-| `create(dir, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded; `shotKind: "deviceOnly"` only when `meta.standalone` (the rescue of a failed camera shot's folder records no kind: a phone clip may still join it) | `LaunchMonitorController` |
-| `completeCapture(dir, reading, followedClub, &clubReplaced)` | a late LM reading (IM-4: capture writes in stages); follow-club may replace `capture.club` | `LaunchMonitorController`, `lm_repair` |
-| `completeCapture(dir, StreamArrival)` | a phone clip's stream origin, then its file, frames and clock | `PpcpClipFiler` |
-| `writeAnalysis(dir, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `persistReanalysis` (the app, swinglab `--write-back`), `lm_repair` |
-| `editReview(dir, ReviewEdit)` | merges rating / note / club / `excluded` / `clubOverride` into `review` (an unset field is left alone) | `ShotListModel`, `SessionArchiver` (restore) |
-| `convert(dir, deleteJson)` | JSON era → `swing.ppsw`, proven first | `LibraryConverter`, `pps_convert_library`, `SessionArchiver` |
-| `writeSummarySidecar(PersistedShot)` | the JSON-era `swing_summary.json` | `SessionReviewController` |
-| `backfillAnalysisContext(dir, AthleteRecordFacts, PersistOptions)` | the step-1 backfill (DEC-34, a one-off migration): writes `analysisContext` into a document with none, from its legacy fields and the record's height and club set; `Unchanged` when it already has a block or the facts add nothing; `dryRun` honoured | `tools/migrate/backfill_analysis_context` |
-| `isDeviceOnly(dir)` | a read: the shot kind (step 1.8), the document's `shotKind` through `readShotKind()`, else, for a document older than the field, today's rule (no streams and a `launchMonitor` block) | `ReanalysisController`, `reanalyseAndPersist` |
+| `shotOfFolder(dir, legacyAthlete)`, `swingFolder(shot)` | the edge translation; the folder as a property | every caller that holds a path |
+| `create(shot, NewRecording{header, analysis, reviewClub}, PersistOptions)` | the first write: header + streams (+ analysis), `review.club` seeded | the live join, the phone-clip placeholder |
+| `create(shot, reading, DeviceOnlyMeta)` | a shot the launch monitor alone recorded; `shotKind: "deviceOnly"` only when `meta.standalone` (the rescue of a failed camera shot's folder records no kind: a phone clip may still join it) | `LaunchMonitorController` |
+| `completeCapture(shot, reading, followedClub, &clubReplaced)` | a late LM reading (IM-4: capture writes in stages); follow-club may replace `capture.club` | `LaunchMonitorController`, `lm_repair` |
+| `completeCapture(shot, StreamArrival)` | a phone clip's stream origin, then its file, frames and clock | `PpcpClipFiler` |
+| `writeAnalysis(shot, AnalysisOutcome{analysis, imu, capture}, PersistOptions)` | the re-analysis write-back: the document read fresh (**the empty-document guard**: nothing read → `NoDocument`, nothing written), both verdicts set from this pass (`nullptr` withdraws one), `savePose` honoured. **No analysis** = the launch monitor rows derived again from the recorded reading (a launch-monitor-only shot; `lm_repair`, with `dryRun`) | `persistReanalysis` (the app, swinglab `--write-back`), `lm_repair` |
+| `editReview(shot, ReviewEdit)` | merges rating / note / club / `excluded` / `clubOverride` and — IM-S2-3 — `shotIntent` / `labelCorrections` into `review` (an unset field is left alone; the annotations and the two golfer-input keys are removed when set back to none) | `ShotListModel`, `SessionArchiver` (restore) |
+| `readReview(shot)` | the shot's golfer input on its review (`shotIntent`, `labelCorrections [{family, from, to}]`), from the document's root alone; a document without the keys reads as none | none yet: step 2.5 moves the golfer input there (migration M3) |
+| `convert(shot, deleteJson)` | JSON era → `swing.ppsw`, proven first | `LibraryConverter`, `pps_convert_library`, `SessionArchiver` |
+| `writeSummarySidecar(shot, PersistedShot)` | the JSON-era `swing_summary.json` | `SessionReviewController` |
+| `writeArchiveStub(shot, stub)` | the archive's stub (FILE-SHOT-10) written over the document as given (no summary rebuilt); a read-only document refused, never thinned | `SessionArchiver` |
+| `writeTruth(shot, view, json)`, `truth(shot, view)` | the markup truth (FILE-SHOT-12; DEC-83): `truth.json` (face-on) / `truth_dtl.json`, written whole through `atomicWrite` (indented, as the markup tool always wrote it; never into a folder that has gone) | `MarkupController` |
+| `backfillAnalysisContext(shot, AthleteRecordFacts, PersistOptions)` | the step-1 backfill (DEC-34, a one-off migration): writes `analysisContext` into a document with none, from its legacy fields and the record's height and club set; `Unchanged` when it already has a block or the facts add nothing; `dryRun` honoured | `tools/migrate/backfill_analysis_context` |
+| `isDeviceOnly(shot)` | a read: the shot kind (step 1.8), the document's `shotKind` through `readShotKind()`, else, for a document older than the field, today's rule (no streams and a `launchMonitor` block) | `ReanalysisController`, `reanalyseAndPersist` |
 
-Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, `Failed`
-+ the reason).
+Each returns a `WriteResult` (`Written`, `Unchanged`, `NoDocument`, `ReadOnly`, `Failed`, `Locked` +
+the reason). `Locked` (J-22) is a folder another writer holds by its advisory lock past the wait — the
+session store's writes and the swing allocation answer it, in the lock's own words ("The session … is
+being changed by …"), and the live capture's "swing folder could not be created" notice carries those
+words instead of "check the library path". The swing writes take no lock of their own yet.
+
+**The writer contract** (R-REC-1; DEC-86), written in the header: capture creates; until step 3 the
+interim callers of R-REC-3 write on the shot's behalf; everything else reads.
 
 **Every write refuses a read-only document.** A document saved by a newer build — its
 `schema`, or its `analysisContext` block's, newer than this build reads
 (`readAnalysisContext`, `recording_header.h`) — is never rewritten: `ReadOnly`, the bytes
 untouched (`SwingDocWriter::refusesWrite`, asked by every write before it changes anything).
 
-**The one re-analysis write-back** is `persistReanalysis` / `reanalyseAndPersist`
-(`src/Analysis/reanalyse_and_persist.*`, application ring): the app's
-`ReanalysisController` analyses on a worker and calls `persistReanalysis` on the GUI thread
-(so an edit made meanwhile on the GUI thread is never lost to a write-back that read the
-document before it); swinglab's `--write-back` calls `reanalyseAndPersist`. **"Save pose
-keypoints" is honoured by re-analysis** as by the live save (`PersistOptions::savePose`, read
-from the setting at each write; swinglab keeps the app's default, on).
+**The one re-analysis write-back** is `persistReanalysis(repo, shot, …)` /
+`reanalyseAndPersist(repo, reader, shot, …)` (`src/Analysis/reanalyse_and_persist.*`, application
+ring): the app's `ReanalysisController` analyses on a worker (`reanalyzeShot`, reading through the
+`RecordingReader`) and calls `persistReanalysis` on the GUI thread (so an edit made meanwhile on the
+GUI thread is never lost to a write-back that read the document before it); swinglab's `--write-back`
+calls `reanalyseAndPersist`. **"Save pose keypoints" is honoured by re-analysis** as by the live save
+(`PersistOptions::savePose`, read from the setting at each write; swinglab keeps the app's default, on).
 
 **The whole-shot gate records** (`manifest_gates.h`) are appended once, in the writer, from
 the document's integrity blocks on every write.
 
-**Not yet through the door:** the live join (`ShotProcessor`, step 1.5) and the archive stub
-(`SessionArchiver`'s `SwingStore::save`, step 2). `SwingStore::save` / `writeFile` stay public
-for those and for tools writing outside the library (`raw_reencode`) and tests' fixtures.
+**Not a shot:** SwingLab's research outputs (its `result.json` and `--doc-blocks` scratch) are written
+by the same writer into its own output folder through `SwingStoreRecordingRepository::writeOutsideLibrary`
+(by path; not on the interface; never a library folder). `SwingStore::save` / `writeFile` stay public
+for tools writing outside the library (`raw_reencode`) and for tests' fixtures; no production writer of
+a library swing calls them past the door.
 
 ### Capture provenance (additive, 2026-06)
 
@@ -1156,10 +1201,12 @@ src/Export/
 ├── swing_zip_exporter.cpp
 │
 └── tests/
-    ├── recording_repository_test.cpp  Every RecordingRepository method; savePose;
-    │                               the empty-document guard; every write refuses
-    │                               a newer document; ANALYSIS SUITE
-    ├── swing_doc_test_writes.h  the tests' writes, through the repository
+    ├── recording_repository_test.cpp  Every RecordingRepository method, by ShotRef;
+    │                               savePose; the empty-document guard; every write
+    │                               refuses a newer document; a legacy ShotRef
+    │                               resolves; truth; the stub; ANALYSIS SUITE
+    ├── swing_doc_test_writes.h  the tests' writes, through the repository, and
+    │                               FolderShots (any test folder is a shot)
     ├── recording_store_test.cpp  The Recording through the disk, the one header,
     │                               the legacy context, read-only; ANALYSIS SUITE
     └── swing_doc_test.cpp      Document round-trip; BUILT BY THE ANALYSIS SUITE
@@ -1248,7 +1295,18 @@ verdicts from this pass), the empty-document guard, `editReview`'s merge, `compl
 (follow-club, never over a hand-set club; a stream arrival), the launch-monitor-only shot
 (rows current / stale / dry run), `convert` and the JSON-era sidecar, **every write refusing a
 newer document** (document schema or `analysisContext` block; the bytes unchanged), and
-`reanalyseAndPersist` with the analyzer stubbed.
+`reanalyseAndPersist` with the analyzer stubbed. Keyed by `ShotRef` (step 2.4): a test's temp folder is
+a shot through the tests' own `FolderShots` session repository (`swing_doc_test_writes.h`: any folder,
+its own ShotRef). Then, through the **real** `SessionStore`: **a legacy session's ShotRef resolves**
+(D3's id from the caller's athlete, and from the swing's own `athlete.uuid` in a fresh store — what a
+tool does — writing no session file), a session-file session's allocation read back from its folder, a
+non-swing folder with no ShotRef; **the markup truth round trip** (both views, identical, indented,
+atomic, no folder re-made); **the stub through the door** (written as given; a newer document refused,
+bytes unchanged; no document → `NoDocument`); **a legacy session's id from its owning athlete** (J-39: the
+folder's `athlete.json` on the tool path, the resolver on the app path, the header only with no owner);
+**the two new review keys** (written, read back,
+unchanged on repeat, removed when cleared; an old document reads none); and an unresolved shot
+(`Failed` "not found", every read empty).
 
 ### `session_repository_test` — the session file and the one allocator (step 2.2)
 
@@ -1261,8 +1319,12 @@ D3's id and never written by a read, its first write a backfilled file; one in-p
 athlete; enumerate's typed entries and n-of-day under `name-date-type`; End and the empty discard,
 including the resumed morning session that must never be discarded; the folder fixed past midnight and
 a rename; D7 (a new session in the new library, the old ended, or left in progress when unreachable,
-or discarded when empty); a held `FolderLock` refusing the write. `swing_paths_test` keeps the names,
-`sanitise` and the trash.
+or discarded when empty); a held `FolderLock` refusing the write, as `Locked` in the lock's own words, for
+End and for an allocation (J-22, step 2.4); and (step 2.4, S) a swing folder to its `ShotRef` and back — an
+allocation's, a fresh store's read of a session file, a legacy swing's D3 id with no file written, a held
+session keeping its listed id, no ShotRef for a non-swing folder — `swingFolder` read on a worker thread
+while the owner thread re-lists the sessions, and a discarded session's folder no longer published.
+`swing_paths_test` keeps the names, `sanitise` and the trash.
 
 ### `athlete_repository_test` — the athlete file and its one door (step 2.3)
 

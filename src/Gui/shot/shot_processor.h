@@ -42,6 +42,7 @@
 #include "../Export/swing_exporter.h"
 #include "../Export/swing_paths.h"   // SwingPaths::sanitise, for the camera files' names
 #include "../Identity/identity.h"      // SessionId: the session swings are written into
+#include "../DomainModel/recording_repository.h"   // WriteResult (the allocation's, J-22)
 #include "shot_outcome.h"
 
 namespace pinpoint { class EventBuffer; class RecordingRepository; class SessionRepository; }
@@ -449,6 +450,8 @@ private:
     // writer then asks the service for them alone.
     std::optional<pinpoint::analysis::IntegrityVerdicts> m_integrity;
     QString m_swingDir;          // cached from the export job for the join
+    pinpoint::ShotRef   m_shot;          // the allocation's ShotRef: the join's write is keyed by it (step 2.4)
+    pinpoint::WriteResult m_allocResult;   // why the allocation failed, when it did (J-22: a held lock's words)
     pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip
     QString m_thumbnailPath;     // from SwingExportResult
     QJsonObject m_exportManifest; // raw manifest from the exporter, for the unified write

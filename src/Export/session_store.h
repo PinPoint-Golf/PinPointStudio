@@ -46,7 +46,9 @@
 // THE ATHLETE'S FOLDER (until step 2.3): `<libraryRoot>/<sanitise(name), else sanitise(uuid)>`, with
 // `<AppDataLocation>/swings` for an empty library — today's derivation, made here only (athleteFolder).
 //
-// Not thread-safe: one owner thread (the GUI thread in the app).
+// Not thread-safe: one owner thread (the GUI thread in the app) — except swingFolder, which any thread may
+// call: it reads the folders the identity map publishes (a mutex-guarded copy, written wherever the map
+// gains, moves or drops a session), so a worker writing a shot by its ShotRef never reads the map itself.
 //
 //   cmake --build build/tests --target session_repository_test -j 6
 //   ctest --test-dir build/tests -R '^session_repository_test$' --output-on-failure
@@ -55,6 +57,7 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QMutex>
 #include <QTimeZone>
 
 #include <functional>
@@ -78,6 +81,7 @@ public:
     QList<SessionIndexEntry>         enumerate(const SessionOwner &owner) override;
     std::optional<SessionIndexEntry> open(const SessionId &id) const override;
     SessionId       openFolder(const QString &folder, const AthleteId &legacyAthlete = {}) override;
+    ShotRef         openSwingFolder(const QString &swingFolder, const AthleteId &legacyAthlete = {}) override;
     SwingAllocation allocateSwing(const SessionId &id) override;
     QList<ShotRef>  shots(const SessionId &id) const override;
     QString         swingFolder(const ShotRef &shot) const override;
@@ -114,8 +118,13 @@ private:
     void endOthersInProgress(const QString &athleteDir, const SessionId &except);
     // Bring an entry read from disk into the identity map, keeping what only the map knows.
     Held &hold(const SessionIndexEntry &entry, const QJsonObject &file);
+    // The folder of a held session, for swingFolder on any thread.
+    void publish(const SessionId &id, const QString &folder);
+    void unpublish(const SessionId &id);
 
     QHash<SessionId, Held>      m_held;
+    mutable QMutex              m_publishedMutex;
+    QHash<SessionId, QString>   m_published;   // each held session's folder (swingFolder's, any thread)
     std::function<QDateTime()>  m_now;
     QTimeZone                   m_zone = QTimeZone::systemTimeZone();
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs

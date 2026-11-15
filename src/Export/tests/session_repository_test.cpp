@@ -49,6 +49,7 @@
 #include <QStringList>
 
 #include <cstdio>
+#include <thread>
 
 using namespace pinpoint;
 using namespace pinpoint::test;
@@ -769,6 +770,71 @@ static void testCopiedSession()
 }
 
 // ---------------------------------------------------------------------------
+// S — a swing folder to its ShotRef, and a ShotRef to its folder (step 2.4: the recording
+//     repository's key; DEC-90's edge translation)
+// ---------------------------------------------------------------------------
+static void testSwingFolders()
+{
+    std::printf("\nS — swing folders and ShotRefs\n");
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("S"), QStringLiteral("no temp dir")); return; }
+
+    // A session with a file: the ref carries its file's id.
+    SessionStore store;
+    const SessionStartResult s = store.start(owner(lib), kType, kPat);
+    const SwingAllocation    a = store.allocateSwing(s.id);
+    const ShotRef ref = store.openSwingFolder(a.swingFolder);
+    check(QStringLiteral("S1 an allocated swing's folder translates to the allocation's ShotRef"), ref == a.shot);
+    checkEq(QStringLiteral("S2 and back"), store.swingFolder(ref), a.swingFolder);
+    SessionStore other;   // another process (a tool) reading the same folder
+    check(QStringLiteral("S3 a fresh store names it the same, from its session file"),
+          other.openSwingFolder(a.swingFolder) == a.shot);
+
+    // A session older than step 2 (no session file): D3's id (DEC-150).
+    const QString name   = baseDefault() + QStringLiteral("_07");
+    const QString legacy = lib.makeSession(kToken, name, 3);
+    SessionStore fresh;
+    const ShotRef lref = fresh.openSwingFolder(legacy + QStringLiteral("/swing_0002"), kAthlete);
+    checkEq(QStringLiteral("S4 a legacy swing's ShotRef is D3's id"), lref.session().toString(),
+            SessionIdentity::legacySessionId(kAthlete, name).toString());
+    checkEqInt(QStringLiteral("S5 ... and its swing number"), lref.swingNumber(), 2);
+    checkEq(QStringLiteral("S6 it resolves to its folder"), QDir::cleanPath(fresh.swingFolder(lref)),
+            QDir::cleanPath(legacy + QStringLiteral("/swing_0002")));
+    check(QStringLiteral("S7 and the translation wrote nothing"), !TempLibrary::exists(SessionFiles::sessionFile(legacy)));
+    check(QStringLiteral("S8 without an athlete a legacy swing has no ShotRef here"),
+          SessionStore().openSwingFolder(legacy + QStringLiteral("/swing_0001")).isNull());
+    // A folder the athlete's list already holds keeps the id it was listed with.
+    SessionStore listed;
+    const QList<SessionIndexEntry> all = listed.enumerate(owner(lib));
+    const AthleteId stranger = AthleteId::fromString(u"0c1d2e3f-4a5b-4c6d-8e7f-901a2b3c4d5e");
+    check(QStringLiteral("S9 a held session keeps its listed id whatever athlete the caller names"),
+          listed.openSwingFolder(legacy + QStringLiteral("/swing_0003"), stranger).session()
+              == SessionIdentity::legacySessionId(kAthlete, name));
+    check(QStringLiteral("S10 not a swing folder: no ShotRef"),
+          store.openSwingFolder(legacy).isNull() && store.openSwingFolder(QString()).isNull());
+    check(QStringLiteral("S11 a shot of a session not held: no folder"),
+          SessionStore().swingFolder(a.shot).isEmpty() && store.swingFolder(ShotRef()).isEmpty());
+
+    // swingFolder from a worker thread while the owner thread grows the map (the published folders).
+    QString fromWorker;
+    std::thread worker([&] {
+        for (int i = 0; i < 2000; ++i)
+            fromWorker = store.swingFolder(a.shot);
+    });
+    for (int i = 0; i < 20; ++i)
+        store.enumerate(owner(lib));
+    worker.join();
+    checkEq(QStringLiteral("S12 a worker resolves the shot while the map changes"), fromWorker, a.swingFolder);
+
+    // A discarded session's folders are no longer published.
+    const SessionStartResult empty = store.start(owner(lib), kType, kPat);
+    const QString emptyFolder = store.swingFolder(ShotRef(empty.id, 1));
+    check(QStringLiteral("S13 a started session's folder is published"), !emptyFolder.isEmpty());
+    store.end(empty.id, /*discardIfEmpty=*/true);
+    check(QStringLiteral("S14 once discarded, no folder"), store.swingFolder(ShotRef(empty.id, 1)).isEmpty());
+}
+
+// ---------------------------------------------------------------------------
 // D — the advisory lock: a write never lands while another writer holds the folder (R-PERS-6)
 // ---------------------------------------------------------------------------
 static void testLock()
@@ -783,8 +849,13 @@ static void testLock()
     check(QStringLiteral("D1 another writer holds the session folder"), other.lock(0) == FolderLock::Result::Acquired);
     const WriteResult e = store.end(s.id, false);
     check(QStringLiteral("D2 End is refused"), !e.ok() && !e.error.isEmpty());
+    check(QStringLiteral("D2b ... as Locked (J-22), in the lock's own words"),
+          e.status == WriteResult::Status::Locked && e.error.contains(QStringLiteral("being changed by")));
     checkEq(QStringLiteral("D3 the file still says in progress"), sessionFile(s.folder).value("status").toString(), QStringLiteral("inProgress"));
-    check(QStringLiteral("D4 an allocation is refused"), !store.allocateSwing(s.id).ok());
+    const SwingAllocation a = store.allocateSwing(s.id);
+    check(QStringLiteral("D4 an allocation is refused"), !a.ok());
+    check(QStringLiteral("D4b ... as Locked, naming the holder"),
+          a.result.status == WriteResult::Status::Locked && a.result.error.contains(QStringLiteral("being changed by")));
     other.unlock();
     check(QStringLiteral("D5 once let go, End writes"), store.end(s.id, false).ok());
 }
@@ -804,6 +875,7 @@ int main(int argc, char **argv)
     testEnd();
     testFolderFixedAndD7();
     testCopiedSession();
+    testSwingFolders();
     testLock();
     std::printf("\n%d checks, %d failed, %d skipped\n", g_run, g_fail, g_skip);
     return g_fail == 0 ? 0 : 1;

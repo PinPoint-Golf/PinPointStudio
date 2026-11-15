@@ -46,6 +46,7 @@
 #include "../../Buffer/swing_window.h"   // LoadedRecording owns its window
 #include "../../Export/recording_loader.h"
 #include "../../Export/swing_store_repository.h"   // follow-club through the repository (Test 9)
+#include "../../Export/tests/swing_doc_test_writes.h"   // testdoc::ref — the test folder's ShotRef
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "recording_fixture.h"
 
@@ -400,9 +401,9 @@ void testFollowClub()
         { QStringLiteral("hoselFromButtMm"), 855.0 }, { QStringLiteral("shaftLengthMm"), 590.0 },
         { QStringLiteral("handsEndMm"), 180.0 },
     };
-    SwingStoreRecordingRepository repo;
+    SwingStoreRecordingRepository repo(testdoc::shots());   // a test folder is a shot
     bool replaced = false;
-    check(repo.completeCapture(dir.path(), reading, followed, &replaced).ok() && replaced,
+    check(repo.completeCapture(testdoc::ref(dir.path()), reading, followed, &replaced).ok() && replaced,
           "the launch monitor names a 9 iron: follow-club replaces the captured club");
 
     const LoadedRecording lr = loadRecording(dir.path());

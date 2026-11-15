@@ -105,6 +105,7 @@
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/Export/swing_store.h"
 #include "../../../src/Export/swing_store_repository.h"      // the one door to the swing files
+#include "../../../src/Export/session_store.h"               // what names the swing's ShotRef (step 2.4)
 #include "../../../src/Analysis/reanalyse_and_persist.h"     // the one re-analysis write-back
 #include "../../../src/Analysis/analysis_service.h"          // the run + the integrity verdicts (step 1.5)
 #include "../../../src/Export/recording_loader.h"            // SwingStoreRecordingReader — the reading door
@@ -743,18 +744,30 @@ int main(int argc, char **argv)
                     "       swinglab_run <swing_dir> --write-back");
     const QString swingDir = cli.positionalArguments().first();
 
+    // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once; every
+    // read and write below is keyed by it. Over a session reader of its own (a corpus or library
+    // session without a session file: D3's id from the athlete who owns its folder, by its athlete.json,
+    // else the athlete the swing records; J-39, proposed, for Mark).
+    pinpoint::SessionStore                  sessions;
+    pinpoint::SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
+    pinpoint::SwingStoreRecordingReader     recordingReader(sessions);
+    const pinpoint::ShotRef shot = repo.shotOfFolder(swingDir);
+    if (shot.isNull())
+        return fail(QStringLiteral("%1 is not a swing folder of a session this tool can name (a swing_NNNN "
+                                   "folder whose session has a session.json, or whose owner or swing records its athlete)")
+                        .arg(swingDir));
+
     // ── Write-back mode: the in-app re-analysis, headless ────────────────────
     // The in-app ReanalysisController's ONE write-back (reanalyse_and_persist.h):
-    // reanalyzeSwingDir with DEFAULT options (sessionType from the doc, span-bounded
-    // like a live shot, no tuning overrides), then RecordingRepository::writeAnalysis
-    // into the source dir — "analysis" and both integrity verdicts are replaced,
+    // reanalyzeShot (the shot read by its ShotRef through the RecordingReader) with DEFAULT
+    // options (sessionType from the doc, span-bounded like a live shot, no tuning overrides),
+    // then RecordingRepository::writeAnalysis into the shot — "analysis" and both integrity verdicts are replaced,
     // capture/streams/review ride through untouched, and the repository's empty-document
     // guard never replaces a document it could not read back. A launch-monitor-only swing
     // has nothing to re-analyse: its launch monitor rows are rebuilt from the reading it holds.
     // Pose is kept unless --save-pose off (PersistOptions::savePose; the app's "Save pose keypoints").
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
-        pinpoint::SwingStoreRecordingRepository repo;   // the composition root's one door
         pinpoint::PersistOptions persist;
         // --save-pose: the app's "Save pose keypoints" for this write-back (default on, the app's default).
         const QString savePose = cli.value(optSavePose).trimmed().toLower();
@@ -794,12 +807,12 @@ int main(int argc, char **argv)
                     cv::Mat big(1024, 1024, CV_8UC3, cv::Scalar(10, 20, 30)), out;
                     while (!busyStop.load()) cv::GaussianBlur(big, out, cv::Size(31, 31), 0);
                 });
-            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(repo, swingDir, persist, ropts); });
+            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts); });
             QThreadPool::globalInstance()->waitForDone();
             busyStop = true;
             if (busy.joinable()) busy.join();
         } else {
-            r = reanalyseAndPersist(repo, swingDir, persist, ropts);
+            r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts);
         }
         if (r.deviceOnly) {
             if (!r.write.ok())
@@ -836,13 +849,12 @@ int main(int argc, char **argv)
     // The composition root of this run: the Recording is read through the domain's RecordingReader
     // (its store adapter), the job made by the one builder, and run — and judged — by the analysis
     // service, as the app's live capture and re-analysis are (step 1.5).
-    pinpoint::SwingStoreRecordingReader recordingReader;
     const AnalysisService analysisService(&recordingReader);
     SwingLoadOptions lopts;
     lopts.faceOnExplicit  = cli.isSet(optFaceOn);
     lopts.faceOnSubstring = cli.value(optFaceOn);
     lopts.tuningOverrides = tuning;   // decode.* (the MP4 readers)
-    LoadedSwing ls = SwingDiskLoader::load(recordingReader, swingDir, lopts);
+    LoadedSwing ls = SwingDiskLoader::load(recordingReader, shot, lopts);
     if (!ls.ok)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;
@@ -1272,7 +1284,8 @@ int main(int argc, char **argv)
         scratch.analysis = result.detail.get();
         pinpoint::PersistOptions noPose;
         noPose.savePose = false;
-        const pinpoint::WriteResult dw = pinpoint::SwingStoreRecordingRepository().create(docDir, scratch, noPose);
+        // Not a shot: a scratch folder of this run's own output (writeOutsideLibrary).
+        const pinpoint::WriteResult dw = pinpoint::SwingStoreRecordingRepository::writeOutsideLibrary(docDir, scratch, noPose);
         derr = dw.error;
         if (dw.ok()) {
             const QJsonObject written = SwingStore::load(docDir, &derr);
@@ -1295,7 +1308,7 @@ int main(int argc, char **argv)
         pinpoint::NewRecording resultDoc;
         resultDoc.header   = manifest;
         resultDoc.analysis = result.detail.get();
-        const pinpoint::WriteResult rw = pinpoint::SwingStoreRecordingRepository().create(outDir, resultDoc);
+        const pinpoint::WriteResult rw = pinpoint::SwingStoreRecordingRepository::writeOutsideLibrary(outDir, resultDoc);
         if (!rw.ok())
             werr = rw.error;
         if (!rw.ok()) {

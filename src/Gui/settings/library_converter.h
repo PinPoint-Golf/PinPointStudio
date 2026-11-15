@@ -36,7 +36,6 @@
 #include <memory>
 
 class AppSettings;
-namespace pinpoint { class RecordingRepository; }
 
 class LibraryConverter : public QObject {
     Q_OBJECT
@@ -52,8 +51,8 @@ public:
     explicit LibraryConverter(AppSettings *settings, QObject *parent = nullptr);
     ~LibraryConverter() override;
 
-    // The one door to the swing files (main.cpp's). Without one convert() does nothing.
-    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // Each convert() run makes its own door to the swing files, over a session reader of its own, on
+    // its worker (step 2.4): it never touches the app's identity map off the GUI thread.
 
     int     pending() const { return m_pending; }
     bool    running() const { return m_running; }
@@ -73,7 +72,7 @@ private:
     void progress(int done, int failed, const QString &lastError);
 
     AppSettings *m_settings = nullptr;
-    pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the worker
+
     int     m_pending = -1;
     bool    m_running = false;
     int     m_done = 0, m_total = 0, m_failed = 0;

@@ -224,6 +224,14 @@ private:
     // a no-op (Unchanged) when nothing would change, and never touches the club, so a document with
     // no declared club does not acquire the stub. A rating / note / club edit always rewrites.
     static WriteResult editReview(const QString &swingDir, const ReviewEdit &edit);
+    // The shot-level golfer input on the review (shotIntent, labelCorrections), read from the document's
+    // root alone. A document without them reads as none.
+    static ShotReview readReview(const QString &swingDir);
+
+    // The archive's stub (FILE-SHOT-10) written over the document, as given — refused when the document
+    // is read-only (a newer build's; the stub carries its schema and analysisContext) or absent. Drops
+    // the just-written copy.
+    static WriteResult writeArchiveStub(const QString &swingDir, const QJsonObject &stub);
 
     // Fold a launch monitor reading into an existing document.
     //

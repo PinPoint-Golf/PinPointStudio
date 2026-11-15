@@ -560,7 +560,11 @@ pp_add_test(recording_repository_test
             ${SRC}/Analysis/reanalyse_and_persist.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
-    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis)
+            # the real session repository: a legacy ShotRef resolves (step 2.4)
+            ${SRC}/Export/session_store.cpp ${SRC}/Export/swing_paths.cpp
+            ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/Core/folder_lock.cpp ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Buffer ${SRC}/Analysis ${SRC}/Core)
 
 # --- One serialiser per analysis block, one time base (refactor step 1.3a) ---
 # Each block's writer and typed reader round-trip (block -> JSON -> typed -> JSON); a ring-clock
@@ -589,6 +593,8 @@ pp_add_test(swing_store_test
 # was. The writer's own link line (swing_doc_test's) plus the archiver.
 pp_add_test(session_archiver_test
     SOURCES ${SRC}/Export/tests/session_archiver_test.cpp ${SRC}/Export/session_archiver.cpp
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Core/folder_lock.cpp ${SRC}/Identity/identity.h   # the archiver's door (step 2.4)
             ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp

@@ -314,6 +314,7 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     }
 
     s.swingDir       = swingDir;
+    s.shot           = {};   // translated afresh from the new folder (shotOf)
     s.score          = p.score;
     s.metrics        = p.metrics;
     s.analysisDetail = p.analysisDetail;
@@ -348,6 +349,16 @@ void ShotListModel::clear()
 // Persist the row's review (rating + note + club) to its swing.json, if it has
 // one on disk. A row with no swingDir (export produced no directory) is in-memory
 // only and silently skips the write-through.
+// The edge (DEC-90): a row's folder translated to its ShotRef the first time the row writes, then kept
+// (a row's folder never changes once set, except by attachSwingDir, which clears it).
+pinpoint::ShotRef ShotListModel::shotOf(int row)
+{
+    Shot &s = m_shots[row];
+    if (s.shot.isNull() && m_repo && !s.swingDir.isEmpty())
+        s.shot = m_repo->shotOfFolder(s.swingDir);
+    return s.shot;
+}
+
 void ShotListModel::persistReview(int row)
 {
     const Shot &s = m_shots.at(row);
@@ -361,7 +372,7 @@ void ShotListModel::persistReview(int row)
     edit.rating = s.rating;
     edit.note   = s.note;
     edit.club   = s.club;
-    const pinpoint::WriteResult w = m_repo->editReview(s.swingDir, edit);
+    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
     if (!w.ok())
         ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
 }
@@ -423,7 +434,7 @@ void ShotListModel::persistLmAnnotations(int row)
     pinpoint::ReviewEdit edit;
     edit.excluded     = s.lmExcluded;
     edit.clubOverride = s.lmClubOverride;
-    const pinpoint::WriteResult w = m_repo->editReview(s.swingDir, edit);
+    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
     if (!w.ok())
         ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << w.error;
 }

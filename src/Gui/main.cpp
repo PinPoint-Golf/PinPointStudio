@@ -95,6 +95,7 @@
 #include "../Export/swing_zip_exporter.h"
 #include "../Export/swing_store_repository.h"
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
+#include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
@@ -282,17 +283,22 @@ int main(int argc, char *argv[])
     eventBuffer.start();
 
     AppSettings              appSettings;
-    // THE ONE DOOR TO THE SWING FILES (RecordingRepository, step 1.4): every writer below is handed
-    // this one instance. Stateless, so safe from the workers; static so the static phone-clip filer
-    // further down never outlives it.
-    static pinpoint::SwingStoreRecordingRepository recordingRepository;
     // THE ONE DOOR TO A SESSION'S OWN FILES AND ITS SWING NUMBERS (SessionRepository, step 2.2): the
     // session file, Start / resume / End, and the one swing allocator (D10) — handed to the capture
-    // pipeline and the launch monitor below. GUI thread only. Declared before both, so it outlives them.
-    pinpoint::SessionStore sessionStore;
+    // pipeline and the launch monitor below. GUI thread only, except swingFolder (any thread), which
+    // the two swing doors below resolve every ShotRef through. Static and declared first, so it
+    // outlives both doors (and the static phone-clip filer that holds one).
+    static pinpoint::SessionStore sessionStore;
+    // THE ONE DOOR TO THE SWING FILES (RecordingRepository, step 1.4; keyed by ShotRef since 2.4):
+    // every writer below is handed this one instance. Stateless towards workers (it resolves a shot's
+    // folder through sessionStore's published folders), so safe from them; static so the static
+    // phone-clip filer further down never outlives it.
+    static pinpoint::SwingStoreRecordingRepository recordingRepository(sessionStore);
+    // THE READING DOOR (RecordingReader, step 1.5; by ShotRef since 2.4): what re-analysis reads a
+    // stored shot through.
+    static pinpoint::SwingStoreRecordingReader recordingReader(sessionStore);
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
-    libraryConverter.setRecordingRepository(&recordingRepository);
     // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
     ArchiveController        archiveController(&appSettings);
     // Read-only app/build/dependency info for the About box (appInfo context property).
@@ -310,6 +316,14 @@ int main(int argc, char *argv[])
     pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
     AthleteController       athleteController;
     athleteController.setRepositories(&athleteStore, &sessionStore);
+    // A legacy session's owner, for the swing door's edge translation (J-39, proposed, for Mark): the current
+    // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
+    // Reset before the controller goes (the door is static).
+    recordingRepository.setOwnerOf([&athleteController](const QString &athleteFolder) {
+        return QDir::cleanPath(athleteController.currentFolder()) == QDir::cleanPath(athleteFolder)
+                   ? pinpoint::AthleteId::fromString(athleteController.currentUuid())
+                   : pinpoint::AthleteId();
+    });
     // Live lead-wrist metrics (vs neutral) for the wizard "Check your sensor" overlay.
     LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
     // The one sink every session- and shot-scoped notification posts to.
@@ -586,6 +600,7 @@ int main(int argc, char *argv[])
     // whichever model is active (live or review). Owns no live shot state.
     ReanalysisController      reanalysisController;
     reanalysisController.setRecordingRepository(&recordingRepository);
+    reanalysisController.setRecordingReader(&recordingReader);
     // Storage → Save pose keypoints, honoured by the write-back as by the live save (asked at each
     // write, on the GUI thread).
     reanalysisController.setPersistOptions([&appSettings] {
@@ -1120,6 +1135,7 @@ int main(int argc, char *argv[])
     // controller keeps a non-owning pointer to push decoded frames into it.
     auto *markupProvider = new MarkupImageProvider();
     markupController.setImageProvider(markupProvider);
+    markupController.setRecordingRepository(&recordingRepository);   // the truth through the door (2.4)
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
@@ -1481,5 +1497,6 @@ int main(int argc, char *argv[])
     });
 
     exitCode = QCoreApplication::exec();
+    recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
     return exitCode;
 }
