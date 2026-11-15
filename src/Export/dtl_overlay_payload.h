@@ -16,45 +16,74 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "dtl_overlay_payload.h"
+#pragma once
+
+// The down-the-line replay-overlay payload — `detail.dtl`.
+//
+//   dtl = { pose2d: { frames, smoothed, synth, … },
+//           club:   { valid, samples, positions, frameWidth, frameHeight },
+//           ball:   { samples } }
+//
+// The SAME keys and element shapes as the face-on `pose2d` / `club` / `ball` blocks,
+// so PpCameraFrame's replay painter draws the DTL tile with no second code path. It
+// is NESTED under `dtl` rather than living beside them because several readers treat
+// a top-level `pose2d`/`club` as face-on (shot_replay_controller's hasFaceOn,
+// PpMotionPanel's availability) and must go on doing so.
+//
+// ONE translator, called by the one projection of the analysis block
+// (analysisDetailFor, swing_doc.h — refactor step 1.3b): live, replayed and reloaded
+// shots all reach it from the disk form's analysis.clubDtl, in window time. The
+// Charts pictures (posture_picture, delivery_picture) read its club samples too.
+// Header-only so the swing document's reader, which every tool links, needs no
+// extra source. It lives here, beside that projection (swing_doc_reader.cpp), and not
+// in src/Gui/shot where it began: the store adapter must not include a UI header
+// (moved in refactor step 1.7; it is plain JSON → QVariant, with no QML type). What the translator deliberately does NOT do
+// (dtl_shaft_tracker_design §5.9): no synth, no prediction, no bridging — a frame
+// that did not publish an angle (tier below RAY) is not a sample, so the shaft
+// visibly disappears across the end-on and occluded bands.
 
 #include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QVariantList>
+#include <QVariantMap>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 #include <vector>
 
 namespace pinpoint {
 
-namespace {
+namespace dtl_overlay_detail {
 
 // ShaftSample2D::flags bits the face-on painter reads. Every MEASURED DTL frame
 // (RAY/SEG/BAND) carries ShaftMeasured alone, so _restsOnMeasurement() admits it.
 // A HELD frame (dtl_shaft_track.h: the band's own Viterbi θ between two
 // measurements) carries ShaftCoasted | ShaftHeadProjected instead: the painter
 // then draws it as its dim lone pen and the fan never treats it as a measurement.
-constexpr int kFlagMeasured      = 0x01;
-constexpr int kFlagCoasted       = 0x04;
-constexpr int kFlagHeadProjected = 0x10;
+inline constexpr int kFlagMeasured      = 0x01;
+inline constexpr int kFlagCoasted       = 0x04;
+inline constexpr int kFlagHeadProjected = 0x10;
 
 // Used only when the track has fewer than two frames to measure its own interval.
-constexpr qint64 kFallbackFrameIntervalUs = 8333;   // 120 fps
+inline constexpr qint64 kFallbackFrameIntervalUs = 8333;   // 120 fps
 
 // A clubDtl frame MEASURED an angle: tier RAY/SEG/BAND (dtl_shaft_track.h DtlTier).
-bool isMeasured(const QJsonObject &f)
+inline bool isMeasured(const QJsonObject &f)
 {
     const QString tier = f.value(QStringLiteral("tier")).toString();
     return tier == QLatin1String("RAY") || tier == QLatin1String("SEG")
         || tier == QLatin1String("BAND");
 }
 // … or is DRAWN: measured, or HELD inside a band between two measurements.
-bool isDrawn(const QJsonObject &f)
+inline bool isDrawn(const QJsonObject &f)
 {
     return isMeasured(f) || f.value(QStringLiteral("tier")).toString() == QLatin1String("HELD");
 }
 
 // A normalised [x, y] pair from clubDtl, or false when the point is absent (null).
-bool point2(const QJsonValue &v, QVariantList &out)
+inline bool point2(const QJsonValue &v, QVariantList &out)
 {
     const QJsonArray a = v.toArray();
     if (a.size() != 2 || !a.at(0).isDouble() || !a.at(1).isDouble())
@@ -63,19 +92,31 @@ bool point2(const QJsonValue &v, QVariantList &out)
     return true;
 }
 
-double numOr(const QJsonValue &v, double fallback)
+inline double numOr(const QJsonValue &v, double fallback)
 {
     return v.isDouble() ? v.toDouble() : fallback;
 }
 
-} // namespace
+} // namespace dtl_overlay_detail
 
-QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
+// `pose2d`      — the DTL pose block already shaped exactly like the face-on
+//                 `detail.pose2d` (empty ⇒ no pose on the DTL tile).
+// `clubDtl`     — a `pinpoint.clubDtl/1` object (empty ⇒ no shaft, no ball).
+// `foPositions` — the face-on `club.positions` list ({p, t_us, …}), already in
+//                 the payload's time domain; each is looked up on the DTL track.
+// `impactUs`    — the Impact phase in the payload's time domain; < 0 = unknown.
+// `retime`      — maps a clubDtl `t_us` value into the payload's time domain
+//                 (windowTimeUs against the document's analysis origin).
+//
+// Returns an empty map when there is nothing to draw, so the caller can omit
+// `dtl` altogether.
+inline QVariantMap dtlOverlayDetail(const QVariantMap &pose2d,
                              const QJsonObject &clubDtl,
                              const QVariantList &foPositions,
                              qint64 impactUs,
                              const std::function<qint64(const QJsonValue &)> &retime)
 {
+    using namespace dtl_overlay_detail;
     QVariantMap dtl;
     if (!pose2d.isEmpty())
         dtl.insert(QStringLiteral("pose2d"), pose2d);

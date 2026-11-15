@@ -24,55 +24,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
-#include <QStandardPaths>
 
+#include "session_files.h"
+
+#include "../Core/atomic_write.h"
 #include "../Core/pp_debug.h"
 
 namespace pinpoint {
-
-// Count of swing_* subdirectories in a session folder (disk truth).
-static int countSwingDirs(const QString& sessionDir)
-{
-    return QDir(sessionDir)
-        .entryList({QStringLiteral("swing_*")}, QDir::Dirs | QDir::NoDotAndDotDot)
-        .size();
-}
-
-// The highest swing number a session has ever issued, as recorded in its
-// kSwingHighWaterFile (0 when the file is missing or unreadable).
-static const QString kSwingHighWaterFile = QStringLiteral(".pinpoint-last-swing");
-
-static int recordedSwingHighWater(const QString& sessionDir)
-{
-    QFile f(sessionDir + QLatin1Char('/') + kSwingHighWaterFile);
-    if (!f.open(QIODevice::ReadOnly))
-        return 0;
-    bool ok = false;
-    const int n = QString::fromLatin1(f.read(32)).trimmed().toInt(&ok);
-    return ok && n > 0 ? n : 0;
-}
-
-// Raise the session's recorded high-water to n (never lowers it). Best effort:
-// a failed write costs only the guarantee below, and is logged.
-static void noteSwingHighWater(const QString& sessionDir, int n)
-{
-    if (n <= recordedSwingHighWater(sessionDir))
-        return;
-    QFile f(sessionDir + QLatin1Char('/') + kSwingHighWaterFile);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)
-        || f.write(QByteArray::number(n)) < 0)
-        ppWarn() << "[SwingExport] could not record the last swing number in" << sessionDir;
-}
-
-// The number in a "swing_NNNN" folder name, or 0 when it carries none.
-static int swingNumber(const QString& name)
-{
-    if (!name.startsWith(QStringLiteral("swing_")))
-        return 0;
-    bool ok = false;
-    const int n = name.mid(6).toInt(&ok);
-    return ok && n > 0 ? n : 0;
-}
 
 // Highest "_NN" index among "<base>_(\d+)" session folders under athleteDir
 // (0 when none exist).
@@ -141,257 +99,53 @@ QString SwingPaths::sanitise(const QString& raw)
     return s;
 }
 
-QString SwingPaths::rootKey(const QString& root)
+QString SwingPaths::sessionFolderBase(const QString& namingPattern, const QDate& day,
+                                      const QString& athleteToken, const QString& sessionTypeLabel)
 {
-    return QDir::cleanPath(root);
-}
-
-SwingPaths::Resolved SwingPaths::resolveSession(const QString& libraryRoot,
-                                                const QString& athleteName,
-                                                const QString& athleteUuid,
-                                                const QString& namingPattern,
-                                                const QString& sessionTypeLabel,
-                                                const QDate&   today)
-{
-    Resolved r;
-
-    r.root = libraryRoot.trimmed();
-    if (r.root.isEmpty()) {
-        r.root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-                 + QStringLiteral("/swings");
-        ppWarn() << "[SwingExport] athleteLibraryPath is empty — falling back to" << r.root;
-    }
-
-    // Athlete folder: name, then uuid, then "unknown".
-    const QString athleteToken =
-        sanitise(!athleteName.trimmed().isEmpty() ? athleteName : athleteUuid);
-    r.athleteDir = r.root + QLatin1Char('/') + athleteToken;
-
-    r.today = today.toString(Qt::ISODate);
-
-    // Compose the session-folder base name (pre-counter) per the naming pattern.
     // Tokens are filesystem-sanitised; the athlete token doubles as the name.
+    const QString date    = day.toString(Qt::ISODate);
     const QString nameTok = athleteToken;
     const QString typeTok = sanitise(sessionTypeLabel.trimmed().isEmpty()
                                          ? QStringLiteral("session") : sessionTypeLabel);
     if (namingPattern == QLatin1String("date-type-name"))
-        r.base = r.today + QLatin1Char('_') + typeTok + QLatin1Char('_') + nameTok;
-    else if (namingPattern == QLatin1String("name-date-type"))
-        r.base = nameTok + QLatin1Char('_') + r.today + QLatin1Char('_') + typeTok;
-    else if (namingPattern == QLatin1String("date-only"))
-        r.base = r.today;
-    else   // "date-name-type" (default)
-        r.base = r.today + QLatin1Char('_') + nameTok + QLatin1Char('_') + typeTok;
-
-    return r;
+        return date + QLatin1Char('_') + typeTok + QLatin1Char('_') + nameTok;
+    if (namingPattern == QLatin1String("name-date-type"))
+        return nameTok + QLatin1Char('_') + date + QLatin1Char('_') + typeTok;
+    if (namingPattern == QLatin1String("date-only"))
+        return date;
+    return date + QLatin1Char('_') + nameTok + QLatin1Char('_') + typeTok;   // "date-name-type" (default)
 }
 
-SwingPaths::Allocation SwingPaths::allocateSwingDir(const QString& libraryRoot,
-                                                    const QString& athleteName,
-                                                    const QString& athleteUuid,
-                                                    const QString& namingPattern,
-                                                    const QString& sessionTypeLabel)
+QString SwingPaths::sessionFolderName(const QString& base, int counter)
 {
-    Allocation out;
-
-    const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
-
-    // Session folder: resolved once per (root, athlete, day, base) and cached so
-    // all swings of an app run share it; outside a session a new day / athlete /
-    // root / pattern / session-type reallocates. A "_NN" counter keeps runs
-    // distinct. When beginSession() has primed the cache this no-ops — every
-    // swing lands in the session folder chosen at start.
-    //
-    // ⚠ INSIDE A SESSION (beginSession() .. endSession()) THE FOLDER IS KEPT when
-    // the athlete's name, the date, the naming pattern or the session type moves
-    // on (and the uuid, which AthleteController no longer lets change mid-session).
-    // A rename changes the base (the name is in it) and a session past midnight
-    // changes the date; either used to allocate a second folder mid-session with
-    // no signal, splitting one session across two folders (E-01).
-    //
-    // ⚠ A LIBRARY CHANGE STILL MOVES IT. The library can be re-pointed in Storage
-    // settings mid-session — it is the remedy the "Swings are not being saved"
-    // errors send the coach to after a share drops — so the next swing must go to
-    // a session folder under the NEW library, never on into the old, unreachable
-    // one. Logged every time (ppWarn, both roots).
-    // The root is compared CLEANED (rootKey): Settings may store the library with a
-    // trailing "/" and the folder picker without, and re-picking the same library
-    // must not read as a move. Only the key is cleaned; the paths built from r.root
-    // keep their spelling, so every folder this hands out is spelled as before.
-    const QString rootKeyNow = rootKey(r.root);
-    const bool rootChanged = !m_cachedSessionDir.isEmpty() && m_cachedRoot != rootKeyNow;
-    const bool keyChanged  = m_cachedRoot != rootKeyNow || m_cachedAthleteUuid != athleteUuid
-                             || m_cachedDate != r.today || m_cachedBase != r.base;
-    if (m_sessionOpen && rootChanged) {
-        ppWarn() << "[SwingExport] the library changed during a session (" << m_cachedRoot << "->"
-                 << rootKeyNow << ") - the session continues in a new folder under the new library";
-        m_sessionCreated = false;   // the new folder is not the one beginSession() made
-    } else if (m_sessionOpen && !m_cachedSessionDir.isEmpty() && keyChanged) {
-        // Logged once per new drift (not once per swing, and an earlier rename never
-        // silences a later midnight or uuid message).
-        const QString drift = athleteUuid + QLatin1Char('|') + r.today + QLatin1Char('|') + r.base;
-        if (drift != m_keptLoggedFor) {
-            m_keptLoggedFor = drift;
-            if (m_cachedAthleteUuid != athleteUuid)
-                ppWarn() << "[SwingExport] the athlete changed during a session (" << m_cachedAthleteUuid
-                         << "->" << athleteUuid << ") - keeping the session folder" << m_cachedSessionDir;
-            else
-                ppInfo() << "[SwingExport] the session's name, date or type moved on (" << m_cachedBase
-                         << "->" << r.base << ") - keeping the session folder" << m_cachedSessionDir;
-        }
-    }
-    if (m_cachedSessionDir.isEmpty() || rootChanged || (!m_sessionOpen && keyChanged)) {
-        const int maxIndex = maxSessionIndex(r.athleteDir, r.base);
-        m_cachedSessionId  = QStringLiteral("%1_%2")
-                                 .arg(r.base)
-                                 .arg(maxIndex + 1, 2, 10, QLatin1Char('0'));
-        m_cachedSessionDir = r.athleteDir + QLatin1Char('/') + m_cachedSessionId;
-        m_cachedRoot        = rootKeyNow;
-        m_cachedAthleteUuid = athleteUuid;
-        m_cachedDate        = r.today;
-        m_cachedBase        = r.base;
-        ppInfo() << "[SwingExport] session folder:" << m_cachedSessionDir;
-    }
-
-    // Swing folder: one past the HIGHEST number this session has ever issued —
-    // the highest folder still here, or the recorded high-water if a later one
-    // has since been deleted — then probe upward in case of a collision.
-    //
-    // ⚠ NOT "COUNT THE FOLDERS + 1", which it was (#56). Delete the newest swing
-    // and the count drops by one, so the next shot was handed the deleted
-    // swing's number; delete 3 and 4 of 1–5 and the next was 4 again. A number
-    // is a swing's identity — the coaching ledger keys its rows on it and
-    // skipped the new shot as "already counted" — so it is never reissued.
-    QDir sessionDir(m_cachedSessionDir);
-    int highest = recordedSwingHighWater(m_cachedSessionDir);
-    for (const QString& name : sessionDir.entryList({QStringLiteral("swing_*")},
-                                                    QDir::Dirs | QDir::NoDotAndDotDot))
-        highest = std::max(highest, swingNumber(name));
-    int index = highest + 1;
-    QString swingId  = QStringLiteral("swing_%1").arg(index, 4, 10, QLatin1Char('0'));
-    while (sessionDir.exists(swingId)) {
-        ++index;
-        swingId = QStringLiteral("swing_%1").arg(index, 4, 10, QLatin1Char('0'));
-    }
-
-    const QString swingDir = m_cachedSessionDir + QLatin1Char('/') + swingId;
-    if (!QDir().mkpath(swingDir)) {
-        ppError() << "[SwingExport] failed to create" << swingDir;
-        return out;   // swingDir empty signals failure
-    }
-    noteSwingHighWater(m_cachedSessionDir, index);
-
-    out.swingDir   = swingDir;
-    out.sessionId  = m_cachedSessionId;
-    out.swingId    = swingId;
-    out.swingIndex = index;
-    return out;
+    return QStringLiteral("%1_%2").arg(base).arg(counter, 2, 10, QLatin1Char('0'));
 }
 
-QString SwingPaths::findTodaySessionDir(const QString& libraryRoot,
-                                        const QString& athleteName,
-                                        const QString& athleteUuid,
-                                        const QString& namingPattern,
-                                        const QString& sessionTypeLabel)
+int SwingPaths::nextSessionCounter(const QString& athleteDir, const QString& base)
 {
-    const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
-    const int maxIndex = maxSessionIndex(r.athleteDir, r.base);
-    if (maxIndex <= 0)
-        return {};   // no "<base>_NN" folder exists for today
-    const QString id  = QStringLiteral("%1_%2").arg(r.base).arg(maxIndex, 2, 10, QLatin1Char('0'));
-    const QString dir = r.athleteDir + QLatin1Char('/') + id;
-    return QDir(dir).exists() ? dir : QString{};
+    return maxSessionIndex(athleteDir, base) + 1;
 }
 
-QString SwingPaths::beginSession(const QString& libraryRoot,
-                                 const QString& athleteName,
-                                 const QString& athleteUuid,
-                                 const QString& namingPattern,
-                                 const QString& sessionTypeLabel,
-                                 bool extendExisting)
+QString SwingPaths::swingFolderName(int swingNumber)
 {
-    // The session is open from here to endSession(), even if the folder cannot be made now:
-    // the first folder a swing then allocates is the one the session keeps.
-    m_sessionOpen = true;
-    m_keptLoggedFor.clear();
-    m_cachedSessionDir.clear();
-    m_cachedSessionId.clear();
-    m_sessionCreated = false;
-
-    const Resolved r =
-        resolveSession(libraryRoot, athleteName, athleteUuid, namingPattern, sessionTypeLabel, today());
-
-    QString sessionDir;
-    QString sessionId;
-    bool    created = false;
-
-    // Extend today's most-recent folder when asked and one exists.
-    if (extendExisting) {
-        sessionDir = findTodaySessionDir(libraryRoot, athleteName, athleteUuid,
-                                         namingPattern, sessionTypeLabel);
-        if (!sessionDir.isEmpty())
-            sessionId = QFileInfo(sessionDir).fileName();
-    }
-
-    // Otherwise (or when no today folder exists) allocate + create a fresh "_NN".
-    if (sessionDir.isEmpty()) {
-        const int maxIndex = maxSessionIndex(r.athleteDir, r.base);
-        sessionId  = QStringLiteral("%1_%2").arg(r.base).arg(maxIndex + 1, 2, 10, QLatin1Char('0'));
-        sessionDir = r.athleteDir + QLatin1Char('/') + sessionId;
-        if (!QDir().mkpath(sessionDir)) {
-            ppError() << "[SwingExport] failed to create session folder" << sessionDir;
-            return {};
-        }
-        created = true;   // ours to discard if it stays empty; nothing else is
-    }
-
-    // Prime the allocation cache so every subsequent allocateSwingDir() reuses it.
-    m_cachedRoot        = rootKey(r.root);
-    m_cachedAthleteUuid = athleteUuid;
-    m_cachedDate        = r.today;
-    m_cachedBase        = r.base;
-    m_cachedSessionDir  = sessionDir;
-    m_cachedSessionId   = sessionId;
-    m_sessionCreated    = created;
-
-    ppInfo() << "[SwingExport] begin session:" << sessionDir
-             << (created ? "(new)" : "(extend)")
-             << "holding" << countSwingDirs(sessionDir) << "swing(s)";
-    return sessionDir;
+    if (swingNumber < 1)
+        return {};
+    return QStringLiteral("swing_%1").arg(swingNumber, 4, 10, QLatin1Char('0'));
 }
 
-void SwingPaths::endSession(bool discardIfNoNewSwings)
+// The number in a "swing_NNNN" folder name, or 0 when it carries none.
+int SwingPaths::swingNumberOf(const QString& name)
 {
-    if (discardIfNoNewSwings && m_sessionCreated && !m_cachedSessionDir.isEmpty()) {
-        // Only a folder THIS session created, and only while it is still empty.
-        // An extended session's folder is somebody's earlier work and is never a
-        // candidate, whatever its count did; a mid-flight shot has already
-        // mkpath'd its swing_NNNN/, so it is never in this set either.
-        const int now = countSwingDirs(m_cachedSessionDir);
-        if (now == 0) {
-            // Recoverable removal (OS trash), not a permanent delete — matches the
-            // shot-trash convention, so an accidentally-discarded session survives.
-            QString where;
-            if (trashPath(m_cachedSessionDir, &where))
-                ppInfo() << "[SwingExport] discarded session (to" << where << "):" << m_cachedSessionDir;
-            else
-                ppWarn() << "[SwingExport] could not trash empty session:" << m_cachedSessionDir;
-        }
-    }
+    if (!name.startsWith(QStringLiteral("swing_")))
+        return 0;
+    bool ok = false;
+    const int n = name.mid(6).toInt(&ok);
+    return ok && n > 0 ? n : 0;
+}
 
-    // Clear the cache so the next session re-resolves (and lazy allocation resumes
-    // if no explicit beginSession() follows).
-    m_cachedRoot.clear();
-    m_cachedAthleteUuid.clear();
-    m_cachedDate.clear();
-    m_cachedBase.clear();
-    m_cachedSessionDir.clear();
-    m_cachedSessionId.clear();
-    m_sessionCreated = false;
-    m_sessionOpen    = false;
-    m_keptLoggedFor.clear();
+QStringList SwingPaths::swingFolders(const QString& sessionDir)
+{
+    return QDir(sessionDir).entryList({QStringLiteral("swing_*")}, QDir::Dirs | QDir::NoDotAndDotDot);
 }
 
 bool SwingPaths::trashPath(const QString& path, QString* where)
@@ -403,11 +157,13 @@ bool SwingPaths::trashPath(const QString& path, QString* where)
     const bool      isSwing = name.startsWith(QStringLiteral("swing_"));
     const QString   parent  = QDir::cleanPath(fi.absolutePath());
     // A swing leaving its session takes its number with it, never back into
-    // circulation (allocateSwingDir). A session recorded before the high-water
+    // circulation (SessionRepository::allocateSwing). A session recorded before the high-water
     // existed has none, so the swing that leaves is what records it — whichever
     // trash it goes to.
-    if (isSwing)
-        noteSwingHighWater(parent, swingNumber(name));
+    if (isSwing) {
+        if (const AtomicWriteResult w = SessionFiles::raiseSwingHighWater(parent, swingNumberOf(name)); !w.ok)
+            ppWarn() << "[SwingExport] could not record the last swing number in" << parent << "-" << w.detail;
+    }
     if (QFile::moveToTrash(path)) {
         if (where) *where = QStringLiteral("the system trash");
         return true;

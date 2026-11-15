@@ -38,9 +38,10 @@
 // _persistSection both return early). The probe ALSO walks the live tree read-only and reports
 // whether an on-screen chart exists and what preset it is sitting on, so the two can be compared.
 //
-// ⚠ TIMEBASE. Both analysisDetail sources are window-relative (t0-subtracted): swing_doc.cpp's
-// serializeAnalysis writes rel(t), and disk_replay_source.cpp's relUs() is idempotent over
-// already-relative values. So the fallback source below is directly comparable to the replay one.
+// ⚠ TIMEBASE. Both analysisDetail sources are window-relative: serializeAnalysis
+// (swing_doc_analysis.cpp) writes window time (`analysis.timeBase: "window"`), and every map is
+// projected from that disk form by analysisDetailFor (swing_doc_reader.cpp, refactor step 1.3b).
+// So the fallback source below is directly comparable to the replay one.
 
 import QtQml
 import QtQuick
@@ -383,7 +384,7 @@ Item {
         // ── valid[] ───────────────────────────────────────────────────────────────────────
         // ABSENT is the C4 contract: "every sample valid", which is what every series written
         // before the field existed carries, AND what a series with nothing to mark still
-        // carries (swing_doc.cpp only emits it when at least one sample is 0).
+        // carries (swing_doc_analysis.cpp only emits it when at least one sample is 0).
         if (raw.valid === undefined) {
             probe.w("valid[]             = ABSENT  ⇒ every sample valid (C4). "
                     + "Nothing was gated on this series, so §5.1's mask cannot fire here.")

@@ -740,6 +740,14 @@
         <source>Prefer not to say</source>
         <translation>不愿透露</translation>
     </message>
+    <message>
+        <source>%1 was not deleted</source>
+        <translation>%1 未能删除</translation>
+    </message>
+    <message>
+        <source>%1 was deleted; the folder was kept</source>
+        <translation>%1 已删除；文件夹已保留</translation>
+    </message>
 </context>
 <context>
     <name>AudioInput</name>
@@ -11940,6 +11948,14 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>%1已保存，分析未完成</translation>
     </message>
     <message>
+        <source>The session&apos;s end could not be saved</source>
+        <translation>训练结束未能保存</translation>
+    </message>
+    <message>
+        <source>Today&apos;s session could not be continued, so a new one started</source>
+        <translation>今天的训练无法继续，已开始新的训练</translation>
+    </message>
+    <message>
         <source>Launch monitor only — shot saved without video or analysis</source>
         <translation>仅弹道测量仪：击球已保存，但没有视频和分析</translation>
     </message>
@@ -12603,6 +12619,10 @@ Reports sent from this computer will come from %1.</source>
         <translation>身高</translation>
     </message>
     <message>
+        <source>Use 5&apos;11&quot;, 180 cm or 1.80 m, or leave it blank</source>
+        <translation>请使用 5&apos;11&quot;、180 cm 或 1.80 m，或留空</translation>
+    </message>
+    <message>
         <source>Weight</source>
         <translation>体重</translation>
     </message>
@@ -12725,6 +12745,42 @@ Reports sent from this computer will come from %1.</source>
 </context>
 <context>
     <name>ScreenAthletePicker</name>
+    <message>
+        <source>%1&apos;s folder moves to the library&apos;s trash.</source>
+        <translation>%1 的文件夹会移到资料库的回收站。</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and its %1 session move to the library&apos;s trash.</source>
+        <translation>%2 的文件夹及其 %1 次训练会移到资料库的回收站。</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and all %1 sessions move to the library&apos;s trash.</source>
+        <translation>%2 的文件夹及全部 %1 次训练会移到资料库的回收站。</translation>
+    </message>
+    <message>
+        <source>You can restore it from there for %1 days.</source>
+        <translation>你可以在 %1 天内从那里恢复它。</translation>
+    </message>
+    <message>
+        <source>You can restore it from there.</source>
+        <translation>你可以从那里恢复它。</translation>
+    </message>
+    <message>
+        <source>You can restore them from there for %1 days.</source>
+        <translation>你可以在 %1 天内从那里恢复它们。</translation>
+    </message>
+    <message>
+        <source>You can restore them from there.</source>
+        <translation>你可以从那里恢复它们。</translation>
+    </message>
+    <message>
+        <source>Delete %1?</source>
+        <translation>删除 %1？</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>删除</translation>
+    </message>
     <message>
         <source>Athletes</source>
         <translation>球员</translation>

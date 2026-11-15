@@ -195,26 +195,13 @@ QString diagnosticsFilePath(const QString &fileName);
 // athlete caches that go through here (diagnostics.json, club_baseline.json, the fault profile,
 // work_ons.json, the swing themes, tendencies.json).
 //
-// It is QSaveFile underneath, the same mechanism the swing document uses on the same share:
-//   - the temporary has a UNIQUE name beside `path`, so two processes saving one file (the app and
-//     tools/diagnostics/regrade_ledger) cannot write into each other's temporary;
-//   - commit() flushes it, asks the OS to sync it, and renames it OVER the original in one step
-//     (rename(2) on macOS and Linux, a replacing move on Windows). There is no moment at which
-//     `path` does not exist — a crash or a kill leaves either the old file or the new one;
-//   - the direct-write fallback is OFF, so a directory in which no temporary can be made fails the
-//     save rather than writing the file in place.
-// A failure at any step — open, a short write, a write error that only surfaces on the flush, the
-// rename — returns false and leaves the original byte-identical, and the temporary is deleted. An
-// existing file that is itself read-only is refused, not replaced.
-//
-// The four copies this once replaced all ignored the result of the WRITE, so a full disk produced a
-// short temporary that the rename then put over the good one — the exact outcome the temporary
-// exists to prevent. The write and the commit are both checked here for that reason; a write
-// failure says "the disk may be full", a failed rename says "could not replace".
-//
-// An EMPTY path is accepted and reported as "no writable application data location", because that
-// is what an empty path from diagnosticsFilePath() means and all four callers had to say so
-// themselves.
+// A FORWARDING CALL, not an implementation: the mechanism is pinpoint::atomicWrite()
+// (src/Core/atomic_write.h, Platform ring; refactor step 2.0, R-PERS-2), whose comment says what it
+// guarantees. What stays here is the one thing that is Diagnostics' own: an EMPTY path is what
+// diagnosticsFilePath() returns when there is no writable application data location, so it is
+// reported as exactly that. The user's pack and content sets (packs/*, norms/file_norm_provider)
+// and the session/athlete caches (Gui/diagnostics, refactor step 2.5) call this; it goes when they
+// write through their repositories.
 bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot = nullptr);
 
 } // namespace pinpoint::analysis

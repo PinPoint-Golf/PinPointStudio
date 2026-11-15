@@ -18,6 +18,8 @@
 
 #include "pdf_document_writer.h"
 
+#include "../../Core/atomic_write.h"
+
 #include <QBuffer>
 #include <QColorSpace>
 #include <QDateTime>
@@ -30,7 +32,6 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QPixmap>
-#include <QSaveFile>
 #include <QUrl>
 #include <QUuid>
 
@@ -969,13 +970,13 @@ void PdfDocumentWriter::release(bool commit)
     }
     if (m_file) {
         if (commit && !written) {
-            m_file->cancelWriting();
+            m_file->cancel();
             fail(tr("Could not write %1: %2").arg(m_path, m_file->errorString()));
         } else if (commit) {
-            if (!m_file->commit())
-                fail(tr("Could not save %1: %2").arg(m_path, m_file->errorString()));
+            if (const pinpoint::AtomicWriteResult r = m_file->commit(); !r.ok)
+                fail(tr("Could not save %1: %2").arg(m_path, r.detail));
         } else {
-            m_file->cancelWriting();
+            m_file->cancel();
         }
         m_file.reset();
     }
@@ -997,21 +998,22 @@ bool PdfDocumentWriter::begin(const QString &path, bool landscape, int dpi,
     if (!own && m_encoding != QLatin1String("lossless"))
         return fail(tr("\"%1\" is not a PDF encoding: use \"lossless\" or \"auto\".").arg(m_encoding));
 
-    auto out = std::make_unique<QSaveFile>(file);
-    if (!out->open(QIODevice::WriteOnly))
-        return fail(tr("Could not create %1: %2").arg(file, out->errorString()));
+    // The folder must already be there: the writer has never made one.
+    auto out = std::make_unique<pinpoint::AtomicFile>(file, pinpoint::AtomicWriteOptions::intoExistingFolder());
+    if (const pinpoint::AtomicWriteResult opened = out->open(); !opened.ok)
+        return fail(tr("Could not create %1: %2").arg(file, opened.detail));
 
     if (own) {
         // A4 is 210 × 297 mm.
         const QSizeF a4(210.0 / 25.4 * 72.0, 297.0 / 25.4 * 72.0);
-        auto raw = std::make_unique<pdf_detail::PdfAFile>(out.get(), landscape ? a4.transposed() : a4);
+        auto raw = std::make_unique<pdf_detail::PdfAFile>(out->device(), landscape ? a4.transposed() : a4);
         pdf_detail::PdfAFile::Meta meta;
         meta.title = title.isEmpty() ? QFileInfo(file).completeBaseName() : title;
         meta.author = author;
         meta.subject = m_subject;
         meta.creator = QStringLiteral("PinPoint Studio");
         if (!raw->start(meta)) {
-            out->cancelWriting();
+            out->cancel();
             return fail(tr("Could not start writing %1.").arg(file));
         }
         m_raw = std::move(raw);
@@ -1026,7 +1028,7 @@ bool PdfDocumentWriter::begin(const QString &path, bool landscape, int dpi,
         return true;
     }
 
-    auto writer = std::make_unique<QPdfWriter>(out.get());
+    auto writer = std::make_unique<QPdfWriter>(out->device());
     writer->setPdfVersion(QPagedPaintDevice::PdfVersion_A1b);
     writer->setResolution(dpi);
     // The page images carry their own margins, so the sheet has none.
@@ -1034,7 +1036,7 @@ bool PdfDocumentWriter::begin(const QString &path, bool landscape, int dpi,
                              landscape ? QPageLayout::Landscape : QPageLayout::Portrait,
                              QMarginsF(0, 0, 0, 0), QPageLayout::Millimeter, QMarginsF(0, 0, 0, 0));
     if (!writer->setPageLayout(layout)) {
-        out->cancelWriting();
+        out->cancel();
         return fail(tr("Could not set an A4 page layout."));
     }
     writer->setTitle(title.isEmpty() ? QFileInfo(file).completeBaseName() : title);

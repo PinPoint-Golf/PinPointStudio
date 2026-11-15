@@ -30,6 +30,7 @@
 // inverse: it moves those two fields back with whatever offset the caller's other series got.
 
 #include "kinematic_sequence.h"
+#include "../Analysis/swing_analysis.h"   // windowTimeUs — the one time rule
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -38,6 +39,7 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
 
 namespace pinpoint::analysis {
 
@@ -100,6 +102,66 @@ inline QJsonObject kinematicSequenceToJson(const KinematicSequence &ks,
     if (ks.pelvisDecelerates >= 0)
         o.insert(QStringLiteral("pelvisDecelerates"), ks.pelvisDecelerates == 1);
     return o;
+}
+
+// The typed reader (refactor step 1.3a: each analysis block is a writer and its typed reader,
+// side by side). Every field the writer emits comes back; `withheld` and the per-node gate records
+// are not part of the object (`analysis.gates` carries the records) and read as their defaults.
+// `t0Us` takes the two instants to window time through windowTimeUs (0 = as written).
+inline KinematicSequence kinematicSequenceFromJson(const QJsonObject &o, int64_t t0Us = 0)
+{
+    const auto at = [t0Us](const QJsonValue &v) { return windowTimeUs(int64_t(v.toDouble()), t0Us); };
+    const auto finiteOr = [](const QJsonObject &j, const char *k) {
+        const QJsonValue v = j.value(QString::fromLatin1(k));
+        return v.isDouble() ? v.toDouble() : std::numeric_limits<double>::quiet_NaN();
+    };
+    KinematicSequence ks;
+    if (o.isEmpty()) return ks;
+    ks.impactUs = at(o.value(QStringLiteral("impactUs")));
+    for (const QJsonValue &nv : o.value(QStringLiteral("nodes")).toArray()) {
+        const QJsonObject no = nv.toObject();
+        KsNode n;
+        seqSegmentFromKey(no.value(QStringLiteral("segment")).toString(), n.segment);
+        n.placed         = no.value(QStringLiteral("placed")).toBool();
+        n.tPeakUs        = at(no.value(QStringLiteral("tPeakUs")));
+        n.beforeImpactMs = no.value(QStringLiteral("beforeImpactMs")).toDouble();
+        n.peakDps        = no.value(QStringLiteral("peakDps")).toDouble();
+        n.tSigmaMs       = no.value(QStringLiteral("tSigmaMs")).toDouble();
+        n.peakSigmaDps   = no.value(QStringLiteral("peakSigmaDps")).toDouble();
+        n.routeId        = no.value(QStringLiteral("routeId")).toString();
+        n.direct         = no.value(QStringLiteral("quality")).toString() == QLatin1String("direct");
+        n.peakNoEarlierThanMs = finiteOr(no, "peakNoEarlierThanMs");
+        n.peakNoLaterThanMs   = finiteOr(no, "peakNoLaterThanMs");
+        const QJsonObject pr = no.value(QStringLiteral("probable")).toObject();
+        n.probable = !pr.isEmpty();
+        if (n.probable) {
+            n.probableMs       = pr.value(QStringLiteral("peakMs")).toDouble();
+            n.probableSigmaMs  = pr.value(QStringLiteral("tSigmaMs")).toDouble();
+            n.probableDps      = pr.value(QStringLiteral("peakDps")).toDouble();
+            n.probableSigmaDps = pr.value(QStringLiteral("peakSigmaDps")).toDouble();
+            n.probableHow      = pr.value(QStringLiteral("how")).toString();
+            const QJsonObject br = pr.value(QStringLiteral("bridge")).toObject();
+            for (const QJsonValue &v : br.value(QStringLiteral("tMs")).toArray())  n.bridgeMs.push_back(v.toDouble());
+            for (const QJsonValue &v : br.value(QStringLiteral("mean")).toArray()) n.bridgeMean.push_back(v.toDouble());
+            for (const QJsonValue &v : br.value(QStringLiteral("sd")).toArray())   n.bridgeSd.push_back(v.toDouble());
+            n.earlierMs  = finiteOr(pr, "earlierMs");
+            n.earlierDps = finiteOr(pr, "earlierDps");
+        }
+        ks.nodes.push_back(std::move(n));
+    }
+    for (const QJsonValue &v : o.value(QStringLiteral("order")).toArray()) {
+        SeqSegment s;
+        if (seqSegmentFromKey(v.toString(), s)) ks.order.push_back(s);
+    }
+    for (const QJsonValue &v : o.value(QStringLiteral("gapsMs")).toArray())   ks.gapsMs.push_back(v.toDouble());
+    for (const QJsonValue &v : o.value(QStringLiteral("gainsDps")).toArray()) ks.gainsDps.push_back(v.toDouble());
+    ks.orderResolved = o.value(QStringLiteral("orderResolved")).toBool();
+    ks.verdict       = o.value(QStringLiteral("verdict")).toString();
+    ks.routeSummary  = o.value(QStringLiteral("routeSummary")).toString();
+    ks.pelvisDecelerates = o.contains(QStringLiteral("pelvisDecelerates"))
+                               ? (o.value(QStringLiteral("pelvisDecelerates")).toBool() ? 1 : 0) : -1;
+    ks.valid = !ks.nodes.empty();
+    return ks;
 }
 
 // The reload: re-time the two absolute instants with the caller's offset function (the same one

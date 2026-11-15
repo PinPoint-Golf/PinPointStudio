@@ -19,7 +19,7 @@
 
 #include "launch_monitor_base.h"
 #include "shot_pairing.h"
-#include "../../Export/swing_paths.h"
+#include "../../Identity/identity.h"   // SessionId: the running session a standalone shot goes into
 
 #include <QHash>
 #include <QJsonObject>
@@ -36,6 +36,7 @@ class AthleteController;
 class CameraManager;
 class SessionController;
 class ShotListModel;
+namespace pinpoint { class RecordingRepository; class SessionRepository; }
 
 // The launch monitor's place in the app (QML context property `launchMonitor`).
 //
@@ -133,6 +134,15 @@ public:
     // Queue a swing for re-analysis (ReanalysisController::reanalyse). Used when following
     // Premier's club changed the club of a swing that was already analysed. Optional.
     void setReanalyseRequest(std::function<void(const QString &)> request) { m_reanalyse = std::move(request); }
+    // The one door to the swing files (main.cpp's): a device-only shot is created through it, and
+    // every reading is folded in through completeCapture (IM-4). Without one nothing is written.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // ONE ALLOCATOR (D10: DEC-157): a standalone device-only shot goes into the RUNNING session, with
+    // the next swing number from the session repository, never a folder of its own. `captureSession`
+    // answers which session that is (ShotProcessor::captureSession, main.cpp's). Without both, no
+    // standalone shot is created.
+    void setSessionRepository(pinpoint::SessionRepository *sessions) { m_sessions = sessions; }
+    void setCaptureSession(std::function<pinpoint::SessionId()> session) { m_captureSession = std::move(session); }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -185,9 +195,11 @@ private:
     // `existingShotId` >= 0 points an EXISTING carousel row at the folder instead of
     // adding one — the rescue path, where the processor already made a row for a shot
     // that produced nothing. -1 adds a row, which is the standalone path.
+    // `standalone` records the shot kind (DeviceOnlyMeta::standalone): true only for the
+    // standalone path, whose folder no phone clip can join.
     bool writeDeviceOnly(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r,
                          const QString &swingId, int swingIndex, const QString &sessionId,
-                         int existingShotId);
+                         int existingShotId, bool standalone = false);
     // Write to swing.json and refresh the carousel row. Returns false (and logs) when
     // the document cannot be updated.
     bool applyToSwing(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r);
@@ -217,10 +229,9 @@ private:
     // createStandaloneShot — a shot is only ours to record while the user says they are
     // hitting, and no buffer state can answer that when there are no devices to register.
     CameraManager                 *m_cameras   = nullptr;
-    // Its own allocator. NOT shared with ShotProcessor's: that one caches the session
-    // folder for a capture session, and a standalone shot must not be able to disturb
-    // the folder a live capture is writing into.
-    pinpoint::SwingPaths           m_paths;
+    // The one allocator's door and the running session (D10): see setSessionRepository.
+    pinpoint::SessionRepository   *m_sessions = nullptr;
+    std::function<pinpoint::SessionId()> m_captureSession;
     pinpoint::lm::LaunchMonitorBase *m_monitor = nullptr;   // never null — see makeLaunchMonitor
     pinpoint::lm::ShotPairing      m_pairing;
     // Whether the destination the pairing knows about actually holds a document. False
@@ -240,6 +251,7 @@ private:
     bool                           m_pipelineBusy = false;
     std::function<bool(const QString &)> m_folderHeld;
     std::function<void(const QString &)> m_reanalyse;
+    pinpoint::RecordingRepository       *m_repo = nullptr;
     QString                        m_unknownClubCode;   // logged once per code, not per shot
     // Remembered so a connector rebuilt from a settings change is told again
     // without waiting for the next club selection.

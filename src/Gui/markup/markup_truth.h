@@ -18,10 +18,13 @@
 
 #pragma once
 
-// markup_truth — pure Qt-Core (no GUI / OpenCV) read/write of a SwingLab
-// `truth.json` ground-truth sidecar, plus the minimal video-stream geometry parse
-// from a swing's `swing.json`. Kept dependency-light so it is standalone
-// unit-testable (tools/swinglab `score.py` is the byte-compatibility oracle).
+// markup_truth — pure Qt-Core (no GUI / OpenCV) conversions of a SwingLab
+// `truth.json` ground-truth sidecar (toJson / fromJson / summarizeJson), plus the
+// minimal video-stream geometry parse from a swing's `swing.json`. Kept
+// dependency-light so it is standalone unit-testable (tools/swinglab `score.py` is
+// the byte-compatibility oracle). THE FILES THEMSELVES are read and written through
+// the swing door, by the shot's ShotRef (RecordingRepository::truth / writeTruth,
+// FILE-SHOT-12; step 2.4): atomically, indented, never into a folder that has gone.
 //
 // The on-disk truth.json is the exact shape `tools/swinglab/swinglab/label.py`
 // writes and `score.py` reads (Tier-3):
@@ -98,7 +101,9 @@ inline QMap<QString, QString> legacyEventAliases()
 // (MarkupController::view), so it is pinned: 0 = face-on, 1 = down-the-line.
 enum class MarkupView { FaceOn = 0, DownTheLine = 1 };
 
-// The sidecar each view writes: truth.json (face-on) / truth_dtl.json (DTL).
+// The sidecar each view writes: truth.json (face-on) / truth_dtl.json (DTL). For the panel's words
+// (and the standalone test); the file itself is named by the door that writes it
+// (SwingStoreRecordingRepository::truthFileName), and the two must agree.
 inline QString truthFileName(MarkupView view)
 {
     return view == MarkupView::DownTheLine ? QStringLiteral("truth_dtl.json")
@@ -219,24 +224,13 @@ int frameIndexForUs(const VideoStreamInfo &fo, qint64 us);
 QJsonObject toJson(const TruthDoc &doc, const VideoStreamInfo &fo,
                    MarkupView view = MarkupView::FaceOn);
 
-// Atomic write of <swingDir>/truth.json (FaceOn) or <swingDir>/truth_dtl.json
-// (DownTheLine). Returns false (and sets *error) on failure. An empty face-on doc
-// still writes a valid (shaft:[], events:{t0_us}) file.
-bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
-                MarkupView view = MarkupView::FaceOn, QString *error = nullptr);
 
-// Back-compat overload: face-on write with an error out-parameter.
-inline bool writeTruth(const QString &swingDir, const TruthDoc &doc,
-                       const VideoStreamInfo &fo, QString *error)
-{
-    return writeTruth(swingDir, doc, fo, MarkupView::FaceOn, error);
-}
-
-// Read the view's sidecar back into a TruthDoc (pixels -> normalized via fo dims;
-// t_us / seconds -> nearest frame index). Empty TruthDoc if there is no file, or
-// if the file's "view" names the OTHER view (the two spaces never cross).
-TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo,
-                   MarkupView view = MarkupView::FaceOn);
+// The view's sidecar, as RecordingRepository::truth reads it (FILE-SHOT-12: the truth is read and
+// written through the swing door since step 2.4), back into a TruthDoc (pixels -> normalized via fo
+// dims; t_us / seconds -> nearest frame index). Empty TruthDoc for {} or if the file's "view" names
+// the OTHER view (the two spaces never cross).
+TruthDoc fromJson(const QJsonObject &root, const VideoStreamInfo &fo,
+                  MarkupView view = MarkupView::FaceOn);
 
 // The user's editable club for a swing, read from <swingDir>/swing.json's
 // review.club (the shot-carousel swing-edit popover's field). Empty if there is
@@ -250,7 +244,7 @@ struct TruthSummary {
     int  shaftCount = 0;
     int  eventCount = 0;
 };
-TruthSummary summarize(const QString &swingDir, MarkupView view = MarkupView::FaceOn);
+TruthSummary summarizeJson(const QJsonObject &root, MarkupView view = MarkupView::FaceOn);
 
 // ── Recorded pose overlay (read-only display; NOT part of truth.json) ─────────
 // The analyzer's face-on 2D pose, replayed under the labelled shaft so the
@@ -259,8 +253,9 @@ TruthSummary summarize(const QString &swingDir, MarkupView view = MarkupView::Fa
 
 // One pose sample. `kp` is 17 COCO keypoints × (x, y, conf), normalized [0..1].
 // `lead`/`trail` are the lead/trail hand points (normalized). `relUs` is
-// window-relative (pose t_us is absolute; we subtract clock.t0_us so it shares
-// the face-on frames.t_us domain).
+// window-relative, the face-on frames.t_us domain: the document's analysis times go
+// through the one rule (windowTimeUs against documentAnalysisOriginUs, swing_analysis.h),
+// which leaves an already window-relative t_us alone.
 struct PoseFrame {
     qint64         relUs = 0;
     QVector<float> kp;                 // 51 floats: x0,y0,c0, x1,y1,c1, ...
@@ -273,7 +268,7 @@ struct PoseTrack {
     QVector<PoseFrame> frames;         // ascending by relUs
 };
 
-// Read analysis.pose2d (+ clock.t0_us) from swing.json. ok=false if absent.
+// Read analysis.pose2d from the swing document, in window time. ok=false if absent.
 PoseTrack readPose2d(const QString &swingDir);
 
 // Nearest pose-frame index for a window-relative timestamp (or -1 if empty).

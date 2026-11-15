@@ -23,7 +23,7 @@
 // The swing document's code is split by job (refactor step 1.0, 14 Nov 2026):
 //   swing_doc_writer.cpp    SwingDocWriter, saveDocument, the launch monitor and integrity blocks
 //   swing_doc_reader.cpp    SwingDocReader, the summary and its sidecar, the public read helpers
-//   swing_doc_analysis.cpp  the `analysis` block serialisers (serializeAnalysis, the track builders)
+//   swing_doc_analysis.cpp  the `analysis` block, composed from the per-block serialisers (step 1.3a)
 // These are the helpers more than one of them calls. They were file-local in swing_doc.cpp; they are
 // declared here, in their own namespace, so each is still defined once.
 
@@ -36,10 +36,21 @@ namespace pinpoint::analysis { struct SwingAnalysis; }
 
 namespace pinpoint::swingdoc_detail {
 
-// swing_doc_analysis.cpp — the whole `analysis` block, times made window-relative against windowT0.
-// Called by SwingDocWriter::writeSwingJson.
+// swing_doc_analysis.cpp — the whole `analysis` block, composed from the per-block serialisers and
+// stamped `timeBase: "window"`. A TimeBase::Clock analysis is taken to window time against windowT0
+// (the document's clock.t0_us) through windowTimeUs; a TimeBase::Window one is written as it is.
+// Called by SwingDocWriter::writeDocument (through analysisBlockFor), behind RecordingRepository.
 QJsonObject serializeAnalysis(const analysis::SwingAnalysis &a, qint64 windowT0,
                               const QString &dtlAlias, const QString &dtlFile);
+
+// swing_doc_analysis.cpp — the `analysis` block a document written from `manifest` carries: the DTL
+// club block's stream named from the manifest's own streams[] (dtlStreamName), serializeAnalysis
+// against `windowT0` (the window's start on the analysis' clock), and the whole-shot gate records
+// re-derived from the manifest's integrity blocks (manifest_gates.h). Composed ONCE: writeDocument
+// (swing_doc_writer.cpp) writes it, then applies what only a write has an input for (the "Save pose
+// keypoints" rule, the carried launch monitor rows and their gate records); the live shot's detail is
+// projected from it (liveAnalysisDetail, refactor step 1.3b).
+QJsonObject analysisBlockFor(const analysis::SwingAnalysis &a, qint64 windowT0, const QJsonObject &manifest);
 
 // swing_doc_reader.cpp — THE extractor for the session-picker scalars, from a document root.
 // Called by the reader, and by the writer to build the `summary` block it saves with the document.

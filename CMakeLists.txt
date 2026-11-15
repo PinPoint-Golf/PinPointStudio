@@ -736,6 +736,9 @@ qt_add_executable(PinPointStudio
     # report state, the hand-off to the coach's mail app, and sending it over SMTP from the coach's own
     # account with the password in the system's secure store (platform halves below).
     src/Core/studio_profile.h                src/Core/studio_profile.cpp
+    src/Core/atomic_write.h                  # the one atomic write (header-only; R-PERS-2)
+    src/Core/folder_lock.h                   # the advisory folder lock (R-PERS-6), taken by SessionStore from step 2.2
+    src/Core/folder_lock.cpp
     src/Coaching/session_report.h
     src/Gui/report/session_report_model.h    src/Gui/report/session_report_model.cpp
     src/Gui/report/report_stills.h           src/Gui/report/report_stills.cpp
@@ -766,6 +769,7 @@ qt_add_executable(PinPointStudio
     src/Gui/shot/shot_controller.h          src/Gui/shot/shot_controller.cpp
     src/Gui/shot/shot_list_model.h          src/Gui/shot/shot_list_model.cpp
     src/Gui/shot/shot_processor.h           src/Gui/shot/shot_processor.cpp
+    src/Gui/shot/capture_context.h          src/Gui/shot/capture_context.cpp
     src/Gui/shot/shot_replay_controller.h   src/Gui/shot/shot_replay_controller.cpp
     src/Gui/shot/current_swing.h
     src/Gui/shot/reanalysis_controller.h    src/Gui/shot/reanalysis_controller.cpp
@@ -774,7 +778,6 @@ qt_add_executable(PinPointStudio
     src/Gui/markup/markup_image_provider.h
     src/Gui/shot/replay_source.h
     src/Gui/shot/disk_replay_source.h       src/Gui/shot/disk_replay_source.cpp
-    src/Gui/shot/dtl_overlay_payload.h      src/Gui/shot/dtl_overlay_payload.cpp
     src/Gui/viz/live_wrist_angles.h         src/Gui/viz/live_wrist_angles.cpp
     src/IMU/imu_base.h        src/IMU/imu_base.cpp
     src/IMU/imu_capabilities.h
@@ -937,6 +940,7 @@ target_compile_definitions(PinPointStudio PRIVATE
 
 target_sources(PinPointStudio PRIVATE
     src/Core/figure_format.h
+    src/Core/height_text.h
     src/Core/pp_debug.h
     src/Core/pp_debug.cpp
     src/Core/pp_log_stream.cpp
@@ -2801,6 +2805,16 @@ target_sources(PinPointStudio PRIVATE
     src/Export/video_encoder.cpp
     src/Export/swing_paths.h
     src/Export/swing_paths.cpp
+    # The session's own files and the one swing allocator (refactor step 2.2): SessionRepository's
+    # adapter and the session files' names.
+    src/Export/session_store.h
+    src/Export/session_store.cpp
+    src/Export/session_files.h
+    # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
+    # athlete files' names; the Athlete (Domain model) below.
+    src/Export/athlete_store.h
+    src/Export/athlete_store.cpp
+    src/Export/athlete_files.h
     src/Export/frame_decode.h
     src/Export/frame_decode.cpp
     src/Export/swing_exporter.h
@@ -2809,9 +2823,11 @@ target_sources(PinPointStudio PRIVATE
     src/Export/swing_zip_exporter.cpp
     src/Export/swing_doc.h
     src/Export/swing_doc_internal.h
-    src/Export/swing_doc_writer.cpp
+    src/Export/dtl_overlay_payload.h
+    src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
     src/Export/swing_doc_reader.cpp
     src/Export/swing_doc_analysis.cpp
+    src/Export/recording_header.cpp
     src/Export/session_archiver.h
     src/Export/session_archiver.cpp
     src/Analysis/swing_analysis.h
@@ -2880,7 +2896,6 @@ target_sources(PinPointStudio PRIVATE
     src/Kinematics/gap_bridge.h
     src/Kinematics/gap_bridge.cpp
     src/Analysis/recorded_products.h
-    src/Analysis/recorded_products.cpp
     src/Club/club_delivery.h
     src/Club/club_delivery.cpp
     src/Ball/ball_position.h
@@ -2924,6 +2939,42 @@ target_sources(PinPointStudio PRIVATE
     src/Analysis/shot_analyzer.cpp
     src/Analysis/swing_reanalyzer.h
     src/Analysis/swing_reanalyzer.cpp
+    # The one door to the swing files (refactor step 1.4): the repository interface, its store
+    # adapter, and the one re-analysis write-back.
+    src/DomainModel/recording_repository.h
+    src/Export/swing_store_repository.h
+    src/Analysis/reanalyse_and_persist.h
+    src/Analysis/reanalyse_and_persist.cpp
+    # The analysis service and the one integrity rule (refactor step 1.5), the reading interface the
+    # service loads a stored shot through, and the pipeline's one rebase to window time.
+    src/DomainModel/recording_reader.h
+    src/Analysis/analysis_service.h
+    src/Analysis/analysis_service.cpp
+    src/Analysis/recording_integrity.h
+    src/Analysis/recording_integrity.cpp
+    src/Analysis/swing_analysis_rebase.h
+    # The Recording contract (refactor step 1): the types, the effective club, the one job
+    # builder, and the store side — the one header writer and the Recording loader (1.2).
+    src/Recording/recording.h
+    src/Recording/analysis_context.h
+    # The identity types (refactor step 2.1; Vocabulary, DEC-148) and the session's identity
+    # (Domain model): AthleteId, SessionId, ShotRef; SessionIdentity (D3's legacy id, n-of-day).
+    src/Identity/identity.h
+    src/DomainModel/session_identity.h
+    src/DomainModel/session_identity.cpp
+    src/DomainModel/session_repository.h
+    src/DomainModel/athlete.h
+    src/DomainModel/athlete.cpp
+    src/DomainModel/athlete_repository.h
+    src/Analysis/effective_context.h
+    src/Analysis/effective_context.cpp
+    src/Analysis/reuse_gate.h
+    src/Analysis/reuse_gate.cpp   # the one reuse gate and the input stamp's staleness (step 1.6)
+    src/Analysis/analysis_job_builder.h
+    src/Analysis/analysis_job_builder.cpp
+    src/Export/recording_header.h
+    src/Export/recording_loader.h
+    src/Export/recording_loader.cpp
     src/Analysis/mp4_frame_reader.h
     src/Analysis/mp4_frame_reader.cpp
     src/Metrics/metric_type.h
@@ -3193,9 +3244,12 @@ option(PINPOINT_BUILD_LM_REPAIR "Build the launch-monitor metric repair tool" OF
 if(PINPOINT_BUILD_LM_REPAIR)
     add_executable(lm_repair
         tools/launchmonitor/lm_repair.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         # SwingDocReader's session-directory helpers call SwingPaths::sanitise. The tool
         # never walks a library that way, but they are in the same translation unit.
         src/Export/swing_paths.cpp
@@ -3218,9 +3272,12 @@ option(PINPOINT_BUILD_STORAGE_TOOLS "Build the swing-library storage tools" ON)
 if(PINPOINT_BUILD_STORAGE_TOOLS)
     add_executable(pps_convert_library
         tools/storage/pps_convert_library.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
         src/Export/swing_paths.cpp
         src/LaunchMonitor/launch_monitor_reading.cpp
         # The real log: swing_paths reports through ppWarn, and a line a conversion says on the
@@ -3232,6 +3289,28 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Buffer src/Export src/LaunchMonitor src/Core)
     target_link_libraries(pps_convert_library PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: pps_convert_library enabled")
+
+    # backfill_analysis_context: the step-1 backfill (D4; DEC-34) — records the analysis context of
+    # every pre-step-1 swing (height and club set from the athlete record) through the one door,
+    # RecordingRepository::backfillAnalysisContext. A dry run unless --write (which needs a
+    # --backup-dir). The same link line as pps_convert_library (tools/migrate/).
+    add_executable(backfill_analysis_context
+        tools/migrate/backfill_analysis_context.cpp
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h   # the session store each tool names its ShotRefs through (step 2.4)
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Export/swing_paths.cpp
+        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Core/pp_log_stream.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(backfill_analysis_context PRIVATE
+        src/Buffer src/Export src/LaunchMonitor src/Core)
+    target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    message(STATUS "Storage tools: backfill_analysis_context enabled")
 endif()
 
 # ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────
@@ -3257,6 +3336,16 @@ if(PINPOINT_BUILD_TOOLS)
     # parity test additionally compiles the exporter to build its fixture.
     set(_pinpoint_offline_sources
         src/Analysis/swing_reanalyzer.cpp
+        src/Analysis/reanalyse_and_persist.cpp   # the one re-analysis write-back (step 1.4)
+        src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
+        src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
+        src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Export/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
+        src/DomainModel/session_identity.cpp
+        src/Core/folder_lock.cpp
+        src/Analysis/effective_context.cpp  # the effective club (step 1.1)
+        src/Analysis/reuse_gate.cpp         # the one reuse gate (step 1.6)
+        src/Analysis/analysis_job_builder.cpp  # the one job builder (step 1.1)
         src/Analysis/mp4_frame_reader.cpp   # the MP4 reader it builds (decode.*)
         src/Analysis/shot_analyzer.cpp
         src/Analysis/analysis_pipeline.cpp
@@ -3325,7 +3414,6 @@ if(PINPOINT_BUILD_TOOLS)
         src/Body/body_rotation.cpp
         src/Kinematics/segment_rates.cpp
         src/Kinematics/gap_bridge.cpp
-        src/Analysis/recorded_products.cpp
         src/Club/club_delivery.cpp
         src/Ball/ball_position.cpp
         src/Timeline/tempo_metrics.cpp
@@ -3335,9 +3423,10 @@ if(PINPOINT_BUILD_TOOLS)
         src/Metrics/metric_catalogue_manifest.cpp
         src/Metrics/metric_providers.cpp
         src/Export/frame_decode.cpp
-        src/Export/swing_doc_writer.cpp
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
         src/Export/swing_doc_reader.cpp
         src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp
         src/Export/swing_paths.cpp
         # swing_doc_writer.cpp writes the launchMonitor block by walking lm::fieldDefs(),
         # so the offline tools need the table itself, not just its header. The

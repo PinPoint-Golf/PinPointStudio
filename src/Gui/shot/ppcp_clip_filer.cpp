@@ -18,8 +18,11 @@
 
 #include "ppcp_clip_filer.h"
 
+#include "../../Core/atomic_write.h"
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/recording_header.h"   // the one header writer (the placeholder)
+#include "../../DomainModel/recording_repository.h"
 #include "../../Ppcp/ppcp_import_ledger.h"
 #include "../../Ppcp/ppcp_import_sink.h"
 
@@ -28,12 +31,11 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QFileInfo>
-#include <QSaveFile>
 #include <QStringList>
 
 #include <algorithm>
 
-using pinpoint::SwingDocWriter;
+using pinpoint::StreamOrigin;
 
 namespace {
 
@@ -101,12 +103,14 @@ void PpcpClipFiler::onSwingReady(const QString &swingDir)
     Shot *s = awaiting();
     if (!s || swingDir.isEmpty()) return;
     s->swingDir = swingDir;
+    // The edge (DEC-90): the folder the pipeline announced, translated to the shot's key once.
+    s->shot = m_repo ? m_repo->shotOfFolder(swingDir) : pinpoint::ShotRef();
 
     // Record what is OWED before anything has arrived, so a swing whose clip
     // never turns up still says a clip was asked for.  ⚠ These elements carry
     // no `file`, so no reader treats them as playable video.
     for (const Asked &a : s->asked) {
-        SwingDocWriter::StreamOrigin o;
+        StreamOrigin o;
         o.transport = QStringLiteral("ppcp");
         o.peerId    = a.peerId;
         o.captureId = QString();          // not minted until the phone answers
@@ -122,7 +126,10 @@ void PpcpClipFiler::onSwingReady(const QString &swingDir)
                       << "— the pending clip is recorded when it arrives";
             continue;
         }
-        if (!SwingDocWriter::updateStreamOrigin(swingDir, a.alias, o, &err))
+        pinpoint::StreamArrival arrival;
+        arrival.alias  = a.alias;
+        arrival.origin = o;
+        if (!recordArrival(*s, arrival, &err))
             ppWarn() << "[ppcp] could not record a pending clip on" << swingDir << "—" << err;
     }
 
@@ -251,20 +258,39 @@ void PpcpClipFiler::onClipReady(const PpcpClip &clip)
 // no document, one is created.  Minimal and honest -- schema and an empty
 // streams[] -- and only ever when there is real content to put in it, never
 // speculatively.
-static bool ensureSwingDocument(const QString &swingDir)
+bool PpcpClipFiler::ensureSwingDocument(const Shot &s)
 {
+    const QString &swingDir = s.swingDir;
     if (pinpoint::SwingStore::hasDocument(swingDir)) return true;
-    QJsonObject m;
-    m[QStringLiteral("schema")]  = QStringLiteral("pinpoint.swing/1");
-    m[QStringLiteral("streams")] = QJsonArray{};
-    QString err;
-    if (SwingDocWriter::writeSwingJson(swingDir, m, nullptr, &err)) {
+    if (!m_repo) {
+        ppWarn() << "[ppcp] could not create a swing.json for the phone clip — no recording repository";
+        return false;
+    }
+    // The one header writer (recording_header.h) with nothing known: the schema and an empty
+    // streams[]. No athlete, clock or analysis context is invented for a shot the host never saw.
+    pinpoint::NewRecording placeholder;
+    placeholder.header = pinpoint::recordingHeaderJson(pinpoint::RecordingHeader{}, QJsonArray{});
+    const pinpoint::WriteResult w = m_repo->create(s.shot, placeholder);
+    if (w.ok()) {
         ppInfo() << "[ppcp] no swing.json for" << swingDir
                  << "— the pipeline produced none; writing one for the phone clip";
         return true;
     }
-    ppWarn() << "[ppcp] could not create a swing.json for the phone clip —" << err;
+    ppWarn() << "[ppcp] could not create a swing.json for the phone clip —" << w.error;
     return false;
+}
+
+bool PpcpClipFiler::recordArrival(const Shot &s, const pinpoint::StreamArrival &arrival,
+                                  QString *error)
+{
+    if (!m_repo) {
+        if (error) *error = QStringLiteral("no recording repository");
+        return false;
+    }
+    const pinpoint::WriteResult w = m_repo->completeCapture(s.shot, arrival);
+    if (!w.ok() && error)
+        *error = w.error;
+    return w.ok();
 }
 
 bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
@@ -277,7 +303,7 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         return false;
     }
 
-    SwingDocWriter::StreamOrigin o;
+    StreamOrigin o;
     o.transport    = QStringLiteral("ppcp");
     o.peerId       = clip.peerId;
     o.captureId    = clip.captureId;
@@ -290,12 +316,15 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
     // completeness `absent` with a reason, and the receiver records it rather
     // than retrying or reporting an error.
     if (clip.completeness == PPCP_ABSENT || clip.payload.isEmpty()) {
-        ensureSwingDocument(s.swingDir);
+        ensureSwingDocument(s);
         o.transfer     = QStringLiteral("absent");
         o.absentReason = clip.absentReason.isEmpty() ? QStringLiteral("outside_buffer")
                                                      : clip.absentReason;
         QString err;
-        if (!SwingDocWriter::updateStreamOrigin(s.swingDir, alias, o, &err))
+        pinpoint::StreamArrival arrival;
+        arrival.alias  = alias;
+        arrival.origin = o;
+        if (!recordArrival(s, arrival, &err))
             ppWarn() << "[ppcp] could not record an absent clip —" << err;
         ++m_stats.absent;
         ppInfo() << "[ppcp] no phone video for shot" << s.shotId << "—" << o.absentReason;
@@ -338,28 +367,36 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         Ppcp::PpcpImportSink::extensionForPayload(clip.container.toStdString(), "video");
     const QString path = s.swingDir + QLatin1Char('/') + alias + QString::fromStdString(ext);
 
-    // QSaveFile: a clip torn in half by a crash would be a file the document
+    // Atomic (src/Core/atomic_write.h): a clip torn in half by a crash would be a file the document
     // names and the replay cannot open.
     //
     // ⛔ AND A FAILURE BELOW DECLINES NOTHING.  A disk that would not take the
     // clip is transient and a decline is final: E80 withdrew `storage_full` so
     // that a receiver short of space stays SILENT rather than evicting the only
     // copy of a swing.  The phone keeps holding it, which is I38 working.
-    QSaveFile f(path);
-    if (!f.open(QIODevice::WriteOnly)) {
+    //
+    // Into the swing folder, which must already be there (a trashed folder is not re-made).
+    pinpoint::AtomicFile f(path, pinpoint::AtomicWriteOptions::intoExistingFolder());
+    if (const pinpoint::AtomicWriteResult opened = f.open(); !opened.ok) {
         ++m_stats.failed;
-        ppWarn() << "[ppcp] cannot write clip to" << path << "—" << f.errorString();
+        ppWarn() << "[ppcp] cannot write clip to" << path << "—" << opened.detail;
         o.transfer = QStringLiteral("failed");
         QString err;
-        SwingDocWriter::updateStreamOrigin(s.swingDir, alias, o, &err);
+        pinpoint::StreamArrival arrival;
+        arrival.alias  = alias;
+        arrival.origin = o;
+        recordArrival(s, arrival, &err);
         return false;
     }
-    f.write(clip.payload);
-    if (!f.commit()) {
-        ppWarn() << "[ppcp] cannot commit clip" << path << "—" << f.errorString();
+    f.write(clip.payload);   // a short write is remembered: commit() then refuses and keeps nothing
+    if (const pinpoint::AtomicWriteResult committed = f.commit(); !committed.ok) {
+        ppWarn() << "[ppcp] cannot commit clip" << path << "—" << committed.detail;
         o.transfer = QStringLiteral("failed");
         QString err;
-        SwingDocWriter::updateStreamOrigin(s.swingDir, alias, o, &err);
+        pinpoint::StreamArrival arrival;
+        arrival.alias  = alias;
+        arrival.origin = o;
+        recordArrival(s, arrival, &err);
         return false;
     }
 
@@ -414,16 +451,21 @@ bool PpcpClipFiler::file(Shot &s, const PpcpClip &clip)
         playbackFps = double(frameTUs.size() - 1)
                       / (double(frameTUs.back() - frameTUs.front()) / 1e6);
 
-    ensureSwingDocument(s.swingDir);
+    ensureSwingDocument(s);
     QString err;
     // ⚠ AND THE FILE, or the element says `complete` while naming nothing and no
     // reader can open it.  Relative to the swing folder, as every other stream's
     // `file` is.
     // …and SAY which clock the frame times run on (the clip's own, rebased above), so a reader that
     // needs the window's — the capture check's coverage half — does not hold this clip to it.
-    if (!SwingDocWriter::updateStreamOrigin(s.swingDir, alias, o, &err,
-                                            QFileInfo(path).fileName(), frameTUs,
-                                            playbackFps, QString::fromLatin1(pinpoint::SwingStore::kFramesClockClip)))
+    pinpoint::StreamArrival arrival;
+    arrival.alias       = alias;
+    arrival.origin      = o;
+    arrival.fileName    = QFileInfo(path).fileName();
+    arrival.frameTUs    = frameTUs;
+    arrival.playbackFps = playbackFps;
+    arrival.framesClock = QString::fromLatin1(pinpoint::SwingStore::kFramesClockClip);
+    if (!recordArrival(s, arrival, &err))
         ppWarn() << "[ppcp] clip landed but swing.json was not updated —" << err;
 
     ppInfo() << "[ppcp] phone video landed:" << path << clip.payload.size() << "bytes, shot"

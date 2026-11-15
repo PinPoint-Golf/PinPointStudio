@@ -16,9 +16,11 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// swing_doc_writer.cpp — writing a swing document: SwingDocWriter (writeSwingJson,
-// updateStreamOrigin, updateReview, updateShotAnnotations, updateLaunchMonitor,
-// refreshLaunchMonitorRows, writeDeviceOnlySwing, convertToPpsw, takeJustWritten), the one
+// swing_doc_writer.cpp — writing a swing document: SwingDocWriter (writeDocument,
+// updateStreamOrigin, editReview, updateLaunchMonitor, refreshLaunchMonitorRows,
+// writeDeviceOnlySwing, convertToPpsw, takeJustWritten; private since step 1.4, reached through
+// RecordingRepository — swing_store_repository.cpp), the refusal of a read-only document every
+// write makes (refusesWrite), the one
 // write every writer ends in (saveDocument), the launch monitor blocks and their derived rows,
 // and the two integrity blocks (imuIntegrityJson / applyImuIntegrity, captureIntegrityJson /
 // applyCaptureIntegrity). The `analysis` block itself is built in swing_doc_analysis.cpp and the
@@ -27,6 +29,7 @@
 
 #include "swing_doc.h"
 #include "swing_doc_internal.h"
+#include "recording_header.h"   // the one header writer; the one schema constant; readAnalysisContext / clubReviewOf
 
 #include <QDateTime>
 #include <QDir>
@@ -51,6 +54,7 @@
 #include "../Analysis/uncertainty_json.h"         // σ fields — one spelling, four paths
 #include "../Club/dtl_shaft_json.h"                // dtlStreamName — the DTL club block names its stream
 #include "../Core/club_standards.h"            // lmArcRadiusM — the club's standard length
+#include "../Analysis/effective_context.h"     // lmArcRadiusM — the effective club (step 1.6)
 #include "../Core/club_vocabulary.h"
 
 namespace pinpoint {
@@ -238,17 +242,26 @@ const QStringList &lmDerivedKeys()
 }
 
 // The radius the club's head swings through near the bottom, for lmLowPointFromAttack: the standard
-// length of the club this document declares, for the golfer's set, plus the arm term. A club the
-// table does not know — or none — takes the mid-iron default. A junior is read from the men's or
-// women's set: their own lengths need a height this document may not carry, and the σ on R (±10 %)
-// is wider than the difference at the lengths juniors play.
+// length of the club the shot was hit with, for the golfer's RECORDED club set, plus the arm term
+// (step 1.6; step 1 brief §4.3). The club is the EFFECTIVE one — effectiveContext() v1 over the
+// document's analysis context (recorded, or the legacy one for an older document) and its review:
+// the board's override when the golfer corrected the club, else the captured club with the popover's
+// club setting the standard length, exactly as the analysis takes it. So a device-only shot follows
+// the correction too, and the women's set is reachable. A junior with no recorded height has no
+// junior standard; their club is read from the men's set (the set does not say more), as before.
+// A club the table does not know — or none — takes the mid-iron default.
 double lmArcRadiusM(const QJsonObject &root)
 {
-    const QString club = swingDocDeclaredClub(root);
-    const QString sex  = root.value(QStringLiteral("athlete")).toObject()
-                             .value(QStringLiteral("sex")).toString();
-    const pinpoint::ClubStandard st = pinpoint::standardClub(club, pinpoint::clubSetFor(sex, /*junior*/ false));
-    return st.valid ? st.lengthMm / 1000.0 + analysis::kArcArmM : analysis::kArcRadiusDefaultM;
+    const analysis::EffectiveContext e = analysis::effectiveContext(readAnalysisContext(root).context,
+                                                                    clubReviewOf(root));
+    double lengthMm = e.club.standardLengthMm;
+    if (!(lengthMm > 0.0) && e.clubSet == ClubSet::Junior) {
+        // The club the standard length belongs to, by the rule's own precedence.
+        const QString club = e.club.corrected || e.club.declared.isEmpty() ? e.club.name : e.club.declared;
+        const pinpoint::ClubStandard men = pinpoint::standardClub(club, ClubSet::Men);
+        lengthMm = men.valid ? men.lengthMm : 0.0;
+    }
+    return lengthMm > 0.0 ? lengthMm / 1000.0 + analysis::kArcArmM : analysis::kArcRadiusDefaultM;
 }
 
 // The reading back out of the raw `launchMonitor` block (lmRawBlock writes every field under its
@@ -346,19 +359,69 @@ bool saveDocument(const QString &swingDir, QJsonObject &root, QString *error)
     return SwingStore::save(swingDir, root, error);
 }
 
+WriteResult result(WriteResult::Status status, const QString &error = QString())
+{
+    WriteResult r;
+    r.status = status;
+    r.error  = error;
+    return r;
+}
+
+// THE read of every read-modify-write below: the document, or NoDocument (the empty-document
+// guard: a document that went missing or could not be read is never replaced by a partial one),
+// or ReadOnly (saved by a newer build). True when *root may be modified and written back.
+bool loadForRewrite(const QString &swingDir, QJsonObject *root, WriteResult *out)
+{
+    QString err;
+    *root = SwingStore::load(swingDir, &err);
+    if (root->isEmpty()) {
+        *out = result(WriteResult::Status::NoDocument,
+                      err.isEmpty() ? QStringLiteral("no swing document in %1").arg(swingDir) : err);
+        return false;
+    }
+    return !SwingDocWriter::refusesWrite(*root, out);
+}
+
+// saveDocument as a WriteResult.
+WriteResult saveAs(const QString &swingDir, QJsonObject &root)
+{
+    QString err;
+    if (!saveDocument(swingDir, root, &err))
+        return result(WriteResult::Status::Failed, err);
+    return result(WriteResult::Status::Written);
+}
+
 } // namespace
 
-bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &rawManifest,
-                                    const analysis::SwingAnalysis *analysis, QString *error,
-                                    const QString &club, bool savePose)
+bool SwingDocWriter::refusesWrite(const QJsonObject &root, WriteResult *out)
 {
+    // The one rule, the Recording loader's: the document's schema, or its analysisContext block's,
+    // is newer than this build reads (recording_header.h readAnalysisContext).
+    const AnalysisContextRead ctx = readAnalysisContext(root);
+    if (!ctx.readOnly)
+        return false;
+    if (out)
+        *out = result(WriteResult::Status::ReadOnly,
+                      QStringLiteral("not written: %1").arg(ctx.readOnlyReason));
+    return true;
+}
+
+WriteResult SwingDocWriter::writeDocument(const QString &swingDir, const QJsonObject &rawManifest,
+                                          const analysis::SwingAnalysis *analysis,
+                                          const QString &club, bool savePose)
+{
+    // A write-back hands in the document on disk: never rewrite one a newer build saved.
+    WriteResult refused;
+    if (refusesWrite(rawManifest, &refused))
+        return refused;
+
     QJsonObject root = rawManifest;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/2");
+    root[QStringLiteral("schema")] = QString::fromLatin1(kSwingDocSchema);   // the one schema constant
 
     // The club the session was on when the shot happened, seeded into the review block the
     // same way writeDeviceOnlySwing() seeds it. capture.club.name already records it, and
     // swingDocClub() falls back to that, so this is belt-and-braces rather than the only
-    // copy — but it puts the answer where updateReview() will later replace it, so a user
+    // copy — but it puts the answer where editReview() will later replace it, so a user
     // correction and a capture-time pick live at one key instead of two that can disagree.
     // Empty ⇒ no block at all: an absent review is honest, a review naming no club is not.
     //
@@ -381,33 +444,36 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
         // emit analysis t_us window-relative regardless of the source domain.
         const qint64 t0 = qint64(rawManifest.value(QStringLiteral("clock")).toObject()
                                             .value(QStringLiteral("t0_us")).toDouble());
-        // The DTL club block names its stream as SwingLab's club_dtl.json does — matched
-        // on the recorded serial against this document's own streams[]. No serial ⇒ no name:
-        // dtlStreamName's first-video-stream fall-back is SwingLab's, and here it would name
-        // the face-on camera.
-        QString dtlAlias, dtlFile;
-        if (analysis->versions.shaftDtl > 0 && !analysis->shaftDtl.streamSerial.isEmpty())
-            analysis::dtlStreamName(rawManifest, analysis->shaftDtl.streamSerial, &dtlAlias, &dtlFile);
-        QJsonObject an = serializeAnalysis(*analysis, t0, dtlAlias, dtlFile);
-        // THE WHOLE-SHOT RECORDS (manifest_gates.h; trust stage 6): re-derived on every write from
-        // this manifest's captureIntegrity / imuIntegrity blocks, which both write paths (the live
-        // join, the re-analysis write-back) set fresh before calling here. serializeAnalysis rebuilt
-        // analysis.gates from the stages alone, so appending cannot accumulate.
-        if (an.contains(QStringLiteral("gatesVersion"))) {
-            QJsonArray g = an.value(QStringLiteral("gates")).toArray();
-            for (const QJsonValue &v : analysis::gateRecordsToJson(analysis::manifestGatesOf(rawManifest)))
-                g.append(v);
-            an[QStringLiteral("gates")] = g;
-        }
+        // THE BLOCK, COMPOSED ONCE (swingdoc_detail::analysisBlockFor, swing_doc_analysis.cpp): the DTL
+        // club block's stream named from this manifest's streams[], serializeAnalysis, and the
+        // whole-shot gate records re-derived from this manifest's captureIntegrity / imuIntegrity
+        // blocks, which both write paths (the live join, the re-analysis write-back) set fresh before
+        // calling here. The live shot's detail is projected from the same function (liveAnalysisDetail),
+        // so the live map and this document cannot be composed two ways. What follows is what only a
+        // write has an input for.
+        QJsonObject an = swingdoc_detail::analysisBlockFor(*analysis, t0, rawManifest);
         if (!savePose) {
             // The user chose not to keep pose keypoints (Storage → Save pose keypoints). The
-            // stamps go with the tracks: a stamp promising a pose that is not there would send a
-            // version-gated re-analysis looking for it.
-            an.remove(QStringLiteral("pose2d"));
-            an.remove(QStringLiteral("poseDtl"));
+            // setting governs NEWLY INFERRED keypoints only (Mark, 14 Nov 2026): a track that this
+            // pass REUSED from the document (analysis.path.reuse "reused" — the version-gated reuse
+            // in reuse_gate.h, which re-runs inference only when the pose stage version changed —
+            // Mark's pose rule) is written back as it came, so re-analysis never deletes keypoints it did
+            // not re-infer. A newly inferred track is dropped, and with it the superseded one the
+            // document held (the analysis block is replaced whole). The stamps go with the tracks:
+            // a stamp promising a pose that is not there would send a version-gated re-analysis
+            // looking for it.
+            const QString reused = QStringLiteral("reused");
+            const bool keepPose    = analysis->path.reuse.value(QStringLiteral("pose")) == reused;
+            const bool keepPoseDtl = analysis->path.reuse.value(QStringLiteral("poseDtl")) == reused;
             QJsonObject ver = an.value(QStringLiteral("versions")).toObject();
-            ver.remove(QStringLiteral("pose"));
-            ver.remove(QStringLiteral("poseDtl"));
+            if (!keepPose) {
+                an.remove(QStringLiteral("pose2d"));
+                ver.remove(QStringLiteral("pose"));
+            }
+            if (!keepPoseDtl) {
+                an.remove(QStringLiteral("poseDtl"));
+                ver.remove(QStringLiteral("poseDtl"));
+            }
             if (an.contains(QStringLiteral("versions"))) an.insert(QStringLiteral("versions"), ver);
         }
 
@@ -474,13 +540,14 @@ bool SwingDocWriter::writeSwingJson(const QString &swingDir, const QJsonObject &
 
     // The summary rides inside the document (saveDocument), so indexing the swing for the
     // session picker costs nothing extra here.
-    if (!saveDocument(swingDir, root, error))
-        return false;
+    const WriteResult w = saveAs(swingDir, root);
+    if (!w.ok())
+        return w;
     // …and keep the document itself for whoever reads it next, which on the live path is the replay,
     // microseconds later. See takeJustWritten(): this saves a fetch and a full re-parse of the ~28 MB
     // we just serialised, on the GUI thread, off the share.
     setJustWritten(swingDir, root);
-    return true;
+    return w;
 }
 
 namespace {
@@ -527,21 +594,21 @@ QJsonObject framesOnClock(const QVector<qint64> &tUs, const QString &clock)
 
 }  // namespace
 
-bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &alias,
-                                        const StreamOrigin &origin, QString *error,
-                                        const QString &fileName,
-                                        const QVector<qint64> &frameTUs,
-                                        double playbackFps,
-                                        const QString &framesClock)
+WriteResult SwingDocWriter::updateStreamOrigin(const QString &swingDir, const StreamArrival &arrival)
 {
-    if (alias.isEmpty()) {
-        if (error) *error = QStringLiteral("updateStreamOrigin needs a stream alias");
-        return false;
-    }
+    const QString         &alias       = arrival.alias;
+    const StreamOrigin    &origin      = arrival.origin;
+    const QString         &fileName    = arrival.fileName;
+    const QVector<qint64> &frameTUs    = arrival.frameTUs;
+    const double           playbackFps = arrival.playbackFps;
+    const QString         &framesClock = arrival.framesClock;
+    if (alias.isEmpty())
+        return result(WriteResult::Status::Failed, QStringLiteral("updateStreamOrigin needs a stream alias"));
 
-    QJsonObject root = SwingStore::load(swingDir, error);
-    if (root.isEmpty())
-        return false;
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
 
     QJsonArray streams = root.value(QStringLiteral("streams")).toArray();
 
@@ -582,65 +649,68 @@ bool SwingDocWriter::updateStreamOrigin(const QString &swingDir, const QString &
     }
     root[QStringLiteral("streams")] = streams;
 
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    const WriteResult w = saveAs(swingDir, root);
+    // This document just changed underneath any copy writeDocument() kept (takeJustWritten). Drop it:
     // a cached root older than its file would replay the wrong analysis, which is far worse than the
     // parse the cache saves.
-    clearJustWritten(swingDir);
-    return true;
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
 }
 
-bool SwingDocWriter::updateReview(const QString &swingDir, int rating, const QString &note,
-                                  const QString &club, QString *error)
+WriteResult SwingDocWriter::editReview(const QString &swingDir, const ReviewEdit &edit)
 {
-    QJsonObject root = SwingStore::load(swingDir, error);
-    if (root.isEmpty())
-        return false;
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
 
-    // Additive "review" block — additive, readers ignore unknown keys. Club is
-    // the user's chosen club for the shot (until capture-time club selection
-    // exists it starts as the "DRIVER" stub and is only ever set here).
+    // Additive "review" block — additive, readers ignore unknown keys. Club is the user's chosen
+    // club for the shot (seeded at capture with the session's club, writeDocument).
     //
-    // MERGED INTO, NOT REPLACED: the block also holds the launch monitor board's annotations
-    // (excluded, clubOverride — updateShotAnnotations), and rewriting it from these three
-    // fields alone would silently un-exclude a shot every time its stars changed.
-    QJsonObject review = root.value(QStringLiteral("review")).toObject();
-    review[QStringLiteral("rating")] = std::clamp(rating, 0, 5);
-    review[QStringLiteral("note")]   = note;
-    review[QStringLiteral("club")]   = club;
-    root[QStringLiteral("review")] = review;
-
-    // Club, stars and note live in the summary, which saveDocument rebuilds from this root.
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
-    // a cached root older than its file would replay the wrong analysis, which is far worse than the
-    // parse the cache saves.
-    clearJustWritten(swingDir);
-    return true;
-}
-
-bool SwingDocWriter::updateShotAnnotations(const QString &swingDir, bool excluded,
-                                           const QString &clubOverride, QString *error)
-{
-    QJsonObject root = SwingStore::load(swingDir, error);
-    if (root.isEmpty())
-        return false;
-
+    // MERGED INTO, NOT REPLACED: the block holds the popover's rating, note and club AND the launch
+    // monitor board's annotations (excluded, clubOverride), and rewriting it from one group alone
+    // would silently un-exclude a shot every time its stars changed.
     QJsonObject review = root.value(QStringLiteral("review")).toObject();
     const QJsonObject before = review;
 
-    // Written only when set; the default REMOVES the key, so "absent" keeps meaning "never
-    // annotated" and a shot restored to the board reads back exactly like one never touched.
-    if (excluded) review[QStringLiteral("excluded")] = true;
-    else          review.remove(QStringLiteral("excluded"));
-    const QString ov = clubOverride.trimmed();
-    if (!ov.isEmpty()) review[QStringLiteral("clubOverride")] = ov;
-    else               review.remove(QStringLiteral("clubOverride"));
+    // A rating / note / club edit always rewrites (and so re-indexes) the document, as it always has.
+    const bool always = edit.rating || edit.note || edit.club;
+    if (edit.rating) review[QStringLiteral("rating")] = std::clamp(*edit.rating, 0, 5);
+    if (edit.note)   review[QStringLiteral("note")]   = *edit.note;
+    if (edit.club)   review[QStringLiteral("club")]   = *edit.club;
 
-    if (review == before)
-        return true;                    // nothing to say — and no 28 MB rewrite to say it
+    // The annotations are written only when set; the default REMOVES the key, so "absent" keeps
+    // meaning "never annotated" and a shot restored to the board reads back exactly like one never
+    // touched.
+    if (edit.excluded) {
+        if (*edit.excluded) review[QStringLiteral("excluded")] = true;
+        else                review.remove(QStringLiteral("excluded"));
+    }
+    if (edit.clubOverride) {
+        const QString ov = edit.clubOverride->trimmed();
+        if (!ov.isEmpty()) review[QStringLiteral("clubOverride")] = ov;
+        else               review.remove(QStringLiteral("clubOverride"));
+    }
+    // The shot's own golfer input (IM-S2-3; FILE-SHOT-02): written only when set, and removed when set
+    // back to none, like the annotations — so a document no golfer gave an intent or a correction stays
+    // exactly as it was, and an old document without the keys reads as having none.
+    if (edit.shotIntent) {
+        const QString intent = edit.shotIntent->trimmed();
+        if (!intent.isEmpty()) review[QStringLiteral("shotIntent")] = intent;
+        else                   review.remove(QStringLiteral("shotIntent"));
+    }
+    if (edit.labelCorrections) {
+        QJsonArray list;
+        for (const LabelCorrection &c : *edit.labelCorrections)
+            list.append(QJsonObject{ { QStringLiteral("family"), c.family }, { QStringLiteral("from"), c.from },
+                                     { QStringLiteral("to"), c.to } });
+        if (!list.isEmpty()) review[QStringLiteral("labelCorrections")] = list;
+        else                 review.remove(QStringLiteral("labelCorrections"));
+    }
+
+    if (!always && review == before)
+        return result(WriteResult::Status::Unchanged);   // nothing to say — and no 28 MB rewrite to say it
     // A block that held nothing but annotations, now cleared, goes away entirely rather than
     // lingering as an empty object a reader would have to interpret.
     if (review.isEmpty())
@@ -648,27 +718,95 @@ bool SwingDocWriter::updateShotAnnotations(const QString &swingDir, bool exclude
     else
         root[QStringLiteral("review")] = review;
 
-    // The summary carries both annotations; saveDocument rebuilds it from this root.
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    clearJustWritten(swingDir);
-    return true;
+    // Club, stars, note and both annotations live in the summary, which saveDocument rebuilds.
+    const WriteResult w = saveAs(swingDir, root);
+    // This document just changed underneath any copy writeDocument() kept (takeJustWritten). Drop it:
+    // a cached root older than its file would replay the wrong analysis, which is far worse than the
+    // parse the cache saves.
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
 }
 
-bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
-                                         const lm::LaunchMonitorReading &reading,
-                                         QString *error,
-                                         const QJsonObject &captureClub,
-                                         bool *clubReplaced)
+ShotReview SwingDocWriter::readReview(const QString &swingDir)
+{
+    ShotReview out;
+    QString err;
+    // The review is small and sits in the document's root: read the root alone, never the pose tracks.
+    const QJsonObject root = SwingStore::loadParts(swingDir, {}, &err);
+    if (root.isEmpty()) {
+        out.error = err.isEmpty() ? QStringLiteral("no swing document in %1").arg(swingDir) : err;
+        return out;
+    }
+    const QJsonObject review = root.value(QStringLiteral("review")).toObject();
+    out.ok         = true;
+    out.shotIntent = review.value(QStringLiteral("shotIntent")).toString();
+    for (const QJsonValue &v : review.value(QStringLiteral("labelCorrections")).toArray()) {
+        const QJsonObject c = v.toObject();
+        out.labelCorrections.append({ c.value(QStringLiteral("family")).toString(),
+                                      c.value(QStringLiteral("from")).toString(),
+                                      c.value(QStringLiteral("to")).toString() });
+    }
+    return out;
+}
+
+WriteResult SwingDocWriter::writeArchiveStub(const QString &swingDir, const QJsonObject &stub)
+{
+    // Read-only as for every rewrite: a newer build's document is never thinned by this one (its fields
+    // would be lost from the stub). The stub is the document thinned, its schema and analysisContext
+    // kept (SessionArchiver's stubOf), so the stub answers for the document without a second parse.
+    if (!SwingStore::hasDocument(swingDir))
+        return result(WriteResult::Status::NoDocument, QStringLiteral("no swing document in %1").arg(swingDir));
+    WriteResult refused;
+    if (stub.isEmpty())
+        return result(WriteResult::Status::Failed, QStringLiteral("an empty stub for %1").arg(swingDir));
+    if (SwingDocWriter::refusesWrite(stub, &refused))
+        return refused;
+    // The stub is written AS GIVEN (SwingStore's bytes, no summary rebuild): it carries the summary the
+    // document already held, which is what the session list keeps showing while the shot is archived.
+    QString err;
+    if (!SwingStore::save(swingDir, stub, &err))
+        return result(WriteResult::Status::Failed, err);
+    clearJustWritten(swingDir);
+    return result(WriteResult::Status::Written);
+}
+
+WriteResult SwingDocWriter::recordBackfilledContext(const QString &swingDir, const AthleteRecordFacts &facts,
+                                                    bool dryRun)
+{
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
+    // Recorded at capture (or by an earlier backfill): a recorded input is never regenerated.
+    if (root.contains(QStringLiteral("analysisContext")))
+        return result(WriteResult::Status::Unchanged);
+    const QJsonObject block = analysisContextJson(backfilledAnalysisContext(root, facts.heightM, facts.sex, facts.dobIso));
+    if (block == analysisContextJson(legacyAnalysisContext(root)))
+        return result(WriteResult::Status::Unchanged);   // nothing to add to what it reads today
+    if (dryRun)
+        return result(WriteResult::Status::Written);     // WOULD be written
+    root[QStringLiteral("analysisContext")] = block;
+    const WriteResult w = saveAs(swingDir, root);
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
+}
+
+WriteResult SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
+                                                const lm::LaunchMonitorReading &reading,
+                                                const QJsonObject &captureClub,
+                                                bool *clubReplaced)
 {
     if (clubReplaced)
         *clubReplaced = false;
-    QJsonObject root = SwingStore::load(swingDir, error);
-    if (root.isEmpty())
-        return false;
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
 
     // The club the device named, replacing the one the swing was recorded under (see the header).
-    // review.club is SEEDED by the live save with the session's club (writeSwingJson), so it is the
+    // review.club is SEEDED by the live save with the session's club (RecordingRepository::create), so it is the
     // user's own pick only when it names neither the recorded club nor the device's: then nothing
     // changes. Otherwise both move to the device's club.
     if (!captureClub.isEmpty()) {
@@ -682,6 +820,14 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
         if (!handSet && !named.isEmpty() && named != recorded) {
             cap[QStringLiteral("club")] = captureClub;
             root[QStringLiteral("capture")] = cap;
+            // THE ANALYSIS CONTEXT'S CAPTURED CLUB, which is what analysis reads (R-REC-2(a), DEC-82):
+            // follow-club rewrites analysisContext.club; capture.club above stays its provenance copy
+            // (DEC-24; whether the captured club is a source fact is OPEN, MD-04, so today's write is
+            // kept). A document with no block reads its legacy context from capture.club, so it follows
+            // already. The input stamp then says the analysis is stale (R-ANA-5).
+            const AnalysisContextRead ctx = readAnalysisContext(root);
+            if (ctx.recorded)
+                root[QStringLiteral("analysisContext")] = analysisContextJson(withFollowedClub(ctx.context, captureClub));
             if (!reviewClub.isEmpty()) {
                 review[QStringLiteral("club")] = named;
                 root[QStringLiteral("review")] = review;
@@ -735,13 +881,17 @@ bool SwingDocWriter::updateLaunchMonitor(const QString &swingDir,
     // sidecar is not rewritten here — this rewrite moves the document's size and mtime, which is
     // its guard, so it is regenerated on demand; and it MUST be, since the readings we just added
     // are new rows in it.
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    const WriteResult w = saveAs(swingDir, root);
+    if (!w.ok()) {
+        if (clubReplaced)
+            *clubReplaced = false;   // nothing was replaced on disk
+        return w;
+    }
+    // This document just changed underneath any copy writeDocument() kept (takeJustWritten). Drop it:
     // a cached root older than its file would replay the wrong analysis, which is far worse than the
     // parse the cache saves.
     clearJustWritten(swingDir);
-    return true;
+    return w;
 }
 
 // The same JSON, a number counted the same when it differs only in its last bits: a derivation
@@ -771,22 +921,15 @@ static bool sameJson(const QJsonValue &a, const QJsonValue &b)
     return a == b;
 }
 
-bool SwingDocWriter::isDeviceOnlySwing(const QJsonObject &root)
+WriteResult SwingDocWriter::refreshLaunchMonitorRows(const QString &swingDir, bool dryRun)
 {
-    return root.value(QStringLiteral("streams")).toArray().isEmpty()
-        && !root.value(QStringLiteral("launchMonitor")).toObject().isEmpty();
-}
-
-bool SwingDocWriter::refreshLaunchMonitorRows(const QString &swingDir, bool *changed, QString *error, bool dryRun)
-{
-    if (changed)
-        *changed = false;
-    QJsonObject root = SwingStore::load(swingDir, error);
-    if (root.isEmpty())
-        return false;
+    QJsonObject root;
+    WriteResult refused;
+    if (!loadForRewrite(swingDir, &root, &refused))
+        return refused;
     const QJsonObject raw = root.value(QStringLiteral("launchMonitor")).toObject();
     if (raw.isEmpty() || !root.contains(QStringLiteral("analysis")))
-        return true;
+        return result(WriteResult::Status::Unchanged);
 
     // The same rows, in the same order, updateLaunchMonitor() writes: everything not ours kept
     // as it was, then the readings and the derived rows from the raw block, anchored at impact.
@@ -805,63 +948,50 @@ bool SwingDocWriter::refreshLaunchMonitorRows(const QString &swingDir, bool *cha
     for (const QJsonValue &v : lmMetricEntries(lmReadingFromRaw(raw), impactUs, lmArcRadiusM(root)))
         metrics.append(v);
     if (sameJson(metrics, before))
-        return true;
-    if (changed)
-        *changed = true;
+        return result(WriteResult::Status::Unchanged);
     if (dryRun)
-        return true;
+        return result(WriteResult::Status::Written);   // WOULD be
 
     an[QStringLiteral("metrics")] = metrics;
     lm::applyLmGates(an, raw);
     root[QStringLiteral("analysis")] = an;
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    clearJustWritten(swingDir);
-    return true;
+    const WriteResult w = saveAs(swingDir, root);
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
 }
 
-bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
-                                          const lm::LaunchMonitorReading &reading,
-                                          const DeviceOnlyMeta &meta,
-                                          QString *error)
+WriteResult SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
+                                                 const lm::LaunchMonitorReading &reading,
+                                                 const DeviceOnlyMeta &meta)
 {
-    if (!reading.hasAnyValue()) {
-        if (error) *error = QStringLiteral("refusing to write a shot from a reading with no values");
-        return false;
-    }
+    if (!reading.hasAnyValue())
+        return result(WriteResult::Status::Failed,
+                      QStringLiteral("refusing to write a shot from a reading with no values"));
 
     const QDateTime when = meta.wallclockMs > 0
                                ? QDateTime::fromMSecsSinceEpoch(meta.wallclockMs, QTimeZone::UTC)
                                : QDateTime::currentDateTimeUtc();
 
-    QJsonObject root;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/2");
-
+    // The header: the ONE header writer (recording_header.h), with what a device-only shot knows.
+    RecordingHeader header;
+    // The shot kind (R-REC-8; DEC-44, DEC-87), recorded only for a standalone shot: nothing can file
+    // a stream into its folder later, so device-only is true for good. A rescue (a failed camera shot's
+    // folder) may still gain a phone clip, so its kind is left to the content rule (recording_header.h).
+    if (meta.standalone)
+        header.kind = recording::ShotKind::DeviceOnly;
+    header.swing   = RecordingHeader::Identity{ meta.swingId, meta.swingIndex };
+    // No handedness, no height: the meta does not carry them, and none is invented.
+    header.athlete = RecordingHeader::Athlete{ meta.athleteName, meta.athleteUuid, std::nullopt, 0.0 };
+    header.sessionDir = meta.sessionId;   // the session FOLDER name
     // t0_us is 0, not a buffer instant: there IS no buffer. Every t_us in this document
     // is therefore already window-relative, which is the domain every reader expects.
-    root[QStringLiteral("clock")] = QJsonObject{
-        { QStringLiteral("t0_us"),     0 },
-        { QStringLiteral("wallclock"), when.toString(Qt::ISODateWithMs) },
-    };
+    header.clock = RecordingHeader::Clock{ 0, when };
     // A zero-length window. Not a placeholder for a window we failed to capture — there
     // was nothing to capture, and a fabricated span would put a scrubber on a shot with
     // no frames behind it.
-    root[QStringLiteral("window")] = QJsonObject{
-        { QStringLiteral("startUs"), 0 },
-        { QStringLiteral("endUs"),   0 },
-    };
-    root[QStringLiteral("swing")] = QJsonObject{
-        { QStringLiteral("index"), meta.swingIndex },
-        { QStringLiteral("id"),    meta.swingId },
-    };
-    root[QStringLiteral("session")] = QJsonObject{
-        { QStringLiteral("id"), meta.sessionId },
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        { QStringLiteral("uuid"), meta.athleteUuid },
-        { QStringLiteral("name"), meta.athleteName },
-    };
-    root[QStringLiteral("capture")] = QJsonObject{
+    header.window = RecordingHeader::Window{ 0, 0 };
+    header.capture = QJsonObject{
         { QStringLiteral("sessionType"), meta.sessionType },
         // Names the launch monitor as what saw this shot, so a reader never has to infer
         // it from the absence of streams.
@@ -872,11 +1002,13 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
         // different questions and collapsing them would hide which one we know.
         { QStringLiteral("impactUs"),    -1 },
     };
-    // EMPTY, and that is the fact rather than a failure. hasVideo is derived from this,
-    // so the picker and the carousel already read it correctly.
-    root[QStringLiteral("streams")] = QJsonArray{};
-    // No thumbnail key at all: an absent block is what summaryFromRoot reads as "no
-    // thumbnail", where an empty one would point at a file that was never written.
+    // No analysis context: the meta carries no athlete facts or bag (the launch monitor's caller
+    // fills one when it has them, step 1.4/1.5), so the shot reads as the legacy context does.
+    // EMPTY streams, and that is the fact rather than a failure. hasVideo is derived from
+    // this, so the picker and the carousel already read it correctly. No thumbnail key at all:
+    // an absent block is what summaryFromRoot reads as "no thumbnail", where an empty one would
+    // point at a file that was never written.
+    QJsonObject root = recordingHeaderJson(header, QJsonArray{});
 
     root[QStringLiteral("launchMonitor")] = lmRawBlock(reading);
 
@@ -896,6 +1028,9 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
     // swing whose analysis came out empty.
     QJsonObject an;
     an[QStringLiteral("schema")]  = QStringLiteral("pinpoint.analysis/3");
+    // Window time, and it says so (IM-2), as serializeAnalysis does: t0_us is 0 here, so every
+    // time below is already window-relative.
+    an[QStringLiteral("timeBase")] = QString::fromLatin1(analysis::kAnalysisTimeBaseWindow);
     an[QStringLiteral("tier")]    = int(analysis::ReconstructionTier::Angles2D);
     an[QStringLiteral("metrics")] = lmMetricEntries(reading, /*impactUs*/ 0, lmArcRadiusM(root));
     an[QStringLiteral("phases")]  = QJsonArray{ QJsonObject{
@@ -913,22 +1048,31 @@ bool SwingDocWriter::writeDeviceOnlySwing(const QString &swingDir,
     lm::applyLmGates(an, root[QStringLiteral("launchMonitor")].toObject());
     root[QStringLiteral("analysis")] = an;
 
-    if (!QDir().mkpath(swingDir)) {
-        if (error) *error = QStringLiteral("cannot create %1").arg(swingDir);
-        return false;
-    }
+    if (!QDir().mkpath(swingDir))
+        return result(WriteResult::Status::Failed, QStringLiteral("cannot create %1").arg(swingDir));
 
-    if (!saveDocument(swingDir, root, error))
-        return false;
-    // This document just changed underneath any copy writeSwingJson() kept (takeJustWritten). Drop it:
+    const WriteResult w = saveAs(swingDir, root);
+    // This document just changed underneath any copy writeDocument() kept (takeJustWritten). Drop it:
     // a cached root older than its file would replay the wrong analysis, which is far worse than the
     // parse the cache saves.
-    clearJustWritten(swingDir);
-    return true;
+    if (w.ok())
+        clearJustWritten(swingDir);
+    return w;
 }
 
 SwingStore::ConvertResult SwingDocWriter::convertToPpsw(const QString &swingDir, bool deleteJson)
 {
+    // A JSON-era document a newer build wrote (no build ever has; the rule is every write's) is not
+    // rewritten. This costs one more parse of the JSON, on a conversion that runs once per swing.
+    if (SwingStore::info(swingDir).format == SwingStore::Format::Json) {
+        WriteResult refused;
+        if (refusesWrite(SwingStore::load(swingDir), &refused)) {
+            SwingStore::ConvertResult r;
+            r.outcome = SwingStore::ConvertResult::Outcome::Failed;
+            r.error   = refused.error;
+            return r;
+        }
+    }
     return SwingStore::convertDir(
         swingDir,
         [](const QJsonObject &root, const QString &dir) { return summaryJson(summaryFromRoot(root, dir)); },

@@ -40,6 +40,20 @@
 // is a hard reject (BallRunner then falls back to self-seeding). Returns false on
 // degenerate dims, open failure, or a size mismatch; `out` is left untouched on
 // failure.
+// The same blob already in memory (the live capture's baseline, refactor step 1.5): the same size
+// rule, the same copy.
+inline bool ballBaselineFromBytes(const QByteArray &raw, int w, int h, cv::Mat &out)
+{
+    if (w <= 0 || h <= 0)
+        return false;
+    if (raw.size() != qint64(w) * qint64(h) * qint64(sizeof(float)))
+        return false;
+    cv::Mat m(h, w, CV_32F);                                  // contiguous by construction
+    std::memcpy(m.data, raw.constData(), size_t(raw.size()));
+    out = m;                                                  // refcounted handoff
+    return true;
+}
+
 inline bool loadBallBaselineBlob(const QString &path, int w, int h, cv::Mat &out)
 {
     if (w <= 0 || h <= 0)
@@ -47,13 +61,7 @@ inline bool loadBallBaselineBlob(const QString &path, int w, int h, cv::Mat &out
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
         return false;
-    const QByteArray raw = f.readAll();
-    if (raw.size() != qint64(w) * qint64(h) * qint64(sizeof(float)))
-        return false;
-    cv::Mat m(h, w, CV_32F);                                  // contiguous by construction
-    std::memcpy(m.data, raw.constData(), size_t(raw.size()));
-    out = m;                                                  // refcounted handoff
-    return true;
+    return ballBaselineFromBytes(f.readAll(), w, h, out);
 }
 
 #endif // HAVE_OPENCV

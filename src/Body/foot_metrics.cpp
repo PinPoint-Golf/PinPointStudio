@@ -285,7 +285,7 @@ std::vector<MetricSeries> buildFootSeries(const FootMetricsResult &res,
     const int64_t addrT = phaseTime(phases, Phase::Address, grid.front());
 
     // Setup scalars — see foot_metrics.h's header note on this representation:
-    // an empty t_us/value curve + one Address phaseSample. swing_doc.cpp's
+    // an empty t_us/value curve + one Address phaseSample. The document's
     // generic writer and every reader already loop over both arrays
     // independently with no non-empty-curve assumption, so this needs no
     // reader/writer change (docs/reference/swing_json_schema.md 2026-07-13).

@@ -87,7 +87,7 @@ public:
     // value did not change costs 0 ms, and every reader sees the same object. The price is JSON's
     // value model: integers become doubles (µs timestamps fit; 2^53) and anything that is not a
     // number, string, bool, list or map becomes null — these payloads are built from exactly
-    // those types (toAnalysisDetail, SwingDocReader), so nothing is lost.
+    // those types (the one projection, analysisDetailFor), so nothing is lost.
     // An empty map converts to `{}` — truthy, exactly as the QVariantMap property used to read,
     // so the `d && d.series` guards in QML keep their meaning.
     QJSValue js() const

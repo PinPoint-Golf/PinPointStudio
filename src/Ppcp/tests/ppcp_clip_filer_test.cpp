@@ -25,6 +25,7 @@
 
 #include "../../Gui/shot/ppcp_clip_filer.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/tests/swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../ppcp_import_ledger.h"
 
 #include <QCoreApplication>
@@ -72,7 +73,7 @@ static QString makeSwing(const QString &root, const QString &swingId)
     // nullptr analysis: this suite is about where the CLIP goes, and a swing
     // that has not been analysed is exactly the state a clip lands into.
     QString err;
-    pinpoint::SwingDocWriter::writeSwingJson(dir, m, nullptr, &err);
+    pinpoint::testdoc::writeSwingJson(dir, m, nullptr, &err);
     return dir;
 }
 
@@ -101,6 +102,7 @@ int main(int argc, char **argv)
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
 
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -153,6 +155,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:2"), QStringLiteral("peer:phone-1"),
@@ -189,6 +192,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -249,6 +253,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:3"), QStringLiteral("peer:phone-1"),
@@ -280,6 +285,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         int filed = 0;
         QObject::connect(&filer, &PpcpClipFiler::clipFiled,
@@ -302,6 +308,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
 
         filer.onCaptureAsked(QStringLiteral("shot:5"), QStringLiteral("peer:phone-1"),
@@ -339,6 +346,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         std::vector<Declined> said;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
@@ -379,6 +387,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         std::vector<Declined> said;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,
@@ -415,6 +424,7 @@ int main(int argc, char **argv)
         Ppcp::PpcpImportLedger led;
         led.setPath(QDir(tmp.path()).filePath("ppcp-ledger.json").toStdString());
         PpcpClipFiler filer;
+        filer.setRecordingRepository(&pinpoint::testdoc::repo());
         filer.setLedger(&led);
         int said = 0;
         QObject::connect(&filer, &PpcpClipFiler::shotDeclined,

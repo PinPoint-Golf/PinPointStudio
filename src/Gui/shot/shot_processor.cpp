@@ -19,8 +19,8 @@
 #include "shot_processor.h"
 
 #include "app_settings.h"
-#include "athlete_controller.h"
 #include "camera_instance.h"
+#include "capture_context.h"   // the live facts → the Recording, and its first document (step 1.5)
 #include "camera_manager.h"
 #include "device_enumerator.h"
 #include "composite_payload_source.h"
@@ -30,32 +30,22 @@
 #include "ram_payload_source.h"
 #include "imu_instance.h"
 #include "imu_manager.h"
-#include "session_controller.h"
 #include "shot_list_model.h"
 #include "shot_outcome.h"
 #include "../Club/club_length_fusion.h"
-#include "../Analysis/uncertainty_json.h"
-#include "../IMU/imu_refusion_check.h"
-#include "../Analysis/capture_integrity_check.h"
-#include "../Analysis/manifest_gates.h"   // the integrity blocks → the live map's gates (shot.*)
 #include "../IMU/imu_vision_fuser.h"
 #include "../Timeline/phase_segmenter.h"
 #include "../Analysis/swing_analysis.h"
-#include "../IMU/hm_frame.h"          // isSelected() — no frame, no binding
-#include "../Export/swing_doc.h"
-#include "../Kinematics/kinematic_sequence_json.h" // kinematicSequenceToJson — one shape, three paths
-#include "../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
-#include "../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
-#include "../Club/dtl_shaft_json.h"                // dtlShaftTrackToJson — the clubDtl/1 shape
-#include "dtl_overlay_payload.h"                   // dtlOverlayDetail — the DTL tile's overlay
-#include "../Core/club_vocabulary.h"
+#include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
+#include "../DomainModel/session_repository.h"   // the session's files and swing numbers (step 2.2)
 #include "pp_version.h"
 
 #include <QSysInfo>
 
 #include <QDateTime>
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QSet>
@@ -167,533 +157,12 @@ int postRollMsFor(ShotController::Source s)
 // the captured window keeps drain/post-roll headroom inside the ring.
 constexpr std::chrono::milliseconds kWindowDuration{4000};
 
-// Multi-estimator club-length fusion result (club_length_fusion.h), nested as
-// "lengths" under the "club" detail block — identical shape in both parity
-// writers (this live-detail path and swing_doc.cpp's disk-reload path; plan:
-// robust club length — starry-shimmying-wind). Always written, even when the
-// fuse abstained (nEstimators==0, fusedPx<0): readers treat <0 as absent, which
-// is simpler than conditionally omitting the block in only one of the writers.
-QVariantMap toLengthsDetail(const pinpoint::analysis::ClubLengthEstimate &l)
-{
-    return QVariantMap{
-        { QStringLiteral("ballPx"),           l.ballPx },
-        { QStringLiteral("bandPx"),           l.bandPx },
-        { QStringLiteral("headP95Px"),        l.headPx },
-        { QStringLiteral("posePx"),           l.posePx },
-        { QStringLiteral("priorPx"),          l.priorPx },
-        { QStringLiteral("fusedPx"),          l.fusedPx },
-        { QStringLiteral("fusedSigmaPx"),     l.fusedSigmaPx },
-        { QStringLiteral("fusedConf"),        l.fusedConf },
-        { QStringLiteral("fusedInstantPx"),   l.fusedInstantPx },
-        { QStringLiteral("fusedInstantConf"), l.fusedInstantConf },
-        { QStringLiteral("ladderRung"),       l.ladderRung },
-        { QStringLiteral("ladderLenPx"),      l.ladderLenPx },
-        { QStringLiteral("nEstimators"),      l.nEstimators },
-        { QStringLiteral("priorN"),           l.priorN },
-        { QStringLiteral("headMeasN"),        l.headMeasN },
-    };
-}
-
-// Face-on swing-plane transition delta (shaft_plane.h), nested as "plane" under
-// the "club" detail block — identical shape in both parity writers, like
-// toLengthsDetail above. Always written, even when nothing fitted: valid=false
-// with the per-window reject codes set says "the producer ran and found nothing",
-// which a reader must be able to tell from an older file that has no key at all.
-// The two channels' quality fields are NOT interchangeable — see ShaftPlaneChannel.
-QVariantMap toPlaneChannelDetail(const pinpoint::analysis::ShaftPlaneChannel &c)
-{
-    return QVariantMap{
-        { QStringLiteral("fitted"),           c.fitted },
-        { QStringLiteral("iotaBackDeg"),      c.iotaBackDeg },
-        { QStringLiteral("iotaDownDeg"),      c.iotaDownDeg },
-        { QStringLiteral("deltaDeg"),         c.deltaDeg },
-        { QStringLiteral("nodeBackDeg"),      c.nodeBackDeg },
-        { QStringLiteral("nodeDownDeg"),      c.nodeDownDeg },
-        { QStringLiteral("nBack"),            c.nBack },
-        { QStringLiteral("nDown"),            c.nDown },
-        { QStringLiteral("conicResidBack"),   c.conicResidBack },
-        { QStringLiteral("conicResidDown"),   c.conicResidDown },
-        { QStringLiteral("ratioBack"),        c.ratioBack },
-        { QStringLiteral("ratioDown"),        c.ratioDown },
-        { QStringLiteral("splitHalfBackDeg"), c.splitHalfBackDeg },
-        { QStringLiteral("splitHalfDownDeg"), c.splitHalfDownDeg },
-        { QStringLiteral("anchorsBack"),      c.anchorsBack },
-        { QStringLiteral("anchorsDown"),      c.anchorsDown },
-        { QStringLiteral("anchorConfMin"),    double(c.anchorConfMin) },
-        { QStringLiteral("rejectBack"),       c.rejectBack },
-        { QStringLiteral("rejectDown"),       c.rejectDown },
-    };
-}
-
-QVariantMap toPlaneDetail(const pinpoint::analysis::ShaftPlaneEstimate &p)
-{
-    return QVariantMap{
-        { QStringLiteral("valid"),    p.valid },
-        { QStringLiteral("channel"),  p.channel },
-        { QStringLiteral("measured"), toPlaneChannelDetail(p.measured) },
-        { QStringLiteral("synth"),    toPlaneChannelDetail(p.synth) },
-    };
-}
-
-// The pose2d replay block from one PoseTrack2D — the face-on `detail.pose2d`, and the
-// down-the-line `detail.dtl.pose2d` through the same shaping, so the painter reads one
-// shape from either camera. Call only on a track with frames.
-QVariantMap poseTrackToDetail(const pinpoint::analysis::PoseTrack2D &t)
-{
-    using namespace pinpoint::analysis;
-    QVariantList frames;
-    for (const PoseFrame2D &f : t.frames) {
-        QVariantList kp;
-        kp.reserve(kWholeBodyJoints * 3);
-        for (int j = 0; j < kWholeBodyJoints; ++j) {
-            kp.append(f.kp[size_t(j)].x());
-            kp.append(f.kp[size_t(j)].y());
-            kp.append(double(f.conf[size_t(j)]));
-        }
-        frames.append(QVariantMap{
-            { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-            { QStringLiteral("kp"),   kp },
-            { QStringLiteral("lead"),  QVariantList{ f.leadHand.x(),  f.leadHand.y() } },
-            { QStringLiteral("trail"), QVariantList{ f.trailHand.x(), f.trailHand.y() } },
-            { QStringLiteral("handConf"), double(f.handConf) } });
-    }
-    // keypointCount mirrors the swing.json pose2d block (swing_doc.cpp) so
-    // disk and in-memory replay payloads agree; QML consumers index j*3 for
-    // j<17 and are unaffected by the wholebody tail.
-    QVariantMap pose2d{ { QStringLiteral("camera"), int(t.camera) },
-                        { QStringLiteral("keypointCount"), kWholeBodyJoints },
-                        { QStringLiteral("frames"), frames } };
-    // WB1 accuracy-pass provenance — same conditional-presence rule as the
-    // swing.json writer (swing_doc.cpp) so disk and in-memory replay agree.
-    if (t.decode == QLatin1String("dark"))
-        pose2d.insert(QStringLiteral("decode"), t.decode);
-    if (t.cropRect) {
-        const QRectF &r = *t.cropRect;
-        pose2d.insert(QStringLiteral("cropRect"),
-                      QVariantMap{ { QStringLiteral("x"), r.x() },
-                                   { QStringLiteral("y"), r.y() },
-                                   { QStringLiteral("w"), r.width() },
-                                   { QStringLiteral("h"), r.height() } });
-    }
-    // Motion-overlay smoothed companion track (pose_smoother.cpp) — same flat
-    // kp layout as `frames` (399 doubles: [x,y,c]×133, conf carries the render-
-    // alpha contract), plus per-kp honesty tier[133] (int) / sigma[133] (px). No
-    // lead/trail/handConf — hands are not smoothed. The QML renderer reads
-    // d.pose2d.smoothed[i].kp with this exact layout. Present only when the
-    // analyzer ran the smoother (absent otherwise → the UI greys the motion modes).
-    if (!t.smoothed.empty()) {
-        QVariantList smoothed;
-        const size_t n = std::min(t.smoothed.size(), t.smoothedAux.size());
-        for (size_t i = 0; i < n; ++i) {
-            const PoseFrame2D &f = t.smoothed[i];
-            const PoseKpAux   &x = t.smoothedAux[i];
-            QVariantList kp, tier, sigma;
-            kp.reserve(kWholeBodyJoints * 3);
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-                tier.append(int(x.tier[size_t(j)]));
-                sigma.append(double(x.sigma[size_t(j)]));
-            }
-            smoothed.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(f.t_us) },
-                { QStringLiteral("kp"),    kp },
-                { QStringLiteral("tier"),  tier },
-                { QStringLiteral("sigma"), sigma } });
-        }
-        pose2d.insert(QStringLiteral("smoothed"), smoothed);
-    }
-    // Dense VIZ-tier pose synth (pose_synthesis.h): the smoothed skeleton on a fixed 240 Hz
-    // grid so the body overlays scrub as smoothly as the club fan. Same lean shape the
-    // swing.json writer persists — { t_us, kp[x,y,c]×133 }, no tier/sigma, no hands — and
-    // the same conditional presence, so a live shot and its reloaded self agree
-    // (disk_replay_source.cpp forwards the persisted block the same way). Viz-only: metrics
-    // never read it, and the triangulation work will read `smoothed`, which carries the
-    // per-joint honesty this tier deliberately drops. Until 16 Sept 2026 the analyzer
-    // computed and the writer stored this tier, but neither bridge forwarded it, so the
-    // overlay's dense body mode had never once run — a silent no-op, not a design choice.
-    if (!t.smoothedSynth.empty()) {
-        QVariantList synth;
-        synth.reserve(int(t.smoothedSynth.size()));
-        for (const PoseFrame2D &f : t.smoothedSynth) {
-            QVariantList kp;
-            kp.reserve(kWholeBodyJoints * 3);
-            for (int j = 0; j < kWholeBodyJoints; ++j) {
-                kp.append(f.kp[size_t(j)].x());
-                kp.append(f.kp[size_t(j)].y());
-                kp.append(double(f.conf[size_t(j)]));
-            }
-            synth.append(QVariantMap{
-                { QStringLiteral("t_us"), static_cast<qlonglong>(f.t_us) },
-                { QStringLiteral("kp"),   kp } });
-        }
-        pose2d.insert(QStringLiteral("synth"), synth);
-    }
-    return pose2d;
-}
-
-// Convert the analyzer's rich SwingAnalysis into QML-friendly data for the shot's
-// analysisDetail role (the future scrubbable metric graph reads series + phases).
-QVariantMap toAnalysisDetail(const pinpoint::analysis::SwingAnalysis &a)
-{
-    using namespace pinpoint::analysis;
-    QVariantList series;
-    for (const MetricSeries &m : a.series) {
-        QVariantList ts, vs, samples;
-        for (const int64_t t : m.t_us) ts.append(static_cast<qlonglong>(t));
-        for (const double v : m.value) vs.append(v);
-        for (const PhaseSample &ps : m.phaseSamples) {
-            QVariantMap po{ { QStringLiteral("phase"), int(ps.phase) },
-                            { QStringLiteral("t_us"),  static_cast<qlonglong>(ps.t_us) },
-                            { QStringLiteral("value"), ps.value },
-                            { QStringLiteral("band"),  ps.band } };
-            insertPhaseSampleSigma(po, ps);   // per-instant σ (uncertainty design §7), only when set
-            samples.append(po);
-        }
-        QVariantMap sm{ { QStringLiteral("key"),   m.key },
-                        { QStringLiteral("label"), m.label },
-                        { QStringLiteral("unit"),  m.unit },
-                        { QStringLiteral("t_us"),  ts },
-                        { QStringLiteral("value"), vs },
-                        { QStringLiteral("phaseSamples"), samples } };
-        // 1σ measurement noise, ABSENT when the producer never characterised one — the key is
-        // omitted rather than set to 0, because a zero would read as "measured, and perfect".
-        // Mirrored in disk_replay_source.cpp: a live shot and its reloaded self must agree.
-        if (m.sigma)
-            sm.insert(QStringLiteral("sigma"), *m.sigma);
-        if (m.sigmaKind > 0)
-            sm.insert(QStringLiteral("sigmaKind"), int(m.sigmaKind));
-        // Per-sample validity, parallel to t_us (design §5.1): 0 marks a sample the grid
-        // BRIDGED across a gated or absent run — drawn dashed, skipped by every reducer.
-        // Written on the same discipline as `sigma` above: present ONLY when there is
-        // something to say. An all-ones array would appear on every metric of every swing
-        // and mean exactly what its absence already means, so the test is for a real 0
-        // rather than for a non-empty vector — MetricSeries::valid is empty when the
-        // producer had nothing to mark, and this keeps the boundary honest even if one
-        // day it is not. Mirrored in disk_replay_source.cpp (reload) and swing_doc.cpp
-        // (persistence): a live shot, its swing.json and its reloaded self must agree.
-        if (std::find(m.valid.begin(), m.valid.end(), uint8_t(0)) != m.valid.end()) {
-            QVariantList vd;
-            vd.reserve(int(m.valid.size()));
-            for (const uint8_t f : m.valid) vd.append(int(f));
-            sm.insert(QStringLiteral("valid"), vd);
-        }
-        // The producer route (MetricSeries::routeId), present only when stated — swing_doc.cpp's
-        // rule, mirrored in disk_replay_source.cpp.
-        if (!m.routeId.isEmpty())
-            sm.insert(QStringLiteral("routeId"), m.routeId);
-        if (m.routeDirect)
-            sm.insert(QStringLiteral("routeDirect"), true);
-        if (!m.withheld.isEmpty())
-            sm.insert(QStringLiteral("withheld"), m.withheld);
-        if (m.lineAngle)
-            sm.insert(QStringLiteral("lineAngle"), true);
-        series.append(sm);
-    }
-    QVariantList phases;
-    for (const PhaseEvent &e : a.phases)
-        phases.append(QVariantMap{ { QStringLiteral("phase"),   int(e.phase) },
-                                   { QStringLiteral("t_us"),    static_cast<qlonglong>(e.t_us) },
-                                   { QStringLiteral("conf"),    e.conf },
-                                   { QStringLiteral("segment"), int(e.provenance) } });
-    QVariantMap detail{ { QStringLiteral("tier"),    a.tier },
-                        { QStringLiteral("overall"), a.score.overall },
-                        { QStringLiteral("series"),  series },
-                        { QStringLiteral("phases"),  phases } };
-
-    // Resemblance estimand + uncertainty interval (design §B.0a/§B.7) — same sibling-key
-    // shape SwingDocReader reloads, so live and reloaded swings expose identical detail.
-    if (a.score.kind == ScoreKind::Resemblance) {
-        QVariantMap res;
-        for (auto it = a.score.resemblance.constBegin(); it != a.score.resemblance.constEnd(); ++it)
-            res.insert(it.key(), it.value());
-        detail.insert(QStringLiteral("resemblance"), res);
-        detail.insert(QStringLiteral("pattern"), a.score.patternLabel);
-        detail.insert(QStringLiteral("blended"), a.score.blended);
-    }
-    if (a.score.interval.valid())
-        detail.insert(QStringLiteral("interval"),
-                      QVariantMap{ { QStringLiteral("halfWidth"), a.score.interval.halfWidth },
-                                   { QStringLiteral("lo"),        a.score.interval.lo },
-                                   { QStringLiteral("hi"),        a.score.interval.hi } });
-
-    // Adherence contribution maps — the Verdict donut's hover breakdown. Omitted when
-    // empty (a resemblance score has neither), matching serializeScore/SwingDocReader
-    // so a live shot and its reloaded twin expose the same keys.
-    auto insertBuckets = [&detail](const char *name, const QHash<QString,int> &h) {
-        if (h.isEmpty()) return;
-        QVariantMap m;
-        for (auto it = h.constBegin(); it != h.constEnd(); ++it)
-            m.insert(it.key(), it.value());
-        detail.insert(QString::fromLatin1(name), m);
-    };
-    insertBuckets("perRegion", a.score.perRegion);
-    insertBuckets("perPhase",  a.score.perPhase);
-
-    // The kinematic sequence — the strip under the chart's "Kinematic sequence" preset reads
-    // this. Absent when nothing produced a node; identity time mapping (the live map is in the
-    // analysis' own absolute domain, exactly as `series` above). Same helper as swing_doc.cpp and
-    // disk_replay_source.cpp, so the three paths cannot drift.
-    if (a.kinematicSequence.valid)
-        detail.insert(QStringLiteral("kinematicSequence"),
-                      kinematicSequenceToJson(a.kinematicSequence,
-                                              [](int64_t t) { return static_cast<qint64>(t); })
-                          .toVariantMap());
-    // Gate records — the same helper and the same presence rule as swing_doc.cpp.
-    if (a.gatesVersion > 0) {
-        detail.insert(QStringLiteral("gatesVersion"), a.gatesVersion);
-        detail.insert(QStringLiteral("gates"), gateRecordsToJson(a.gates).toVariantList());
-    }
-
-    // Swing bounds + ladder meta (v3 G2) — same shape the doc reader reloads.
-    if (a.segmentation.swingEndUs > a.segmentation.swingStartUs)
-        detail.insert(QStringLiteral("segmentation"),
-                      QVariantMap{
-                          { QStringLiteral("swingStartUs"),
-                            static_cast<qlonglong>(a.segmentation.swingStartUs) },
-                          { QStringLiteral("swingEndUs"),
-                            static_cast<qlonglong>(a.segmentation.swingEndUs) },
-                          { QStringLiteral("conf"),    double(a.segmentation.conf) },
-                          { QStringLiteral("version"), a.segmentation.version } });
-
-    // ShaftTracker blocks for the replay overlay — IDENTICAL shapes to the
-    // swing.json blocks SwingDocReader reloads (swing_doc.cpp), keypoints and
-    // club grip/head normalized 0..1 so QML never sees pixel spaces.
-    if (!a.pose2d.frames.empty())
-        detail.insert(QStringLiteral("pose2d"), poseTrackToDetail(a.pose2d));
-    // A refused track (2026-10-01) is carried too — valid=false with `refused`/`diag` — so the
-    // live card's ⚠ and the overlay gate see the reason; mirrors swing_doc.cpp.
-    if ((a.shaft.valid || a.shaft.refusedReason) && !a.shaft.samples.empty()
-        && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0) {
-        const double iw = 1.0 / a.shaft.frameWidth, ih = 1.0 / a.shaft.frameHeight;
-        QVariantList samples;
-        for (const ShaftSample2D &s : a.shaft.samples) {
-            QVariantMap sm{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("thetaDot"), s.thetaDotRadS },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                // Stage-2 head confidence + posterior σ (Phase B; −1 = head pass
-                // off) — the overlay scales the measured-head dot alpha by it.
-                { QStringLiteral("headConf"),  double(s.headConf) },
-                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } };
-            // Layer A snap registration (shaft_position_first §2A) — lock-step with
-            // swing_doc.cpp: written only when measured (≥0), absent ⇒ reader −1.
-            if (s.lineConf >= 0.f) sm.insert(QStringLiteral("lineConf"), double(s.lineConf));
-            samples.append(sm);
-        }
-        // R7 predicted series (pure R6 model) for the ghost overlay — same
-        // normalized shape as `samples`; σ_β recoverable from conf for the cone.
-        QVariantList predicted;
-        for (const ShaftSample2D &s : a.shaft.predicted)
-            predicted.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("flags"), int(s.flags) } });
-        // Layer C synthesized series (shaft_position_first §2 Layer C) — lock-step
-        // with swing_doc.cpp; VISUALIZATION-tier interpolation between P-anchors,
-        // each flagged ShaftSynthesized (0x100). Same normalized shape as `samples`
-        // minus lineConf. Written only when non-empty (synth off ⇒ absent). Consumers
-        // EXCLUDE these from metrics/scoring by the flag.
-        QVariantList synth;
-        for (const ShaftSample2D &s : a.shaft.synth)
-            synth.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ s.gripPx.x() * iw, s.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ s.headPx.x() * iw, s.headPx.y() * ih } },
-                { QStringLiteral("theta"), s.thetaRad },
-                { QStringLiteral("thetaDot"), s.thetaDotRadS },
-                { QStringLiteral("lenPx"), s.visibleLenPx },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("headConf"),  double(s.headConf) },
-                { QStringLiteral("headSigma"), double(s.headSigmaPx) },
-                { QStringLiteral("flags"), int(s.flags) } });
-        // Coaching P-positions P1–P8 (shaft_position_first §2 Layer B) — lock-step
-        // with swing_doc.cpp; grip/head normalized 0..1, t_us absolute like this
-        // path's `samples`. Written only when non-empty (extraction off ⇒ absent).
-        QVariantList positions;
-        for (const ShaftPosition &p : a.shaft.positions)
-            positions.append(QVariantMap{
-                { QStringLiteral("p"),     p.p },
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(p.t_us) },
-                { QStringLiteral("grip"),  QVariantList{ p.gripPx.x() * iw, p.gripPx.y() * ih } },
-                { QStringLiteral("head"),  QVariantList{ p.headPx.x() * iw, p.headPx.y() * ih } },
-                { QStringLiteral("theta"), p.thetaRad },
-                { QStringLiteral("lenPx"), p.lenPx },
-                { QStringLiteral("conf"),  double(p.conf) },
-                { QStringLiteral("sigmaThetaDeg"), double(p.sigmaThetaDeg) },
-                { QStringLiteral("sigmaLenPx"),    double(p.sigmaLenPx) },
-                { QStringLiteral("stackN"), p.stackN },
-                { QStringLiteral("source"), int(p.source) } });
-        QVariantMap clubMap{
-            { QStringLiteral("camera"),        int(a.shaft.camera) },
-            { QStringLiteral("valid"),         a.shaft.valid },
-            { QStringLiteral("coverage"),      double(a.shaft.coverage) },
-            { QStringLiteral("imuVisionCorr"), double(a.shaft.imuVisionCorr) },
-            { QStringLiteral("modelVisionResidualDeg"), double(a.shaft.modelVisionResidualDeg) },
-            // v3.4 (design §9.4): measured club length in px (grip-to-ball
-            // at address) — mirrors the swing.json club block (swing_doc.cpp)
-            // so the live/in-window detail path carries it too, not just the
-            // disk-reload path. -1 = unmeasured (no ball anchor).
-            { QStringLiteral("measuredClubLenPx"), double(a.shaft.measuredClubLenPx) },
-            { QStringLiteral("frameWidth"),    a.shaft.frameWidth },
-            { QStringLiteral("frameHeight"),   a.shaft.frameHeight },
-            // Multi-estimator length fusion (club_length_fusion.h) — see
-            // toLengthsDetail(); mirrors swing_doc.cpp's analysis.club.lengths.
-            { QStringLiteral("lengths"),       toLengthsDetail(a.shaft.lengths) },
-            // Face-on swing plane (shaft_plane.h) — see toPlaneDetail(); mirrors
-            // swing_doc.cpp's analysis.club.plane.
-            { QStringLiteral("plane"),         toPlaneDetail(a.shaft.plane) },
-            { QStringLiteral("samples"),       samples },
-            { QStringLiteral("predicted"),     predicted } };
-        if (!positions.isEmpty()) clubMap.insert(QStringLiteral("positions"), positions);
-        if (!synth.isEmpty())     clubMap.insert(QStringLiteral("synth"), synth);
-        if (a.shaft.ballAnchored && a.shaft.frameWidth > 0 && a.shaft.frameHeight > 0)
-            clubMap.insert(QStringLiteral("addressBall"),
-                           QVariantList{ a.shaft.addressBallPx.x() / a.shaft.frameWidth,
-                                         a.shaft.addressBallPx.y() / a.shaft.frameHeight });
-        // Mirrors swing_doc.cpp's analysis.club.diag / analysis.club.refused
-        // (2026-10-01 robustness self-checks). Times here are absolute like the
-        // samples' t_us in this map.
-        clubMap.insert(QStringLiteral("diag"), QVariantMap{
-            { QStringLiteral("onsetRule"),      a.shaft.onsetRule },
-            { QStringLiteral("phaseRetries"),   a.shaft.phaseRetries },
-            { QStringLiteral("phaseSuspect"),   a.shaft.phaseSuspect },
-            { QStringLiteral("p1BallDeltaDeg"), double(a.shaft.p1BallDeltaDeg) },
-            { QStringLiteral("lenBallRatio"),   double(a.shaft.lenBallRatio) },
-            { QStringLiteral("onsetTUs"),       double(a.shaft.onsetTUs) },
-            { QStringLiteral("topTUs"),         double(a.shaft.topTUs) },
-            { QStringLiteral("handPairFixed"),  a.shaft.handPairFixed },
-            { QStringLiteral("handGlitchFixed"), a.shaft.handGlitchFixed },
-            { QStringLiteral("ballSuspect"),    a.shaft.ballSuspect },
-            { QStringLiteral("handsRetried"),   a.shaft.handsRetried } });
-        // Mirrors swing_doc.cpp's analysis.club.diag.p8Refusal (plane stack D6).
-        if (a.shaft.p8Refusal) {
-            QVariantMap dg = clubMap.value(QStringLiteral("diag")).toMap();
-            dg.insert(QStringLiteral("p8Refusal"),
-                      QString::fromLatin1(pinpoint::analysis::shaftP8RefusalName(a.shaft.p8Refusal)));
-            clubMap.insert(QStringLiteral("diag"), dg);
-        }
-        if (a.shaft.refusedReason)
-            clubMap.insert(QStringLiteral("refused"),
-                           QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(a.shaft.refusedReason)));
-        // Mirrors swing_doc.cpp's analysis.club.wedgeObs.
-        if (!a.shaft.wedgeObs.empty()) {
-            QVariantList wo;
-            for (const ShaftWedgeObs &w : a.shaft.wedgeObs)
-                wo.append(QVariantList{ qint64(w.t_us), w.thetaRad, int(w.kind), double(w.sigmaDeg) });
-            clubMap.insert(QStringLiteral("wedgeObs"), wo);
-        }
-        // Mirrors swing_doc.cpp's analysis.club.filter (the club rate filter's diagnostic).
-        if (a.shaft.clubFilter.ran) {
-            const pinpoint::analysis::ClubFilterStats &f = a.shaft.clubFilter;
-            clubMap.insert(QStringLiteral("filter"), QVariantMap{
-                { QStringLiteral("version"),        f.version },
-                { QStringLiteral("nEvidence"),      f.nEvidence },
-                { QStringLiteral("nGated"),         f.nGated },
-                { QStringLiteral("nDownweighted"),  f.nDownweighted },
-                { QStringLiteral("nisMean"),        f.nisMean },
-                { QStringLiteral("residualRmsDeg"), f.residualRmsDeg },
-                { QStringLiteral("rateWobble"),     f.rateWobble },
-                { QStringLiteral("humpsRaw"),       f.humpsRaw },
-                { QStringLiteral("humpsFiltered"),  f.humpsFiltered } });
-        }
-        detail.insert(QStringLiteral("club"), clubMap);
-    }
-    // Ball track (v3.4 design §9) for the replay overlay — normalized [0,1]
-    // full-frame center + radius, same convention as pose2d/club so QML never
-    // sees pixel spaces. found=false samples mark the post-launch gap (the
-    // circle vanishes at impact). Same shape as the analysis.ball swing.json block.
-    if (!a.ball.frames.empty()) {
-        QVariantList samples;
-        for (const BallSample2D &s : a.ball.frames)
-            samples.append(QVariantMap{
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(s.t_us) },
-                { QStringLiteral("x"),     s.center.x() },
-                { QStringLiteral("y"),     s.center.y() },
-                { QStringLiteral("r"),     double(s.radiusNorm) },
-                { QStringLiteral("conf"),  double(s.conf) },
-                { QStringLiteral("found"), s.found } });
-        detail.insert(QStringLiteral("ball"),
-                      QVariantMap{
-                          { QStringLiteral("camera"),    int(a.ball.camera) },
-                          { QStringLiteral("valid"),     true },
-                          { QStringLiteral("launchTUs"), static_cast<qlonglong>(a.ball.launchTUs) },
-                          { QStringLiteral("samples"),   samples } });
-    }
-    // The impact camera's track (impact_camera_design.md §7): the SAME object
-    // the doc writes, absolute t_us (the live playhead's domain), so the
-    // impact overlay reads one shape from both surfaces.
-    if (a.impact.valid)
-        detail.insert(QStringLiteral("impact"), pinpoint::impactTrackJson(a.impact, 0).toVariantMap());
-
-    // The down-the-line tile's overlay (dtl_overlay_payload.h) — nested under `dtl` so
-    // nothing that reads a top-level pose2d/club as face-on misfires. Pose through the
-    // same shaping as face-on; shaft + ball through the ONE clubDtl translator the disk
-    // path uses, fed with t0 = 0 so every time stays in this path's absolute domain.
-    {
-        const QVariantMap dtlPose = a.poseDtl.frames.empty() ? QVariantMap{}
-                                                             : poseTrackToDetail(a.poseDtl);
-        const QJsonObject clubDtl = a.shaftDtl.valid
-            ? dtlShaftTrackToJson(a.shaftDtl, 0, a.shaftDtl.configJson,
-                                  a.shaftDtl.configHash, QString(), QString())
-            : QJsonObject{};
-        qint64 impactUs = -1;
-        for (const PhaseEvent &e : a.phases)
-            if (e.phase == Phase::Impact) { impactUs = static_cast<qint64>(e.t_us); break; }
-        const QVariantList foPositions = detail.value(QStringLiteral("club")).toMap()
-                                               .value(QStringLiteral("positions")).toList();
-        QVariantMap dtl = pinpoint::dtlOverlayDetail(
-            dtlPose, clubDtl, foPositions, impactUs,
-            [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); });
-        // The coach lines' edges (address_marks_json.h): one view's object on each tile's
-        // detail, identity time mapping like everything else on this path.
-        if (a.versions.addressMarks > 0) {
-            const auto ident = [](const QJsonValue &v) { return static_cast<qint64>(v.toDouble()); };
-            detail.insert(QStringLiteral("addressMarks"),
-                          viewMarksPayload(viewMarksToJson(a.addressMarks.faceOn, 0), ident));
-            if (!dtl.isEmpty()) {
-                dtl.insert(QStringLiteral("addressMarks"),
-                           viewMarksPayload(viewMarksToJson(a.addressMarks.dtl, 0), ident));
-                // The DTL butt line and back line at every P-frame (schema /2), through the
-                // document's own builder so both paths read one shape.
-                dtl.insert(QStringLiteral("addressMarksPhases"),
-                           dtlPhaseMarksPayload(addressMarksToJson(a.addressMarks, 0, a.versions.addressMarks), ident));
-            }
-        }
-        // The DTL ruler (dtl_ruler_json.h): cm per DTL pixel, for centimetres drawn on that frame.
-        if (a.dtlRuler.ran && !dtl.isEmpty())
-            dtl.insert(QStringLiteral("ruler"), dtlRulerPayload(dtlRulerToJson(a.dtlRuler, a.versions.dtlPosture)));
-        if (!dtl.isEmpty())
-            detail.insert(QStringLiteral("dtl"), dtl);
-    }
-    return detail;
-}
-
 // IMU roles come from ImuManager's role resolver (roleForDevice / instanceForRole) and
 // are converted with segmentRoleForPlacementRole (segment_role.h). segmentRoleForSlot
 // is deliberately NOT used here any more — it survives only for reading old swings.
 
-// Human label for a SessionController::Type, used in session-folder naming.
-QString sessionTypeLabel(int sessionType)
-{
-    switch (sessionType) {
-    case 0:  return QStringLiteral("Swing");
-    case 1:  return QStringLiteral("Wrist");
-    case 2:  return QStringLiteral("GRF");
-    case 3:  return QStringLiteral("Coach");
-    default: return QString();
-    }
-}
+// The session type's name for the session file and its folder's label: sessionTypeName(), beside
+// the session lifecycle below (the label is SessionStore::folderTypeLabel's, step 2.2).
 
 } // namespace
 
@@ -1074,20 +543,47 @@ void ShotProcessor::finishGatherAndLaunch()
     m_exportOutcome   = Outcome::Pending;
     m_analysisOutcome = Outcome::Pending;
     m_analysisResult  = {};
+    m_integrity.reset();
     m_segmentation    = {};
     m_swingDir.clear();
+    m_shot = {};
+    m_allocResult = {};
     m_thumbnailPath.clear();
-    // Per-shot club-length prior stash (Phase 3) — re-resolved from scratch in
-    // buildAnalysisJob() below; stays empty/cold when this shot has no
-    // athlete/club/fixed-in-place face-on camera, which onAnalysisFinished()
-    // reads as "nothing to persist".
-    m_lengthPriorKey.clear();
-    m_lengthPriorState = {};
     setState(State::Processing);
 
     ppInfo() << "[ShotProcessor] window captured —"
              << static_cast<qint64>(m_swingWindow->entries().size()) << "entries,"
              << m_replayTracks.size() << "camera track(s)";
+
+    // ── THE RECORDING, AT THE FREEZE (capture_context.h; refactor step 1.5) ──────────────────────
+    // The athlete, the session and the settings are read ONCE, here, into the shot's Recording: the
+    // analysis job, the export's athlete and club (12–37 s later), the seeded review club and the
+    // integrity verdicts all come from this one value, so what is on disk is what was analysed.
+    {
+        std::vector<pinpoint::capture::CaptureCamera> cams;
+        cams.reserve(m_replayTracks.size());
+        for (const ReplayTrack &track : m_replayTracks) {
+            pinpoint::capture::CaptureCamera c;
+            c.ctrl   = track.ctrl;
+            c.source = track.sourceId;
+            // The accumulator snapshot frozen above (ReplayTrack::ball), on the ring clock.
+            for (const BallSnapshot::Sample &b : track.ball.samples)
+                c.ball.frames.push_back({ b.tUs, b.found, QPointF(b.x, b.y), b.r, b.conf });
+            if (track.ball.hasLaunch) {
+                c.ball.launchTUs    = track.ball.launchTUs;
+                c.ball.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
+            }
+            cams.push_back(std::move(c));
+        }
+        m_capture = std::make_unique<pinpoint::capture::CaptureSnapshot>(pinpoint::capture::snapshotAtFreeze(
+            *m_swingWindow, cams, m_imuManager, m_appSettings,
+            pinpoint::capture::readCaptureAthlete(m_athlete, m_session),
+            m_sessionType, static_cast<int>(m_shotSource), m_impactUs));
+        // Per-shot club-length prior stash: empty/cold when this shot has no athlete/club/fixed-in-place
+        // face-on camera, which onAnalysisFinished() reads as "nothing to persist".
+        m_lengthPriorKey   = m_capture->lengthPriorKey;
+        m_lengthPriorState = m_capture->lengthPriorState;
+    }
 
     // Corpus capture: when saving raw frames with "skip analysis" on, export the
     // frames only — bypass segmentation + analysis and suppress replay (see
@@ -1130,7 +626,32 @@ void ShotProcessor::finishGatherAndLaunch()
     // DiskReplaySource on the persisted Finish event, startReplay() below on
     // the analysed one — which is why a swing.json can hold a 4 s clip and
     // still replay 2.7 s of swing.
-    m_analysisJob = buildAnalysisJob();
+    // THE ONE JOB BUILDER, on the Recording and its effective context: the recorded context with the
+    // club capture seeds into review.club as the declared club (no correction exists yet) — exactly
+    // what re-analysis reads back, so an uncorrected shot gets the same job either way.
+    {
+        pinpoint::analysis::ClubReview review;
+        review.declared = m_capture->athlete.reviewClub;
+        pinpoint::analysis::RunOptions run;
+        run.origin = QStringLiteral("live");
+        // Worker → UI progress marshalling: queued invoke with `this` as context (auto-cancelled if
+        // the processor dies first), throttled to whole-percent steps. ATOMIC since the analysis can
+        // run as a graph (analysis.parallel; analysis_dag.h): two stages may report at once, and a
+        // compare-exchange keeps the bar monotonic.
+        auto lastPct = std::make_shared<std::atomic<int>>(-1);
+        run.progress = [this, lastPct](float p) {
+            const int pct = static_cast<int>(p * 100.0f);
+            int seen = lastPct->load(std::memory_order_relaxed);
+            do {
+                if (pct <= seen)
+                    return;
+            } while (!lastPct->compare_exchange_weak(seen, pct, std::memory_order_relaxed));
+            QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); }, Qt::QueuedConnection);
+        };
+        m_analysisJob = pinpoint::analysis::buildAnalysisJob(
+            m_capture->recording,
+            pinpoint::analysis::effectiveContext(m_capture->recording.context, review), run);
+    }
     const pinpoint::SwingWindow *win = &*m_swingWindow;
     m_segmentationInFlight = true;
     m_segmentationWatcher.setFuture(QtConcurrent::run(
@@ -1167,348 +688,31 @@ void ShotProcessor::onSegmentationFinished()
     startAnalysis();
 }
 
-ShotAnalysisJob ShotProcessor::buildAnalysisJob()
-{
-    ShotAnalysisJob job;
-    job.sessionType = m_sessionType;
-    job.shotSource  = static_cast<int>(m_shotSource);
-    job.impactUs    = m_impactUs;
-    // Offline pose-model tier (High -> ViTPose++-L when downloaded, else ViTPose-B).
-    job.motionCaptureQuality = m_appSettings ? m_appSettings->motionCaptureQuality() : QString();
-
-    // Face-on first so analyzers can prefer it without re-sorting; the count
-    // makes "face-on first" verifiable from the worker (0 = none captured).
-    for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn) {
-            job.cameraSources.insert(job.cameraSources.begin(), track.sourceId);
-            ++job.faceOnCameraCount;
-        } else {
-            job.cameraSources.push_back(track.sourceId);
-        }
-        // The impact camera's clip feeds the ImpactRunner (impact_camera_design.md §7).
-        if (track.ctrl->perspective() == CameraInstance::Impact)
-            job.impactSource = track.sourceId;
-        // …and the down-the-line camera feeds the DTL shaft tracker and the paired trunk route
-        // (kinematic_sequence_design.md §5.2). FIRST such track wins and the pick never moves
-        // once made: two cameras aimed down the line is not a configuration we support, and
-        // silently switching between them between shots would make the pair's inter-view angle —
-        // a per-rig constant — jump. Deliberately NOT part of the face-on/else branch above:
-        // `cameraSources` order is load-bearing (face-on first, and `faceOnCameraCount` counts
-        // the prefix), so this only observes the loop, it does not steer it.
-        if (track.ctrl->perspective() == CameraInstance::DownTheLine
-            && job.dtlSource == pinpoint::kInvalidSourceId)
-            job.dtlSource = track.sourceId;
-    }
-
-    // IMU and marker sources discovered from the window's own formats.
-    QSet<pinpoint::SourceId> seen;
-    for (const pinpoint::IndexEntry &e : m_swingWindow->entries()) {
-        if (seen.contains(e.source_id)) continue;
-        seen.insert(e.source_id);
-        const pinpoint::FormatDescriptor &fd = m_swingWindow->formatOf(e.source_id);
-        if (fd.device == pinpoint::DeviceKind::Marker_App)
-            job.markerSourceId = e.source_id;
-        else if (std::holds_alternative<pinpoint::ImuFormat>(fd.format))
-            job.imuSources.push_back(e.source_id);
-    }
-
-    // v3.4 (design §9): face-on ball track for the live analyzer, resolved
-    // from whichever camera's accumulator has data — prefer face-on (the
-    // hitting-area ROI only ever runs there in practice), else any camera
-    // with ball detection enabled. Empty ⇒ ShaftTracker falls back to
-    // BallRunner's offline replay (correct even live: e.g. detection was
-    // enabled mid-swing and the accumulator is still short).
-    // Read from the per-track snapshot frozen at window capture (ReplayTrack::
-    // ball) — NOT live controller state, which by now records post-shot
-    // accumulation, not the swing. Time base: the analyzer consumes everything
-    // in the WINDOW'S NATIVE domain — live SwingWindow entries and job.impactUs
-    // (line above) are absolute buffer-clock, so the ball samples must stay
-    // absolute too (ShaftTracker matches them against entry timestamps; the
-    // offline loader passes window-relative ball + window-relative entries, the
-    // same contract). swing_doc's rel() normalizes on export either way. Do NOT
-    // rebase here — a relative track against absolute entries matches nothing.
-    for (int pass = 0; pass < 2 && job.ballTrack.frames.empty(); ++pass) {
-        for (const ReplayTrack &track : m_replayTracks) {
-            if (pass == 0 && track.ctrl->perspective() != CameraInstance::FaceOn)
-                continue;
-            const auto &samples = track.ball.samples;
-            if (samples.empty()) continue;
-            pinpoint::analysis::BallTrack2D bt;
-            bt.camera = track.sourceId;
-            bt.frames.reserve(samples.size());
-            for (const auto &s : samples)
-                bt.frames.push_back({s.tUs, s.found, QPointF(s.x, s.y), s.r, s.conf});
-            if (track.ball.hasLaunch) {
-                bt.launchTUs    = track.ball.launchTUs;
-                bt.launchCenter = QPointF(track.ball.launchX, track.ball.launchY);
-            }
-            job.ballTrack = std::move(bt);
-            break;
-        }
-    }
-
-    // Hitting-area ROI for the offline BallRunner fallback (empty accumulator /
-    // detection enabled mid-swing) — prefer the face-on camera so ball search
-    // uses the same box the live detector did, skipping feet/shoe distractors.
-    for (const ReplayTrack &track : m_replayTracks) {
-        if (track.ctrl->perspective() == CameraInstance::FaceOn && !track.ctrl->roi().isEmpty()) {
-            job.ballSearchRoi = track.ctrl->roi();
-            break;
-        }
-    }
-
-    // Athlete handedness (lead-arm sign) and IMU -> segment bindings, resolved
-    // here on the UI thread — the worker can read neither the athlete controller
-    // nor the live ImuInstance calibration (alignA/mountM are session-lifetime).
-    const QString hand = m_athlete ? m_athlete->currentHandedness() : QString();
-    job.handedness = hand.compare(QLatin1String("Left"),  Qt::CaseInsensitive) == 0 ? 2
-                   : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1 : 0;
-    // The skeleton3d fit's scale prior (0 = unknown ⇒ the Y-bot's own proportions).
-    job.athleteHeightM = m_athlete ? m_athlete->currentHeightM() : 0.0;
-
-    // Club length (m) sizes the shaft-tracker search radius. Resolve the session's
-    // active club against the athlete's bag; leave the ShotAnalysisJob default
-    // (driver ≈ 1.12 m) when unset or the club record has no recorded length.
-    if (m_athlete && m_session) {
-        const QString club = m_session->activeClub();
-        if (!club.isEmpty()) {
-            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid())
-                                        .value(club).toMap();
-            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
-            if (lengthMm > 0) {
-                job.clubLengthM = lengthMm / 1000.0;
-                job.clubLengthKnown = true;
-            }
-            // Retro-band geometry for the v3 E1 band matcher. Empty (untaped
-            // club) ⇒ the shaft tracker runs E2 (ray) evidence only, no band tier.
-            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
-            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
-            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
-            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
-            if (hoselMm > 0)
-                job.hoselFromButtMm = hoselMm;
-            // Markerless geometry (steel-segment lock): exposed shaft length and the
-            // hands' end on the grip. 0 = unknown ⇒ the tracker's defaults.
-            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();
-            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
-
-            // Persistent club-length prior (club_length_fusion.h / plan: robust
-            // club length — starry-shimmying-wind). Keyed athleteUuid|clubName|
-            // cameraKey (a px prior is meaningless if the camera moves) and only
-            // trusted while that camera is marked fixed-in-place. Resolve the
-            // face-on camera's cameraKey from the already-frozen replay tracks
-            // (m_replayTracks is populated earlier in captureWindowAndLaunch).
-            job.clubName = club;
-            CameraInstance *faceOnCtrl = nullptr;
-            QString faceOnKey;
-            for (const ReplayTrack &track : m_replayTracks) {
-                if (track.ctrl && track.ctrl->perspective() == CameraInstance::FaceOn) {
-                    faceOnCtrl = track.ctrl;
-                    faceOnKey  = track.ctrl->cameraKey();
-                    break;
-                }
-            }
-            if (!faceOnKey.isEmpty() && m_appSettings
-                && m_appSettings->cameraFixedInPlace().value(faceOnKey).toBool()) {
-                // Stashed even on a cold/absent entry — onAnalysisFinished() still
-                // needs the key to seed a brand-new prior on the first confident fuse.
-                m_lengthPriorKey = m_athlete->currentUuid() + QLatin1Char('|') + club
-                                  + QLatin1Char('|') + faceOnKey;
-                const QVariantMap prior = m_appSettings->clubLenPrior().value(m_lengthPriorKey).toMap();
-                if (!prior.isEmpty()) {
-                    const int entryW = prior.value(QStringLiteral("frameW"), 0).toInt();
-                    const int entryH = prior.value(QStringLiteral("frameH"), 0).toInt();
-                    // Camera-move self-heal: an entry with recorded dims must match
-                    // the live camera's resolved frame size, or a silently-moved
-                    // camera would keep feeding a stale px prior. An entry that
-                    // predates this field (no dims recorded) is trusted as-is —
-                    // there is nothing to compare against.
-                    const bool dimsOk = (entryW <= 0 || entryH <= 0)
-                        || (faceOnCtrl && entryW == faceOnCtrl->frameWidth()
-                                       && entryH == faceOnCtrl->frameHeight());
-                    if (dimsOk) {
-                        m_lengthPriorState.emaPx       = prior.value(QStringLiteral("emaPx"), -1.0).toDouble();
-                        m_lengthPriorState.varPx       = prior.value(QStringLiteral("varPx"), 0.0).toDouble();
-                        m_lengthPriorState.n           = prior.value(QStringLiteral("n"), 0).toInt();
-                        m_lengthPriorState.disagreeRun = prior.value(QStringLiteral("disagreeRun"), 0).toInt();
-                        if (m_lengthPriorState.n > 0 && m_lengthPriorState.emaPx > 0.0) {
-                            job.priorClubLenPx    = m_lengthPriorState.emaPx;
-                            job.priorClubLenVarPx = m_lengthPriorState.varPx;
-                            job.priorClubLenN     = m_lengthPriorState.n;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (m_imuManager) {
-        // ⚠ ROLES COME FROM THE RESOLVER, WITH NO sessionType GATE (design §4.13; memory
-        // note analysis-is-session-agnostic): a pelvis sensor is a pelvis sensor in every
-        // session type. For a classic Wrist setup this yields exactly what the old
-        // segmentRoleForSlot(1, letter) did — A/B/C were migrated to these three roles.
-        const QVariantList insts = m_imuManager->instances();
-        for (const QVariant &v : insts) {
-            auto *imu = qobject_cast<ImuInstance *>(v.value<QObject *>());
-            if (!imu) continue;
-            const pinpoint::SourceId sid = imu->sourceId();
-            if (std::find(job.imuSources.begin(), job.imuSources.end(), sid) == job.imuSources.end())
-                continue;   // this IMU is not a source in the captured window
-            pinpoint::analysis::ImuSegmentBinding b;
-            b.source = sid;
-            b.role   = pinpoint::analysis::segmentRoleForPlacementRole(
-                           m_imuManager->roleForDevice(imu->deviceId()));
-            b.alignA = imu->alignA();
-            b.mountM = imu->mountM();
-            // Calibration status snapshot — persisted into swing.json's
-            // analysis.bindings so SwingLab can filter by provenance.
-            b.anatCalibrated       = imu->anatCalibrated();
-            b.calibrated           = imu->fullyCalibrated();
-            b.mountDeviationDeg    = imu->mountDeviationDeg();
-            b.mountGravityErrorDeg = imu->mountGravityErrorDeg();
-            if (imu->calibratedAtUtc().isValid()) {
-                b.calibratedAtUtc = imu->calibratedAtUtc().toString(Qt::ISODateWithMs);
-                b.calibAgeSec     = imu->calibratedAtUtc()
-                                        .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
-            }
-            // The trunk stand-tall solve's δ tier, σ_δ and gate residuals, when it set A/M
-            // (trunk design §6.8); not present for an arm calibration.
-            b.trunkCalib = imu->trunkCalibProvenance();
-            job.imuBindings.push_back(b);
-        }
-
-        // ── HackMotion, which the loop above cannot see ──────────────────────────
-        //
-        // An HmInstance is a PEER of ImuInstance, not a subclass — both derive
-        // ImuDeviceBase (hm_instance.h:229-235) — so the qobject_cast above returns
-        // null for it and always has. That is why no wG3 has ever produced a wrist
-        // metric: no binding, so the fuser never sees the lane and MetricExtractor
-        // never runs on it. Phase E3 proved the samples arrive and are recorded
-        // honestly; it proved nothing downstream consumed them, because nothing did.
-        //
-        // Written as a second pass rather than folded into the first so the Witmotion
-        // path above is untouched, byte for byte.
-        for (const QVariant &v : insts) {
-            auto *hm = qobject_cast<HmInstance *>(v.value<QObject *>());
-            if (!hm) continue;
-
-            // ⚠ NO FRAME, NO BINDING. Until a directed capture has selected a
-            // candidate, hm_frame::toAnatomical() returns identity by design — a lane
-            // with no anatomical frame must drive nothing rather than drive a plausible
-            // guess. Binding it anyway would feed identity quaternions to the wrist
-            // decomposition and publish the result as a measurement.
-            if (!pinpoint::hm_frame::isSelected()) {
-                ppWarn() << "[ShotProcessor]" << hm->deviceDescription()
-                         << "— no HackMotion frame candidate selected, so this device's"
-                            " lanes are recorded but not bound; no wrist metric will be"
-                            " produced from them.";
-                continue;
-            }
-
-            HmUnit *const units[] = { hm->unitLowerArm(), hm->unitPalm() };
-            for (HmUnit *const unit : units) {
-                if (!unit) continue;
-                const pinpoint::SourceId sid = unit->sourceId();
-                if (sid == pinpoint::kInvalidSourceId)
-                    continue;   // this unit never registered a lane
-                if (std::find(job.imuSources.begin(), job.imuSources.end(), sid)
-                    == job.imuSources.end())
-                    continue;   // this unit is not a source in the captured window
-
-                // ⚠ PLACEMENT IS UNIT-KEYED FOR A HACKMOTION, so the device-level
-                // roleForDevice() the Witmotion path uses answers for the pair, not for
-                // this unit. Rather than respell the "<deviceId>#lowerArm" / "#palm"
-                // format here — a second copy of the spelling is precisely the drift
-                // that would silently orphan a device's placement — ask the canonical
-                // resolver which object holds each role and match on identity.
-                // instanceForRole() returns the HmUnit for a HackMotion, which is the
-                // whole reason HmUnit exists. Every placement role is asked, not only
-                // the arm's, so nothing here assumes where a wG3 may be worn.
-                QString role;
-                for (const QString &r : pinpoint::imu_roles::placementRoleOrder()) {
-                    if (m_imuManager->instanceForRole(r) == static_cast<QObject *>(unit)) {
-                        role = r;
-                        break;
-                    }
-                }
-                if (role.isEmpty())
-                    continue;   // unassigned unit — recorded, but bound to no segment
-
-                pinpoint::analysis::ImuSegmentBinding b;
-                b.source     = sid;
-                b.role       = pinpoint::analysis::segmentRoleForPlacementRole(role);
-                b.hackMotion = true;
-                // A is IDENTITY for this lane by design, not as a placeholder: the
-                // device referenced the pair at its own calibration pose, so there is
-                // no per-session world->anatomical solve to record. M carries the frame
-                // constant. Both are read off the unit rather than recomputed here, so
-                // the binding and the live readout cannot diverge.
-                b.alignA = unit->alignA();
-                b.mountM = unit->mountM();
-                // ⚠ THE MOUNT DEVIATIONS STAY 0.0 BECAUSE THERE IS NO MOUNT SOLVE FOR
-                // THIS DEVICE, not because nobody filled them in. A Witmotion earns
-                // those two numbers from our own two-pose calibration; a wG3 applies
-                // its own and streams the result, so there is no residual to report and
-                // any value here would be an invention. anatCalibrated is the real gate
-                // — it is false unless the device says CALIBRATED and a frame is
-                // selected — and CaptureCapabilities reads `calibrated`, so the two
-                // carry the same honest answer rather than a fabricated composite.
-                b.anatCalibrated = unit->anatCalibrated();
-                b.calibrated     = unit->anatCalibrated();
-                job.imuBindings.push_back(b);
-            }
-        }
-    }
-
-    // Worker → UI progress marshalling: queued invoke with `this` as context
-    // (auto-cancelled if the processor dies first), throttled to whole-percent
-    // steps so per-frame reporting stays a handful of events per second.
-    // ATOMIC since the analysis can run as a graph (analysis.parallel; analysis_dag.h): the
-    // pose, shaft and DTL stages report from whichever pool thread runs them, so two may
-    // call this at once. A compare-exchange keeps the bar monotonic — only the caller that
-    // raises the high-water mark posts — and the post itself is already thread-safe.
-    auto lastPct = std::make_shared<std::atomic<int>>(-1);
-    job.progress = [this, lastPct](float p) {
-        const int pct = static_cast<int>(p * 100.0f);
-        int seen = lastPct->load(std::memory_order_relaxed);
-        do {
-            if (pct <= seen)
-                return;
-        } while (!lastPct->compare_exchange_weak(seen, pct, std::memory_order_relaxed));
-        QMetaObject::invokeMethod(this, [this, p] { setAnalysisProgress(p); },
-                                  Qt::QueuedConnection);
-    };
-    return job;
-}
-
 void ShotProcessor::startAnalysis()
 {
-    ShotAnalysisJob job = m_analysisJob;   // resolved in captureWindowAndLaunch
-    job.path.origin = QStringLiteral("live");
-
-    const pinpoint::SwingWindow *win = &*m_swingWindow;   // stable optional storage
+    // The analysis service runs the job the one builder made (finishGatherAndLaunch) on this shot's
+    // Recording, and reaches its integrity verdicts with the one rule (integrityFor) — the same code
+    // re-analysis and SwingLab run. The Recording reads the frozen window (stable optional storage).
     m_analysisInFlight = true;
     m_analysisWatcher.setFuture(QtConcurrent::run(
-        [job = std::move(job), win] {
+        [job = m_analysisJob, recording = m_capture->recording, service = m_analysisService] {
             // Name this pooled thread so it shows in the profiler's per-thread
             // CPU table for the duration of the analysis (RAII across all the
             // return paths below).
             pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-            // Exception barrier: anything escaping the worker (e.g. a
-            // cv::Exception on malformed frame geometry) would be rethrown by
-            // QtConcurrent on the GUI thread at result()/waitForFinished()
-            // with no handler — std::terminate. Degrade to a failed analysis
-            // instead; the join still adds the shot and resumes the buffer.
+            // Exception barrier: anything escaping the worker would be rethrown by QtConcurrent on
+            // the GUI thread at result()/waitForFinished() with no handler — std::terminate. The
+            // service already degrades a throwing stage to a failed analysis; this covers the rest.
+            // The join still adds the shot and resumes the buffer.
             try {
-                auto analyzer = makeShotAnalyzer();
-                return analyzer->analyze(*win, job);
+                return service.analyseJob(recording, job);
             } catch (const std::exception &e) {
-                ShotAnalysisResult r;
-                r.error = QString::fromUtf8(e.what());
+                pinpoint::analysis::AnalysedRecording r;
+                r.analysis.error = QString::fromUtf8(e.what());
                 return r;
             } catch (...) {
-                ShotAnalysisResult r;
-                r.error = QStringLiteral("unknown exception in shot analysis");
+                pinpoint::analysis::AnalysedRecording r;
+                r.analysis.error = QStringLiteral("unknown exception in shot analysis");
                 return r;
             }
         }));
@@ -1516,21 +720,11 @@ void ShotProcessor::startAnalysis()
 
 void ShotProcessor::startSwingSave()
 {
-    // ⚠ AN ALLOCATION CAN MOVE THE SESSION FOLDER, and must say so. Re-pointing the library mid-session
-    // (the remedy the "Swings are not being saved" notice offers) sends this swing to a new session
-    // folder under the new library (SwingPaths::allocateSwingDir); so does the first swing of a session
-    // whose folder could not be made at start. activeSessionDir moved with it, and every panel that
-    // binds to it (the diagnostics panels on the stage and the cast window, Charts) must re-point
-    // BEFORE this shot's shotProcessed, or each refuses it as another session's swing (audit E-01).
-    // Emitted here, on the GUI thread, before the export starts: shotProcessed comes only from the join.
-    // STOPGAP: ShotProcessor should not be announcing storage changes at all. In the target design the
-    // Session owns its location, and refactor step 2 removes this announce (04-remediation-plan.md).
-    const QString sessionBefore = m_swingPaths.currentSessionDir();
+    // The allocation never moves a session's folder (step 2.2: SessionRepository fixes it at Start). A
+    // session that STARTS here — the first swing of one whose folder could not be made at Start, or a
+    // swing outside a session — is announced by captureSession() as any Start is, before this shot's
+    // shotProcessed, so every panel bound to activeSessionDir is already on it (audit E-01).
     pinpoint::SwingExportJob job = buildSwingExportJob();
-    if (const QString sessionNow = m_swingPaths.currentSessionDir(); sessionNow != sessionBefore) {
-        ppInfo() << "[SwingExport] the session folder moved with this swing:" << sessionBefore << "->" << sessionNow;
-        emit activeSessionDirChanged();
-    }
     // Cache the job + dir up front: even when there is nothing to encode (no
     // cameras, or an encode failure), an analysis-only swing.json is written
     // from these at the join so the shot still survives a restart.
@@ -1540,8 +734,13 @@ void ShotProcessor::startSwingSave()
     if (job.swingDir.isEmpty()) {
         ppWarn() << "[SwingExport] could not allocate a swing directory — not saving";
         m_exportOutcome = Outcome::Skipped;
-        emit swingSaveBlocked(tr("The swing folder could not be created — check the "
-                                 "athlete library path in Settings"));
+        // A folder another writer holds (a tool, the other machine) says so in the lock's own words
+        // (J-22); anything else is the library path, as before.
+        if (m_allocResult.status == pinpoint::WriteResult::Status::Locked)
+            emit swingSaveBlocked(m_allocResult.error);
+        else
+            emit swingSaveBlocked(tr("The swing folder could not be created — check the "
+                                     "athlete library path in Settings"));
         return;
     }
     if (job.cameras.empty()) {
@@ -1596,12 +795,13 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     // buffering) is a separate scope. The exporter serialises whatever is here,
     // so this is forward-compatible — populate it upstream once a producer lands.
 
-    if (m_athlete) {
-        job.athleteName = m_athlete->currentName();
-        job.athleteUuid = m_athlete->currentUuid();
-        job.handedness  = m_athlete->currentHandedness();
-        job.athleteHeightM = m_athlete->currentHeightM();
-    }
+    // ⚠ EVERY RECORDING INPUT THIS JOB WRITES COMES FROM THE SNAPSHOT TAKEN AT THE FREEZE — the
+    // athlete, the club and its prior, the analysis context, each camera's placement / search box /
+    // empty-mat baseline, the pose-quality tier, the host IMU filter, each lane's rate and calibration
+    // (capture_context.h, fillExportFromSnapshot below). This runs after the analysis, 12–37 s later:
+    // by then the ball detector has re-learned its baseline over the empty mat and a setting may have
+    // changed, and the header must record what the analysis consumed (H-02, audit E-01).
+    const pinpoint::capture::CaptureSnapshot *snap = m_capture.get();
 
     // Wallclock anchor: the UTC instant taken when the window end was frozen (beginGather), so
     // wallclock == monotonic endTimestampUs() by construction. NOT currentDateTimeUtc() here:
@@ -1613,32 +813,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     job.sessionType = m_sessionType;
     job.shotSource  = static_cast<int>(m_shotSource);
     job.swingDetectionSensitivity = s->swingDetectionSensitivity();
-    job.motionCaptureQuality      = s->motionCaptureQuality();
-    // Club geometry (shaft-tracker E1 band matcher) — persisted into capture.club
-    // so re-analysis recovers the club that was used (mirrors buildAnalysisJob).
-    if (m_athlete && m_session) {
-        const QString club = m_session->activeClub();
-        if (!club.isEmpty()) {
-            const QVariantMap rec = m_athlete->clubsFor(m_athlete->currentUuid()).value(club).toMap();
-            const int lengthMm = rec.value(QStringLiteral("lengthMm")).toInt();
-            if (lengthMm > 0) job.clubLengthM = lengthMm / 1000.0;
-            job.shaftType = rec.value(QStringLiteral("shaftType")).toString();
-            const QVariantList bands = rec.value(QStringLiteral("bandCentersMm")).toList();
-            for (const QVariant &bv : bands) job.bandCentersMm.push_back(bv.toDouble());
-            const double hoselMm = rec.value(QStringLiteral("hoselFromButtMm")).toDouble();
-            if (hoselMm > 0) job.hoselFromButtMm = hoselMm;
-            job.shaftLengthMm = rec.value(QStringLiteral("shaftLengthMm")).toDouble();   // markerless P4
-            job.handsEndMm    = rec.value(QStringLiteral("handsEndMm")).toDouble();
-        }
-    }
-    // Club-length prior (club_length_fusion.h): reuse the exact values already
-    // resolved into m_analysisJob for THIS shot (buildAnalysisJob, called earlier
-    // in captureWindowAndLaunch) — the prior the live analysis fuse actually used,
-    // so re-analysis can reproduce it byte-for-byte.
-    job.clubName          = m_analysisJob.clubName;
-    job.priorClubLenPx    = m_analysisJob.priorClubLenPx;
-    job.priorClubLenVarPx = m_analysisJob.priorClubLenVarPx;
-    job.priorClubLenN     = m_analysisJob.priorClubLenN;
+    job.motionCaptureQuality      = snap ? snap->recording.capture.motionCaptureQuality : s->motionCaptureQuality();
     job.imuBleLatencyUs      = ImuInstance::kImuBleLatencyUs;
     job.audioDeviceLatencyUs = s->audioDeviceLatencyUs();
     job.micTravelUs          = s->micTravelUs();
@@ -1673,10 +848,17 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         cam.sourceId = track.sourceId;
         cam.alias    = name;
         cam.fileName = name + QStringLiteral(".mp4");   // the extension picks FFmpeg's muxer
-        cam.perspective  = track.ctrl->perspective();
-        cam.mirrored     = track.ctrl->isMirrored();
-        cam.fixedInPlace = s->cameraFixedInPlace()
-                               .value(track.ctrl->cameraKey()).toBool();
+        // Placement, mirroring, fixed-in-place, search box, baseline: the frozen facts.
+        const pinpoint::CaptureCameraFacts *facts =
+            snap ? pinpoint::captureCameraFactsFor(snap->cameraFacts, track.sourceId) : nullptr;
+        if (facts) {
+            pinpoint::applyCaptureCameraFacts(cam, *facts);
+        } else {   // no snapshot (cannot happen once a window exists): today's reads
+            cam.perspective   = track.ctrl->perspective();
+            cam.mirrored      = track.ctrl->isMirrored();
+            cam.fixedInPlace  = s->cameraFixedInPlace().value(track.ctrl->cameraKey()).toBool();
+            cam.ballSearchRoi = track.ctrl->roi();
+        }
         // Timestamp provenance, for EVERY camera (event_buffer_design.md §9): which clock stamped these
         // frames and how the mapping onto ours was doing. A backend with no mapping leaves both out, and
         // the stream reads as arrival-stamped.
@@ -1752,21 +934,10 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         // CamRecord ball-calibration fields keep their defaults (uncalibrated).
         // Recording the v2 auto-detected ball position (locked centre + satFrac)
         // into swing.json is the additive "Provenance v2" follow-up.
-        cam.ballSearchRoi = track.ctrl->roi();   // hitting area — re-analysis ball search box
-        // Learned empty-mat baseline snapshot — cv-free cache, no HAVE_OPENCV
-        // guard needed at this call site. Plain copies on the UI thread; blob
-        // stays empty (valid() false) when nothing has been learned live yet
-        // or a relearn/ROI change invalidated the cache mid-reseed.
-        const auto &baseline = track.ctrl->ballBaseline();
-        if (baseline.valid()) {
-            cam.ballBaselineBlob   = baseline.blob;
-            cam.ballBaselineW      = baseline.w;
-            cam.ballBaselineH      = baseline.h;
-            cam.ballBaselineRoi    = baseline.roi;
-            cam.ballBaselineRHat   = baseline.rHat;
-            cam.ballBaselineFps    = baseline.fps;
-            cam.ballBaselineNoise0 = baseline.noise0;
-        }
+        // The hitting area (the re-analysis ball search box) and the learned empty-mat baseline are
+        // the FROZEN ones (applyCaptureCameraFacts above): the detector re-learns its baseline over the
+        // empty mat after impact, during the analysis, so the camera's cache now is the post-shot one,
+        // not the one the live analysis ran on.
         job.cameras.push_back(std::move(cam));
 
         // v3.4 (design §9.7): this camera's ball stream, window-relative —
@@ -1837,7 +1008,8 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         pinpoint::SwingImuDeviceInfo info;
         info.outputRateHz      = imuRates.value(dev.id, 200).toInt();
         info.fusionMode        = imuFusion.value(dev.id, s->imuDefaultFusionMode()).toString();
-        info.orientationFilter = s->imuOrientationFilter();
+        // The host filter at the freeze (the integrity rule judges the lanes against it).
+        info.orientationFilter = snap ? snap->imuOrientationFilter : s->imuOrientationFilter();
         // ⚠ placementSlot IS NO LONGER WRITTEN (design §4.13): placement is role-keyed,
         // and the letter carried nothing the role does not. The field and every reader
         // stay — old swings have it — and the exporter omits the key when it is empty.
@@ -1861,7 +1033,7 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                     info.outputRateHz = imu->outputRateHz();
                     // A/M calibration snapshot baked into the stream — lets an
                     // analysis-skipped corpus swing be re-analysed (no
-                    // analysis.bindings). Mirrors buildAnalysisJob's resolution.
+                    // analysis.bindings). The frozen binding replaces these below.
                     info.hasCalibration = true;
                     info.alignA         = imu->alignA();
                     info.mountM         = imu->mountM();
@@ -1875,6 +1047,16 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
                                                    .msecsTo(QDateTime::currentDateTimeUtc()) / 1000.0;
                     }
                     info.trunkCalib = imu->trunkCalibProvenance();   // trunk design §6.8
+                    // A lane in the window: its rate, calibration and role AS THEY STOOD AT THE
+                    // FREEZE (the Recording's binding) — the reads above are only for a device the
+                    // window holds no lane of, which no stream carries.
+                    if (snap) {
+                        for (const pinpoint::analysis::ImuSegmentBinding &bnd : snap->recording.imuBindings)
+                            if (bnd.source == imu->sourceId() && !bnd.hackMotion) {
+                                pinpoint::applyCaptureImuFacts(info, snap->imuOutputRateHz.value(imu->sourceId(), 0), bnd);
+                                break;
+                            }
+                    }
                     break;
                 }
             }
@@ -2031,101 +1213,223 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
         job.imuDeviceBySerial.insert(serial, info);
     }
 
-    const auto alloc = m_swingPaths.allocateSwingDir(s->athleteLibraryPath(),
-                                                     job.athleteName,
-                                                     job.athleteUuid,
-                                                     s->sessionNamingPattern(),
-                                                     sessionTypeLabel(m_sessionType));
-    job.swingDir   = alloc.swingDir;
-    job.swingId    = alloc.swingId;
-    job.swingIndex = alloc.swingIndex;
-    job.sessionId  = alloc.sessionId;
+    // The athlete, the club (its geometry and the length prior the live fuse used), the analysis context
+    // and the capture-wide inputs — from the snapshot, over everything listed above (the cameras' and
+    // devices' facts are re-applied from it, which is idempotent).
+    if (snap)
+        pinpoint::capture::fillExportFromSnapshot(job, *snap);
+
+    // One allocator (D10: DEC-157): the next swing number of the session this swing is written into.
+    const pinpoint::SessionId session = captureSession();
+    pinpoint::SwingAllocation alloc;
+    if (m_sessions && !session.isNull())
+        alloc = m_sessions->allocateSwing(session);
+    if (!alloc.ok())
+        ppWarn() << "[SwingExport] no swing folder:"
+                 << (session.isNull() ? QStringLiteral("no session could be started") : alloc.result.error);
+    job.swingDir   = alloc.ok() ? alloc.swingFolder : QString();
+    m_shot         = alloc.ok() ? alloc.shot : pinpoint::ShotRef();
+    m_allocResult  = alloc.result;
+    job.swingId    = alloc.swingName;
+    job.swingIndex = alloc.shot.swingNumber();
+    job.sessionId  = alloc.sessionFolderName;
     return job;
 }
 
 // ── Session folder lifecycle (QML) ──────────────────────────────────────────
-// Same library-path / athlete / naming-pattern accessors buildSwingExportJob
-// uses, so the folder chosen at session start matches the one swings save into.
+// Through SessionRepository (step 2.2), with the same library / athlete / naming-pattern settings for
+// Start, the extend prompt and every swing, so the session chosen at Start is the one swings save into.
+
+namespace {
+
+// The session type by name (DEC-88), as the session file records it; "" for none.
+QString sessionTypeName(int sessionType)
+{
+    switch (sessionType) {
+    case 0:  return QStringLiteral("swing");
+    case 1:  return QStringLiteral("wrist");
+    case 2:  return QStringLiteral("grf");
+    case 3:  return QStringLiteral("coach");
+    default: return QString();
+    }
+}
+
+// The library as D7 compares it: cleaned, so "lib/" and "lib" are one library.
+QString libraryKey(const QString &root)
+{
+    const QString r = root.trimmed();
+    return r.isEmpty() ? QString() : QDir::cleanPath(r);
+}
+
+pinpoint::SessionOwner ownerOf(const AthleteController *athlete, const AppSettings *settings)
+{
+    const pinpoint::capture::AthleteIdentity who = pinpoint::capture::athleteIdentity(athlete);
+    return { pinpoint::AthleteId::fromString(who.uuid), who.name,
+             settings ? settings->athleteLibraryPath() : QString() };
+}
+
+} // namespace
+
+void ShotProcessor::setSessionRepository(pinpoint::SessionRepository *sessions)
+{
+    m_sessions = sessions;
+    // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one there.
+    if (m_appSettings)
+        connect(m_appSettings, &AppSettings::athleteLibraryPathChanged, this, &ShotProcessor::onLibraryChanged,
+                Qt::UniqueConnection);
+}
+
+void ShotProcessor::setOpenSession(const pinpoint::SessionId &id)
+{
+    m_openSession = id;
+    const auto entry = (m_sessions && !id.isNull()) ? m_sessions->open(id) : std::nullopt;
+    m_openSessionDir = entry ? entry->folder : QString();
+    if (id.isNull())
+        m_openedOnDemand = false;
+}
+
+pinpoint::SessionId ShotProcessor::captureSession()
+{
+    if (!m_sessions || !m_appSettings)
+        return {};
+    const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+    const QString type = sessionTypeName(m_sessionType);
+
+    if (m_sessionBegun) {
+        // A session whose folder could not be made at Start: its first swing makes it (as before).
+        if (m_openSession.isNull()) {
+            const pinpoint::SessionStartResult s =
+                m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+            if (s.ok()) {
+                setOpenSession(s.id);
+                m_openLibraryKey     = libraryKey(owner.libraryRoot);
+                m_sessionFolderReady = true;
+                emit activeSessionDirChanged();
+            }
+        }
+        // ⚠ WITHIN A SESSION THE FOLDER IS FIXED (E-01): the athlete's name, the date, the naming
+        // pattern and the type may move on; the session keeps its folder.
+        return m_openSession;
+    }
+
+    // Outside a session (no beginSessionFolder()): a session is started on demand and kept while the
+    // athlete, the library, the day and the type stay the same — as the folder was before step 2.2.
+    const QString key = owner.athlete.toString() + QLatin1Char('|') + libraryKey(owner.libraryRoot)
+                        + QLatin1Char('|') + QDate::currentDate().toString(Qt::ISODate) + QLatin1Char('|') + type;
+    if (!m_openSession.isNull() && key != m_onDemandKey) {
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
+        setOpenSession({});
+        emit activeSessionDirChanged();
+    }
+    if (m_openSession.isNull()) {
+        const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+        if (s.ok()) {
+            setOpenSession(s.id);
+            m_openedOnDemand = true;
+            m_onDemandKey    = key;
+            m_openLibraryKey = libraryKey(owner.libraryRoot);
+            emit activeSessionDirChanged();
+        }
+    }
+    return m_openSession;
+}
+
+void ShotProcessor::onLibraryChanged()
+{
+    if (!m_sessions || !m_appSettings || m_openSession.isNull())
+        return;
+    const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+    if (libraryKey(owner.libraryRoot) == m_openLibraryKey)
+        return;   // the same library, spelled differently
+
+    if (!m_sessionBegun) {
+        // A session started on demand for a swing outside a session: ended; the next swing starts one
+        // in the new library.
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
+        setOpenSession({});
+        emit activeSessionDirChanged();
+        return;
+    }
+    // ⚠ D7 (DEC-154): the session ENDS (written if the old library is still reachable; if not it stays
+    // in progress until the athlete's next Start there, DEC-73) and a NEW one of the same type starts
+    // in the new library. The club and the declared focus are SessionController's and carry over
+    // untouched; the focus applies from the new session's first shot. The views bound to
+    // activeSessionDir follow it as they follow any Start. (This replaces step 0.3's stopgap.)
+    QString oldEndProblem;
+    const pinpoint::SessionStartResult s =
+        m_sessions->restartInLibrary(m_openSession, owner, m_appSettings->sessionNamingPattern(), &oldEndProblem);
+    if (!oldEndProblem.isEmpty())
+        emit sessionFileFailed(oldEndProblem);   // the old library is still there, but its session's end was not saved
+    setOpenSession(s.ok() ? s.id : pinpoint::SessionId());
+    m_openedOnDemand     = false;
+    m_openLibraryKey     = libraryKey(owner.libraryRoot);
+    m_sessionFolderReady = s.ok();   // if not, the next swing tries again (captureSession)
+    emit sessionRestartedForLibrary();   // first: the focus's "from shot" is reset before the views re-point
+    emit activeSessionDirChanged();
+}
 
 QString ShotProcessor::todaySessionDir(int sessionType)
 {
-    if (!m_appSettings || !m_athlete)
+    if (!m_appSettings || !m_athlete || !m_sessions)
         return {};
-    return m_swingPaths.findTodaySessionDir(m_appSettings->athleteLibraryPath(),
-                                            m_athlete->currentName(),
-                                            m_athlete->currentUuid(),
-                                            m_appSettings->sessionNamingPattern(),
-                                            sessionTypeLabel(sessionType));
+    const pinpoint::SessionId id =
+        m_sessions->todaysSession(ownerOf(m_athlete, m_appSettings), sessionTypeName(sessionType));
+    const auto entry = id.isNull() ? std::nullopt : m_sessions->open(id);
+    return entry ? entry->folder : QString();
 }
 
 void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
 {
-    m_sessionType = sessionType;   // so a shot's folder base uses the right type
-    // ⚠ THE RETURN VALUE IS THE POINT.  beginSession() answers {} when it could
-    // not create the session folder (swing_paths.cpp: mkpath failed), and this
-    // function used to throw that away — so a session started happily on an
-    // unwritable library and the first thing the golfer learned was a toast
-    // after a swing had already been lost.  That is precisely what happened on
-    // 1 September 2026 with /mnt/swingdata unmounted.  Keep it; the
-    // session-start preflight reads it through sessionFolderReady().
+    m_sessionType = sessionType;   // so a shot's session and its folder name use the right type
+    // ⚠ THE OUTCOME IS THE POINT.  A session that could not create its folder used to start happily on
+    // an unwritable library, and the first thing the golfer learned was a toast after a swing had
+    // already been lost — precisely what happened on 1 September 2026 with /mnt/swingdata unmounted.
+    // The session-start preflight reads it through sessionFolderReady().
     m_sessionFolderReady = false;
-    if (m_appSettings && m_athlete)
-        m_sessionFolderReady =
-            !m_swingPaths.beginSession(m_appSettings->athleteLibraryPath(),
-                                       m_athlete->currentName(),
-                                       m_athlete->currentUuid(),
-                                       m_appSettings->sessionNamingPattern(),
-                                       sessionTypeLabel(sessionType),
-                                       extend).isEmpty();
+    if (m_sessions && !m_openSession.isNull())
+        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);   // one still open (on demand): ended
+    setOpenSession({});
+    m_sessionBegun = true;
+    if (m_sessions && m_appSettings && m_athlete) {
+        const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
+        const QString type = sessionTypeName(sessionType);
+        pinpoint::SessionId id;
+        // Extend: today's latest session of this type, resumed with its own SessionId (MD-05: DEC-134).
+        // A resume that is refused or cannot be written starts a new session instead.
+        if (extend) {
+            id = m_sessions->todaysSession(owner, type);
+            if (!id.isNull()) {
+                if (const pinpoint::WriteResult r = m_sessions->resume(id, type); !r.ok()) {
+                    ppWarn() << "[SwingExport] today's session could not be continued - a new one starts:" << r.error;
+                    emit sessionResumeFailed(r.error);   // the golfer asked to continue: say why they did not
+                    id = {};
+                }
+            }
+        }
+        if (id.isNull()) {
+            const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
+            if (!s.ok())
+                ppError() << "[SwingExport] no session started:" << s.result.error;
+            id = s.id;
+        }
+        setOpenSession(id);
+        m_openLibraryKey     = libraryKey(owner.libraryRoot);
+        m_sessionFolderReady = !id.isNull();
+    }
     emit activeSessionDirChanged();
 }
 
 void ShotProcessor::endSessionFolder()
 {
-    m_swingPaths.endSession(/*discardIfNoNewSwings=*/true);
-    emit activeSessionDirChanged();
-}
-
-QJsonObject ShotProcessor::buildSynthManifest() const
-{
-    // Mirrors the exporter's header exactly (swing_exporter.cpp), minus the
-    // media streams — so a reloaded analysis-only shot is indistinguishable
-    // from an exported one apart from hasVideo=false. writeSwingJson stamps the
-    // schema and appends the "analysis" block.
-    const int64_t t0         = m_swingWindow->startTimestampUs();
-    const int64_t durationUs = m_swingWindow->endTimestampUs() - t0;
-    const QDateTime wallclock = m_exportJob.wallclockAnchorUtc.addMSecs(-durationUs / 1000);
-
-    QJsonObject root;
-    root[QStringLiteral("swing")] = QJsonObject{
-        { QStringLiteral("index"), m_exportJob.swingIndex },
-        { QStringLiteral("id"),    m_exportJob.swingId },
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        { QStringLiteral("name"),       m_exportJob.athleteName },
-        { QStringLiteral("uuid"),       m_exportJob.athleteUuid },
-        { QStringLiteral("handedness"), m_exportJob.handedness },
-    };
-    // Height rides with the swing so a re-analysis scales the skeleton exactly as the live one
-    // did — never from whatever the profile says on the day it is re-run. Absent when unknown.
-    if (m_exportJob.athleteHeightM > 0.0) {
-        QJsonObject a = root[QStringLiteral("athlete")].toObject();
-        a.insert(QStringLiteral("heightM"), m_exportJob.athleteHeightM);
-        root[QStringLiteral("athlete")] = a;
+    if (m_sessions && !m_openSession.isNull()) {
+        // The empty discard (DEC-93): a session this Start made that captured nothing goes to the trash.
+        const pinpoint::WriteResult r = m_sessions->end(m_openSession, /*discardIfEmpty=*/!m_openedOnDemand);
+        if (!r.ok())
+            emit sessionFileFailed(r.error);
     }
-    root[QStringLiteral("session")] = QJsonObject{{ QStringLiteral("dir"), m_exportJob.sessionId }};
-    root[QStringLiteral("clock")] = QJsonObject{
-        { QStringLiteral("t0_us"),     static_cast<qint64>(t0) },
-        { QStringLiteral("unit"),      QStringLiteral("us") },
-        { QStringLiteral("wallclock"), wallclock.toString(Qt::ISODateWithMs) },
-    };
-    root[QStringLiteral("window")] = QJsonObject{
-        { QStringLiteral("start_us"), 0 },
-        { QStringLiteral("end_us"),   static_cast<qint64>(durationUs) },
-    };
-    root[QStringLiteral("capture")] = pinpoint::SwingExporter::captureBlock(m_exportJob);
-    root[QStringLiteral("streams")] = QJsonArray{};   // analysis-only — no media
-    return root;
+    setOpenSession({});
+    m_sessionBegun = false;
+    emit activeSessionDirChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -2137,7 +1441,11 @@ void ShotProcessor::onAnalysisFinished()
     if (!m_analysisInFlight)
         return;   // already joined blockingly in finishNowBlocking()
     m_analysisInFlight = false;
-    m_analysisResult   = m_analysisWatcher.result();
+    {
+        pinpoint::analysis::AnalysedRecording run = m_analysisWatcher.result();
+        m_analysisResult = std::move(run.analysis);
+        m_integrity      = std::move(run.integrity);
+    }
     m_analysisOutcome  = m_analysisResult.ok ? Outcome::Succeeded : Outcome::Failed;
     setAnalysisProgress(1.0);   // beat any still-queued worker updates to full
     if (m_analysisResult.ok)
@@ -2147,7 +1455,7 @@ void ShotProcessor::onAnalysisFinished()
 
     // Persistent club-length prior update (club_length_fusion.h / plan: robust
     // club length — starry-shimmying-wind) — LIVE path only. m_lengthPriorKey was
-    // stashed by buildAnalysisJob() (empty ⇒ no athlete/club/fixed-in-place
+    // stashed from the capture snapshot (empty ⇒ no athlete/club/fixed-in-place
     // face-on camera this shot, nothing to persist). Folds ONLY the PRIOR-FREE
     // fusedInstant* value into the prior — never the WITH-prior fusedPx, which
     // would self-reinforce (club_length_fusion.h updateLengthPrior comment).
@@ -2220,141 +1528,70 @@ void ShotProcessor::maybeJoin()
     if (!gate.ready)
         return;   // wait for BOTH workers
 
-    const bool analysisOk = gate.analysisOk;
-    const bool exportOk   = gate.exportOk;
-
-    // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its
-    // recorded raw accel+gyro and confirm it reproduces the stored quaternion. A
-    // mismatch means the IMU record is internally inconsistent — the shot can't be
-    // re-analysed offline — so the carousel item is flagged (⚠) and an "imuIntegrity"
-    // block is persisted to swing.json. Only meaningful for the Madgwick default (the
-    // only exactly-warm-startable filter); skip under ESKF to avoid a false warning.
     // ── Everything below runs OFF the GUI thread ───────────────────────────────────────────────────
     //
-    // The two integrity checks and the write of swing.json used to run right here, on the UI thread,
-    // and the user watched the app stop: the document is ~28 MB on a wrist swing (analysis.pose2d
-    // alone is ~13 MB), it is serialised INDENTED, and the library is a network share. The re-fusion
-    // check re-runs a full Madgwick pass over every IMU sample; the capture check walks every frame
-    // timestamp in every lane. None of it needs the GUI thread, and the freeze landed with the replay
-    // on screen, which is the worst moment to stop moving.
+    // The document write used to run right here, on the UI thread, and the user watched the app stop:
+    // the document is ~28 MB on a wrist swing (analysis.pose2d alone is ~13 MB), it is serialised
+    // INDENTED, and the library is a network share. None of it needs the GUI thread, and the freeze
+    // landed with the replay on screen, which is the worst moment to stop moving.
     //
     // Nothing is announced until it returns (onSwingDocWritten): the carousel row, the terminal
     // statement and the replay promotion are all claims about what survives a restart. In flight the UI
     // says nothing; a failed write is surfaced when it lands, as the shot's terminal statement.
     //
-    // The worker borrows the window (checks) and m_analysisResult.detail (write). Both stay alive
-    // because the processor remains in State::Processing until the handler runs — a new shot clears
-    // them and cannot start from here — and finishNowBlocking() joins this watcher on teardown.
-    const bool skipRefusion =
-        m_appSettings
-        && m_appSettings->imuOrientationFilter().compare(QStringLiteral("ESKF"),
-                                                         Qt::CaseInsensitive) == 0;
+    // The worker borrows the Recording (and through it the window) and m_analysisResult.detail (the
+    // write). Both stay alive because the processor remains in State::Processing until the handler
+    // runs — a new shot clears them and cannot start from here — and finishNowBlocking() joins this
+    // watcher on teardown.
     const pinpoint::PersistPath persist = pinpoint::persistPathFor(join);
-    // Resolved on this thread because it reads the session and athlete models: the session's active
-    // club, else the athlete's preferred one, else the stub. It goes into the document AND onto the
-    // carousel row — a club that reached only the row was lost the moment the session reloaded.
-    QString shotClub = m_session ? m_session->activeClub() : QString();
-    if (shotClub.isEmpty() && m_athlete)
-        shotClub = m_athlete->effectivePrimaryClub(m_athlete->currentUuid());
-    if (shotClub.isEmpty())
-        shotClub = pinpoint::clubStub();
-    // A degraded persist (export failed, analysis did not) writes a synthesised header instead of the
-    // exporter's manifest. Built here: it reads members, and it is cheap.
-    const QJsonObject synthManifest = (persist == pinpoint::PersistPath::AnalysisOnlyDocument)
-                                          ? buildSynthManifest() : QJsonObject{};
+
+    // The header the document gets: the exporter's manifest, or — a degraded persist (export failed
+    // or skipped, analysis did not) — the ONE header writer's analysis-only header (recording_header.h),
+    // as the exporter calls it minus the media, so a reloaded analysis-only shot is indistinguishable
+    // from an exported one apart from hasVideo=false.
+    QJsonObject header = m_exportManifest;
+    if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
+        const int64_t t0 = m_swingWindow->startTimestampUs();
+        header = pinpoint::SwingExporter::analysisOnlyHeader(m_exportJob, t0, m_swingWindow->endTimestampUs() - t0);
+    }
 
     // Storage → Save pose keypoints. Read here, with the other settings, not on the worker.
     const bool savePose = m_appSettings ? m_appSettings->savePoseKeypoints() : true;
 
     m_docWriteInFlight = true;
     m_docWriteWatcher.setFuture(QtConcurrent::run(
-        [this, persist, shotClub, synthManifest, skipRefusion, savePose]() -> SwingDocWriteResult {
+        [this, persist, header, savePose]() -> SwingDocWriteResult {
+            // The Recording's integrity verdicts — the IMU re-fusion parity and the frame-timestamp
+            // holes / coverage of each camera lane — by the ONE rule (integrityFor, the analysis
+            // service): reached with the analysis, or here, alone, for a capture that ran none. A
+            // mismatch or a hole flags the carousel item (⚠); the blocks are persisted.
+            pinpoint::analysis::IntegrityVerdicts verdicts;
+            if (m_integrity)
+                verdicts = *m_integrity;
+            else if (m_capture)
+                verdicts = m_analysisService.integrity(m_capture->recording);
+
+            pinpoint::capture::LiveDocumentInput in;
+            in.repository = m_repository;
+            in.shot       = m_shot;
+            in.swingDir   = m_swingDir;
+            in.persist    = persist;
+            in.header     = header;
+            in.integrity  = &verdicts;
+            in.analysis   = m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr;
+            in.windowT0Us = m_swingWindow ? m_swingWindow->startTimestampUs() : 0;
+            in.reviewClub = m_capture ? m_capture->athlete.reviewClub : QString();
+            in.savePose   = savePose;
+            const pinpoint::capture::LiveDocument doc = pinpoint::capture::writeLiveDocument(in);
+
             SwingDocWriteResult out;
-            out.manifest = m_exportManifest;
-
-            // IMU data-integrity (offline re-fusion parity): re-fuse each IMU source from its recorded
-            // raw accel+gyro and confirm it reproduces the stored quaternion. A mismatch means the IMU
-            // record is internally inconsistent — the shot cannot be re-analysed offline — so the
-            // carousel item is flagged (⚠) and the block is persisted. Only meaningful for the Madgwick
-            // default (the only exactly-warm-startable filter); skipped under ESKF to avoid a false
-            // warning.
-            if (m_swingWindow && !skipRefusion) {
-                const pinpoint::ImuRefusionVerdict v = pinpoint::checkImuRefusion(*m_swingWindow);
-                if (v.sourcesChecked > 0) {
-                    // Shared with the re-analysis write-back (swing_doc.h) so the two producers of this
-                    // block cannot drift.
-                    out.manifest[QStringLiteral("imuIntegrity")] = pinpoint::imuIntegrityJson(v);
-                    if (v.warns())
-                        ppInfo() << "[ShotProcessor] IMU re-fusion parity FAILED — worst"
-                                 << v.worstMaxDeg << "deg over" << v.sourcesChecked
-                                 << "source(s); shot flagged not re-analysable";
-                }
-            }
-            // Capture data-integrity (frame-timestamp holes in the camera lanes): the host stalled and
-            // frames are missing. m_impactUs is absolute buffer-clock, the live window's own domain, so
-            // the verdict knows whether the swing itself or only the follow-through lost frames.
-            // Persisted beside imuIntegrity; the carousel ⚠ and the session ledger's exclusion both read
-            // the two blocks through dataWarningDetailFrom, so the rule lives in one place.
-            // Each lane is also held to the frozen window it was cut from (issue #53: a clip that
-            // started after impact passed as clean); the impact camera keeps only its band.
-            if (m_swingWindow) {
-                pinpoint::CaptureCoverageSpec cov;
-                cov.judge         = true;
-                cov.windowStartUs = m_swingWindow->startTimestampUs();
-                cov.windowEndUs   = m_swingWindow->endTimestampUs();
-                const pinpoint::CaptureIntegrityVerdict cv =
-                    pinpoint::checkCaptureIntegrity(*m_swingWindow, m_impactUs, cov,
-                                                    { m_analysisJob.impactSource });
-                if (cv.camerasChecked > 0) {
-                    out.manifest[QStringLiteral("captureIntegrity")] =
-                        pinpoint::captureIntegrityJson(cv);
-                    if (cv.holes > 0)
-                        ppWarn() << "[ShotProcessor] capture lost" << cv.framesLost << "frame(s) in"
-                                 << cv.holes << "hole(s), worst" << cv.worstHoleMs << "ms,"
-                                 << (cv.preImpact ? "before impact" : "after impact")
-                                 << "— shot flagged and excluded from the session assessment";
-                    if (cv.clipped())
-                        ppWarn() << "[ShotProcessor] capture cut short —" << cv.missingStartMs
-                                 << "ms missing at the start," << cv.missingEndMs << "ms at the end,"
-                                 << cv.framesBeforeImpact << "frame(s) before impact on the worst camera"
-                                 << (cv.startsAfterImpact ? "— no swing on it: shot flagged and excluded from the session assessment"
-                                                          : "— shot flagged, still assessed");
-                }
-            }
-            out.dataWarningDetail = pinpoint::dataWarningDetailFrom(out.manifest);
-            // The live manifest carries no `analysis` block yet, so the refused-club fact
-            // (swing_doc.cpp dataWarningDetailFrom reads analysis.club.refused on disk) is
-            // added from the in-memory track here — same key, same card tooltip.
-            if (m_analysisResult.detail && m_analysisResult.detail->shaft.refusedReason)
-                out.dataWarningDetail.insert(QStringLiteral("clubRefused"),
-                    QString::fromLatin1(pinpoint::analysis::shaftRefusedReasonName(
-                        m_analysisResult.detail->shaft.refusedReason)));
-            // … and the down-the-line top-out-of-view fact, for the same reason
-            // (on disk it is analysis.clubDtl.summary.topOutOfView). No capture/imu
-            // key: it carries the ⚠ without excluding the shot.
-            if (m_analysisResult.detail && m_analysisResult.detail->shaftDtl.topOutOfView)
-                pinpoint::insertDtlTopOutOfView(out.dataWarningDetail,
-                    m_analysisResult.detail->shaftDtl.handsFromTopPx,
-                    m_analysisResult.detail->shaftDtl.topClubPx);
-
-            // The ONE unified swing.json (raw manifest + inline "analysis"). No parallel-write race:
-            // the export worker wrote only media and returned, and the analyzer returned a value.
-            if (persist == pinpoint::PersistPath::FullDocument) {
-                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
-                    m_swingDir, out.manifest,
-                    m_analysisResult.detail ? m_analysisResult.detail.get() : nullptr,
-                    &out.error, shotClub, savePose);
-            } else if (persist == pinpoint::PersistPath::AnalysisOnlyDocument) {
-                // Degraded persist: export failed/skipped but analysis succeeded — write a minimal,
-                // analysis-only swing.json so the shot reloads after a restart.
-                QJsonObject synth = synthManifest;
-                for (const QString &k : { QStringLiteral("imuIntegrity"),
-                                          QStringLiteral("captureIntegrity") })
-                    if (out.manifest.contains(k))
-                        synth[k] = out.manifest[k];
-                out.wrote = pinpoint::SwingDocWriter::writeSwingJson(
-                    m_swingDir, synth, m_analysisResult.detail.get(), &out.error, shotClub, savePose);
-            }
+            out.wrote             = doc.wrote;
+            out.error             = doc.error;
+            out.manifest          = doc.manifest;
+            out.dataWarningDetail = doc.dataWarningDetail;
+            out.analysisDetail    = doc.analysisDetail;
+            out.club              = doc.club;
+            out.documentPath      = doc.documentPath;
             return out;
         }));
 }
@@ -2392,15 +1629,15 @@ void ShotProcessor::onSwingDocWritten()
     QString savedSwingDir;
     if (res.wrote) {
         savedSwingDir = m_swingDir;
-        ppInfo() << "[SwingDoc] wrote" << pinpoint::SwingStore::ppswPath(m_swingDir)
+        ppInfo() << "[SwingDoc] wrote" << res.documentPath
                  << (analysisOk ? "(with analysis)" : "(raw only)");
     } else if (!res.error.isEmpty()) {
         ppError() << "[SwingDoc]" << res.error;
     }
 
-    // The club the document records, read back from it rather than re-resolved: the row and the file
-    // must name the same club, and the worker already settled it.
-    const QString shotClub = pinpoint::swingDocClub(res.manifest);
+    // The club the document records (its seeded review.club, settled at the freeze), not re-resolved:
+    // the row and the file must name the same club.
+    const QString shotClub = res.club;
 
     // ⏱ What this handler costs, per phase, one line per shot. `notify` is the emit below and everything
     // QML does synchronously inside it: the bindings re-evaluate and, on the first read, the detail is
@@ -2417,21 +1654,9 @@ void ShotProcessor::onSwingDocWritten()
     //
     // Publish the analyzed detail of the shot about to replay (the ScreenWrist in-replay
     // graph binds to it) before addShot, so it's ready when REPLAYING begins.
-    {
-        QVariantMap liveDetail = (analysisOk && m_analysisResult.detail)
-                                     ? toAnalysisDetail(*m_analysisResult.detail)
-                                     : QVariantMap{};
-        // The whole-shot records (manifest_gates.h), derived from the integrity blocks the worker
-        // just put in the manifest — the same rule writeSwingJson applies to the document, so the
-        // live map and the reload carry the same analysis.gates.
-        if (liveDetail.contains(QStringLiteral("gatesVersion"))) {
-            QVariantList g = liveDetail.value(QStringLiteral("gates")).toList();
-            g.append(pinpoint::analysis::gateRecordsToJson(
-                         pinpoint::analysis::manifestGatesOf(res.manifest)).toVariantList());
-            liveDetail.insert(QStringLiteral("gates"), g);
-        }
-        m_replayAnalysisDetail.set(std::move(liveDetail));
-    }
+    // The map is the one projection of the analysis block the document got (liveAnalysisDetail),
+    // built by the worker beside the write: window time, the reloaded shot's keys.
+    m_replayAnalysisDetail.set(analysisOk ? res.analysisDetail : QVariantMap{});
     const qint64 tDetail = phase.elapsed();
     emit replayAnalysisDetailChanged();
     const qint64 tEmit = phase.elapsed();
@@ -2537,6 +1762,9 @@ void ShotProcessor::startReplay()
     // Anchor to the actual first/last captured entry so replay starts
     // immediately rather than waiting for the (potentially empty) leading
     // portion of the window.
+    // The view boundary: the detail is window time (liveAnalysisDetail against this same start),
+    // so the published playhead, span and impact are offset by it (shot_processor.h).
+    m_replayT0Us          = m_swingWindow->startTimestampUs();
     m_replayWindowStartUs = m_swingWindow->endTimestampUs();
     m_replayWindowEndUs   = m_swingWindow->startTimestampUs();
     for (const ReplayTrack &track : m_replayTracks) {
@@ -2564,8 +1792,12 @@ void ShotProcessor::startReplay()
         if (m_analysisResult.ok && m_analysisResult.detail) {
             using pinpoint::analysis::Phase;
             const auto &seg = m_analysisResult.detail->segmentation;
+            // The analysis leaves the pipeline in WINDOW time (its one rebase, step 1.5); the replay
+            // runs on the ring clock, so the window's start is added back here, at the view boundary.
+            const int64_t toRing = m_analysisResult.detail->timeBase == pinpoint::analysis::TimeBase::Window
+                                       ? m_replayT0Us : 0;
             if (const auto *fin = seg.eventFor(Phase::Finish))
-                endUs = fin->t_us + kReplayFinishPadUs;
+                endUs = fin->t_us + toRing + kReplayFinishPadUs;
         }
         const int64_t hi = std::min(m_replayWindowEndUs, endUs);
         if (hi > lo) {
@@ -2687,6 +1919,7 @@ void ShotProcessor::stopReplay(bool thenFinish)
 
 void ShotProcessor::finishShot()
 {
+    m_capture.reset();       // its Recording points into the window
     m_swingWindow.reset();   // both workers returned, replay stopped
     m_replayTracks.clear();
 
@@ -2739,6 +1972,7 @@ void ShotProcessor::finishNowBlocking()
     m_swingSaveInFlight = false;
     m_docWriteInFlight  = false;
 
+    m_capture.reset();
     m_swingWindow.reset();
     m_replayTracks.clear();
     // A gather abandoned on teardown: release the guard the window never adopted

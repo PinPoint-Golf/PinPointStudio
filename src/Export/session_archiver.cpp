@@ -20,6 +20,9 @@
 
 #include "swing_doc.h"
 #include "swing_store.h"
+#include "swing_store_repository.h"   // the one door to the swing files (step 1.4)
+#include "session_store.h"            // what names each swing's ShotRef (step 2.4)
+#include "../Core/pp_debug.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -38,6 +41,27 @@ namespace pinpoint::SessionArchiver {
 namespace {
 
 constexpr auto kMarkerSchema = "pinpoint.archive/1";
+
+// The swing files are written through RecordingRepository like every other writer's, by ShotRef
+// (step 2.4): the conversion before archiving, the stub (writeArchiveStub, FILE-SHOT-10), and the
+// review restored after. Each archive and restore makes the door for its own run, over a session
+// reader of its own (it may run on a worker, so it never shares the app's identity map); each swing
+// folder is translated to its ShotRef once, where the run finds it (DEC-90). Step 2.6 moves the
+// archive behind SessionRepository::archive / restore.
+struct Door {
+    SessionStore                  sessions;
+    SwingStoreRecordingRepository repo{ sessions };
+};
+
+// A swing document's review, read from its root chunk alone (the pose and the other tracks are
+// never decoded): the archive's copy can be a ~28 MB document on an external drive.
+QJsonObject reviewOf(const QString &swingDir)
+{
+    return SwingStore::loadParts(swingDir, QStringList()).value(QStringLiteral("review")).toObject();
+}
+
+bool putBackReview(RecordingRepository &repo, const QString &swingDir, const QString &archivedSwingDir,
+                   const QJsonObject &stubReview, QString *error);
 
 // Regenerable caches: never archived, and removed with the rest when a swing is thinned.
 bool isCache(const QString &name)
@@ -188,11 +212,12 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
 
     // A JSON-era swing becomes swing.ppsw first (verified), so its stub can carry the summary the
     // document already holds rather than a second derivation of it.
+    Door door;
     const QStringList swings = swingDirsOf(sessionDir);
     for (const QString &sd : swings) {
         if (SwingStore::info(sd).format != SwingStore::Format::Json) continue;
-        const SwingStore::ConvertResult c = SwingDocWriter::convertToPpsw(sd, /*deleteJson=*/true);
-        if (c.outcome == SwingStore::ConvertResult::Outcome::Failed) {
+        const ConversionResult c = door.repo.convert(door.repo.shotOfFolder(sd), /*deleteJson=*/true);
+        if (c.outcome == ConversionResult::Outcome::Failed) {
             r.error = QStringLiteral("cannot convert %1 before archiving: %2").arg(sd, c.error);
             return r;
         }
@@ -226,9 +251,10 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
         const QJsonObject block{
             { QStringLiteral("location"),   dest + QLatin1Char('/') + QFileInfo(sd).fileName() },
             { QStringLiteral("archivedAt"), archivedAt } };
-        QString err;
-        if (!SwingStore::save(sd, stubOf(doc, block), &err)) {
-            r.error = QStringLiteral("cannot write the stub for %1: %2").arg(sd, err);
+        // Through the door (FILE-SHOT-10): a read-only (newer build's) document is refused, never thinned.
+        const WriteResult w = door.repo.writeArchiveStub(door.repo.shotOfFolder(sd), stubOf(doc, block));
+        if (!w.ok()) {
+            r.error = QStringLiteral("cannot write the stub for %1: %2").arg(sd, w.error);
             return r;
         }
         QDirIterator it(sd, QDir::Files | QDir::Hidden | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -265,6 +291,7 @@ Result archive(const QString &sessionDirIn, const QString &archiveRoot, const Op
 Result restore(const QString &sessionDirIn, const Progress &progress)
 {
     Result r;
+    Door   door;
     const QString sessionDir = QDir::cleanPath(sessionDirIn);
     QFile mf(markerPath(sessionDir));
     if (!mf.open(QIODevice::ReadOnly)) { r.error = QStringLiteral("%1 is not archived").arg(sessionDir); return r; }
@@ -276,14 +303,6 @@ Result restore(const QString &sessionDirIn, const Progress &progress)
         r.error = QStringLiteral("the archive %1 cannot be found — is its drive connected?").arg(src);
         return r;
     }
-
-    // A review made while the session was archived (stars, a note, a corrected club) lives only on
-    // the stub. Remembered here and put back after the full documents return, or restoring would
-    // silently undo it.
-    QHash<QString, QJsonObject> stubReviews;
-    for (const QString &sd : swingDirsOf(sessionDir))
-        stubReviews.insert(QFileInfo(sd).fileName(),
-                           SwingStore::load(sd).value(QStringLiteral("review")).toObject());
 
     QStringList files;
     QDirIterator it(src, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
@@ -306,28 +325,23 @@ Result restore(const QString &sessionDirIn, const Progress &progress)
             r.error = QStringLiteral("cancelled part-way — the session is still marked archived; restore again to finish");
             return r;
         }
+        // A swing's document: its review is merged three ways once it lands (the file header).
+        // The stub's review is read here, just before the copy replaces the stub.
+        const bool isDocument = QFileInfo(rel).fileName() == QLatin1String("swing.ppsw")
+                                && QFileInfo(rel).path() != QLatin1String(".");
+        const QString swingDir = sessionDir + QLatin1Char('/') + QFileInfo(rel).path();
+        const QJsonObject stubReview = isDocument ? reviewOf(swingDir) : QJsonObject();
         if (!copyVerified(src + QLatin1Char('/') + rel, sessionDir + QLatin1Char('/') + rel, &r.error))
             return r;
         r.bytesFreed += QFileInfo(sessionDir + QLatin1Char('/') + rel).size();
         ++done;
+        if (isDocument && !putBackReview(door.repo, swingDir, src + QLatin1Char('/') + QFileInfo(rel).path(),
+                                         stubReview, &r.error))
+            return r;
     }
     r.members = int(files.size());
     r.swings  = int(swingDirsOf(sessionDir).size());
     if (progress) progress(done, int(files.size()));
-
-    for (const QString &sd : swingDirsOf(sessionDir)) {
-        const QJsonObject stubReview = stubReviews.value(QFileInfo(sd).fileName());
-        if (stubReview.isEmpty()) continue;
-        if (SwingStore::load(sd).value(QStringLiteral("review")).toObject() == stubReview) continue;
-        QString err;
-        if (!SwingDocWriter::updateReview(sd, stubReview.value(QStringLiteral("rating")).toInt(),
-                                          stubReview.value(QStringLiteral("note")).toString(),
-                                          stubReview.value(QStringLiteral("club")).toString(), &err)) {
-            r.error = QStringLiteral("restored, but the review made while archived could not be kept for %1: %2")
-                          .arg(sd, err);
-            return r;
-        }
-    }
 
     if (!QFile::remove(markerPath(sessionDir))) {
         r.error = QStringLiteral("restored, but cannot remove the archive marker");
@@ -335,6 +349,76 @@ Result restore(const QString &sessionDirIn, const Progress &progress)
     }
     r.ok = true;
     return r;
+}
+
+namespace {
+
+// Merge one restored swing's review (the file header of session_archiver.h). Called right after its
+// document landed: the restored document holds the ARCHIVED review, unless the golfer has edited it
+// since — that is `now`, read here, at the moment of the merge.
+QString jsonText(const QJsonValue &v)
+{
+    if (v.isUndefined()) return QStringLiteral("(absent)");
+    const QByteArray t = QJsonDocument(QJsonArray{ v }).toJson(QJsonDocument::Compact);
+    return QString::fromUtf8(t.mid(1, t.size() - 2));
+}
+
+bool putBackReview(RecordingRepository &repo, const QString &swingDir, const QString &archivedSwingDir,
+                   const QJsonObject &stubReview, QString *error)
+{
+    const QJsonObject archived = reviewOf(archivedSwingDir);
+    const QJsonObject now      = reviewOf(swingDir);
+    const ReviewMerge m = mergeReview(archived, stubReview, now);
+    for (const QString &f : m.conflicts)
+        ppWarn() << "[SessionArchiver] restore:" << swingDir << "— review field" << f
+                 << "was changed both while archived and during the restore; the later edit (made during the"
+                 << "restore) is kept:" << jsonText(now.value(f)) << "over" << jsonText(stubReview.value(f));
+    if (!m.any)
+        return true;
+    const WriteResult w = repo.editReview(repo.shotOfFolder(swingDir), m.edit);
+    if (!w.ok()) {
+        if (error)
+            *error = QStringLiteral("restored, but the review made while archived could not be kept for %1: %2")
+                         .arg(swingDir, w.error);
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+ReviewMerge mergeReview(const QJsonObject &archived, const QJsonObject &stub, const QJsonObject &now)
+{
+    ReviewMerge m;
+    static const char *const kFields[] = { "rating", "note", "club", "excluded", "clubOverride" };
+    for (const char *fk : kFields) {
+        const QString f = QString::fromLatin1(fk);
+        const QJsonValue base = archived.value(f), theirs = stub.value(f), mine = now.value(f);
+        if (theirs == base || mine == theirs)
+            continue;                         // the stub changed nothing here, or both agree
+        if (mine != base) {
+            m.conflicts << f;                 // both changed it: the later edit (mine) stays
+            continue;
+        }
+        // Changed on the stub only: take it. The popover's fields are never removed by an edit,
+        // so a stub without one has nothing to give; an annotation absent on the stub was cleared.
+        if (f == QLatin1String("rating")) {
+            if (theirs.isUndefined()) continue;
+            m.edit.rating = theirs.toInt();
+        } else if (f == QLatin1String("note")) {
+            if (theirs.isUndefined()) continue;
+            m.edit.note = theirs.toString();
+        } else if (f == QLatin1String("club")) {
+            if (theirs.isUndefined()) continue;
+            m.edit.club = theirs.toString();
+        } else if (f == QLatin1String("excluded")) {
+            m.edit.excluded = theirs.toBool();
+        } else {
+            m.edit.clubOverride = theirs.toString();
+        }
+        m.any = true;
+    }
+    return m;
 }
 
 } // namespace pinpoint::SessionArchiver

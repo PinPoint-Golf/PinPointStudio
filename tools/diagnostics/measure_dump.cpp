@@ -24,13 +24,13 @@
 
 #include "measure_dump_core.h"
 
+#include "Core/atomic_write.h"
 #include "Diagnostics/packs/pack_provider.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QSaveFile>
 
 #include <cmath>
 #include <cstdio>
@@ -88,8 +88,12 @@ int main(int argc, char **argv)
     }
     const pinpoint::analysis::GradePolicy policy = pinpoint::analysis::gradePolicyByName(opt.policy);
 
-    QSaveFile out(outPath);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+    // Atomic (src/Core/atomic_write.h), streamed row by row; text mode as before, into a folder that
+    // must already be there.
+    pinpoint::AtomicWriteOptions csv = pinpoint::AtomicWriteOptions::intoExistingFolder();
+    csv.text = true;
+    pinpoint::AtomicFile out(outPath, csv);
+    if (!out.open().ok) {
         std::fprintf(stderr, "measure_dump: cannot write %s\n", qPrintable(outPath));
         return 2;
     }
@@ -122,7 +126,7 @@ int main(int argc, char **argv)
         std::printf("%-48s swings %3lld  rows %6ld  with value %6ld\n", qPrintable(QFileInfo(dir).fileName()),
                     static_cast<long long>(swings.size()), rows, valued);
     }
-    if (!out.commit()) {
+    if (!out.commit().ok) {
         std::fprintf(stderr, "measure_dump: failed to write %s\n", qPrintable(outPath));
         return 2;
     }

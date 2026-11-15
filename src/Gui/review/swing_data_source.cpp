@@ -318,15 +318,14 @@ void SwingDataSource::reload()
         m_doc = pinpoint::SwingStore::load(m_swingDir);
     }
 
-    const QJsonObject clock = m_doc.value(QStringLiteral("clock")).toObject();
-    const qint64 t0 = qint64(clock.value(QStringLiteral("t0_us")).toDouble());
-    // Analysis t_us are ABSOLUTE (t0-based) for live captures but WINDOW-RELATIVE
-    // for re-analysed swings (the reconstructed window is 0-based). Normalise to
-    // window-relative either way: subtract t0 only in the absolute domain (≥ t0);
-    // already-relative values (≪ t0) pass through unchanged.
+    // The analysis' instants in window time: the one rule (windowTimeUs) against the document's
+    // analysis origin — 0 for a stamped document (read as written), clock.t0_us for one written
+    // before step 1.3a (documentAnalysisOriginUs, the one place that is guessed). The same map the
+    // replay shows is built with it (analysisDetailFor).
+    const QJsonObject clock = m_doc.value(QStringLiteral("clock")).toObject();   // the Properties rows
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(m_doc));
     const auto toRel = [t0](double raw) -> qint64 {
-        const qint64 t = qint64(raw);
-        return t >= t0 ? t - t0 : t;
+        return qint64(pinpoint::analysis::windowTimeUs(int64_t(raw), t0));
     };
     const QJsonObject win = m_doc.value(QStringLiteral("window")).toObject();
     qint64 spanEnd = qint64(win.value(QStringLiteral("end_us")).toDouble());

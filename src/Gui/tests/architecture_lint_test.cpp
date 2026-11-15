@@ -29,7 +29,7 @@
 //                        the Recording contract's types (§0.1)
 //         2 Rules        pure measurement algorithms, detection, diagnostics engine + packs/norms,
 //                        coaching rules
-//         3 DomainModel  src/DomainModel (arrives in step 3)
+//         3 DomainModel  src/DomainModel (created in step 1 for RecordingRepository)
 //         4 Application  orchestration: the analysis pipeline, re-analysis, AppState, use cases
 //         5 Adapters     devices, the Recording store and other persistence, UI (all of src/Gui)
 //       A file may include its own ring or any ring inside it, never one outside.
@@ -133,6 +133,8 @@ const QVector<QPair<QString, int>> &dirRings()
 {
     static const QVector<QPair<QString, int>> t{
         { QStringLiteral("Metrics/"), Vocabulary },
+        { QStringLiteral("Recording/"), Vocabulary },     // the Recording contract's types (step 1, IM-6)
+        { QStringLiteral("Identity/"), Vocabulary },      // AthleteId, SessionId, ShotRef (step 2.1; D1, DEC-148)
         { QStringLiteral("Core/"), Vocabulary },          // device / logging files below
         { QStringLiteral("Pose/"), Rules },
         { QStringLiteral("Club/"), Rules },
@@ -145,7 +147,7 @@ const QVector<QPair<QString, int>> &dirRings()
         { QStringLiteral("Timeline/"), Rules },
         { QStringLiteral("Diagnostics/"), Rules },
         { QStringLiteral("Coaching/"), Rules },
-        { QStringLiteral("DomainModel/"), DomainModel },
+        { QStringLiteral("DomainModel/"), DomainModel },  // repository interfaces (step 1, IM-6)
         { QStringLiteral("Analysis/"), Application },
         { QStringLiteral("App/"), Application },          // AppState's home in 03 §2 (not created yet)     // the stages' shared types and rules below
         { QStringLiteral("Buffer/"), Adapters },          // the Recording contract's stream types below
@@ -168,7 +170,8 @@ const QVector<QPair<QString, int>> &dirRings()
 const QHash<QString, int> &fileRings()
 {
     static const QHash<QString, int> t{
-        // Core: logging, profiling and machine queries are Platform; settings, the studio profile,
+        // Core: logging, profiling, machine queries and the two persistence mechanisms (the atomic
+        // write, the folder lock) are Platform; settings, the studio profile,
         // app info and the device enumerator are adapters; the Kalman smoother is an algorithm.
         { QStringLiteral("Core/pp_debug"), Platform },
         { QStringLiteral("Core/pp_log_stream"), Platform },
@@ -182,6 +185,9 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Core/pp_gpu_metrics_mac"), Platform },
         { QStringLiteral("Core/pp_os_metrics"), Platform },
         { QStringLiteral("Core/pp_model_path"), Platform },
+        // The persistence mechanisms every ring may use (refactor step 2.0; R-PERS-2, R-PERS-6).
+        { QStringLiteral("Core/atomic_write"), Platform },
+        { QStringLiteral("Core/folder_lock"), Platform },
         { QStringLiteral("Core/kf3_smoother"), Rules },
         { QStringLiteral("Core/device_enumerator"), Adapters },
         { QStringLiteral("Core/app_info"), Adapters },
@@ -196,6 +202,12 @@ const QHash<QString, int> &fileRings()
         { QStringLiteral("Analysis/uncertainty_json"), Vocabulary },
         { QStringLiteral("Analysis/segment_role"), Vocabulary },
         { QStringLiteral("Analysis/det_rng"), Vocabulary },
+        { QStringLiteral("Analysis/shot_analysis_job"), Rules },      // the job carries SkeletonCalib (Rules)
+        { QStringLiteral("Analysis/effective_context"), Rules },      // the effective-club rule (IM-3)
+        { QStringLiteral("Analysis/analysis_job_builder"), Rules },   // the one job builder
+        { QStringLiteral("Analysis/recording_integrity"), Rules },    // the one integrity rule (step 1.5)
+        { QStringLiteral("Analysis/reuse_gate"), Rules },             // the one reuse gate + input-stamp staleness (step 1.6)
+        { QStringLiteral("Analysis/swing_analysis_rebase"), Vocabulary },   // the one rebase, beside windowTimeUs
         { QStringLiteral("Analysis/route_substitution"), Rules },
         { QStringLiteral("Analysis/seg_resolve"), Rules },
         { QStringLiteral("Analysis/stream_trim"), Rules },
@@ -307,7 +319,7 @@ const QVector<OwnedFile> &ownedFiles()
         { "tendencies.json",    R"(tendencies\.json)",                        "Gui/diagnostics/work_ons_controller" },
         { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Gui/diagnostics/work_ons_controller" },
         { "session_input.json", R"(session_input\.json)",                     "" },   // step 2: SessionRepository
-        { "athlete.json",       R"(athlete\.json)",                           "" },   // step 2: AthleteRepository
+        { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // step 2.3: AthleteRepository's names (IM-S2-6)
     };
     return t;
 }

@@ -148,7 +148,7 @@ QStringList selectMeasures(const CharacteristicPack &pack, const Options &opt)
 
 SwingPhaseGrid readGridReadOnly(const QString &swingDir, QJsonObject *rootOut, const PhaseGridConfig &cfg)
 {
-    // readPhaseGrid() (measure_sample.cpp) line for line, minus the QSaveFile at the end.
+    // readPhaseGrid() (measure_sample.cpp) line for line, minus the atomic write at the end.
     SwingPhaseGrid grid;
     if (rootOut) *rootOut = QJsonObject();
     const pinpoint::SwingStore::DocInfo docInfo = pinpoint::SwingStore::info(swingDir);

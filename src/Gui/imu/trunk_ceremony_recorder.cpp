@@ -18,6 +18,7 @@
 
 #include "trunk_ceremony_recorder.h"
 
+#include "../../Core/atomic_write.h"
 #include "pp_debug.h"
 #include "pp_version.h"
 #include "athlete_controller.h"
@@ -30,7 +31,6 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
-#include <QSaveFile>
 #include <QThreadPool>
 
 namespace tcf = trunk_ceremony_file;
@@ -423,19 +423,29 @@ void TrunkCeremonyRecorder::write(const QString &sessionDir)
     QThreadPool::globalInstance()->start([c, sessionDir]() {
         const QDir dir(sessionDir);
         const QString path = dir.filePath(QString::fromLatin1(tcf::kFileName));
-        if (QFile::exists(path)) {   // an extended session's earlier ceremony: kept, renamed
+        // Both files go INTO the session folder, which must already be there (src/Core/atomic_write.h).
+        const pinpoint::AtomicWriteOptions inSession = pinpoint::AtomicWriteOptions::intoExistingFolder();
+        if (QFile::exists(path)) {   // an extended session's earlier ceremony: kept, copied aside
             QString aside;
             for (int n = 2;; ++n) {
                 aside = dir.filePath(QStringLiteral("trunk_ceremony_%1.json").arg(n));
                 if (!QFile::exists(aside)) break;
             }
-            if (!QFile::rename(path, aside))
+            // COPIED, then the new one renamed over it — never moved away first, so the session never
+            // has a moment with no trunk_ceremony.json (R-PERS-2: no remove-then-rename).
+            QFile earlier(path);
+            const bool kept = earlier.open(QIODevice::ReadOnly)
+                && pinpoint::atomicWrite(aside, [&earlier](QIODevice &out, QString &) {
+                       for (QByteArray chunk; !(chunk = earlier.read(1 << 20)).isEmpty();)
+                           if (out.write(chunk) != chunk.size()) return false;
+                       return earlier.error() == QFileDevice::NoError;
+                   }, inSession).ok;
+            if (!kept)
                 ppWarn() << "[TrunkCeremony] could not move the earlier" << path << "aside to" << aside;
         }
         const QByteArray bytes = tcf::toJson(*c);
-        QSaveFile f(path);
-        if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size() || !f.commit()) {
-            ppWarn() << "[TrunkCeremony] could not write" << path << ":" << f.errorString();
+        if (const pinpoint::AtomicWriteResult w = pinpoint::atomicWrite(path, bytes, inSession); !w.ok) {
+            ppWarn() << "[TrunkCeremony] could not write" << path << ":" << w.detail;
             return;
         }
         QStringList lanes;

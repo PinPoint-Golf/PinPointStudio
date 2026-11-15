@@ -38,11 +38,15 @@
 #include "hm_instance.h"
 #include "../Club/club_length_fusion.h"
 #include "../Analysis/shot_analyzer.h"
+#include "../Analysis/analysis_service.h"   // the one run + the Recording's integrity verdicts (step 1.5)
 #include "../Export/swing_exporter.h"
-#include "../Export/swing_paths.h"
+#include "../Export/swing_paths.h"   // SwingPaths::sanitise, for the camera files' names
+#include "../Identity/identity.h"      // SessionId: the session swings are written into
+#include "../DomainModel/recording_repository.h"   // WriteResult (the allocation's, J-22)
 #include "shot_outcome.h"
 
-namespace pinpoint { class EventBuffer; }
+namespace pinpoint { class EventBuffer; class RecordingRepository; class SessionRepository; }
+namespace pinpoint::capture { struct CaptureSnapshot; }
 class AppSettings;
 class AthleteController;
 class CameraInstance;
@@ -56,10 +60,13 @@ class ShotListModel;
 //   shotDetected ─► POSTROLL  per-source delay; the buffer keeps capturing so
 //                             the follow-through lands in the ring
 //                ─► pauseBuffer → captureSwingWindow(4 s trailing ring)
-//                ─► PROCESSING analysis (ShotAnalyzer) ∥ export (SwingExporter)
-//                             — both QtConcurrent workers reading the frozen
-//                             window concurrently (const, zero-copy)
-//                ─► join      ShotListModel::addShot() always; then
+//                ─► the RECORDING of the shot, read once at the freeze
+//                             (capture_context.h: the live facts → the Recording)
+//                ─► PROCESSING analysis (the analysis service, on the ONE job
+//                             builder) then export (SwingExporter) — QtConcurrent
+//                             workers reading the frozen window (const, zero-copy)
+//                ─► join      the first write through RecordingRepository::create;
+//                             ShotListModel::addShot() always; then
 //                ─► REPLAYING ¼× on-screen replay iff analysis AND export
 //                             both succeeded
 //                ─► finish    window destroyed → applyCaptureIntent() → Idle
@@ -81,8 +88,13 @@ class ShotProcessor : public QObject
     // callback (queued to the UI thread, throttled to ~1% steps).
     Q_PROPERTY(double analysisProgress READ analysisProgress NOTIFY analysisProgressChanged)
     // Replay playhead — the single source of truth both the video tile and the
-    // synced metric graph bind to. EventBuffer::nowMicros() domain, == MetricSeries
-    // t_us, so no conversion. Position fires per ~60 Hz tick; span/impact on start.
+    // synced metric graph bind to. Position fires per ~60 Hz tick; span/impact on start.
+    // ⚠ THE ONE VIEW-BOUNDARY OFFSET (refactor step 1.3b). The replay runs on the ring clock
+    // (EventBuffer::nowMicros(): the frozen window's frames, the pre-stage segmentation), but
+    // replayAnalysisDetail is the one projection of the analysis block, in WINDOW time, like the
+    // disk replay's. So these four are published in window time — µs from the capture window's
+    // start, m_replayT0Us — and the overlays, the graph and the tiles read one domain on both
+    // replays. Nothing in QML converts; nothing in C++ behind these getters does either.
     Q_PROPERTY(qint64  replayPositionUs READ replayPositionUs NOTIFY replayPositionChanged)
     Q_PROPERTY(qint64  replayStartUs    READ replayStartUs    NOTIFY replaySpanChanged)
     Q_PROPERTY(qint64  replayEndUs      READ replayEndUs      NOTIFY replaySpanChanged)
@@ -93,11 +105,12 @@ class ShotProcessor : public QObject
     // handed to every reader by reference. As a QVariantMap it was copied on EVERY read
     // (~18 per shot) and froze the studio's GUI for 7.8 s per shot. See qml_payload.h.
     Q_PROPERTY(QJSValue replayAnalysisDetail READ replayAnalysisDetailJs NOTIFY replayAnalysisDetailChanged)
-    // The active session folder (absolute path), chosen at session start via
-    // beginSessionFolder(). Also announced when a swing's allocation moves it (startSwingSave): a
-    // library re-pointed mid-session, or the first swing of a session whose folder could not be made
-    // at start. "" when no session is in progress, unless a swing outside a session has had a folder
-    // made for it on demand, which it then names.
+    // The active session's folder (absolute path), as SessionRepository spells it: the session started
+    // or resumed by beginSessionFolder(). It changes only when a session starts or ends — a Start; the
+    // library re-pointed mid-session, which ends the session and starts a new one (D7: DEC-154); the
+    // first swing of a session whose folder could not be made at Start, which starts it then — and is
+    // announced each time. "" when no session is in progress, unless a swing outside a session has had
+    // a session started for it on demand, which it then names.
     Q_PROPERTY(QString activeSessionDir READ activeSessionDir NOTIFY activeSessionDirChanged)
 
 public:
@@ -121,6 +134,10 @@ public:
         QString     error;              // why not, when !wrote
         QJsonObject manifest;           // the manifest WITH the integrity blocks the checks added
         QVariantMap dataWarningDetail;  // dataWarningDetailFrom(manifest) — empty when nothing warns
+        QVariantMap analysisDetail;     // the shot's detail: liveAnalysisDetail (swing_doc.h), the one
+                                        // projection of the analysis block this document gets — window time
+        QString     club;               // the club the document records (the seeded review.club)
+        QString     documentPath;       // where it went (the log)
     };
 
     ShotProcessor(pinpoint::EventBuffer *buffer,
@@ -133,17 +150,31 @@ public:
                   QObject               *parent = nullptr);
     ~ShotProcessor() override;
 
+    // THE ONE DOOR to the swing file (RecordingRepository, step 1.4): the live join's first write
+    // goes through it (create). Held by the composition root (main.cpp). Without one, a shot's
+    // document is not written and the join says so.
+    void setRecordingRepository(pinpoint::RecordingRepository *repository) { m_repository = repository; }
+    // THE ONE DOOR to the session's own files and its swing numbers (SessionRepository, step 2.2):
+    // Start, resume, End and every allocation. Held by the composition root (main.cpp). Without one no
+    // session starts and no swing is saved. Also follows the library setting (D7).
+    void setSessionRepository(pinpoint::SessionRepository *sessions);
+    // The session a swing captured NOW is written into — the one allocator's session (D10: DEC-157),
+    // asked by this processor's own allocation and by the launch monitor's standalone shot. Starts it
+    // when a session is in progress whose folder could not be made at Start, or, outside a session,
+    // on demand (today's behaviour); null when none can be.
+    pinpoint::SessionId captureSession();
+
     QString stateName()   const;
     bool    busy()        const { return m_state != State::Idle; }
     bool    isReplaying() const { return m_state == State::Replaying; }
-    qint64  replayPositionUs() const { return m_replayPositionUs; }
-    qint64  replayStartUs()    const { return m_replayWindowStartUs; }
-    qint64  replayEndUs()      const { return m_replayWindowEndUs; }
-    qint64  replayImpactUs()   const { return m_impactUs; }
+    qint64  replayPositionUs() const { return m_replayPositionUs    - m_replayT0Us; }   // window time
+    qint64  replayStartUs()    const { return m_replayWindowStartUs - m_replayT0Us; }
+    qint64  replayEndUs()      const { return m_replayWindowEndUs   - m_replayT0Us; }
+    qint64  replayImpactUs()   const { return m_impactUs            - m_replayT0Us; }
     QVariantMap replayAnalysisDetail()   const { return m_replayAnalysisDetail.map(); }   // C++ readers
     QJSValue    replayAnalysisDetailJs() const { return m_replayAnalysisDetail.js(); } // the QML property
     double  analysisProgress() const { return m_analysisProgress; }
-    QString activeSessionDir() const { return m_swingPaths.currentSessionDir(); }
+    QString activeSessionDir() const { return m_openSessionDir; }
     // False when beginSessionFolder() could not create the session folder — the
     // state a session used to start into silently.  Read by the session-start
     // preflight in main.cpp.
@@ -211,6 +242,17 @@ signals:
     // one toast, which is why ten occurrences of this on 1 September 2026 read
     // as one piece of news.
     void swingSaveBlocked(const QString &detail);
+    // The session's own file (session.json) could not be written at End, or at D7's end of the old
+    // session while its folder is still there (DEC-126): the session stays in progress on disk until the
+    // athlete's next Start. Posted by main.cpp as a notice.
+    void sessionFileFailed(const QString &detail);
+    // "Continue today's session" was asked for and refused or could not be written (DEC-126): a new
+    // session started instead. Posted by main.cpp as a notice.
+    void sessionResumeFailed(const QString &detail);
+    // D7 (DEC-154): the library was re-pointed mid-session, so the session ended and a new one started
+    // in the new library. Emitted just before activeSessionDirChanged. main.cpp makes the declared
+    // focus (SessionController's, carried over) apply from the new session's first shot.
+    void sessionRestartedForLibrary();
     // Analyzer returned !ok — the shot degrades to no-score/no-metrics but the
     // pipeline continues. Surfaced as a window-level toast (Main.qml), not a
     // log line: the user must see why a shot has no analysis.
@@ -276,15 +318,10 @@ private:
     QVector<HmInstance *> deferredSources() const;
     void beginGather();             // pause the rings, raise the guard, start the wait
     void onGatherPoll();            // deferred sources reported, or the deadline passed
-    void finishGatherAndLaunch();   // compose the backing, construct the window, launch
-    ShotAnalysisJob buildAnalysisJob();   // UI-thread value resolution
+    void finishGatherAndLaunch();   // compose the backing, construct the window, take the Recording, launch
     void startAnalysis();
     void startSwingSave();
     pinpoint::SwingExportJob buildSwingExportJob();
-    // Minimal raw header (athlete/session/clock/window, no streams) synthesised
-    // from the cached export job + the live window — used to persist an
-    // analysis-only swing.json when the media export failed or was skipped.
-    QJsonObject buildSynthManifest() const;
     void maybeJoin();
     void startReplay();
     void stopReplay(bool thenFinish);
@@ -352,7 +389,10 @@ private:
     std::vector<ReplayTrack> m_replayTracks;
     int64_t       m_replayWindowStartUs = 0;
     int64_t       m_replayWindowEndUs   = 0;
-    int64_t       m_replayPositionUs    = 0;   // published playhead (window µs)
+    int64_t       m_replayPositionUs    = 0;   // the playhead, ring clock (published minus m_replayT0Us)
+    // The capture window's start on the ring clock: the one view-boundary offset between the replay's
+    // ring-clock playhead and the window-time detail (see the replay Q_PROPERTYs). Set by startReplay.
+    int64_t       m_replayT0Us          = 0;
     QmlPayload    m_replayAnalysisDetail;      // detail of the shot being replayed (see qml_payload.h)
     QElapsedTimer m_replayElapsed;
     QTimer       *m_replayTimer = nullptr;
@@ -364,10 +404,19 @@ private:
     QFutureWatcher<pinpoint::analysis::Segmentation> m_segmentationWatcher;
     bool                            m_segmentationInFlight = false;
     pinpoint::analysis::Segmentation m_segmentation;   // result for THIS shot
-    ShotAnalysisJob                 m_analysisJob;      // resolved pre-stage, used at launch
+    // THE RECORDING of this shot (capture_context.h): made once at the freeze from the live facts,
+    // the athlete and session read once with it. The analysis job, the export's athlete and club,
+    // the seeded review club and the integrity verdicts all come from it. Its window points into
+    // m_swingWindow, so it is reset with it (finishShot / finishNowBlocking).
+    std::unique_ptr<pinpoint::capture::CaptureSnapshot> m_capture;
+    // The job the ONE builder made from that Recording (buildAnalysisJob): the pre-stage reads its
+    // bindings; the analysis service runs it.
+    ShotAnalysisJob                 m_analysisJob;
+    pinpoint::analysis::AnalysisService m_analysisService;   // stateless (analysis_service.h)
+    pinpoint::RecordingRepository  *m_repository = nullptr;  // the one door (setRecordingRepository)
 
     // Persistent club-length prior (club_length_fusion.h / plan: robust club
-    // length — starry-shimmying-wind). Stashed by buildAnalysisJob() when the
+    // length — starry-shimmying-wind). Stashed from the capture snapshot when the
     // face-on camera is cameraFixedInPlace (else left empty/cold — nothing to
     // update); onAnalysisFinished() folds the recorded fuse's fusedInstant* into
     // m_lengthPriorState and persists it to AppSettings under m_lengthPriorKey.
@@ -379,7 +428,7 @@ private:
     // once BOTH have returned (and replay has stopped) — see maybeJoin()/
     // finishShot()/finishNowBlocking().
     QFutureWatcher<pinpoint::SwingExportResult> m_swingSaveWatcher;
-    QFutureWatcher<ShotAnalysisResult>          m_analysisWatcher;
+    QFutureWatcher<pinpoint::analysis::AnalysedRecording> m_analysisWatcher;
     bool    m_swingSaveInFlight = false;
     bool    m_analysisInFlight  = false;
     // The document writer (SwingDocWriteResult). It borrows &*m_swingWindow for the integrity checks
@@ -396,9 +445,27 @@ private:
     // later from the Shots view.
     bool    m_skipAnalysisCapture = false;
     ShotAnalysisResult m_analysisResult;
+    // The Recording's integrity verdicts, as the analysis service reached them with the analysis
+    // (integrityFor). Unset when no analysis ran (a skip-analysis corpus capture): the document
+    // writer then asks the service for them alone.
+    std::optional<pinpoint::analysis::IntegrityVerdicts> m_integrity;
     QString m_swingDir;          // cached from the export job for the join
+    pinpoint::ShotRef   m_shot;          // the allocation's ShotRef: the join's write is keyed by it (step 2.4)
+    pinpoint::WriteResult m_allocResult;   // why the allocation failed, when it did (J-22: a held lock's words)
     pinpoint::SwingExportJob m_exportJob;  // cached job — synth header on export fail/skip
     QString m_thumbnailPath;     // from SwingExportResult
     QJsonObject m_exportManifest; // raw manifest from the exporter, for the unified write
-    pinpoint::SwingPaths m_swingPaths;   // per-app-run session-folder cache
+
+    // ── The session swings are written into (SessionRepository's; step 2.2) ──
+    // Its folder is fixed for its life: never re-resolved per shot (E-01). A rename, midnight or a
+    // changed naming pattern or type keep it; a re-pointed library ends it and starts another (D7).
+    void setOpenSession(const pinpoint::SessionId &id);
+    void onLibraryChanged();
+    pinpoint::SessionRepository *m_sessions = nullptr;
+    pinpoint::SessionId m_openSession;     // null: none
+    QString m_openSessionDir;              // its folder, as the repository spells it
+    QString m_openLibraryKey;              // the library (cleaned) it was started in, for D7
+    bool    m_sessionBegun = false;        // beginSessionFolder() .. endSessionFolder()
+    bool    m_openedOnDemand = false;      // started for a swing outside a session: never discarded
+    QString m_onDemandKey;                 // athlete | library | day | type of that session
 };

@@ -29,7 +29,7 @@
 //     can be tested on the 4 July fixture with no Qt Quick, no files and no threads.
 //
 // TIME. Every t_us here is on the SHOT'S OWN window-relative clock, the same clock shotReplay
-// uses (disk_replay_source.cpp relUs: analysis t_us minus clock.t0_us), so a time read from a
+// uses (the one projection's window time: windowTimeUs against the document's analysis origin), so a time read from a
 // shot can be handed to shotReplay.seekToUs unchanged. impactUs is on that clock too. The maths
 // works in ms from impact; converting is its job, not the model's.
 //

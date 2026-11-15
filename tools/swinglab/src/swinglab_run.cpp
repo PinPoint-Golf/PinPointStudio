@@ -18,12 +18,12 @@
 
 // swinglab_run — the SwingLab offline runner (swinglab_impl.md, stage L1).
 //
-// Reconstructs a SwingWindow from a recorded PinPointStudio swing dir and executes
-// the unmodified production analysis pipeline (makeShotAnalyzer). The disk →
-// SwingWindow → analyzer reconstruction is shared with the in-app re-analyse path
-// via SwingDiskLoader (src/Analysis/swing_reanalyzer) — it STREAMS frames from disk
-// rather than rebuilding a full EventBuffer in RAM. Tuning params are injectable
-// from JSON; --trace re-runs the shaft stages with the trace sinks.
+// Reads a recorded PinPointStudio swing's RECORDING through the domain's RecordingReader (its store
+// adapter, SwingStoreRecordingReader), builds the job with the one builder (SwingDiskLoader), and runs
+// it through the analysis service (src/Analysis/analysis_service.h) — the same run, and the same
+// integrity verdicts, as the app's live capture and re-analysis (refactor step 1.5). The window
+// STREAMS frames from disk rather than rebuilding a full EventBuffer in RAM. Tuning params are
+// injectable from JSON; --trace re-runs the shaft stages with the trace sinks.
 //
 //   swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 //                [--session-type 1] [--face-on Face] [--impact-us N] [--pose p.json]
@@ -31,6 +31,7 @@
 //                [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
+//   swinglab_run <swing_dir> --write-back [--save-pose on|off]
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
@@ -64,7 +65,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QSysInfo>
 #include <QVariantMap>
 
@@ -84,6 +84,7 @@
 #include "imu_sample.h"
 #include "format_descriptor.h"
 
+#include "../../../src/Core/atomic_write.h"   // result.json and --dag, written whole
 #include "../../../src/Core/PpMessageLog.h"   // echo the pipeline's own log to stderr
 #include "../../../src/Core/pp_debug.h"      // ppInfo / ppWarn
 #include "../../../src/IMU/imu_calibration.h" // solveTrunkSegment (--trunk-calib-from)
@@ -103,6 +104,11 @@
 #include "../../../src/Club/dtl_shaft_config.h"         // the resolved scalars echoed into club_dtl.json
 #include "../../../src/Export/swing_doc.h"
 #include "../../../src/Export/swing_store.h"
+#include "../../../src/Export/swing_store_repository.h"      // the one door to the swing files
+#include "../../../src/Export/session_store.h"               // what names the swing's ShotRef (step 2.4)
+#include "../../../src/Analysis/reanalyse_and_persist.h"     // the one re-analysis write-back
+#include "../../../src/Analysis/analysis_service.h"          // the run + the integrity verdicts (step 1.5)
+#include "../../../src/Export/recording_loader.h"            // SwingStoreRecordingReader — the reading door
 #include "../../../src/IMU/orientation_filter.h"     // MadgwickFilter (header-only)
 #include "../../../src/IMU/orientation_refuser.h"    // refuseOrientation / refuseOrientationAdaptive / parity
 #include "../../../src/Analysis/analysis_tuning.h"   // tuning::apply (filter.* keys)
@@ -184,9 +190,9 @@ struct RefusionInstants {
 
 RefusionInstants refusionInstants(const QJsonObject &analysisIn, qint64 t0Us, int64_t jobImpactUs)
 {
-    // analysis.phases t_us: absolute on older documents, window-relative on newer ones. The
-    // writer's own domain rule (SwingDocWriter rel()): an absolute value is ≥ clock.t0_us and
-    // has it subtracted; an already-relative value passes through.
+    // analysis.phases t_us: absolute on older documents, window-relative on newer ones. The one
+    // rule (windowTimeUs, swing_analysis.h) against the document's analysis origin
+    // (documentAnalysisOriginUs: 0 when stamped, else clock.t0_us).
     int64_t at[8];
     std::fill(std::begin(at), std::end(at), int64_t(-1));
     for (const QJsonValue &pv : analysisIn[QStringLiteral("phases")].toArray()) {
@@ -195,7 +201,7 @@ RefusionInstants refusionInstants(const QJsonObject &analysisIn, qint64 t0Us, in
         if (ph < 0 || ph > int(Phase::Finish))
             continue;
         const qint64 t = qint64(p[QStringLiteral("t_us")].toDouble(-1));
-        at[ph] = (t0Us > 0 && t >= t0Us) ? t - t0Us : t;
+        at[ph] = windowTimeUs(t, t0Us);
     }
     RefusionInstants in;
     const int64_t a = at[int(Phase::Address)], tp = at[int(Phase::Top)],
@@ -679,7 +685,12 @@ int main(int argc, char **argv)
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
         "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
-        "Exclusive: every other option except the positional swing dir is ignored.");
+        "Exclusive: every other option except the positional swing dir is ignored "
+        "(and --force, --full-window, --session-type, --params, --pooled, --save-pose).");
+    QCommandLineOption optSavePose("save-pose",
+        "--write-back only: Storage → Save pose keypoints for the write-back, \"on\" (the app's default) "
+        "or \"off\". Off, newly inferred pose tracks are not written back; a reused one always is "
+        "(PersistOptions::savePose, as the in-app re-analysis honours the setting).", "on|off", "on");
     // skeleton3d session pool (swing_3d_viz_design.md §13.2 (C)): pass 2 holds a pool's values for
     // this swing fixed; --pool builds a pool from pass-1 result.json files.
     QCommandLineOption optCalib("skeleton-calib",
@@ -692,14 +703,14 @@ int main(int argc, char **argv)
         "--out only: also put into result.json the `summary` block and this pass's `imuIntegrity` / "
         "`captureIntegrity` verdicts, as a write-back of this analysis would store them. The verdicts "
         "are reached as reanalyzeSwingDir reaches them; the source document, carrying them and this "
-        "analysis, goes through SwingDocWriter::writeSwingJson into <run>/doc (no pose) and the three "
+        "analysis, goes through the production writer (RecordingRepository::create) into <run>/doc (no pose) and the three "
         "blocks are read back from it; <run>/doc is then removed. Unset, result.json is unchanged. "
         "For the refactor's parity baseline (tools/parity/).");
     cli.addOptions({ optOut, optParams, optTrace, optSession, optFaceOn, optImpact, optPose, optForce, optFullWindow,
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
                      optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose });
     cli.process(app);
 
     // ── Pool mode ────────────────────────────────────────────────────────────
@@ -733,26 +744,36 @@ int main(int argc, char **argv)
                     "       swinglab_run <swing_dir> --write-back");
     const QString swingDir = cli.positionalArguments().first();
 
+    // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once; every
+    // read and write below is keyed by it. Over a session reader of its own (a corpus or library
+    // session without a session file: D3's id from the athlete who owns its folder, by its athlete.json,
+    // else the athlete the swing records; J-39, proposed, for Mark).
+    pinpoint::SessionStore                  sessions;
+    pinpoint::SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
+    pinpoint::SwingStoreRecordingReader     recordingReader(sessions);
+    const pinpoint::ShotRef shot = repo.shotOfFolder(swingDir);
+    if (shot.isNull())
+        return fail(QStringLiteral("%1 is not a swing folder of a session this tool can name (a swing_NNNN "
+                                   "folder whose session has a session.json, or whose owner or swing records its athlete)")
+                        .arg(swingDir));
+
     // ── Write-back mode: the in-app re-analysis, headless ────────────────────
-    // Mirrors ReanalysisController::startNext()/onWorkerFinished() exactly:
-    // reanalyzeSwingDir with DEFAULT options (sessionType from the doc, span-bounded
-    // like a live shot, no tuning overrides), then a manifest-preserving
-    // writeSwingJson into the source dir — "analysis" is replaced, capture/streams/
-    // review ride through untouched. The empty-manifest guard is the controller's:
-    // never replace a document we could not read back.
+    // The in-app ReanalysisController's ONE write-back (reanalyse_and_persist.h):
+    // reanalyzeShot (the shot read by its ShotRef through the RecordingReader) with DEFAULT
+    // options (sessionType from the doc, span-bounded like a live shot, no tuning overrides),
+    // then RecordingRepository::writeAnalysis into the shot — "analysis" and both integrity verdicts are replaced,
+    // capture/streams/review ride through untouched, and the repository's empty-document
+    // guard never replaces a document it could not read back. A launch-monitor-only swing
+    // has nothing to re-analyse: its launch monitor rows are rebuilt from the reading it holds.
+    // Pose is kept unless --save-pose off (PersistOptions::savePose; the app's "Save pose keypoints").
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
-        // A launch-monitor-only swing, as the in-app controller handles it: nothing to re-analyse,
-        // so its launch monitor rows are rebuilt from the reading it holds (refreshLaunchMonitorRows).
-        if (pinpoint::SwingDocWriter::isDeviceOnlySwing(SwingStore::load(swingDir))) {
-            bool changed = false;
-            QString lerr;
-            if (!pinpoint::SwingDocWriter::refreshLaunchMonitorRows(swingDir, &changed, &lerr))
-                return fail(QStringLiteral("launch monitor refresh failed: ") + lerr);
-            std::fprintf(stderr, "[swinglab] write-back ok — launch monitor only, rows %s\n",
-                         changed ? "rebuilt" : "already current");
-            return 0;
-        }
+        pinpoint::PersistOptions persist;
+        // --save-pose: the app's "Save pose keypoints" for this write-back (default on, the app's default).
+        const QString savePose = cli.value(optSavePose).trimmed().toLower();
+        if (savePose != QLatin1String("on") && savePose != QLatin1String("off"))
+            return fail(QStringLiteral("--save-pose %1: say on or off").arg(cli.value(optSavePose)));
+        persist.savePose = savePose == QLatin1String("on");
         ReanalyzeOptions ropts;
         ropts.forceRerun = cli.isSet(optForce);
         ropts.fullWindow = cli.isSet(optFullWindow);
@@ -775,7 +796,7 @@ int main(int argc, char **argv)
         // --pooled: run on a QThreadPool thread as the app's ReanalysisController does
         // (QtConcurrent::run), not the main thread — the pool's threads have the platform
         // default stack (512 KiB on macOS against the main thread's 8 MiB).
-        ReanalyzeResult r;
+        PersistedReanalysis r;
         if (cli.isSet(optPooled)) {
             // PINPOINT_SWINGLAB_CVBUSY=1: another thread keeps OpenCV's parallel_for_ busy
             // (what the replay does in the app) while the analysis starts.
@@ -786,30 +807,28 @@ int main(int argc, char **argv)
                     cv::Mat big(1024, 1024, CV_8UC3, cv::Scalar(10, 20, 30)), out;
                     while (!busyStop.load()) cv::GaussianBlur(big, out, cv::Size(31, 31), 0);
                 });
-            QThreadPool::globalInstance()->start([&] { r = reanalyzeSwingDir(swingDir, ropts); });
+            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts); });
             QThreadPool::globalInstance()->waitForDone();
             busyStop = true;
             if (busy.joinable()) busy.join();
         } else {
-            r = reanalyzeSwingDir(swingDir, ropts);
+            r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts);
         }
-        if (!r.ok || !r.analysis.detail)
+        if (r.deviceOnly) {
+            if (!r.write.ok())
+                return fail(QStringLiteral("launch monitor refresh failed: ") + r.write.error);
+            std::fprintf(stderr, "[swinglab] write-back ok — launch monitor only, rows %s\n",
+                         r.write.changed() ? "rebuilt" : "already current");
+            return 0;
+        }
+        if (!r.analysed)
             return fail(QStringLiteral("re-analysis failed: ")
-                        + (r.error.isEmpty() ? QStringLiteral("no analysis detail") : r.error));
-        QString rerr;
-        QJsonObject manifest = SwingStore::load(swingDir, &rerr);
-        if (manifest.isEmpty())
-            return fail(QStringLiteral("swing document missing/unreadable (%1) — not overwriting").arg(rerr));
-        // Same as the in-app controller: the data-integrity verdict is re-reached by
-        // this pass rather than inherited from capture, and is REMOVED when this pass
-        // could not reach one. See swing_doc.h.
-        pinpoint::applyImuIntegrity(manifest, r.imuIntegrity ? &*r.imuIntegrity : nullptr);
-        pinpoint::applyCaptureIntegrity(manifest, r.captureIntegrity ? &*r.captureIntegrity : nullptr);
-        QString werr;
-        if (!pinpoint::SwingDocWriter::writeSwingJson(swingDir, manifest,
-                                                      r.analysis.detail.get(), &werr))
-            return fail(QStringLiteral("write-back failed: ") + werr);
-        std::fprintf(stderr, "[swinglab] write-back ok — score %d\n", r.analysis.score);
+                        + (r.analysisError.isEmpty() ? QStringLiteral("no analysis detail") : r.analysisError));
+        if (r.write.status == pinpoint::WriteResult::Status::NoDocument)
+            return fail(QStringLiteral("swing document missing/unreadable (%1) — not overwriting").arg(r.write.error));
+        if (!r.write.ok())
+            return fail(QStringLiteral("write-back failed: ") + r.write.error);
+        std::fprintf(stderr, "[swinglab] write-back ok — score %d\n", r.score);
         return 0;
     }
     const QString outDir   = cli.value(optOut);
@@ -827,11 +846,15 @@ int main(int argc, char **argv)
     }
 
     // ── Reconstruct (streaming) + resolve the job from swing.json ─────────────
+    // The composition root of this run: the Recording is read through the domain's RecordingReader
+    // (its store adapter), the job made by the one builder, and run — and judged — by the analysis
+    // service, as the app's live capture and re-analysis are (step 1.5).
+    const AnalysisService analysisService(&recordingReader);
     SwingLoadOptions lopts;
     lopts.faceOnExplicit  = cli.isSet(optFaceOn);
     lopts.faceOnSubstring = cli.value(optFaceOn);
     lopts.tuningOverrides = tuning;   // decode.* (the MP4 readers)
-    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
+    LoadedSwing ls = SwingDiskLoader::load(recordingReader, shot, lopts);
     if (!ls.ok)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;
@@ -1085,8 +1108,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "[swinglab] window rebuilt: %zu entries (%s)\n",
                      window.entries().size(), ls.usedRaw ? "raw" : "mp4");
         const double beta = cli.isSet(optRefuseBeta) ? cli.value(optRefuseBeta).toDouble() : -1.0;
-        const qint64 t0Us = qint64(SwingStore::load(swingDir)[QStringLiteral("clock")].toObject()
-                                       [QStringLiteral("t0_us")].toDouble(0));
+        const qint64 t0Us = qint64(documentAnalysisOriginUs(SwingStore::load(swingDir)));
         const RefusionInstants inst = refusionInstants(ls.analysisIn, t0Us, job.impactUs);
         return runRefusionParity(window, job.imuBindings, outDir, beta, tuning, job.impactUs, inst);
     }
@@ -1128,8 +1150,11 @@ int main(int argc, char **argv)
         job.ballTrackPath = cli.value(optBall);
     if (cli.isSet(optSession) || job.sessionType < 0)
         job.sessionType = cli.value(optSession).toInt();
-    if (cli.isSet(optImpact))
+    if (cli.isSet(optImpact)) {
         job.impactUs = cli.value(optImpact).toLongLong();
+        // The run's impact, on the Recording too: the integrity verdicts are judged against it.
+        ls.recording.capture.impactUs = job.impactUs - ls.recording.t0Us;
+    }
     if (job.impactUs <= 0)
         return fail("no impact instant (no recorded Impact phase; pass --impact-us)");
 
@@ -1216,8 +1241,10 @@ int main(int argc, char **argv)
 
     // ── Run the production pipeline ──────────────────────────────────────────
     const qint64 buildMs = wall.elapsed();
-    auto analyzer = makeShotAnalyzer();
-    ShotAnalysisResult result = analyzer->analyze(window, job);
+    // The analysis service: the production analyzer on the (edited) job, and the Recording's two
+    // integrity verdicts by the one rule — what a write-back of this analysis would store.
+    AnalysedRecording analysed = analysisService.analyseJob(ls.recording, job);
+    ShotAnalysisResult result = std::move(analysed.analysis);
     // gates decided while LOADING the swing (a HackMotion lane that would not bind) belong to its
     // analysis too — reanalyzeSwingDir appends them the same way (trust stage 6)
     if (result.detail && !ls.loadGates.empty())
@@ -1235,33 +1262,32 @@ int main(int argc, char **argv)
     QString werr;
 
     // --doc-blocks: the summary and the two data-integrity verdicts AS A WRITE-BACK WOULD STORE
-    // THEM. The verdicts are reached exactly as reanalyzeSwingDir (swing_reanalyzer.cpp) reaches
-    // them after analyze() — keep the two in step: the IMU re-fusion only when the recording says
-    // Madgwick, the capture check against the recorded window with the impact camera and off-clock
-    // lanes exempt from coverage. The summary is built by the production writer from the whole
-    // source document (its capture, streams, review and launch monitor), so it is written through
-    // writeSwingJson into a scratch folder and read back; nothing here re-derives a field.
+    // THEM. The verdicts are the analysis service's (integrityFor, the one rule every path uses: the
+    // IMU re-fusion only when the recording says Madgwick, the capture check against the recorded
+    // window with the impact camera and off-clock lanes exempt from coverage). The summary is built by
+    // the production writer from the whole source document (its capture, streams, review and launch
+    // monitor), so it is written through RecordingRepository::create into a scratch folder and read
+    // back; nothing here re-derives a field.
     QJsonObject docBlocks;
     if (cli.isSet(optDocBlocks) && result.detail) {
-        std::optional<pinpoint::ImuRefusionVerdict> imuV;
-        if (ls.hostOrientationFilter.compare(QStringLiteral("madgwick"), Qt::CaseInsensitive) == 0)
-            imuV = pinpoint::checkImuRefusion(window);
-        pinpoint::CaptureCoverageSpec cov;
-        cov.judge         = true;
-        cov.windowStartUs = ls.captureWindowStartUs;
-        cov.windowEndUs   = ls.captureWindowEndUs;
-        std::vector<SourceId> exempt = ls.offClockCameras;
-        exempt.push_back(job.impactSource);
-        const pinpoint::CaptureIntegrityVerdict capV =
-            pinpoint::checkCaptureIntegrity(window, job.impactUs, cov, exempt);
+        const std::optional<pinpoint::ImuRefusionVerdict>      &imuV = analysed.integrity.imu;
+        const std::optional<pinpoint::CaptureIntegrityVerdict> &capV = analysed.integrity.capture;
         QJsonObject full = root;
         pinpoint::applyImuIntegrity(full, imuV ? &*imuV : nullptr);
-        pinpoint::applyCaptureIntegrity(full, &capV);
+        pinpoint::applyCaptureIntegrity(full, capV ? &*capV : nullptr);
         const QString docDir = outDir + QStringLiteral("/doc");
         QDir(docDir).removeRecursively();
         QDir().mkpath(docDir);
         QString derr;
-        if (SwingDocWriter::writeSwingJson(docDir, full, result.detail.get(), &derr, QString(), false)) {
+        pinpoint::NewRecording scratch;
+        scratch.header   = full;
+        scratch.analysis = result.detail.get();
+        pinpoint::PersistOptions noPose;
+        noPose.savePose = false;
+        // Not a shot: a scratch folder of this run's own output (writeOutsideLibrary).
+        const pinpoint::WriteResult dw = pinpoint::SwingStoreRecordingRepository::writeOutsideLibrary(docDir, scratch, noPose);
+        derr = dw.error;
+        if (dw.ok()) {
             const QJsonObject written = SwingStore::load(docDir, &derr);
             for (const char *k : { "summary", "imuIntegrity", "captureIntegrity" })
                 if (written.contains(QLatin1String(k)))
@@ -1277,9 +1303,15 @@ int main(int argc, char **argv)
         // result.json stays JSON — it is a research output read by the Python rigs, not a library
         // document. The production writer builds it (so it is exactly what write-back would store),
         // into the run dir as swing.ppsw; it is then re-emitted as JSON and the .ppsw dropped.
-        // Written with QSaveFile, so a reused --out dir gets the NEW result — the old
+        // Written atomically (src/Core/atomic_write.h), so a reused --out dir gets the NEW result — the old
         // rename-onto-an-existing-file failed silently and left the previous run's result behind.
-        if (!SwingDocWriter::writeSwingJson(outDir, manifest, result.detail.get(), &werr)) {
+        pinpoint::NewRecording resultDoc;
+        resultDoc.header   = manifest;
+        resultDoc.analysis = result.detail.get();
+        const pinpoint::WriteResult rw = pinpoint::SwingStoreRecordingRepository::writeOutsideLibrary(outDir, resultDoc);
+        if (!rw.ok())
+            werr = rw.error;
+        if (!rw.ok()) {
             std::fprintf(stderr, "[swinglab] result write failed: %s\n",
                          werr.toUtf8().constData());
         } else {
@@ -1290,9 +1322,9 @@ int main(int argc, char **argv)
                     doc.insert(it.key(), it.value());
             if (!trunkCalib.isEmpty())                // --trunk-calib-from: what was solved and applied
                 doc.insert(QStringLiteral("trunkCalibration"), trunkCalib);
-            QSaveFile rf(outDir + "/result.json");
-            if (doc.isEmpty() || !rf.open(QIODevice::WriteOnly)
-                || rf.write(SwingStore::toJsonText(doc)) < 0 || !rf.commit())
+            if (doc.isEmpty()
+                || !pinpoint::atomicWrite(outDir + "/result.json", SwingStore::toJsonText(doc),
+                                          pinpoint::AtomicWriteOptions::intoExistingFolder()).ok)
                 std::fprintf(stderr, "[swinglab] result.json write failed %s\n",
                              werr.toUtf8().constData());
             QFile::remove(SwingStore::ppswPath(outDir));
@@ -1343,8 +1375,8 @@ int main(int argc, char **argv)
     if (cli.isSet(optDag)) {
         const QJsonObject dag = pinpoint::analysis::analysisGraphJson(
             result.detail ? &result.detail->timings.stages : nullptr, &job);
-        QSaveFile df(cli.value(optDag));
-        if (!df.open(QIODevice::WriteOnly) || df.write(QJsonDocument(dag).toJson()) < 0 || !df.commit())
+        if (!pinpoint::atomicWrite(cli.value(optDag), QJsonDocument(dag).toJson(),
+                                   pinpoint::AtomicWriteOptions::intoExistingFolder()).ok)
             std::fprintf(stderr, "[swinglab] cannot write --dag %s\n", cli.value(optDag).toUtf8().constData());
         else
             std::fprintf(stderr, "[swinglab] dag: %s\n", cli.value(optDag).toUtf8().constData());
@@ -1877,17 +1909,15 @@ int main(int argc, char **argv)
                 // has to survive the round trip as absent rather than as a number
                 // whose meaning depends on the parser.
                 {
-                    // Same domain rule as SwingDocWriter's rel(): the analysis
-                    // times go out window-relative, and an already-relative value
-                    // passes through. t0 is the manifest's clock.t0_us exactly as
-                    // writeSwingJson reads it, so club_dtl.json and result.json
-                    // cannot end up in different time domains.
+                    // The one rule (windowTimeUs, swing_analysis.h), as the document
+                    // writer applies it: the analysis times go out window-relative,
+                    // and an already-relative value passes through. t0 is the
+                    // manifest's clock.t0_us exactly as the writer reads it (a write,
+                    // not a read of a stored document), so club_dtl.json and
+                    // result.json cannot end up in different time domains.
                     const qint64 t0 = qint64(manifest.value(QStringLiteral("clock")).toObject()
                                                      .value(QStringLiteral("t0_us")).toDouble());
-                    const auto rel = [t0](int64_t t) -> qint64 {
-                        const qint64 tt = qint64(t);
-                        return tt >= t0 ? tt - t0 : tt;
-                    };
+                    const auto rel = [t0](int64_t t) -> qint64 { return qint64(windowTimeUs(t, t0)); };
                     const auto jnum = [](double v) -> QJsonValue {
                         return std::isfinite(v) ? QJsonValue(v) : QJsonValue(QJsonValue::Null);
                     };

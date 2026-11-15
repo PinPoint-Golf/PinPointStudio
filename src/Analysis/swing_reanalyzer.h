@@ -22,6 +22,7 @@
 
 #include <QString>
 #include <QVariantMap>
+#include <memory>
 #include <optional>
 
 #include "swing_window.h"
@@ -29,15 +30,21 @@
 #include "../IMU/imu_refusion_check.h"
 #include "capture_integrity_check.h"
 #include "gate_record.h"   // LoadedSwing::loadGates
+#include "effective_context.h"   // ClubReview
+#include "../Recording/recording.h"
+#include "../DomainModel/recording_reader.h"   // the reading interface (step 1.5)
 
-// SwingReanalyzer — reconstruct a SwingWindow from an exported swing folder and
-// re-run the production analyzer OFFLINE, the same disk → SwingWindow → analyzer
-// flow the SwingLab runner uses, but STREAMING camera frames from disk on demand
-// rather than rebuilding a full EventBuffer (which would hold the whole window —
-// multi-GB at high FPS — in RAM). Frames are read one at a time into a single
-// reusable buffer per camera (raw sidecar offset reads, else cv::VideoCapture);
-// IMU samples and the frame index live in RAM (tiny). Perf is sacrificed for
-// bounded memory — re-analysis is a rare, offline operation.
+// SwingReanalyzer — re-run the production analyzer OFFLINE on an exported swing folder, the same
+// disk → SwingWindow → analyzer flow the SwingLab runner uses.
+//
+// The folder is read by the RECORDING LOADER (src/Export/recording_loader.h, step 1.2): a
+// disk-backed window that STREAMS camera frames on demand (one reusable buffer per camera, raw
+// sidecar else MP4; IMU samples and the index in RAM), and the Recording that describes it. The
+// job is then made by the ONE builder (buildAnalysisJob, analysis_job_builder.h) from the
+// Recording and its effective context, and run through the analysis service (analysis_service.h),
+// which also reaches the two integrity verdicts with the one rule (integrityFor) — the very code the
+// live capture runs. SwingDiskLoader builds the job (the board's club correction applied, step 1.6);
+// reanalyzeSwingDir adds the reuse gate (reuse_gate.h).
 //
 // Shared by the in-app re-analyse path (ReanalysisController) and the
 // swinglab_run tool, so both exercise one tested reconstruction.
@@ -57,15 +64,36 @@ struct SwingLoadOptions {
 };
 
 // A swing reconstructed into a streaming, disk-backed SwingWindow, plus the
-// ShotAnalysisJob resolved from swing.json (sessionType, face-on-first camera
-// sources, IMU sources, serial-matched A/M bindings, impact, handedness).
+// ShotAnalysisJob the one builder made from its Recording (sessionType, face-on-first camera
+// sources, IMU sources, serial-matched A/M bindings, impact, the analysis context).
 struct LoadedSwing {
     bool                                 ok = false;
     QString                              error;
-    std::optional<pinpoint::SwingWindow> window;   // disk-backed; streams on demand
+    // Disk-backed; streams on demand. HELD BY POINTER so it never moves: `recording.window` points at
+    // it, and a LoadedSwing is moved around freely (returned, std::move'd) — an inline window would
+    // leave that pointer dangling on the first move (step 1.5, review round 1).
+    std::unique_ptr<pinpoint::SwingWindow> window;
+    // The Recording the job was built from; its window is `window` above (step 1.5: the analysis
+    // service judges the integrity verdicts on it). Stays valid when the LoadedSwing is moved.
+    pinpoint::recording::Recording       recording;
     ShotAnalysisJob                      job;
     bool                                 usedRaw = false;  // any camera used the raw sidecar
     QJsonObject                          analysisIn;       // the recorded analysis block (version-gated reuse)
+    // The origin the reuse readers take the recorded block's times in (analysisReadOriginUs,
+    // swing_doc.h): 0 for a document stamped timeBase "window", else its clock.t0_us.
+    int64_t                              analysisOriginUs = 0;
+
+    // The shot's review facts as stored: the board's override and the popover's club. The job
+    // above applies both through effectiveContext() (step 1.6): the override is the club the analysis
+    // uses, the declared club sets the standard length.
+    ClubReview                           review;
+    // The job's club is the golfer's correction (EffectiveClub::corrected) — for the reuse gate.
+    bool                                 clubCorrected = false;
+    // true = the document's own analysisContext block; false = the legacy context (recording_header.h).
+    bool                                 contextRecorded = false;
+    // The document (or its analysisContext) is newer than this build: reanalyzeSwingDir refuses.
+    bool                                 readOnly = false;
+    QString                              readOnlyReason;
 
     // The host-side orientation filter in force when this swing was CAPTURED, read
     // from streams[].device.orientationFilter of the host-fused lanes (a wG3 fuses
@@ -98,9 +126,14 @@ struct LoadedSwing {
 
 class SwingDiskLoader {
 public:
-    // Reconstruct from <swingDir>/swing.json + its media sidecars. Never opens the
-    // live EventBuffer. On failure returns { ok=false, error set, window=nullopt }.
+    // Reconstruct from <swingDir>/swing.json + its media sidecars (loadRecording), then build the
+    // job (buildAnalysisJob, origin "replay"). Never opens the live EventBuffer. On failure returns
+    // { ok=false, error set, window=nullopt }.
     static LoadedSwing load(const QString& swingDir, const SwingLoadOptions& opts = {});
+    // The same, reading the shot through the domain's RecordingReader by its ShotRef (SwingLab's
+    // composition root; the reader is keyed by ShotRef since step 2.4).
+    static LoadedSwing load(pinpoint::RecordingReader& reader, const pinpoint::ShotRef& shot,
+                            const SwingLoadOptions& opts = {});
 };
 
 struct ReanalyzeOptions {
@@ -113,10 +146,11 @@ struct ReanalyzeOptions {
     // explicit re-analyse; SwingLab leaves it false to keep sweeps comparable
     // to production's live-capture bound unless a run opts in.
     bool        fullWindow = false;
-    // Version-gated reuse (analysis_versions.h): when the recorded analysis
-    // block's pose (model + code + scope) matches what would run now, the recorded
-    // pose is reloaded and ViTPose is not run; likewise the ball track when its
-    // version matches AND the pose is reused. true ⇒ always re-run everything.
+    // Version-gated reuse (reuse_gate.h): when the recorded analysis block's pose
+    // (stage version + scope — never the model file, Mark's pose rule) matches what
+    // would run now, the recorded pose is reloaded and ViTPose is not run; likewise
+    // the ball track when its version matches AND the pose is reused, and the shaft
+    // track + ladder when the club inputs match too. true ⇒ always re-run everything.
     bool        forceRerun = false;
     // skeleton3d values held fixed in the fit (swing_3d_viz_design.md §13.7) — SwingLab's
     // --skeleton-calib only. The app never pools: §13.9 measured no benefit.
@@ -143,7 +177,12 @@ struct ReanalyzeResult {
 
 // Convenience for the app: load + run makeShotAnalyzer()->analyze().
 // Self-contained — touches no live device. The analyzer call is wrapped so a
-// thrown analyzer degrades to { ok=false, error } rather than propagating.
+// thrown analyzer degrades to { ok=false, error } rather than propagating. A read-only document
+// (LoadedSwing::readOnly: newer than this build) is refused before anything runs.
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts = {});
+// The same, reading the shot through the domain's RecordingReader by its ShotRef (step 2.4): what the
+// app's re-analysis and SwingLab's --write-back run (reanalyse_and_persist.h). Same rules, same result.
+ReanalyzeResult reanalyzeShot(pinpoint::RecordingReader& reader, const pinpoint::ShotRef& shot,
+                              const ReanalyzeOptions& opts = {});
 
 } // namespace pinpoint::analysis

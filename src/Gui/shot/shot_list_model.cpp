@@ -19,6 +19,7 @@
 #include "shot_list_model.h"
 
 #include "../Export/swing_doc.h"
+#include "../DomainModel/recording_repository.h"
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 
@@ -131,8 +132,8 @@ int ShotListModel::addShot(const QString &swingDir, const QString &timestampLabe
 {
     // ⚠ THE NUMBER COMES FROM THE DOCUMENT, NOT FROM COUNTING THE ROWS.
     //
-    // Two things number a swing: SwingPaths::allocateSwingDir, which counts
-    // swing_* folders and probes upward, and this, which used to take
+    // Two things number a swing: SessionRepository::allocateSwing, which reads
+    // the swing_* folders and the high-water and probes upward, and this, which used to take
     // max(ordinal) + 1 over the rows. They agree until a swing is deleted from
     // the middle of a session, and then they do not: a carousel reloaded from a
     // folder holding swing_0001 and swing_0005 called the next shot "Shot 6"
@@ -313,6 +314,7 @@ void ShotListModel::attachSwingDir(int id, const QString &swingDir)
     }
 
     s.swingDir       = swingDir;
+    s.shot           = {};   // translated afresh from the new folder (shotOf)
     s.score          = p.score;
     s.metrics        = p.metrics;
     s.analysisDetail = p.analysisDetail;
@@ -347,14 +349,32 @@ void ShotListModel::clear()
 // Persist the row's review (rating + note + club) to its swing.json, if it has
 // one on disk. A row with no swingDir (export produced no directory) is in-memory
 // only and silently skips the write-through.
+// The edge (DEC-90): a row's folder translated to its ShotRef the first time the row writes, then kept
+// (a row's folder never changes once set, except by attachSwingDir, which clears it).
+pinpoint::ShotRef ShotListModel::shotOf(int row)
+{
+    Shot &s = m_shots[row];
+    if (s.shot.isNull() && m_repo && !s.swingDir.isEmpty())
+        s.shot = m_repo->shotOfFolder(s.swingDir);
+    return s.shot;
+}
+
 void ShotListModel::persistReview(int row)
 {
     const Shot &s = m_shots.at(row);
     if (s.swingDir.isEmpty())
         return;
-    QString err;
-    if (!pinpoint::SwingDocWriter::updateReview(s.swingDir, s.rating, s.note, s.club, &err))
-        ppWarn() << "[ShotListModel] review write-through failed:" << err;
+    if (!m_repo) {
+        ppWarn() << "[ShotListModel] review write-through skipped — no recording repository:" << s.swingDir;
+        return;
+    }
+    pinpoint::ReviewEdit edit;
+    edit.rating = s.rating;
+    edit.note   = s.note;
+    edit.club   = s.club;
+    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
+    if (!w.ok())
+        ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
 }
 
 void ShotListModel::setRating(int id, int n)
@@ -406,10 +426,17 @@ void ShotListModel::persistLmAnnotations(int row)
     const Shot &s = m_shots.at(row);
     if (s.swingDir.isEmpty())
         return;
-    QString err;
-    if (!pinpoint::SwingDocWriter::updateShotAnnotations(s.swingDir, s.lmExcluded,
-                                                         s.lmClubOverride, &err))
-        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << err;
+    if (!m_repo) {
+        ppWarn() << "[ShotListModel] launch monitor annotation write-through skipped — no recording repository:"
+                 << s.swingDir;
+        return;
+    }
+    pinpoint::ReviewEdit edit;
+    edit.excluded     = s.lmExcluded;
+    edit.clubOverride = s.lmClubOverride;
+    const pinpoint::WriteResult w = m_repo->editReview(shotOf(row), edit);
+    if (!w.ok())
+        ppWarn() << "[ShotListModel] launch monitor annotation write-through failed:" << w.error;
 }
 
 void ShotListModel::setLmExcluded(int id, bool excluded)

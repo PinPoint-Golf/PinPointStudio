@@ -37,6 +37,7 @@
 //     whether a women's set is flatter or more upright, and a shorter club at the same lie is what
 //     the makers' own women's specs mostly show.
 
+#include <QDate>
 #include <QString>
 
 #include <algorithm>
@@ -135,6 +136,20 @@ inline ClubSet clubSetFor(const QString &sexToken, bool junior)
 {
     if (junior) return ClubSet::Junior;
     return sexToken.compare(QLatin1String("female"), Qt::CaseInsensitive) == 0 ? ClubSet::Women : ClubSet::Men;
+}
+
+// The same set on a given day: a junior when under 18 on `on` (both dates valid), else as above.
+// What capture records into the swing's analysis context (IM-1, the club set on the swing's date)
+// and what the legacy reader derives from an old document's athlete.sex / athlete.dob.
+inline ClubSet clubSetOn(const QString &sexToken, const QDate &dob, const QDate &on)
+{
+    bool junior = false;
+    if (dob.isValid() && on.isValid()) {
+        int age = on.year() - dob.year();
+        if (on < dob.addYears(age)) --age;
+        junior = age < 18;
+    }
+    return clubSetFor(sexToken, junior);
 }
 
 } // namespace pinpoint

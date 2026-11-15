@@ -116,9 +116,10 @@ pp_add_test(presenter_pool_test
 pp_add_test(shot_list_model_test
     SOURCES shot_list_model_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -127,12 +128,13 @@ pp_add_test(shot_list_model_test
     LINK    Qt6::Qml  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
-# The controller's worker body (reanalyzeSwingDir / writeSwingJson) is satisfied
+# The controller's worker body (reanalyzeSwingDir) is satisfied
 # by reanalysis_stubs.cpp so the funnel test stays free of the analysis pipeline.
 pp_add_test(reanalysis_controller_test
     SOURCES reanalysis_controller_test.cpp
             reanalysis_stubs.cpp
             ${GUI}/shot/reanalysis_controller.cpp
+            ${SRC}/Analysis/reanalyse_and_persist.cpp   # the one write-back (step 1.4)
             ${SRC}/Core/pp_os_metrics.cpp   # reanalysis_controller.cpp scopes its worker thread
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
@@ -255,10 +257,15 @@ pp_add_test(tts_phrase_cache_test
 pp_add_test(shot_ledger_test
     SOURCES shot_ledger_test.cpp
             ${GUI}/shot/shot_list_model.cpp
-            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Export/session_store.cpp            # the one swing allocator (step 2.2)
+            ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h
+            ${SRC}/Core/folder_lock.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/gcquad_csv_parser.cpp
             ${SRC}/Core/pp_log_stream.cpp
@@ -279,9 +286,10 @@ set(PP_LM_BOARD_SOURCES
             ${GUI}/trust/trust_readings.cpp
             ${GUI}/charts/session_sequence.cpp
             ${GUI}/charts/session_curves.cpp
-            ${SRC}/Export/swing_doc_writer.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp
             ${SRC}/Export/swing_doc_reader.cpp
             ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
             ${SRC}/Export/swing_paths.cpp
             ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
             ${SRC}/LaunchMonitor/launch_monitor_base.cpp
@@ -419,6 +427,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/report_studio_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/report_smtp_tests.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/athlete_session_guard_tests.cmake)   # no athlete switch mid-session (Stage 0.8g)
 include(${CMAKE_CURRENT_LIST_DIR}/replay_score_tests.cmake)   # the stored score through every reader (Stage 0.6)
+include(${CMAKE_CURRENT_LIST_DIR}/analysis_detail_tests.cmake)   # the one projection: live == replay == reload (step 1.3b)
 
 # No binding may subscribe to a dependency it does not USE.
 #

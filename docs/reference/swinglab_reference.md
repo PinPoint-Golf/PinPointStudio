@@ -26,14 +26,17 @@ serves; `docs/developer/analysis_pipeline_developer_guide.md` covers the pipelin
 ## The runner: `swinglab_run`
 
 Built with `-DPINPOINT_BUILD_TOOLS=ON`; compiles the production Analysis / Diagnostics /
-Metrics / Export sources directly, so a run IS the production pipeline. Reconstructs the
-swing from `<swing_dir>/swing.json` + media sidecars via the streaming `SwingDiskLoader`
-(never the live EventBuffer), runs `makeShotAnalyzer(sessionType)->analyze()`, and writes
-the results into a run directory.
+Metrics / Export sources directly, so a run IS the production pipeline. Reads the swing's
+**Recording** from `<swing_dir>/swing.json` + media sidecars through the domain's reading
+interface (`RecordingReader`, its store adapter `SwingStoreRecordingReader`; a streaming window,
+never the live EventBuffer), builds the job with the one builder (`SwingDiskLoader` →
+`buildAnalysisJob`), runs it through the **analysis service** (`AnalysisService::analyseJob`:
+the production analyzer and the Recording's two integrity verdicts, by the same code the app's
+live capture and re-analysis run; refactor step 1.5), and writes the results into a run directory.
 
 ```
 swinglab_run <swing_dir> --out <run_dir> [options]
-swinglab_run <swing_dir> --write-back [--session-type N]
+swinglab_run <swing_dir> --write-back [--session-type N] [--save-pose on|off]
 ```
 
 | Option | Meaning |
@@ -44,12 +47,14 @@ swinglab_run <swing_dir> --write-back [--session-type N]
 | `--trace` | Re-runs the shaft stages with trace sinks and writes `trace.jsonl` (one line per frame: phase, tier, θ, conf, ψ error, head tier…, plus a final summary line). |
 | `--session-type <int>` | Analyzer session type. Explicit option wins; else the recorded `capture.sessionType`; else 1. Type 1 (Wrist) is the only analyzer with the shaft tracker; 0/2/3 run the shared camera-kinematics analyzer. |
 | `--face-on <substr>` | Which camera counts as face-on: default matches the recorded per-stream `setup.perspective` (`"Face"`); the flag forces a substring match — the escape hatch for mislabelled recordings. |
-| `--impact-us <us>` | Impact-instant override. Without it the recorded impact is used; a doc with no impact fails (`pass --impact-us`). |
+| `--impact-us <us>` | Impact-instant override. Without it the recorded impact is used; a doc with no impact fails (`pass --impact-us`). It overrides the Recording's impact for the run, so `--doc-blocks`' capture verdict is judged against it too. |
 | `--pose <file>` | Inject a `PoseTrack2D` JSON and skip ViTPose. **Timestamps must be window-relative** — see *The timebase contract* below. |
 | `--ball <file>` | Inject a `BallTrack2D` JSON and skip the offline ball replay. |
 | `--refuse-orientation` | Orientation re-fusion parity (corpus-1 gate E1): re-run Madgwick from the recorded raw accel+gyro, report disagreement vs the stored quaternion, write `refusion.json`, and exit — no pose/shaft pipeline. Run on pilot swings before bulk capture to prove the corpus is post-hoc-tunable. |
 | `--refuse-beta <f>` | Madgwick β override for the re-fusion parity run. |
-| `--write-back` | **Re-analyse in place**: the headless twin of the in-app ReanalysisController. Runs `reanalyzeSwingDir()` with production defaults, then rewrites the *source* `swing.json`, replacing only the `analysis` block — capture/streams/review ride through untouched, with an empty-manifest guard so an unreadable doc is never clobbered. Exclusive mode: only the positional dir and `--session-type` (for recordings that predate `capture.sessionType`) are honoured. **Back up the corpus `swing.json` set before a sweep.** |
+| `--write-back` | **Re-analyse in place**: the headless twin of the in-app ReanalysisController. Runs `reanalyzeSwingDir()` with production defaults (on the analysis service), then the one write-back (`reanalyseAndPersist` → `RecordingRepository::writeAnalysis`), replacing the `analysis` block and both integrity verdicts — capture/streams/review ride through untouched, with an empty-document guard so an unreadable doc is never clobbered. Exclusive mode: only the positional dir, `--session-type` (for recordings that predate `capture.sessionType`), `--force`, `--full-window`, `--params` (a review write-back, never a library pass), `--pooled` and `--save-pose` are honoured. **Back up the corpus `swing.json` set before a sweep.** |
+| `--save-pose on\|off` | `--write-back` only: the app's *Storage → Save pose keypoints* for this write-back (`PersistOptions::savePose`), default `on` (the app's default). `off`: newly inferred pose tracks (and their version stamps) are not written back; a pose the reuse gate **reused** is always written back unchanged, never deleted (Mark, 14 Nov 2026). |
+| `--doc-blocks` | `--out` only: result.json also carries the document's `summary` and this pass's `imuIntegrity` / `captureIntegrity` verdicts as a write-back would store them. The verdicts are the analysis service's (`integrityFor`, the one rule: the IMU re-fusion only when the recording says Madgwick; the capture check against the recorded window, the impact camera and off-clock lanes exempt from coverage); the summary comes from the production writer (`RecordingRepository::create` into `<run>/doc`, removed after). For the refactor's parity baseline (`tools/parity/`). |
 
 Environment:
 
@@ -215,8 +220,9 @@ The one rule that has bitten three times, twice silently:
 
 > **Everything serialized, and everything the offline replay window uses, is
 > window-relative (0-based µs).** Only the *live* capture window runs on the absolute
-> EventBuffer clock; `serializeAnalysis` (swing_doc.cpp) subtracts `clock.t0_us` on
-> write, exactly once.
+> EventBuffer clock; the pipeline rebases its result to window time once, at
+> `PipelineAnalyzer::analyze`, and `serializeAnalysis` (`swing_doc_analysis.cpp`) writes it with
+> `analysis.timeBase: "window"` (refactor step 1.3a).
 
 Consequences: injected pose/ball files carry window-relative `t_us`; anything that
 "helpfully" rebases to absolute (`+ clock.t0_us`) produces timestamps that intersect no

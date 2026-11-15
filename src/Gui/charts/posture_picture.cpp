@@ -23,7 +23,7 @@
 #include "../../Body/head_track.h"          // trackHead — the inter-ear ruler headLift is measured with
 #include "../../Diagnostics/measures/measure_sample.h"   // buildPhaseGrid — the chart's own sampler, for the head ticks
 #include "../report/report_stills_pure.h"   // which frame, which crop: the report stills' own rule
-#include "../shot/dtl_overlay_payload.h"    // the DTL ball and club samples, as the replay payload carries them
+#include "../../Export/dtl_overlay_payload.h"   // the DTL ball and club samples, as the replay payload carries them
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -491,7 +491,7 @@ PictureDoc postureDocFrom(const QJsonObject &root, const QString &swingDir, cons
     const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
     if (root.isEmpty() || an.isEmpty()) { d.why = QStringLiteral("the swing's document has no analysis"); return d; }
     d.ok = true;
-    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));   // the analysis origin (0 when stamped)
     d.leadIsLeft = st::leadIsLeftFor(root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("handedness")).toString());
     const QJsonObject am = an.value(QStringLiteral("addressMarks")).toObject();
     d.marksVersion = am.isEmpty() ? 0 : std::max(1, am.value(QStringLiteral("stageVersion")).toInt(1));
@@ -538,7 +538,7 @@ PictureCameraDoc pictureCameraDocFrom(const QJsonObject &root, bool dtl)
     c.dtl = dtl;
     const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
     if (root.isEmpty() || an.isEmpty()) return c;
-    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));   // the analysis origin (0 when stamped)
     readCamera(root, an, t0, dtl, &c);
     return c;
 }

@@ -33,6 +33,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "../../Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
+
 namespace pinpoint::report::stills {
 
 
@@ -113,12 +115,13 @@ int positionNumber(const QString &position);
 
 // The window-relative instant of a position in a swing document's `analysis` block: analysis.phases
 // first (the analyzer's own events), then analysis.club.positions (the P-position ladder, which carries
-// P8 / P9 when the phase list does not). nullopt when the swing has neither. t0 = clock.t0_us.
+// P8 / P9 when the phase list does not). nullopt when the swing has neither. t0 = the document's
+// analysis origin, analysis::documentAnalysisOriginUs(root) (0 for a stamped document).
 std::optional<qint64> positionInstantUs(const QJsonObject &analysis, const QString &position, qint64 t0);
 
-// An analysis t_us in the window-relative domain (DiskReplaySource's rule: live captures write absolute,
-// re-analysed swings write relative; subtract t0 only from an absolute value).
-inline qint64 relUs(qint64 t, qint64 t0) { return t >= t0 ? t - t0 : t; }
+// An analysis t_us in window time: the one rule, analysis::windowTimeUs (swing_analysis.h), against the
+// document's analysis origin — what the replay's map (analysisDetailFor) is built with.
+inline qint64 relUs(qint64 t, qint64 t0) { return qint64(analysis::windowTimeUs(int64_t(t), int64_t(t0))); }
 
 // Nearest frame for a window-relative instant (the replay's rule); -1 for no frames.
 int nearestFrame(const QVector<qint64> &frameTimesUs, qint64 us);

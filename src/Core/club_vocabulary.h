@@ -93,7 +93,7 @@ inline QString canonicalClubId(const QString &raw)
 }
 
 // WHICH CLUB A SWING WAS HIT WITH, from its swing.json root. THE one resolver — the
-// session-picker summary (swing_doc.cpp) and the diagnostics phase grid
+// session-picker summary (swing_doc_reader.cpp) and the diagnostics phase grid
 // (measure_sample.cpp) both call it, so a per-club filter can never bucket the same swing
 // two ways.
 //

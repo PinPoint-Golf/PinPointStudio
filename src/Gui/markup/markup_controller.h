@@ -47,6 +47,9 @@
 // `image://markup/dtl/<dtlFrameToken>` so each new frame renders.
 
 #include "markup_truth.h"
+#include "../../DomainModel/recording_repository.h"   // the swing door the truth goes through (step 2.4)
+
+#include <QHash>
 
 #include <QObject>
 #include <QString>
@@ -145,6 +148,8 @@ public:
 
     // Non-owning; the QML engine owns the provider (addImageProvider). Set once
     // at startup before any swing is opened.
+    // The swing door the truth is read and written through (FILE-SHOT-12; step 2.4).
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; m_shots.clear(); }
     void setImageProvider(MarkupImageProvider *p) { m_provider = p; }
 
     QVariantList swings()        const { return m_swingsCache; }
@@ -307,6 +312,15 @@ private:
     // The window-µs instant the playhead is on (the face-on frame's own t_us).
     qint64 playheadUs() const;
 
+    // The truth through the swing door (FILE-SHOT-12): each queued folder's ShotRef, translated once.
+    pinpoint::ShotRef     shotOf(const QString &swingDir);
+    QJsonObject           truthJson(const QString &swingDir, pinpoint::markup::MarkupView view);
+    pinpoint::WriteResult saveTruth(const pinpoint::markup::TruthDoc &doc,
+                                    const pinpoint::markup::VideoStreamInfo &vi,
+                                    pinpoint::markup::MarkupView view);
+
+    pinpoint::RecordingRepository    *m_repo = nullptr;
+    QHash<QString, pinpoint::ShotRef> m_shots;   // queued folder -> its ShotRef
     MarkupImageProvider          *m_provider = nullptr;
     QStringList                   m_swingDirs;
     QVariantList                  m_swingsCache;

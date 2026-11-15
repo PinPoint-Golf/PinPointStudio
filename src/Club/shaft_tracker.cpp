@@ -40,7 +40,7 @@
 #include "../Pose/hand_axis.h"      // handAxisDirection — the WB4 shaft θ prior
 #include "shaft_frame_io.h"         // lerpPoseFrame / decodeGray / buildFrameCache (shared with DTL)
 #include "shaft_hand_clean.h"       // cleanHandTrack (pair consistency + glitch rejection)
-#include "../Analysis/shot_analyzer.h" // ShotAnalysisJob
+#include "../Analysis/shot_analysis_job.h" // ShotAnalysisJob
 #include "swing_window.h"
 #include "format_descriptor.h"
 #include "../Core/pp_debug.h"
@@ -213,9 +213,9 @@ ShaftTrack2D ShaftTracker::track(const pinpoint::SwingWindow& window, const Pose
     shaftshared::ShaftProfScope tCache(&prof, "cache");
     const FrameSource frameAt = buildFrameCache(window, cov, *cfmt, w, h, frameCache, frameLease.store());
     tCache.stop();
-    // Persistent club-length prior (club_length_fusion.h) from the job — filled by
-    // ShotProcessor from AppSettings (live) or SwingDiskLoader from swing.json
-    // (re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null
+    // Persistent club-length prior (club_length_fusion.h) from the job — the one builder
+    // takes it from the Recording's analysis context (resolved from AppSettings at the
+    // freeze live, read from swing.json on re-analysis). Joined into the fusion only when matured (n ≥ 2); pass null
     // otherwise so the E-prior term contributes nothing. Read-only here — the
     // prior UPDATE happens in the caller after out.lengths is populated.
     LengthPriorState lengthPrior;

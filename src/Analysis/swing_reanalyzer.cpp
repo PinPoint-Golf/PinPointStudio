@@ -19,50 +19,19 @@
 #include "swing_reanalyzer.h"
 #include "recorded_products.h"   // shaftTrackFromAnalysisJson / segmentationFromAnalysisJson
 #include "analysis_versions.h"
-#include "../Export/swing_store.h"   // the document, whichever format it is in
+#include "analysis_job_builder.h"   // the one job builder
+#include "analysis_service.h"      // the run and the integrity verdicts (step 1.5)
+#include "effective_context.h"
+#include "reuse_gate.h"           // the one reuse gate (step 1.6)
+#include "../Export/recording_loader.h"   // the swing folder → the Recording (step 1.2)
 #include "../Ball/ball_runner.h"
 #include "../Pose/pose_runner.h"
-#include "mp4_frame_reader.h"
-#include "analysis_tuning.h"
-#include "../Core/pp_tuned_constants.h"
-#include "../Core/club_standards.h"
-#include "../Core/club_vocabulary.h"
 
-#include <QDate>
-#include <QFile>
-#include <QFileInfo>
-#include <QHash>
-#include <QJsonArray>
-#include <QJsonDocument>
 #include <QJsonObject>
-#include <QQuaternion>
-#include <QRectF>
-#include <QRegularExpression>
 
-#include <opencv2/core.hpp>
-#include <opencv2/videoio.hpp>
-
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <cstring>
-#include <exception>
-#include <memory>
-#include <unordered_map>
-#include <vector>
-
-#include "format_descriptor.h"
-#include "imu_sample.h"
-#include "pixel_format_names.h"
-#include "ram_payload_source.h"
-#include "source_ring.h"
-#include "swing_analysis.h"
-#include "swing_payload_source.h"
-#include "types.h"
+#include <utility>
 
 #include "../Core/pp_debug.h"
-#include "../IMU/hm_unit_id.h"    // "<deviceId>#lowerArm" / "#palm" -> which segment
-#include "../IMU/hm_binding_recon.h" // rebuilding a wG3 binding from what the recording holds
 
 using namespace pinpoint;
 
@@ -70,982 +39,223 @@ namespace pinpoint::analysis {
 
 namespace {
 
-std::vector<int64_t> readTimestamps(const QJsonArray& a)
+// The job from a loaded Recording, through the ONE builder, and the LoadedSwing around it.
+LoadedSwing fromRecording(LoadedRecording lr)
 {
-    std::vector<int64_t> out;
-    out.reserve(size_t(a.size()));
-    for (const QJsonValue& v : a)
-        out.push_back(int64_t(v.toDouble()));
+    LoadedSwing out;
+    if (!lr.ok) {
+        out.error = lr.error;
+        return out;
+    }
+
+    // THE CLUB THE GOLFER HIT (step 1.6): the effective context applies the board's override
+    // (review.clubOverride, the golfer's correction) and the popover's club (review.club, the
+    // declared club: it sets the standard length), effectiveContext() v1. The reuse gate sees the
+    // club through the input stamp (reuse_gate.h), so a corrected shot re-runs its shaft track and
+    // ladder while its pose and ball are reused.
+    const EffectiveContext effective = effectiveContext(lr.recording.context, lr.review);
+    RunOptions run;
+    run.origin = QStringLiteral("replay");   // reanalyzeSwingDir says otherwise for itself
+    out.job = buildAnalysisJob(lr.recording, effective, run);
+    out.clubCorrected = effective.club.corrected;
+
+    out.review                = lr.review;
+    out.contextRecorded       = lr.contextRecorded;
+    out.readOnly              = lr.readOnly;
+    out.readOnlyReason        = lr.readOnlyReason;
+    out.analysisIn            = std::move(lr.analysisIn);
+    out.analysisOriginUs      = lr.analysisOriginUs;
+    out.usedRaw               = lr.usedRaw;
+    out.loadGates             = std::move(lr.loadGates);
+    out.hostOrientationFilter = lr.recording.integrity.hostOrientationFilter;
+    out.captureWindowStartUs  = lr.recording.integrity.windowStartUs;
+    out.captureWindowEndUs    = lr.recording.integrity.windowEndUs;
+    out.offClockCameras       = lr.recording.integrity.offClockCameras;
+    // The window's OWNER moves to the caller; the window itself never moves, so the Recording's
+    // pointer into it stays valid however the LoadedSwing is moved afterwards.
+    out.window           = std::move(lr.window);
+    out.recording        = std::move(lr.recording);
+    out.recording.window = out.window.get();
+    out.ok = true;
     return out;
 }
 
-// Parse one IMU→segment binding from a JSON object carrying role + the A/M
-// quaternions ([scalar,x,y,z]) + calibration provenance. Shared by both binding
-// sources: analysis.bindings[] (analysed swings) and the per-stream device.*
-// fallback (analysis-skipped corpus swings) — keeping the field set in one place.
-ImuSegmentBinding parseBinding(const QJsonObject& b, SourceId source)
+RecordingLoadOptions recordingLoadOptions(const SwingLoadOptions& opts)
 {
-    const QJsonArray A = b[QStringLiteral("alignA")].toArray();
-    const QJsonArray M = b[QStringLiteral("mountM")].toArray();
-    ImuSegmentBinding bind;
-    bind.source = source;
-    bind.role   = SegmentRole(b[QStringLiteral("role")].toInt());
-    bind.alignA = QQuaternion(float(A[0].toDouble()), float(A[1].toDouble()),
-                              float(A[2].toDouble()), float(A[3].toDouble()));
-    bind.mountM = QQuaternion(float(M[0].toDouble()), float(M[1].toDouble()),
-                              float(M[2].toDouble()), float(M[3].toDouble()));
-    bind.calibrated = !b.contains(QStringLiteral("calibrated"))
-                   || b[QStringLiteral("calibrated")].toBool();
-    bind.anatCalibrated       = b[QStringLiteral("anatCalibrated")].toBool(bind.calibrated);
-    bind.mountDeviationDeg     = b[QStringLiteral("mountDeviationDeg")].toDouble();
-    bind.mountGravityErrorDeg  = b[QStringLiteral("mountGravityErrorDeg")].toDouble();
-    bind.calibratedAtUtc       = b[QStringLiteral("calibratedAt")].toString();
-    bind.calibAgeSec           = b[QStringLiteral("calibAgeSec")].toDouble(-1.0);
-    // Optional (trunk design §6.8): absent on every arm binding and every swing before W2.
-    bind.trunkCalib            = readTrunkCalibProvenance(b);
-    // ⚠ WHICH INSTRUMENT — and the fallback is not belt-and-braces, it is the only
-    // answer for swings analysed before this key was written. Getting it wrong is
-    // silent: the conjugate is skipped and every wrist sign inverts while the curve
-    // still tracks the wrist convincingly.
-    //
-    // A unit-suffixed serial can only be a wG3 — "<deviceId>#lowerArm" / "#palm" is
-    // that device's own identifier format and nothing else in the tree registers a
-    // source that way — so the serial carries the answer whenever the flag does not.
-    bind.hackMotion = b[QStringLiteral("hackMotion")].toBool(
-        pinpoint::hm_unit_id::parse(b[QStringLiteral("serial")].toString(), nullptr, nullptr));
-    return bind;
+    RecordingLoadOptions ro;
+    ro.faceOnSubstring = opts.faceOnSubstring;
+    ro.faceOnExplicit  = opts.faceOnExplicit;
+    ro.tuningOverrides = opts.tuningOverrides;
+    return ro;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Per-camera lazy frame readers. read(seq) streams ONE frame from disk into a
-// single reusable buffer and returns a handle to it — valid until the next read()
-// on the same reader (the analysis stages read frames strictly one-at-a-time, so
-// a single buffer per camera satisfies the SwingPayloadSource contract). Memory
-// stays bounded to one decoded frame per camera, never the whole window.
-// ─────────────────────────────────────────────────────────────────────────────
-class CameraReader {
-public:
-    virtual ~CameraReader() = default;
-    virtual SourceRing::ReadHandle read(uint64_t seq) const noexcept = 0;
-    FormatDescriptor fd;
-};
-
-// Raw sidecar: fixed-stride payloads, frame i at byte offset i*frameBytes — the
-// exact bytes the live analyzer saw (bit-faithful). Random access is a seek+read.
-class RawFrameReader final : public CameraReader {
-public:
-    QString path;
-    qint64  frameBytes = 0;
-
-    SourceRing::ReadHandle read(uint64_t seq) const noexcept override
-    {
-        if (!opened_) {
-            file_.setFileName(path);
-            opened_ = file_.open(QIODevice::ReadOnly);
-        }
-        if (!opened_ || frameBytes <= 0)
-            return {};
-        if (!file_.seek(qint64(seq) * frameBytes))
-            return {};
-        buf_.resize(size_t(frameBytes));
-        const qint64 n = file_.read(reinterpret_cast<char*>(buf_.data()), frameBytes);
-        if (n != frameBytes)
-            return {};
-        SourceRing::ReadHandle h;
-        h.data  = buf_.data();
-        h.bytes = size_t(frameBytes);
-        return h;
-    }
-
-private:
-    mutable QFile                  file_;
-    mutable std::vector<std::byte> buf_;
-    mutable bool                   opened_ = false;
-};
-
-// The decode.* keys (pose_inference_performance_plan.md step 5), resolved once per
-// load. OFF (the defaults) is the reader as it was: OpenCV's backend choice, its own
-// thread count, software decode, rewind to frame 0 on a back-seek.
-Mp4FrameDecoder::Config mp4DecodeConfig(const QVariantMap& ov)
-{
-    namespace td = pinpoint::tuned::decode;
-    Mp4FrameDecoder::Config c;
-    c.threads = td::kThreads;
-    c.seek    = td::kSeek;
-    c.hwAccel = td::kHwAccel;
-    tuning::apply(ov, "decode.threads", c.threads);
-    tuning::apply(ov, "decode.seek",    c.seek);
-    c.ffmpeg = td::kBackendFfmpeg;
-    if (const auto it = ov.constFind(QStringLiteral("decode.backend")); it != ov.cend()) {
-        const QString v = it->toString().trimmed().toLower();
-        if (v == QLatin1String("ffmpeg"))
-            c.ffmpeg = true;
-        else if (v == QLatin1String("auto"))
-            c.ffmpeg = false;
-        else
-            ppWarn() << "[Mp4Reader] decode.backend" << v << "is not auto|ffmpeg — left"
-                     << (c.ffmpeg ? "ffmpeg" : "auto");
-    }
-    if (const auto it = ov.constFind(QStringLiteral("decode.hwAccel")); it != ov.cend()) {
-        const QString v = it->toString().trimmed().toLower();
-        if (v == QLatin1String("any") || v == QLatin1String("true") || v == QLatin1String("1"))
-            c.hwAccel = true;
-        else if (v == QLatin1String("off") || v == QLatin1String("false") || v == QLatin1String("0"))
-            c.hwAccel = false;
-        else
-            ppWarn() << "[Mp4Reader] decode.hwAccel" << v << "is not off|any — left"
-                     << (c.hwAccel ? "any" : "off");
-    }
-    return c;
-}
-
-// MP4 fallback (no raw sidecar): decode to BGR24, frame-accurate whatever the
-// container's keyframe layout — lossy, slower, used only when raw is absent. The
-// decoding itself is Mp4FrameDecoder (mp4_frame_reader.h); this adapts it to the
-// payload contract and logs its numbers once, when the swing is let go.
-class Mp4FrameReader final : public CameraReader {
-public:
-    Mp4FrameReader(const QString& path, Mp4FrameDecoder::Config cfg)
-        : name_(QFileInfo(path).fileName()), dec_(path.toStdString(), cfg)
-    {
-    }
-    ~Mp4FrameReader() override
-    {
-        // One line per camera per swing: frames decoded, rewinds/seeks, ms, and what
-        // FFmpeg reports (codec, pixel format, threads, hw) — the decode column of the
-        // [PoseRunner] split, and the other stages' reads, explained.
-        if (dec_.stats().reads > 0 || dec_.info().opened || dec_.config().any())
-            ppInfo() << "[Mp4Reader]" << name_.toStdString().c_str() << dec_.summary().c_str();
-    }
-
-    SourceRing::ReadHandle read(uint64_t seq) const noexcept override
-    {
-        try {
-            const bool wasOpen = dec_.info().opened;
-            cv::Mat bgr;
-            const bool ok = dec_.read(int64_t(seq), bgr);
-            if (!wasOpen && dec_.info().opened && dec_.info().ffmpegUnavailable)
-                ppWarn() << "[Mp4Reader]" << name_.toStdString().c_str()
-                         << "decode.* asked for the FFmpeg backend, which this OpenCV cannot load"
-                            " (no opencv_videoio_ffmpeg plugin beside the exe or on PATH) — opened with"
-                         << dec_.info().backend.c_str() << "instead";
-            else if (!wasOpen && dec_.info().opened && dec_.config().hwAccel
-                     && (dec_.info().hwFellBack || dec_.info().hwAccel == cv::VIDEO_ACCELERATION_NONE))
-                ppWarn() << "[Mp4Reader]" << name_.toStdString().c_str()
-                         << "decode.hwAccel any: no hardware decoder — decoding in software";
-            if (!ok || bgr.empty())
-                return {};
-            // The handle points into the decoder's own frame buffer, valid until the
-            // next read() — the SwingPayloadSource contract, without the 2 MB copy a
-            // frame the old reader made into a second buffer.
-            SourceRing::ReadHandle h;
-            h.data  = reinterpret_cast<const std::byte*>(bgr.data);
-            h.bytes = size_t(bgr.total() * bgr.elemSize());
-            return h;
-        } catch (...) {
-            return {};
-        }
-    }
-
-private:
-    QString                 name_;
-    mutable Mp4FrameDecoder dec_;
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Disk-backed SwingPayloadSource: IMU samples fully in RAM (tiny), camera frames
-// streamed via the readers above. The validate() seqlock check is moot (the bytes
-// are stable on disk / in our owned vectors) so it always succeeds.
-// ─────────────────────────────────────────────────────────────────────────────
-class SwingDiskSource final : public SwingPayloadSource {
-public:
-    // ⚠ IMU LANES ARE SERVED BY THE SHARED RamPayloadSource, not by a private
-    // copy of the same code. That class was lifted out of THIS one
-    // (deferred_sources_design.md §3.2) so the live deferred path and this
-    // offline path resolve an IMU payload through one implementation —
-    // re-analysis determinism depends on the two agreeing, and two copies that
-    // drift would break it silently.
-    void addImu(SourceId id, FormatDescriptor fd, std::vector<ImuSample> samples)
-    {
-        ram_.addImu(id, std::move(fd), std::move(samples));
-    }
-    void addCamera(SourceId id, std::unique_ptr<CameraReader> reader)
-    {
-        cam_[id] = std::move(reader);
-    }
-
-    SourceRing::ReadHandle payloadOf(SourceId id, uint64_t sequence) const noexcept override
-    {
-        if (ram_.has(id))
-            return ram_.payloadOf(id, sequence);
-        if (auto it = cam_.find(id); it != cam_.end())
-            return it->second->read(sequence);
-        return {};
-    }
-
-    const FormatDescriptor& formatOf(SourceId id) const noexcept override
-    {
-        if (ram_.has(id))
-            return ram_.formatOf(id);
-        if (auto it = cam_.find(id); it != cam_.end())
-            return it->second->fd;
-        static const FormatDescriptor kEmpty{};
-        return kEmpty;
-    }
-
-    bool validate(SourceId, const SourceRing::ReadHandle&) const noexcept override
-    {
-        return true;   // bytes are stable (disk / owned RAM) — no seqlock race
-    }
-
-private:
-    RamPayloadSource                                            ram_;
-    std::unordered_map<SourceId, std::unique_ptr<CameraReader>> cam_;
-};
 
 } // namespace
 
+// The Recording loader is the store's (src/Export/recording_loader.*, step 1.2); this builds the job
+// from the Recording through the ONE builder.
 LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOptions& opts)
 {
-    LoadedSwing out;
-
-    QString docError;
-    const QJsonObject root = SwingStore::load(swingDir, &docError);
-    if (root.isEmpty()) {
-        out.error = docError;
-        return out;
-    }
-    const QJsonObject analysisIn = root[QStringLiteral("analysis")].toObject();
-    const QJsonObject captureIn  = root[QStringLiteral("capture")].toObject();
-    out.analysisIn = analysisIn;
-
-    auto src = std::make_unique<SwingDiskSource>();
-    std::vector<IndexEntry> entries;
-    ShotAnalysisJob         job;
-    QHash<QString, SourceId> imuSerialToId;
-    // Bindings rebuilt from each IMU stream's device.* calibration — the fallback
-    // used when analysis.bindings is absent (analysis-skipped corpus swings).
-    std::vector<ImuSegmentBinding> deviceBindings;
-    // The HackMotion lanes the fallback could not bind, and why (hm_binding_recon.h) — recorded
-    // below only when the fallback is the binding that is used.
-    std::vector<hm_binding::Refusal> hmRefusals;
-
-    int64_t  tMin   = INT64_MAX, tMax = INT64_MIN;
-    SourceId nextId = 0;
-    bool     anyRaw = false;
-    // Distinguishes "no host-fused lane has been seen yet" from "one was seen and
-    // recorded an empty filter" — only the second is a refusal to be preserved.
-    bool     sawHostFusedLane = false;
-
-    // One decode configuration for every MP4 camera of this swing (decode.* keys).
-    const Mp4FrameDecoder::Config mp4Cfg = mp4DecodeConfig(opts.tuningOverrides);
-
-    struct VidTmp { SourceId id; bool faceOn; bool impact = false; bool dtl = false; bool raw = false; };
-    std::vector<VidTmp> vids;
-
-    for (const QJsonValue& sv : root[QStringLiteral("streams")].toArray()) {
-        const QJsonObject s    = sv.toObject();
-        const QString     kind = s[QStringLiteral("kind")].toString();
-
-        if (kind == QLatin1String("video")) {
-            std::vector<int64_t> tUs =
-                readTimestamps(s[QStringLiteral("frames")].toObject()[QStringLiteral("t_us")].toArray());
-            if (tUs.empty())
-                continue;
-
-            const QString alias  = s[QStringLiteral("alias")].toString();
-            const QString serial = s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
-            const int encW = s[QStringLiteral("encoded")].toObject()[QStringLiteral("width")].toInt();
-            const int encH = s[QStringLiteral("encoded")].toObject()[QStringLiteral("height")].toInt();
-            int fpsNum = 150, fpsDen = 1;
-            double exposureUs = 0.0;
-            ExposureSource exposureSource = ExposureSource::Unknown;
-            if (s.contains(QStringLiteral("capture"))) {
-                const QJsonObject c = s[QStringLiteral("capture")].toObject();
-                if (c[QStringLiteral("fps_num")].toInt() > 0 && c[QStringLiteral("fps_den")].toInt() > 0) {
-                    fpsNum = c[QStringLiteral("fps_num")].toInt();
-                    fpsDen = c[QStringLiteral("fps_den")].toInt();
-                }
-                exposureUs     = c[QStringLiteral("exposureUs")].toDouble(0.0);
-                exposureSource = exposureSourceFromName(
-                    c[QStringLiteral("exposureSource")].toString().toStdString(),
-                    c[QStringLiteral("exposureAuto")].toBool(false));
-            }
-
-            // Prefer the raw sidecar (bit-faithful) when present on disk.
-            bool    useRaw = false;
-            QString rawPath, rawPf;
-            int     rawW = 0, rawH = 0;
-            qint64  rawStride = 0, rawFrameBytes = 0;
-            if (s.contains(QStringLiteral("raw"))) {
-                const QJsonObject r = s[QStringLiteral("raw")].toObject();
-                rawPath = swingDir + QLatin1Char('/') + r[QStringLiteral("file")].toString();
-                if (QFile::exists(rawPath)) {
-                    useRaw        = true;
-                    rawW          = r[QStringLiteral("width")].toInt();
-                    rawH          = r[QStringLiteral("height")].toInt();
-                    rawPf         = r[QStringLiteral("pixelFormat")].toString();
-                    rawStride     = qint64(r[QStringLiteral("stride")].toDouble());
-                    rawFrameBytes = qint64(r[QStringLiteral("frameBytes")].toDouble());
-                }
-            }
-            anyRaw |= useRaw;
-
-            FormatDescriptor fd;
-            fd.device        = DeviceKind::Camera_UVC;
-            fd.device_serial = serial.toStdString();
-            CameraFormat cf{};
-            cf.fps_numerator   = uint32_t(fpsNum);
-            cf.fps_denominator = uint32_t(fpsDen);
-            cf.exposure_us     = exposureUs;      // 0.0 for legacy swings (no exposure key)
-            cf.exposure_source = exposureSource;
-            std::unique_ptr<CameraReader> reader;
-            if (useRaw) {
-                cf.pixel_format      = pixelFormatFromName(rawPf.toStdString());
-                cf.width             = uint32_t(rawW);
-                cf.height            = uint32_t(rawH);
-                cf.max_payload_bytes = uint32_t(rawFrameBytes);
-                cf.plane_strides[0]  = uint32_t(rawStride);
-                auto rr      = std::make_unique<RawFrameReader>();
-                rr->path     = rawPath;
-                rr->frameBytes = rawFrameBytes;
-                reader       = std::move(rr);
-            } else {
-                cf.pixel_format      = PixelFormat::BGR24;
-                cf.width             = uint32_t(encW);
-                cf.height            = uint32_t(encH);
-                cf.max_payload_bytes = uint32_t(encW * encH * 3);
-                cf.plane_strides[0]  = uint32_t(encW * 3);
-                reader = std::make_unique<Mp4FrameReader>(
-                    swingDir + QLatin1Char('/') + s[QStringLiteral("file")].toString(), mp4Cfg);
-            }
-            fd.format  = cf;
-            reader->fd = fd;
-
-            // Face-on: recorded perspective (FaceOn == 2) unless the tool forces a
-            // substring match; legacy streams without "setup" fall back to it too.
-            bool faceOn;
-            if (s.contains(QStringLiteral("setup")) && !opts.faceOnExplicit)
-                faceOn = (s[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 2);
-            else
-                faceOn = alias.contains(opts.faceOnSubstring, Qt::CaseInsensitive)
-                      || s[QStringLiteral("file")].toString().contains(opts.faceOnSubstring, Qt::CaseInsensitive);
-
-            // Hitting-area search box the face-on stream recorded (captures since
-            // ball-ROI persistence) — BallRunner uses it instead of the pose stance
-            // corridor, so re-analysis skips feet/shoe distractors like the live path.
-            if (faceOn) {
-                const QJsonArray sr = s[QStringLiteral("setup")].toObject()
-                    [QStringLiteral("ballDetection")].toObject()
-                    [QStringLiteral("searchRoi")].toArray();
-                if (sr.size() == 4)
-                    job.ballSearchRoi = QRectF(sr.at(0).toDouble(), sr.at(1).toDouble(),
-                                               sr.at(2).toDouble(), sr.at(3).toDouble());
-
-                // Persisted live empty-mat baseline (captures since baseline
-                // persistence): BallRunner reconstructs the tracker from it instead
-                // of self-seeding over the swing's opening frames, where the ball
-                // already sits. Validate dims, roi rect, and the blob file before
-                // trusting it — any failure warns and leaves the ref empty.
-                const QJsonObject bl = s[QStringLiteral("setup")].toObject()
-                    [QStringLiteral("ballDetection")].toObject()
-                    [QStringLiteral("baseline")].toObject();
-                if (!bl.isEmpty()) {
-                    BallBaselineRef ref;
-                    ref.path = swingDir + QLatin1Char('/') + bl[QStringLiteral("file")].toString();
-                    ref.w    = bl[QStringLiteral("w")].toInt();
-                    ref.h    = bl[QStringLiteral("h")].toInt();
-                    const QJsonArray br = bl[QStringLiteral("roi")].toArray();
-                    if (br.size() == 4)
-                        ref.roi = QRectF(br.at(0).toDouble(), br.at(1).toDouble(),
-                                         br.at(2).toDouble(), br.at(3).toDouble());
-                    ref.rHat   = bl[QStringLiteral("rHat")].toDouble();
-                    ref.fps    = bl[QStringLiteral("fps")].toDouble();
-                    ref.noise0 = bl[QStringLiteral("noise0")].toDouble(1.0);
-                    if (ref.w <= 0 || ref.h <= 0)
-                        ppWarn() << "[Reanalysis]" << swingDir
-                                 << "ballDetection.baseline has bad dims" << ref.w << "x"
-                                 << ref.h << "— ignoring";
-                    else if (br.size() != 4 || ref.roi.isEmpty())
-                        ppWarn() << "[Reanalysis]" << swingDir
-                                 << "ballDetection.baseline roi missing/empty — ignoring";
-                    else if (!QFileInfo::exists(ref.path))
-                        ppWarn() << "[Reanalysis]" << swingDir
-                                 << "ballDetection.baseline blob missing at" << ref.path
-                                 << "— ignoring";
-                    else
-                        job.ballBaseline = std::move(ref);
-                }
-            }
-
-            const SourceId id = nextId++;
-            for (size_t i = 0; i < tUs.size(); ++i)
-                entries.push_back(IndexEntry{ tUs[i], id, uint64_t(i) });
-            tMin = std::min(tMin, tUs.front());
-            tMax = std::max(tMax, tUs.back());
-
-            src->addCamera(id, std::move(reader));
-            // A phone clip is timed from its own first frame, not the window's t0
-            // (SwingStore::streamOnWindowClock): the capture check may not hold it to the window.
-            if (!SwingStore::streamOnWindowClock(s))
-                out.offClockCameras.push_back(id);
-            // The impact camera (setup.perspective 4): the ImpactRunner's source,
-            // never a face-on candidate (impact_camera_design.md §10).
-            const bool impact = s.contains(QStringLiteral("setup"))
-                && s[QStringLiteral("setup")].toObject()[QStringLiteral("perspective")].toInt() == 4;
-            // The down-the-line camera (setup.perspective 1): read the same way
-            // face-on is, and with the same fall-back for the pre-versioned
-            // 2026-06-11 session, whose streams carry no "setup" block at all —
-            // there the alias/file name is the only evidence of where the camera
-            // stood ("Down-the-Line"). A stream the tool has NAMED as face-on
-            // (--face-on DTL) is the face-on one and cannot also be this.
-            //
-            // The name fall-back matches WHOLE TOKENS, not substrings. A bare
-            // contains("Down") claims "Downswing-cam", "Slowdown" and a directory
-            // called "Downstairs"; and it ran against the whole PATH, so any swing
-            // living under a folder with those letters in it was a DTL swing. The
-            // regex wants "dtl" or "down the line" (any of -, _ or a space, or
-            // nothing, between the words) bounded by a non-letter on each side,
-            // case-insensitively. The alias is the golfer's own label and is asked
-            // first; only then the file's BASENAME.
-            bool dtl = false;
-            if (!faceOn && !impact) {
-                if (s.contains(QStringLiteral("setup"))) {
-                    dtl = s[QStringLiteral("setup")].toObject()
-                              [QStringLiteral("perspective")].toInt() == 1;
-                } else {
-                    static const QRegularExpression kDtlName(
-                        QStringLiteral("(^|[^a-z])(dtl|down[-_ ]?the[-_ ]?line)([^a-z]|$)"),
-                        QRegularExpression::CaseInsensitiveOption);
-                    const QString base = QFileInfo(s[QStringLiteral("file")].toString()).fileName();
-                    dtl = kDtlName.match(alias).hasMatch()
-                       || kDtlName.match(base).hasMatch();
-                }
-            }
-            vids.push_back({ id, faceOn && !impact, impact, dtl, useRaw });
-
-        } else if (kind == QLatin1String("imu")) {
-            const QJsonObject samples = s[QStringLiteral("samples")].toObject();
-            std::vector<int64_t> tUs = readTimestamps(samples[QStringLiteral("t_us")].toArray());
-
-            std::vector<ImuSample> rows;
-            rows.reserve(size_t(samples[QStringLiteral("data")].toArray().size()));
-            for (const QJsonValue& dv : samples[QStringLiteral("data")].toArray()) {
-                const QJsonArray d = dv.toArray();
-                std::array<float, 10> a{};
-                for (int i = 0; i < 10 && i < d.size(); ++i)
-                    a[size_t(i)] = float(d.at(i).toDouble());
-                rows.push_back(makeImuSample(a[0], a[1], a[2], a[3], a[4],
-                                             a[5], a[6], a[7], a[8], a[9]));
-            }
-            if (rows.size() != tUs.size() || rows.empty())
-                continue;
-
-            const QString alias  = s[QStringLiteral("alias")].toString();
-            const QString serial = s[QStringLiteral("source")].toObject()[QStringLiteral("serial")].toString();
-            int rateHz = 200;
-            if (s[QStringLiteral("device")].toObject()[QStringLiteral("outputRateHz")].toInt() > 0)
-                rateHz = s[QStringLiteral("device")].toObject()[QStringLiteral("outputRateHz")].toInt();
-
-            // ⚠ THE INSTRUMENT IS RECORDED, SO READ IT RATHER THAN ASSUMING WITMOTION.
-            // The exporter tags a HackMotion lane `"instrument": "hackmotion"`
-            // (swing_exporter.cpp:731) precisely because the two lanes share the
-            // imu_sample_v2 byte layout while meaning different things by it — accel is
-            // gravity-removed here and raw there, and the quaternion runs world->body
-            // here and body->world there. Hardcoding WitMotion threw that away on every
-            // replay, which is why a re-analysed wG3 capture could not have produced a
-            // correct wrist metric even once the live binding was fixed.
-            const bool isHackMotion =
-                s[QStringLiteral("instrument")].toString() == QLatin1String("hackmotion");
-            const DeviceKind devKind = isHackMotion ? DeviceKind::IMU_HackMotion
-                                                    : DeviceKind::IMU_WitMotion;
-
-            // Which host filter produced the stored quaternions — host-fused lanes
-            // only (see LoadedSwing::hostOrientationFilter). Lanes that disagree
-            // collapse to empty: with no single answer there is no safe one, and
-            // the only consumer refuses rather than guesses.
-            if (!isHackMotion) {
-                const QString filt = s[QStringLiteral("device")].toObject()
-                                        [QStringLiteral("orientationFilter")].toString();
-                if (!sawHostFusedLane)
-                    out.hostOrientationFilter = filt;
-                else if (out.hostOrientationFilter.compare(filt, Qt::CaseInsensitive) != 0)
-                    out.hostOrientationFilter.clear();
-                sawHostFusedLane = true;
-            }
-
-            FormatDescriptor fd;
-            fd.device        = devKind;
-            fd.device_serial = serial.toStdString();
-            ImuFormat imf{};
-            imf.device         = devKind;
-            imf.sample_rate_hz = uint32_t(rateHz);
-            imf.packet_bytes   = sizeof(ImuSample);
-            imf.packet_schema  = "imu_sample_v2";
-            fd.format          = imf;
-
-            const SourceId id = nextId++;
-            for (size_t i = 0; i < tUs.size(); ++i)
-                entries.push_back(IndexEntry{ tUs[i], id, uint64_t(i) });
-            tMin = std::min(tMin, tUs.front());
-            tMax = std::max(tMax, tUs.back());
-
-            job.imuSources.push_back(id);
-            if (!serial.isEmpty())
-                imuSerialToId.insert(serial, id);
-            src->addImu(id, fd, std::move(rows));
-
-            // Fallback binding from the stream's device.* calibration (present only
-            // when the exporter baked it in — every capture since corpus support).
-            const QJsonObject deviceObj = s[QStringLiteral("device")].toObject();
-            if (isHackMotion) {
-                // The reconstruction itself — why a wG3 binding is rebuilt rather than
-                // read back, and why the role comes from the unit and not from
-                // sessionType — lives in hm_binding_recon.h, which is where it is
-                // tested. Everything it needs is a value out of swing.json, so all that
-                // is left here is reading them and reporting a refusal.
-                const auto hb = hm_binding::reconstruct(
-                    id, serial,
-                    deviceObj[QStringLiteral("calibrationStateAtStart")].toInt(-1));
-                if (hb.refusal != hm_binding::Refusal::None)
-                    hmRefusals.push_back(hb.refusal);
-                switch (hb.refusal) {
-                case hm_binding::Refusal::NoFrameCandidate:
-                    ppWarn() << "[Reanalysis]" << swingDir
-                             << "carries a HackMotion lane but no frame candidate is"
-                                " selected — the lane is loaded but not bound, so no"
-                                " wrist metric will come from it.";
-                    break;
-                case hm_binding::Refusal::SerialNamesNoUnit:
-                    ppWarn() << "[Reanalysis]" << swingDir
-                             << "HackMotion lane serial" << serial
-                             << "does not name a unit — cannot tell which segment it"
-                                " measured, so it is not bound.";
-                    break;
-                case hm_binding::Refusal::None:
-                    deviceBindings.push_back(*hb.binding);
-                    break;
-                }
-            } else if (deviceObj[QStringLiteral("alignA")].toArray().size() == 4
-                && deviceObj[QStringLiteral("mountM")].toArray().size() == 4)
-                deviceBindings.push_back(parseBinding(deviceObj, id));
-
-        } else if (kind == QLatin1String("ball")) {
-            // v3.4 (design §9.7): NOT an EventBuffer/ring source — just carried
-            // straight into job.ballTrack (Decision A, plan §1). t_us is in the
-            // same window-relative domain as the video/imu streams above, so no
-            // conversion is needed for internal consistency with tUs[i] derived
-            // from this same reconstructed window elsewhere.
-            const QJsonObject frames = s[QStringLiteral("frames")].toObject();
-            std::vector<int64_t> bTUs = readTimestamps(frames[QStringLiteral("t_us")].toArray());
-            const QJsonArray data = frames[QStringLiteral("data")].toArray();
-            if (bTUs.size() != size_t(data.size()) || bTUs.empty())
-                continue;
-
-            analysis::BallTrack2D bt;
-            bt.frames.reserve(bTUs.size());
-            for (size_t i = 0; i < bTUs.size(); ++i) {
-                const QJsonArray fr = data.at(int(i)).toArray();
-                analysis::BallSample2D bs;
-                bs.t_us = bTUs[i];
-                if (fr.size() >= 5) {
-                    bs.found      = fr.at(0).toDouble() != 0.0;
-                    bs.center     = QPointF(fr.at(1).toDouble(), fr.at(2).toDouble());
-                    bs.radiusNorm = float(fr.at(3).toDouble());
-                    bs.conf       = float(fr.at(4).toDouble());
-                }
-                bt.frames.push_back(bs);
-            }
-            if (s.contains(QStringLiteral("launch"))) {
-                const QJsonObject launch = s[QStringLiteral("launch")].toObject();
-                bt.launchTUs    = int64_t(launch[QStringLiteral("t_us")].toDouble());
-                bt.launchCenter = QPointF(launch[QStringLiteral("x")].toDouble(),
-                                          launch[QStringLiteral("y")].toDouble());
-            }
-            job.ballTrack = std::move(bt);
-        }
-    }
-
-    // Precedence (re-analysis only): a valid persisted baseline makes the
-    // BallRunner re-run authoritative — the recorded "ball" stream carries a known
-    // wrong-time-base accumulator snapshot (junk on live captures to date), so it
-    // must not shadow the re-run. Empty ballTrack ⇒ the analysis_pipeline ladder falls
-    // through to BallRunner.
-    if (job.ballBaseline.isValid())
-        job.ballTrack = {};
-
-    // Sanity gate: drop a recorded ball stream whose WHOLE span lies outside the
-    // reconstructed window [0, tMax−tMin] — the wrong-time-base recording bug
-    // (warn-and-drop; the bug itself is out of scope). Conservative: only when
-    // every frame is out, keyed off the time-ordered ends.
-    if (!job.ballTrack.frames.empty() && tMax > tMin) {
-        const int64_t span = tMax - tMin;
-        if (job.ballTrack.frames.front().t_us > span
-            || job.ballTrack.frames.back().t_us < 0) {
-            ppWarn() << "[Reanalysis]" << swingDir
-                     << "recorded ball stream lies wholly outside the window [0," << span
-                     << "] (t_us" << job.ballTrack.frames.front().t_us << ".."
-                     << job.ballTrack.frames.back().t_us << ") — dropping";
-            job.ballTrack = {};
-        }
-    }
-
-    if (vids.empty()) {
-        out.error = QStringLiteral("no video streams in swing.json");
-        return out;
-    }
-
-    // Camera order: face-on first (analyzers prefer it without re-sorting).
-    job.path.origin = QStringLiteral("replay");   // reanalyzeSwingDir says otherwise for itself
-    const auto frameSource = [](const VidTmp &v) { return v.raw ? QStringLiteral("raw") : QStringLiteral("mp4"); };
-    for (const VidTmp& v : vids) {
-        if (v.faceOn) {
-            job.cameraSources.insert(job.cameraSources.begin(), v.id);
-            ++job.faceOnCameraCount;
-            job.path.framesFaceOn = frameSource(v);   // the last one, as it becomes cameraSources.front()
-        } else {
-            job.cameraSources.push_back(v.id);
-        }
-        if (v.impact)
-            job.impactSource = v.id;
-        // FIRST DTL stream wins; camera ORDER is untouched by this (the DTL camera
-        // rides in cameraSources exactly where it always did).
-        if (v.dtl && job.dtlSource == kInvalidSourceId) {
-            job.dtlSource = v.id;
-            job.path.framesDtl = frameSource(v);
-        }
-    }
-
-    // Match the live window's time-ordered index (stable: per-source order kept).
-    std::stable_sort(entries.begin(), entries.end(),
-                     [](const IndexEntry& a, const IndexEntry& b) {
-                         return a.timestamp_us < b.timestamp_us;
-                     });
-
-    // Session type — recorded capture.sessionType (caller may override later).
-    if (captureIn.contains(QStringLiteral("sessionType"))
-        && captureIn[QStringLiteral("sessionType")].toInt() >= 0)
-        job.sessionType = captureIn[QStringLiteral("sessionType")].toInt();
-
-    // Offline pose-model tier — recorded capture.motionCaptureQuality, so
-    // re-analysis reproduces the model the swing was captured with (High ->
-    // ViTPose++-L when the model is present on THIS host, else it degrades to B),
-    // deterministically and independent of the re-running machine's live setting.
-    // Absent on legacy swings ⇒ empty ⇒ ViTPose-B (unchanged historical behaviour).
-    job.motionCaptureQuality = captureIn[QStringLiteral("motionCaptureQuality")].toString();
-
-    // Impact, most-precise source first (all WINDOW-RELATIVE µs to match the
-    // reconstructed timeline): capture.impactUs (exact back-dated estimate, already
-    // relative — corpus swings incl. analysis-skipped) → the recorded Impact phase
-    // (analysed swings) → thumbnail's nearest-captured-frame instant (quantized,
-    // last resort).
-    //   NB: analysis.phases t_us are ABSOLUTE (nowMicros — the analyzer ran on the
-    //   live absolute window), unlike streams/thumbnail/capture.impactUs which are
-    //   relative. Convert by subtracting clock.t0_us (the absolute window start).
-    //   Synthetic swings have no clock block (t0=0) and already store relative
-    //   phases, so the subtraction is a no-op there.
-    const qint64 t0Us =
-        qint64(root[QStringLiteral("clock")].toObject()[QStringLiteral("t0_us")].toDouble(0));
-    qint64 impact = -1;
-    if (captureIn.contains(QStringLiteral("impactUs")))
-        impact = qint64(captureIn[QStringLiteral("impactUs")].toDouble(-1));
-
-    // Legacy acoustic-anchor de-bias. Captures before the mic-distance split
-    // back-dated the anchor by a flat latencyUs.audioDevice (20 ms), which the
-    // 2026-08-10 truth corpus measured as a uniform 13-22 ms EARLY vs video
-    // impact (mean -17.1 ms, sd 3.3 — the acoustic travel is real, the device
-    // latency was ~0). New captures subtract residual + travel at the source
-    // and record latencyUs.micTravel; its ABSENCE identifies a legacy anchor,
-    // which is corrected here to what the new capture chain would have
-    // produced: add the recorded over-subtraction back, remove the travel for
-    // the DEFAULT 1 m mic distance. The constant (not AppSettings) keeps
-    // re-analysis deterministic and cross-host, like motionCaptureQuality and
-    // the club prior above. Gated on shotSource 4 (ShotController Acoustic —
-    // Gui enum, compared as the persisted int): IMU/launch-monitor anchors
-    // never carried the audio back-date. Corpus effect measured offline:
-    // truth-swing anchor error -17.1 ms mean -> -0.0 ms, max |err| 5.1 ms.
-    const QJsonObject latencyIn = captureIn[QStringLiteral("latencyUs")].toObject();
-    if (impact > 0 && captureIn[QStringLiteral("shotSource")].toInt(-1) == 4
-        && !latencyIn.contains(QStringLiteral("micTravel"))) {
-        constexpr qint64 kDefaultMicTravelUs = 2915;   // 1 m at 343 m/s
-        impact += qint64(latencyIn[QStringLiteral("audioDevice")].toDouble(0))
-                - kDefaultMicTravelUs;
-    }
-    if (impact <= 0) {
-        for (const QJsonValue& pv : analysisIn[QStringLiteral("phases")].toArray())
-            if (pv.toObject()[QStringLiteral("phase")].toInt() == int(Phase::Impact))
-                impact = qint64(pv.toObject()[QStringLiteral("t_us")].toDouble()) - t0Us;
-    }
-    if (impact <= 0 && root.contains(QStringLiteral("thumbnail")))
-        impact = qint64(root[QStringLiteral("thumbnail")].toObject()[QStringLiteral("t_us")].toDouble(-1));
-    job.impactUs = impact;
-
-    const QString hand = root[QStringLiteral("athlete")].toObject()[QStringLiteral("handedness")].toString();
-    job.handedness = hand.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0  ? 2
-                   : hand.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0 ? 1
-                                                                                     : 0;
-    // The recorded height (skeleton3d scale prior); absent on swings before it was recorded.
-    job.athleteHeightM = root[QStringLiteral("athlete")].toObject()[QStringLiteral("heightM")].toDouble(0.0);
-
-    // Club geometry (shaft-tracker E1 band matcher): recover the club that was
-    // used from capture.club (persisted since the club-persistence change). Absent
-    // on older swings → the shaft tracker runs ray-only (no band-lock DP wells).
-    const QJsonObject clubIn = captureIn[QStringLiteral("club")].toObject();
-    if (!clubIn.isEmpty()) {
-        const double lmm = clubIn[QStringLiteral("lengthMm")].toDouble(0.0);
-        if (lmm > 0.0) { job.clubLengthM = lmm / 1000.0; job.clubLengthKnown = true; }
-        job.shaftType = clubIn[QStringLiteral("shaftType")].toString();
-        job.hoselFromButtMm = clubIn[QStringLiteral("hoselFromButtMm")].toDouble(0.0);
-        job.shaftLengthMm   = clubIn[QStringLiteral("shaftLengthMm")].toDouble(0.0);
-        job.handsEndMm      = clubIn[QStringLiteral("handsEndMm")].toDouble(0.0);
-        for (const QJsonValue& v : clubIn[QStringLiteral("bandCentersMm")].toArray())
-            job.bandCentersMm.push_back(v.toDouble());
-
-        // Club-length prior (club_length_fusion.h): re-analysis replays the
-        // RECORDED prior — the state the live fuse actually used for THIS shot —
-        // never AppSettings (deterministic, cross-host). Absent block ⇒ the shot
-        // ran prior-free; the fields keep their no-prior defaults.
-        job.clubName = clubIn[QStringLiteral("name")].toString();
-        const QJsonObject priorIn = clubIn[QStringLiteral("lengthPrior")].toObject();
-        if (!priorIn.isEmpty()) {
-            const double px = priorIn[QStringLiteral("px")].toDouble(-1.0);
-            const int    n  = priorIn[QStringLiteral("n")].toInt(0);
-            if (px > 0.0 && n > 0) {
-                job.priorClubLenPx    = px;
-                job.priorClubLenVarPx = priorIn[QStringLiteral("varPx")].toDouble(-1.0);
-                job.priorClubLenN     = n;
-            }
-        }
-    }
-
-    // No recorded length (every camera swing before capture.club was persisted): the STANDARD
-    // length of the club the swing declares (review.club, else capture.club.name) — for the 3-D
-    // skeleton only (ShotAnalysisJob::standardClubLengthM) — for the athlete
-    // the document records — a junior (under 18 on the swing's day) by height, else women's for
-    // "female", else men's. A swing that declares no club stays on the driver default, unknown.
-    if (!job.clubLengthKnown) {
-        const QJsonObject ath = root[QStringLiteral("athlete")].toObject();
-        const QDate dob = QDate::fromString(ath[QStringLiteral("dob")].toString(), Qt::ISODate);
-        const QDate on = QDate::fromString(root[QStringLiteral("session")].toObject()[QStringLiteral("dir")].toString().left(10), Qt::ISODate);
-        bool junior = false;
-        if (dob.isValid() && on.isValid()) {
-            int age = on.year() - dob.year();
-            if (on < dob.addYears(age)) --age;
-            junior = age < 18;
-        }
-        const pinpoint::ClubStandard st = pinpoint::standardClub(
-            pinpoint::swingDocDeclaredClub(root),
-            pinpoint::clubSetFor(ath[QStringLiteral("sex")].toString(), junior), job.athleteHeightM);
-        if (st.valid) job.standardClubLengthM = st.lengthMm / 1000.0;
-    }
-
-    // IMU → segment bindings: the persisted session A/M calibration, serial-keyed.
-    // Identity A/M is NOT synthesised — re-fusing without the recorded calibration
-    // would be fabrication (mirrors swinglab_run).
-    for (const QJsonValue& bv : analysisIn[QStringLiteral("bindings")].toArray()) {
-        const QJsonObject b  = bv.toObject();
-        const auto        it = imuSerialToId.constFind(b[QStringLiteral("serial")].toString());
-        if (it == imuSerialToId.constEnd())
-            continue;
-        job.imuBindings.push_back(parseBinding(b, it.value()));
-    }
-
-    // No analysis.bindings (analysis-skipped corpus swing) → use the per-stream
-    // device.* calibration the exporter baked into each IMU stream.
-    if (job.imuBindings.empty()) {
-        job.imuBindings = std::move(deviceBindings);
-        // A lane refused here is a wrist reading this re-analysis cannot produce: its record
-        // (wrist.hmBinding) joins analysis.gates via reanalyzeSwingDir.
-        out.loadGates = hm_binding::refusalRecords(hmRefusals);
-    }
-
-    // Re-fusing on an uncalibrated A/M snapshot yields a confident-looking but
-    // unreliable result — flag it, the way swinglab_run used to (don't silently
-    // trust it into a corpus).
-    for (const ImuSegmentBinding& b : job.imuBindings)
-        if (!b.calibrated)
-            ppWarn() << "[Reanalysis]" << swingDir << "binding role" << int(b.role)
-                     << "recorded UNCALIBRATED (mount dev"
-                     << b.mountDeviationDeg << "deg, gravity err"
-                     << b.mountGravityErrorDeg << "deg) — results unreliable";
-
-    const QJsonObject windowIn = root[QStringLiteral("window")].toObject();
-    if (windowIn.contains(QStringLiteral("start_us")) && windowIn.contains(QStringLiteral("end_us"))) {
-        out.captureWindowStartUs = qint64(windowIn[QStringLiteral("start_us")].toDouble());
-        out.captureWindowEndUs   = qint64(windowIn[QStringLiteral("end_us")].toDouble());
-    }
-
-    out.window.emplace(std::move(src), std::move(entries), tMin, tMax);
-    out.job     = std::move(job);
-    out.usedRaw = anyRaw;
-    out.ok      = true;
-    return out;
+    return fromRecording(loadRecording(swingDir, recordingLoadOptions(opts)));
 }
+
+
+LoadedSwing SwingDiskLoader::load(RecordingReader& reader, const ShotRef& shot, const SwingLoadOptions& opts)
+{
+    return fromRecording(reader.load(shot, recordingLoadOptions(opts)));
+}
+
+namespace {
+// The re-analysis of a loaded swing: everything after the read, whichever door the swing came in by.
+// `label` names the swing in the log (its folder, or its ShotRef).
+ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label);
+} // namespace
 
 ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts)
 {
-    ReanalyzeResult out;
-
     // The overrides reach the loader too: the MP4 readers it builds take the decode.*
     // keys (everything else in the map is applied by the stages, below).
     SwingLoadOptions lopts;
     lopts.tuningOverrides = opts.tuningOverrides;
-    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
+    return reanalyzeLoaded(SwingDiskLoader::load(swingDir, lopts), opts, swingDir);
+}
+
+ReanalyzeResult reanalyzeShot(RecordingReader& reader, const ShotRef& shot, const ReanalyzeOptions& opts)
+{
+    SwingLoadOptions lopts;
+    lopts.tuningOverrides = opts.tuningOverrides;
+    return reanalyzeLoaded(SwingDiskLoader::load(reader, shot, lopts), opts, shot.toString());
+}
+
+namespace {
+ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label)
+{
+    ReanalyzeResult out;
     if (!ls.ok) {
         out.error = ls.error;
         return out;
     }
     out.usedRaw = ls.usedRaw;
+    // A document newer than this build (its schema, or its analysisContext's): re-analysing it would
+    // write an older shape over it. Read-only — refused before anything runs.
+    if (ls.readOnly) {
+        out.error = QStringLiteral("This shot can't be re-analysed here: %1.").arg(ls.readOnlyReason);
+        return out;
+    }
 
     if (!opts.tuningOverrides.isEmpty())
         ls.job.tuningOverrides = opts.tuningOverrides;
     if (opts.sessionTypeOverride >= 0)
-        ls.job.sessionType = opts.sessionTypeOverride;
+        ls.job.sessionType = opts.sessionTypeOverride;   // the input stamp names it (the pipeline stamps it)
     if (!opts.poseTrackPath.isEmpty())
         ls.job.poseTrackPath = opts.poseTrackPath;
     ls.job.fullWindow = opts.fullWindow;
     ls.job.path.origin = QStringLiteral("reanalysis");
     ls.job.path.forced = opts.forceRerun;
-    for (const char *k : { "pose", "ball", "shaft", "ladder", "poseDtl" })
-        ls.job.path.reuse.insert(QString::fromLatin1(k), opts.forceRerun ? QStringLiteral("forced") : QString());
     // skeleton3d values held fixed: SwingLab's --skeleton-calib only (the app never pools).
     if (opts.skeletonCalib)
         ls.job.skeletonCalib = opts.skeletonCalib;
-    // ── Version-gated reuse (analysis_versions.h) ────────────────────────────
-    // The recorded pose is reloaded when its producer (model file, stage version,
-    // scan scope) is the one that would run now and no pose tuning override is in
-    // play; the recorded ball track likewise, but only on top of a reused pose
-    // (it was computed from that pose), and the shaft track + ladder on top of both
-    // (see below). The down-the-line pose is reused under the face-on pose's rule;
-    // the DTL club track always re-runs. Everything downstream is recomputed.
-    if (!opts.forceRerun) {
-        const QJsonObject ver  = ls.analysisIn[QStringLiteral("versions")].toObject();
-        const QJsonObject vp   = ver[QStringLiteral("pose")].toObject();
-        const QJsonObject vb   = ver[QStringLiteral("ball")].toObject();
-        const QString wantScope = ls.job.fullWindow ? QStringLiteral("full") : QStringLiteral("span");
-        bool poseOverride = false;
-        for (auto it = ls.job.tuningOverrides.cbegin(); it != ls.job.tuningOverrides.cend(); ++it)
-            if (it.key().startsWith(QLatin1String("pose.")) || it.key().startsWith(QLatin1String("shaft.addressScan"))
-                || it.key().startsWith(QLatin1String("shaft.addressStride")) || it.key().startsWith(QLatin1String("ball.")))
-                poseOverride = true;
-        const bool poseMatch = !poseOverride && !vp.isEmpty()
-            && vp[QStringLiteral("code")].toInt() == kPoseStageVersion
-            && vp[QStringLiteral("model")].toString() == PoseRunner::modelIdentity(ls.job.motionCaptureQuality)
-            // a full-window pose covers a span request; a span pose covers only a span request
-            && (vp[QStringLiteral("scope")].toString() == QLatin1String("full")
-                || vp[QStringLiteral("scope")].toString() == wantScope)
-            && !ls.job.cameraSources.empty();
-        if (poseMatch) {
-            ls.job.posePreloaded = PoseRunner::fromJsonObject(ls.analysisIn, ls.job.cameraSources.front());
-            if (ls.job.posePreloaded.frames.empty()) ls.job.posePreloaded = {};
-            else ls.job.posePreloadedScope = vp[QStringLiteral("scope")].toString();
+    // ── Version-gated reuse (analysis_versions.h), decided by the one gate (reuse_gate.h) ──────
+    // The recorded pose is reloaded when its stage version and scan scope are the ones that would
+    // run now and no pose tuning override is in play — WHATEVER POSE MODEL FILE THIS HOST HAS (Mark's
+    // pose rule, 14 Nov 2026); the recorded ball track likewise, but only on top of a reused pose (it
+    // was computed from that pose), and the shaft track + ladder on top of both, only when the club
+    // they were computed with is this run's (the input stamp's club inputs, step 1.6). The
+    // down-the-line pose is reused under the face-on pose's rule; the DTL club track always re-runs.
+    // Everything downstream is recomputed.
+    ReuseGateFacts facts;
+    facts.versions         = ls.analysisIn[QStringLiteral("versions")].toObject();
+    facts.hasBallBlock     = ls.analysisIn.contains(QStringLiteral("ball"));
+    facts.hasClubBlock     = ls.analysisIn.contains(QStringLiteral("club"));
+    facts.hasPoseDtlBlock  = ls.analysisIn.contains(QStringLiteral("poseDtl"));
+    facts.forceRerun       = opts.forceRerun;
+    facts.tuningOverrides  = ls.job.tuningOverrides;
+    facts.fullWindow       = ls.job.fullWindow;
+    facts.hasFaceOnCamera  = !ls.job.cameraSources.empty();
+    facts.hasDtlCamera     = ls.job.dtlSource != kInvalidSourceId;
+    // The stamp this run writes: the builder's, with the session type this run uses (the pipeline
+    // stamps it the same way).
+    facts.inputsNow             = ls.job.inputs;
+    facts.inputsNow.sessionType = ls.job.sessionType;
+    facts.clubCorrectedNow      = ls.clubCorrected;
+    const ReuseGate gate(facts);
+
+    if (gate.mayReloadPose()) {
+        ls.job.posePreloaded = PoseRunner::fromJsonObject(ls.analysisIn, ls.job.cameraSources.front(),
+                                                          ls.analysisOriginUs);
+        if (ls.job.posePreloaded.frames.empty()) {
+            ls.job.posePreloaded = {};
+        } else {
+            ls.job.posePreloadedScope = gate.recordedPoseScope();
+            ls.job.posePreloadedModel = gate.recordedPoseModel();
         }
-        // The DOWN-THE-LINE pose, under the face-on pose's rule: its own stage version, the
-        // same model identity, no pose./ball./address override — and a DTL camera to put it
-        // on. Independent of whether the face-on pose was reused (the two are separate
-        // inference passes). The DTL club track is never reused: it is recomputed from the
-        // (reused) poses and face-on shaft every time.
-        const QJsonObject vpd = ver[QStringLiteral("poseDtl")].toObject();
-        const bool poseDtlMatch = !poseOverride && !vpd.isEmpty()
-            && vpd[QStringLiteral("code")].toInt() == kDtlPoseStageVersion
-            && vpd[QStringLiteral("model")].toString() == PoseRunner::modelIdentity(ls.job.motionCaptureQuality)
-            && ls.analysisIn.contains(QStringLiteral("poseDtl"))
-            && ls.job.dtlSource != kInvalidSourceId;
-        if (poseDtlMatch) {
-            // fromJsonObject reads a `pose2d` member (and its decode/cropRect provenance), so
-            // hand it the DTL block under that name.
-            ls.job.poseDtlPreloaded = PoseRunner::fromJsonObject(
-                QJsonObject{ { QStringLiteral("pose2d"), ls.analysisIn[QStringLiteral("poseDtl")] } },
-                ls.job.dtlSource);
-            if (ls.job.poseDtlPreloaded.frames.empty()) ls.job.poseDtlPreloaded = {};
-        }
-        const bool ballMatch = !ls.job.posePreloaded.frames.empty() && !vb.isEmpty()
-            && vb[QStringLiteral("code")].toInt() == kBallStageVersion
-            && ls.analysisIn.contains(QStringLiteral("ball"));
-        if (ballMatch) {
-            ls.job.ballPreloaded = BallRunner::fromAnalysisJson(ls.analysisIn[QStringLiteral("ball")].toObject(),
-                                                                ls.job.cameraSources.front());
-            if (ls.job.ballPreloaded.frames.empty()) ls.job.ballPreloaded = {};
-        }
-        // ── The shaft track and the resolved ladder (2026-09-17) ─────────────────
-        // Reused only on top of a reused pose AND ball (the track was computed from
-        // them), when the tracker that wrote it is the one that would run now, and
-        // when NO tuning override is in play at all — the ladder stages that would
-        // otherwise re-run (EventRefine, PositionsLadder, TimelineFusion) each have
-        // their own knobs, and a sweep that sets any knob wants everything re-run.
-        // Production re-analysis (the app, --write-back) sets none, which is exactly
-        // the metrics-only case this exists for: the tracker must not run again on
-        // the swing's mp4 and replace a good live track with a coasting one.
-        const QJsonObject vs = ver[QStringLiteral("shaft")].toObject();
-        const bool shaftMatch = ballMatch && !ls.job.ballPreloaded.frames.empty()
-            && ls.job.tuningOverrides.isEmpty() && !vs.isEmpty()
-            && vs[QStringLiteral("code")].toInt() == kShaftStageVersion
-            && ls.analysisIn.contains(QStringLiteral("club"));
-        if (shaftMatch) {
-            ls.job.shaftPreloaded = shaftTrackFromAnalysisJson(
-                ls.analysisIn[QStringLiteral("club")].toObject(), ls.job.cameraSources.front());
-            if (!ls.job.shaftPreloaded.valid || ls.job.shaftPreloaded.samples.empty()) {
-                ls.job.shaftPreloaded = {};
-            } else {
-                ls.job.ladderPreloaded = segmentationFromAnalysisJson(ls.analysisIn);
-                if (!ls.job.ladderPreloaded || ls.job.ladderPreloaded->events.empty()) {
-                    // A track without its ladder is not reusable: the ladder was refined
-                    // FROM this track, and re-deriving it would run the very stages the
-                    // reuse exists to hold still. Re-run the lot.
-                    ls.job.shaftPreloaded  = {};
-                    ls.job.ladderPreloaded = std::nullopt;
-                }
+    }
+    // The DOWN-THE-LINE pose, independent of whether the face-on pose was reused (the two are
+    // separate inference passes). fromJsonObject reads a `pose2d` member (and its decode/cropRect
+    // provenance), so hand it the DTL block under that name.
+    if (gate.mayReloadPoseDtl()) {
+        ls.job.poseDtlPreloaded = PoseRunner::fromJsonObject(
+            QJsonObject{ { QStringLiteral("pose2d"), ls.analysisIn[QStringLiteral("poseDtl")] } },
+            ls.job.dtlSource, ls.analysisOriginUs);
+        if (ls.job.poseDtlPreloaded.frames.empty()) ls.job.poseDtlPreloaded = {};
+        else ls.job.poseDtlPreloadedModel = gate.recordedPoseDtlModel();
+    }
+    // The handedness the reused pose was labelled with leads with the other hand now: relabel its
+    // lead/trail hands (the keypoints do not depend on it), never re-infer (Mark's pose rule).
+    if (gate.poseLeadSwapped()) {
+        for (PoseTrack2D *t : { &ls.job.posePreloaded, &ls.job.poseDtlPreloaded })
+            for (PoseFrame2D &f : t->frames)
+                std::swap(f.leadHand, f.trailHand);
+    }
+    if (gate.mayReloadBall(!ls.job.posePreloaded.frames.empty())) {
+        ls.job.ballPreloaded = BallRunner::fromAnalysisJson(ls.analysisIn[QStringLiteral("ball")].toObject(),
+                                                            ls.job.cameraSources.front(),
+                                                            ls.analysisOriginUs);
+        if (ls.job.ballPreloaded.frames.empty()) ls.job.ballPreloaded = {};
+    }
+    // ── The shaft track and the resolved ladder (2026-09-17) ─────────────────
+    // Production re-analysis (the app, --write-back) sets no tuning override, which is exactly the
+    // metrics-only case this exists for: the tracker must not run again on the swing's mp4 and
+    // replace a good live track with a coasting one. A corrected club re-runs it (step 1.6).
+    if (gate.mayReloadShaft(!ls.job.ballPreloaded.frames.empty())) {
+        ls.job.shaftPreloaded = shaftTrackFromAnalysisJson(
+            ls.analysisIn[QStringLiteral("club")].toObject(), ls.job.cameraSources.front(),
+            ls.analysisOriginUs);
+        if (!ls.job.shaftPreloaded.valid || ls.job.shaftPreloaded.samples.empty()) {
+            ls.job.shaftPreloaded = {};
+        } else {
+            ls.job.ladderPreloaded = segmentationFromAnalysisJson(ls.analysisIn, ls.analysisOriginUs);
+            if (!ls.job.ladderPreloaded || ls.job.ladderPreloaded->events.empty()) {
+                // A track without its ladder is not reusable: the ladder was refined FROM this
+                // track, and re-deriving it would run the very stages the reuse exists to hold
+                // still. Re-run the lot.
+                ls.job.shaftPreloaded  = {};
+                ls.job.ladderPreloaded = std::nullopt;
             }
         }
-        // The same answers for the document, each with its first reason (analysis.path.reuse).
-        const auto version = [](const QJsonObject &v, int want) {
-            return QStringLiteral("version %1, want %2").arg(v[QStringLiteral("code")].toInt()).arg(want);
-        };
-        const auto scopeOf = [&vp] { return vp[QStringLiteral("scope")].toString(); };
-        const bool anyOverride = !ls.job.tuningOverrides.isEmpty();
-        QMap<QString, QString> &reuse = ls.job.path.reuse;
-        const QString reused = QStringLiteral("reused");
-        const QString noRecord = QStringLiteral("no record");
-        reuse[QStringLiteral("pose")] =
-              !ls.job.posePreloaded.frames.empty() ? reused
-            : poseOverride ? QStringLiteral("tuning override")
-            : vp.isEmpty() ? noRecord
-            : vp[QStringLiteral("code")].toInt() != kPoseStageVersion ? version(vp, kPoseStageVersion)
-            : vp[QStringLiteral("model")].toString() != PoseRunner::modelIdentity(ls.job.motionCaptureQuality) ? QStringLiteral("model changed")
-            : (scopeOf() != QLatin1String("full") && scopeOf() != wantScope) ? QStringLiteral("scope %1, want %2").arg(scopeOf(), wantScope)
-            : ls.job.cameraSources.empty() ? QStringLiteral("no face-on camera")
-                                           : QStringLiteral("recorded track is empty");
-        reuse[QStringLiteral("ball")] =
-              !ls.job.ballPreloaded.frames.empty() ? reused
-            : ls.job.posePreloaded.frames.empty() ? QStringLiteral("needs a reloaded pose")
-            : vb.isEmpty() || !ls.analysisIn.contains(QStringLiteral("ball")) ? noRecord
-            : vb[QStringLiteral("code")].toInt() != kBallStageVersion ? version(vb, kBallStageVersion)
-                                                                     : QStringLiteral("recorded track is empty");
-        reuse[QStringLiteral("shaft")] =
-              !ls.job.shaftPreloaded.samples.empty() ? reused
-            : ls.job.ballPreloaded.frames.empty() ? QStringLiteral("needs a reloaded ball")
-            : anyOverride ? QStringLiteral("tuning override")
-            : vs.isEmpty() || !ls.analysisIn.contains(QStringLiteral("club")) ? noRecord
-            : vs[QStringLiteral("code")].toInt() != kShaftStageVersion ? version(vs, kShaftStageVersion)
-            : shaftMatch ? QStringLiteral("no usable track, or no ladder with it")
-                         : QStringLiteral("not reusable");
-        reuse[QStringLiteral("ladder")] = ls.job.ladderPreloaded ? reused : reuse[QStringLiteral("shaft")];
-        reuse[QStringLiteral("poseDtl")] =
-              !ls.job.poseDtlPreloaded.frames.empty() ? reused
-            : ls.job.dtlSource == kInvalidSourceId ? QStringLiteral("no down-the-line camera")
-            : poseOverride ? QStringLiteral("tuning override")
-            : vpd.isEmpty() || !ls.analysisIn.contains(QStringLiteral("poseDtl")) ? noRecord
-            : vpd[QStringLiteral("code")].toInt() != kDtlPoseStageVersion ? version(vpd, kDtlPoseStageVersion)
-            : vpd[QStringLiteral("model")].toString() != PoseRunner::modelIdentity(ls.job.motionCaptureQuality) ? QStringLiteral("model changed")
-                                                                                                                : QStringLiteral("recorded track is empty");
-        ppInfo() << "[Reanalysis]" << swingDir << "reuse: pose"
-                 << (ls.job.posePreloaded.frames.empty() ? "re-run" : "recorded") << "ball"
-                 << (ls.job.ballPreloaded.frames.empty() ? "re-run" : "recorded") << "shaft"
-                 << (ls.job.shaftPreloaded.samples.empty() ? "re-run" : "recorded (synth refreshed)")
-                 << "ladder" << (ls.job.ladderPreloaded ? "recorded" : "re-run")
-                 << "dtl pose" << (ls.job.dtlSource == kInvalidSourceId ? "n/a"
-                                   : ls.job.poseDtlPreloaded.frames.empty() ? "re-run" : "recorded");
     }
+    // The same answers for the document, each with its first reason (analysis.path.reuse).
+    ReuseReloaded reloaded;
+    reloaded.pose    = !ls.job.posePreloaded.frames.empty();
+    reloaded.poseDtl = !ls.job.poseDtlPreloaded.frames.empty();
+    reloaded.ball    = !ls.job.ballPreloaded.frames.empty();
+    reloaded.shaft   = !ls.job.shaftPreloaded.samples.empty();
+    reloaded.ladder  = ls.job.ladderPreloaded.has_value();
+    ls.job.path.reuse = gate.reasons(reloaded);
+    {
+        const QString stale = analysisInputsStaleness(facts.versions, facts.inputsNow);
+        ppInfo() << "[Reanalysis]" << label << "inputs:"
+                 << (stale.isEmpty() ? QStringLiteral("current") : QStringLiteral("stale (%1)").arg(stale))
+                 << "club" << (facts.inputsNow.club.isEmpty() ? QStringLiteral("(undeclared)") : facts.inputsNow.club)
+                 << (ls.clubCorrected ? "(corrected)" : "");
+    }
+    if (!opts.forceRerun)
+        ppInfo() << "[Reanalysis]" << label << "reuse: pose"
+                 << (reloaded.pose ? "recorded" : "re-run") << "ball"
+                 << (reloaded.ball ? "recorded" : "re-run") << "shaft"
+                 << (reloaded.shaft ? "recorded (synth refreshed)" : "re-run")
+                 << "ladder" << (reloaded.ladder ? "recorded" : "re-run")
+                 << "dtl pose" << (ls.job.dtlSource == kInvalidSourceId ? "n/a"
+                                   : reloaded.poseDtl ? "recorded" : "re-run");
     if (ls.job.impactUs <= 0) {
         out.error = QStringLiteral("This shot has no recorded impact time, so it can't be re-analysed.");
         return out;
@@ -1061,56 +271,23 @@ ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOption
         return out;
     }
 
-    try {
-        auto analyzer = makeShotAnalyzer();
-        out.analysis  = analyzer->analyze(*ls.window, ls.job);
-        out.ok        = out.analysis.ok;
-        out.error     = out.analysis.error;
-        // The loader's own gate records (a HackMotion lane it could not bind) join the stages'.
-        if (out.analysis.detail && !ls.loadGates.empty())
-            out.analysis.detail->gates.insert(out.analysis.detail->gates.end(),
-                                              ls.loadGates.begin(), ls.loadGates.end());
-    } catch (const std::exception& e) {
-        out.error = QStringLiteral("analyzer threw: %1").arg(QString::fromUtf8(e.what()));
-    } catch (...) {
-        out.error = QStringLiteral("analyzer threw an unknown exception");
-    }
-
-    // ── A FRESH DATA-INTEGRITY VERDICT, NOT THE ONE CAPTURE REACHED ─────────────
-    //
-    // The window is still alive here and its IMU payloads are pure RAM
-    // (RamPayloadSource), so this is one Madgwick pass per host-fused lane and no
-    // disk IO. It runs after analyze() only because there is nothing to gain by
-    // running it earlier; it does not depend on the analysis.
-    //
-    // ⚠ ONLY WHEN THE RECORDING SAYS MADGWICK. Parity is a claim about whether the
-    // stored quaternion is reproducible from the stored vectors, which is a
-    // question one can only ask of a Madgwick host fusion — the sole filter that
-    // warm-starts exactly. Under ESKF, or when the recording does not say, we leave
-    // this nullopt and the write-back REMOVES the block: no claim beats a fabricated
-    // one. A wG3-only swing reaches checkImuRefusion and comes back with
-    // sourcesChecked == 0, which applyImuIntegrity also treats as no claim.
-    if (ls.window
-        && ls.hostOrientationFilter.compare(QStringLiteral("madgwick"), Qt::CaseInsensitive) == 0)
-        out.imuIntegrity = pinpoint::checkImuRefusion(*ls.window);
-
-    // Capture data-integrity (frame-timestamp holes in the camera lanes). The
-    // loader's window is window-relative and so is ls.job.impactUs — the same
-    // domain contract the analyzer follows, so the pre/post-impact split is exact.
-    // The lanes' coverage is judged against the RECORDED window (the document's
-    // `window` block), not the loaded one, which spans only the frames that exist;
-    // the impact camera's band and phone clips (their own clock) are exempt.
-    if (ls.window) {
-        pinpoint::CaptureCoverageSpec cov;
-        cov.judge         = true;
-        cov.windowStartUs = ls.captureWindowStartUs;
-        cov.windowEndUs   = ls.captureWindowEndUs;
-        std::vector<SourceId> exempt = ls.offClockCameras;
-        exempt.push_back(ls.job.impactSource);
-        out.captureIntegrity = pinpoint::checkCaptureIntegrity(*ls.window, ls.job.impactUs, cov, exempt);
-    }
+    // THE ANALYSIS SERVICE: the run, and the Recording's two integrity verdicts by the one rule
+    // (integrityFor: the IMU re-fusion only when the recording says Madgwick; the capture check
+    // against the recorded window, the impact camera and off-clock lanes exempt) — the very code the
+    // live capture runs (step 1.5). A FRESH verdict for this pass, never the one capture reached.
+    AnalysedRecording run = AnalysisService().analyseJob(ls.recording, ls.job);
+    out.analysis = std::move(run.analysis);
+    out.ok       = out.analysis.ok;
+    out.error    = out.analysis.error;
+    // The loader's own gate records (a HackMotion lane it could not bind) join the stages'.
+    if (out.analysis.detail && !ls.loadGates.empty())
+        out.analysis.detail->gates.insert(out.analysis.detail->gates.end(),
+                                          ls.loadGates.begin(), ls.loadGates.end());
+    out.imuIntegrity     = std::move(run.integrity.imu);
+    out.captureIntegrity = std::move(run.integrity.capture);
 
     return out;
 }
+} // namespace
 
 } // namespace pinpoint::analysis

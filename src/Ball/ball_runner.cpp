@@ -17,6 +17,7 @@
  */
 
 #include "ball_runner.h"
+#include "ball_track_json.h"   // ballTrackFromAnalysisJson — the ball block's one typed reader
 
 using pinpoint::analysis::BallBaselineRef;
 using pinpoint::analysis::BallSample2D;
@@ -257,8 +258,8 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
     const int fw = cfmt->width, fh = cfmt->height;
     const double rHat = radiusForWidth(fw);
 
-    // ── Pre-seeded baseline (re-analysis only): reconstruct the tracker from the
-    //    persisted live empty-mat baseline instead of self-seeding over the
+    // ── Pre-seeded baseline (re-analysis, and live since refactor step 1.5 — D5): reconstruct the
+    //    tracker from the live empty-mat baseline (on disk, or in memory live) instead of self-seeding over the
     //    opening frames, where the ball is already placed (which would bake its
     //    own response into B — the bug this path fixes). B is only valid over its
     //    OWN rect, so the baseline's rect wins over searchRoi/corridor. A dims or
@@ -280,9 +281,12 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
             ppWarn() << "[BallRunner] baseline ROI dims" << rw << "x" << rh
                      << "!= persisted" << baseline.w << "x" << baseline.h
                      << "(frame" << fw << "x" << fh << ") — self-seeding instead";
-        } else if (!loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)) {
+        } else if (!(baseline.bytes.isEmpty()
+                         ? loadBallBaselineBlob(baseline.path, baseline.w, baseline.h, loaded)
+                         : ballBaselineFromBytes(baseline.bytes, baseline.w, baseline.h, loaded))) {
             ppWarn() << "[BallRunner] baseline blob missing/truncated at"
-                     << baseline.path << "— self-seeding instead";
+                     << (baseline.bytes.isEmpty() ? baseline.path : QStringLiteral("(live, in memory)"))
+                     << "— self-seeding instead";
         } else {
             roiRect   = cv::Rect(rx, ry, rw, rh);
             B         = loaded;
@@ -678,32 +682,11 @@ BallTrack2D BallRunner::run(const pinpoint::SwingWindow &window,
 #include <QJsonDocument>
 #include <QJsonObject>
 
-BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera)
+BallTrack2D BallRunner::fromAnalysisJson(const QJsonObject &ball, pinpoint::SourceId camera, int64_t t0Us)
 {
-    BallTrack2D track;
+    // The ball block's one typed reader (ball_track_json.h), bound to the caller's source.
+    BallTrack2D track = pinpoint::analysis::ballTrackFromAnalysisJson(ball, t0Us);
     track.camera = camera;
-    const QJsonArray samples = ball[QStringLiteral("samples")].toArray();
-    track.frames.reserve(size_t(samples.size()));
-    for (const QJsonValue &fv : samples) {
-        const QJsonObject o = fv.toObject();
-        BallSample2D s;
-        s.t_us       = int64_t(o[QStringLiteral("t_us")].toDouble());
-        s.found      = o[QStringLiteral("found")].toBool();
-        s.center     = QPointF(o[QStringLiteral("x")].toDouble(), o[QStringLiteral("y")].toDouble());
-        s.radiusNorm = float(o[QStringLiteral("r")].toDouble());
-        s.conf       = float(o[QStringLiteral("conf")].toDouble());
-        s.clubActivity = o.contains(QStringLiteral("act")) ? float(o[QStringLiteral("act")].toDouble()) : -1.f;
-        track.frames.push_back(s);
-    }
-    track.launchTUs = ball.contains(QStringLiteral("launchTUs")) ? int64_t(ball[QStringLiteral("launchTUs")].toDouble()) : -1;
-    const QJsonObject launch = ball[QStringLiteral("launch")].toObject();
-    if (!launch.isEmpty())
-        track.launchCenter = QPointF(launch[QStringLiteral("x")].toDouble(), launch[QStringLiteral("y")].toDouble());
-    else if (track.launchTUs >= 0) {
-        // pre-2026-09-09 records carried no launch centre: the last found sample at or before launch
-        for (const BallSample2D &s : track.frames)
-            if (s.found && s.t_us <= track.launchTUs) track.launchCenter = s.center;
-    }
     return track;
 }
 

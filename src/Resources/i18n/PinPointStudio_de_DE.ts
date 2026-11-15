@@ -740,6 +740,14 @@
         <source>Prefer not to say</source>
         <translation>Keine Angabe</translation>
     </message>
+    <message>
+        <source>%1 was not deleted</source>
+        <translation>%1 wurde nicht gelöscht</translation>
+    </message>
+    <message>
+        <source>%1 was deleted; the folder was kept</source>
+        <translation>%1 wurde gelöscht; der Ordner blieb erhalten</translation>
+    </message>
 </context>
 <context>
     <name>AudioInput</name>
@@ -11989,6 +11997,14 @@ hier ist der Bericht zu deiner Session. Auf Seite 1 steht die Kurzfassung, deine
         <translation>%1 gespeichert – Analyse unvollständig</translation>
     </message>
     <message>
+        <source>The session&apos;s end could not be saved</source>
+        <translation>Das Ende der Session konnte nicht gespeichert werden</translation>
+    </message>
+    <message>
+        <source>Today&apos;s session could not be continued, so a new one started</source>
+        <translation>Die heutige Session konnte nicht fortgesetzt werden, daher wurde eine neue gestartet</translation>
+    </message>
+    <message>
         <source>Launch monitor only — shot saved without video or analysis</source>
         <translation>Nur Launch Monitor – Schlag ohne Video und Analyse gespeichert</translation>
     </message>
@@ -12652,6 +12668,10 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
         <translation>Körpergröße</translation>
     </message>
     <message>
+        <source>Use 5&apos;11&quot;, 180 cm or 1.80 m, or leave it blank</source>
+        <translation>Verwende 5&apos;11&quot;, 180 cm oder 1,80 m oder lass das Feld leer</translation>
+    </message>
+    <message>
         <source>Weight</source>
         <translation>Gewicht</translation>
     </message>
@@ -12774,6 +12794,42 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
 </context>
 <context>
     <name>ScreenAthletePicker</name>
+    <message>
+        <source>%1&apos;s folder moves to the library&apos;s trash.</source>
+        <translation>Der Ordner von %1 wird in den Papierkorb der Bibliothek verschoben.</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and its %1 session move to the library&apos;s trash.</source>
+        <translation>Der Ordner von %2 und seine %1 Session wandern in den Papierkorb der Bibliothek.</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and all %1 sessions move to the library&apos;s trash.</source>
+        <translation>Der Ordner von %2 und alle %1 Sessions wandern in den Papierkorb der Bibliothek.</translation>
+    </message>
+    <message>
+        <source>You can restore it from there for %1 days.</source>
+        <translation>Von dort kannst du es %1 Tage lang wiederherstellen.</translation>
+    </message>
+    <message>
+        <source>You can restore it from there.</source>
+        <translation>Von dort kannst du es wiederherstellen.</translation>
+    </message>
+    <message>
+        <source>You can restore them from there for %1 days.</source>
+        <translation>Von dort kannst du sie %1 Tage lang wiederherstellen.</translation>
+    </message>
+    <message>
+        <source>You can restore them from there.</source>
+        <translation>Von dort kannst du sie wiederherstellen.</translation>
+    </message>
+    <message>
+        <source>Delete %1?</source>
+        <translation>%1 löschen?</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Löschen</translation>
+    </message>
     <message>
         <source>Athletes</source>
         <translation>Athleten</translation>

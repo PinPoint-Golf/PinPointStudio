@@ -33,13 +33,9 @@
 #include <limits>
 
 #include "../Core/pp_debug.h"
-#include "../../Export/swing_doc.h"   // takeJustWritten — the document we may have just written
-#include "../../Kinematics/kinematic_sequence_json.h" // retimeKinematicSequence — one shape, three paths
+#include "../../Export/swing_doc.h"   // takeJustWritten; analysisDetailForDocument — the one projection
+#include "../../Analysis/swing_analysis.h"            // Phase — the trim's Address / Finish, the impact
 #include "../markup/markup_truth.h"                   // streamLooksDownTheLine — the setup-less DTL rule
-#include "dtl_overlay_payload.h"                      // dtlOverlayDetail — the DTL tile's overlay
-#include "../../Body/address_marks_json.h"            // viewMarksPayload — the coach lines' edges
-#include "../../Body/dtl_ruler_json.h"                // dtlRulerPayload — the DTL ruler
-#include "../../Analysis/uncertainty_json.h"          // copyPhaseSampleSigma — σ keys, one spelling
 
 namespace {
 
@@ -60,61 +56,6 @@ constexpr int kPerspectiveImpact = 4;   // CameraInstance::Impact — the loopin
 constexpr double kImpactLoopSpeed = 1.0 / 50.0;
 // Frames of context kept either side of the action when the loop is trimmed.
 constexpr int    kImpactLoopPadFrames = 4;
-
-// Window-relative µs from an analysis t_us. Live captures write ABSOLUTE
-// (t0-based) analysis t_us, but re-analysed swings write WINDOW-RELATIVE ones
-// (the reconstructed window is 0-based). Subtract t0 only in the absolute domain
-// (value ≥ t0); pass already-relative values (≪ t0) through unchanged.
-qint64 relUs(const QJsonValue &v, qint64 t0)
-{
-    const qint64 t = static_cast<qint64>(v.toDouble());
-    return t >= t0 ? t - t0 : t;
-}
-
-// Copy a swing.json analysis sub-object (pose frame / club sample) to a QVariantMap
-// with its t_us shifted into the window-relative domain. Preserves every other
-// field (kp/lead/trail/handConf, or grip/head/theta/…) verbatim.
-QVariantMap relTimedMap(const QJsonObject &o, qint64 t0)
-{
-    QVariantMap m = o.toVariantMap();
-    m[QStringLiteral("t_us")] = static_cast<qlonglong>(relUs(o[QStringLiteral("t_us")], t0));
-    return m;
-}
-
-// A swing.json pose block (analysis.pose2d, or the down-the-line analysis.poseDtl — one
-// shape, poseTrackToJson) as the replay payload's pose2d, every t_us re-timed into the
-// window-relative domain. The face-on and DTL tiles read the result identically.
-QVariantMap poseBlockToDetail(const QJsonObject &p2, qint64 t0)
-{
-    QVariantList frames;
-    for (const QJsonValue &fv : p2[QStringLiteral("frames")].toArray())
-        frames.append(relTimedMap(fv.toObject(), t0));
-    QVariantMap pose2d{ { QStringLiteral("camera"), p2[QStringLiteral("camera")].toInt() },
-                        { QStringLiteral("frames"), frames } };
-    // Motion-overlay smoothed companion track (pose_smoother.cpp): re-time
-    // each frame's t_us into the window-relative domain EXACTLY like `frames`
-    // (relTimedMap re-times only the top-level t_us; kp/tier/sigma pass through
-    // verbatim) so the replay playhead indexes it in the same domain. Present
-    // only when the swing was analysed with the smoother.
-    if (p2.contains(QStringLiteral("smoothed"))) {
-        QVariantList smoothed;
-        for (const QJsonValue &sv2 : p2[QStringLiteral("smoothed")].toArray())
-            smoothed.append(relTimedMap(sv2.toObject(), t0));
-        pose2d.insert(QStringLiteral("smoothed"), smoothed);
-    }
-    // Dense 240 Hz VIZ-tier pose synth (pose_synthesis.h), re-timed like `smoothed`.
-    // Present only when the analyzer ran the synthesiser. The live bridge
-    // (shot_processor.cpp toAnalysisDetail) forwards the same block, so a live shot and
-    // its reloaded self show the same body scrub. It was persisted but never read
-    // until 16 Sept 2026 — see the note there.
-    if (p2.contains(QStringLiteral("synth"))) {
-        QVariantList synth;
-        for (const QJsonValue &sv3 : p2[QStringLiteral("synth")].toArray())
-            synth.append(relTimedMap(sv3.toObject(), t0));
-        pose2d.insert(QStringLiteral("synth"), synth);
-    }
-    return pose2d;
-}
 
 } // namespace
 
@@ -166,9 +107,6 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     // QMediaPlayers per reload synchronously joined the old decode threads on the
     // UI thread (≈2–4 s) and made the new open contend with that teardown. The
     // players are reused below (just setSource); see the player-pool section.
-
-    const qint64 t0 = static_cast<qint64>(
-        root[QStringLiteral("clock")].toObject()[QStringLiteral("t0_us")].toDouble());
 
     // ── Video streams (window-relative frame tables + per-stream metadata) ──
     qint64 spanStart = std::numeric_limits<qint64>::max();
@@ -262,209 +200,22 @@ bool DiskReplaySource::load(const QString &swingDir, double speed, bool trimToSw
     QElapsedTimer replayPhase;
     replayPhase.start();
 
-    // ── Analysis detail, offset to the window-relative (0-based) domain ─────
-    m_analysisDetail = QVariantMap{};
+    // ── Analysis detail: the one projection of the document's analysis block (analysisDetailFor,
+    //    swing_doc.h), the map the live shot and the reloaded row carry too — window time, so the
+    //    overlays scrub with this window-relative playhead. The trim and the impact come off its
+    //    phases. ───────────────────────────────────────────────────────────────────────────────
+    m_analysisDetail = pinpoint::analysisDetailForDocument(root);
     m_impactUs = -1;
     qint64 addressUs = -1, finishUs = -1;   // Phase::Address / Phase::Finish, for the trim
-    bool hasAnalysis = false;
-    if (root.contains(QStringLiteral("analysis"))) {
-        const QJsonObject an = root[QStringLiteral("analysis")].toObject();
-        QVariantList series;
-        for (const QJsonValue &mv : an[QStringLiteral("metrics")].toArray()) {
-            const QJsonObject m = mv.toObject();
-            QVariantList ts, vs, samples;
-            for (const QJsonValue &t : m[QStringLiteral("t_us")].toArray())
-                ts.append(static_cast<qlonglong>(relUs(t, t0)));
-            for (const QJsonValue &v : m[QStringLiteral("value")].toArray())
-                vs.append(v.toDouble());
-            for (const QJsonValue &sv2 : m[QStringLiteral("phaseSamples")].toArray()) {
-                const QJsonObject s2 = sv2.toObject();
-                QVariantMap po{
-                    { QStringLiteral("phase"), s2[QStringLiteral("phase")].toInt() },
-                    { QStringLiteral("t_us"),  static_cast<qlonglong>(relUs(s2[QStringLiteral("t_us")], t0)) },
-                    { QStringLiteral("value"), s2[QStringLiteral("value")].toDouble() },
-                    { QStringLiteral("band"),  s2[QStringLiteral("band")].toString() } };
-                pinpoint::analysis::copyPhaseSampleSigma(s2, po);   // ShotProcessor's twin
-                samples.append(po);
-            }
-            QVariantMap sm{
-                { QStringLiteral("key"),   m[QStringLiteral("key")].toString() },
-                { QStringLiteral("label"), m[QStringLiteral("label")].toString() },
-                { QStringLiteral("unit"),  m[QStringLiteral("unit")].toString() },
-                { QStringLiteral("t_us"),  ts },
-                { QStringLiteral("value"), vs },
-                { QStringLiteral("phaseSamples"), samples } };
-            // See ShotProcessor's twin: present only when the producer characterised one, so a
-            // swing analysed before σ existed reloads without inventing a perfect measurement.
-            if (m.contains(QStringLiteral("sigma")))
-                sm.insert(QStringLiteral("sigma"), m[QStringLiteral("sigma")].toDouble());
-            if (m.contains(QStringLiteral("sigmaKind")))
-                sm.insert(QStringLiteral("sigmaKind"), m[QStringLiteral("sigmaKind")].toInt());
-            // Per-sample validity (design §5.1), ShotProcessor's twin again: an int list
-            // parallel to t_us where 0 marks a sample BRIDGED across a gated or absent run.
-            // ABSENT means every sample is valid — which is how every swing analysed before
-            // the field existed reloads, without inventing invalidity it cannot know about.
-            // Unlike t_us this is INDEX-parallel, not a timestamp, so it passes through
-            // verbatim: relUs() would be meaningless on it.
-            if (m.contains(QStringLiteral("valid"))) {
-                QVariantList vd;
-                for (const QJsonValue &b : m[QStringLiteral("valid")].toArray())
-                    vd.append(b.toInt());
-                sm.insert(QStringLiteral("valid"), vd);
-            }
-            // The producer route, ShotProcessor's twin: carried only when the document states it.
-            if (m.contains(QStringLiteral("routeId")))
-                sm.insert(QStringLiteral("routeId"), m[QStringLiteral("routeId")].toString());
-            if (m.contains(QStringLiteral("routeDirect")))
-                sm.insert(QStringLiteral("routeDirect"), m[QStringLiteral("routeDirect")].toBool());
-            if (m.contains(QStringLiteral("withheld")))
-                sm.insert(QStringLiteral("withheld"), m[QStringLiteral("withheld")].toString());
-            if (m.value(QStringLiteral("lineAngle")).toBool())
-                sm.insert(QStringLiteral("lineAngle"), true);
-            series.append(sm);
-        }
-        QVariantList phases;
-        for (const QJsonValue &pv : an[QStringLiteral("phases")].toArray()) {
-            const QJsonObject p = pv.toObject();
-            const int phase = p[QStringLiteral("phase")].toInt();
-            const qint64 tr = relUs(p[QStringLiteral("t_us")], t0);
-            if (phase == 0)        // Phase::Address
-                addressUs = tr;
-            else if (phase == 5)   // Phase::Impact
-                m_impactUs = tr;
-            else if (phase == 7)   // Phase::Finish
-                finishUs = tr;
-            phases.append(QVariantMap{
-                { QStringLiteral("phase"), phase },
-                { QStringLiteral("t_us"),  static_cast<qlonglong>(tr) },
-                { QStringLiteral("conf"),  p[QStringLiteral("conf")].toDouble() } });
-        }
-        m_analysisDetail = QVariantMap{
-            { QStringLiteral("tier"),    an[QStringLiteral("tier")].toInt() },
-            { QStringLiteral("overall"), pinpoint::overallScoreFromAnalysis(an) },   // int (/2) or object (/3+)
-            { QStringLiteral("series"),  series },
-            { QStringLiteral("phases"),  phases } };
-        hasAnalysis = !series.isEmpty();
-
-        // ── Replay-overlay detail (skeleton + club), same shapes ShotProcessor
-        //    produces live (shot_processor.cpp toAnalysisDetail). Frame/sample
-        //    t_us are offset to the window-relative domain so they scrub with the
-        //    playhead. Club is a stub today (rarely present) — degrades to none.
-        if (an.contains(QStringLiteral("pose2d")))
-            m_analysisDetail.insert(QStringLiteral("pose2d"),
-                                    poseBlockToDetail(an[QStringLiteral("pose2d")].toObject(), t0));
-        if (an.contains(QStringLiteral("club"))) {
-            const QJsonObject cb = an[QStringLiteral("club")].toObject();
-            QVariantMap club = cb.toVariantMap();
-            QVariantList samples;
-            for (const QJsonValue &sv2 : cb[QStringLiteral("samples")].toArray())
-                samples.append(relTimedMap(sv2.toObject(), t0));
-            club[QStringLiteral("samples")] = samples;
-            // Layer C synthesized series (shaft_position_first §2 Layer C): re-time
-            // exactly like `samples` so the replay overlay's window-relative playhead
-            // indexes it (present only when synthesis was on).
-            if (cb.contains(QStringLiteral("synth"))) {
-                QVariantList synth;
-                for (const QJsonValue &sv2 : cb[QStringLiteral("synth")].toArray())
-                    synth.append(relTimedMap(sv2.toObject(), t0));
-                club[QStringLiteral("synth")] = synth;
-            }
-            // Named P1..P8 coaching positions (fused TrackSample/MilestoneFit — see
-            // shaft_position_first): re-time exactly like samples/synth so the Transit
-            // timeline's P-tick layer indexes them in the same window-relative domain
-            // as the phase stations. The live path (shot_processor toAnalysisDetail)
-            // already writes these absolute-consistent, so only the disk path needs it.
-            if (cb.contains(QStringLiteral("positions"))) {
-                QVariantList positions;
-                for (const QJsonValue &sv2 : cb[QStringLiteral("positions")].toArray())
-                    positions.append(relTimedMap(sv2.toObject(), t0));
-                club[QStringLiteral("positions")] = positions;
-            }
-            m_analysisDetail.insert(QStringLiteral("club"), club);
-        }
-        if (an.contains(QStringLiteral("ball"))) {
-            const QJsonObject bb = an[QStringLiteral("ball")].toObject();
-            QVariantMap ball = bb.toVariantMap();
-            QVariantList samples;
-            for (const QJsonValue &sv2 : bb[QStringLiteral("samples")].toArray())
-                samples.append(relTimedMap(sv2.toObject(), t0));
-            ball[QStringLiteral("samples")] = samples;
-            m_analysisDetail.insert(QStringLiteral("ball"), ball);
-        }
-        // The impact camera's track (impact_camera_design.md §7): samples and
-        // the departure instant are window-relative already, like everything
-        // else in the block, so re-time them the same way.
-        if (an.contains(QStringLiteral("impact"))) {
-            const QJsonObject io = an[QStringLiteral("impact")].toObject();
-            QVariantMap impact = io.toVariantMap();
-            QVariantList samples;
-            for (const QJsonValue &sv2 : io[QStringLiteral("samples")].toArray())
-                samples.append(relTimedMap(sv2.toObject(), t0));
-            impact[QStringLiteral("samples")] = samples;
-            if (io.contains(QStringLiteral("ballLeaveTUs")))
-                impact[QStringLiteral("ballLeaveTUs")] =
-                    static_cast<qlonglong>(relUs(io[QStringLiteral("ballLeaveTUs")], t0));
-            if (io.contains(QStringLiteral("path"))) {
-                const QJsonObject po = io[QStringLiteral("path")].toObject();
-                QVariantMap path = po.toVariantMap();
-                QVariantList pts;
-                for (const QJsonValue &pv : po[QStringLiteral("points")].toArray())
-                    pts.append(relTimedMap(pv.toObject(), t0));
-                path[QStringLiteral("points")] = pts;   // ribbon / arc carry no times: verbatim
-                impact[QStringLiteral("path")] = path;
-            }
-            m_analysisDetail.insert(QStringLiteral("impact"), impact);
-        }
-        // The kinematic sequence (kinematic_sequence_json.h): the ONE serialisation the live
-        // path also writes, re-timed through the same offset the metric series took, so a
-        // reloaded swing's strip reads the same instants as the live one's.
-        if (an.contains(QStringLiteral("kinematicSequence")))
-            m_analysisDetail.insert(
-                QStringLiteral("kinematicSequence"),
-                pinpoint::analysis::retimeKinematicSequence(
-                    an[QStringLiteral("kinematicSequence")].toObject(),
-                    [t0](const QJsonValue &v) { return static_cast<qint64>(relUs(v, t0)); }));
-        // Gate records (gate_record.h): evidence is impact-relative, so they pass through as stored.
-        if (an.contains(QStringLiteral("gatesVersion"))) {
-            m_analysisDetail.insert(QStringLiteral("gatesVersion"), an[QStringLiteral("gatesVersion")].toInt());
-            m_analysisDetail.insert(QStringLiteral("gates"), an[QStringLiteral("gates")].toArray().toVariantList());
-        }
-
-        // The down-the-line tile's overlay (dtl_overlay_payload.h): analysis.poseDtl through
-        // the face-on pose shaping, analysis.clubDtl through the ONE translator the live path
-        // uses, every time re-timed window-relative like the blocks above. The face-on
-        // P-positions it looks up are the ones just re-timed into `club.positions`, and
-        // m_impactUs is the relative Impact phase, so all of it shares the playhead's domain.
-        {
-            const QVariantMap dtlPose = an.contains(QStringLiteral("poseDtl"))
-                ? poseBlockToDetail(an[QStringLiteral("poseDtl")].toObject(), t0)
-                : QVariantMap{};
-            const QVariantList foPositions = m_analysisDetail.value(QStringLiteral("club")).toMap()
-                                                 .value(QStringLiteral("positions")).toList();
-            QVariantMap dtl = pinpoint::dtlOverlayDetail(
-                dtlPose, an[QStringLiteral("clubDtl")].toObject(), foPositions, m_impactUs,
-                [t0](const QJsonValue &v) { return relUs(v, t0); });
-            // The coach lines' edges (analysis.addressMarks, address_marks_json.h): the face-on
-            // view's object at the top level, the DTL view's under `dtl`, re-timed like the rest.
-            if (an.contains(QStringLiteral("addressMarks"))) {
-                const QJsonObject am = an[QStringLiteral("addressMarks")].toObject();
-                const auto rt = [t0](const QJsonValue &v) { return relUs(v, t0); };
-                m_analysisDetail.insert(QStringLiteral("addressMarks"),
-                                        pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("faceOn")).toObject(), rt));
-                if (!dtl.isEmpty()) {
-                    dtl.insert(QStringLiteral("addressMarks"),
-                               pinpoint::analysis::viewMarksPayload(am.value(QStringLiteral("dtl")).toObject(), rt));
-                    // Schema /2: the DTL P-frames (empty for a /1 record).
-                    dtl.insert(QStringLiteral("addressMarksPhases"), pinpoint::analysis::dtlPhaseMarksPayload(am, rt));
-                }
-            }
-            // The DTL ruler (analysis.dtlRuler, dtl_ruler_json.h): cm per DTL pixel. No times in it.
-            if (an.contains(QStringLiteral("dtlRuler")) && !dtl.isEmpty())
-                dtl.insert(QStringLiteral("ruler"),
-                           pinpoint::analysis::dtlRulerPayload(an[QStringLiteral("dtlRuler")].toObject()));
-            if (!dtl.isEmpty())
-                m_analysisDetail.insert(QStringLiteral("dtl"), dtl);
-        }
+    const bool hasAnalysis = !m_analysisDetail.value(QStringLiteral("series")).toList().isEmpty();
+    for (const QVariant &pv : m_analysisDetail.value(QStringLiteral("phases")).toList()) {
+        using pinpoint::analysis::Phase;
+        const QVariantMap p = pv.toMap();
+        const int phase = p.value(QStringLiteral("phase")).toInt();
+        const qint64 t  = p.value(QStringLiteral("t_us")).toLongLong();
+        if (phase == int(Phase::Address))     addressUs  = t;
+        else if (phase == int(Phase::Impact)) m_impactUs = t;
+        else if (phase == int(Phase::Finish)) finishUs   = t;
     }
     if (m_impactUs < 0) {
         const QJsonObject thumb = root[QStringLiteral("thumbnail")].toObject();

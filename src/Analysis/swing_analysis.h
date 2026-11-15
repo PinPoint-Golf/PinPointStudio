@@ -21,7 +21,10 @@
 #include "analysis_versions.h"
 #include "../Body/address_marks.h"
 
+#include <QByteArray>
 #include <QHash>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QMap>
 #include <QMetaType>
 #include <QPointF>
@@ -51,6 +54,40 @@
 // appears only at the UI readout. Header-only value types, passed by value /
 // shared_ptr across the QtConcurrent worker boundary.
 namespace pinpoint::analysis {
+
+// ── One time domain (refactor step 1.3a; information_model.md §7 "One time base", IM-2) ─────────
+// Which clock a SwingAnalysis's instants are on. Clock = the analysed window's own clock: the ring
+// clock (EventBuffer::nowMicros) for a live window, already window-relative for a window loaded
+// from disk — what every stage produces. Window = µs from the capture window's start, the swing
+// document's domain (`analysis.timeBase: "window"`): what the per-block typed readers return.
+enum class TimeBase : uint8_t { Clock = 0, Window = 1 };
+
+// THE ONE RULE that takes an instant to window time, used by every per-block writer and reader of
+// the analysis block. `t0Us` is the window's start on the clock `t` is on (0 = already window
+// time: the identity). On that clock every real instant lies at or after the window's start, so a
+// value below it is an unset marker (−1, 0) and is kept as it is — the reason a relative value
+// passes through unchanged. Durations and offsets (ms from impact, dtUs) never go through here.
+inline int64_t windowTimeUs(int64_t t, int64_t t0Us) { return t >= t0Us ? t - t0Us : t; }
+
+// The document's spelling of TimeBase::Window: `analysis.timeBase` (IM-2), stamped by both writers of
+// the block (serializeAnalysis and the device-only writeDeviceOnlySwing). A document without the
+// key predates step 1.3a and is read once through the legacy rule (analysisReadOriginUs, swing_doc.h).
+inline constexpr char kAnalysisTimeBaseWindow[] = "window";
+
+// THE ONE PLACE a swing document without `analysis.timeBase` is guessed (the legacy path, IM-2): the
+// origin every reader of the document's analysis times passes to windowTimeUs. A stamped document is
+// window time, read as written: 0. An unstamped one (written before step 1.3a) gives its clock.t0_us,
+// through which the one rule takes an absolute value (at or after the window's start on the ring
+// clock) to window time and leaves a window-relative one alone. Reading never rewrites the document.
+// Inline, beside the rule, so a reader that does not link the document code (the charts, the 3-D
+// panel, the report stills) reads the same origin; analysisReadOriginUs (swing_doc.h) is this.
+inline int64_t documentAnalysisOriginUs(const QJsonObject &root)
+{
+    const QJsonObject an = root.value(QStringLiteral("analysis")).toObject();
+    if (an.value(QStringLiteral("timeBase")).toString() == QLatin1String(kAnalysisTimeBaseWindow))
+        return 0;
+    return int64_t(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble(0));
+}
 
 // Degradation tier, chosen at job-build time from camera-calib + IMU availability.
 enum class ReconstructionTier { Angles2D, Mono3DPlusImu, Stereo3D, ClubInstrumented };
@@ -617,14 +654,18 @@ struct ImpactTrack2D {
 // job. `path` is resolved to absolute by the loader; `roi` is full-frame normalized
 // (the box B covers); `fps` is PROVENANCE ONLY — the offline tracker re-measures its
 // own pushed-frame rate (plan risk R2). cv-free by design (Qt-only header).
+// LIVE (refactor step 1.5, D5): the capture's Recording carries the same baseline the live detector
+// learned, IN MEMORY (`bytes`), because the analysis runs before the export writes the blob — so the
+// live path follows the re-analysis ball rule too. The bytes are exactly what the exporter writes.
 struct BallBaselineRef {
-    QString path;               // absolute path to the .ballbase.f32 blob
+    QString    path;            // absolute path to the .ballbase.f32 blob (a recorded swing)
+    QByteArray bytes;           // the blob itself, w*h*4 bytes (the live capture); wins over `path`
     int     w = 0, h = 0;       // ROI px dims B was seeded over
     QRectF  roi;                // full-frame normalized ROI
     double  rHat   = 0.0;       // radiusForWidth at seed time (provenance)
     double  fps    = 0.0;       // NOT used to build the tracker (see above)
     double  noise0 = 1.0;       // robustNoise fallback for the tracker
-    bool isValid() const { return !path.isEmpty() && w > 0 && h > 0 && !roi.isEmpty(); }
+    bool isValid() const { return (!path.isEmpty() || !bytes.isEmpty()) && w > 0 && h > 0 && !roi.isEmpty(); }
 };
 
 // Widened uint8_t → uint16_t at Layer C (shaft_position_first §4): the byte was
@@ -821,7 +862,7 @@ struct ShaftPosition {
     // §4.2): Measured when the crossing/milestone sat on a real vision sample
     // (BAND/RAY/WEDGE tier), Proxy when it was resolved on a coasted, IMU-bridged
     // or model-predicted sample. PERSISTED as "timing" in analysis.club.positions
-    // (swing_doc.cpp, read back by recorded_products.cpp); resynthesizeLayerC also
+    // (written and read back by recorded_products.h); resynthesizeLayerC also
     // re-derives it from the straddling samples on a reused track.
     TimingClass timing     = TimingClass::Measured;
 };
@@ -1142,6 +1183,11 @@ struct SwingAnalysis {
     // records existed" — the document writes the version only when it is set.
     std::vector<GateRecord>   gates;
     int                       gatesVersion = 0;
+    // Which clock the instants above are on (TimeBase). The stages produce Clock; the document
+    // writer takes a Clock analysis to window time with the document's clock.t0_us and stamps
+    // `analysis.timeBase: "window"`; a typed read of a document (analysisFromDocument) is Window.
+    // Not persisted as such: the document is always window time.
+    TimeBase                  timeBase = TimeBase::Clock;
 };
 
 } // namespace pinpoint::analysis

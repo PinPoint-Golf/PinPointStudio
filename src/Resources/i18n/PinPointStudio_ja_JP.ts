@@ -740,6 +740,14 @@
         <source>Prefer not to say</source>
         <translation>回答しない</translation>
     </message>
+    <message>
+        <source>%1 was not deleted</source>
+        <translation>%1 は削除されませんでした</translation>
+    </message>
+    <message>
+        <source>%1 was deleted; the folder was kept</source>
+        <translation>%1 は削除されました。フォルダーは保持されています</translation>
+    </message>
 </context>
 <context>
     <name>AudioInput</name>
@@ -11940,6 +11948,14 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>%1 を保存しました — 解析は未完了</translation>
     </message>
     <message>
+        <source>The session&apos;s end could not be saved</source>
+        <translation>セッションの終了を保存できませんでした</translation>
+    </message>
+    <message>
+        <source>Today&apos;s session could not be continued, so a new one started</source>
+        <translation>本日のセッションを継続できなかったため、新しいセッションを開始しました</translation>
+    </message>
+    <message>
         <source>Launch monitor only — shot saved without video or analysis</source>
         <translation>弾道測定器のみ — 動画と解析なしでショットを保存しました</translation>
     </message>
@@ -12603,6 +12619,10 @@ Reports sent from this computer will come from %1.</source>
         <translation>身長</translation>
     </message>
     <message>
+        <source>Use 5&apos;11&quot;, 180 cm or 1.80 m, or leave it blank</source>
+        <translation>5&apos;11&quot;、180 cm、1.80 m のいずれかで入力するか、空欄にしてください</translation>
+    </message>
+    <message>
         <source>Weight</source>
         <translation>体重</translation>
     </message>
@@ -12725,6 +12745,42 @@ Reports sent from this computer will come from %1.</source>
 </context>
 <context>
     <name>ScreenAthletePicker</name>
+    <message>
+        <source>%1&apos;s folder moves to the library&apos;s trash.</source>
+        <translation>%1 のフォルダーはライブラリのゴミ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and its %1 session move to the library&apos;s trash.</source>
+        <translation>%2 のフォルダーと %1 件のセッションがライブラリのゴミ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and all %1 sessions move to the library&apos;s trash.</source>
+        <translation>%2 のフォルダーと %1 件すべてのセッションがライブラリのゴミ箱に移動します。</translation>
+    </message>
+    <message>
+        <source>You can restore it from there for %1 days.</source>
+        <translation>そこから %1 日以内に復元できます。</translation>
+    </message>
+    <message>
+        <source>You can restore it from there.</source>
+        <translation>そこから復元できます。</translation>
+    </message>
+    <message>
+        <source>You can restore them from there for %1 days.</source>
+        <translation>そこから %1 日以内に復元できます。</translation>
+    </message>
+    <message>
+        <source>You can restore them from there.</source>
+        <translation>そこから復元できます。</translation>
+    </message>
+    <message>
+        <source>Delete %1?</source>
+        <translation>%1 を削除しますか。</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>削除</translation>
+    </message>
     <message>
         <source>Athletes</source>
         <translation>プレーヤー</translation>

@@ -31,8 +31,8 @@ Inputs
 TIME BASE (checked in the source, 17 Oct 2026). IMU samples.t_us and the face-on pose
 analysis.pose2d.frames[].t_us are on ONE clock: both are EventBuffer host-monotonic stamps made
 window-relative by subtracting the same t0 = window.startTimestampUs() (swing_exporter.cpp:141,
-:305 video, :605 IMU; swing_doc.cpp:1182 poseTrackToJson's rel() subtracts the same windowT0 and
-passes already-relative values through). Pose frames carry their video frame's stamp, which marks
+:305 video, :605 IMU; poseTrackToJson in swing_doc_analysis.cpp subtracts the same windowT0 through
+windowTimeUs and passes already-relative values through). Pose frames carry their video frame's stamp, which marks
 exposure END (memory note camera-timestamps-from-the-camera); IMU stamps mark host ARRIVAL. So the
 domains agree and the hop offset measures exactly the physical lag between the two kinds of
 stamp — BLE latency plus burst queueing minus the exposure-end convention.

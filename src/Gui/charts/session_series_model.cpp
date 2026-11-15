@@ -186,14 +186,12 @@ qint64 stringBytes(const QString &s)
 
 // ── The pure halves ─────────────────────────────────────────────────────────────────────────
 
-qint64 SessionSeriesModel::relUs(const QJsonValue &v, qint64 t0)
+qint64 SessionSeriesModel::relUs(const QJsonValue &v, qint64 originUs)
 {
-    // disk_replay_source.cpp's relUs(), character for character, and it has to be: the panel
-    // seeks shotReplay with these numbers. Live captures write ABSOLUTE (t0-based) analysis
-    // t_us, re-analysed swings write WINDOW-RELATIVE ones; subtract t0 only in the absolute
-    // domain (value ≥ t0) and pass already-relative values through.
-    const qint64 t = static_cast<qint64>(v.toDouble());
-    return t >= t0 ? t - t0 : t;
+    // The one rule (windowTimeUs), against the document's analysis origin — what the replay's map
+    // (analysisDetailFor) is built with, and it has to be: the panel seeks shotReplay with these
+    // numbers. A stamped document's origin is 0 (read as written); an older one's is clock.t0_us.
+    return qint64(pinpoint::analysis::windowTimeUs(int64_t(v.toDouble()), originUs));
 }
 
 int SessionSeriesModel::folderShotId(const QString &swingDir)
@@ -226,8 +224,9 @@ std::shared_ptr<ShotSeries> SessionSeriesModel::extractShot(const QJsonObject &r
     if (metrics.isEmpty())
         return fail(QStringLiteral("not analysed: the analysis produced no metrics"));
 
-    const qint64 t0 = static_cast<qint64>(
-        root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    // The analysis origin (documentAnalysisOriginUs, the one place a document without
+    // analysis.timeBase is guessed) — every time below goes through relUs against it.
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
 
     auto shot = std::make_shared<ShotSeries>();
     shot->swingDir = swingDir;

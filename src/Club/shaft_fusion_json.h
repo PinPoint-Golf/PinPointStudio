@@ -35,6 +35,7 @@
 
 #include "../Analysis/analysis_tuning.h"
 #include "shaft_fusion.h"
+#include "../Analysis/swing_analysis.h" // windowTimeUs — the one time rule
 
 namespace pinpoint::analysis {
 
@@ -105,7 +106,7 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
         if (s.flags & fusion::DtlAnchored)    flags.append(QStringLiteral("dtlAnchored"));
         if (s.flags & fusion::Reflected)      flags.append(QStringLiteral("reflected"));
         QJsonObject fr {
-            { "t_us",    qint64(s.t_us >= t0Us ? s.t_us - t0Us : s.t_us) },
+            { "t_us",    qint64(windowTimeUs(s.t_us, t0Us)) },
             { "u",       QJsonArray { s.u.x, s.u.y, s.u.z } },
             { "cond",    s.cond },
             { "foSrc",   s.foSrc == fusion::FoSource::Measured ? QStringLiteral("measured")
@@ -129,7 +130,7 @@ inline QJsonObject shaftTrack3dToJson(const fusion::Track3D &t, const fusion::Co
     if (t.eta.fitted) {
         QJsonArray k, v, nr;
         for (size_t i = 0; i < t.eta.knotsUs.size(); ++i) {
-            k.append(qint64(t.eta.knotsUs[i] >= t0Us ? t.eta.knotsUs[i] - t0Us : t.eta.knotsUs[i]));
+            k.append(qint64(windowTimeUs(t.eta.knotsUs[i], t0Us)));
             v.append(t.eta.values[i]);
             nr.append(int(t.eta.near[i]));
         }

@@ -18,7 +18,11 @@
 
 #pragma once
 
+#include <QJsonObject>
 #include <QString>
+#include <cmath>
+
+#include "../Recording/analysis_context.h"   // the input stamp's Handedness and ClubSet
 
 // Producer versions stamped into swing.json `analysis.versions` (2026-09-09,
 // Mark: re-analysis re-ran ViTPose, the ball detector and the shaft tracker
@@ -26,21 +30,45 @@
 // host for nothing). Re-analysis reuses a recorded stage output when the stage
 // that produced it is the same as the one that would run now:
 //
-//   pose  — the model file (name@bytes) AND kPoseStageVersion AND the scan
-//           scope (span-bounded live capture vs the full window an explicit
-//           re-analyse asks for). Bump kPoseStageVersion whenever pose_runner /
-//           the ViTPose decode/crop/two-pass logic changes its OUTPUT.
+//   pose  — kPoseStageVersion AND the scan scope (span-bounded live capture vs
+//           the full window an explicit re-analyse asks for). Bump
+//           kPoseStageVersion whenever pose_runner / the ViTPose decode/crop/
+//           two-pass logic changes its OUTPUT — and when a NEW POSE MODEL ships:
+//           the model file is provenance only (versions.pose.model), never the
+//           reuse key. MARK'S POSE RULE (14 Nov 2026, DEC-64): pose re-runs ONLY
+//           when its stage version changes; a saved pose is reused whatever pose
+//           model file this machine has (a shot posed with the Large model on one
+//           host is not re-inferred on a host without it). A missing stamp or an
+//           empty track still re-runs (nothing to reuse); SwingLab's --force,
+//           --params and --full-window stay explicit overrides.
 //   ball  — kBallStageVersion (bump when ball_runner changes its output). Reused
 //           only when the pose it was computed from is reused too.
 //   shaft — kShaftStageVersion (bump when shaft_tracker / shaft_track_assembly /
 //           clubhead_track / the ball anchor change their output). REUSED since
 //           2026-09-17 — see the shaft note below the constant. The club block is
 //           still lossy: onsetFloorFrame, addressPhaseFrame and addrBallTrusted are
-//           not persisted, and diag.onsetTUs/topTUs are written but not read back.
+//           not persisted (diag.onsetTUs/topTUs and the filter diagnostic are read
+//           back since step 1.3a, recorded_products.h).
 //
 // A recorded swing without a versions block (everything before 2026-09-09) never
 // matches, so it re-runs once and is stamped by the write-back.
+//
+// THE INPUT STAMP (refactor step 1.6; information_model.md R-ANA-5, R-ANA-7; step 1 brief §4.9, D6):
+// `analysis.versions.inputs` names every input the analysis read from the shot's EFFECTIVE context
+// (effective_context.h): the effective club (the board's override applied, the popover's club setting
+// the standard length), the length the job carried for it and where that length came from
+// (record / bag / standard / default), height, club set, handedness and the session type. A shot
+// whose effective context now differs from its stamp, or that has none (every analysis before step
+// 1.6), is STALE (analysisInputsStaleness, reuse_gate.h). A change of inputs moves no
+// k*StageVersion: no stage's code changed (D6). The reuse gate re-runs only what depends on the
+// changed input — the shaft track and the ladder on a club change; pose and ball never.
+//
+//   kAnalysisInputsVersion — bump when the stamp's fields change meaning (a stamp of another version
+//   is stale, and its club inputs are not trusted by the reuse gate).
 namespace pinpoint::analysis {
+
+constexpr int kAnalysisInputsVersion = 1;   // 1: first version — the effective club, its length and
+                                            //    source, height, club set, handedness, session type (2026-11-14)
 
 constexpr int kPoseStageVersion  = 2;   // 2: every frame of a two-pass pose goes through the one crop the single-pass path
                                         //    makes, pass 1 included; the hands move, and the positions read off them (#154, 2026-11-06)
@@ -84,8 +112,8 @@ constexpr int kShaftStageVersion = 13;
 //          re-analysis is exactly when a better detector should get its chance.
 constexpr int kImpactStageVersion = 1;
 // poseDtl — kDtlPoseStageVersion: the down-the-line pose (DtlPoseStage). Reused on
-//           re-analysis under pose2d's rule — this version AND the pose model identity
-//           match, and no pose./ball./address override is in play. Bump when the DTL
+//           re-analysis under pose2d's rule — this version matches (the model identity is
+//           provenance, Mark's pose rule) and no pose./ball./address override is in play. Bump when the DTL
 //           scan span/density or its smoothing changes the track's OUTPUT.
 // shaftDtl — kDtlShaftStageVersion: the down-the-line club track (DtlShaftStage).
 //           Stamped; never reused — it is recomputed from the reused poses and face-on
@@ -214,6 +242,67 @@ constexpr int kClubSlotTopVersion = 1;   // 1: first version — the parts read 
                                          //    order through the ratio, refused (club.slotUnread) under a 4° slot
                                          //    (club.slotMinWidthDeg) or with a part missing (plane stack D3, 2026-11-13)
 
+// The input stamp's value (analysis.versions.inputs). Built from the effective context by the one job
+// builder (analysisInputsFor, effective_context.h); the session type is the run's, set by the pipeline
+// when it stamps the analysis (SwingLab may override the type for a run; the app never does).
+struct AnalysisInputs {
+    int     version = 0;                 // kAnalysisInputsVersion; 0 = not stamped
+    QString club;                        // the effective club (canonical id); empty = undeclared
+    double  clubLengthMm = 0.0;          // the club length the job carried for it
+    QString clubLengthSource;            // "record" | "bag" | "standard" | "default"
+    double  heightM = 0.0;               // 0 = unknown
+    pinpoint::ClubSet               clubSet    = pinpoint::ClubSet::Men;
+    pinpoint::recording::Handedness handedness = pinpoint::recording::Handedness::Unknown;
+    int     sessionType = -1;
+    bool stamped() const { return version > 0; }
+
+    // The club half — what the shaft track and the ladder were computed with (R-ANA-7).
+    bool sameClub(const AnalysisInputs &o) const
+    {
+        return club == o.club && clubLengthSource == o.clubLengthSource
+            && std::abs(clubLengthMm - o.clubLengthMm) < 1e-6;
+    }
+    bool operator==(const AnalysisInputs &o) const
+    {
+        return version == o.version && sameClub(o) && std::abs(heightM - o.heightM) < 1e-9
+            && clubSet == o.clubSet && handedness == o.handedness && sessionType == o.sessionType;
+    }
+    bool operator!=(const AnalysisInputs &o) const { return !(*this == o); }
+};
+
+// The input stamp, analysis.versions.inputs (analysis_versions.h AnalysisInputs; step 1.6). The
+// spellings of handedness and the club set are the analysisContext block's. {} when not stamped.
+inline QJsonObject analysisInputsToJson(const AnalysisInputs &in)
+{
+    if (!in.stamped())
+        return {};
+    return QJsonObject{
+        { QStringLiteral("version"),          in.version },
+        { QStringLiteral("club"),             in.club },
+        { QStringLiteral("clubLengthMm"),     in.clubLengthMm },
+        { QStringLiteral("clubLengthSource"), in.clubLengthSource },
+        { QStringLiteral("heightM"),          in.heightM },
+        { QStringLiteral("clubSet"),          pinpoint::recording::clubSetName(in.clubSet) },
+        { QStringLiteral("handedness"),       pinpoint::recording::handednessName(in.handedness) },
+        { QStringLiteral("sessionType"),      in.sessionType },
+    };
+}
+
+// version 0 (not stamped) when the object is empty or carries no version.
+inline AnalysisInputs analysisInputsFromJson(const QJsonObject &o)
+{
+    AnalysisInputs in;
+    in.version          = o.value(QStringLiteral("version")).toInt(0);
+    in.club             = o.value(QStringLiteral("club")).toString();
+    in.clubLengthMm     = o.value(QStringLiteral("clubLengthMm")).toDouble(0.0);
+    in.clubLengthSource = o.value(QStringLiteral("clubLengthSource")).toString();
+    in.heightM          = o.value(QStringLiteral("heightM")).toDouble(0.0);
+    in.clubSet          = pinpoint::recording::clubSetFromName(o.value(QStringLiteral("clubSet")).toString());
+    in.handedness       = pinpoint::recording::handednessFromName(o.value(QStringLiteral("handedness")).toString());
+    in.sessionType      = o.value(QStringLiteral("sessionType")).toInt(-1);
+    return in;
+}
+
 struct AnalysisVersions {
     int     pose  = 0;          // 0 = unknown / not stamped
     int     ball  = 0;
@@ -230,9 +319,12 @@ struct AnalysisVersions {
     int     hipInternalRotation = 0; // 0 = the hip internal rotation stage did not run (or predates its version)
     int     shoulderTiltVsBend = 0;  // 0 = no shoulderTiltVsBend was written (or the swing predates it)
     int     clubSlotTop = 0;         // 0 = no clubSlotTop was written (or the swing predates it)
-    QString poseModel;          // "<file>@<bytes>" of the ViTPose model that ran
+    // "<file>@<bytes>" of the ViTPose model that ran — PROVENANCE, never the reuse key (Mark's pose
+    // rule above). A reused pose keeps the identity it was recorded with.
+    QString poseModel;
     QString poseScope;          // "span" | "full"
-    QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream
+    QString poseDtlModel;       // "<file>@<bytes>" of the model that posed the DTL stream (provenance)
+    AnalysisInputs inputs;      // the input stamp (step 1.6); written whenever stamped, pose or no pose
     bool stamped() const { return pose > 0; }
 };
 

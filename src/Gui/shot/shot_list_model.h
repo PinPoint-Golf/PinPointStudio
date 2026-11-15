@@ -29,6 +29,10 @@
 
 #include <functional>
 
+#include "../../Identity/identity.h"   // ShotRef (the row's key for the swing door, step 2.4)
+
+namespace pinpoint { class RecordingRepository; }
+
 // ShotListModel — the session-global list of captured shots, shared by every
 // mode screen's PpShotCarousel.  Exposed in main.cpp as the QML context
 // property `shotModel`.  All shot mutation (rating, note, trash) goes
@@ -146,8 +150,8 @@ public:
     // session start/end to keep the carousel today-scoped. Never during live
     // capture, so it can't clobber freshly captured in-memory shots: the QML
     // callers run it only at those transitions, and the athlete-change reload in
-    // main.cpp runs only on a real switch (AthleteSwitchGate — a record edit is
-    // not one), which AthleteController refuses while a session runs.
+    // main.cpp runs only on a real switch (currentAthleteChanged: a record edit
+    // is not one), which AthleteController refuses while a session runs.
     Q_INVOKABLE void loadSessionDir(const QString &dir);
 
     // Drop every row (model reset). Used by SessionReviewController when swapping
@@ -161,7 +165,7 @@ public:
     // review block so it survives a restart. No-op if unchanged / id unknown.
     Q_INVOKABLE void setClub(int id, const QString &club);
     // The launch monitor board's two annotations (LmSessionModel::setShotExcluded / setShotClub
-    // call these). Write-through to the review block (SwingDocWriter::updateShotAnnotations), so
+    // call these). Write-through to the review block (RecordingRepository::editReview), so
     // they survive a reload. A shot with no swingDir keeps them in memory only, like a rating.
     //   setLmExcluded      leave the shot out of the board's statistics, or restore it
     //   setLmClubOverride  "" restores the default; otherwise a club from clubOptions, or the
@@ -203,6 +207,10 @@ public:
     using ReasonFn  = std::function<QString(const QString &swingDir)>;
     using TrashFn   = std::function<bool(const QString &swingDir)>;
     void setFolderReleaser(FolderFn fn) { m_releaser = std::move(fn); }
+    // The one door to the swing files (main.cpp's; the tests make their own). The rating, note,
+    // club and board annotations write through it. Without one a row with a folder keeps its edits
+    // in memory and says so in the log.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
     void setFolderBusyCheck(ReasonFn fn) { m_busyCheck = std::move(fn); }
     void setTrashFunction(TrashFn fn)    { m_trashFn = std::move(fn); }
     // The retry's first interval (it doubles) and how long a refused folder is
@@ -264,6 +272,8 @@ private:
                                       // live shot; the role hands QML ONE JavaScript object per row
                                       // rather than a copy per read (see qml_payload.h)
         QString      swingDir;        // on-disk folder, for reloaded shots (replay-from-MP4 later)
+        pinpoint::ShotRef shot;       // the row's key for the swing door, from swingDir once (step 2.4;
+                                      // until step 4's selection carries it, rows still carry the folder)
         bool         dataWarning = false;  // an integrity block warns (swing_doc.h dataWarningDetailFrom)
         QVariantMap  dataWarningDetail;    // its facts: { capture, imu, framesLost, worstHoleMs, … }
         QString      lmDevice;        // which device measured it (lm_device.h key); only reloaded shots carry it
@@ -281,8 +291,10 @@ public:
 private:
 
     int  rowForId(int id) const;
+    pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
     void persistReview(int row);   // write-through rating/note/club to swing.json
     void persistLmAnnotations(int row);   // write-through excluded/clubOverride
+    pinpoint::RecordingRepository *m_repo = nullptr;
     bool trashFolder(const QString &dir) const;   // m_trashFn, or SwingPaths::trashPath
     void removeTrashedRow(int id, const QString &dir);
     void attemptPendingTrash();

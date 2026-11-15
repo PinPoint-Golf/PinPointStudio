@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include "../../src/Core/atomic_write.h"
+
 #include <QByteArray>
 #include <QCryptographicHash>
 #include <QFile>
@@ -23,7 +25,6 @@
 #include <QMap>
 #include <QMetaType>
 #include <QPair>
-#include <QSaveFile>
 #include <QString>
 #include <QStringList>
 #include <QVariant>
@@ -275,14 +276,14 @@ inline QVariantMap contentHashes()
     return out;
 }
 
+// Atomic (src/Core/atomic_write.h), into a folder that must already be there.
 inline bool writeFile(const QString &path, const QByteArray &bytes, QString *why)
 {
-    QSaveFile out(path);
-    if (!out.open(QIODevice::WriteOnly) || out.write(bytes) != bytes.size() || !out.commit()) {
-        if (why) *why = out.errorString();
-        return false;
-    }
-    return true;
+    const pinpoint::AtomicWriteResult w =
+        pinpoint::atomicWrite(path, bytes, pinpoint::AtomicWriteOptions::intoExistingFolder());
+    if (!w.ok && why)
+        *why = w.detail.isEmpty() ? w.error : w.detail;
+    return w.ok;
 }
 
 } // namespace parity

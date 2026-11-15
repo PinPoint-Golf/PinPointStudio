@@ -48,8 +48,10 @@ public:
     // an empty track on any parse problem.
     // The swing.json `analysis.ball` block (samples[] + launchTUs + launch{x,y}) —
     // version-gated re-analysis reloads the recorded track instead of replaying.
+    // t0Us: the origin of the block's times (analysisReadOriginUs, swing_doc.h); 0 = as written.
     static pinpoint::analysis::BallTrack2D fromAnalysisJson(const QJsonObject &ball,
-                                                            pinpoint::SourceId camera);
+                                                            pinpoint::SourceId camera,
+                                                            int64_t t0Us = 0);
     static pinpoint::analysis::BallTrack2D loadFromJson(const QString &file,
                                                          pinpoint::SourceId camera);
 

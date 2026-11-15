@@ -34,6 +34,7 @@
 #include "session_summary.h"
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
+#include "../DomainModel/recording_repository.h"
 
 namespace {
 
@@ -70,7 +71,6 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
         connect(m_liveModel, &QAbstractItemModel::dataChanged,  this, &SessionReviewController::updateLiveSessionDir);
     }
     m_liveSessionDir = liveSessionDir();
-    m_athleteGate.prime(m_athlete ? m_athlete->currentUuid() : QString());
     refresh();
 }
 
@@ -207,7 +207,9 @@ void SessionReviewController::refresh()
 
     const QString liveDir = liveSessionDir();
     const QString root    = m_settings ? m_settings->athleteLibraryPath() : QString();
-    const QString athlete = m_athlete  ? m_athlete->currentName()         : QString();
+    // The athlete's folder by its own name (D4: chosen once, kept on a rename), which the reader joins
+    // to the library as it always has.
+    const QString athlete = m_athlete  ? QFileInfo(m_athlete->currentFolder()).fileName() : QString();
     for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(root, athlete)) {
         // Skip the live session's own dir — it's already the synthesized row.
         if (!liveDir.isEmpty() && QFileInfo(sessionDir).absoluteFilePath() == liveDir)
@@ -241,11 +243,17 @@ void SessionReviewController::loadSession(const QString &sessionId)
     // charts workers, so nothing is shared between them. The rows are added here, in folder
     // order, exactly as before; callers still find the session loaded when this returns.
     const QStringList swingDirs = pinpoint::SwingDocReader::findSwingDirs(sessionId);
+    pinpoint::RecordingRepository *repo = m_repo;
+    // The edge (DEC-90): each swing folder to its ShotRef HERE, on the GUI thread (the session is read
+    // into the identity map once; the rest find it held); the pool threads write by the ShotRef.
+    QList<QPair<QString, pinpoint::ShotRef>> swings;
+    for (const QString &sd : swingDirs)
+        swings.append({ sd, repo ? repo->shotOfFolder(sd) : pinpoint::ShotRef() });
     const QList<pinpoint::PersistedShot> parsed = QtConcurrent::blockingMapped(
-        swingDirs, [](const QString &sd) {
-            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sd);
-            if (ps.ok)
-                pinpoint::SwingDocReader::writeSwingSummary(ps);
+        swings, [repo](const QPair<QString, pinpoint::ShotRef> &sw) {
+            pinpoint::PersistedShot ps = pinpoint::SwingDocReader::readSwingJson(sw.first);
+            if (ps.ok && repo)
+                repo->writeSummarySidecar(sw.second, ps);
             return ps;
         });
 
@@ -284,8 +292,6 @@ void SessionReviewController::loadSession(const QString &sessionId)
 
 void SessionReviewController::onAthleteChanged()
 {
-    if (!m_athleteGate.switched(m_athlete ? m_athlete->currentUuid() : QString()))
-        return;                          // a record edit, not a switch: keep the review and the list
     if (m_reviewActive)
         resumeLive();                    // the loaded session belongs to the previous athlete
     refresh();                           // sidecar-only, so this is safe to run inline

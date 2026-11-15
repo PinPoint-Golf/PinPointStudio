@@ -21,7 +21,7 @@
 
 #include "posture_picture.h"                // the DTL frames, crop, ball and address grip: the Posture picture's reading
 #include "../report/report_stills_pure.h"   // which frame: the report stills' own rule
-#include "../shot/dtl_overlay_payload.h"    // the DTL club samples, as the replay payload carries them
+#include "../../Export/dtl_overlay_payload.h"   // the DTL club samples, as the replay payload carries them
 #include "../../Club/shaft_plane_curve.h"   // shoulderPlaneFromHold — the shoulderPlane metric's own point
 
 #include <QCryptographicHash>
@@ -208,7 +208,7 @@ DeliveryPictureDoc deliveryPictureDocFrom(const QJsonObject &root, const QString
     const PictureCameraDoc cam = pictureCameraDocFrom(root, true);
     d.dtl = cam.present;
     if (!d.dtl) return d;
-    const qint64 t0 = qint64(root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));   // the analysis origin (0 when stamped)
     const bool leadIsLeft = st::leadIsLeftFor(root.value(QStringLiteral("athlete")).toObject().value(QStringLiteral("handedness")).toString());
     d.W = cam.W;
     d.H = cam.H;

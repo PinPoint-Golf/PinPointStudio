@@ -19,6 +19,7 @@
 #include "report_stills.h"
 
 #include "../../Analysis/mp4_frame_reader.h"   // Mp4FrameDecoder — the re-analysis reader, OpenCV BGR
+#include "../../Core/atomic_write.h"             // the one atomic write
 #include "../../Core/pp_debug.h"               // ppInfo / ppWarn — the app log
 #include "../../Core/pp_tuned_constants.h"     // the per-keypoint pose gate
 #include "../../Export/swing_store.h"          // the swing document, whichever format it is in
@@ -34,7 +35,6 @@
 #include <QJsonArray>
 #include <QPainter>
 #include <QPainterPath>
-#include <QSaveFile>
 #include <QThreadPool>
 #include <QtConcurrent>
 
@@ -341,9 +341,8 @@ StillResult renderInContext(SwingContext &ctx, const StillRequest &rq)
     }
 
     // ── Write ─────────────────────────────────────────────────────────────────────────────────────────
-    QDir().mkpath(QFileInfo(rq.outPath).absolutePath());
-    QSaveFile f(rq.outPath);
-    if (!f.open(QIODevice::WriteOnly) || !out.save(&f, "JPG", 88) || !f.commit()) {
+    // The streaming form: the encoder writes straight into the temporary (the helper makes the folder).
+    if (!pinpoint::atomicWrite(rq.outPath, [&out](QIODevice &d, QString &) { return out.save(&d, "JPG", 88); }).ok) {
         r.error = QStringLiteral("could not write %1").arg(rq.outPath);
         return r;
     }
@@ -388,7 +387,7 @@ QVector<StillResult> ReportStills::renderSwing(const QVector<StillRequest> &requ
             continue;
         }
         ctx.analysis = ctx.root.value(QStringLiteral("analysis")).toObject();
-        ctx.t0 = qint64(ctx.root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("t0_us")).toDouble());
+        ctx.t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(ctx.root));   // the analysis origin (0 when stamped)
         ctx.leadIsLeft = leadIsLeftFor(ctx.root.value(QStringLiteral("athlete")).toObject()
                                            .value(QStringLiteral("handedness")).toString());
         // Each camera decoded forward: the requests sorted by their instant, so P1 → P4 → P7 is one pass.

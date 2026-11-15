@@ -28,7 +28,7 @@
 
 class QPainter;
 class QPdfWriter;
-class QSaveFile;
+namespace pinpoint { class AtomicFile; }
 namespace pdf_detail { class PdfAFile; }
 
 // PdfDocumentWriter — print is to PDF. It turns page images into one A4 document.
@@ -41,7 +41,8 @@ namespace pdf_detail { class PdfAFile; }
 //
 //     begin(path, landscape, dpi, title, author)  →  addPage(image) × n  →  end()
 //
-// The document is written through a QSaveFile: nothing appears at `path` until end() succeeds,
+// The document is written through the one atomic-write helper (src/Core/atomic_write.h, a
+// QSaveFile underneath): nothing appears at `path` until end() succeeds,
 // and abort(), a failed end() or destroying the writer mid-document leaves whatever was there
 // before untouched. No dialogs, no menus: every failure is a false return plus `errorString`.
 //
@@ -147,7 +148,7 @@ private:
     static QImage imageFrom(const QVariant &v, QString *why, int depth = 0);
 
     // Destroyed in reverse order: the painter before the writer before the file it writes to.
-    std::unique_ptr<QSaveFile>  m_file;
+    std::unique_ptr<pinpoint::AtomicFile> m_file;
     std::unique_ptr<QPdfWriter> m_writer;
     std::unique_ptr<QPainter>   m_painter;
     // "auto": this class's own serializer instead of the three above (the file stays m_file).

@@ -39,7 +39,7 @@
 
 // The result structs below are plain and every consumer of swing_analysis.h sees them; the
 // measurement needs OpenCV and is compiled only where HAVE_OPENCV is defined (the app, the
-// offline tools, the test) — the document converters that compile swing_doc.cpp without
+// offline tools, the test) — the document converters that compile the swing_doc_*.cpp files without
 // OpenCV get the structs and nothing else.
 #ifdef HAVE_OPENCV
 #include <opencv2/core.hpp>

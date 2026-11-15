@@ -36,6 +36,7 @@
 
 #include "studio_profile.h"
 #include "athlete_controller.h"
+#include "athlete_test_library.h"
 #include "pp_settings.h"
 
 #include <QDate>
@@ -358,26 +359,25 @@ private slots:
 
     void athleteActivityFromLibrary()
     {
-        QTemporaryDir lib;
-        QVERIFY(lib.isValid());
-        const auto session = [&lib](const QString &golfer, const QString &folder, bool hit) {
-            const QString d = lib.path() + QLatin1Char('/') + golfer + QLatin1Char('/') + folder;
-            QVERIFY(QDir().mkpath(hit ? d + QStringLiteral("/swing_0001") : d));
-        };
-        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-10-20_Nick-Henn_Wrist_01"), true);
-        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-02_Nick-Henn_Wrist_01"), true);
-        session(QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-03_Nick-Henn_Wrist_01"), false);  // nothing hit
-        session(QStringLiteral("Chris-Marriott"), QStringLiteral("2026-10-24_Chris-Marriott_Wrist_01"), true);
-
-        AthleteController a;
+        // Each golfer's figures are derived from their SessionIndex (refactor step 2.3; DEC-89).
+        AthleteTestLibrary lib;
+        AthleteController &a = lib.makeController();
         const QString nick  = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
         const QString chris = a.saveAthlete(QString(), QStringLiteral("Chris Marriott"));   // created last
-        const QString jess  = a.saveAthlete(QString(), QStringLiteral("Jess Ratcliffe"));   // no folder at all
+        const QString jess  = a.saveAthlete(QString(), QStringLiteral("Jess Ratcliffe"));   // no session at all
+        const auto folderOf = [&lib](const QString &uuid) {
+            return lib.athletes->load(pinpoint::AthleteId::fromString(uuid))->folder();
+        };
+        const auto session = [](const QString &athleteFolder, const QString &golfer, const QString &day, bool hit) {
+            const QString d = athleteFolder + QLatin1Char('/') + day + QLatin1Char('_') + golfer + QStringLiteral("_Wrist_01");
+            QVERIFY(QDir().mkpath(hit ? d + QStringLiteral("/swing_0001") : d));
+        };
+        session(folderOf(nick), QStringLiteral("Nick-Henn"), QStringLiteral("2026-10-20"), true);
+        session(folderOf(nick), QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-02"), true);
+        session(folderOf(nick), QStringLiteral("Nick-Henn"), QStringLiteral("2026-11-03"), false);  // nothing hit
+        session(folderOf(chris), QStringLiteral("Chris-Marriott"), QStringLiteral("2026-10-24"), true);
 
-        a.setSynchronousActivity(true);
-        a.setAthleteDirResolver([&lib](const QString &name) {
-            return lib.path() + QLatin1Char('/') + QString(name).replace(QLatin1Char(' '), QLatin1Char('-'));
-        });
+        a.refreshActivity();
         const QVariantList list = a.athletes();
         QCOMPARE(list.size(), 3);
         const QVariantMap first = list.at(0).toMap(), second = list.at(1).toMap(), third = list.at(2).toMap();
@@ -392,25 +392,24 @@ private slots:
         QCOMPARE(third.value("lastSessionAt").toLongLong(), 0LL);
 
         // A session recorded later shows on the next refresh (the picker asks each time it opens),
-        // and a reload() (here, selecting) keeps the library's figures rather than the registry's.
-        session(QStringLiteral("Chris-Marriott"), QStringLiteral("2026-11-03_Chris-Marriott_Wrist_01"), true);
+        // and an edit or a switch keeps the figures read.
+        session(folderOf(chris), QStringLiteral("Chris-Marriott"), QStringLiteral("2026-11-03"), true);
         a.refreshActivity();
         QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
         QCOMPARE(a.athletes().first().toMap().value("sessionCount").toInt(), 2);
         a.selectAthlete(nick);
         QCOMPARE(a.athletes().first().toMap().value("uuid").toString(), chris);
         QCOMPARE(a.athletes().at(1).toMap().value("sessionCount").toInt(), 2);
-
-        QCOMPARE(AthleteController::scanActivity(lib.path() + QStringLiteral("/Nobody")).sessions, 0);
     }
 
     // ── the golfer's report details on AthleteController ─────────────────────────────────────────
 
     void athleteReportFields()
     {
+        AthleteTestLibrary lib;
         QString uuid;
         {
-            AthleteController a;
+            AthleteController &a = lib.makeController();
             uuid = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
             QVERIFY(!uuid.isEmpty());
             QVERIFY(a.updateAthlete(uuid, "reportEmail", QStringLiteral("nick@example.com, parent@example.co.uk")));
@@ -430,6 +429,8 @@ private slots:
             QVERIFY(a.updateAthlete(uuid, "reportGreeting", QStringLiteral("Nicky")));
         }
         AthleteController b;                                   // a fresh reload() sees all of it
+        b.setSynchronousActivity(true);
+        b.setRepositories(lib.athletes.get(), &lib.sessions);
         QVariantMap d = b.reportDetails(QStringLiteral("  nick henn "));
         QCOMPARE(d.value("uuid").toString(), uuid);
         QCOMPARE(d.value("greeting").toString(), QStringLiteral("Nicky"));
@@ -447,11 +448,8 @@ private slots:
         QCOMPARE(d.value("photosApprovedOn").toString(), today);
         QVERIFY(b.currentPhotosApproved());
         QCOMPARE(b.currentPhotosApprovedOn(), today);
-        {   // backdate the stored date, then tick again: the date the consent was given survives
-            QSettings s = ppSettings();
-            s.setValue(QStringLiteral("athletes/%1/reportPhotosApprovedOn").arg(uuid), QStringLiteral("2026-01-02"));
-            s.sync();
-        }
+        // backdate the stored date, then tick again: the date the consent was given survives
+        QVERIFY(b.updateAthlete(uuid, "reportPhotosApprovedOn", QStringLiteral("2026-01-02")));
         b.setPhotosApproved(uuid, true);
         QCOMPARE(b.reportDetails(uuid).value("photosApprovedOn").toString(), QStringLiteral("2026-01-02"));
         b.setPhotosApproved(uuid, false);
@@ -459,15 +457,14 @@ private slots:
         QCOMPARE(d.value("photosApproved").toBool(), false);
         QVERIFY(d.value("photosApprovedOn").toString().isEmpty());
         b.setPhotosApproved(QStringLiteral("no-such-uuid"), true);    // no record is created
-        QVERIFY(!ppSettings().childGroups().isEmpty());
-        { QSettings s = ppSettings(); s.beginGroup("athletes"); QVERIFY(!s.childGroups().contains("no-such-uuid")); }
+        QCOMPARE(b.athletes().size(), 1);
 
-        // Deleting the athlete deletes the report details with the rest of the group.
+        // Deleting the athlete takes the report details with the rest of the record (its folder, to
+        // the trash: DEC-79).
         b.setPhotosApproved(uuid, true);
+        const QString folder = b.currentFolder();
         QVERIFY(b.deleteAthlete(uuid));
-        QSettings s = ppSettings();
-        QVERIFY(!s.contains(QStringLiteral("athletes/%1/reportEmail").arg(uuid)));
-        QVERIFY(!s.contains(QStringLiteral("athletes/%1/reportPhotosApprovedOn").arg(uuid)));
+        QVERIFY(!QFileInfo::exists(folder));
         QVERIFY(b.reportDetails(uuid).isEmpty());
     }
 
@@ -548,7 +545,8 @@ private slots:
     // vocabulary does not know sorts first.
     void bagClubIds()
     {
-        AthleteController a;
+        AthleteTestLibrary lib;
+        AthleteController &a = lib.makeController();
         QVERIFY(a.bagClubIds(QString()).isEmpty());
         QVERIFY(a.bagClubIds(QStringLiteral("no-such-uuid")).isEmpty());
         const QString uuid = a.saveAthlete(QString(), QStringLiteral("Bag Test"));

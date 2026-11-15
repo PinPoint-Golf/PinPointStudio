@@ -48,6 +48,15 @@ pp_add_test(update_controller_policy_test
             ${SRC}/Gui/app/app_settings.cpp
             ${SRC}/Gui/session/session_controller.cpp
             ${SRC}/Gui/athlete/athlete_controller.cpp
+            # The athlete's record through its one door (refactor step 2.3): the Athlete, AthleteStore and
+            # the session repository its index reads through.
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/Export/athlete_store.cpp
+            ${SRC}/Export/session_store.cpp
+            ${SRC}/DomainModel/session_identity.cpp
+            ${SRC}/Identity/identity.h
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/Core/folder_lock.cpp
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
             # athlete_controller.cpp includes Diagnostics/norms/norm_pack.h for Cohort/cohortFor()/

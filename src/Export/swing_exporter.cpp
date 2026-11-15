@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <variant>
 
 #include <QDateTime>
@@ -31,7 +32,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QSaveFile>
 #include <QTimeZone>
 
 #include <opencv2/imgproc.hpp>
@@ -40,9 +40,11 @@
 #include "frame_decode.h"
 #include "imu_sample.h"
 #include "pixel_format_names.h"   // canonical pixelFormatName (shared with the reanalyzer)
+#include "recording_header.h"   // the one header writer
 #include "swing_paths.h"
 #include "swing_window.h"
 #include "video_encoder.h"
+#include "../Core/atomic_write.h"
 #include "../Core/pp_debug.h"
 
 namespace pinpoint {
@@ -248,17 +250,22 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
 
         // Optional raw-payload sidecar (saveRawFrames): the undecoded sensor
         // bytes for every encoded frame, concatenated into one "<alias>.raw".
-        QFile rawSink;
+        // Through the atomic helper's streaming form (src/Core/atomic_write.h):
+        // written frame by frame into a temporary, renamed into the swing folder
+        // (which must already be there) only once every frame is in.
+        std::optional<pinpoint::AtomicFile> rawSink;
         if (job.saveRaw) {
             const QString rawName = cam.alias + QStringLiteral(".raw");
-            rawSink.setFileName(job.swingDir + QLatin1Char('/') + rawName);
-            if (rawSink.open(QIODevice::WriteOnly)) {
+            rawSink.emplace(job.swingDir + QLatin1Char('/') + rawName,
+                            pinpoint::AtomicWriteOptions::intoExistingFolder());
+            if (rawSink->open().ok) {
                 rec.rawFile       = rawName;
                 rec.rawStride     = stride;
                 rec.rawFrameBytes = minBytes;
             } else {
                 ppWarn() << "[SwingExport] could not open raw sidecar" << rawName
                          << "— continuing without raw frames";
+                rawSink.reset();
             }
         }
 
@@ -277,14 +284,12 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             // raw frame i corresponds to encoded frame i and t_us[i]. A short
             // write (disk full) would desync that mapping — drop the sidecar
             // instead of recording a truncated file as complete.
-            if (rawSink.isOpen()
-                && rawSink.write(reinterpret_cast<const char*>(handle.data),
-                                 static_cast<qint64>(minBytes))
-                       != static_cast<qint64>(minBytes)) {
+            if (rawSink
+                && !rawSink->write(reinterpret_cast<const char*>(handle.data),
+                                   static_cast<qint64>(minBytes))) {
                 ppWarn() << "[SwingExport] short write on raw sidecar" << rec.rawFile
                          << "— dropping raw frames (disk full?)";
-                rawSink.close();
-                rawSink.remove();
+                rawSink.reset();   // the temporary goes; nothing was ever at the sidecar's name
                 rec.rawFile.clear();
             }
 
@@ -304,8 +309,14 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
             }
             rec.tUs.push_back(e.timestamp_us - t0);
         }
-        if (rawSink.isOpen())
-            rawSink.close();
+        if (rawSink) {
+            if (const pinpoint::AtomicWriteResult w = rawSink->commit(); !w.ok) {
+                ppWarn() << "[SwingExport] could not write raw sidecar" << rec.rawFile << "—" << w.detail
+                         << "— dropping raw frames (disk full?)";
+                rec.rawFile.clear();
+            }
+            rawSink.reset();
+        }
 
         // Every payload skipped (size/descriptor mismatch) would otherwise
         // "succeed" with an empty MP4 — fail loudly instead so the UI surfaces
@@ -514,11 +525,12 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         if (!rec.cam->ballBaselineBlob.isEmpty() && rec.cam->ballBaselineW > 0
             && rec.cam->ballBaselineH > 0 && !rec.cam->ballBaselineRoi.isEmpty()) {
             const QString blobName = rec.cam->alias + QStringLiteral(".ballbase.f32");
-            QFile bf(job.swingDir + QLatin1Char('/') + blobName);
-            if (bf.open(QIODevice::WriteOnly)) {
-                const qint64 want = static_cast<qint64>(rec.cam->ballBaselineBlob.size());
-                const bool ok = (bf.write(rec.cam->ballBaselineBlob) == want);
-                bf.close();
+            // Atomic, into the swing folder, which must already be there (src/Core/atomic_write.h).
+            pinpoint::AtomicFile bf(job.swingDir + QLatin1Char('/') + blobName,
+                                    pinpoint::AtomicWriteOptions::intoExistingFolder());
+            if (bf.open().ok) {
+                bf.write(rec.cam->ballBaselineBlob);   // a short write is remembered; commit() refuses
+                const bool ok = bf.commit().ok;
                 if (ok) {
                     const QRectF &br = rec.cam->ballBaselineRoi;
                     ballDetection[QStringLiteral("baseline")] = QJsonObject{
@@ -532,8 +544,7 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
                     };
                 } else {
                     ppWarn() << "[SwingExport] short write on baseline sidecar" << blobName
-                             << "— dropping (disk full?)";
-                    bf.remove();
+                             << "— dropping (disk full?)";   // the temporary is gone; nothing at blobName
                 }
             } else {
                 ppWarn() << "[SwingExport] could not open baseline sidecar" << blobName
@@ -907,112 +918,31 @@ SwingExportResult SwingExporter::run(const SwingWindow& window, const SwingExpor
         }
     }
 
-    // Wallclock: the anchor was snapshotted when the window was captured, i.e.
-    // at monotonic ~endTimestampUs(); subtracting the window duration gives an
-    // honest (ms-accurate) wallclock for t0.
+    // The header: the ONE header writer (recording_header.h) — the analysis-only shot builds the
+    // same header with no streams and no thumbnail.
     const int64_t durationUs = window.endTimestampUs() - t0;
-    const QDateTime wallclock = job.wallclockAnchorUtc.addMSecs(-durationUs / 1000);
-
-    QJsonObject root;
-    root[QStringLiteral("schema")] = QStringLiteral("pinpoint.swing/1");
-    root[QStringLiteral("swing")] = QJsonObject{
-        {QStringLiteral("index"), job.swingIndex},
-        {QStringLiteral("id"),    job.swingId},
-    };
-    root[QStringLiteral("athlete")] = QJsonObject{
-        {QStringLiteral("name"),       job.athleteName},
-        {QStringLiteral("uuid"),       job.athleteUuid},
-        {QStringLiteral("handedness"), job.handedness},
-    };
-    root[QStringLiteral("session")] = QJsonObject{{QStringLiteral("dir"), job.sessionId}};
-    root[QStringLiteral("clock")] = QJsonObject{
-        {QStringLiteral("t0_us"),     static_cast<qint64>(t0)},
-        {QStringLiteral("unit"),      QStringLiteral("us")},
-        {QStringLiteral("wallclock"), wallclock.toString(Qt::ISODateWithMs)},
-    };
-    root[QStringLiteral("window")] = QJsonObject{
-        {QStringLiteral("start_us"), 0},
-        {QStringLiteral("end_us"),   static_cast<qint64>(durationUs)},
-    };
-    if (!result.thumbnailPath.isEmpty()) {
-        // Additive — readers ignore unknown keys by contract.
-        root[QStringLiteral("thumbnail")] = QJsonObject{
-            {QStringLiteral("file"), QStringLiteral("thumb.jpg")},
-            {QStringLiteral("t_us"), static_cast<qint64>(thumbTsUs - t0)},
-        };
-    }
-    root[QStringLiteral("capture")] = SwingExporter::captureBlock(job);
-    root[QStringLiteral("streams")] = streams;
+    RecordingHeader header = recordingHeaderFor(job, t0, durationUs);
+    if (!result.thumbnailPath.isEmpty())
+        header.thumbnail = RecordingHeader::Thumbnail{ QStringLiteral("thumb.jpg"), thumbTsUs - t0 };
+    // The shot kind (R-REC-8): captured, written only when the manifest carries streams, so it is
+    // true now and stays true (no write removes a stream). With none it stays unwritten and the
+    // document is read by today's content rule (recording_header.h).
+    if (!streams.isEmpty())
+        header.kind = recording::ShotKind::Captured;
+    const QJsonObject root = recordingHeaderJson(header, streams);
 
     // swing.json is NOT written here. The worker returns its raw manifest and the GUI
     // thread writes ONE unified swing.json (raw + the analyzer's "analysis" block) at the
-    // join — ShotProcessor::maybeJoin() -> SwingDocWriter::writeSwingJson(). The media
+    // join — ShotProcessor::maybeJoin() → capture::writeLiveDocument() → RecordingRepository::create(). The media
     // (MP4s + thumb.jpg) above are still written on this worker.
     result.manifest = root;
     result.ok       = true;
     return result;
 }
 
-QJsonObject SwingExporter::captureBlock(const SwingExportJob& job)
+QJsonObject SwingExporter::analysisOnlyHeader(const SwingExportJob& job, int64_t t0Us, int64_t durationUs)
 {
-    QJsonObject cap{
-        {QStringLiteral("sessionType"), job.sessionType},
-        {QStringLiteral("shotSource"),  job.shotSource},
-        // Window-relative impact (-1 = unknown) — the re-analysis impact reference,
-        // present even for analysis-skipped corpus swings (no analysis.phases block).
-        {QStringLiteral("impactUs"),    static_cast<qint64>(job.impactUs)},
-        {QStringLiteral("swingDetectionSensitivity"), job.swingDetectionSensitivity},
-        {QStringLiteral("motionCaptureQuality"),      job.motionCaptureQuality},
-        {QStringLiteral("latencyUs"), QJsonObject{
-            {QStringLiteral("imuBle"),      static_cast<qint64>(job.imuBleLatencyUs)},
-            {QStringLiteral("audioDevice"), job.audioDeviceLatencyUs},
-            // Presence marks a travel-corrected anchor (see SwingExportJob).
-            {QStringLiteral("micTravel"),   static_cast<qint64>(job.micTravelUs)},
-        }},
-        {QStringLiteral("host"), QJsonObject{
-            {QStringLiteral("app"),         QStringLiteral("PinPointStudio")},
-            {QStringLiteral("version"),     job.host.appVersion},
-            {QStringLiteral("gitSha"),      job.host.gitSha},
-            {QStringLiteral("hostname"),    job.host.hostname},
-            {QStringLiteral("platform"),    job.host.platform},
-            {QStringLiteral("poseBackend"), job.host.poseBackend},
-        }},
-    };
-    // Club geometry (shaft-tracker E1 band matcher) — persisted so re-analysis
-    // recovers it. Omitted when unresolved (untaped/no active club). clubName
-    // alone is enough to write the block: an untaped club with no recorded
-    // geometry still carries the length-prior identity (club_length_fusion.h).
-    if (job.clubLengthM > 0.0 || !job.bandCentersMm.empty() || !job.clubName.isEmpty()) {
-        QJsonArray bands;
-        for (double b : job.bandCentersMm) bands.append(b);
-        QJsonObject club{
-            {QStringLiteral("lengthMm"),        job.clubLengthM * 1000.0},
-            {QStringLiteral("shaftType"),       job.shaftType},
-            {QStringLiteral("bandCentersMm"),   bands},
-            // Additive (Phase A5): hosel offset from the butt, mm. 0 = unknown —
-            // absent on swings captured before this field existed.
-            {QStringLiteral("hoselFromButtMm"), job.hoselFromButtMm},
-            // Additive (markerless P4): exposed shaft length and the hands' end on
-            // the grip, mm. 0 = unknown — absent on swings captured before.
-            {QStringLiteral("shaftLengthMm"),   job.shaftLengthMm},
-            {QStringLiteral("handsEndMm"),      job.handsEndMm},
-            // Additive (club-length fusion): canonical club-vocabulary id — half
-            // the persistent prior key (athleteUuid|clubName|cameraKey).
-            {QStringLiteral("name"),            job.clubName},
-        };
-        // The prior the live analysis fuse ACTUALLY used for this shot (state
-        // BEFORE this shot's update) — re-analysis replays it for a byte-exact
-        // fuse instead of reading AppSettings (deterministic, cross-host).
-        // Omitted when no prior joined (first shot / cold key / camera unfixed).
-        if (job.priorClubLenN > 0 && job.priorClubLenPx > 0.0)
-            club[QStringLiteral("lengthPrior")] = QJsonObject{
-                {QStringLiteral("px"),    job.priorClubLenPx},
-                {QStringLiteral("varPx"), job.priorClubLenVarPx},
-                {QStringLiteral("n"),     job.priorClubLenN},
-            };
-        cap[QStringLiteral("club")] = club;
-    }
-    return cap;
+    return recordingHeaderJson(recordingHeaderFor(job, t0Us, durationUs), QJsonArray{});
 }
 
 } // namespace pinpoint

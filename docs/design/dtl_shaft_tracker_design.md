@@ -882,7 +882,8 @@ SwingLab still writes its sibling files, from the same code.
   whose document is byte-identical to before. `clubDtl` is written whenever the
   stage ran, valid or not — its reasons are why the tile shows no shaft.
 - **Reuse**: re-analysis reloads `poseDtl` under `pose2d`'s rule
-  (`kDtlPoseStageVersion`, model identity, no pose/ball/address override). The DTL
+  (`kDtlPoseStageVersion`, no pose/ball/address override; since 2026-11-14 the model
+  identity is provenance only, Mark's pose rule, `reuse_gate.h`). The DTL
   club track is never reused; it is recomputed every time (≈ 0.3 s).
 - **Drawn, not synthesised**: no DTL shaft synth, no predicted tier, no bridge across
   an end-on gap (§5.9). The shaft appears on the DTL tile only on frames that

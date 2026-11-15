@@ -30,8 +30,10 @@
 // absolute instants: a record then needs no re-timing on any of the three paths the analysis takes
 // (swing.json, the live analysisDetail map, the reload).
 //
-// THE ONE SERIALISATION. swing_doc.cpp, shot_processor.cpp and disk_replay_source.cpp all go
-// through gateRecordsToJson, as the kinematic sequence goes through kinematic_sequence_json.h.
+// THE ONE SERIALISATION. The document writer (swing_doc_analysis.cpp) goes through
+// gateRecordsToJson, as the kinematic sequence goes through kinematic_sequence_json.h; the live,
+// replay and reload maps are all projected from that disk form by analysisDetailFor
+// (swing_doc_reader.cpp, refactor step 1.3b), so no second converter writes the gates.
 
 #include <QJsonArray>
 #include <QJsonObject>

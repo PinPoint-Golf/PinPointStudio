@@ -29,7 +29,7 @@ namespace pinpoint::lm {
 // "the import keeps a list of what it dropped, from now on; older swings stay as they are"). A
 // reading leaves an unmeasured or impossible field ABSENT, which is the truth on the board — but
 // absent alone cannot say why. This is the why: kept on the reading, written into the swing's
-// `launchMonitor` block as `dropped[]` (swing_doc.cpp lmRawBlock), and turned into gate records by
+// `launchMonitor` block as `dropped[]` (swing_doc_writer.cpp lmRawBlock), and turned into gate records by
 // lm_gates.h on every write of analysis.gates. Numbers and short codes only, never prose.
 struct DroppedField {
     QString key;                    // the metric key the field would have filled: "lm.faceAngle"

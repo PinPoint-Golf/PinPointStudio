@@ -3,6 +3,8 @@
 //   cmake --build build/analyzer-tests && ctest --test-dir build/analyzer-tests --output-on-failure
 
 #include "../swing_doc.h"
+#include "../recording_header.h"   // readShotKind
+#include "swing_doc_test_writes.h"   // the writes, through RecordingRepository (step 1.4)
 #include "../swing_paths.h"
 #include "../swing_store.h"
 #include "../../LaunchMonitor/gcquad_csv_parser.h"
@@ -241,7 +243,7 @@ int main()
 
     std::printf("=== unified write (raw + analysis) ===\n");
     QString err;
-    if (!SwingDocWriter::writeSwingJson(dir, manifest, &a, &err)) {
+    if (!pinpoint::testdoc::writeSwingJson(dir, manifest, &a, &err)) {
         std::printf("  [FAIL] write: %s\n", err.toUtf8().constData());
         return 1;
     }
@@ -459,7 +461,7 @@ int main()
         const QString dirS = dir + QStringLiteral("_smoothed");
         QDir().mkpath(dirS);
         QString serr;
-        check(SwingDocWriter::writeSwingJson(dirS, mSm, &aSm, &serr), "smoothed write ok");
+        check(pinpoint::testdoc::writeSwingJson(dirS, mSm, &aSm, &serr), "smoothed write ok");
 
         check(SwingStore::hasDocument(dirS), "document written");
         const QJsonObject rs = SwingStore::load(dirS);
@@ -592,7 +594,7 @@ int main()
     std::printf("\n=== review write-through round-trip ===\n");
     {
         QString rerr;
-        check(SwingDocWriter::updateReview(dir, 4, QStringLiteral("nice tempo"),
+        check(pinpoint::testdoc::updateReview(dir, 4, QStringLiteral("nice tempo"),
                                            QStringLiteral("7 IRON"), &rerr),
               "updateReview ok");
         // The review block lands without disturbing the raw/analysis blocks.
@@ -614,7 +616,7 @@ int main()
         check(ps.club == QStringLiteral("7 IRON"), "reader club");
 
         // Rewriting replaces (does not append) the review block; clamps rating.
-        check(SwingDocWriter::updateReview(dir, 9, QStringLiteral("re-rated"),
+        check(pinpoint::testdoc::updateReview(dir, 9, QStringLiteral("re-rated"),
                                            QStringLiteral("PUTTER"), nullptr),
               "updateReview rewrite ok");
         const PersistedShot ps2 = SwingDocReader::readSwingJson(dir);
@@ -623,7 +625,7 @@ int main()
         check(ps2.club == QStringLiteral("PUTTER"), "reader club rewritten");
 
         // No swing.json → updateReview fails harmlessly (returns false).
-        check(!SwingDocWriter::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(),
+        check(!pinpoint::testdoc::updateReview(QStringLiteral("/tmp/swingdoc_test_nope"), 3, QString(),
                                             QStringLiteral("DRIVER"), nullptr),
               "updateReview on missing doc returns false");
     }
@@ -679,7 +681,7 @@ int main()
         const QString dirD = dir + QStringLiteral("_dtl");
         QDir().mkpath(dirD);
         QString derr;
-        check(SwingDocWriter::writeSwingJson(dirD, mD, &aD, &derr), "dtl write ok");
+        check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aD, &derr), "dtl write ok");
         const QJsonObject an = readManifest(dirD)[QStringLiteral("analysis")].toObject();
 
         // pose2d is poseTrackToJson verbatim (the factored builder), and poseDtl is the same
@@ -711,7 +713,7 @@ int main()
         {
             SwingAnalysis aS = aD;
             aS.versions.shaftDirection = kShaftDirectionStageVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "shaftDirection version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aS, &derr), "shaftDirection version write ok");
             const QJsonObject vS = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vS[QStringLiteral("shaftDirection")].toObject()[QStringLiteral("code")].toInt()
@@ -724,7 +726,7 @@ int main()
         {
             SwingAnalysis aB = aD;
             aB.versions.skeleton3dBody = kSkeleton3dBodyStageVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aB, &derr), "skeleton3dBody version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aB, &derr), "skeleton3dBody version write ok");
             const QJsonObject vB = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vB[QStringLiteral("skeleton3dBody")].toObject()[QStringLiteral("code")].toInt()
@@ -737,7 +739,7 @@ int main()
         {
             SwingAnalysis aH = aD;
             aH.versions.hipInternalRotation = kHipInternalRotationStageVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aH, &derr), "hipInternalRotation version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aH, &derr), "hipInternalRotation version write ok");
             const QJsonObject vH = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vH[QStringLiteral("hipInternalRotation")].toObject()[QStringLiteral("code")].toInt()
@@ -751,7 +753,7 @@ int main()
         {
             SwingAnalysis aT = aD;
             aT.versions.shoulderTiltVsBend = kShoulderTiltVsBendVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "shoulderTiltVsBend version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aT, &derr), "shoulderTiltVsBend version write ok");
             const QJsonObject vT = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vT[QStringLiteral("shoulderTiltVsBend")].toObject()[QStringLiteral("code")].toInt()
@@ -764,7 +766,7 @@ int main()
         {
             SwingAnalysis aS = aD;
             aS.versions.clubSlotTop = kClubSlotTopVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "clubSlotTop version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aS, &derr), "clubSlotTop version write ok");
             const QJsonObject vS = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vS[QStringLiteral("clubSlotTop")].toObject()[QStringLiteral("code")].toInt() == kClubSlotTopVersion
@@ -776,7 +778,7 @@ int main()
         {
             SwingAnalysis aK = aD;
             aK.versions.skeleton3d = kSkeleton3DStageVersion;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aK, &derr), "skeleton3d version write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aK, &derr), "skeleton3d version write ok");
             const QJsonObject vK = readManifest(dirD)[QStringLiteral("analysis")].toObject()
                                        [QStringLiteral("versions")].toObject();
             check(vK[QStringLiteral("skeleton3d")].toObject()[QStringLiteral("code")].toInt()
@@ -802,7 +804,7 @@ int main()
             p5.v.side = +1; p5.refused = "hips not seen";
             aR.addressMarks.dtlPhases = { p1, p4, p5 };
             aR.addressMarks.phaseNeckFrac = 1.0;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aR, &derr), "ruler + P-frames write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aR, &derr), "ruler + P-frames write ok");
             const QJsonObject anR = readManifest(dirD)[QStringLiteral("analysis")].toObject();
             const QJsonObject ru = anR[QStringLiteral("dtlRuler")].toObject();
             check(ru[QStringLiteral("schema")].toString() == QStringLiteral("pinpoint.dtlRuler/1")
@@ -820,7 +822,7 @@ int main()
             // No ruler: cmPerPx null (never a zero to multiply by), source "none".
             SwingAnalysis aN = aR;
             aN.dtlRuler.cmPerPx = 0.0; aN.dtlRuler.source = QStringLiteral("none");
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aN, &derr), "no-ruler write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aN, &derr), "no-ruler write ok");
             const QJsonObject ruN = readManifest(dirD)[QStringLiteral("analysis")].toObject()[QStringLiteral("dtlRuler")].toObject();
             check(ruN[QStringLiteral("cmPerPx")].isNull() && ruN[QStringLiteral("source")].toString() == QStringLiteral("none")
                       && !std::isfinite(dtlRulerPayload(ruN).value(QStringLiteral("cmPerPx")).toDouble()),
@@ -873,7 +875,7 @@ int main()
             aH.addressMarks.faceOn.headLeftX = 0.455; aH.addressMarks.faceOn.headRightX = 0.54;
             aH.addressMarks.dtl.headFound = false;
             aH.addressMarks.dtl.headRefused = "the outline steps out before it is a head's width (a hood, a cap's brim or the shoulders join it)";
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aH, &derr), "head outline write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aH, &derr), "head outline write ok");
             const QJsonObject amH = readManifest(dirD)[QStringLiteral("analysis")].toObject()[QStringLiteral("addressMarks")].toObject();
             const QJsonObject fo = amH[QStringLiteral("faceOn")].toObject(), dt = amH[QStringLiteral("dtl")].toObject();
             check(fo[QStringLiteral("headFound")].toBool() && near(fo[QStringLiteral("headR")].toDouble(), 0.042, 1e-12)
@@ -928,7 +930,7 @@ int main()
             aT.shaftDtl.topChecked = true; aT.shaftDtl.topOutOfView = true;
             aT.shaftDtl.handsFromTopPx = 71.4; aT.shaftDtl.topClubPx = 411.6;
             aT.shaftDtl.topMeasuredFrames = 0;
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "top-out-of-view write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aT, &derr), "top-out-of-view write ok");
             const QJsonObject rootT = readManifest(dirD);
             const QJsonObject top = rootT[QStringLiteral("analysis")].toObject()[QStringLiteral("clubDtl")].toObject()
                                         [QStringLiteral("summary")].toObject()[QStringLiteral("topOutOfView")].toObject();
@@ -943,7 +945,7 @@ int main()
                       && !w.contains(QStringLiteral("capture")) && !w.contains(QStringLiteral("imu")),
                   "dataWarningDetailFrom: top out of view is a ⚠ fact WITHOUT the capture/imu exclusion facts");
             aT.shaftDtl.topOutOfView = false;   // checked, and the view was fine
-            check(SwingDocWriter::writeSwingJson(dirD, mD, &aT, &derr), "top-in-view write ok");
+            check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aT, &derr), "top-in-view write ok");
             check(pinpoint::dataWarningDetailFrom(readManifest(dirD)).isEmpty(),
                   "dataWarningDetailFrom: flag false ⇒ no ⚠");
         }
@@ -953,7 +955,7 @@ int main()
         aS.poseDtl = PoseTrack2D{};
         aS.shaftDtl = DtlShaftTrack2D{};
         aS.versions.poseDtl = 0; aS.versions.shaftDtl = 0;
-        check(SwingDocWriter::writeSwingJson(dirD, mD, &aS, &derr), "single-camera write ok");
+        check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aS, &derr), "single-camera write ok");
         const QJsonObject anS = readManifest(dirD)[QStringLiteral("analysis")].toObject();
         check(!anS.contains(QStringLiteral("poseDtl")) && !anS.contains(QStringLiteral("clubDtl")),
               "single-camera: no poseDtl / clubDtl");
@@ -967,7 +969,7 @@ int main()
         // the tile shows no shaft.
         SwingAnalysis aI = aD;
         aI.shaftDtl.valid = false;
-        check(SwingDocWriter::writeSwingJson(dirD, mD, &aI, &derr), "invalid-track write ok");
+        check(pinpoint::testdoc::writeSwingJson(dirD, mD, &aI, &derr), "invalid-track write ok");
         check(readManifest(dirD)[QStringLiteral("analysis")].toObject().contains(QStringLiteral("clubDtl")),
               "clubDtl written for an invalid track that ran");
         QDir(dirD).removeRecursively();
@@ -991,7 +993,7 @@ int main()
                                        1.57, 0.0, 270.0, 0.9f, ShaftMeasured });
         const QString dirN = dir + QStringLiteral("_norm");
         QDir().mkpath(dirN);
-        SwingDocWriter::writeSwingJson(dirN, mAbs, &aAbs, nullptr);
+        pinpoint::testdoc::writeSwingJson(dirN, mAbs, &aAbs, nullptr);
         if (SwingStore::hasDocument(dirN)) {
             const QJsonObject rn = SwingStore::load(dirN);
             const QJsonObject an = rn[QStringLiteral("analysis")].toObject();
@@ -1007,7 +1009,7 @@ int main()
         // Re-analysis: already-relative t_us (≪ t0) pass through unchanged.
         SwingAnalysis aRel;
         aRel.phases.push_back({ Phase::Impact, 1010000, 1.0f });
-        SwingDocWriter::writeSwingJson(dirN, mAbs, &aRel, nullptr);
+        pinpoint::testdoc::writeSwingJson(dirN, mAbs, &aRel, nullptr);
         if (SwingStore::hasDocument(dirN)) {
             const QJsonObject rr = SwingStore::load(dirN);
             check(qint64(rr[QStringLiteral("analysis")].toObject()[QStringLiteral("phases")].toArray()
@@ -1017,7 +1019,7 @@ int main()
     }
 
     std::printf("\n=== raw-only write (analysis == nullptr) ===\n");
-    SwingDocWriter::writeSwingJson(dir, manifest, nullptr);
+    pinpoint::testdoc::writeSwingJson(dir, manifest, nullptr);
     check(SwingStore::hasDocument(dir), "document written");
     const QJsonObject root2 = SwingStore::load(dir);
     check(!root2.contains(QStringLiteral("analysis")), "no analysis block when null");
@@ -1107,14 +1109,14 @@ int main()
         owed[QStringLiteral("streams")] = streams;
         check(swingDeviceTokens(owed) == QStringList({ QStringLiteral("imu") }),
               "a video stream with no file is not a device that recorded");
-        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+        check(pinpoint::testdoc::updateReview(dir, 3, QStringLiteral("after-index"),
                                            QStringLiteral("5 WOOD"), nullptr),
               "a real write restores the block");
     }
 
     std::printf("\n=== summary block: review write-through keeps it fresh ===\n");
     {
-        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+        check(pinpoint::testdoc::updateReview(dir, 3, QStringLiteral("after-index"),
                                            QStringLiteral("5 WOOD"), nullptr),
               "updateReview ok");
         const SwingSummary s = SwingDocReader::readSwingSummary(dir);
@@ -1135,7 +1137,7 @@ int main()
         check(!s.fromSidecar && s.ok, "unknown schema → derived from the document, still good data");
         check(!SwingDocReader::readSwingSummary(dir, /*writeSidecar=*/false).ok,
               "…and a caller that must not block gets !ok rather than a fat parse");
-        check(SwingDocWriter::updateReview(dir, 3, QStringLiteral("after-index"),
+        check(pinpoint::testdoc::updateReview(dir, 3, QStringLiteral("after-index"),
                                            QStringLiteral("5 WOOD"), nullptr),
               "a real write");
         check(SwingDocReader::readSwingSummary(dir).fromSidecar, "…refreshes the block");
@@ -1394,7 +1396,7 @@ int main()
     std::printf("\n=== JSON-era swing: the first rewrite migrates it ===\n");
     {
         const PersistedShot before = SwingDocReader::readSwingJson(dirJ);
-        check(SwingDocWriter::updateReview(dirJ, 2, QStringLiteral("migrated"),
+        check(pinpoint::testdoc::updateReview(dirJ, 2, QStringLiteral("migrated"),
                                            QStringLiteral("9 IRON"), nullptr),
               "updateReview on a JSON-era swing");
         check(QFile::exists(dirJ + QStringLiteral("/swing.ppsw")), "…writes swing.ppsw");
@@ -1415,7 +1417,7 @@ int main()
         const QString d2 = QStringLiteral("/tmp/swingdoc_test_noreview");
         QDir().mkpath(d2);
         QString werr;
-        check(SwingDocWriter::writeSwingJson(d2, manifest, nullptr, &werr), "write bare doc");
+        check(pinpoint::testdoc::writeSwingJson(d2, manifest, nullptr, &werr), "write bare doc");
         const PersistedShot fat  = SwingDocReader::readSwingJson(d2);
         const SwingSummary  lean = SwingDocReader::readSwingSummary(d2);
         check(lean.fromSidecar, "bare doc indexed at write time");
@@ -1435,7 +1437,7 @@ int main()
         const QString d5 = QStringLiteral("/tmp/swingdoc_test_club");
         QDir().mkpath(d5);
         QString werr;
-        check(SwingDocWriter::writeSwingJson(d5, manifest, nullptr, &werr,
+        check(pinpoint::testdoc::writeSwingJson(d5, manifest, nullptr, &werr,
                                              QStringLiteral("7 IRON")),
               "write with a capture club");
 
@@ -1461,25 +1463,25 @@ int main()
             { QStringLiteral("name"),     QStringLiteral("GAP WEDGE") },
             { QStringLiteral("lengthMm"), 890 } };
         capManifest[QStringLiteral("capture")] = cap;
-        check(SwingDocWriter::writeSwingJson(d6, capManifest, nullptr, &werr), "write, no club arg");
+        check(pinpoint::testdoc::writeSwingJson(d6, capManifest, nullptr, &werr), "write, no club arg");
         check(SwingDocReader::readSwingSummary(d6).club == QStringLiteral("GAP WEDGE")
                   && SwingDocReader::readSwingJson(d6).club == QStringLiteral("GAP WEDGE"),
               "capture.club.name beats the stub on both paths");
 
         // …and the user's own correction still outranks what capture recorded.
-        check(SwingDocWriter::updateReview(d6, 0, QString(), QStringLiteral("PUTTER"), nullptr),
+        check(pinpoint::testdoc::updateReview(d6, 0, QString(), QStringLiteral("PUTTER"), nullptr),
               "correct the club");
         check(SwingDocReader::readSwingSummary(d6).club == QStringLiteral("PUTTER"),
               "review.club beats capture.club.name");
 
         // Re-analysis hands the WHOLE existing document back as the manifest. Seeding a
         // club there must not cost the user the rating and note they already wrote.
-        check(SwingDocWriter::updateReview(d6, 5, QStringLiteral("keep me"),
+        check(pinpoint::testdoc::updateReview(d6, 5, QStringLiteral("keep me"),
                                            QStringLiteral("PUTTER"), nullptr),
               "rate and annotate it");
         check(SwingStore::hasDocument(d6), "document written");
         const QJsonObject reManifest = SwingStore::load(d6);
-        check(SwingDocWriter::writeSwingJson(d6, reManifest, nullptr, &werr,
+        check(pinpoint::testdoc::writeSwingJson(d6, reManifest, nullptr, &werr,
                                              QStringLiteral("3 WOOD")),
               "re-write with a different capture club");
         const PersistedShot kept = SwingDocReader::readSwingJson(d6);
@@ -1510,7 +1512,7 @@ int main()
         own.phaseSamples.push_back({ Phase::Impact, 1234567, 84.0, QString() });
         an.series.push_back(own);
         QString werr;
-        check(SwingDocWriter::writeSwingJson(d3, m3, &an, &werr), "write an analysed doc");
+        check(pinpoint::testdoc::writeSwingJson(d3, m3, &an, &werr), "write an analysed doc");
 
         const QByteArray csv =
             "Shot ID, Club, Club head Speed (m/s), Ball Speed (m/s), Total Spin (rpm), "
@@ -1523,7 +1525,7 @@ int main()
         reading->readAtMs   = 1700000000000LL;
 
         QString lerr;
-        check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr),
+        check(pinpoint::testdoc::updateLaunchMonitor(d3, *reading, &lerr),
               "the reading folds into the existing document");
 
         check(SwingStore::hasDocument(d3), "document written");
@@ -1574,7 +1576,7 @@ int main()
 
         // Re-applying must replace, not duplicate — the connector can legitimately be
         // asked to write the same swing twice.
-        check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr), "re-apply succeeds");
+        check(pinpoint::testdoc::updateLaunchMonitor(d3, *reading, &lerr), "re-apply succeeds");
         check(SwingStore::hasDocument(d3), "document written");
         const QJsonArray again = SwingStore::load(d3)
                                      [QStringLiteral("analysis")].toObject()
@@ -1594,7 +1596,7 @@ int main()
         ballOnly.deviceShotId = QStringLiteral("773c37ee-e2fd-4d18-a973-93995ba8b326");
         ballOnly.ballSpeed    = 77.6;
         ballOnly.contactAtMs  = 1793633871725LL;
-        check(SwingDocWriter::updateLaunchMonitor(d3, ballOnly, &lerr), "a ball-only reading lands");
+        check(pinpoint::testdoc::updateLaunchMonitor(d3, ballOnly, &lerr), "a ball-only reading lands");
         QJsonObject pr = SwingStore::load(d3)[QStringLiteral("launchMonitor")].toObject();
         check(qint64(pr[QStringLiteral("contactAtMs")].toDouble()) == 1793633871725LL,
               "the device's contact time is stored to the millisecond");
@@ -1603,7 +1605,7 @@ int main()
         pinpoint::lm::LaunchMonitorReading whole = ballOnly;
         whole.clubheadSpeed = 69.4;
         whole.faceAngle     = -4.1;
-        check(SwingDocWriter::updateLaunchMonitor(d3, whole, &lerr), "the fuller reading lands");
+        check(pinpoint::testdoc::updateLaunchMonitor(d3, whole, &lerr), "the fuller reading lands");
         pr = SwingStore::load(d3)[QStringLiteral("launchMonitor")].toObject();
         check(qAbs(pr[QStringLiteral("faceAngle")].toDouble() - -4.1) < 1e-9,
               "the late club data is in the block");
@@ -1614,7 +1616,7 @@ int main()
                 ++lmFace;
         check(lmFace == 1, "…and its lm. row exists exactly once");
         // Put the FSX2020 reading back for the re-analysis checks below.
-        check(SwingDocWriter::updateLaunchMonitor(d3, *reading, &lerr), "restore the FSX2020 reading");
+        check(pinpoint::testdoc::updateLaunchMonitor(d3, *reading, &lerr), "restore the FSX2020 reading");
 
         // ── Re-analysis must not evict the readings ─────────────────────────
         //
@@ -1627,7 +1629,7 @@ int main()
         // which was never connected.
         check(SwingStore::hasDocument(d3), "document written");
         const QJsonObject paired = SwingStore::load(d3);
-        check(SwingDocWriter::writeSwingJson(d3, paired, &an, &werr),
+        check(pinpoint::testdoc::writeSwingJson(d3, paired, &an, &werr),
               "re-analyse a swing that already carries a reading");
 
         check(SwingStore::hasDocument(d3), "document written");
@@ -1654,8 +1656,8 @@ int main()
         // A shot whose analysis failed still keeps what the device said.
         const QString d4 = QStringLiteral("/tmp/swingdoc_test_lm_noanalysis");
         QDir().mkpath(d4);
-        check(SwingDocWriter::writeSwingJson(d4, m3, nullptr, &werr), "write a doc with no analysis");
-        check(SwingDocWriter::updateLaunchMonitor(d4, *reading, &lerr), "…the reading still lands");
+        check(pinpoint::testdoc::writeSwingJson(d4, m3, nullptr, &werr), "write a doc with no analysis");
+        check(pinpoint::testdoc::updateLaunchMonitor(d4, *reading, &lerr), "…the reading still lands");
         check(SwingStore::hasDocument(d4), "document written");
         const QJsonObject r4 = SwingStore::load(d4);
         check(r4.contains(QStringLiteral("launchMonitor")), "…as a raw block");
@@ -1678,7 +1680,7 @@ int main()
                 { QStringLiteral("impactUs"), 1234567 },
                 { QStringLiteral("club"), QJsonObject{ { QStringLiteral("lengthMm"), 940.0 },
                                                        { QStringLiteral("name"), QStringLiteral("7 IRON") } } } };
-            check(SwingDocWriter::writeSwingJson(d5, m5, &an, &werr, reviewClub), "write a 7-iron swing");
+            check(pinpoint::testdoc::writeSwingJson(d5, m5, &an, &werr, reviewClub), "write a 7-iron swing");
         };
         auto clubs = [&]() {
             const QJsonObject r = SwingStore::load(d5);
@@ -1689,7 +1691,7 @@ int main()
         bool replaced = false;
 
         fresh(QStringLiteral("7 IRON"));            // seeded by the live save
-        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "reading with Premier's club");
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "reading with Premier's club");
         check(replaced, "a seeded club is replaced");
         auto [cap5, rev5] = clubs();
         check(cap5[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID")
@@ -1698,23 +1700,23 @@ int main()
         check(rev5 == QStringLiteral("4 HYBRID"), "…and the seeded review.club moves with it");
         check(SwingStore::load(d5).contains(QStringLiteral("launchMonitor")), "…in the same write as the reading");
 
-        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "the same club again");
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "the same club again");
         check(!replaced, "…changes nothing the second time");
 
         fresh(QStringLiteral("4 HYBRID"));          // seeded AFTER the club changed: analysis had the old one
-        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "review already right");
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "review already right");
         check(replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("4 HYBRID"),
               "…capture.club still moves, so re-analysis uses the right club");
 
         fresh(QStringLiteral("DRIVER"));            // the user's own pick
-        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "hand-set club");
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, premierClub, &replaced), "hand-set club");
         auto [cap6, rev6] = clubs();
         check(!replaced && rev6 == QStringLiteral("DRIVER")
                   && cap6[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
               "…a club the user set is never changed");
 
         fresh(QStringLiteral("7 IRON"));
-        check(SwingDocWriter::updateLaunchMonitor(d5, pr5, &lerr, QJsonObject(), &replaced), "no club to follow");
+        check(pinpoint::testdoc::updateLaunchMonitor(d5, pr5, &lerr, QJsonObject(), &replaced), "no club to follow");
         check(!replaced && clubs().first[QStringLiteral("name")].toString() == QStringLiteral("7 IRON"),
               "…leaves the club alone");
         QDir(d5).removeRecursively();
@@ -1745,7 +1747,7 @@ int main()
         meta.wallclockMs = 1700000000000LL;
 
         QString derr;
-        check(SwingDocWriter::writeDeviceOnlySwing(d5, *reading, meta, &derr),
+        check(pinpoint::testdoc::writeDeviceOnlySwing(d5, *reading, meta, &derr),
               "a device-only swing.json is written");
 
         check(SwingStore::hasDocument(d5), "document written");
@@ -1765,6 +1767,11 @@ int main()
         check(!an.contains(QStringLiteral("score")), "no score — nothing scored it");
         check(!an.contains(QStringLiteral("pose2d")) && !an.contains(QStringLiteral("club")),
               "…and no pose or club block to mistake for an empty analysis");
+        // One time base (refactor step 1.3a, IM-2): the device-only writer stamps it too, so every
+        // analysis block written since says which clock it is on.
+        check(an[QStringLiteral("timeBase")].toString() == QStringLiteral("window")
+                  && analysisReadOriginUs(root) == 0,
+              "a launch-monitor-only shot's analysis says timeBase \"window\" (read as written)");
 
         // THE MANUFACTURED IMPACT, and why it has to be there: buildPhaseGrid returns an
         // empty grid on an empty phases[], so without this every reading would persist
@@ -1824,7 +1831,7 @@ int main()
                 r.deviceKind     = connector;
                 r.reportedDevice = reported;
                 QString e;
-                SwingDocWriter::writeDeviceOnlySwing(d6, r, meta, &e);
+                pinpoint::testdoc::writeDeviceOnlySwing(d6, r, meta, &e);
                 *block = SwingStore::load(d6)[QStringLiteral("launchMonitor")].toObject();
                 return SwingDocReader::readSwingJson(d6);
             };
@@ -1854,10 +1861,13 @@ int main()
         // ── Its rows rebuilt from the reading it holds (refreshLaunchMonitorRows) ──
         // A launch-monitor-only swing is never re-analysed, so a derivation that changed after it
         // was written reached it only through this. Fresh, it is current: nothing is written.
-        check(SwingDocWriter::isDeviceOnlySwing(root), "it is a launch-monitor-only swing");
+        // Not standalone (meta.standalone false), so no kind is recorded: the content rule says so.
+        check(pinpoint::readShotKind(root).kind == pinpoint::recording::ShotKind::DeviceOnly
+                  && !pinpoint::readShotKind(root).recorded,
+              "it is a launch-monitor-only swing (by the content rule: no kind recorded off the standalone path)");
         bool changed = true;
         QString rerr;
-        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed,
+        check(pinpoint::testdoc::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed,
               "a fresh one's rows are current: nothing to rebuild");
 
         // A row of a derivation this reading cannot support (an old compoundMiss, say), as an older
@@ -1878,14 +1888,14 @@ int main()
                 if (v.toObject()[QStringLiteral("key")].toString() == QStringLiteral("compoundMiss")) return true;
             return false;
         };
-        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr, /*dryRun*/ true) && changed && hasCompound(),
+        check(pinpoint::testdoc::refreshLaunchMonitorRows(d5, &changed, &rerr, /*dryRun*/ true) && changed && hasCompound(),
               "a dry run says it would change, and writes nothing");
         const QJsonObject rawBefore = SwingStore::load(d5)[QStringLiteral("launchMonitor")].toObject();
-        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && changed && !hasCompound(),
+        check(pinpoint::testdoc::refreshLaunchMonitorRows(d5, &changed, &rerr) && changed && !hasCompound(),
               "the rows are rebuilt from the reading: the row it cannot support is gone");
         check(SwingStore::load(d5)[QStringLiteral("launchMonitor")].toObject() == rawBefore,
               "…and the device's raw block is exactly as it was");
-        check(SwingDocWriter::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed, "…and once is enough");
+        check(pinpoint::testdoc::refreshLaunchMonitorRows(d5, &changed, &rerr) && !changed, "…and once is enough");
 
         QDir(d5).removeRecursively();
     }
@@ -1921,27 +1931,27 @@ int main()
         applyImuIntegrity(m1, &fail);
         check(m1.contains(QStringLiteral("imuIntegrity")), "a failing verdict writes the block");
         QString e6;
-        check(SwingDocWriter::writeSwingJson(d6, m1, &a, &e6), "…and the document writes");
+        check(pinpoint::testdoc::writeSwingJson(d6, m1, &a, &e6), "…and the document writes");
         check(SwingDocReader::readSwingJson(d6).dataWarning, "…and reads back as a data warning");
 
         // Re-analysis reaches a PASS on the same swing: the warning must clear.
         QJsonObject m2 = readManifest(d6);
         check(m2.contains(QStringLiteral("imuIntegrity")), "the stale block is there to be replaced");
         applyImuIntegrity(m2, &pass);
-        check(SwingDocWriter::writeSwingJson(d6, m2, &a, &e6), "the re-analysis writes back");
+        check(pinpoint::testdoc::writeSwingJson(d6, m2, &a, &e6), "the re-analysis writes back");
         check(!SwingDocReader::readSwingJson(d6).dataWarning, "…and the warning is gone");
 
         // Re-analysis that could NOT establish a verdict must withdraw the claim
         // entirely, not leave the old one standing and not fabricate a pass.
         QJsonObject m3 = readManifest(d6);
         applyImuIntegrity(m3, &fail);
-        check(SwingDocWriter::writeSwingJson(d6, m3, &a, &e6), "a failing verdict is written again");
+        check(pinpoint::testdoc::writeSwingJson(d6, m3, &a, &e6), "a failing verdict is written again");
         check(SwingDocReader::readSwingJson(d6).dataWarning, "…and warns again");
 
         QJsonObject m4 = readManifest(d6);
         applyImuIntegrity(m4, nullptr);
         check(!m4.contains(QStringLiteral("imuIntegrity")), "nullptr REMOVES the block");
-        check(SwingDocWriter::writeSwingJson(d6, m4, &a, &e6), "…the document writes without it");
+        check(pinpoint::testdoc::writeSwingJson(d6, m4, &a, &e6), "…the document writes without it");
         check(!SwingDocReader::readSwingJson(d6).dataWarning, "…and no warning survives");
 
         // sourcesChecked == 0 is the same no-claim outcome as nullptr — a wG3-only
@@ -1980,7 +1990,7 @@ int main()
         applyCaptureIntegrity(m1, &fail);
         check(m1.contains(QStringLiteral("captureIntegrity")), "a failing verdict writes the block");
         QString e7;
-        check(SwingDocWriter::writeSwingJson(d7, m1, &a, &e7), "…and the document writes");
+        check(pinpoint::testdoc::writeSwingJson(d7, m1, &a, &e7), "…and the document writes");
         const PersistedShot p1 = SwingDocReader::readSwingJson(d7);
         check(p1.dataWarning, "…and reads back as a data warning");
         check(p1.dataWarningDetail.value(QStringLiteral("capture")).toBool()
@@ -1999,7 +2009,7 @@ int main()
         QJsonObject mBoth = readManifest(d7);
         ImuRefusionVerdict imuFail; imuFail.ok = false; imuFail.sourcesChecked = 1; imuFail.worstMaxDeg = 9.0;
         applyImuIntegrity(mBoth, &imuFail);
-        check(SwingDocWriter::writeSwingJson(d7, mBoth, &a, &e7), "both blocks written");
+        check(pinpoint::testdoc::writeSwingJson(d7, mBoth, &a, &e7), "both blocks written");
         const QVariantMap both = SwingDocReader::readSwingJson(d7).dataWarningDetail;
         check(both.value(QStringLiteral("capture")).toBool() && both.value(QStringLiteral("imu")).toBool()
                   && both.value(QStringLiteral("worstMaxDeg")).toDouble() == 9.0,
@@ -2009,7 +2019,7 @@ int main()
         QJsonObject m2 = readManifest(d7);
         applyCaptureIntegrity(m2, &pass);
         applyImuIntegrity(m2, nullptr);
-        check(SwingDocWriter::writeSwingJson(d7, m2, &a, &e7), "the re-analysis writes back");
+        check(pinpoint::testdoc::writeSwingJson(d7, m2, &a, &e7), "the re-analysis writes back");
         const PersistedShot p2 = SwingDocReader::readSwingJson(d7);
         check(!p2.dataWarning && p2.dataWarningDetail.isEmpty(), "…and the warning is gone");
         check(!SwingDocReader::readSwingSummary(d7).dataWarning, "…from the sidecar as well");
@@ -2045,7 +2055,7 @@ int main()
                   && cams5[0].toObject().value(QStringLiteral("firstFrameMs")).toDouble() == 2434.1
                   && cams5[0].toObject().value(QStringLiteral("framesBeforeImpact")).toInt(-1) == 0,
               "…per camera");
-        check(SwingDocWriter::writeSwingJson(d7, m5, &a, &e7), "…and the document writes");
+        check(pinpoint::testdoc::writeSwingJson(d7, m5, &a, &e7), "…and the document writes");
         const PersistedShot p5 = SwingDocReader::readSwingJson(d7);
         check(p5.dataWarning && p5.dataWarningDetail.value(QStringLiteral("capture")).toBool()
                   && p5.dataWarningDetail.value(QStringLiteral("startsAfterImpact")).toBool()
@@ -2091,10 +2101,10 @@ int main()
         // …and the writer the phone path uses puts the marker there.
         {
             QJsonObject mc = readManifest(d7);
-            check(SwingDocWriter::writeSwingJson(d7, mc, &a, &e7), "a document to file a clip into");
+            check(pinpoint::testdoc::writeSwingJson(d7, mc, &a, &e7), "a document to file a clip into");
             SwingDocWriter::StreamOrigin o;
             o.transport = QStringLiteral("ppcp"); o.captureId = QStringLiteral("cap:z"); o.transfer = QStringLiteral("complete");
-            check(SwingDocWriter::updateStreamOrigin(d7, QStringLiteral("Phone"), o, &e7, QStringLiteral("Phone.mov"),
+            check(pinpoint::testdoc::updateStreamOrigin(d7, QStringLiteral("Phone"), o, &e7, QStringLiteral("Phone.mov"),
                                                      { 0, 16667, 33333 }, 60.0, QString::fromLatin1(SwingStore::kFramesClockClip)),
                   "updateStreamOrigin files a clip with its clock");
             QJsonObject phoneEl;
@@ -2115,7 +2125,7 @@ int main()
         applyCaptureIntegrity(m6, &late);
         check(m6.value(QStringLiteral("captureIntegrity")).toObject().value(QStringLiteral("ok")).toBool(false),
               "a late start alone leaves the block ok");
-        check(SwingDocWriter::writeSwingJson(d7, m6, &a, &e7), "…and the document writes");
+        check(pinpoint::testdoc::writeSwingJson(d7, m6, &a, &e7), "…and the document writes");
         const PersistedShot p6 = SwingDocReader::readSwingJson(d7);
         check(p6.dataWarning && !p6.dataWarningDetail.contains(QStringLiteral("capture"))
                   && p6.dataWarningDetail.value(QStringLiteral("lateStart")).toBool()
@@ -2152,7 +2162,7 @@ int main()
         SwingAnalysis aO;
         QString eO;
         QJsonObject mO = manifest;
-        check(SwingDocWriter::writeSwingJson(dO, mO, &aO, &eO), "a document to attach origin to");
+        check(pinpoint::testdoc::writeSwingJson(dO, mO, &aO, &eO), "a document to attach origin to");
 
         // A clip has been ASKED for and has not arrived. There is no file yet, so
         // the element must not claim one.
@@ -2163,7 +2173,7 @@ int main()
         req.captureId = QStringLiteral("cap:abc");
         req.streamId  = QStringLiteral("st:0123456789abcdef:video");
         req.transfer  = QStringLiteral("requested");
-        check(SwingDocWriter::updateStreamOrigin(dO, QStringLiteral("phoneWide"), req, &eO),
+        check(pinpoint::testdoc::updateStreamOrigin(dO, QStringLiteral("phoneWide"), req, &eO),
               "a pending clip gets a streams[] element");
 
         SwingDocWriter::StreamOrigin back =
@@ -2194,7 +2204,7 @@ int main()
         done.transfer     = QStringLiteral("complete");
         done.completeness = QStringLiteral("complete");
         done.committedAt  = QStringLiteral("2026-09-01T13:46:55.221Z");
-        check(SwingDocWriter::updateStreamOrigin(dO, QStringLiteral("phoneWide"), done, &eO),
+        check(pinpoint::testdoc::updateStreamOrigin(dO, QStringLiteral("phoneWide"), done, &eO),
               "the landed clip updates the same element");
         {
             const QJsonArray streams = readManifest(dO).value(QStringLiteral("streams")).toArray();
@@ -2214,7 +2224,7 @@ int main()
         gone.transfer     = QStringLiteral("absent");
         gone.completeness = QStringLiteral("absent");
         gone.absentReason = QStringLiteral("outside_buffer");
-        check(SwingDocWriter::updateStreamOrigin(dO, QStringLiteral("phoneDtl"), gone, &eO),
+        check(pinpoint::testdoc::updateStreamOrigin(dO, QStringLiteral("phoneDtl"), gone, &eO),
               "a second phone answers absent");
         back = SwingDocReader::streamOrigin(dO, QStringLiteral("phoneDtl"));
         check(back.absentReason == QStringLiteral("outside_buffer"), "the reason round-trips");
@@ -2233,9 +2243,9 @@ int main()
             noVid[QStringLiteral("streams")] = QJsonArray{};   // a device-only shot
             SwingAnalysis aP;
             QString eP;
-            check(SwingDocWriter::writeSwingJson(dP, noVid, &aP, &eP), "a swing with no streams");
+            check(pinpoint::testdoc::writeSwingJson(dP, noVid, &aP, &eP), "a swing with no streams");
             check(!SwingDocReader::readSwingJson(dP).hasVideo, "…has no video, before");
-            check(SwingDocWriter::updateStreamOrigin(dP, QStringLiteral("phoneWide"), req, &eP),
+            check(pinpoint::testdoc::updateStreamOrigin(dP, QStringLiteral("phoneWide"), req, &eP),
                   "…a clip is asked for");
             check(!SwingDocReader::readSwingJson(dP).hasVideo,
                   "…and it STILL has no video: a pending element carries no file");
@@ -2358,7 +2368,7 @@ int main()
         const QString dir2 = td.path() + QStringLiteral("/swing_0009");
         QDir().mkpath(dir2);
         QString err2;
-        if (!SwingDocWriter::writeSwingJson(dir2, manifest, &b, &err2)) {
+        if (!pinpoint::testdoc::writeSwingJson(dir2, manifest, &b, &err2)) {
             std::printf("  [FAIL] write: %s\n", err2.toUtf8().constData());
             ++g_fail;
         } else {

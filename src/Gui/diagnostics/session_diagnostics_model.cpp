@@ -26,6 +26,7 @@
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
+#include "../../Export/athlete_files.h"   // the tuning log's append, under the athlete folder's lock
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
 #include "../../Coaching/shot_outcomes_pack.h"
@@ -2471,13 +2472,12 @@ void SessionDiagnosticsModel::appendTuningLine(const QJsonObject &line) const
 {
     const QString path = tuningLogPath();
     if (path.isEmpty() || !m_persistEnabled) return;
-    QFile f(path);
-    if (!f.open(QIODevice::Append | QIODevice::Text)) {
-        ppWarn() << "[Outcomes] could not append to the tuning log:" << qPrintable(path) << "—" << qPrintable(f.errorString());
-        return;
-    }
-    f.write(QJsonDocument(line).toJson(QJsonDocument::Compact));
-    f.write("\n");
+    // Through the athlete repository's append, under the athlete folder's lock for this one line
+    // (refactor step 2.3; brief §4.9).
+    const pinpoint::AtomicWriteResult w =
+        pinpoint::AthleteFiles::appendTuningLine(path, QJsonDocument(line).toJson(QJsonDocument::Compact));
+    if (!w.ok)
+        ppWarn() << "[Outcomes] could not append to the tuning log:" << qPrintable(w.error) << qPrintable(w.detail);
 }
 
 void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, const QString &toId)

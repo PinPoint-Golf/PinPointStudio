@@ -740,6 +740,14 @@
         <source>Prefer not to say</source>
         <translation>밝히지 않음</translation>
     </message>
+    <message>
+        <source>%1 was not deleted</source>
+        <translation>%1 님은 삭제되지 않았습니다</translation>
+    </message>
+    <message>
+        <source>%1 was deleted; the folder was kept</source>
+        <translation>%1 님은 삭제되었고 폴더는 유지되었습니다</translation>
+    </message>
 </context>
 <context>
     <name>AudioInput</name>
@@ -11940,6 +11948,14 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>%1 저장됨 — 분석 미완료</translation>
     </message>
     <message>
+        <source>The session&apos;s end could not be saved</source>
+        <translation>세션 종료를 저장하지 못했습니다</translation>
+    </message>
+    <message>
+        <source>Today&apos;s session could not be continued, so a new one started</source>
+        <translation>오늘 세션을 이어갈 수 없어 새 세션을 시작했습니다</translation>
+    </message>
+    <message>
         <source>Launch monitor only — shot saved without video or analysis</source>
         <translation>론치 모니터만 — 영상과 분석 없이 샷 저장됨</translation>
     </message>
@@ -12603,6 +12619,10 @@ Reports sent from this computer will come from %1.</source>
         <translation>키</translation>
     </message>
     <message>
+        <source>Use 5&apos;11&quot;, 180 cm or 1.80 m, or leave it blank</source>
+        <translation>5&apos;11&quot;, 180 cm 또는 1.80 m 형식으로 입력하거나 비워 두세요</translation>
+    </message>
+    <message>
         <source>Weight</source>
         <translation>몸무게</translation>
     </message>
@@ -12725,6 +12745,42 @@ Reports sent from this computer will come from %1.</source>
 </context>
 <context>
     <name>ScreenAthletePicker</name>
+    <message>
+        <source>%1&apos;s folder moves to the library&apos;s trash.</source>
+        <translation>%1 님의 폴더가 라이브러리 휴지통으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and its %1 session move to the library&apos;s trash.</source>
+        <translation>%2 님의 폴더와 %1개 세션이 라이브러리 휴지통으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>%2&apos;s folder and all %1 sessions move to the library&apos;s trash.</source>
+        <translation>%2 님의 폴더와 %1개 세션이 모두 라이브러리 휴지통으로 이동합니다.</translation>
+    </message>
+    <message>
+        <source>You can restore it from there for %1 days.</source>
+        <translation>그곳에서 %1일 동안 복원할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>You can restore it from there.</source>
+        <translation>그곳에서 복원할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>You can restore them from there for %1 days.</source>
+        <translation>그곳에서 %1일 동안 복원할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>You can restore them from there.</source>
+        <translation>그곳에서 복원할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Delete %1?</source>
+        <translation>%1 님을 삭제하시겠습니까?</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>삭제</translation>
+    </message>
     <message>
         <source>Athletes</source>
         <translation>골퍼</translation>

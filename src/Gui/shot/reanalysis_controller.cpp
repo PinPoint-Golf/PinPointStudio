@@ -23,8 +23,7 @@
 #include <QJsonObject>
 #include <QtConcurrent>
 
-#include "../Export/swing_doc.h"
-#include "../Export/swing_store.h"
+#include "../Analysis/reanalyse_and_persist.h"   // the one write-back
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
 
@@ -70,19 +69,23 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
 
 bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
 {
-    if (!pinpoint::SwingDocWriter::isDeviceOnlySwing(pinpoint::SwingStore::load(dir)))
+    if (!m_repo)
         return false;
-    QString err;
-    bool changed = false;
-    if (pinpoint::SwingDocWriter::refreshLaunchMonitorRows(dir, &changed, &err)) {
+    // The edge (DEC-90): the queued folder to its ShotRef, on this (the owner) thread.
+    const pinpoint::ShotRef shot = m_repo->shotOfFolder(dir);
+    if (!m_repo->isDeviceOnly(shot))
+        return false;
+    const pinpoint::analysis::PersistedReanalysis p =
+        pinpoint::analysis::persistReanalysis(*m_repo, shot, nullptr, persistOptions());
+    if (p.ok()) {
         ++m_succeeded;
         emit reanalysed(dir);
         ppInfo() << "[Reanalysis] launch monitor only:" << dir
-                 << (changed ? "— its readings' rows rebuilt" : "— its readings' rows were current");
+                 << (p.write.changed() ? "— its readings' rows rebuilt" : "— its readings' rows were current");
     } else {
         ++m_failed;
-        m_lastError = QStringLiteral("Couldn't update this shot's launch monitor readings: %1").arg(err);
-        ppError() << "[Reanalysis] launch monitor refresh failed for" << dir << ":" << err;
+        m_lastError = QStringLiteral("Couldn't update this shot's launch monitor readings: %1").arg(p.write.error);
+        ppError() << "[Reanalysis] launch monitor refresh failed for" << dir << ":" << p.write.error;
     }
     return true;
 }
@@ -121,9 +124,19 @@ void ReanalysisController::startNext()
     // onset v2 fixed that at source, so re-analysis follows the same span-bounded
     // two-pass path as a live shot. ReanalyzeOptions::fullWindow remains as an
     // escape hatch for SwingLab/debugging only.
-    m_watcher.setFuture(QtConcurrent::run([dir] {
+    // The edge (DEC-90): translated here, on the owner thread; the worker reads by the ShotRef, whose
+    // folder the session repository resolves from any thread.
+    m_currentShot = m_repo ? m_repo->shotOfFolder(dir) : pinpoint::ShotRef();
+    pinpoint::RecordingReader *reader = m_reader;
+    const pinpoint::ShotRef    shot   = m_currentShot;
+    m_watcher.setFuture(QtConcurrent::run([reader, shot] {
         pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-        return pinpoint::analysis::reanalyzeSwingDir(dir, pinpoint::analysis::ReanalyzeOptions{});
+        if (!reader) {
+            pinpoint::analysis::ReanalyzeResult none;
+            none.error = QStringLiteral("This shot couldn't be re-analysed: no swing reader is connected.");
+            return none;
+        }
+        return pinpoint::analysis::reanalyzeShot(*reader, shot, pinpoint::analysis::ReanalyzeOptions{});
     }));
 }
 
@@ -131,51 +144,48 @@ void ReanalysisController::onWorkerFinished()
 {
     const pinpoint::analysis::ReanalyzeResult r = m_watcher.result();
     const QString dir = m_current;
+    const pinpoint::ShotRef shot = m_currentShot;
     m_current.clear();
+    m_currentShot = {};
 
-    if (r.ok && r.analysis.detail) {
-        // Write the fresh analysis back, preserving the existing manifest blocks
-        // (capture / streams / review). writeSwingJson replaces only "analysis".
-        QJsonObject manifest = pinpoint::SwingStore::load(dir);
-        // Guard against clobbering: an empty manifest means swing.json went missing
-        // or unreadable between load and write-back (the folder was trashed mid-batch,
-        // or a transient read failure). Writing then would replace the whole document
-        // with only {schema, analysis}, destroying streams/capture/review. Skip it.
-        QString err;
-        if (manifest.isEmpty()) {
-            ++m_failed;
-            m_lastError = QStringLiteral("This shot's document could not be read, so it was left untouched.");
-            ppWarn() << "[Reanalysis] write-back skipped —" << dir
-                     << "document missing/unreadable (not overwriting)";
-            startNext();
-            return;
-        }
-
-        // The IMU data-integrity block is the one manifest key that must NOT simply
-        // ride through: it is a verdict about this recording, and re-analysis has
-        // just re-reached it (or established that it cannot be reached at all, in
-        // which case this removes it). Carrying the capture-time block forward is
-        // what made a false ⚠ survive every re-analysis. See swing_doc.h.
-        pinpoint::applyImuIntegrity(manifest, r.imuIntegrity ? &*r.imuIntegrity : nullptr);
-        pinpoint::applyCaptureIntegrity(manifest,
-                                        r.captureIntegrity ? &*r.captureIntegrity : nullptr);
-
-        if (pinpoint::SwingDocWriter::writeSwingJson(dir, manifest,
-                                                     r.analysis.detail.get(), &err)) {
-            ++m_succeeded;
-            emit reanalysed(dir);   // host refreshes the row in the active model
-            ppInfo() << "[Reanalysis] re-analysed" << dir << "— score" << r.analysis.score;
-        } else {
-            ++m_failed;
-            m_lastError = QStringLiteral("Couldn't save the re-analysis: %1").arg(err);
-            ppError() << "[Reanalysis] write-back failed for" << dir << ":" << err;
-        }
-    } else {
+    if (!(r.ok && r.analysis.detail)) {
         ++m_failed;
         m_lastError = r.error.isEmpty()
                           ? QStringLiteral("This shot couldn't be re-analysed.")
                           : r.error;
         ppWarn() << "[Reanalysis] failed for" << dir << ":" << m_lastError;
+        startNext();
+        return;
+    }
+    if (!m_repo) {
+        ++m_failed;
+        m_lastError = QStringLiteral("Couldn't save the re-analysis: no swing store is connected.");
+        ppError() << "[Reanalysis] write-back failed for" << dir << ": no RecordingRepository wired";
+        startNext();
+        return;
+    }
+
+    // The one write-back, here on the GUI thread as always: the repository reads the document
+    // fresh (preserving capture / streams / review), sets both integrity verdicts this pass reached
+    // (a verdict it could not reach is withdrawn — carrying the capture-time block forward is what
+    // made a false ⚠ survive every re-analysis) and replaces "analysis", honouring Save pose
+    // keypoints. An empty read (the folder was trashed mid-batch, a transient failure) writes
+    // nothing: writing then would replace the whole document with only {schema, analysis}.
+    const pinpoint::analysis::PersistedReanalysis p =
+        pinpoint::analysis::persistReanalysis(*m_repo, shot, &r, persistOptions());
+    if (p.ok()) {
+        ++m_succeeded;
+        emit reanalysed(dir);   // host refreshes the row in the active model
+        ppInfo() << "[Reanalysis] re-analysed" << dir << "— score" << p.score;
+    } else if (p.write.status == pinpoint::WriteResult::Status::NoDocument) {
+        ++m_failed;
+        m_lastError = QStringLiteral("This shot's document could not be read, so it was left untouched.");
+        ppWarn() << "[Reanalysis] write-back skipped —" << dir
+                 << "document missing/unreadable (not overwriting)";
+    } else {
+        ++m_failed;
+        m_lastError = QStringLiteral("Couldn't save the re-analysis: %1").arg(p.write.error);
+        ppError() << "[Reanalysis] write-back failed for" << dir << ":" << p.write.error;
     }
 
     startNext();

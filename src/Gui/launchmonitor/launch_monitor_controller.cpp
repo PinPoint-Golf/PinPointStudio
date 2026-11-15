@@ -26,6 +26,8 @@
 #include "standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
+#include "../../DomainModel/recording_repository.h"
+#include "../../DomainModel/session_repository.h"   // the one allocator (D10)
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -429,9 +431,12 @@ void LaunchMonitorController::onReadingAvailable(const LaunchMonitorReading &rea
 bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
                                               const LaunchMonitorReading &r,
                                               const QString &swingId, int swingIndex,
-                                              const QString &sessionId, int existingShotId)
+                                              const QString &sessionId, int existingShotId,
+                                              bool standalone)
 {
-    pinpoint::SwingDocWriter::DeviceOnlyMeta meta;
+    pinpoint::DeviceOnlyMeta meta;
+    // Only a standalone shot records its kind (DeviceOnlyMeta::standalone): its folder is its own.
+    meta.standalone = standalone;
     // The rescue path is handed a folder somebody else allocated, so it reads the
     // identity back off the path rather than being told: <session>/<swing_NNNN>.
     const QDir dir(swingDir);
@@ -457,9 +462,16 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     meta.wallclockMs = r.readAtMs > 0 ? r.readAtMs : QDateTime::currentMSecsSinceEpoch();
 
-    QString error;
-    if (!pinpoint::SwingDocWriter::writeDeviceOnlySwing(swingDir, r, meta, &error)) {
-        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << error;
+    if (!m_repo) {
+        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir
+                 << ": no recording repository";
+        return false;
+    }
+    // The edge (DEC-90): the folder this shot was handed (its own allocation's, or a failed camera
+    // shot's on the rescue path) to its key, once.
+    const pinpoint::WriteResult w = m_repo->create(m_repo->shotOfFolder(swingDir), r, meta);
+    if (!w.ok()) {
+        ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << w.error;
         return false;
     }
 
@@ -510,18 +522,21 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
         return false;
     }
 
-    const auto alloc = m_paths.allocateSwingDir(m_settings->athleteLibraryPath(),
-                                                m_athletes->currentName(),
-                                                m_athletes->currentUuid(),
-                                                m_settings->sessionNamingPattern(),
-                                                QString());
-    if (alloc.swingDir.isEmpty()) {
-        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder";
+    // ONE ALLOCATOR (D10: DEC-157): the next swing number of the running session — the session the
+    // gate above requires — not a "…_session_NN" folder of its own, which split the session in two.
+    const pinpoint::SessionId session = m_captureSession ? m_captureSession() : pinpoint::SessionId();
+    if (!m_sessions || session.isNull()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — no session to record it in";
+        return false;
+    }
+    const pinpoint::SwingAllocation alloc = m_sessions->allocateSwing(session);
+    if (!alloc.ok()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << alloc.result.error;
         return false;
     }
 
-    return writeDeviceOnly(alloc.swingDir, reading, alloc.swingId, alloc.swingIndex,
-                           alloc.sessionId, /*existingShotId*/ -1);
+    return writeDeviceOnly(alloc.swingFolder, reading, alloc.swingName, alloc.shot.swingNumber(),
+                           alloc.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
 }
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)
@@ -533,9 +548,12 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     const QString club = followedClub(r);
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
-    QString error;
-    if (!pinpoint::SwingDocWriter::updateLaunchMonitor(swingDir, r, &error, captureClub, &clubReplaced)) {
-        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":" << error;
+    const pinpoint::WriteResult w =
+        m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(swingDir), r, captureClub, &clubReplaced)
+               : pinpoint::WriteResult{};
+    if (!w.ok()) {
+        ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
+                 << (m_repo ? w.error : QStringLiteral("no recording repository"));
         return false;
     }
     if (clubReplaced) {
@@ -679,10 +697,11 @@ void LaunchMonitorController::flushUpdates()
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
 
-        QString error;
-        if (!pinpoint::SwingDocWriter::updateLaunchMonitor(dir, r, &error)) {
+        const pinpoint::WriteResult w =
+            m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(dir), r) : pinpoint::WriteResult{};
+        if (!w.ok()) {
             ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
-                     << "to" << dir << ":" << error;
+                     << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));
             continue;
         }
         ppInfo() << "LaunchMonitor: club data for" << r.deviceShotId << "written to" << dir;

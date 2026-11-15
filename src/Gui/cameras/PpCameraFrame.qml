@@ -1189,7 +1189,8 @@ Item {
                          || _ballSamples.length > 0)
 
             // Bound from the active replay's detail — pose kp flat [x,y,c]×17 and
-            // club samples with normalized grip/head (toAnalysisDetail shapes).
+            // club samples with normalized grip/head (the one projection's shapes,
+            // analysisDetailFor in swing_doc_reader.cpp: the same map live, replayed and reloaded).
             // root._replayDetail resolves to disk (Review) or in-window (Capture);
             // root._det picks this tile's camera out of it (face-on top level, or dtl).
             // Smoothed-first: the Phase-2 smoothed series carries the render-alpha

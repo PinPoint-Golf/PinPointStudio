@@ -18,9 +18,8 @@
 
 #include "pack_io.h"
 
-#include <QDir>
-#include <QFileInfo>
-#include <QSaveFile>
+#include "../../Core/atomic_write.h"
+
 #include <QJsonArray>
 #include <QSet>
 #include <QStandardPaths>
@@ -132,44 +131,14 @@ QString diagnosticsFilePath(const QString &fileName)
 
 bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot)
 {
-    if (path.isEmpty()) {
+    if (path.isEmpty()) {   // diagnosticsFilePath()'s meaning of empty, said in its own words
         if (whyNot) *whyNot = QStringLiteral("No writable application data location.");
         return false;
     }
-
-    QDir().mkpath(QFileInfo(path).absolutePath());
-
-    // QSaveFile writes to a uniquely named temporary beside `path` (two writers of one file, the
-    // app and tools/diagnostics/regrade_ledger, never share it), syncs it, and commit() renames it
-    // OVER the original in one step. There is no moment at which `path` is missing. The direct-write
-    // fallback is off (it is the default; set here so nobody has to look it up): when no temporary
-    // can be made beside the file, writing the file in place would bring back the very truncation
-    // this exists to prevent, so the save fails instead and the original is left alone.
-    QSaveFile out(path);
-    out.setDirectWriteFallback(false);
-    if (!out.open(QIODevice::WriteOnly)) {
-        if (whyNot) *whyNot = QStringLiteral("Could not write to %1.").arg(path);
-        return false;
-    }
-
-    // Both halves are checked. A short write returns before commit(), and an uncommitted QSaveFile
-    // deletes its temporary when it goes out of scope; a buffered write that only fails when
-    // commit() flushes it is a WriteError, and commit() deletes the temporary itself. Either way the
-    // ORIGINAL is still whole, which is the whole reason to write somewhere else first.
-    const qint64 written = out.write(bytes);
-    if (written != bytes.size()) {
-        if (whyNot) *whyNot = QStringLiteral("Could not write to %1 — the disk may be full.").arg(path);
-        return false;
-    }
-    if (!out.commit()) {
-        if (whyNot) {
-            *whyNot = out.error() == QFileDevice::RenameError
-                          ? QStringLiteral("Could not replace %1.").arg(path)
-                          : QStringLiteral("Could not write to %1 — the disk may be full.").arg(path);
-        }
-        return false;
-    }
-    return true;
+    const pinpoint::AtomicWriteResult r = pinpoint::atomicWrite(path, bytes);
+    if (!r.ok && whyNot)
+        *whyNot = r.error;
+    return r.ok;
 }
 
 } // namespace pinpoint::analysis

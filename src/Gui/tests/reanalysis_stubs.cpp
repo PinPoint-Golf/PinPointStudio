@@ -16,16 +16,15 @@
  * Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// Link stubs for the ReanalysisController seam test. The controller now calls
-// into the full offline analysis pipeline (reanalyzeSwingDir) and the swing.json
-// writer (writeSwingJson); pulling those in would drag the whole analyzer +
-// OpenCV + pose stack into what is deliberately a thin funnel test. The seam
-// test only exercises queue/de-dupe/signal behaviour and never reaches the
-// worker body (no event loop runs, so QFutureWatcher::finished never fires), so
-// trivial definitions satisfy the linker without faking observable behaviour.
+// Link stubs for the ReanalysisController seam test. The controller calls into the full offline
+// analysis pipeline (reanalyzeSwingDir); pulling that in would drag the whole analyzer + OpenCV +
+// pose stack into what is deliberately a thin funnel test. The write-back goes through the real
+// reanalyse_and_persist.cpp and a RecordingRepository the test never wires (step 1.4), so nothing
+// of the swing-file writer is linked or stubbed. The seam test only exercises queue/de-dupe/signal
+// behaviour and never reaches the worker body (no event loop runs, so QFutureWatcher::finished
+// never fires), so a trivial definition satisfies the linker without faking observable behaviour.
 
 #include "../Analysis/swing_reanalyzer.h"
-#include "../Export/swing_doc.h"
 
 namespace pinpoint::analysis {
 
@@ -34,41 +33,10 @@ ReanalyzeResult reanalyzeSwingDir(const QString & /*swingDir*/, const ReanalyzeO
     return {};   // ok == false; never observed by the seam test
 }
 
+ReanalyzeResult reanalyzeShot(pinpoint::RecordingReader & /*reader*/, const pinpoint::ShotRef & /*shot*/,
+                              const ReanalyzeOptions & /*opts*/)
+{
+    return {};   // the same, for the ShotRef door (step 2.4)
+}
+
 } // namespace pinpoint::analysis
-
-namespace pinpoint {
-
-bool SwingDocWriter::writeSwingJson(const QString & /*swingDir*/, const QJsonObject & /*rawManifest*/,
-                                    const analysis::SwingAnalysis * /*analysis*/, QString * /*error*/,
-                                    const QString & /*club*/, bool /*savePose*/)
-{
-    return true;   // unreached: onWorkerFinished needs an event loop the test never runs
-}
-
-// startNext() asks whether each queued swing is launch-monitor-only before handing it to the
-// worker. The seam test's "dirs" are bare ids with no document, so none is: the queue reaches
-// the worker exactly as before.
-bool SwingDocWriter::isDeviceOnlySwing(const QJsonObject & /*root*/)
-{
-    return false;
-}
-
-bool SwingDocWriter::refreshLaunchMonitorRows(const QString & /*swingDir*/, bool * /*changed*/,
-                                              QString * /*error*/, bool /*dryRun*/)
-{
-    return false;   // unreached: isDeviceOnlySwing() is false for every swing here
-}
-
-void applyImuIntegrity(QJsonObject & /*manifest*/, const ImuRefusionVerdict * /*v*/)
-{
-    // Same seam, same reason — onWorkerFinished is never reached by this test.
-}
-
-void applyCaptureIntegrity(QJsonObject & /*manifest*/, const CaptureIntegrityVerdict * /*v*/)
-{
-    // Ditto. Added when the re-analysis write-back learned to re-reach (or withdraw)
-    // the capture-integrity verdict alongside the IMU one; without it this target
-    // does not link, which is how it stood from 85f7c29 until it was noticed.
-}
-
-} // namespace pinpoint

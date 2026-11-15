@@ -19,6 +19,7 @@
 #include "markup_truth.h"
 
 #include "../../Export/swing_store.h"   // the swing document, whichever format it is in
+#include "../../Analysis/swing_analysis.h"   // windowTimeUs, documentAnalysisOriginUs — the one time rule
 
 #include <QDir>
 #include <QFile>
@@ -28,7 +29,6 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QRegularExpression>
-#include <QSaveFile>
 
 #include <algorithm>
 #include <cmath>
@@ -44,10 +44,6 @@ double roundDp(double v, int dp)
     return std::round(v * m) / m;
 }
 
-QString truthPath(const QString &swingDir, MarkupView view)
-{
-    return QDir(swingDir).filePath(truthFileName(view));
-}
 
 QString viewTag(MarkupView view)
 {
@@ -55,15 +51,6 @@ QString viewTag(MarkupView view)
                                            : QStringLiteral("FaceOn");
 }
 
-QJsonObject loadObject(const QString &path)
-{
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) return {};
-    QJsonParseError pe{};
-    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-    if (pe.error != QJsonParseError::NoError || !doc.isObject()) return {};
-    return doc.object();
-}
 
 // A sidecar belongs to `view` unless it says otherwise. truth.json has never
 // carried a "view" key, so an absent one reads as the view that was asked for;
@@ -257,27 +244,11 @@ QJsonObject toJson(const TruthDoc &doc, const VideoStreamInfo &fo, MarkupView vi
     return root;
 }
 
-bool writeTruth(const QString &swingDir, const TruthDoc &doc, const VideoStreamInfo &fo,
-                MarkupView view, QString *error)
-{
-    const QJsonObject root = toJson(doc, fo, view);
-    QSaveFile f(truthPath(swingDir, view));
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        if (error) *error = f.errorString();
-        return false;
-    }
-    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    if (!f.commit()) {
-        if (error) *error = f.errorString();
-        return false;
-    }
-    return true;
-}
 
-TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupView view)
+
+TruthDoc fromJson(const QJsonObject &root, const VideoStreamInfo &fo, MarkupView view)
 {
     TruthDoc doc;
-    const QJsonObject root = loadObject(truthPath(swingDir, view));
     if (root.isEmpty()) return doc;
     // Never parse the other camera's pixels into this view's space.
     if (!objectMatchesView(root, view)) return doc;
@@ -347,10 +318,10 @@ TruthDoc readTruth(const QString &swingDir, const VideoStreamInfo &fo, MarkupVie
     return doc;
 }
 
-TruthSummary summarize(const QString &swingDir, MarkupView view)
+
+TruthSummary summarizeJson(const QJsonObject &root, MarkupView view)
 {
     TruthSummary out;
-    const QJsonObject root = loadObject(truthPath(swingDir, view));
     if (root.isEmpty() || !objectMatchesView(root, view)) return out;
     out.exists     = true;
     out.shaftCount = root.value(QStringLiteral("shaft")).toArray().size();
@@ -373,8 +344,12 @@ PoseTrack readPose2d(const QString &swingDir)
     const QJsonObject root = pinpoint::SwingStore::load(swingDir);
     if (root.isEmpty()) return track;
 
-    const qint64 t0 = root.value(QStringLiteral("clock")).toObject()
-                          .value(QStringLiteral("t0_us")).toInteger();
+    // The analysis origin, by the one rule (swing_analysis.h): 0 for a stamped document, else
+    // clock.t0_us, through which windowTimeUs leaves a window-relative t_us alone. The old
+    // unconditional `t_us - clock.t0_us` pushed every frame of a document whose pose was already
+    // window-relative (all of today's library) about 5e11 us before the window, so the overlay
+    // never found a frame within 40 ms of the playhead (refactor step 1.7).
+    const qint64 t0 = qint64(pinpoint::analysis::documentAnalysisOriginUs(root));
     const QJsonArray frames = root.value(QStringLiteral("analysis")).toObject()
                                   .value(QStringLiteral("pose2d")).toObject()
                                   .value(QStringLiteral("frames")).toArray();
@@ -384,7 +359,7 @@ PoseTrack readPose2d(const QString &swingDir)
     for (const QJsonValue &fv : frames) {
         const QJsonObject f = fv.toObject();
         PoseFrame pf;
-        pf.relUs = f.value(QStringLiteral("t_us")).toInteger() - t0;   // -> window-relative
+        pf.relUs = qint64(pinpoint::analysis::windowTimeUs(f.value(QStringLiteral("t_us")).toInteger(), t0));
         const QJsonArray kp = f.value(QStringLiteral("kp")).toArray();
         pf.kp.reserve(kp.size());
         for (const QJsonValue &x : kp) pf.kp.push_back(float(x.toDouble()));

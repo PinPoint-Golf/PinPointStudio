@@ -26,6 +26,9 @@
 #include "../../Video/VideoInputPpcp.h"
 
 namespace Ppcp { class PpcpImportLedger; }
+#include "../../Identity/identity.h"   // ShotRef
+
+namespace pinpoint { class RecordingRepository; struct StreamArrival; }
 
 // PpcpClipFiler — where a phone's swing video becomes part of a swing.
 //
@@ -69,6 +72,11 @@ public:
 
     // Borrowed, never owned — the one ledger PpcpHostService loads.
     void setLedger(Ppcp::PpcpImportLedger *ledger) { m_ledger = ledger; }
+
+    // Borrowed — the one door to the swing files (main.cpp's). A clip's stream origin is a late
+    // part of the Recording (RecordingRepository::completeCapture, IM-4); the placeholder document
+    // for a shot that produced none is its create(). Without one nothing is recorded in the swing.
+    void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
 
     // Sent when the payload is DURABLY held (MSG 8.4a).  Supplied by main.cpp
     // because only PpcpHostService knows which link owns which peer, and the
@@ -136,19 +144,24 @@ private:
     };
     struct Shot {
         QString            shotId;
-        QString            swingDir;      // empty until the folder exists
+        QString            swingDir;      // empty until the folder exists (the clip's file goes here)
         std::vector<Asked> asked;
         std::vector<PpcpClip> parked;     // arrived before the folder did
         bool               abandoned = false;
+        pinpoint::ShotRef  shot;          // the swing's key, translated once from swingDir (step 2.4)
     };
 
     Shot *find(const QString &shotId);
     Shot *awaiting();
     QString aliasFor(const Shot &s, const PpcpClip &clip) const;
     bool file(Shot &s, const PpcpClip &clip);
+    bool ensureSwingDocument(const Shot &s);
+    // The origin (and, once landed, the file) on the swing's `streams[]`; false + *error on failure.
+    bool recordArrival(const Shot &s, const pinpoint::StreamArrival &arrival, QString *error);
 
     Stats                   m_stats;
     Ppcp::PpcpImportLedger *m_ledger = nullptr;
+    pinpoint::RecordingRepository *m_repo = nullptr;
     CommitFn                m_pumpCommits;
     // Bounded: a clip that turns up long after its shot has scrolled off is a
     // clip with nowhere to go, and an unbounded map would be a slow leak across

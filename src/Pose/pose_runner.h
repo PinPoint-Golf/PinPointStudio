@@ -130,10 +130,17 @@ public:
     // pass. Returns an empty track on any parse problem.
     // Same parser over an in-memory object (a swing.json `analysis` block or a
     // {"frames":[...]} file) — version-gated re-analysis reloads the recorded pose.
+    // t0Us: the origin of the block's times (analysisReadOriginUs, swing_doc.h): 0 for a stamped
+    // document or an injected file, an old absolute-time document's clock.t0_us.
     static pinpoint::analysis::PoseTrack2D fromJsonObject(const QJsonObject &root,
-                                                          pinpoint::SourceId camera);
+                                                          pinpoint::SourceId camera,
+                                                          int64_t t0Us = 0);
     // "<model file>@<bytes>" for the ViTPose variant run() would pick for this
-    // quality tier on THIS host — the pose identity in analysis.versions.
+    // quality tier on THIS host — the pose model's PROVENANCE in analysis.versions
+    // (versions.pose.model). Never the reuse key: Mark's pose rule (14 Nov 2026) reuses
+    // a saved pose whatever model file this host has, and re-poses only on a
+    // kPoseStageVersion bump (reuse_gate.h); a reused pose keeps the identity it was
+    // recorded with.
     static QString modelIdentity(const QString &motionCaptureQuality);
     static pinpoint::analysis::PoseTrack2D loadFromJson(const QString &file,
                                                         pinpoint::SourceId camera);
