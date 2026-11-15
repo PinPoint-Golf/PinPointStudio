@@ -17,21 +17,21 @@
  */
 
 // No athlete switch while a session runs, and an edit is not a switch (SWE audit E-01 / E-03,
-// Stage 0.8g). The contract is athlete_controller.h (setSessionRunningCheck) and
-// athlete_switch_gate.h:
+// Stage 0.8g; refactor step 2.3). The contract is athlete_controller.h (setSessionRunningCheck, and
+// currentAthleteChanged on a SWITCH only):
 //
 //   G — while the session check answers true, selectAthlete(another) and deleteAthlete(current)
 //       answer false and change nothing; saveAthlete("", …) creates the athlete WITHOUT making it
 //       current; editing a record still works. With no session, all of it behaves as before.
-//   W — the gate a data-reloading listener of currentAthleteChanged runs through (the live
-//       carousel's in main.cpp, SessionReviewController::onAthleteChanged): a record edit — a club
-//       length, updateAthlete, the form's Save of an existing athlete — is not a switch; selecting
-//       another athlete is.
+//   W — a record edit — a club length, updateAthlete, the form's Save of an existing athlete, the
+//       photo consent, another athlete's record — emits no currentAthleteChanged (so the live carousel's
+//       reload in main.cpp and SessionReviewController::onAthleteChanged, which run on it, never run
+//       for an edit); selecting another athlete emits it once, and so does deleting the current one.
 //
-// Against a scratch INI (QSettings::setPath) — never the real settings file.
+// Against a scratch INI (QSettings::setPath) and a scratch library — never the real ones.
 
 #include "athlete_controller.h"
-#include "athlete_switch_gate.h"
+#include "athlete_test_library.h"
 #include "pp_settings.h"
 
 #include <QFileInfo>
@@ -74,7 +74,8 @@ private slots:
     // G1–G4: no session — create selects, select and delete work (the behaviour before the guard).
     void noSessionBehavesAsBefore()
     {
-        AthleteController a;
+        AthleteTestLibrary lib;
+        AthleteController &a = lib.makeController();
         bool running = false;
         a.setSessionRunningCheck([&running] { return running; });
 
@@ -90,6 +91,8 @@ private slots:
         QVERIFY(!listed(a, nick));
 
         AthleteController unset;                                  // G4 no check given = never running
+        unset.setSynchronousActivity(true);
+        unset.setRepositories(lib.athletes.get(), &lib.sessions);
         QVERIFY(!unset.sessionRunning());
         QVERIFY(unset.selectAthlete(jess));
         QCOMPARE(unset.currentUuid(), jess);
@@ -98,7 +101,8 @@ private slots:
     // G5–G12: a session running for Nick.
     void sessionRunningRefusesASwitch()
     {
-        AthleteController a;
+        AthleteTestLibrary lib;
+        AthleteController &a = lib.makeController();
         bool running = false;
         a.setSessionRunningCheck([&running] { return running; });
         const QString nick  = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
@@ -115,9 +119,10 @@ private slots:
         QCOMPARE(changed.count(), 0);
         QCOMPARE(ppSettings().value(QStringLiteral("currentAthleteUuid")).toString(), nick);
 
-        // G6 selecting the athlete already current is not a switch: allowed.
+        // G6 selecting the athlete already current is not a switch: allowed, and not announced.
         QVERIFY(a.selectAthlete(nick));
         QCOMPARE(a.currentUuid(), nick);
+        QCOMPARE(changed.count(), 0);
 
         // G7 delete of the current athlete is refused; the record stays.
         QVERIFY(!a.deleteAthlete(nick));
@@ -146,63 +151,57 @@ private slots:
         QCOMPARE(a.currentDob(), QStringLiteral("1990-01-01"));
         QCOMPARE(a.saveAthlete(nick, QStringLiteral("Nick Henn")), nick);
         QCOMPARE(a.currentUuid(), nick);
+        QCOMPARE(changed.count(), 0);
 
         // G12 the session ends: the switch is allowed again.
         running = false;
         QVERIFY(a.selectAthlete(paddy));
         QCOMPARE(a.currentUuid(), paddy);
+        QCOMPARE(changed.count(), 1);
     }
 
-    // W1–W3: the gate on its own.
-    void gateAnswersOnlyAChange()
+    // W1–W6: an edit is not a switch — currentAthleteChanged stays silent; the record-valued
+    // properties follow the edit through athletesChanged.
+    void recordEditIsNotASwitch()
     {
-        AthleteSwitchGate unprimed;
-        QVERIFY(unprimed.switched(QStringLiteral("a")));          // W1 unprimed: the first call is a switch
-        QVERIFY(!unprimed.switched(QStringLiteral("a")));
-        AthleteSwitchGate primed(QStringLiteral("a"));
-        QVERIFY(!primed.switched(QStringLiteral("a")));           // W2 primed: the same uuid is not
-        QVERIFY(primed.switched(QStringLiteral("b")));            // W3 another uuid is, once
-        QVERIFY(!primed.switched(QStringLiteral("b")));
-        QVERIFY(primed.switched(QString()));                      // …and so is "no athlete"
-    }
-
-    // W4–W8: the gate as the carousel's listener runs it, on a real controller's signal.
-    void recordEditDoesNotReload()
-    {
-        AthleteController a;
+        AthleteTestLibrary lib;
+        AthleteController &a = lib.makeController();
         const QString nick  = a.saveAthlete(QString(), QStringLiteral("Nick Henn"));
         const QString chris = a.saveAthlete(QString(), QStringLiteral("Chris Marriott"));
         QVERIFY(a.selectAthlete(nick));
 
-        int reloads = 0, emissions = 0;
-        QObject::connect(&a, &AthleteController::currentAthleteChanged, &a,
-                         [&a, &reloads, &emissions, gate = AthleteSwitchGate(a.currentUuid())]() mutable {
-            ++emissions;
-            if (gate.switched(a.currentUuid())) ++reloads;
-        });
+        QSignalSpy switched(&a, &AthleteController::currentAthleteChanged);
+        QSignalSpy edited(&a, &AthleteController::athletesChanged);
 
-        // W4 a club length: the club form's commit.
+        // W1 a club length: the club form's commit.
         QVariantMap clubs = a.clubsFor(nick);
         QVERIFY(!clubs.isEmpty());
         const QString club = clubs.firstKey();
         QVariantMap rec = clubs.value(club).toMap();
         rec[QStringLiteral("lengthMm")] = rec.value(QStringLiteral("lengthMm")).toInt() + 3;
         QVERIFY(a.setClubRecord(nick, club, rec));
-        // W5 the form's Save of the current athlete: saveAthlete + four updateAthlete + photos.
-        QCOMPARE(a.saveAthlete(nick, QStringLiteral("Nick Henn")), nick);
+        QCOMPARE(a.clubsFor(nick).value(club).toMap().value(QStringLiteral("lengthMm")).toInt(),
+                 rec.value(QStringLiteral("lengthMm")).toInt());
+        // W2 the form's Save of the current athlete — a rename — and the fields written after it.
+        QCOMPARE(a.saveAthlete(nick, QStringLiteral("Nick Henn-Smith"), QStringLiteral("Left")), nick);
+        QCOMPARE(a.currentName(), QStringLiteral("Nick Henn-Smith"));      // the property follows the edit
+        QCOMPARE(a.currentHandedness(), QStringLiteral("Left"));
         QVERIFY(a.updateAthlete(nick, QStringLiteral("dob"), QStringLiteral("1990-01-01")));
         QVERIFY(a.updateAthlete(nick, QStringLiteral("sex"), QStringLiteral("male")));
         a.setPhotosApproved(nick, true);
-        // W6 an edit of ANOTHER athlete's record.
+        // W3 an edit of ANOTHER athlete's record.
         QVERIFY(a.updateAthlete(chris, QStringLiteral("notes"), QStringLiteral("hi")));
 
-        QVERIFY(emissions >= 6);                                   // the signal fired for each edit…
-        QCOMPARE(reloads, 0);                                      // …W4–W6 none of them reloads
+        QVERIFY(edited.count() >= 6);                              // every edit was announced…
+        QCOMPARE(switched.count(), 0);                             // …W1–W3 none of them as a switch
 
-        QVERIFY(a.selectAthlete(chris));                           // W7 a real switch reloads, once
-        QCOMPARE(reloads, 1);
-        QVERIFY(a.deleteAthlete(chris));                           // W8 deleting the current one is a switch (to none)
-        QCOMPARE(reloads, 2);
+        QVERIFY(a.selectAthlete(chris));                           // W4 a real switch, once
+        QCOMPARE(switched.count(), 1);
+        QVERIFY(a.selectAthlete(chris));                           // W5 the same athlete again: not one
+        QCOMPARE(switched.count(), 1);
+        QVERIFY(a.deleteAthlete(chris));                           // W6 deleting the current one is a switch (to none)
+        QCOMPARE(switched.count(), 2);
+        QVERIFY(!a.hasCurrentAthlete());
     }
 };
 

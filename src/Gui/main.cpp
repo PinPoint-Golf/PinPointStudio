@@ -29,6 +29,7 @@
 #include "../Ppcp/ppcp_host_service.h"
 #endif
 #include <QDateTime>
+#include <QFileInfo>
 #include <QDir>
 #include <algorithm>
 #include <atomic>
@@ -66,7 +67,6 @@
 #include "buffer_controller.h"
 #include "event_buffer.h"
 #include "athlete_controller.h"
-#include "athlete_switch_gate.h"
 #include "navigation_controller.h"
 #include "resource_monitor_controller.h"
 #include "profiler_controller.h"
@@ -95,6 +95,7 @@
 #include "../Export/swing_zip_exporter.h"
 #include "../Export/swing_store_repository.h"
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
+#include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -303,7 +304,12 @@ int main(int argc, char *argv[])
     LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     BufferController        bufferController(&eventBuffer);
+    // THE ONE DOOR TO THE ATHLETE'S RECORD (AthleteRepository, step 2.3): athlete.json in each athlete's
+    // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
+    // controller, so it outlives every Athlete the controller holds.
+    pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
     AthleteController       athleteController;
+    athleteController.setRepositories(&athleteStore, &sessionStore);
     // Live lead-wrist metrics (vs neutral) for the wizard "Check your sensor" overlay.
     LiveWristAngles         liveWrist(&imuManager, &appSettings, &athleteController);
     // The one sink every session- and shot-scoped notification posts to.
@@ -351,7 +357,7 @@ int main(int argc, char *argv[])
     // rating/note aren't persisted yet so they come back cleared).
     {
         const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), athleteController.currentName());
+            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName());
         shotModel.loadSessionDir(sessionDir);   // one disk-load path (also used on wrist entry)
         if (shotModel.activeCount())
             ppInfo() << "[Reload] restored" << shotModel.activeCount() << "shots from" << sessionDir;
@@ -384,16 +390,16 @@ int main(int argc, char *argv[])
             // not the library, so a probe can exercise the catch-up without writing into it.
             const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
             if (!forced.isEmpty()) return forced;
-            const QString root = appSettings.athleteLibraryPath();
-            const QString name = athleteController.currentName();
-            if (root.isEmpty() || name.isEmpty()) return {};
-            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
+            if (appSettings.athleteLibraryPath().isEmpty()) return QString();
+            return athleteController.currentFolder();   // D4: the folder chosen once, kept on a rename
         };
         const auto repoint = [&workOns, athleteDir] { workOns.setAthleteDir(athleteDir()); };
         workOns.setGradePolicy(appSettings.diagnosticsGradePolicy());
         QObject::connect(&appSettings, &AppSettings::diagnosticsGradePolicyChanged, &workOns,
                          [&workOns, &appSettings] { workOns.setGradePolicy(appSettings.diagnosticsGradePolicy()); });
         QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &workOns, repoint);
+        // A settings athlete's folder still follows a rename (until M1): idempotent, so every edit may ask.
+        QObject::connect(&athleteController, &AthleteController::athletesChanged, &workOns, repoint);
         QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &workOns, repoint);
         // Queued: both end-session paths call sessionController.endSession() and THEN
         // shotProcessor.endSessionFolder(), which may trash a folder that captured nothing.
@@ -420,22 +426,16 @@ int main(int argc, char *argv[])
         const auto athleteDir = [&appSettings, &athleteController]() -> QString {
             const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
             if (!forced.isEmpty()) return forced;
-            const QString root = appSettings.athleteLibraryPath();
-            const QString name = athleteController.currentName();
-            if (root.isEmpty() || name.isEmpty()) return {};
-            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
+            if (appSettings.athleteLibraryPath().isEmpty()) return QString();
+            return athleteController.currentFolder();
         };
         const auto repoint = [&sessionReportList, athleteDir] { sessionReportList.setAthleteDir(athleteDir()); };
-        // Every golfer's session count and last session (the picker's rows, and its Recent order),
-        // read from each one's folder — the same root + sanitised name as the list above.
-        athleteController.setAthleteDirResolver([&appSettings](const QString &name) -> QString {
-            const QString root = appSettings.athleteLibraryPath();
-            if (root.isEmpty() || name.isEmpty()) return {};
-            return root + QStringLiteral("/") + pinpoint::SwingPaths::sanitise(name);
-        });
+        // The library's athletes and every golfer's session count and last session (the picker's rows,
+        // and its Recent order), derived from each one's SessionIndex — re-read when the library moves.
         QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged,
                          &athleteController, &AthleteController::refreshActivity);
         QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &sessionReportList, repoint);
+        QObject::connect(&athleteController, &AthleteController::athletesChanged, &sessionReportList, repoint);
         QObject::connect(&appSettings, &AppSettings::athleteLibraryPathChanged, &sessionReportList, repoint);
         // setReportModel already follows stateChanged(dir) for that one row; a work-on record landing
         // re-scans (work-on 1 and the swing count can both have moved). The live session's row offers
@@ -474,17 +474,31 @@ int main(int argc, char *argv[])
     // athlete's shots. Re-point them whenever the current athlete changes.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
                      &sessionReviewController, &SessionReviewController::onAthleteChanged);
-    // Only on a real SWITCH (another uuid): currentAthleteChanged also fires on every record edit,
-    // and reloading then cleared the live carousel mid-session — rows lost their detail, failed
-    // shots vanished, ids changed and the selection named nothing (E-03). Primed with the athlete
-    // the start-up reload above was for.
+    // currentAthleteChanged fires on a SWITCH only (step 2.3): a record edit never reloads the live
+    // carousel mid-session (E-03), so no gate is needed.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
-                     &shotModel, [&shotModel, &appSettings, &athleteController,
-                                  gate = AthleteSwitchGate(athleteController.currentUuid())]() mutable {
-        if (!gate.switched(athleteController.currentUuid())) return;
+                     &shotModel, [&shotModel, &appSettings, &athleteController]() {
         shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), athleteController.currentName()));
+            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName()));
     });
+    // THE WRIST REFERENCE ★ ON THE ATHLETE'S RECORD (D5: DEC-152). The Charts views still carry it as
+    // a swing folder (appSettings.wristReferenceSwingDir); the controller translates at its edge. A ★
+    // is recorded on the current athlete's record; a switch brings that athlete's ★ back. An athlete
+    // whose record names none keeps today's per-machine setting (the fallback until M4 converts it).
+    QObject::connect(&appSettings, &AppSettings::wristReferenceSwingDirChanged, &athleteController,
+                     [&appSettings, &athleteController] {
+        athleteController.setWristReferenceSwingDir(appSettings.wristReferenceSwingDir());
+    });
+    {
+        const auto showRecordedReference = [&appSettings, &athleteController] {
+            const QString recorded = athleteController.wristReferenceSwingDir();
+            if (!recorded.isEmpty() && recorded != appSettings.wristReferenceSwingDir())
+                appSettings.setWristReferenceSwingDir(recorded);
+        };
+        QObject::connect(&athleteController, &AthleteController::currentAthleteChanged, &appSettings,
+                         showRecordedReference);
+        showRecordedReference();
+    }
     // DATA-SOURCE transition (a past session opened/closed from disk). This is the
     // ONLY axis that pauses capture: opening a loaded session stops live capture
     // (which disarms the shot trigger via the buffer state) and gates ShotController;
@@ -781,6 +795,18 @@ int main(int argc, char *argv[])
             notificationCenter.post(n);
         });
 
+        // A delete the picker's prompt described wrongly (J-30): refused, or the folder kept because
+        // another athlete shares it. The prompt's words stay as they are; this notice corrects them.
+        QObject::connect(&athleteController, &AthleteController::deleteNotice,
+                         &notificationCenter, [&notificationCenter](const QString &title, const QString &detail) {
+            N::Notification n;
+            n.id       = QStringLiteral("athlete.delete.notice");
+            n.severity = N::Warn;
+            n.kind     = N::Event;
+            n.title    = title;
+            n.detail   = detail;
+            notificationCenter.post(n);
+        });
         // The session's own file could not be written at End (DEC-126): said, not only logged. The session
         // stays in progress on disk until the athlete's next Start ends it (DEC-73).
         QObject::connect(&shotProcessor, &ShotProcessor::sessionFileFailed,

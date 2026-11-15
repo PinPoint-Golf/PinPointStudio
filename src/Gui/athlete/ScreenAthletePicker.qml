@@ -54,6 +54,43 @@ Item {
         athleteSelected(uuid)
     }
 
+    // ── Delete, after asking (refactor step 2.3, J-26) ──────────────────────────────────────────
+    // The delete moves the golfer's whole folder — every session in it — to the library's trash
+    // (DEC-79), so it asks first, in the house prompt's error tone (it discards saved work). The
+    // session count is the athlete's SessionIndex's (sessions with a swing), as the rows show it.
+    // Only confirmed() deletes.
+    property string _deleteUuid: ""
+    function askToDelete(uuid) {
+        const a = athleteController.athletes.find(function(x) { return x.uuid === uuid })
+        if (!a) return
+        const n    = a.sessionCount || 0
+        const days = typeof appSettings !== "undefined" ? (appSettings.trashRetentionDays || 0) : 0
+        const what = n === 0 ? qsTr("%1's folder moves to the library's trash.").arg(a.name)
+                   : Theme.plural(n, qsTr("%2's folder and its %1 session move to the library's trash."),
+                                     qsTr("%2's folder and all %1 sessions move to the library's trash.")).arg(a.name)
+        const back = n === 0 ? (days > 0 ? qsTr("You can restore it from there for %1 days.").arg(days)
+                                         : qsTr("You can restore it from there."))
+                             : (days > 0 ? qsTr("You can restore them from there for %1 days.").arg(days)
+                                         : qsTr("You can restore them from there."))
+        root._deleteUuid   = uuid
+        deleteConfirm.title = qsTr("Delete %1?").arg(a.name)
+        deleteConfirm.body  = what + " " + back
+        deleteConfirm.open()
+    }
+    PpConfirm {
+        id: deleteConfirm
+        objectName: "athleteDeleteConfirm"
+        tone:        "error"
+        confirmText: qsTr("Delete")
+        onConfirmed: {
+            const uuid = root._deleteUuid
+            root._deleteUuid = ""
+            if (uuid !== "" && athleteController.deleteAthlete(uuid))
+                root.selectedUuid = ""
+        }
+        onCancelled: root._deleteUuid = ""
+    }
+
     // Pre-select the current athlete whenever this screen becomes visible
     onVisibleChanged: {
         if (visible) {
@@ -234,10 +271,8 @@ Item {
                     label:       qsTr("Delete athlete")
                     destructive: true
                     enabled:     root.selectedUuid !== "" && !root.sessionRunning
-                    onClicked: {
-                        athleteController.deleteAthlete(root.selectedUuid)
-                        root.selectedUuid = ""
-                    }
+                    // Asks first: a delete moves the golfer's whole folder, every session in it (DEC-79).
+                    onClicked: root.askToDelete(root.selectedUuid)
                 }
                 PpButton {
                     label: {

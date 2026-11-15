@@ -319,7 +319,7 @@ const QVector<OwnedFile> &ownedFiles()
         { "tendencies.json",    R"(tendencies\.json)",                        "Gui/diagnostics/work_ons_controller" },
         { "swing_themes*.json", R"(swing_themes(?:\.[^/]*)?\.json|swing_themes)","Gui/diagnostics/work_ons_controller" },
         { "session_input.json", R"(session_input\.json)",                     "" },   // step 2: SessionRepository
-        { "athlete.json",       R"(athlete\.json)",                           "" },   // step 2: AthleteRepository
+        { "athlete.json",       R"(athlete\.json)",                           "Export/athlete_files" },   // step 2.3: AthleteRepository's names (IM-S2-6)
     };
     return t;
 }

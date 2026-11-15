@@ -40,7 +40,6 @@ Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource
 Export/recording_header.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters: the legacy context's club set, moved from swing_reanalyzer.cpp in step 1.2); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Coaching/club_distances.h | A3 | 1 | reads a swing/session folder name itself (a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Export/swing_doc_reader.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/athlete/athlete_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_delivery_presenter.cpp | A3 | 3 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_posture_presenter.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
 Gui/charts/charts_traces_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2

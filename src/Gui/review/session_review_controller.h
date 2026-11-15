@@ -22,7 +22,6 @@
 #include <QString>
 #include <QVariantList>
 
-#include "../athlete/athlete_switch_gate.h"
 #include "session_list_model.h"
 #include "shot_list_model.h"
 
@@ -138,9 +137,8 @@ public slots:
     // The session list is athlete-scoped. Nothing used to react to an athlete switch, so
     // the drawer kept showing the previous athlete's sessions until something else forced
     // a rebuild. Drops any loaded session (it belongs to the previous athlete) and rebuilds.
-    // Only on a real SWITCH — the current uuid differs from the one this last acted on.
-    // currentAthleteChanged also fires on every record edit, and an edit (a club length, the
-    // form's Save) used to drop the review the coach was in (E-03; athlete_switch_gate.h).
+    // Connected to currentAthleteChanged, which fires on a SWITCH only (refactor step 2.3): an edit
+    // (a club length, the form's Save) no longer drops the review the coach is in (E-03).
     void onAthleteChanged();
 
 signals:
@@ -166,7 +164,6 @@ private:
     AppSettings       *m_settings  = nullptr;
     AthleteController *m_athlete   = nullptr;
     pinpoint::RecordingRepository *m_repo = nullptr;   // stateless: used from the pool too
-    AthleteSwitchGate  m_athleteGate;    // primed in the constructor with the athlete refresh() was for
 
     SessionListModel   m_sessionsModel;
     ShotListModel      m_reviewModel;     // the loaded session's shots

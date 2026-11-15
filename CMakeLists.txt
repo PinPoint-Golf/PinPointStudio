@@ -2782,6 +2782,11 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_store.h
     src/Export/session_store.cpp
     src/Export/session_files.h
+    # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
+    # athlete files' names; the Athlete (Domain model) below.
+    src/Export/athlete_store.h
+    src/Export/athlete_store.cpp
+    src/Export/athlete_files.h
     src/Export/frame_decode.h
     src/Export/frame_decode.cpp
     src/Export/swing_exporter.h
@@ -2930,6 +2935,9 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/session_identity.h
     src/DomainModel/session_identity.cpp
     src/DomainModel/session_repository.h
+    src/DomainModel/athlete.h
+    src/DomainModel/athlete.cpp
+    src/DomainModel/athlete_repository.h
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h

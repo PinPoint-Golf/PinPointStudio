@@ -1573,7 +1573,9 @@ set(SESSION_DIAG_MARKS_SOURCES
     ${SRC}/Gui/variability/variability_facade.cpp
     ${SRC}/Gui/charts/variability_clubs.cpp
     ${SRC}/Gui/charts/session_consistency.cpp ${SRC}/Gui/charts/session_curves.cpp
-    ${SRC}/Gui/charts/session_warp.cpp ${SRC}/Gui/charts/session_traces.cpp)
+    ${SRC}/Gui/charts/session_warp.cpp ${SRC}/Gui/charts/session_traces.cpp
+    # The tuning log's append takes the athlete folder's advisory lock (Export/athlete_files.h, step 2.3).
+    ${SRC}/Core/folder_lock.cpp)
 # The metric manifest the model reads a measure's scale type from (src/Gui/variability/variability_measures.h:
 # one lookup for every surface). Listed apart because work_ons_controller_test already links it.
 set(SESSION_DIAG_CATALOGUE_SOURCES

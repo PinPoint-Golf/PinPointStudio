@@ -77,7 +77,10 @@ CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const Sessio
 
 AthleteIdentity athleteIdentity(const AthleteController *athlete)
 {
-    return athlete ? AthleteIdentity{ athlete->currentName(), athlete->currentUuid() } : AthleteIdentity{};
+    // The token the session store composes the athlete's folder from (refactor step 2.3): the folder's
+    // own name for an athlete with athlete.json — chosen once, kept on a rename (D4) — and today's name
+    // for an athlete still in settings (until M1).
+    return athlete ? AthleteIdentity{ athlete->currentSessionOwner().name, athlete->currentUuid() } : AthleteIdentity{};
 }
 
 namespace {

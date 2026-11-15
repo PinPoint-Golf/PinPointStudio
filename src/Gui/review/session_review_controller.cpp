@@ -71,7 +71,6 @@ SessionReviewController::SessionReviewController(ShotListModel     *liveModel,
         connect(m_liveModel, &QAbstractItemModel::dataChanged,  this, &SessionReviewController::updateLiveSessionDir);
     }
     m_liveSessionDir = liveSessionDir();
-    m_athleteGate.prime(m_athlete ? m_athlete->currentUuid() : QString());
     refresh();
 }
 
@@ -208,7 +207,9 @@ void SessionReviewController::refresh()
 
     const QString liveDir = liveSessionDir();
     const QString root    = m_settings ? m_settings->athleteLibraryPath() : QString();
-    const QString athlete = m_athlete  ? m_athlete->currentName()         : QString();
+    // The athlete's folder by its own name (D4: chosen once, kept on a rename), which the reader joins
+    // to the library as it always has.
+    const QString athlete = m_athlete  ? QFileInfo(m_athlete->currentFolder()).fileName() : QString();
     for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(root, athlete)) {
         // Skip the live session's own dir — it's already the synthesized row.
         if (!liveDir.isEmpty() && QFileInfo(sessionDir).absoluteFilePath() == liveDir)
@@ -286,8 +287,6 @@ void SessionReviewController::loadSession(const QString &sessionId)
 
 void SessionReviewController::onAthleteChanged()
 {
-    if (!m_athleteGate.switched(m_athlete ? m_athlete->currentUuid() : QString()))
-        return;                          // a record edit, not a switch: keep the review and the list
     if (m_reviewActive)
         resumeLive();                    // the loaded session belongs to the previous athlete
     refresh();                           // sidecar-only, so this is safe to run inline

@@ -92,7 +92,10 @@ struct CaptureAthlete {
 };
 CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const SessionController *session);
 
-// Who the athlete is, for the session folder (refactor step 2 moves this into the Session).
+// Who the athlete is, for the session folder (refactor step 3 moves this into the Session). `name` is
+// the token SessionStore composes the athlete folder (and the session folder's name) from:
+// AthleteController::currentSessionOwner().name — the athlete folder's own name for an athlete with
+// athlete.json (D4: fixed at creation, kept on a rename), the typed name for one still in settings.
 struct AthleteIdentity { QString name, uuid; };
 AthleteIdentity athleteIdentity(const AthleteController *athlete);
 

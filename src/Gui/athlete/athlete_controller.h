@@ -18,8 +18,11 @@
 
 #pragma once
 
+#include "../../DomainModel/athlete.h"   // Athlete, AthleteActivity, SessionOwner (domain, inward)
+
 #include <QHash>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QThreadPool>
 #include <QVariantList>
@@ -27,13 +30,31 @@
 
 #include <functional>
 
+namespace pinpoint { class AthleteRepository; class SessionRepository; }
+
+// AthleteController — THE QML ADAPTER OVER THE CURRENT ATHLETE (refactor step 2.3; brief §4.5). The
+// record lives on a pinpoint::Athlete, read and written through pinpoint::AthleteRepository (the one
+// writer, IM-S2-4); this class keeps today's QML surface — the same 14 properties and invokables — and
+// SET-02 (the current athlete at launch, which stays in settings: DEC-05).
+//
+// SWITCH vs EDIT (E-03, folds in Stage 0.7). currentAthleteChanged fires ONLY ON A SWITCH: another
+// athlete (or none) becomes current. An edit of any record — the form's Save, a club, the photo consent,
+// the Wrist ★ — is announced by the Athlete's recordChanged() and, here, by athletesChanged, which the
+// record-valued properties notify on. So a listener that reloads data on currentAthleteChanged needs no
+// gate (AthleteSwitchGate is gone).
+//
+// ACTIVITY (each golfer's session count and last session, the picker's rows and Recent order) is derived
+// from each athlete's SessionIndex (DEC-89), read off the GUI thread by AthleteRepository::readActivity;
+// refreshActivity() re-reads the library's athletes and their activity (the picker asks on opening).
 class AthleteController : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool         hasCurrentAthlete READ hasCurrentAthlete NOTIFY currentAthleteChanged)
-    Q_PROPERTY(QString      currentName       READ currentName       NOTIFY currentAthleteChanged)
-    Q_PROPERTY(QString      currentInitials   READ currentInitials   NOTIFY currentAthleteChanged)
-    Q_PROPERTY(QString      currentHandedness READ currentHandedness NOTIFY currentAthleteChanged)
+    // The name and handedness change on a switch AND on an edit, so they notify on athletesChanged (which a
+    // switch emits too); the uuid changes on a switch only.
+    Q_PROPERTY(QString      currentName       READ currentName       NOTIFY athletesChanged)
+    Q_PROPERTY(QString      currentInitials   READ currentInitials   NOTIFY athletesChanged)
+    Q_PROPERTY(QString      currentHandedness READ currentHandedness NOTIFY athletesChanged)
     Q_PROPERTY(QString      currentUuid       READ currentUuid       NOTIFY currentAthleteChanged)
     // The two demographic fields, RAW — an ISO date and a token, not a resolved cohort.
     //
@@ -62,23 +83,33 @@ class AthleteController : public QObject
 
 public:
     explicit AthleteController(QObject *parent = nullptr);
-    ~AthleteController() override;   // waits for a running activity scan (it posts back to this)
+    ~AthleteController() override;   // waits for a running activity read (it posts back to this)
 
-    // ── Activity: each golfer's session count and last session, read from the library ──────────
-    // Nothing writes the registry's sessionCount / lastSessionAt, so both come from the golfer's
-    // folder, counted the way the Sessions list counts (a folder with at least one swing_* in it)
-    // and dated the way it dates one whose swings are not read (the yyyy-MM-dd its name starts
-    // with, else its mtime). They order `athletes` (newest first), so the picker's Recent cards
-    // follow who has been in. The scan runs on a pool thread; the result patches the list.
-    struct Activity { int sessions = 0; qint64 lastAtSec = 0; };
-    static Activity scanActivity(const QString &athleteDir);   // touches no member; public for the test
-    // name → that golfer's folder ("" = unknown). main.cpp supplies it (the library root and
-    // SwingPaths::sanitise), so this class needs neither. Setting it scans.
-    void setAthleteDirResolver(std::function<QString(const QString &name)> resolver);
-    // Re-reads every golfer's activity. Also run by every reload(); the picker asks on opening.
+    // The composition root hands in the two repositories (main.cpp; a test, its own over a scratch
+    // library). Until then there are no athletes. Reads the library at once.
+    void setRepositories(pinpoint::AthleteRepository *athletes, pinpoint::SessionRepository *sessions);
+
+    // Re-reads the library's athletes and every golfer's activity (from their SessionIndex, on a pool
+    // thread; the result patches the list). The picker asks on opening; a library change asks too.
     Q_INVOKABLE void refreshActivity();
-    // Tests: scan on the calling thread.
+    // Tests: read the activity on the calling thread.
     void setSynchronousActivity(bool on) { m_syncActivity = on; }
+
+    // ── C++ only (not QML) ───────────────────────────────────────────────────────────────────────
+    pinpoint::Athlete     *currentAthlete() const { return m_current; }
+    // The current athlete's folder (D4: where its athlete.json is found; a settings athlete's: today's
+    // derivation), "" when none. What the work-ons, the report list and the carousel follow.
+    QString                currentFolder() const { return m_current ? m_current->folder() : QString(); }
+    // Who the current athlete's sessions belong to, as SessionRepository takes it (capture's session
+    // folder, through capture::athleteIdentity).
+    pinpoint::SessionOwner currentSessionOwner() const;
+    // THE WRIST REFERENCE ★ ON THE RECORD (D5: DEC-152), as a ShotRef, translated at this edge from and
+    // to the swing folder path the Charts views carry (appSettings.wristReferenceSwingDir). "" when the
+    // current athlete's record names none, or its swing is gone.
+    QString wristReferenceSwingDir() const;
+    // Records `swingDir` (a swing of the current athlete's) on its record; "" clears it. False when it is
+    // not one of the current athlete's swings, or the write failed.
+    bool    setWristReferenceSwingDir(const QString &swingDir);
 
     bool         hasCurrentAthlete() const { return !m_currentUuid.isEmpty(); }
     QString      currentName()       const { return m_currentName; }
@@ -177,7 +208,7 @@ public:
     // The stable tokens the form's picker offers, so QML never spells them itself.
     Q_INVOKABLE QVariantList sexOptions() const;
 
-    // Per-athlete club records (Settings live under athletes/<uuid>/clubs as a
+    // Per-athlete club records (the record's bag, `clubs`: a
     // QVariantMap keyed by the canonical club-vocabulary name — the same id
     // markup writes to truth.json meta.club). Record shape:
     //   { shaftType: "steel"|"graphite", loftDeg: double, lengthMm: int, bandWidthMm: int,
@@ -195,8 +226,8 @@ public:
     //   reportGreeting          what the email and page 1 call them; empty = the first word of the name
     //   reportPhotosApproved    a junior's parent or guardian approved swing photos (bool)
     //   reportPhotosApprovedOn  the ISO date the box was ticked; cleared when it is unticked
-    // They stay in the app INI beside the rest of the record — never in a swing document, a session
-    // folder or the share — and deleteAthlete removes them with the group.
+    // They stay on the record (athlete.json, or the settings record until M1) — never in a swing
+    // document or a session folder — and go with the athlete when it is deleted.
     //
     // reportDetails: { uuid, name, email, greeting, dob, photosApproved, photosApprovedOn } for an
     // athlete found by uuid, else by name (case-insensitive) — the report map names its golfer, and a
@@ -248,25 +279,30 @@ public:
                                    const QVariantMap &record);
     Q_INVOKABLE bool removeClubRecord(const QString &uuid, const QString &clubId);
     // deleteAthlete / selectAthlete answer false when refused while a session runs (see
-    // setSessionRunningCheck above); selectAthlete of the athlete already current is not a switch.
+    // setSessionRunningCheck above). deleteAthlete moves the athlete's WHOLE folder, sessions and all, to
+    // the recoverable trash (DEC-79), and is refused while one of its sessions is InProgress (DEC-99).
+    // selectAthlete of the athlete already current is not a switch.
     Q_INVOKABLE bool deleteAthlete(const QString &uuid);
     Q_INVOKABLE bool selectAthlete(const QString &uuid);
     Q_INVOKABLE void clearCurrentAthlete();
 
 signals:
-    // ⚠ Emitted by every reload(): a SWITCH of athlete and an EDIT of any record alike (one form
-    // Save emits it five or six times). A listener that reloads data must act only when
-    // currentUuid() differs from the one it last acted on — athlete_switch_gate.h. (Splitting
-    // this into a switch signal and an edit signal is refactor step 2, not done here.)
+    // A SWITCH only: another athlete, or none, became current (R-APP-1). Never on an edit.
     void currentAthleteChanged();
     void athletesChanged();
+    // A delete that did not do what the picker's prompt said (J-30): refused, or the athlete removed
+    // but its folder kept because another athlete shares it. main.cpp posts it as a notice.
+    void deleteNotice(const QString &title, const QString &detail);
     void clubDistancesChanged();
 
 private:
-    void reload();
+    void reload();                       // re-list the library's athletes, then rebuild()
+    void rebuild();                      // the list and the current athlete, from the athletes held
+    pinpoint::Athlete *athleteFor(const QString &uuid) const;
+    QVariantMap        mapOf(const pinpoint::Athlete &a) const;
     static QString computeInitials(const QString &name);
     static void sortAthletes(QVariantList &list);
-    void applyActivity(int generation, const QHash<QString, Activity> &byUuid);
+    void applyActivity(int generation, const QHash<QString, pinpoint::AthleteActivity> &byUuid);
 
     // One field off the CURRENT athlete's record, empty when there is none. Read out of m_athletes
     // rather than mirrored into a member beside m_currentName: those four are set when the current
@@ -289,9 +325,12 @@ private:
     QString      m_currentInitials;
     QString      m_currentHandedness;
 
-    std::function<QString(const QString &)> m_dirFor;
+    pinpoint::AthleteRepository *m_repo     = nullptr;
+    pinpoint::SessionRepository *m_sessions = nullptr;
+    QList<pinpoint::AthleteId>   m_ids;     // the last list(), in its order
+    QPointer<pinpoint::Athlete>  m_current;
     std::function<bool()> m_sessionRunning;   // SessionController::running, from main.cpp
-    QHash<QString, Activity> m_activity;      // uuid → last scan's result
+    QHash<QString, pinpoint::AthleteActivity> m_activity;   // uuid → last read
     int  m_activityGeneration = 0;
     bool m_syncActivity = false;
     QThreadPool m_pool;

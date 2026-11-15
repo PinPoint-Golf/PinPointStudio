@@ -697,7 +697,8 @@ no longer tracks recency.
 
 ```
 <athleteLibraryPath>/
-  <athlete-name-sanitised>/            athlete level
+  <athlete-folder>/                    athlete level — the sanitised name, chosen ONCE (step 2.3)
+    athlete.json                       the athlete's record and bag (step 2.3; FILE-ATH-01)
     <session-folder>_NN/               session level — named by the naming pattern + per-day _NN
       session.json                     the session file: id, athlete, type, status, times (step 2.2)
       .pinpoint-last-swing             the highest swing number ever issued (never reissued)
@@ -746,6 +747,33 @@ Written only by `SessionStore` (`src/Export/session_store.*`, the adapter of
 
 Keys this build does not know are kept on every rewrite. **A read never writes**: a session without a
 file is read from its folder's name in memory (`SessionIdentity::fromLegacyFolder`).
+
+### The athlete file — `athlete.json` (FILE-ATH-01; step 2.3)
+
+Written only by `AthleteStore` (`src/Export/athlete_store.*`, the adapter of
+`src/DomainModel/athlete_repository.h`), whole, through `atomicWrite`, under the athlete folder's
+`FolderLock` for that one write; its name is spelled once, in `AthleteFiles` (`src/Export/athlete_files.h`,
+lint A4's owner). Keys: `schema` (`"pinpoint.athlete/1"`, checked on read; a newer one is read-only, an
+unparseable one never listed nor overwritten), `athleteId`, `record` (SET-01's keys as stored today, the
+bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `lastSessionAt` /
+`sessionCount`, which come from the session index) and, from migration M1, `migratedFrom`. There is **no
+`folder` key**: the athlete's folder is the one the file is found in (DEC-151).
+
+- **Created** with the athlete: the folder is the sanitised name, `-2`, `-3` … when a folder of that name
+  exists or a settings athlete's derived folder would be it. A **rename changes the name only**: the
+  folder, its sessions and the next session's folder stay.
+- **An athlete created before step 2** has no `athlete.json` until M1 (step 2.8): it is read from this
+  machine's settings and its edits go back there; its folder is still `library + sanitise(name)`. No
+  read ever writes an `athlete.json` (nor the standard bag a record lacks). An `athlete.json` with the
+  same id wins.
+- **Deleted** (`Athlete::remove`): refused while one of its sessions is in progress; else the whole
+  folder goes to the OS trash, or on a share to `<library>/.pinpoint-trash/<athlete>/<stamp>_<athlete>`
+  (housekeeping's layout: one entry). A settings athlete's record is written into its folder first, so
+  the trashed folder carries it.
+- **The tuning log** `outcome_corrections.jsonl` is appended a line at a time under the same lock
+  (`AthleteFiles::appendTuningLine`).
+- The session store composes a session's folder from `Athlete::sessionOwner()`: the athlete folder's own
+  name for an athlete with `athlete.json` (`capture::athleteIdentity`).
 
 ### The session lifecycle — `SessionRepository` (step 2.2)
 
@@ -1235,6 +1263,18 @@ including the resumed morning session that must never be discarded; the folder f
 a rename; D7 (a new session in the new library, the old ended, or left in progress when unreachable,
 or discarded when empty); a held `FolderLock` refusing the write. `swing_paths_test` keeps the names,
 `sanitise` and the trash.
+
+### `athlete_repository_test` — the athlete file and its one door (step 2.3)
+
+`src/Gui/tests/athlete_repository_test.cpp` (Gui suite) runs `AthleteStore`, the `Athlete` and
+`AthleteController` on a temp library and a scratch INI: `athlete.json` at creation (no `folder` key, no
+derived keys), the folder numbered when taken, one instance per id; a rename keeps the folder and its
+sessions; a settings athlete read, never written by a read, its edits back to settings, an `athlete.json`
+with its id winning; delete refused while a session is in progress, else the whole folder in the
+library's trash in housekeeping's layout, a settings athlete's record carried; an edit is
+`recordChanged`, never `currentAthleteChanged`; a newer file read-only, an unparseable one left alone;
+the Wrist ★ on the record as a `ShotRef`; the tuning log's append and a held lock refusing it; the
+picker's activity from the index.
 
 There is **no Export test project**. `swing_doc_test.cpp` lives in
 `src/Export/tests/` but is compiled by the **Analysis suite**
