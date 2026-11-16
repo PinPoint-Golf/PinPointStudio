@@ -609,7 +609,7 @@ The section to read before assuming anything here runs. "Dormant" means written 
 | `metric_corridor.h` | `metric_catalog.cpp` → MetricDetail, PpBandRail, dashboard Motion/Verdict/Setup zones |
 | `NormBandProvider` (`Wrist/reference_bands.cpp`) | the wrist grid, live (`wrist_diagnostics_model`) and offline (`analysis_pipeline`) |
 | `measure_sample.{h,cpp}` | the corridor editor's histogram, the corpus-share health scan |
-| `dag_layout.{h,cpp}` | `ModelGraph.qml` via `ModelBrowser::dag()` |
+| `dag_layout.{h,cpp}` | `ModelGraph.qml` via `ModelBrowser::graph()` (which lays a condition out through `dag()`) |
 | `diagnostics_health.{h,cpp}` | `ModelBrowser` (the validation strip) |
 | `measure_facets.{h,cpp}`, `anatomy_vocabulary.{h,cpp}` | Composed-measure vocabulary, the measure picker |
 | all six providers + the two mergers | pack and norm assembly |
@@ -909,6 +909,12 @@ The norm set is layered identically (`m_savedNorms` / `m_workingNorms` / `m_norm
 ### QML holds no rules
 
 Sorting, filtering, faceting, search, the legality of a proposed link, which cell may be edited and with what control, and which of two values is "yours" — all decided in C++. QML is handed `columns(type)` and `rows(type, filters)` and renders them; it does not know what a Measure is. **A rule written in a delegate is a rule nothing can test.**
+
+### The QML API is typed (refactor step 3.9-ii; P9, R-QML-2)
+
+What `ModelBrowser` hands QML is a `Q_GADGET` value type declared in `model_browser.h`, every field named, read in QML by the names the old maps carried: `ModelEditResult` (`ok`, `message`, and `type`/`id`/`edgeId`/`backups`/`cascaded`/`path` from the writes that have them), `ModelCandidate` (every picker), `ModelOption` (closed vocabularies, `current` on the ring collar), `ModelTypeEntry` (the rail), `ModelEditEntry` (the Edits list), `ModelLegendEntry`, `ModelGradePolicy`, `ModelNormSet`, `ModelObjectRef` (`graphFocus()`), `ModelLinkRefusals` (`refuses(id)` / `refusalOf(id)`), `ModelCorridorContext`, `ModelFacetSeed`, `ModelMeasurePreview`. A list is a `QList` of the gadget, which QML reads as a sequence (`length`, `[i]`, `modelData`). The mint takes its four facets as arguments (`previewMeasure(what, quantity, reference, anchor)`).
+
+**One trap:** a field a map left out is a default on a gadget (`""`, `false`, `0`), so QML tests the default, never `=== undefined` (the mint's exact match is `hasExactMatch`). Calls no view makes (`dag`, `linkLegality`, `bindingsOf`, `linksCitingReference`, `roadmap`, `captureGaps`, `causeCoverage`, `glossary`; `validation()`) are C++ only. Still `QVariantMap`/`QVariantList` until 3.9-ii's next run: `columns`, `rows`, `facets`, `searchAll`, `inspect`, `fieldIssues`, `graph` and `corridorPlot` (architecture allowlist, A6 8).
 
 ### The marshaller is where a feature can be complete on both sides and still absent
 

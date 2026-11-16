@@ -369,15 +369,14 @@ Item {
     property real   _dragX:     0
     property real   _dragY:     0
     property string _dragTarget: ""
-    // A plain JS object for the life of the drag, cleared on release. Never re-queried per
-    // positionChanged — that is the shape this replaces.
-    property var    _refusals:  ({})
+    // A modelLinkRefusals (model_browser.h) for the life of the drag, cleared on release. Never
+    // re-queried per positionChanged — that is the shape this replaces.
+    property var    _refusals:  null
 
     readonly property bool _dragging: _armKind !== ""
 
     function _refusalOf(id) {
-        var r = root._refusals ? root._refusals[id] : null
-        return r ? r : null
+        return root._refusals && root._refusals.refuses(id) ? root._refusals.refusalOf(id) : null
     }
 
     property bool _firstHoldOfSession: true
@@ -1739,7 +1738,7 @@ Item {
         root._armEnd    = end
         root._armEdgeId = edgeId
         root._refusals  = root.refusalsProbe
-                              ? root.refusalsProbe(fixed, root._conditionIds(), end) : ({})
+                              ? root.refusalsProbe(fixed, root._conditionIds(), end) : null
         var a = root._armAnchor()
         root._dragX = a.x
         root._dragY = a.y
@@ -1763,7 +1762,7 @@ Item {
         root._armKind = ""
         root._armFixed = ""
         root._armEdgeId = ""
-        root._refusals = ({})
+        root._refusals = null
         root._dragTarget = ""
         input.mode = "idle"
     }

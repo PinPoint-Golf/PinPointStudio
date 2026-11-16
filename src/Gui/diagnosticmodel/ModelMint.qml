@@ -51,9 +51,9 @@ Popup {
 
     onOpened: { _what = ""; _quantity = ""; _reference = ""; _anchor = "p1"; phrase.text = "" }
 
-    readonly property var _facets: ({ what: _what, quantity: _quantity,
-                                      reference: _reference, anchor: _anchor })
-    readonly property var _preview: browser ? browser.previewMeasure(_facets) : ({})
+    // A modelMeasurePreview (model_browser.h), or an empty object while there is no browser.
+    readonly property var _preview: browser ? browser.previewMeasure(_what, _quantity, _reference, _anchor)
+                                            : ({})
 
     background: PpPopoverCard { style: "plainTight" }
 
@@ -148,9 +148,9 @@ Popup {
             Layout.fillWidth:   true
             Layout.leftMargin:  Theme.gap(14)
             Layout.rightMargin: Theme.gap(14)
-            visible: root._preview.exactMatch !== undefined
+            visible: root._preview.hasExactMatch === true
             text: qsTr("This already exists as “%1” — use that one.")
-                      .arg(root._preview.exactMatch ? root._preview.exactMatch.label : "")
+                      .arg(root._preview.hasExactMatch === true ? root._preview.exactMatch.label : "")
             font.family:    Theme.fontBody
             font.pixelSize: Theme.fontSzMicro
             color:          Theme.colorWarn
@@ -190,9 +190,9 @@ Popup {
                 primary: true
                 // A measure with no producer is a legitimate outcome — it is the roadmap's input —
                 // so nothing here blocks on that. Only an invalid or duplicate series blocks.
-                enabled: root._preview.valid === true && root._preview.exactMatch === undefined
+                enabled: root._preview.valid === true && root._preview.hasExactMatch !== true
                 onClicked: {
-                    var r = root.browser.mintMeasure(root._facets)
+                    var r = root.browser.mintMeasure(root._what, root._quantity, root._reference, root._anchor)
                     if (r.ok === true) root.minted(r.id)
                     root.close()
                 }

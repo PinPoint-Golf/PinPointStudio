@@ -110,14 +110,305 @@ struct ModelGateCounts {
     }
 };
 
+// ── The editor's QML API, typed (refactor step 3.9-ii; P9, R-QML-2; DEC-177) ──────────────────────
+//
+// The values ModelBrowser hands QML, one Q_GADGET each, every field declared. QML reads them by the
+// same names the maps it was handed before carried, so a binding reads `r.ok`, `row.label` exactly as
+// it did. One difference QML has to know: a field a map left OUT is here a default — "" for a string,
+// false, 0 — so a test of absence (`x.id === undefined`) is a test of the default instead.
+//
+// A list is a QList of the gadget, which QML reads as a sequence (`length`, `[i]`, `modelData`). The
+// shapes the table, the inspector, the graph and the corridor plot read are typed in a later run
+// (NOTES-3.9-ii.md lists them).
+
+// The answer every write gives: whether it landed and, in the author's own terms, what happened or
+// why not. The other fields are set only by the writes that have them to say.
+struct ModelEditResult
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelEditResult)
+    Q_PROPERTY(bool        ok       MEMBER ok       FINAL)
+    Q_PROPERTY(QString     message  MEMBER message  FINAL)
+    // duplicate(), createObject(), createAndAttach(), addCorridor(), mintMeasure(): the new object,
+    // so the panel can select it.
+    Q_PROPERTY(QString     type     MEMBER type     FINAL)
+    Q_PROPERTY(QString     id       MEMBER id       FINAL)
+    // addLink(), repointCause(), createAndAttach() of a cause: the claim made.
+    Q_PROPERTY(QString     edgeId   MEMBER edgeId   FINAL)
+    // resetToStandard(): the backup files written (RuleData::backupUserLayers).
+    Q_PROPERTY(QStringList backups  MEMBER backups  FINAL)
+    // setBinding(): the narrower rows the write cleared.
+    Q_PROPERTY(int         cascaded MEMBER cascaded FINAL)
+    // exportRoadmap(), exportReferences(): the file written.
+    Q_PROPERTY(QString     path     MEMBER path     FINAL)
+public:
+    bool        ok = false;
+    QString     message;
+    QString     type;
+    QString     id;
+    QString     edgeId;
+    QStringList backups;
+    int         cascaded = 0;
+    QString     path;
+
+    static ModelEditResult accepted(const QString &message) { ModelEditResult r; r.ok = true; r.message = message; return r; }
+    static ModelEditResult refused(const QString &message)  { ModelEditResult r; r.message = message; return r; }
+
+    friend bool operator==(const ModelEditResult &, const ModelEditResult &) = default;
+};
+
+// One row a picker offers: an object that may legally be linked, attached or added. `detail` is the
+// right-hand words; `tone` (measureCandidates) and `reachLabel` (linkCandidates) are set by the lists
+// that have them.
+struct ModelCandidate
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelCandidate)
+    Q_PROPERTY(QString id         MEMBER id         FINAL)
+    Q_PROPERTY(QString label      MEMBER label      FINAL)
+    Q_PROPERTY(QString detail     MEMBER detail     FINAL)
+    Q_PROPERTY(QString tone       MEMBER tone       FINAL)
+    Q_PROPERTY(QString reachLabel MEMBER reachLabel FINAL)
+public:
+    QString id;
+    QString label;
+    QString detail;
+    QString tone;
+    QString reachLabel;
+
+    friend bool operator==(const ModelCandidate &, const ModelCandidate &) = default;
+};
+
+// One choice of a closed vocabulary: the stored token and its words. `current` marks the one the
+// object holds (ringValues() only).
+struct ModelOption
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelOption)
+    Q_PROPERTY(QString value   MEMBER value   FINAL)
+    Q_PROPERTY(QString label   MEMBER label   FINAL)
+    Q_PROPERTY(bool    current MEMBER current FINAL)
+public:
+    QString value;
+    QString label;
+    bool    current = false;
+
+    friend bool operator==(const ModelOption &, const ModelOption &) = default;
+};
+
+// One content type on the rail: its key, what a collection and ONE of it are called, its hint, and
+// how many rows it has.
+struct ModelTypeEntry
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelTypeEntry)
+    Q_PROPERTY(QString key   MEMBER key   FINAL)
+    Q_PROPERTY(QString label MEMBER label FINAL)
+    Q_PROPERTY(QString one   MEMBER one   FINAL)
+    Q_PROPERTY(QString hint  MEMBER hint  FINAL)
+    Q_PROPERTY(int     count MEMBER count FINAL)
+public:
+    QString key;
+    QString label;
+    QString one;
+    QString hint;
+    int     count = 0;
+
+    friend bool operator==(const ModelTypeEntry &, const ModelTypeEntry &) = default;
+};
+
+// One command on the undo stack, as the Edits list shows it.
+struct ModelEditEntry
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelEditEntry)
+    Q_PROPERTY(int     index  MEMBER index  FINAL)
+    Q_PROPERTY(QString label  MEMBER label  FINAL)
+    Q_PROPERTY(QString detail MEMBER detail FINAL)
+    Q_PROPERTY(bool    undone MEMBER undone FINAL)
+    Q_PROPERTY(bool    saved  MEMBER saved  FINAL)
+public:
+    int     index = 0;
+    QString label;
+    QString detail;
+    bool    undone = false;
+    bool    saved  = false;
+
+    friend bool operator==(const ModelEditEntry &, const ModelEditEntry &) = default;
+};
+
+// One entry of a table's row-dot legend: the tone a dot wears and what it means.
+struct ModelLegendEntry
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelLegendEntry)
+    Q_PROPERTY(QString tone  MEMBER tone  FINAL)
+    Q_PROPERTY(QString label MEMBER label FINAL)
+public:
+    QString tone;
+    QString label;
+
+    friend bool operator==(const ModelLegendEntry &, const ModelLegendEntry &) = default;
+};
+
+// One grade policy (SET-15) the pack can be read under: its stored name, its word and its hint.
+struct ModelGradePolicy
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGradePolicy)
+    Q_PROPERTY(QString name  MEMBER name  FINAL)
+    Q_PROPERTY(QString label MEMBER label FINAL)
+    Q_PROPERTY(QString hint  MEMBER hint  FINAL)
+public:
+    QString name;
+    QString label;
+    QString hint;
+
+    friend bool operator==(const ModelGradePolicy &, const ModelGradePolicy &) = default;
+};
+
+// One norm set the corridors resolve through.
+struct ModelNormSet
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelNormSet)
+    Q_PROPERTY(QString id        MEMBER id        FINAL)
+    Q_PROPERTY(QString label     MEMBER label     FINAL)
+    Q_PROPERTY(int     normCount MEMBER normCount FINAL)
+    Q_PROPERTY(bool    readOnly  MEMBER readOnly  FINAL)
+    Q_PROPERTY(bool    shipped   MEMBER shipped   FINAL)
+public:
+    QString id;
+    QString label;
+    int     normCount = 0;
+    bool    readOnly  = false;
+    bool    shipped   = false;
+
+    friend bool operator==(const ModelNormSet &, const ModelNormSet &) = default;
+};
+
+// An object by type and id: where the graph stands (graphFocus()).
+struct ModelObjectRef
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelObjectRef)
+    Q_PROPERTY(QString type MEMBER type FINAL)
+    Q_PROPERTY(QString id   MEMBER id   FINAL)
+public:
+    QString type;
+    QString id;
+
+    friend bool operator==(const ModelObjectRef &, const ModelObjectRef &) = default;
+};
+
+// Why one candidate end of a proposed link is refused: `reason` is self · exists · cycle, for the view
+// to key a tone off; `text` is the words to show. Empty `reason`: not refused.
+struct ModelLinkRefusal
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelLinkRefusal)
+    Q_PROPERTY(QString reason MEMBER reason FINAL)
+    Q_PROPERTY(QString text   MEMBER text   FINAL)
+public:
+    QString reason;
+    QString text;
+
+    friend bool operator==(const ModelLinkRefusal &, const ModelLinkRefusal &) = default;
+};
+
+// Every refusal for one armed link drag (linkRefusals()), looked up by candidate id. Only refused ids
+// are held; refusalOf() an id that is legal answers an empty refusal.
+struct ModelLinkRefusals
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelLinkRefusals)
+    Q_PROPERTY(int count READ count FINAL)
+public:
+    QHash<QString, ModelLinkRefusal> byId;
+
+    int                          count() const { return int(byId.size()); }
+    Q_INVOKABLE bool             refuses(const QString &id) const { return byId.contains(id); }
+    Q_INVOKABLE ModelLinkRefusal refusalOf(const QString &id) const { return byId.value(id); }
+};
+
+// One context a measure could carry a corridor at, marked with what already resolves there.
+// `mu` and `unit` are the resolving corridor's (0 and "" when `found` is false).
+struct ModelCorridorContext
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelCorridorContext)
+    Q_PROPERTY(QString id            MEMBER id            FINAL)
+    Q_PROPERTY(QString label         MEMBER label         FINAL)
+    Q_PROPERTY(int     depth         MEMBER depth         FINAL)
+    Q_PROPERTY(bool    found         MEMBER found         FINAL)
+    Q_PROPERTY(bool    own           MEMBER own           FINAL)
+    Q_PROPERTY(bool    inherited     MEMBER inherited     FINAL)
+    Q_PROPERTY(QString inheritedFrom MEMBER inheritedFrom FINAL)
+    Q_PROPERTY(double  mu            MEMBER mu            FINAL)
+    Q_PROPERTY(QString unit          MEMBER unit          FINAL)
+public:
+    QString id;
+    QString label;
+    int     depth = 0;
+    bool    found = false;
+    bool    own   = false;
+    bool    inherited = false;
+    QString inheritedFrom;
+    double  mu = 0.0;
+    QString unit;
+
+    friend bool operator==(const ModelCorridorContext &, const ModelCorridorContext &) = default;
+};
+
+// What a typed phrase seeds the mint's chips with. Empty fields: the phrase named nothing for them.
+struct ModelFacetSeed
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelFacetSeed)
+    Q_PROPERTY(QString what      MEMBER what      FINAL)
+    Q_PROPERTY(QString quantity  MEMBER quantity  FINAL)
+    Q_PROPERTY(QString reference MEMBER reference FINAL)
+public:
+    QString what;
+    QString quantity;
+    QString reference;
+
+    friend bool operator==(const ModelFacetSeed &, const ModelFacetSeed &) = default;
+};
+
+// The mint's live preview of the measure its facets name: valid or why not, its generated id and
+// label, the measure it already is (`hasExactMatch`, `exactMatch`) and those one facet away.
+struct ModelMeasurePreview
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelMeasurePreview)
+    Q_PROPERTY(bool                  valid          MEMBER valid          FINAL)
+    Q_PROPERTY(QString               reason         MEMBER reason         FINAL)
+    Q_PROPERTY(QString               id             MEMBER id             FINAL)
+    Q_PROPERTY(QString               label          MEMBER label          FINAL)
+    Q_PROPERTY(bool                  hasExactMatch  MEMBER hasExactMatch  FINAL)
+    Q_PROPERTY(ModelCandidate        exactMatch     MEMBER exactMatch     FINAL)
+    Q_PROPERTY(QList<ModelCandidate> nearDuplicates MEMBER nearDuplicates FINAL)
+public:
+    bool                  valid = false;
+    QString               reason;
+    QString               id;
+    QString               label;
+    bool                  hasExactMatch = false;
+    ModelCandidate        exactMatch;
+    QList<ModelCandidate> nearDuplicates;
+
+    friend bool operator==(const ModelMeasurePreview &, const ModelMeasurePreview &) = default;
+};
+
 class ModelBrowser : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
 
-    // The type rail: [{ key, label, count, hint }] for every content type, count derived by asking
+    // The type rail: a ModelTypeEntry for every content type, count derived by asking
     // the row list rather than by a stored figure that can go stale.
-    Q_PROPERTY(QVariantList types READ types NOTIFY modelChanged)
+    Q_PROPERTY(QList<ModelTypeEntry> types READ types NOTIFY modelChanged)
 
     // Summed across the types, never hardcoded — the brief is explicit, and a literal 676 would be
     // wrong the first time anybody authored anything.
@@ -147,17 +438,16 @@ class ModelBrowser : public QObject
     Q_PROPERTY(bool    canRedo   READ canRedo   NOTIFY modelChanged)
     Q_PROPERTY(QString undoLabel READ undoLabel NOTIFY modelChanged)
     Q_PROPERTY(QString redoLabel READ redoLabel NOTIFY modelChanged)
-    // The Edits history: [{ index, label, detail, undone, saved }], oldest first. Clicking a row
+    // The Edits history: a ModelEditEntry per command, oldest first. Clicking a row
     // calls undoTo(), which is what makes the stack navigable rather than a counter.
-    Q_PROPERTY(QVariantList edits READ edits NOTIFY modelChanged)
+    Q_PROPERTY(QList<ModelEditEntry> edits READ edits NOTIFY modelChanged)
     // Session-scoped, and SAID SO in the UI. A stack that silently empties teaches an author not to
     // trust it — see the panel's Edits header. (ADDENDUM-01's open question; recorded in the code
     // because a decision nobody can find is a decision that gets remade.)
     Q_PROPERTY(bool undoIsSessionScoped READ undoIsSessionScoped CONSTANT)
 
-    // What is wrong with the DRAFT — the validation strip. Rows are the health shape, and clicking
-    // one filters the table to the offending object.
-    Q_PROPERTY(QVariantList validation READ validation NOTIFY modelChanged)
+    // What is wrong with the DRAFT: the validation chip's two counts. The rows themselves are the
+    // Health table's (rows("health")); validation() is the C++ list the counts read.
     Q_PROPERTY(int validationErrorCount   READ validationErrorCount   NOTIFY modelChanged)
     Q_PROPERTY(int validationWarningCount READ validationWarningCount NOTIFY modelChanged)
 
@@ -239,7 +529,7 @@ public:
     explicit ModelBrowser(pinpoint::RuleData *ruleData, QObject *parent = nullptr);
     ~ModelBrowser() override;
 
-    QVariantList types() const;
+    QList<ModelTypeEntry> types() const;
     int          totalObjects() const;
     QString      packLabel() const;
     bool         dirty() const;
@@ -250,7 +540,7 @@ public:
     bool         canRedo() const;
     QString      undoLabel() const;
     QString      redoLabel() const;
-    QVariantList edits() const;
+    QList<ModelEditEntry> edits() const;
     bool         undoIsSessionScoped() const { return true; }
     QVariantList validation() const;
     int          validationErrorCount() const;
@@ -311,9 +601,9 @@ public:
     // so every related object is one click away and QML never decides what relates to what.
     Q_INVOKABLE QVariantMap inspect(const QString &type, const QString &id) const;
 
-    // What the row dot means in a type's table, as [{ tone, label }] in the order a reader ranks
+    // What the row dot means in a type's table, as ModelLegendEntry rows in the order a reader ranks
     // them, for the legend in the context bar above it. Empty for a type whose rows carry no dot.
-    Q_INVOKABLE QVariantList dotLegend(const QString &type) const;
+    Q_INVOKABLE QList<ModelLegendEntry> dotLegend(const QString &type) const;
 
     // The graph around ANY object, not only a condition.
     //
@@ -328,19 +618,20 @@ public:
     Q_INVOKABLE QVariantMap graph(const QString &type, const QString &id,
                                   const QVariantMap &options = {}) const;
 
-    // Which object the GRAPH should centre on when this one is selected, as { type, id }.
+    // Which object the GRAPH should centre on when this one is selected, as a ModelObjectRef.
     //
     // Almost always the selection itself. A LINK is the exception: it has a neighbourhood of its
     // own — two nodes and the line between them — and drawing that in place of the causal picture
     // replaces the very drawing the reader picked the line out of. Everything that marks a selected
     // link on the canvas — the heavier stroke, the muting of everything else — is invisible if
     // selecting it changes the picture. So a claim centres on its cause and stays drawn.
-    Q_INVOKABLE QVariantMap graphFocus(const QString &type, const QString &id) const;
+    Q_INVOKABLE ModelObjectRef graphFocus(const QString &type, const QString &id) const;
 
     // The laid-out causal DAG around one condition — every coordinate from dag_layout.h, over the
     // WORKING assembly so an unsaved edge is drawn. Same shape as
     // the graph pane renders.
-    Q_INVOKABLE QVariantMap dag(const QString &conditionId, const QVariantMap &options = {}) const;
+    // C++ only since 3.9-ii: no view calls it (the graph reads graph(); NOTES-3.9-ii J3).
+    QVariantMap dag(const QString &conditionId, const QVariantMap &options = {}) const;
 
     // Legal targets for a link from `fromId`, pre-filtered: no self, no existing edge, no cycle,
     // and for `corroborates` no pair that already has a causal path (which the validator forbids).
@@ -351,18 +642,18 @@ public:
     // cause". "to" asks the mirror — what could cause this — which is what re-pointing the `from`
     // end of an existing claim needs, and which no amount of swapping the arguments would give,
     // because the acyclicity question is directed.
-    Q_INVOKABLE QVariantList linkCandidates(const QString &relation, const QString &fixedId,
+    Q_INVOKABLE QList<ModelCandidate> linkCandidates(const QString &relation, const QString &fixedId,
                                             const QString &search = QString(),
                                             const QString &end = QStringLiteral("from")) const;
 
     // Measures a characteristic could be detected by, minus the ones it already reads.
-    Q_INVOKABLE QVariantList measureCandidates(const QString &conditionId,
+    Q_INVOKABLE QList<ModelCandidate> measureCandidates(const QString &conditionId,
                                                const QString &search = QString()) const;
 
     // Metrics this measure could read INSTEAD of its own where a swing carries one — the rungs its
     // instrument ladder does not already hold. Filtered to the measure's UNIT, because a ladder is
     // one quantity measured twice and a rung in another unit would grade against the wrong corridor.
-    Q_INVOKABLE QVariantList metricKeyCandidates(const QString &measureId,
+    Q_INVOKABLE QList<ModelCandidate> metricKeyCandidates(const QString &measureId,
                                                  const QString &search = QString()) const;
 
     // Would this link be legal, and if not, why? Returns { ok, reason }.
@@ -372,8 +663,9 @@ public:
     // a cycle"). By release the author has already committed to the gesture, and a refusal then
     // reads as the tool being broken. addLink() asks the same function, so the drag cannot say yes
     // to something the write would then reject.
-    Q_INVOKABLE QVariantMap linkLegality(const QString &fromId, const QString &toId,
-                                         const QString &relation = QStringLiteral("causes")) const;
+    // C++ only since 3.9-ii: the drag asks linkRefusals(), the writes ask this (NOTES-3.9-ii J3).
+    QVariantMap linkLegality(const QString &fromId, const QString &toId,
+                             const QString &relation = QStringLiteral("causes")) const;
 
     // Every refusal for a whole candidate set at once, computed ONCE when a link drag arms.
     //
@@ -383,7 +675,7 @@ public:
     // That parameter is why this is not linkLegality() in a loop with the arguments swapped: the
     // caller states the geometry once and the traversal follows it.
     //
-    // Returns { id: { reason, text } } for the REFUSED ids only — absent means legal. `reason` is
+    // Returns a ModelLinkRefusals holding the REFUSED ids only — absent means legal. `reason` is
     // one of self · exists · cycle for the view to key a tone off; `text` is the words to show,
     // written here because a phrase assembled in a delegate is a phrase nothing can translate.
     //
@@ -391,11 +683,11 @@ public:
     // reason this exists: `X → fixed` closes a cycle exactly when fixed already reaches X, so one
     // causalClosure() of the fixed end answers it for every candidate at once. Per-hover was the
     // shape this replaces.
-    Q_INVOKABLE QVariantMap linkRefusals(const QString &fixedId, const QStringList &ids,
+    Q_INVOKABLE ModelLinkRefusals linkRefusals(const QString &fixedId, const QStringList &ids,
                                          const QString &end = QStringLiteral("to")) const;
 
     // At most THREE options for one enum field, ordered, with the one this object already has
-    // marked: [{ value, label, current }].
+    // marked: ModelOption rows with `current` set on that one.
     //
     // This is the graph ring's collar, and the cap is the whole reason it is a model call rather
     // than a filter in the delegate. A collar is one level and three cells, full stop, so which
@@ -403,31 +695,31 @@ public:
     // it is the three most used in this library, with the object's own kept in whatever happens.
     // A field with more options than fit does not get a longer collar; it gets the inspector, and
     // the ring says so by opening it.
-    Q_INVOKABLE QVariantList ringValues(const QString &type, const QString &id,
+    Q_INVOKABLE QList<ModelOption> ringValues(const QString &type, const QString &id,
                                         const QString &field) const;
 
     // ── Editing ─────────────────────────────────────────────────────────────
     //
     // Every one of these is ONE command on the undo stack, and every one returns
-    // { ok, message } — a refusal has to reach the author in their own terms, never a log.
+    // a ModelEditResult — a refusal has to reach the author in their own terms, never a log.
     //
     // A cascade is ONE command (ADDENDUM-01's second point): the stack holds whole before/after
     // copies of the working pack, so an edit that touches rows the author never named undoes as a
     // unit. A cascade that undid partially would be worse than one that could not be undone,
     // because the author would believe they were back where they started.
 
-    Q_INVOKABLE QVariantMap setField(const QString &type, const QString &id, const QString &field,
+    Q_INVOKABLE ModelEditResult setField(const QString &type, const QString &id, const QString &field,
                                      const QVariant &value);
 
     // Multi-select bulk-set: one command, whatever N is. Re-tiering twenty links one at a time is
     // the single biggest time sink in the old panel.
-    Q_INVOKABLE QVariantMap setFieldOnAll(const QString &type, const QStringList &ids,
+    Q_INVOKABLE ModelEditResult setFieldOnAll(const QString &type, const QStringList &ids,
                                           const QString &field, const QVariant &value);
 
-    Q_INVOKABLE QVariantMap addLink(const QString &fromId, const QString &toId,
+    Q_INVOKABLE ModelEditResult addLink(const QString &fromId, const QString &toId,
                                     const QString &relation = QStringLiteral("causes"),
                                     const QString &strength = QStringLiteral("moderate"));
-    Q_INVOKABLE QVariantMap removeLink(const QString &fromId, const QString &toId,
+    Q_INVOKABLE ModelEditResult removeLink(const QString &fromId, const QString &toId,
                                        const QString &relation = QStringLiteral("causes"));
 
     // Move one END of an existing causal claim to another condition. `end` is "from" or "to".
@@ -439,18 +731,18 @@ public:
     //
     // Refused through linkLegality() like every other write, so the drag and the write cannot
     // disagree.
-    Q_INVOKABLE QVariantMap repointCause(const QString &edgeId, const QString &end,
+    Q_INVOKABLE ModelEditResult repointCause(const QString &edgeId, const QString &end,
                                          const QString &newId);
 
     // List forms, so a marquee selection is ONE undo step. Singular calls exist for both and are
     // still the right thing for a single row; these exist because twelve undos to reverse one
     // gesture is a stack that punishes the shortcut it is there to enable.
-    Q_INVOKABLE QVariantMap removeCause(const QStringList &edgeIds);
-    Q_INVOKABLE QVariantMap removeObjects(const QString &type, const QStringList &ids);
+    Q_INVOKABLE ModelEditResult removeCause(const QStringList &edgeIds);
+    Q_INVOKABLE ModelEditResult removeObjects(const QString &type, const QStringList &ids);
 
     // Strength over a list. A thin name over setFieldOnAll(), because the ring spoke says "Strength"
     // and a caller should not have to know the field is spelled the same way.
-    Q_INVOKABLE QVariantMap setCauseStrength(const QStringList &edgeIds, const QString &strength);
+    Q_INVOKABLE ModelEditResult setCauseStrength(const QStringList &edgeIds, const QString &strength);
 
     // A new object AND its attachment to `otherId`, as ONE command — the graph drag released over
     // empty canvas. `end` says which end of the new causal link the existing condition occupies,
@@ -463,24 +755,24 @@ public:
     //
     // Two commands would let an author undo the object and keep an attachment to nothing. That is
     // not a half-finished edit; it is a pack that fails validation with a dangling reference.
-    Q_INVOKABLE QVariantMap createAndAttach(const QString &type, const QString &name,
+    Q_INVOKABLE ModelEditResult createAndAttach(const QString &type, const QString &name,
                                             const QString &otherId, const QString &end);
 
     // Attach a measure to a characteristic at a tail, minting the signal that reads it.
-    Q_INVOKABLE QVariantMap addMeasureTo(const QString &conditionId, const QString &measureId,
+    Q_INVOKABLE ModelEditResult addMeasureTo(const QString &conditionId, const QString &measureId,
                                          const QString &direction = QStringLiteral("high"));
-    Q_INVOKABLE QVariantMap removeMeasureFrom(const QString &conditionId, const QString &measureId);
+    Q_INVOKABLE ModelEditResult removeMeasureFrom(const QString &conditionId, const QString &measureId);
 
     // Append to / drop from a measure's instrument ladder (Measure::preferKeys). Append, not
     // insert: the list is ordered best-first and nothing here reorders one — see addPreferKey().
-    Q_INVOKABLE QVariantMap addPreferKey(const QString &measureId, const QString &metricKey);
-    Q_INVOKABLE QVariantMap removePreferKey(const QString &measureId, const QString &metricKey);
+    Q_INVOKABLE ModelEditResult addPreferKey(const QString &measureId, const QString &metricKey);
+    Q_INVOKABLE ModelEditResult removePreferKey(const QString &measureId, const QString &metricKey);
 
     // Duplicate beats blank: a new object pre-filled from an existing one. Returns the new id in
     // `id` so the table can select it and the author can type over the label.
-    Q_INVOKABLE QVariantMap duplicate(const QString &type, const QString &id);
+    Q_INVOKABLE ModelEditResult duplicate(const QString &type, const QString &id);
 
-    Q_INVOKABLE QVariantMap removeObject(const QString &type, const QString &id);
+    Q_INVOKABLE ModelEditResult removeObject(const QString &type, const QString &id);
 
     // ── Screens and drills ──────────────────────────────────────────────────
     //
@@ -494,22 +786,22 @@ public:
     // names them (`Condition::screenRef`, `Condition::drills`), which is the join every reader in the
     // app already uses. So these four write the condition, and they live here rather than on the
     // condition because "what does this screen settle" is the question an author has open.
-    Q_INVOKABLE QVariantMap addScreenSettles(const QString &screenId, const QString &conditionId);
-    Q_INVOKABLE QVariantMap removeScreenSettles(const QString &screenId, const QString &conditionId);
-    Q_INVOKABLE QVariantMap addDrillAnswers(const QString &drillId, const QString &conditionId);
-    Q_INVOKABLE QVariantMap removeDrillAnswers(const QString &drillId, const QString &conditionId);
+    Q_INVOKABLE ModelEditResult addScreenSettles(const QString &screenId, const QString &conditionId);
+    Q_INVOKABLE ModelEditResult removeScreenSettles(const QString &screenId, const QString &conditionId);
+    Q_INVOKABLE ModelEditResult addDrillAnswers(const QString &drillId, const QString &conditionId);
+    Q_INVOKABLE ModelEditResult removeDrillAnswers(const QString &drillId, const QString &conditionId);
 
     // Legal, pre-filtered candidates, as linkCandidates() is: conditions this screen does not already
     // settle / this drill does not already answer. An illegal edit cannot be CONSTRUCTED.
-    Q_INVOKABLE QVariantList screenCandidates(const QString &screenId,
+    Q_INVOKABLE QList<ModelCandidate> screenCandidates(const QString &screenId,
                                               const QString &search = QString()) const;
-    Q_INVOKABLE QVariantList drillCandidates(const QString &drillId,
+    Q_INVOKABLE QList<ModelCandidate> drillCandidates(const QString &drillId,
                                              const QString &search = QString()) const;
     // The same join read from the HABIT's end: drills in the draft registry — shipped, overridden or
     // authored here, saved or not — that this condition does not already list. The habit's Drills
     // section adds from this, so a drill written in this panel can reach a work-on page without the
     // author having to go and find the drill first.
-    Q_INVOKABLE QVariantList conditionDrillCandidates(const QString &conditionId,
+    Q_INVOKABLE QList<ModelCandidate> conditionDrillCandidates(const QString &conditionId,
                                                       const QString &search = QString()) const;
 
     // ── Report wording, checked while it is typed ───────────────────────────
@@ -528,7 +820,8 @@ public:
 
     // Every link resting on one reference. The citation is imported and stays read-only; the CLAIM
     // resting on it is ours, and its strength is editable through the ordinary setField("links", …).
-    Q_INVOKABLE QVariantList linksCitingReference(const QString &refId) const;
+    // C++ only since 3.9-ii: no view calls it; the reference pane reads inspect() (NOTES-3.9-ii J3).
+    QVariantList linksCitingReference(const QString &refId) const;
 
     // One record as CSL-JSON, for the reference pane's copy action — the same format the whole-set
     // export writes, because a coach pasting one citation into Zotero wants what the file would have
@@ -545,20 +838,20 @@ public:
     // `plausibleHi`, `unit`, `source` and `citation` — and the row id is the norm key.
 
     // Every context this measure could carry a corridor at, marked with what already resolves
-    // there. Rows: { id, label, depth, own, inherited, inheritedFrom, mu, unit }.
-    Q_INVOKABLE QVariantList corridorContexts(const QString &measureId) const;
+    // there: a ModelCorridorContext per context.
+    Q_INVOKABLE QList<ModelCorridorContext> corridorContexts(const QString &measureId) const;
 
     // Start a corridor of your own at this context. Seeded from whatever currently resolves there,
     // so the common edit is a nudge rather than authoring five numbers from nothing.
-    Q_INVOKABLE QVariantMap addCorridor(const QString &measureId, const QString &contextId);
+    Q_INVOKABLE ModelEditResult addCorridor(const QString &measureId, const QString &contextId);
 
     // Take another context's numbers wholesale. `adoptFrom` in the old editor.
-    Q_INVOKABLE QVariantMap adoptCorridor(const QString &measureId, const QString &contextId,
+    Q_INVOKABLE ModelEditResult adoptCorridor(const QString &measureId, const QString &contextId,
                                           const QString &fromContextId);
 
     // Drop your row. Where core ships one this restores it; where it does not, the parent context's
     // corridor resolves again. Those are different outcomes and the message says which.
-    Q_INVOKABLE QVariantMap resetCorridor(const QString &measureId, const QString &contextId);
+    Q_INVOKABLE ModelEditResult resetCorridor(const QString &measureId, const QString &contextId);
 
     // ── The corridor, as a picture ──────────────────────────────────────────
     //
@@ -585,26 +878,32 @@ public:
     // A binding is an EXCEPTION: a context with no row anywhere on its chain applies. Rows carry
     // both what is authored HERE and what is inherited, because a control that cannot tell one from
     // the other teaches the author that every row is an assertion.
-    Q_INVOKABLE QVariantList bindingsOf(const QString &conditionId) const;
-    Q_INVOKABLE QVariantMap  setBinding(const QString &conditionId, const QString &contextId,
+    // C++ only since 3.9-ii: the inspector reads the bindings through inspect() (NOTES-3.9-ii J3).
+    QVariantList bindingsOf(const QString &conditionId) const;
+    Q_INVOKABLE ModelEditResult setBinding(const QString &conditionId, const QString &contextId,
                                         bool applicable, bool material);
-    Q_INVOKABLE QVariantMap  clearBinding(const QString &conditionId, const QString &contextId);
+    Q_INVOKABLE ModelEditResult clearBinding(const QString &conditionId, const QString &contextId);
 
     // ── Minting a measure ───────────────────────────────────────────────────
     //
     // A typed phrase SEEDS facet selections; it is not a query. Wrong guesses are corrected by
     // tapping chips, which is far easier than rephrasing a search that returned nothing.
-    Q_INVOKABLE QVariantMap  seedFacetsFromPhrase(const QString &phrase) const;
-    Q_INVOKABLE QVariantList anatomyRoles() const;
-    Q_INVOKABLE QVariantList quantitiesFor(const QString &whatRole) const;
-    Q_INVOKABLE QVariantList referencesFor(const QString &whatRole, const QString &quantity) const;
-    Q_INVOKABLE QVariantList reducerKinds() const;
-    Q_INVOKABLE QVariantList phases() const;
-    // { valid, reason, label, id, exactMatch, nearDuplicates[] }. The near-duplicate check is the
+    Q_INVOKABLE ModelFacetSeed seedFacetsFromPhrase(const QString &phrase) const;
+    Q_INVOKABLE QList<ModelOption> anatomyRoles() const;
+    Q_INVOKABLE QList<ModelOption> quantitiesFor(const QString &whatRole) const;
+    Q_INVOKABLE QList<ModelOption> referencesFor(const QString &whatRole, const QString &quantity) const;
+    Q_INVOKABLE QList<ModelOption> reducerKinds() const;
+    Q_INVOKABLE QList<ModelOption> phases() const;
+    // The measure four facets name: what is measured (an anatomy role), the quantity, what it is
+    // measured against (a role) and the phase it is read at ("p1"…). The near-duplicate check is the
     // defence against a library filling with almost-identical measures, and it has to fire AT
     // CREATION — after the fact nobody merges them.
-    Q_INVOKABLE QVariantMap  previewMeasure(const QVariantMap &facets) const;
-    Q_INVOKABLE QVariantMap  mintMeasure(const QVariantMap &facets);
+    Q_INVOKABLE ModelMeasurePreview previewMeasure(const QString &what, const QString &quantity,
+                                                   const QString &reference,
+                                                   const QString &anchor = QStringLiteral("p1")) const;
+    Q_INVOKABLE ModelEditResult     mintMeasure(const QString &what, const QString &quantity,
+                                                const QString &reference,
+                                                const QString &anchor = QStringLiteral("p1"));
 
     // A blank object of this type. Duplicate is the fast path and this is the second one, but
     // "second" is not "absent" — there has to be a way to author something unlike anything here.
@@ -614,37 +913,38 @@ public:
     // called "New characteristic" that the author has already named would be a second edit and a
     // second undo step for one thing they did once. The id is minted from the name when there is
     // one, so it reads as what it is in every file that later mentions it.
-    Q_INVOKABLE QVariantMap createObject(const QString &type, const QString &name = QString());
+    Q_INVOKABLE ModelEditResult createObject(const QString &type, const QString &name = QString());
 
     // ── Pack-wide settings ──────────────────────────────────────────────────
     //
     // Not content: these change how everything GRADES, so they are stated apart from the draft and
     // they are not undoable — they are not edits to the library, they are how it is being read.
-    Q_INVOKABLE QVariantList gradePolicies() const;
-    Q_INVOKABLE QVariantList normSets() const;
+    Q_INVOKABLE QList<ModelGradePolicy> gradePolicies() const;
+    Q_INVOKABLE QList<ModelNormSet> normSets() const;
 
     // ── Artefacts that leave the app ────────────────────────────────────────
-    Q_INVOKABLE QVariantMap exportRoadmap() const;
-    Q_INVOKABLE QVariantMap exportReferences() const;
+    Q_INVOKABLE ModelEditResult exportRoadmap() const;
+    Q_INVOKABLE ModelEditResult exportReferences() const;
 
-    // The roadmap and its two companions, which have no other home once Diagnostics retires.
-    Q_INVOKABLE QVariantList roadmap() const;
-    Q_INVOKABLE QVariantList captureGaps() const;
-    Q_INVOKABLE QVariantList causeCoverage() const;
-    Q_INVOKABLE QVariantList glossary(const QString &search = QString()) const;
+    // The roadmap and its two companions, which have no other home once Diagnostics retires. C++ only
+    // since 3.9-ii: the exports and the tests read them; no view does (NOTES-3.9-ii J3).
+    QVariantList roadmap() const;
+    QVariantList captureGaps() const;
+    QVariantList causeCoverage() const;
+    QVariantList glossary(const QString &search = QString()) const;
 
     // ── Undo / save ─────────────────────────────────────────────────────────
-    Q_INVOKABLE QVariantMap undo();
-    Q_INVOKABLE QVariantMap redo();
+    Q_INVOKABLE ModelEditResult undo();
+    Q_INVOKABLE ModelEditResult redo();
     // Wind the stack to just after command `index` (-1 = before everything). This is what the Edits
     // list clicks into.
-    Q_INVOKABLE QVariantMap undoTo(int index);
+    Q_INVOKABLE ModelEditResult undoTo(int index);
 
     // Write the working pack to the user pack file. Does NOT clear the stack — saving and
     // immediately spotting the mistake is the common case (ADDENDUM-01's fourth point).
-    Q_INVOKABLE QVariantMap save();
+    Q_INVOKABLE ModelEditResult save();
     // Discard every unsaved edit, back to the file. Itself undoable.
-    Q_INVOKABLE QVariantMap revert();
+    Q_INVOKABLE ModelEditResult revert();
 
     // Put this install back on the model that ships: every override AND everything authored here,
     // across both registries. NOT revert() — that one discards the session's UNSAVED edits back to
@@ -657,7 +957,7 @@ public:
     //     session's undo has expired
     // The returned map carries `backups` — the paths written — because a backup nobody is told about
     // is a backup nobody can use.
-    Q_INVOKABLE QVariantMap resetToStandard();
+    Q_INVOKABLE ModelEditResult resetToStandard();
 
 signals:
     void modelChanged();
@@ -753,7 +1053,7 @@ private:
                             const pinpoint::analysis::ScreenSet          &screensBefore,
                             const pinpoint::analysis::DrillSet           &drillsBefore,
                             const pinpoint::analysis::GateWordSet        &gateWordsBefore);
-    QVariantMap applyStackPosition(int newIndex);
+    ModelEditResult applyStackPosition(int newIndex);
 
     // ── Working-copy helpers ────────────────────────────────────────────────
     //
@@ -938,7 +1238,7 @@ private:
     // (#173 follow-up: 561 of 642 main-thread samples in types()). Cleared in the constructor's first
     // connection to modelChanged, so it is gone before any reader hears the signal — except on a
     // change to the focused swing alone (emitSwingModelChanged), which moves no count.
-    mutable QVariantList m_typesCache;
+    mutable QList<ModelTypeEntry> m_typesCache;
     mutable bool         m_typesValid = false;
     bool                 m_swingOnlyChange = false;   // set across emitSwingModelChanged()
     void emitSwingModelChanged();

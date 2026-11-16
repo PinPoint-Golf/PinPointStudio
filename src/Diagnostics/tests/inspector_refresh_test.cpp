@@ -41,12 +41,15 @@
 
 #include "model_browser.h"
 #include "../../Export/rule_data_install.h"
+#include "../../Export/rule_data_store.h"   // the shipped pack factory, for the typed-value checks
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/pack_provider.h"
 #include "../norms/norm_provider.h"
 #include "../packs/drill_pack.h"
 #include "../packs/screen_pack.h"
+#include "../measures/anatomy_vocabulary.h"
+#include "../measures/measure_facets.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -140,6 +143,144 @@ Item {
 }
 )QML";
 
+// THE TYPED VALUES, READ BY QML (refactor step 3.9-ii). The editor hands QML Q_GADGET value types
+// now, and two of their readers draw nothing a render can catch: the graph asks a drag's refusal set
+// per candidate (ModelGraph.qml `_refusalOf`: a gadget held in a `var`, its Q_INVOKABLEs called, reset
+// to null on release), and the mint reads its live preview (ModelMint.qml: `hasExactMatch`,
+// `exactMatch.label`, `nearDuplicates.length`). The ring collar (RingMenu.qml) reads `current` off
+// ringValues(). Each is written here the way those files write it, and asked through QML.
+static const char *kTypedQml = R"QML(
+import QtQml
+import Probe
+
+QtObject {
+    id: root
+    property ModelBrowser browser: ModelBrowser {}
+
+    // ModelGraph.qml's idiom.
+    property var refusals: null
+    function arm(fixed, ids, end) { root.refusals = root.browser.linkRefusals(fixed, ids, end) }
+    function disarm() { root.refusals = null }
+    function refusalOf(id) {
+        return root.refusals && root.refusals.refuses(id) ? root.refusals.refusalOf(id) : null
+    }
+    function reasonOf(id) { var r = root.refusalOf(id); return r === null ? "<null>" : r.reason }
+    function textOf(id)   { var r = root.refusalOf(id); return r === null ? "" : r.text }
+
+    // ModelMint.qml's idiom.
+    property string what: ""
+    property string quantity: ""
+    property string reference: ""
+    property string anchor: "p1"
+    readonly property var preview: root.browser.previewMeasure(root.what, root.quantity, root.reference,
+                                                               root.anchor)
+    readonly property bool   exactShown: root.preview.hasExactMatch === true
+    readonly property string exactLabel: root.preview.hasExactMatch === true ? root.preview.exactMatch.label : ""
+    readonly property bool   createEnabled: root.preview.valid === true && root.preview.hasExactMatch !== true
+    readonly property string previewText: root.preview.valid === true ? root.preview.label
+                                                                      : (root.preview.reason || "")
+    readonly property int    nearCount: root.preview.nearDuplicates !== undefined
+                                        ? root.preview.nearDuplicates.length : -1
+
+    // RingMenu.qml's idiom: the cell marked current.
+    function ringCurrent(type, id, field) {
+        var v = root.browser.ringValues(type, id, field)
+        for (var i = 0; i < v.length; i++) if (v[i].current === true) return v[i].value
+        return ""
+    }
+    function ringSize(type, id, field) { return root.browser.ringValues(type, id, field).length }
+}
+)QML";
+
+static QString callString(QObject *o, const char *fn, const QVariant &a = {}, const QVariant &b = {},
+                          const QVariant &c = {})
+{
+    QVariant out;
+    const bool ok = c.isValid() ? QMetaObject::invokeMethod(o, fn, Q_RETURN_ARG(QVariant, out), Q_ARG(QVariant, a),
+                                                            Q_ARG(QVariant, b), Q_ARG(QVariant, c))
+                  : QMetaObject::invokeMethod(o, fn, Q_RETURN_ARG(QVariant, out), Q_ARG(QVariant, a));
+    return ok ? out.toString() : QStringLiteral("<call failed>");
+}
+
+static void typedValuesThroughQml(QQmlEngine &engine)
+{
+    std::printf("=== the typed values, read by QML (3.9-ii) ===\n");
+    QQmlComponent component(&engine);
+    component.setData(QByteArray(kTypedQml), QUrl(QStringLiteral("typed.qml")));
+    if (component.isError()) {
+        for (const QQmlError &e : component.errors())
+            std::printf("  QML ERROR: %s\n", qPrintable(e.toString()));
+        check(false, "the typed-value probe loads");
+        return;
+    }
+    std::unique_ptr<QObject> root(component.create());
+    check(root != nullptr, "the typed-value probe loads");
+    if (!root) return;
+    auto *browser = root->property("browser").value<ModelBrowser *>();
+    if (!browser) { check(false, "and reaches its façade"); return; }
+
+    // A drag held on a condition that already has a cause: the condition itself is refused as self,
+    // its existing cause as already linked, and a legal candidate answers null.
+    const CharacteristicPack &p = *[&]() { static auto core = makeResourcePackProvider(); return &core->pack(); }();
+    QString effect, cause;
+    for (const Edge &e : p.edges)
+        if (e.type == EdgeType::Causes) { effect = e.to; cause = e.from; break; }
+    const auto legalList = browser->linkCandidates(QStringLiteral("causes"), effect, QString(), QStringLiteral("to"));
+    const QString legal = legalList.isEmpty() ? QString() : legalList.first().id;
+    check(!effect.isEmpty() && !legal.isEmpty(), "a held condition, its cause and a legal candidate");
+    const QVariant ids = QStringList{ effect, cause, legal };
+    QMetaObject::invokeMethod(root.get(), "arm", Q_ARG(QVariant, effect), Q_ARG(QVariant, ids),
+                              Q_ARG(QVariant, QStringLiteral("to")));
+    check(callString(root.get(), "reasonOf", effect) == QStringLiteral("self"),
+          "QML reads the held condition's refusal as self");
+    check(callString(root.get(), "reasonOf", cause) == QStringLiteral("exists")
+              && !callString(root.get(), "textOf", cause).isEmpty(),
+          "its existing cause as already linked, with the words to show");
+    check(callString(root.get(), "reasonOf", legal) == QStringLiteral("<null>"),
+          "and a legal candidate as no refusal at all");
+    QMetaObject::invokeMethod(root.get(), "disarm");
+    check(callString(root.get(), "reasonOf", effect) == QStringLiteral("<null>"),
+          "released, the drag refuses nothing");
+
+    // The mint, on a shipped measure's own facets: the exact match shows and Create is off.
+    const Measure *existing = nullptr;
+    for (const Measure &m : p.measures)
+        if (m.kind == MeasureKind::Composed && m.reducer.kind == ReducerKind::At && m.reducer.anchor.has_value()) {
+            existing = &m;
+            break;
+        }
+    check(existing != nullptr, "a shipped composed measure to mint against");
+    if (existing) {
+        root->setProperty("what", roleName(existing->series.what));
+        root->setProperty("quantity", quantityName(existing->series.quantity));
+        root->setProperty("reference", roleName(existing->series.reference));
+        root->setProperty("anchor", phaseToken(existing->reducer.anchor.value_or(Phase::Address)));
+        check(root->property("exactShown").toBool(), "QML shows the mint's exact match");
+        check(root->property("exactLabel").toString() == measureDisplayLabel(*existing),
+              "naming the measure it already is");
+        check(!root->property("createEnabled").toBool(), "and Create is off");
+        check(root->property("nearCount").toInt() >= 0, "the near-duplicates read as a list");
+        root->setProperty("what", QStringLiteral("nonsense"));
+        check(!root->property("exactShown").toBool() && root->property("createEnabled").toBool() == false
+                  && !root->property("previewText").toString().isEmpty(),
+              "an unknown role shows its reason, no match, and Create stays off");
+    }
+
+    // The ring collar marks the strength a link holds.
+    QString linkId, strength;
+    for (const Edge &e : p.edges)
+        if (e.type == EdgeType::Causes && e.from == cause && e.to == effect) {
+            linkId   = cause + QStringLiteral("|") + effect + QStringLiteral("|causes");
+            strength = strengthName(e.strength);
+            break;
+        }
+    check(!linkId.isEmpty(), "a causal link for the collar");
+    check(callString(root.get(), "ringSize", QStringLiteral("links"), linkId, QStringLiteral("strength")) == QStringLiteral("5")
+              && callString(root.get(), "ringCurrent", QStringLiteral("links"), linkId, QStringLiteral("strength"))
+                     == strength,
+          "QML reads five collar cells and the one marked current is the link's strength");
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -153,6 +294,9 @@ int main(int argc, char **argv)
     pinpoint::RuleData::installed()->reload();
 
     qmlRegisterType<ModelBrowser>("Probe", 1, 0, "ModelBrowser");
+    // The editor's value types (model_browser.h; the app registers them through its QML module).
+    qmlRegisterTypesAndRevisions<ModelLinkRefusals, ModelLinkRefusal, ModelMeasurePreview, ModelCandidate,
+                                 ModelOption>("Probe", 1);
 
     QQmlEngine    engine;
     QQmlComponent component(&engine);
@@ -184,10 +328,10 @@ int main(int argc, char **argv)
     QString target, cause;
     for (const QVariant &v : browser->rows(QStringLiteral("characteristics"))) {
         const QString      id    = v.toMap().value(QStringLiteral("id")).toString();
-        const QVariantList cands = browser->linkCandidates(QStringLiteral("causes"), id);
+        const auto cands = browser->linkCandidates(QStringLiteral("causes"), id);
         if (cands.isEmpty()) continue;
         target = id;
-        cause  = cands.first().toMap().value(QStringLiteral("id")).toString();
+        cause  = cands.first().id;
         break;
     }
     check(!target.isEmpty(), "there is a characteristic to add a cause to");
@@ -199,26 +343,26 @@ int main(int argc, char **argv)
 
     // ── The thing that was reported ─────────────────────────────────────────
     check(browser->addLink(cause, target, QStringLiteral("causes"))
-              .value(QStringLiteral("ok")).toBool(), "a cause is added");
+              .ok, "a cause is added");
     check(rowCount() == before + 1, "and the PANE redraws with one more row");
     check(builtRows() == before + 1, "and the DELEGATES were rebuilt to match — not just the map");
 
     check(browser->removeLink(cause, target, QStringLiteral("causes"))
-              .value(QStringLiteral("ok")).toBool(), "removing it succeeds");
+              .ok, "removing it succeeds");
     check(rowCount() == before, "and the pane follows that too");
     check(builtRows() == before, "delegates included");
 
     // A field edit has to reach the pane's header, not only its rows.
     const QString renamed = QStringLiteral("Renamed while the pane was open");
     check(browser->setField(QStringLiteral("characteristics"), target, QStringLiteral("label"),
-                            renamed).value(QStringLiteral("ok")).toBool(), "a rename lands");
+                            renamed).ok, "a rename lands");
     check(title() == renamed, "and the pane's title is the new name");
 
-    check(browser->undo().value(QStringLiteral("ok")).toBool(), "undo puts it back");
+    check(browser->undo().ok, "undo puts it back");
     check(title() != renamed, "and the pane follows the undo");
 
     // Undo/redo are writes like any other as far as the pane is concerned.
-    check(browser->redo().value(QStringLiteral("ok")).toBool(), "redo re-applies it");
+    check(browser->redo().ok, "redo re-applies it");
     check(title() == renamed, "and the pane follows the redo");
     while (browser->canUndo()) browser->undo();
 
@@ -235,10 +379,10 @@ int main(int argc, char **argv)
         const int before = rowCount();
         if (before > 0) {
             check(browser->removePreferKey(aa, QStringLiteral("lm.lowPointAhead"))
-                      .value(QStringLiteral("ok")).toBool(),
+                      .ok,
                   "a rung comes off the ladder");
             check(rowCount() == before - 1, "and the measure's pane loses the row");
-            check(browser->undo().value(QStringLiteral("ok")).toBool(), "undo puts it back");
+            check(browser->undo().ok, "undo puts it back");
             check(rowCount() == before, "and the pane follows the undo");
         }
     }
@@ -251,21 +395,21 @@ int main(int argc, char **argv)
         root->setProperty("selectedId", screenId);
         const int settlesBefore = rowCount();
 
-        const QVariantList cands = browser->screenCandidates(screenId);
+        const auto cands = browser->screenCandidates(screenId);
         if (!cands.isEmpty()) {
-            const QString cond = cands.first().toMap().value(QStringLiteral("id")).toString();
-            check(browser->addScreenSettles(screenId, cond).value(QStringLiteral("ok")).toBool(),
+            const QString cond = cands.first().id;
+            check(browser->addScreenSettles(screenId, cond).ok,
                   "a screen is made to settle a characteristic");
             check(rowCount() == settlesBefore + 1,
                   "and the SCREEN's pane redraws, though the write went to the condition");
-            check(browser->undo().value(QStringLiteral("ok")).toBool(), "undo detaches it");
+            check(browser->undo().ok, "undo detaches it");
             check(rowCount() == settlesBefore, "and the pane follows the undo");
         }
 
         // Editing a field of the screen itself.
         check(browser->setField(QStringLiteral("screens"), screenId, QStringLiteral("name"),
                                 QStringLiteral("Renamed screen"))
-                  .value(QStringLiteral("ok")).toBool(), "a screen renames");
+                  .ok, "a screen renames");
         check(title() == QStringLiteral("Renamed screen"), "and its pane's title follows");
         while (browser->canUndo()) browser->undo();
     }
@@ -277,13 +421,13 @@ int main(int argc, char **argv)
         root->setProperty("selectedId", drillId);
         const int answersBefore = rowCount();
 
-        const QVariantList cands = browser->drillCandidates(drillId);
+        const auto cands = browser->drillCandidates(drillId);
         if (!cands.isEmpty()) {
-            const QString cond = cands.first().toMap().value(QStringLiteral("id")).toString();
-            check(browser->addDrillAnswers(drillId, cond).value(QStringLiteral("ok")).toBool(),
+            const QString cond = cands.first().id;
+            check(browser->addDrillAnswers(drillId, cond).ok,
                   "a drill is made to answer a characteristic");
             check(rowCount() == answersBefore + 1, "and the DRILL's pane redraws");
-            check(browser->undo().value(QStringLiteral("ok")).toBool(), "undo detaches it");
+            check(browser->undo().ok, "undo detaches it");
             check(rowCount() == answersBefore, "and the pane follows the undo");
         }
     }
@@ -297,7 +441,7 @@ int main(int argc, char **argv)
         root->setProperty("selectedId", cid);
         const QString titleBefore = title();
         check(browser->setField(QStringLiteral("corridors"), cid, QStringLiteral("source"),
-                                QStringLiteral("heuristic")).value(QStringLiteral("ok")).toBool(),
+                                QStringLiteral("heuristic")).ok,
               "a corridor's source is set");
         check(rowCount() > 0, "and its pane still answers");
         Q_UNUSED(titleBefore)
@@ -305,6 +449,8 @@ int main(int argc, char **argv)
     }
 
     delete root;
+
+    typedValuesThroughQml(engine);
 
     QFile::remove(userPackPath());
     QFile::remove(userNormPath());

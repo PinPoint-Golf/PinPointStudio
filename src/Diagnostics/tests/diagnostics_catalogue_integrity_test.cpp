@@ -529,12 +529,10 @@ int main()
             if (seed) {
                 for (const char *anchor : { "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9", "p10" }) {
                     if (minted == 2) break;
-                    QVariantMap facets;
-                    facets.insert(QStringLiteral("what"), roleName(seed->series.what));
-                    facets.insert(QStringLiteral("quantity"), quantityName(seed->series.quantity));
-                    facets.insert(QStringLiteral("reference"), roleName(seed->series.reference));
-                    facets.insert(QStringLiteral("anchor"), QString::fromLatin1(anchor));
-                    if (synth.mintMeasure(facets).value(QStringLiteral("ok")).toBool()) ++minted;
+                    if (synth.mintMeasure(roleName(seed->series.what), quantityName(seed->series.quantity),
+                                          roleName(seed->series.reference), QString::fromLatin1(anchor))
+                            .ok)
+                        ++minted;
                 }
             }
             check(minted == 2, "synthetic roadmap row: two reducers minted on one series");
