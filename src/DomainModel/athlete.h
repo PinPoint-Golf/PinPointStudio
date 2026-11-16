@@ -76,6 +76,7 @@
 // Domain model ring (src/DomainModel): names no store type.
 
 #include "session_repository.h"   // SessionIndexEntry, SessionOwner, WriteResult
+#include "shot_command_values.h"   // TuningFlagNote
 #include "../Core/club_standards.h"
 #include "../Identity/identity.h"
 
@@ -94,6 +95,7 @@ namespace pinpoint {
 class AthleteRepository;
 class RecordingReader;
 class Session;
+class Shot;
 
 // The doors a Session's shots read and (from step 3.4b) write through (refactor step 3.4a): the composition
 // root's one RecordingRepository and RecordingReader, handed down Athlete → Session → Shot by the athlete
@@ -230,6 +232,16 @@ public:
     Session    *session(const SessionId &id);
     QList<Session *> sessions();
 
+    // ── Its tuning log (refactor step 3.4b-i; OBJ-TUNING-LOG, FILE-ATH-04; DEC-43) ────────────────────────────
+    // Each Session hands it every Shot it holds; the Athlete then hears that Shot's EVT-06 (LabelCorrected) and
+    // appends the correction the Shot saved (Shot::lastLabelCorrection) to its tuning log, one line, through
+    // its repository (the athlete folder's lock for that one append). Never the Session, never AthleteDiagnostics.
+    void        hearLabelCorrections(Shot *shot);
+    // The tuning log's "flag" line for `shot` (the panel's "flag for review"; review 1 of 3.4b-i): appended by the
+    // Athlete too, so the log has one writer. No event (the reference names none). A failed append is logged and
+    // returned (the golfer is not told, as today: §11, DEC-126's row).
+    WriteResult flagForTuning(const ShotRef &shot, const TuningFlagNote &note);
+
 signals:
     void recordChanged();
     void sessionStarted(const pinpoint::SessionId &session);   // EVT-17
@@ -256,6 +268,9 @@ private:
     void endRunningSessions(const SessionId &except);
     // Brings `id` into the repository's identity map if it is not there yet (the athlete's index).
     bool ensureHeld(const SessionId &id);
+    // EVT-06 heard: the tuning log's line for `shot`'s last correction (DEC-43).
+    void appendLabelCorrection(const Shot &shot);
+    WriteResult appendTuningLine(const QJsonObject &line, const ShotRef &shot);   // through the repository
 };
 
 } // namespace pinpoint

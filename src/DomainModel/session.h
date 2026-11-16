@@ -46,6 +46,20 @@
 //                 EVT-20: DEC-143), else EVT-09. THE EMPTY DISCARD IS THIS RULE ALONE (DEC-93): the session
 //                 repository's end never discards (refactor step 3.4a-ii)
 //
+//   setSessionIntent(edit)   THE SESSION'S INTENT (OBJ-SESSION-INTENT; FILE-SESS-02; refactor step 3.4b-i): the
+//                 declared focus, the declared miss, or one screen's answer, written FIELD BY FIELD against the
+//                 file as it stands (SessionRepository::readSessionInput / writeSessionInput by id); EVT-10
+//   setIntentRun(runs)   the "from here on" intent run (R-INPUT-2), the same way; EVT-08
+//                 Both take `held`: the caller's value of every field the session's file does not hold yet (a
+//                 session whose input is still in diagnostics.json's older keys until migration M3: J-33), so
+//                 the first write puts all four fields in the file, exactly as the diagnostics model's own write
+//                 did before (step 2.5)
+//
+// IT HEARS ITS SHOTS (P10; DEC-69; refactor step 3.4b-i): every Shot it holds is connected (DirectConnection)
+// at the moment it is held, and each of the Shot's events is heard here, synchronously and in order. Nothing
+// consumes them for a re-fire until step 3.5 (SessionDiagnostics); the app log says what was heard. It also
+// hands each Shot to its Athlete, which appends the tuning log on EVT-06 (DEC-43).
+//
 // ITS EVENTS (DEC-69; src/Core/work_pool.h's conventions): Qt signals carrying only the id, emitted on this
 // thread after the repository write returned ok, in command order; listeners connect with
 // Qt::DirectConnection. shotAdded has no consumer in step 3.4a (D19's moment is wired; step 3.5's
@@ -65,6 +79,7 @@
 
 #include "athlete.h"   // ShotDoors
 #include "session_repository.h"
+#include "shot_command_values.h"   // SessionIntentEdit
 #include "../Identity/identity.h"
 
 #include <QList>
@@ -103,6 +118,10 @@ public:
     bool        shotDocumentWritten(const ShotRef &ref);
     WriteResult trashShot(const ShotRef &ref, QString *where = nullptr);
     WriteResult end();
+    // The session's intent (refactor step 3.4b-i; above). `held`: the caller's value of each field the file does
+    // not hold yet (J-33's fallback); the edited field is always the edit's.
+    WriteResult setSessionIntent(const SessionIntentEdit &edit, const SessionInput &held = {});   // EVT-10
+    WriteResult setIntentRun(const QVector<IntentRun> &runs, const SessionInput &held = {});      // EVT-08
 
     // This process started or resumed it, and has not ended it: what Athlete::startSession and resumeSession
     // end first (DEC-78, DEC-134). A session a crash left in progress is not running here: the repository's
@@ -116,6 +135,8 @@ signals:
     void shotAdded(const pinpoint::ShotRef &shot);        // EVT-01 (D19: when capture's document write lands)
     void shotTrashed(const pinpoint::ShotRef &shot);      // EVT-03
     void sessionEnded(const pinpoint::SessionId &session);   // EVT-09
+    void intentRunChanged(const pinpoint::SessionId &session);       // EVT-08 IntentRunChanged
+    void sessionIntentChanged(const pinpoint::SessionId &session);   // EVT-10 SessionIntentChanged
 
 private:
     friend class Athlete;   // one instance per SessionId: made by its Athlete only
@@ -129,6 +150,10 @@ private:
     WriteResult endSession(bool discardIfEmpty);
     void  loadShots();
     Shot *hold(const ShotRef &ref, const std::optional<recording::ShotKind> &kind);
+    // P10: hears each of the Shot's events (step 3.4b-i); nothing re-fires on them until step 3.5.
+    void  hear(Shot *shot);
+    // The session's input as its file holds it, each field it does not hold yet taken from `held` (J-33).
+    SessionInput inputWith(const SessionInput &held) const;
 
     Athlete            *m_athlete  = nullptr;
     SessionRepository  *m_sessions = nullptr;

@@ -54,7 +54,26 @@ Shot *Session::hold(const ShotRef &ref, const std::optional<recording::ShotKind>
         return s;
     Shot *s = new Shot(ref, kind, m_doors, this);
     m_shots.insert(ref.swingNumber(), s);
+    hear(s);
     return s;
+}
+
+void Session::hear(Shot *shot)
+{
+    // P10 (DEC-69): the Session hears every change to its shots, synchronously and in order. Step 3.4b-i wires
+    // the hearing; nothing consumes it for a re-fire until step 3.5 (SessionDiagnostics), so it is logged.
+    const auto heard = [](const char *event) {
+        return [event](const ShotRef &ref) { ppInfo() << "[Session] heard" << event << "for" << ref.toString(); };
+    };
+    connect(shot, &Shot::declaredClubChanged, this, heard("EVT-21"), Qt::DirectConnection);
+    connect(shot, &Shot::clubCorrected,       this, heard("EVT-04"), Qt::DirectConnection);
+    connect(shot, &Shot::readingExcluded,     this, heard("EVT-05"), Qt::DirectConnection);
+    connect(shot, &Shot::labelCorrected,      this, heard("EVT-06"), Qt::DirectConnection);
+    connect(shot, &Shot::shotIntentChanged,   this, heard("EVT-07"), Qt::DirectConnection);
+    connect(shot, &Shot::captureCompleted,    this, heard("EVT-22"), Qt::DirectConnection);
+    // EVT-06's tuning log is the Athlete's (DEC-43): it hears the Shot itself.
+    if (m_athlete)
+        m_athlete->hearLabelCorrections(shot);
 }
 
 void Session::loadShots()
@@ -192,6 +211,67 @@ WriteResult Session::endSession(bool discardIfEmpty)
     ppInfo() << "[Session] EVT-09 session ended:" << m_id.toString();
     emit sessionEnded(m_id);   // EVT-09
     return r;
+}
+
+// ── The session's intent (refactor step 3.4b-i; OBJ-SESSION-INTENT, FILE-SESS-02) ─────────────────────────────
+
+SessionInput Session::inputWith(const SessionInput &held) const
+{
+    // FIELD BY FIELD, against the file as it stands now (step 2.5's rule, moved here unchanged from the
+    // diagnostics model's write): every field keeps what the file holds — another model on the session may have
+    // written it since the caller read — and a field the file does not hold yet is the caller's, which it resolved
+    // from diagnostics.json's older keys (J-33). So after the first write all four fields are in the file.
+    const SessionInputRead disk = m_sessions->readSessionInput(m_id);
+    SessionInput out = disk.state == SessionInputRead::State::Read ? disk.input : SessionInput();
+    if (!out.declaredFocus) out.declaredFocus = held.declaredFocus;
+    if (!out.declaredMiss)  out.declaredMiss  = held.declaredMiss;
+    if (!out.screenAnswers) out.screenAnswers = held.screenAnswers;
+    if (!out.intentRuns)    out.intentRuns    = held.intentRuns;
+    return out;
+}
+
+WriteResult Session::setSessionIntent(const SessionIntentEdit &edit, const SessionInput &held)
+{
+    if (!m_sessions)
+        return failedWith(QStringLiteral("No session store."));
+    SessionInput out = inputWith(held);
+    if (edit.focus)
+        out.declaredFocus = *edit.focus;
+    if (edit.miss)
+        out.declaredMiss = *edit.miss;
+    if (!edit.screenId.isEmpty()) {
+        if (!out.screenAnswers)
+            out.screenAnswers = QMap<QString, bool>();
+        out.screenAnswers->insert(edit.screenId, edit.screenPresent);
+    }
+    const WriteResult w = m_sessions->writeSessionInput(m_id, out);
+    if (!w.ok()) {
+        ppWarn() << "[Session] the session's intent was not saved for" << m_id.toString() << "-" << w.error;
+        return w;   // nothing changed: no event
+    }
+    if (w.changed()) {
+        ppInfo() << "[Session] EVT-10 session intent changed:" << m_id.toString();
+        emit sessionIntentChanged(m_id);   // EVT-10
+    }
+    return w;
+}
+
+WriteResult Session::setIntentRun(const QVector<IntentRun> &runs, const SessionInput &held)
+{
+    if (!m_sessions)
+        return failedWith(QStringLiteral("No session store."));
+    SessionInput out = inputWith(held);
+    out.intentRuns = runs;
+    const WriteResult w = m_sessions->writeSessionInput(m_id, out);
+    if (!w.ok()) {
+        ppWarn() << "[Session] the intent run was not saved for" << m_id.toString() << "-" << w.error;
+        return w;   // nothing changed: no event
+    }
+    if (w.changed()) {
+        ppInfo() << "[Session] EVT-08 intent run changed:" << m_id.toString();
+        emit intentRunChanged(m_id);   // EVT-08
+    }
+    return w;
 }
 
 } // namespace pinpoint

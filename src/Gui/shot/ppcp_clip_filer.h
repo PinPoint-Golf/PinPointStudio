@@ -28,6 +28,8 @@
 namespace Ppcp { class PpcpImportLedger; }
 #include "../../Identity/identity.h"   // ShotRef
 
+namespace pinpoint { class ShotCommandDoor; }
+
 namespace pinpoint { class RecordingRepository; struct StreamArrival; }
 
 // PpcpClipFiler — where a phone's swing video becomes part of a swing.
@@ -77,6 +79,11 @@ public:
     // part of the Recording (RecordingRepository::completeCapture, IM-4); the placeholder document
     // for a shot that produced none is its create(). Without one nothing is recorded in the swing.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // THE SHOT'S COMMAND FOR ITS LATE PART (refactor step 3.4b-i; src/App/shot_command_door.h): the clip's stream
+    // FORWARDS to its Shot (Shot::completeCapture, EVT-22), which saves it; the filer writes the late part itself
+    // only for a shot no Session holds, or with no door (the tests) — N1's interim. The placeholder document
+    // stays capture's create (J-15). main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
 
     // Sent when the payload is DURABLY held (MSG 8.4a).  Supplied by main.cpp
     // because only PpcpHostService knows which link owns which peer, and the
@@ -162,6 +169,7 @@ private:
     Stats                   m_stats;
     Ppcp::PpcpImportLedger *m_ledger = nullptr;
     pinpoint::RecordingRepository *m_repo = nullptr;
+    pinpoint::ShotCommandDoor     *m_commands = nullptr;
     CommitFn                m_pumpCommits;
     // Bounded: a clip that turns up long after its shot has scrolled off is a
     // clip with nowhere to go, and an unbounded map would be a slow leak across

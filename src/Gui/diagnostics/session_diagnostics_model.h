@@ -49,6 +49,8 @@
 namespace pinpoint {
 class SessionStore;
 class SwingStoreRecordingRepository;
+class ShotCommandDoor;
+struct LabelCorrectionNote;
 }
 
 namespace pinpoint::analysis {
@@ -630,6 +632,17 @@ public:
     // loop ran. This is the whole of the concession — the code path is otherwise identical.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
 
+    // ── The golfer's commands forward (refactor step 3.4b-i; BRIEF.md §4.12) ─────────────────────────
+    //
+    // correctOutcome and setShotIntent FORWARD to the shot's own commands (Shot::correctLabel, EVT-06, whose
+    // Athlete appends the tuning log; Shot::setShotIntent, EVT-07); declareFocus / clearFocus, declareMiss and
+    // recordScreenResult to Session::setSessionIntent (EVT-10), setIntentFrom to Session::setIntentRun (EVT-08).
+    // This model then writes none of those facts itself (one writer, P10; DEC-94): it keeps its in-memory copy
+    // for its outcome surfaces and its notices, as a reader. THE DOOR IS PROCESS-WIDE because the panel's model
+    // is made by QML: main.cpp sets `app` (src/App/shot_command_door.h) once at launch. A session no Athlete
+    // holds — and every model in a tool or test, which sets no door — keeps today's writes (N1's interim).
+    static void setShotCommands(pinpoint::ShotCommandDoor *door);
+
     // The measurement-uncertainty switches (session_diagnostics_design.md §A8.8), for the report
     // tool that grades each stage against the others. Production leaves them at the tuned defaults.
     // Set BEFORE activateSession(): detection reads withSigma as each shot is ingested.
@@ -861,7 +874,10 @@ private:
     // One shot's intent or corrections onto its review (FILE-SHOT-02), through RecordingRepository: on
     // a single-thread pool of its own (a swing file rewrite is not done on the GUI thread), inline when
     // synchronous. The cleared answer is written explicitly while the older copy holds one (J-33).
-    void         writeShotInput(int shotId, bool intent, bool corrections);
+    // `correction`: the label correction just made (correctOutcome), for the tuning log — the Shot's Athlete
+    // appends it on EVT-06, or this model (N1's interim) when no Session holds the shot.
+    void         writeShotInput(int shotId, bool intent, bool corrections,
+                                const pinpoint::LabelCorrectionNote *correction = nullptr);
     // `rowCurrent`: the shot's row was graded from the document as it stood before the edit, so its stamp
     // follows the document the edit wrote (a review edit is not a new recording).
     void         onShotInputWritten(int generation, int shotId, bool rowCurrent, const pinpoint::WriteResult &result);

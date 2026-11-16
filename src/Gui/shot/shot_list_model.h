@@ -31,7 +31,7 @@
 
 #include "../../Identity/identity.h"   // ShotRef (the row's key for the swing door, step 2.4)
 
-namespace pinpoint { class RecordingRepository; }
+namespace pinpoint { class RecordingRepository; class ShotCommandDoor; struct ForwardResult; }
 
 // ShotListModel — the session-global list of captured shots, shared by every
 // mode screen's PpShotCarousel.  Exposed in main.cpp as the QML context
@@ -211,6 +211,12 @@ public:
     // club and board annotations write through it. Without one a row with a folder keeps its edits
     // in memory and says so in the log.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // THE SHOT'S COMMANDS (refactor step 3.4b-i; src/App/shot_command_door.h): the rating, note and declared club
+    // and the board's club and exclusion FORWARD to the row's Shot (Shot::rate, note, setDeclaredClub, correctClub,
+    // excludeReading), which saves them and emits EVT-21 / 04 / 05; this model then writes nothing itself (one
+    // writer, P10). A row whose session no Athlete holds — or no door (the tests) — keeps today's write-through
+    // above (N1's interim). main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     void setFolderBusyCheck(ReasonFn fn) { m_busyCheck = std::move(fn); }
     void setTrashFunction(TrashFn fn)    { m_trashFn = std::move(fn); }
     // The retry's first interval (it doubles) and how long a refused folder is
@@ -292,9 +298,15 @@ private:
 
     int  rowForId(int id) const;
     pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
-    void persistReview(int row);   // write-through rating/note/club to swing.json
-    void persistLmAnnotations(int row);   // write-through excluded/clubOverride
+    void persistReview(int row);   // write-through rating/note/club to swing.json (N1's interim)
+    void persistLmAnnotations(int row);   // write-through excluded/clubOverride (N1's interim)
+    // The row's Shot took the command (true; a failed save is logged), or no Session holds it (false: the caller
+    // keeps today's write-through). A row with no folder is in memory only, as today (true: nothing to save).
+    using Forward = std::function<pinpoint::ForwardResult(pinpoint::ShotCommandDoor &, const QString &sessionFolder,
+                                                          const pinpoint::ShotRef &)>;
+    bool forwarded(int row, const char *what, const Forward &command);
     pinpoint::RecordingRepository *m_repo = nullptr;
+    pinpoint::ShotCommandDoor     *m_commands = nullptr;
     bool trashFolder(const QString &dir) const;   // m_trashFn, or SwingPaths::trashPath
     void removeTrashedRow(int id, const QString &dir);
     void attemptPendingTrash();

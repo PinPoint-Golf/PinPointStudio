@@ -28,6 +28,7 @@
 #include "../../Export/swing_doc.h"
 #include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
+#include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -555,9 +556,7 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     const QString club = followedClub(r);
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
-    const pinpoint::WriteResult w =
-        m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(swingDir), r, captureClub, &clubReplaced)
-               : pinpoint::WriteResult{};
+    const pinpoint::WriteResult w = completeCapture(swingDir, r, captureClub, &clubReplaced);
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
                  << (m_repo ? w.error : QStringLiteral("no recording repository"));
@@ -583,6 +582,24 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
 
     emit readingApplied(swingDir);
     return true;
+}
+
+pinpoint::WriteResult LaunchMonitorController::completeCapture(const QString &swingDir, const LaunchMonitorReading &r,
+                                                               const QJsonObject &captureClub, bool *clubReplaced)
+{
+    if (clubReplaced)
+        *clubReplaced = false;
+    if (!m_repo)
+        return pinpoint::WriteResult{};
+    const pinpoint::ShotRef shot = m_repo->shotOfFolder(swingDir);
+    // The Shot's own command (EVT-22), through its Session; today's write only for a shot no Session holds (N1).
+    if (m_commands) {
+        const pinpoint::ForwardResult f =
+            m_commands->completeCapture(pinpoint::sessionFolderOf(swingDir), shot, r, captureClub, clubReplaced);
+        if (f.reached)
+            return f.result;
+    }
+    return m_repo->completeCapture(shot, r, captureClub, clubReplaced);
 }
 
 QString LaunchMonitorController::summaryOf(const LaunchMonitorReading &r) const
@@ -704,8 +721,7 @@ void LaunchMonitorController::flushUpdates()
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
 
-        const pinpoint::WriteResult w =
-            m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(dir), r) : pinpoint::WriteResult{};
+        const pinpoint::WriteResult w = completeCapture(dir, r);
         if (!w.ok()) {
             ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
                      << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));

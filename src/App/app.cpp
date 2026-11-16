@@ -18,6 +18,7 @@
 
 #include "app.h"
 #include "../DomainModel/session.h"
+#include "../DomainModel/shot.h"
 
 namespace pinpoint {
 
@@ -30,6 +31,118 @@ Session *App::sessionAt(const QString &folder) const
 {
     Athlete *athlete = m_currentAthlete ? m_currentAthlete() : nullptr;
     return athlete ? athlete->sessionAt(folder) : nullptr;
+}
+
+// ── ShotCommandDoor (refactor step 3.4b-i) ──────────────────────────────────────────────────────────────────
+//
+// The folder translated once, here, through the current Athlete (sessionAt; DEC-90); the command run on the
+// Session's own Shot (P10). Not reached (N1): the caller keeps today's path.
+
+Shot *App::shotAt(const QString &sessionFolder, const ShotRef &shot) const
+{
+    if (shot.isNull())
+        return nullptr;
+    Session *s = sessionAt(sessionFolder);
+    return (s && s->id() == shot.session()) ? s->shot(shot) : nullptr;
+}
+
+namespace {
+template <typename Command>
+ForwardResult forward(Shot *shot, Command &&command)
+{
+    if (!shot)
+        return {};
+    return { true, command(*shot) };
+}
+} // namespace
+
+ForwardResult App::rate(const QString &sessionFolder, const ShotRef &shot, int stars)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.rate(stars); });
+}
+
+ForwardResult App::note(const QString &sessionFolder, const ShotRef &shot, const QString &text)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.note(text); });
+}
+
+ForwardResult App::setDeclaredClub(const QString &sessionFolder, const ShotRef &shot, const QString &club)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.setDeclaredClub(club); });
+}
+
+ForwardResult App::correctClub(const QString &sessionFolder, const ShotRef &shot, const QString &club)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.correctClub(club); });
+}
+
+ForwardResult App::excludeReading(const QString &sessionFolder, const ShotRef &shot, bool excluded)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.excludeReading(excluded); });
+}
+
+ForwardResult App::completeCapture(const QString &sessionFolder, const ShotRef &shot,
+                                   const lm::LaunchMonitorReading &reading, const QJsonObject &followedClub,
+                                   bool *clubReplaced)
+{
+    return forward(shotAt(sessionFolder, shot),
+                   [&](Shot &s) { return s.completeCapture(reading, followedClub, clubReplaced); });
+}
+
+ForwardResult App::completeCapture(const QString &sessionFolder, const ShotRef &shot, const StreamArrival &arrival)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.completeCapture(arrival); });
+}
+
+ForwardResult App::setMarkupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view,
+                                  const QJsonObject &truth)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.setMarkupTruth(view, truth); });
+}
+
+bool App::setShotIntent(const QString &sessionFolder, const ShotRef &shot, const QString &intent, bool keepEmpty,
+                        const SaveLater &later)
+{
+    Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return false;
+    s->setShotIntent(intent, keepEmpty, later);
+    return true;
+}
+
+bool App::correctLabel(const QString &sessionFolder, const ShotRef &shot, const QVector<LabelCorrection> &corrections,
+                       const LabelCorrectionNote &note, bool keepEmpty, const SaveLater &later)
+{
+    Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return false;
+    s->correctLabel(corrections, note, keepEmpty, later);
+    return true;
+}
+
+ForwardResult App::flagForTuning(const QString &sessionFolder, const ShotRef &shot, const TuningFlagNote &note)
+{
+    Session *s = sessionAt(sessionFolder);
+    if (!s || !s->athlete() || !shotAt(sessionFolder, shot))
+        return {};
+    return { true, s->athlete()->flagForTuning(shot, note) };
+}
+
+ForwardResult App::setSessionIntent(const QString &sessionFolder, const SessionIntentEdit &edit,
+                                    const SessionInput &held)
+{
+    Session *s = sessionAt(sessionFolder);
+    if (!s)
+        return {};
+    return { true, s->setSessionIntent(edit, held) };
+}
+
+ForwardResult App::setIntentRun(const QString &sessionFolder, const QVector<IntentRun> &runs, const SessionInput &held)
+{
+    Session *s = sessionAt(sessionFolder);
+    if (!s)
+        return {};
+    return { true, s->setIntentRun(runs, held) };
 }
 
 } // namespace pinpoint

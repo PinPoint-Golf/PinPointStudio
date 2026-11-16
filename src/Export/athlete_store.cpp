@@ -469,4 +469,11 @@ WriteResult AthleteStore::appendTuningLog(const QString &logFile, const QByteArr
     return w.ok ? written() : failed(w.detail.isEmpty() ? w.error : w.error + QStringLiteral(" (") + w.detail + QLatin1Char(')'));
 }
 
+WriteResult AthleteStore::appendTuningLine(const Athlete &athlete, const QByteArray &line)
+{
+    if (athlete.folder().isEmpty())
+        return failed(QStringLiteral("The athlete has no folder for its tuning log."));
+    return appendTuningLog(AthleteFiles::tuningLogFile(athlete.folder()), line, lockWait());
+}
+
 } // namespace pinpoint

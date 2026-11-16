@@ -101,6 +101,7 @@
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -358,6 +359,10 @@ int main(int argc, char *argv[])
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
     // the current athlete. No QML calls it yet (the panels move in step 3.7).
     pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
+    // THE SHOT'S AND THE SESSION'S COMMANDS (refactor step 3.4b-i): today's writers of a shot's facts forward to
+    // them through `app` (ShotCommandDoor) and write nothing themselves. The diagnostics panel's model is made by
+    // QML, so its door is process-wide; reset after exec (it outlives this local).
+    SessionDiagnosticsModel::setShotCommands(&appObject);
     // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
@@ -405,6 +410,7 @@ int main(int argc, char *argv[])
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
     shotModel.setRecordingRepository(&recordingRepository);   // rating / note / club / board edits
+    shotModel.setShotCommands(&appObject);                     // … forwarded to the row's Shot (step 3.4b-i)
     // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
     // everything from the shot dirs it is handed, so it needs no dependencies.
     pinpoint::SwingZipExporter swingZipExporter;
@@ -612,6 +618,7 @@ int main(int argc, char *argv[])
                                                       &athleteController, &sessionController,
                                                       &cameraManager);
     launchMonitorController.setRecordingRepository(&recordingRepository);
+    launchMonitorController.setShotCommands(&appObject);   // a late reading is its Shot's completeCapture (3.4b-i)
     // One allocator (D10): a standalone device-only shot goes into the running session, added by the capture
     // service to the Session it captures into (Session::addShot: DEC-142); its document's landing is EVT-01's
     // moment (D19), reported back to that Session.
@@ -667,6 +674,7 @@ int main(int argc, char *argv[])
     // queue still owes a write is refused with the reason.
     for (ShotListModel *m : { &shotModel, qobject_cast<ShotListModel *>(sessionReviewController.shots()) }) {
         if (!m) continue;
+        m->setShotCommands(&appObject);   // the rating, note, club and board edits go to the row's Shot (3.4b-i)
         m->setFolderReleaser([&shotReplay](const QString &dir) {
             if (shotReplay.active() && QDir::cleanPath(shotReplay.swingDir()) == QDir::cleanPath(dir)) {
                 ppInfo() << "[ShotListModel] stopping the replay to release" << dir;
@@ -1198,6 +1206,7 @@ int main(int argc, char *argv[])
     auto *markupProvider = new MarkupImageProvider();
     markupController.setImageProvider(markupProvider);
     markupController.setRecordingRepository(&recordingRepository);   // the truth through the door (2.4)
+    markupController.setShotCommands(&appObject);   // … saved by the swing's Shot when a Session holds it (3.4b-i)
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
@@ -1299,6 +1308,7 @@ int main(int argc, char *argv[])
     static PpcpClipFiler ppcpClipFiler;
     ppcpClipFiler.setLedger(&ppcpHost.ledger());
     ppcpClipFiler.setRecordingRepository(&recordingRepository);
+    ppcpClipFiler.setShotCommands(&appObject);   // a clip's late part is its Shot's completeCapture (3.4b-i)
     // MSG 8.4a — the owed `capture_committed` goes out on the next tick, but a
     // clip that has just been flushed to disk should not wait 20 ms to be
     // acknowledged when the link is right here.
@@ -1561,5 +1571,7 @@ int main(int argc, char *argv[])
 
     exitCode = QCoreApplication::exec();
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
+    SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
+    ppcpClipFiler.setShotCommands(nullptr);              // a static: it outlives `app`
     return exitCode;
 }

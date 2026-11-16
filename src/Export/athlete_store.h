@@ -99,6 +99,8 @@ public:
     WriteResult         save(Athlete &athlete, const AthleteRecord &record) override;
     AthleteRemoval      trash(const AthleteId &id) override;
     AthleteActivity     readActivity(const SessionOwner &owner) const override;
+    // The Athlete's own append (refactor step 3.4b-i): appendTuningLog() on its folder's log (FILE-ATH-04).
+    WriteResult         appendTuningLine(const Athlete &athlete, const QByteArray &line) override;
 
     // THE TUNING LOG's append (FILE-ATH-04, append-only, never rewritten; DEC-43): one line added to
     // `logFile` under its athlete folder's lock, for that one append (brief §4.9). Static, because its

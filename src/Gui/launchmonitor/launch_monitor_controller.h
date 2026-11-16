@@ -36,7 +36,7 @@ class AthleteController;
 class CameraManager;
 class SessionController;
 class ShotListModel;
-namespace pinpoint { class RecordingRepository; }
+namespace pinpoint { class RecordingRepository; class ShotCommandDoor; struct WriteResult; }
 
 // The launch monitor's place in the app (QML context property `launchMonitor`).
 //
@@ -137,6 +137,11 @@ public:
     // The one door to the swing files (main.cpp's): a device-only shot is created through it, and
     // every reading is folded in through completeCapture (IM-4). Without one nothing is written.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // THE SHOT'S COMMAND FOR ITS LATE READING (refactor step 3.4b-i; src/App/shot_command_door.h): a reading folded
+    // into a shot that already has its document FORWARDS to that Shot (Shot::completeCapture, EVT-22), which saves
+    // it; this controller writes it itself only for a shot no Session holds, or with no door (N1's interim). The
+    // device-only document stays capture's create (J-15). main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     // ONE ALLOCATOR (D10: DEC-157): a standalone device-only shot goes into the RUNNING session, with the
     // next swing number, never a folder of its own — added by the capture service, which holds the Session
     // it captures into (Session::addShot: DEC-142; refactor step 3.4a-ii): ShotProcessor::addDeviceOnlyShot,
@@ -262,6 +267,10 @@ private:
     std::function<bool(const QString &)> m_folderHeld;
     std::function<void(const QString &)> m_reanalyse;
     pinpoint::RecordingRepository       *m_repo = nullptr;
+    pinpoint::ShotCommandDoor           *m_commands = nullptr;
+    // A late reading into the shot at `swingDir`: its Shot's command, else (N1) today's write.
+    pinpoint::WriteResult completeCapture(const QString &swingDir, const pinpoint::lm::LaunchMonitorReading &r,
+                                          const QJsonObject &captureClub = {}, bool *clubReplaced = nullptr);
     QString                        m_unknownClubCode;   // logged once per code, not per shot
     // Remembered so a connector rebuilt from a settings change is told again
     // without waiting for the next club selection.

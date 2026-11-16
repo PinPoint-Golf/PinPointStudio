@@ -27,6 +27,10 @@
 //                       (Athlete::sessionAt; DEC-90). Null with no current athlete, or for a folder that is
 //                       not one of its sessions. The Session stays its Athlete's child: QML never owns it
 //
+//   ShotCommandDoor     (refactor step 3.4b-i; shot_command_door.h) how today's writers of a shot's facts, which
+//                       still hold a folder, reach the Shot's and the Session's commands: through sessionAt, then
+//                       the Session's own Shot (P10). C++ only; no QML calls it
+//
 // Step 4 grows it (app.session, app.athlete, app.state: R-QML-1); nothing is re-pointed twice. It includes no
 // repository (P11): the current athlete comes from the composition root as a function.
 //
@@ -38,6 +42,7 @@
 #include "../DomainModel/athlete.h"   // Athlete, AthleteRecord, WriteResult
 #include "../DomainModel/session.h"   // Session (sessionAt's type, whole for moc)
 #include "../Identity/identity.h"
+#include "shot_command_door.h"
 
 #include <QList>
 #include <QObject>
@@ -60,7 +65,7 @@ struct AthleteCallables {
     std::function<AthleteActivity(const SessionOwner &)>           readActivity;
 };
 
-class App : public QObject
+class App : public QObject, public ShotCommandDoor
 {
     Q_OBJECT
 public:
@@ -69,8 +74,35 @@ public:
 
     Q_INVOKABLE pinpoint::Session *sessionAt(const QString &folder) const;
 
+    // ── ShotCommandDoor (refactor step 3.4b-i) ──────────────────────────────────────────────────────────────
+    ForwardResult rate(const QString &sessionFolder, const ShotRef &shot, int stars) override;
+    ForwardResult note(const QString &sessionFolder, const ShotRef &shot, const QString &text) override;
+    ForwardResult setDeclaredClub(const QString &sessionFolder, const ShotRef &shot, const QString &club) override;
+    ForwardResult correctClub(const QString &sessionFolder, const ShotRef &shot, const QString &club) override;
+    ForwardResult excludeReading(const QString &sessionFolder, const ShotRef &shot, bool excluded) override;
+    ForwardResult completeCapture(const QString &sessionFolder, const ShotRef &shot,
+                                  const lm::LaunchMonitorReading &reading, const QJsonObject &followedClub,
+                                  bool *clubReplaced) override;
+    ForwardResult completeCapture(const QString &sessionFolder, const ShotRef &shot,
+                                  const StreamArrival &arrival) override;
+    ForwardResult setMarkupTruth(const QString &sessionFolder, const ShotRef &shot, TruthView view,
+                                 const QJsonObject &truth) override;
+    bool setShotIntent(const QString &sessionFolder, const ShotRef &shot, const QString &intent, bool keepEmpty,
+                       const SaveLater &later) override;
+    bool correctLabel(const QString &sessionFolder, const ShotRef &shot, const QVector<LabelCorrection> &corrections,
+                      const LabelCorrectionNote &note, bool keepEmpty, const SaveLater &later) override;
+    ForwardResult flagForTuning(const QString &sessionFolder, const ShotRef &shot,
+                                const TuningFlagNote &note) override;
+    ForwardResult setSessionIntent(const QString &sessionFolder, const SessionIntentEdit &edit,
+                                   const SessionInput &held) override;
+    ForwardResult setIntentRun(const QString &sessionFolder, const QVector<IntentRun> &runs,
+                               const SessionInput &held) override;
+
 private:
     std::function<Athlete *()> m_currentAthlete;
+
+    // The Session's own Shot for `shot`, through the Session at `sessionFolder` (P10). Null: not held (N1).
+    Shot *shotAt(const QString &sessionFolder, const ShotRef &shot) const;
 };
 
 } // namespace pinpoint

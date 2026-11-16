@@ -28,7 +28,8 @@
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
-#include "../../Export/athlete_files.h"   // the tuning log's append, under the athlete folder's lock
+#include "../../App/shot_command_door.h"   // the golfer's commands forward to the Shot's and Session's (step 3.4b-i)
+#include "../../Export/athlete_files.h"   // the tuning log's append, under the athlete folder's lock (N1's interim)
 #include "../../Export/session_diagnostics_files.h"   // diagnostics.json, session_input.json, the golfer's input
 #include "../../Export/session_files.h"
 #include "../../Export/session_store.h"
@@ -58,6 +59,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaObject>
+#include <QPointer>
 
 #include <algorithm>
 #include <cmath>
@@ -65,6 +67,12 @@
 #include <utility>
 
 using namespace pinpoint::analysis;
+
+namespace {
+// The golfer's commands' door (refactor step 3.4b-i): main.cpp's `app`, process-wide because QML makes the panel's
+// model; none in the tools and tests. INTERIM: it goes with this model (step 5; information_model.md §11).
+pinpoint::ShotCommandDoor *g_shotCommands = nullptr;
+}
 namespace PV = pinpoint::variability;
 
 namespace {
@@ -2238,22 +2246,21 @@ void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, 
     if (list.empty()) m_corrections.remove(shotId);
     else              m_corrections.insert(shotId, list);
 
-    appendTuningLine(QJsonObject{
-        { QStringLiteral("kind"),      QStringLiteral("correction") },
-        { QStringLiteral("session"),   QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
-        { QStringLiteral("shotId"),    shotId },
-        { QStringLiteral("swingDir"),  m_swingDirs.value(shotId) },
-        { QStringLiteral("family"),    family },
-        { QStringLiteral("detected"),  detected },
-        { QStringLiteral("corrected"), to },
-        { QStringLiteral("measures"),  shotMeasures(s) },
-        { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
-    });
+    // What the tuning log is told (DEC-43): the correction and the shot's measures now, with today's provenance
+    // fields. Appended once the correction is saved — by the Shot's Athlete on EVT-06 (step 3.4b-i), or here for
+    // a session no Athlete holds (N1's interim, writeShotInput).
+    pinpoint::LabelCorrectionNote note;
+    note.family      = family;
+    note.detected    = detected;
+    note.corrected   = to;
+    note.measures    = shotMeasures(s);
+    note.sessionName = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
+    note.swingDir    = m_swingDirs.value(shotId);
 
     emit intentChanged();
     rebuild();
     // Onto the shot's review; diagnostics.json is rewritten once it has landed (writeShotInput).
-    writeShotInput(shotId, /*intent=*/false, /*corrections=*/true);
+    writeShotInput(shotId, /*intent=*/false, /*corrections=*/true, &note);
 }
 
 void SessionDiagnosticsModel::setShotIntent(int shotId, const QString &shape)
@@ -2297,14 +2304,30 @@ void SessionDiagnosticsModel::flagForReview(int shotId)
     const ShotRecord &s = m_shots[size_t(at)];
     QJsonArray labels;
     for (const ShotOutcomeLabel &l : m_composed[size_t(at)].labels) labels.append(l.id);
+    pinpoint::TuningFlagNote note;
+    note.phrase      = m_composed[size_t(at)].phrase;
+    note.labels      = labels;
+    note.measures    = shotMeasures(s);
+    note.sessionName = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
+    note.swingDir    = m_swingDirs.value(shotId);
+    // THE TUNING LOG IS THE ATHLETE'S (DEC-43; review 1 of 3.4b-i): the flag goes to the session's Athlete through
+    // `app` (Athlete::flagForTuning), as every label correction does; this model appends it itself only for a
+    // session no Athlete holds, or with no door (N1's interim). appendTuningLine's own gates, first.
+    if (m_sessionDir.isEmpty() || !m_persistEnabled) return;
+    if (g_shotCommands) {
+        const QString swingDir = QDir(m_sessionDir).filePath(pinpoint::SwingPaths::swingFolderName(shotId));
+        const pinpoint::ForwardResult f =
+            g_shotCommands->flagForTuning(m_sessionDir, m_recordings->shotOfFolder(swingDir), note);
+        if (f.reached) return;   // a failed append is logged by the Athlete, as today's was
+    }
     appendTuningLine(QJsonObject{
         { QStringLiteral("kind"),     QStringLiteral("flag") },
-        { QStringLiteral("session"),  QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
+        { QStringLiteral("session"),  note.sessionName },
         { QStringLiteral("shotId"),   shotId },
-        { QStringLiteral("swingDir"), m_swingDirs.value(shotId) },
-        { QStringLiteral("phrase"),   m_composed[size_t(at)].phrase },
-        { QStringLiteral("labels"),   labels },
-        { QStringLiteral("measures"), shotMeasures(s) },
+        { QStringLiteral("swingDir"), note.swingDir },
+        { QStringLiteral("phrase"),   note.phrase },
+        { QStringLiteral("labels"),   note.labels },
+        { QStringLiteral("measures"), note.measures },
         { QStringLiteral("atMs"),     double(QDateTime::currentMSecsSinceEpoch()) },
     });
 }
@@ -2936,10 +2959,44 @@ pinpoint::SessionInput SessionDiagnosticsModel::sessionInputOf() const
     return in;
 }
 
+void SessionDiagnosticsModel::setShotCommands(pinpoint::ShotCommandDoor *door)
+{
+    g_shotCommands = door;
+}
+
 void SessionDiagnosticsModel::writeSessionInput(InputField changed, const QString &screenId)
 {
     // As every write: not for a reader, not while this activation's files could not be read.
     if (m_sessionDir.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) return;
+    // THE SESSION'S OWN COMMANDS (refactor step 3.4b-i): the field this command changed, from this model; every
+    // field the file does not hold yet from this model too (`held`: J-33). The Session writes field by field and
+    // emits EVT-10 (focus, miss, screen) or EVT-08 (the run). Not reached (N1): today's write below.
+    if (g_shotCommands) {
+        const pinpoint::SessionInput held = sessionInputOf();
+        pinpoint::ForwardResult f;
+        if (changed == InputField::Run) {
+            f = g_shotCommands->setIntentRun(m_sessionDir, held.intentRuns.value_or(QVector<pinpoint::IntentRun>()), held);
+        } else {
+            pinpoint::SessionIntentEdit edit;
+            if (changed == InputField::Focus) edit.focus = held.declaredFocus;
+            if (changed == InputField::Miss)  edit.miss  = held.declaredMiss;
+            if (changed == InputField::Screen && m_screens.contains(screenId)) {
+                edit.screenId      = screenId;
+                edit.screenPresent = m_screens.value(screenId);
+            }
+            f = g_shotCommands->setSessionIntent(m_sessionDir, edit, held);
+        }
+        if (f.reached) {
+            if (!f.result.ok()) {
+                ppWarn() << "[Diagnostics] the golfer's session input was not saved:" << qPrintable(m_sessionDir) << "—"
+                         << qPrintable(f.result.error);
+                reportWriteFailure(tr("The focus, declared miss, screen answers and intent run"), f.result.error);
+                return;
+            }
+            reportWriteSuccess();
+            return;
+        }
+    }
     // FIELD BY FIELD, against the file as it stands now. The one field this command changed is this
     // model's (a screen answer: that one entry). Every other field keeps what the file holds — another
     // model on the session (the catch-up, a second panel) may have written it since this one read — and a
@@ -2971,7 +3028,8 @@ void SessionDiagnosticsModel::writeSessionInput(InputField changed, const QStrin
     reportWriteSuccess();
 }
 
-void SessionDiagnosticsModel::writeShotInput(int shotId, bool intent, bool corrections)
+void SessionDiagnosticsModel::writeShotInput(int shotId, bool intent, bool corrections,
+                                             const pinpoint::LabelCorrectionNote *correction)
 {
     // diagnostics.json is rewritten AFTER the review has landed (onShotInputWritten): the athlete's
     // tendencies are fingerprinted by that file, so a reduction it sets off reads the new answer.
@@ -3017,6 +3075,37 @@ void SessionDiagnosticsModel::writeShotInput(int shotId, bool intent, bool corre
 
     const int generation = m_activationGen;
     m_shotInputUnflushed = true;
+
+    // THE SHOT'S OWN COMMAND (refactor step 3.4b-i): Shot::setShotIntent (EVT-07) or Shot::correctLabel (EVT-06,
+    // its Athlete appending the tuning log), through its Session. The save is made where this model makes it
+    // today — on the review pool, inline when synchronous (D25) — and onShotInputWritten follows it as before.
+    if (g_shotCommands && intent != corrections) {
+        const QPointer<SessionDiagnosticsModel> self(this);
+        pinpoint::SaveLater later;
+        later.pool = m_synchronous ? nullptr : &m_reviewPool;
+        later.done = [self, generation, shotId, rowCurrent](const pinpoint::WriteResult &w) {
+            if (self) self->onShotInputWritten(generation, shotId, rowCurrent, w);
+        };
+        const bool reached = intent
+            ? g_shotCommands->setShotIntent(m_sessionDir, shot, *edit.shotIntent, edit.keepEmptyGolferInput, later)
+            : g_shotCommands->correctLabel(m_sessionDir, shot, *edit.labelCorrections,
+                                           correction ? *correction : pinpoint::LabelCorrectionNote(),
+                                           edit.keepEmptyGolferInput, later);
+        if (reached) return;
+    }
+    // N1's interim: a session no Athlete holds (or no door: the tools and tests) — today's writes.
+    if (correction)
+        appendTuningLine(QJsonObject{
+            { QStringLiteral("kind"),      QStringLiteral("correction") },
+            { QStringLiteral("session"),   correction->sessionName },
+            { QStringLiteral("shotId"),    shotId },
+            { QStringLiteral("swingDir"),  correction->swingDir },
+            { QStringLiteral("family"),    correction->family },
+            { QStringLiteral("detected"),  correction->detected },
+            { QStringLiteral("corrected"), correction->corrected },
+            { QStringLiteral("measures"),  correction->measures },
+            { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
+        });
     if (m_synchronous) {
         onShotInputWritten(generation, shotId, rowCurrent, m_recordings->editReview(shot, edit));
         return;

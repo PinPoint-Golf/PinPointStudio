@@ -1737,6 +1737,45 @@ pp_add_test(golfer_input_test
 set_tests_properties(golfer_input_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# THE SHOT'S COMMANDS FOR ITS OWN FACTS (refactor step 3.4b-i): each command saves through the swing door, then
+# emits its event once; a failed save emits nothing and is reported; the Session's intent commands; the door
+# (`app`) the carousel, the late parts, the markup truth and the diagnostics model forward through; a panel edit
+# through the old model emits the same event. The model test's link line (golfer_input_test's), plus the athlete,
+# its sessions and shots, the athlete store, `app` and the carousel's model.
+pp_add_test(shot_commands_test
+    SOURCES ${SRC}/DomainModel/tests/shot_commands_test.cpp
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/App/app.h ${SRC}/App/app.cpp
+            ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+            ${SRC}/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
+            ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
+            ${DIAG}/measures/live_measure_source.cpp ${DIAG}/measures/measure_sample.cpp
+            ${DIAG}/engine/characteristic_engine.cpp ${DIAG}/engine/relation_resolver.cpp
+            ${DIAG}/packs/screen_pack.cpp
+            ${DIAG_NORM}
+            ${DIAG}/norms/resource_norm_provider.cpp ${DIAG}/norms/file_norm_provider.cpp
+            ${DIAG}/norms/merged_norm_provider.cpp
+            ${DIAG}/packs/resource_pack_provider.cpp ${DIAG}/packs/file_pack_provider.cpp
+            ${SRC}/Core/pp_log_stream.cpp ${SRC}/Core/PpMessageLog.cpp
+            ${DIAG}/packs/merged_pack_provider.cpp
+            ${SRC}/Export/swing_doc_writer.cpp ${SRC}/Export/swing_store_repository.cpp ${SRC}/Core/folder_lock.cpp
+            ${SRC}/Export/swing_doc_reader.cpp
+            ${SRC}/Export/swing_doc_analysis.cpp
+            ${SRC}/Export/recording_header.cpp ${SRC}/Analysis/effective_context.cpp
+            ${SRC}/Export/swing_paths.cpp
+            ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
+            ${SESSION_DIAG_MARKS_SOURCES}
+            ${SESSION_DIAG_CATALOGUE_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui
+    LINK    Qt6::Qml
+    AUTOMOC
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
+set_tests_properties(shot_commands_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # "SHOT N" IS THE SWING NUMBER, AND A SESSION IS PLACED BY ITS IDENTITY (refactor step 2.7a; audit E-06/F-07, E-05,
 # F-06): after a trashed swing and one with no document, the ledger's "shot N" — header, review badge, every readout
 # — is the swing number; another session's swing of the same number is never matched by its name; under the

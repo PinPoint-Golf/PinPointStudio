@@ -19,11 +19,15 @@
 #include "athlete.h"
 #include "athlete_repository.h"
 #include "session.h"
+#include "shot.h"   // the tuning log hears each Shot's EVT-06 (step 3.4b-i)
 
 #include "../Core/pp_debug.h"
 
 #include <QDateTime>
 #include <QDir>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTime>
 
 #include <algorithm>
@@ -395,6 +399,64 @@ QList<Session *> Athlete::sessions()
             if (Session *s = hold(e.id(), /*startedHere=*/false))
                 out.append(s);
     return out;
+}
+
+// ── Its tuning log (refactor step 3.4b-i; DEC-43) ──────────────────────────────────────────────────────────
+
+void Athlete::hearLabelCorrections(Shot *shot)
+{
+    if (!shot)
+        return;
+    connect(shot, &Shot::labelCorrected, this, [this, shot](const ShotRef &) { appendLabelCorrection(*shot); },
+            Qt::DirectConnection);
+}
+
+void Athlete::appendLabelCorrection(const Shot &shot)
+{
+    // THE LINE AS THE TUNING TOOLS READ IT (shot_outcomes_design.md §4.4; one JSON object per line), with today's
+    // keys and values: the session folder's name and the swing folder as the caller filed the shot, the swing
+    // number as `shotId`, and the moment of the append.
+    const LabelCorrectionNote &n = shot.lastLabelCorrection();
+    const QJsonObject line{
+        { QStringLiteral("kind"),      QStringLiteral("correction") },
+        { QStringLiteral("session"),   n.sessionName },
+        { QStringLiteral("shotId"),    shot.swingNumber() },
+        { QStringLiteral("swingDir"),  n.swingDir },
+        { QStringLiteral("family"),    n.family },
+        { QStringLiteral("detected"),  n.detected },
+        { QStringLiteral("corrected"), n.corrected },
+        { QStringLiteral("measures"),  n.measures },
+        { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
+    };
+    appendTuningLine(line, shot.ref());
+}
+
+WriteResult Athlete::flagForTuning(const ShotRef &shot, const TuningFlagNote &n)
+{
+    // Today's "flag" line, keys and values unchanged (shot_outcomes_design.md §4.4).
+    const QJsonObject line{
+        { QStringLiteral("kind"),     QStringLiteral("flag") },
+        { QStringLiteral("session"),  n.sessionName },
+        { QStringLiteral("shotId"),   shot.swingNumber() },
+        { QStringLiteral("swingDir"), n.swingDir },
+        { QStringLiteral("phrase"),   n.phrase },
+        { QStringLiteral("labels"),   n.labels },
+        { QStringLiteral("measures"), n.measures },
+        { QStringLiteral("atMs"),     double(QDateTime::currentMSecsSinceEpoch()) },
+    };
+    return appendTuningLine(line, shot);
+}
+
+WriteResult Athlete::appendTuningLine(const QJsonObject &line, const ShotRef &shot)
+{
+    if (!m_repository) {
+        ppWarn() << "[Athlete] the tuning log line for" << shot.toString() << "was not appended - no athlete repository";
+        return { WriteResult::Status::Failed, QStringLiteral("no athlete repository") };
+    }
+    const WriteResult w = m_repository->appendTuningLine(*this, QJsonDocument(line).toJson(QJsonDocument::Compact));
+    if (!w.ok())
+        ppWarn() << "[Athlete] could not append to the tuning log:" << w.error;   // logged only, as today (DEC-126: §11)
+    return w;
 }
 
 } // namespace pinpoint

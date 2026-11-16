@@ -20,6 +20,7 @@
 
 #include "../Export/swing_doc.h"
 #include "../DomainModel/recording_repository.h"
+#include "../../App/shot_command_door.h"
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
 
@@ -377,6 +378,24 @@ void ShotListModel::persistReview(int row)
         ppWarn() << "[ShotListModel] review write-through failed:" << w.error;
 }
 
+bool ShotListModel::forwarded(int row, const char *what, const Forward &command)
+{
+    const Shot &s = m_shots.at(row);
+    if (s.swingDir.isEmpty())
+        return true;   // in memory only, as today: nothing to save, and no Shot to tell
+    if (!m_commands)
+        return false;
+    const pinpoint::ShotRef ref = shotOf(row);
+    if (ref.isNull())
+        return false;
+    const pinpoint::ForwardResult f = command(*m_commands, pinpoint::sessionFolderOf(s.swingDir), ref);
+    if (!f.reached)
+        return false;   // no Session holds it (N1): today's write-through
+    if (!f.result.ok())
+        ppWarn() << "[ShotListModel]" << what << "not saved:" << f.result.error;
+    return true;
+}
+
 void ShotListModel::setRating(int id, int n)
 {
     const int row = rowForId(id);
@@ -387,7 +406,9 @@ void ShotListModel::setRating(int id, int n)
         return;
     m_shots[row].rating = n;
     emit dataChanged(index(row), index(row), { RatingRole });
-    persistReview(row);
+    if (!forwarded(row, "the rating", [n](pinpoint::ShotCommandDoor &d, const QString &f, const pinpoint::ShotRef &r) {
+            return d.rate(f, r, n); }))
+        persistReview(row);
 }
 
 void ShotListModel::setNote(int id, const QString &text)
@@ -397,7 +418,9 @@ void ShotListModel::setNote(int id, const QString &text)
         return;
     m_shots[row].note = text;
     emit dataChanged(index(row), index(row), { NoteRole });
-    persistReview(row);
+    if (!forwarded(row, "the note", [&text](pinpoint::ShotCommandDoor &d, const QString &f, const pinpoint::ShotRef &r) {
+            return d.note(f, r, text); }))
+        persistReview(row);
 }
 
 void ShotListModel::setClub(int id, const QString &club)
@@ -416,7 +439,9 @@ void ShotListModel::setClub(int id, const QString &club)
     }
     m_shots[row].club = club;
     emit dataChanged(index(row), index(row), { ClubRole });
-    persistReview(row);
+    if (!forwarded(row, "the declared club", [&club](pinpoint::ShotCommandDoor &d, const QString &f,
+                                                     const pinpoint::ShotRef &r) { return d.setDeclaredClub(f, r, club); }))
+        persistReview(row);
 }
 
 // Persist the row's launch monitor annotations. Same rule as persistReview: no swingDir, no
@@ -446,7 +471,10 @@ void ShotListModel::setLmExcluded(int id, bool excluded)
         return;
     m_shots[row].lmExcluded = excluded;
     emit dataChanged(index(row), index(row), { LmExcludedRole });
-    persistLmAnnotations(row);
+    if (!forwarded(row, "the reading's exclusion", [excluded](pinpoint::ShotCommandDoor &d, const QString &f,
+                                                              const pinpoint::ShotRef &r) {
+            return d.excludeReading(f, r, excluded); }))
+        persistLmAnnotations(row);
 }
 
 void ShotListModel::setLmClubOverride(int id, const QString &club)
@@ -470,7 +498,10 @@ void ShotListModel::setLmClubOverride(int id, const QString &club)
         return;
     m_shots[row].lmClubOverride = stored;
     emit dataChanged(index(row), index(row), { LmClubOverrideRole });
-    persistLmAnnotations(row);
+    if (!forwarded(row, "the club correction", [&stored](pinpoint::ShotCommandDoor &d, const QString &f,
+                                                         const pinpoint::ShotRef &r) {
+            return d.correctClub(f, r, stored); }))
+        persistLmAnnotations(row);
 }
 
 QStringList ShotListModel::clubOptions()
