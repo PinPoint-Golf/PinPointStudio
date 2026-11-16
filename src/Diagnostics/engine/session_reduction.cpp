@@ -231,6 +231,10 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
     SessionResults &r = out.results;
     r.hasGrowth = true;
     r.usuals    = in.usuals;   // G-10: the session's usuals, held and stored, never recomputed by a reader
+    // The golfer's word each shot was judged with (DEC-192 as amended, round 3).
+    for (auto it = in.intents.constBegin(); it != in.intents.constEnd(); ++it)
+        if (!it.value().isEmpty()) r.shotIntents.insert(it.key(), it.value());
+    r.shotCorrections = in.corrections;
 
     // ── The work-ons and the evidence (sessionWorkOnsForPack, as SessionDiagnosticsModel::sessionWorkOns) ──
     r.workOns = sessionWorkOnsForPack(pack, in.shots, out.ledgers);
@@ -446,6 +450,23 @@ SessionDiagnosis reduceSession(const SessionReductionInput &in)
         m.direction = composeFactorMixBar(mix.direction);
         m.flight    = composeFactorMixBar(mix.flight);
         r.clubMix.push_back(std::move(m));
+    }
+
+    // ── DEC-192 as Mark amended it (16 Nov, "b"; refactor 3.6 round 3): the COMPACT per-shot facts the athlete level's
+    //    tendencies and themes read — each shot judged by the Tendencies rule with this session's evidence, corrections,
+    //    intents and frozen usual (tendencies.h tendencyShotFacts), and as the themes read it (themeShotOf) — never the
+    //    judged rows, which stay in diagnostics.json. ──
+    {
+        TendencySessionInput self;
+        self.session.shots       = in.shots;
+        self.session.corrections = in.corrections;
+        self.intents             = in.intents;
+        self.evidence            = r.outcomeEvidence;
+        self.baseline            = in.baseline.value_or(QHash<QString, ClubBaselineEntry>{});
+        r.tendencyShots = tendencySessionShots(self, outcomePack, in.flightNorms).shots;
+        r.themeShots.reserve(in.shots.size());
+        for (const ShotRecord &s : in.shots) r.themeShots.push_back(themes::themeShotOf(s));
+        r.hasFacts = true;
     }
     return out;
 }

@@ -276,4 +276,20 @@ WriteResult Session::setIntentRun(const QVector<IntentRun> &runs, const SessionI
     return w;
 }
 
+// ── The club baseline freeze (refactor step 3.6; DEC-46) ──────────────────────────────────────────────────────
+
+WriteResult Session::freezeClubBaseline(const QJsonObject &root, bool rewrite)
+{
+    const WriteResult w = m_sessions ? m_sessions->writeClubBaseline(m_id, root)
+                                     : WriteResult{ WriteResult::Status::Failed, QStringLiteral("no session repository") };
+    if (!w.ok()) {
+        ppWarn() << "[Session] the club baseline was not frozen for" << m_id.toString() << "-" << w.error;
+        return w;
+    }
+    ppInfo() << "[Session] club baseline" << (rewrite ? "rewritten (an older rule's file)" : "frozen") << "for" << m_id.toString();
+    if (rewrite)
+        emit clubBaselineRewritten(m_id);   // EVT-16, after the write returned ok (DEC-69)
+    return w;
+}
+
 } // namespace pinpoint

@@ -1,0 +1,65 @@
+{
+    "about": "the session and athlete reductions on the fired live_swings fixtures (reduction_rule_golden_test.cpp). Re-record with PP_RECORD_RULE_GOLDEN=1 only after moving the version the change belongs to.",
+    "frozenContent": "72eeb4189aee4810",
+    "reductions": {
+        "athleteWorkOns": {
+            "sha1": "2585089f97485d6c30af7527022be69218f4d079",
+            "versions": {
+                "workOnRule": 6,
+                "workOnSchema": 3
+            }
+        },
+        "board": {
+            "sha1": "9693bd0e63c5ca8e51e1460007779658eb103e86",
+            "versions": {
+                "boardRule": 1
+            }
+        },
+        "clubBaseline": {
+            "sha1": "f2d820af68b1985729e94d7743a6cc48355f5d8a",
+            "versions": {
+                "clubBaselineSchema": 4
+            }
+        },
+        "distances": {
+            "sha1": "1beb948d517cef000c017b97f4221aea8b1a9610",
+            "versions": {
+                "clubBaselineSchema": 4,
+                "tendencyRule": 18
+            }
+        },
+        "outcomeScope": {
+            "sha1": "dca4cdb8f6b95d5c3b62afaa56909c12b00edfce",
+            "versions": {
+                "outcomeScopeRule": 5
+            }
+        },
+        "praise": {
+            "sha1": "e567b79f0ae54860cce6c0c0bce70faaf6db29b5",
+            "versions": {
+                "praiseRule": 1
+            }
+        },
+        "sessionWorkOns": {
+            "sha1": "d0dd7d722bc34d03dcf916029550507fb6ea63bb",
+            "versions": {
+                "workOnRule": 6,
+                "workOnSchema": 3
+            }
+        },
+        "tendencies": {
+            "sha1": "775e78f8145fa55e2ed3954db12d22eb8aa72c0b",
+            "versions": {
+                "tendencyRule": 18,
+                "tendencySchema": 1
+            }
+        },
+        "themes": {
+            "sha1": "2cd488fabce38fa2420720ff9cab1e5cdef2c99e",
+            "versions": {
+                "themeRule": 5,
+                "themeSchema": 3
+            }
+        }
+    }
+}

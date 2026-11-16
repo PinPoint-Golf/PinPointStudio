@@ -50,6 +50,8 @@
 #include "shot_factors.h"
 #include "shot_outcomes.h"
 #include "strike_from_flight.h"
+#include "board_annotations.h"   // kBoardAnnotationRuleVersion: a fact's rule (review 2 of 3.6)
+#include "swing_themes.h"   // ThemeShot (DEC-192 as amended, round 3)
 #include "tendencies.h"
 #include "work_ons.h"
 #include "../Diagnostics/measures/club_baseline_provider.h"
@@ -79,7 +81,20 @@ static_assert(int(LinkGrade::Unanchored) == 0 && int(LinkGrade::PresentTogether)
 
 // DEC-192's keys' own version (today's keys keep kWorkOnSchemaVersion / kWorkOnRuleVersion).
 // 1 (16 Nov 2026, refactor 3.5-ii): shots, usuals, carryToday, clubMix, clubWindows, reasons, because, shotMix.
-inline constexpr int kSessionResultsVersion = 1;
+// 2 (16 Nov 2026, refactor 3.6 round 2): each shot's full judged rows — withdrawn (Mark, 16 Nov, "b": never the rows).
+// 3 (16 Nov 2026, refactor 3.6 round 3; DEC-192 as amended by Mark's "b", build/refactor/step-3/ANSWERS.md "Summary
+//   size"): COMPACT PER-SHOT FACTS, what the athlete reductions read and nothing more (the judged rows stay in
+//   diagnostics.json, one source): `tendencyShots` (tendencies.h TendencyShotFacts: the effective club, hand, swing
+//   length, the three factors, the driver's ids and whether its chain is confirmed, the mix key, the carry lost, the
+//   swing faults that fired), `themeShots` (swing_themes.h ThemeShot: each assessed row's condition, fired, in band, and
+//   what the consistency grades read of it — driving measure, value, context, no band — and the shot's cells of the
+//   swing-by-measure table), `shotIntents` and `shotCorrections` (the golfer's word each shot was judged with). A version
+//   1 or 2 file reads without them (`hasFacts` false: the athlete level reads its work-ons and windows, not its shots).
+//   THE FACTS' RULES are written beside them (`factsRules`: kTendencyRuleVersion, kThemeRuleVersion,
+//   kBoardAnnotationRuleVersion; review 2 of 3.6), and facts made under another rule read as absent, in either mode — so
+//   a bump of any of them leaves the athlete level without that session's facts until its summary is written again
+//   (the derived stamp, and so the summary's fingerprint, hashes the same three).
+inline constexpr int kSessionResultsVersion = 3;
 
 // ── FIELD-LIST §3.1: one club's carry today against the FROZEN usual ─────────────────────────────────────────────
 struct ClubCarryToday {
@@ -172,6 +187,13 @@ struct SessionResults {
     std::vector<SessionReason>          reasons;             // most shots first, the unexplained last
     std::vector<ShotBecause>            because;             // J-14 (b), strike order
     SessionShotMix                      shotMix;
+    // Version 3 (refactor 3.6 round 3): the compact per-shot facts (above), strike order. `hasFacts` false: an older
+    // file, read without them.
+    bool                                        hasFacts = false;
+    std::vector<TendencyShotFacts>              tendencyShots;
+    std::vector<ThemeShot>                      themeShots;
+    QHash<int, QString>                         shotIntents;          // resolved; only where there is one
+    QHash<int, std::vector<ShotCorrection>>     shotCorrections;
 };
 
 // ── JSON ──────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -501,6 +523,46 @@ inline QJsonObject sessionResultsToJson(const SessionResults &r)
     root.insert(QStringLiteral("because"), because);
     root.insert(QStringLiteral("shotMix"), QJsonObject{ { QStringLiteral("corrections"), r.shotMix.corrections },
                                                         { QStringLiteral("fromFlight"), r.shotMix.fromFlight } });
+    // Version 3: the compact per-shot facts (ids and numbers; a default left out, so a shot costs what it says).
+    if (r.hasFacts) {
+        QJsonArray tend, themes;
+        for (const TendencyShotFacts &f : r.tendencyShots) {
+            QJsonObject o{ { QStringLiteral("shotId"), f.shotId }, { QStringLiteral("club"), f.club },
+                           { QStringLiteral("factors"), shotFactorsToJson(f.factors) } };
+            if (!f.handedness.isEmpty()) o.insert(QStringLiteral("hand"), f.handedness);
+            if (f.partial) o.insert(QStringLiteral("partial"), true);
+            if (!f.driverId.isEmpty()) {
+                o.insert(QStringLiteral("driverId"), f.driverId);
+                o.insert(QStringLiteral("driverDisplayId"), f.driverDisplayId);
+                if (f.confirmed) o.insert(QStringLiteral("confirmed"), true);
+            }
+            if (!f.mixKey.isEmpty()) o.insert(QStringLiteral("mixKey"), f.mixKey);
+            if (std::isfinite(f.loss)) o.insert(QStringLiteral("loss"), f.loss);
+            if (!f.firedConditions.isEmpty()) o.insert(QStringLiteral("fired"), QJsonArray::fromStringList(f.firedConditions));
+            tend.append(o);
+        }
+        for (const ThemeShot &t : r.themeShots) {
+            QJsonArray rows;
+            for (const ThemeRow &x : t.rows)   // [condition, fired, in band, driving measure, value, context, no band]
+                rows.append(QJsonArray{ x.conditionId, x.fired ? 1 : 0, x.inBand, x.measureId, num(x.value), x.contextId,
+                                        x.noBand ? 1 : 0 });
+            QJsonObject readings;
+            for (auto it = t.readings.constBegin(); it != t.readings.constEnd(); ++it) readings.insert(it.key(), num(it.value()));
+            themes.append(QJsonObject{ { QStringLiteral("shotId"), t.shotId }, { QStringLiteral("club"), t.club },
+                                       { QStringLiteral("timestampMs"), double(t.timestampMs) },
+                                       { QStringLiteral("rows"), rows }, { QStringLiteral("readings"), readings } });
+        }
+        root.insert(QStringLiteral("factsRules"), QJsonObject{ { QStringLiteral("tendency"), kTendencyRuleVersion },
+                                                               { QStringLiteral("theme"), kThemeRuleVersion },
+                                                               { QStringLiteral("board"), kBoardAnnotationRuleVersion } });
+        root.insert(QStringLiteral("tendencyShots"), tend);
+        root.insert(QStringLiteral("themeShots"), themes);
+        QJsonObject intents;
+        for (auto it = r.shotIntents.constBegin(); it != r.shotIntents.constEnd(); ++it)
+            if (!it.value().isEmpty()) intents.insert(QString::number(it.key()), it.value());
+        root.insert(QStringLiteral("shotIntents"), intents);
+        root.insert(QStringLiteral("shotCorrections"), shotCorrectionsToJson(r.shotCorrections));
+    }
     return root;
 }
 
@@ -603,6 +665,56 @@ inline SessionResults sessionResultsFromJson(const QJsonObject &root, SessionRes
     const QJsonObject mix = src.value(QStringLiteral("shotMix")).toObject();
     r.shotMix.corrections = mix.value(QStringLiteral("corrections")).toInt();
     r.shotMix.fromFlight  = mix.value(QStringLiteral("fromFlight")).toInt();
+    const QJsonObject factsRules = src.value(QStringLiteral("factsRules")).toObject();
+    const bool factsCurrent = factsRules.value(QStringLiteral("tendency")).toInt(-1) == kTendencyRuleVersion
+                           && factsRules.value(QStringLiteral("theme")).toInt(-1) == kThemeRuleVersion
+                           && factsRules.value(QStringLiteral("board")).toInt(-1) == kBoardAnnotationRuleVersion;
+    if (version >= 3 && factsCurrent && src.contains(QStringLiteral("tendencyShots"))) {
+        r.hasFacts = true;
+        for (const QJsonValue &v : src.value(QStringLiteral("tendencyShots")).toArray()) {
+            const QJsonObject o = v.toObject();
+            TendencyShotFacts f;
+            f.shotId          = o.value(QStringLiteral("shotId")).toInt();
+            f.club            = o.value(QStringLiteral("club")).toString();
+            f.factors         = shotFactorsFromJson(o.value(QStringLiteral("factors")).toObject());
+            f.handedness      = o.value(QStringLiteral("hand")).toString();
+            f.partial         = o.value(QStringLiteral("partial")).toBool(false);
+            f.driverId        = o.value(QStringLiteral("driverId")).toString();
+            f.driverDisplayId = o.value(QStringLiteral("driverDisplayId")).toString();
+            f.confirmed       = o.value(QStringLiteral("confirmed")).toBool(false);
+            f.mixKey          = o.value(QStringLiteral("mixKey")).toString();
+            f.loss            = numOf(o.value(QStringLiteral("loss")));
+            for (const QJsonValue &c : o.value(QStringLiteral("fired")).toArray()) f.firedConditions << c.toString();
+            r.tendencyShots.push_back(std::move(f));
+        }
+        for (const QJsonValue &v : src.value(QStringLiteral("themeShots")).toArray()) {
+            const QJsonObject o = v.toObject();
+            ThemeShot t;
+            t.shotId      = o.value(QStringLiteral("shotId")).toInt();
+            t.club        = o.value(QStringLiteral("club")).toString();
+            t.timestampMs = qint64(o.value(QStringLiteral("timestampMs")).toDouble());
+            for (const QJsonValue &rv : o.value(QStringLiteral("rows")).toArray()) {
+                const QJsonArray a = rv.toArray();
+                ThemeRow x;
+                x.conditionId = a.at(0).toString();
+                x.fired       = a.at(1).toInt() != 0;
+                x.inBand      = a.at(2).toInt(-1);
+                x.measureId   = a.at(3).toString();
+                x.value       = numOf(a.at(4));
+                x.contextId   = a.at(5).toString();
+                x.noBand      = a.at(6).toInt() != 0;
+                t.rows.push_back(std::move(x));
+            }
+            const QJsonObject readings = o.value(QStringLiteral("readings")).toObject();
+            for (auto it = readings.constBegin(); it != readings.constEnd(); ++it) {
+                const double d = numOf(it.value());
+                if (std::isfinite(d)) t.readings.insert(it.key(), d);
+            }
+            r.themeShots.push_back(std::move(t));
+        }
+        r.shotIntents     = shotIntentsFromJson(src.value(QStringLiteral("shotIntents")).toObject());
+        r.shotCorrections = shotCorrectionsFromJson(src.value(QStringLiteral("shotCorrections")).toObject());
+    }
     return r;
 }
 

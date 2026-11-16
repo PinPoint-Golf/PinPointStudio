@@ -126,9 +126,10 @@ struct ShotDoors {
 // (R-HL-2: the jobs run on the calling thread). `writeDebounceMs`: how long after a batch settles the write waits.
 // `rebuild` (refactor step 3.5-ii; regrade_ledger --engine=new): a regrade — the file's rows, derived data and
 // diagnosis state are not kept, so every shot fires and the stage ratchet replays from Cold; the older golfer keys
-// are still read and carried (J-33), as the old model's setRebuildCache does. `writeSummary`: with `persist`, the
-// session summary (work_ons.json, FILE-SESS-05; DEC-192) is written too — tests and tools only until step 3.6 moves
-// that file's writer here.
+// are still read and carried (J-33), as the old model's setRebuildCache does. With `persist` the session summary
+// (work_ons.json, FILE-SESS-05; DEC-55, DEC-192) is written too, with what it is of: SessionDiagnostics is that file's
+// one writer (refactor step 3.6; in the app from the catch-up's cut-over, 3.7). With `persist` the club baseline is
+// also frozen (Session::freezeClubBaseline) when the session has none or an older rule's (DEC-46; 3.6).
 struct DiagnosticsDoors {
     WorkPool                           *pool     = nullptr;
     WorkReceiver                       *receiver = nullptr;
@@ -138,7 +139,6 @@ struct DiagnosticsDoors {
     bool                                synchronous     = false;
     int                                 writeDebounceMs = 1500;
     bool                                rebuild         = false;
-    bool                                writeSummary    = false;
     std::function<SessionDiagnostics *(Session *, const DiagnosticsDoors &)> attach;
 };
 
@@ -296,8 +296,13 @@ signals:
     void sessionStarted(const pinpoint::SessionId &session);   // EVT-17
     void sessionResumed(const pinpoint::SessionId &session);   // EVT-23
     void sessionTrashed(const pinpoint::SessionId &session);   // EVT-20
+    // Not a domain event (refactor step 3.6): a Session is now held (loaded), its diagnostics attached — for its
+    // AthleteDiagnostics, which hears the session's events so the athlete level is marked stale (DEC-60), and so this
+    // file links none of it.
+    void sessionHeld(pinpoint::Session *session);
 
 private:
+    friend class AthleteDiagnostics;   // reads its sessions' summaries through the repository it was made with
     AthleteRepository *m_repository = nullptr;
     SessionRepository *m_sessions   = nullptr;
     AthleteId          m_id;

@@ -274,7 +274,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   cached `swing_themes.json` is re-derived. On the golden fixture no praise appears or disappears:
   the set-ups in range on almost every swing (posture, knee flex) share a quantity with a needs-work
   fault, so the family exclusion keeps them out, and the rest are under 0.85.
-  **Planned, not built: praise only what is CONSISTENT (refactor step 3).** Mark also ruled (14 Nov)
+  **Praise only what is CONSISTENT (built in refactor step 3.6; DEC-181).** Mark also ruled (14 Nov)
   that every praise — fault or set-up — needs the existing consistency grade at Repeatable (4) or
   Grooved (5), "Not enough swings" giving none: "there is no point praising something a golfer does
   not do pretty consistently (it doesn't have to be grooved but should be close)". That grade is the
@@ -283,6 +283,13 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   provider in `src/Gui/variability`; the reduction (`src/Coaching`, pure, fingerprinted on the
   ledgers) cannot read it. Mark's decision (14 Nov): set-up praise ships now on the in-range rule, and
   the consistency gate for ALL praise is built in refactor step 3.
+  **As built (3.6):** the gate is THE PRAISE RULE (`swing_themes.h` `applyPraiseRule`, `kPraiseRuleVersion` 1),
+  applied when the summary is published (`WorkOnsController::publishSummary`) to the reduction's ranked, uncapped
+  `doWell`, so the view's family check and its cap of three work on what is left; the stored file and its rule are
+  unchanged (nothing is re-derived). A condition is praised only when the consistency mark Your swing shows beside it
+  is graded 4 or 5 and not measurement-limited (the golfer layer shows that one as "Checking"); ungraded — no mark,
+  "Not enough swings", too few readings — is not praised (D23), and stays shown in range in its area. The marks land
+  after the summary, so "What you do well" fills in once they do; until then it lists nothing.
 - **How often, in words (14 Nov 2026, Stage 0.13).** One rule says how often a share is seen, for Your
   swing and Tendencies alike (`src/Coaching/frequency_words.h`): "every swing" (≥ 0.995), "almost every
   swing" (≥ 0.9), "most swings" (≥ 0.7), "more than half your swings" (≥ 0.5), then "fairly often"

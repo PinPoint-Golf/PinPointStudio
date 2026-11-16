@@ -56,7 +56,12 @@
 namespace pinpoint::analysis {
 
 // The reduction's own version (R-STAMP-3; C-05's other half is 3.6's golden). 1 (16 Nov 2026): refactor 3.5-ii.
-inline constexpr int kSessionReductionVersion = 1;
+// 2 (16 Nov 2026, refactor 3.6; Stage 0.5's follow-up): its input is each shot as the launch monitor board annotated it
+// (Coaching/board_annotations.h; SessionDiagnostics::reductionInput) — the effective club, a left-out reading not read.
+// 3 (16 Nov 2026, refactor 3.6, round 2): its results carried the shots as judged (withdrawn). 4 (round 3): they carry
+// the compact per-shot facts (SessionResults version 3), and a shot the board re-labelled is composed under its new club
+// (review CN-1).
+inline constexpr int kSessionReductionVersion = 4;
 
 struct SessionReductionInput {
     // The rule data the session's snapshot holds (R-CON-4): the pack, the outcome pack built from it.

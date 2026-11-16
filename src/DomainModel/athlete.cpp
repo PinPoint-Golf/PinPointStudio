@@ -272,6 +272,7 @@ Session *Athlete::hold(const SessionId &id, bool startedHere, bool onDemand)
     // Every loaded session's diagnostics run (DEC-02), when the composition root gave the doors (step 3.5-i).
     if (m_diagnosticsDoors.attach)
         m_diagnosticsDoors.attach(s, m_diagnosticsDoors);
+    emit sessionHeld(s);   // its AthleteDiagnostics hears it (step 3.6)
     return s;
 }
 

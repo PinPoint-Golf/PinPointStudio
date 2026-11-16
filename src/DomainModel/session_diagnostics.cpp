@@ -17,9 +17,11 @@
  */
 
 #include "session_diagnostics.h"
+#include "athlete_diagnostics.h"   // the club baseline the freeze takes (step 3.6)
 #include "session.h"
 #include "shot.h"
 
+#include "../Coaching/board_annotations.h"     // the board's annotations, read by the reduction (step 3.6)
 #include "../Coaching/club_distances.h"        // clubBaselineFromJson
 #include "../Coaching/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
 #include "../Core/club_vocabulary.h"
@@ -304,20 +306,8 @@ void SessionDiagnostics::load()
     // §4.4 step 10.
     m_rules = m_doors.ruleData->snapshot();
 
-    // The frozen club baseline (FILE-SESS-04), when the session has one; read only. FREEZING one is step 3.6's
-    // (AthleteDiagnostics computes it from the predecessors' summaries, D7/DEC-172, and the Session freezes it, DEC-46;
-    // CARRY.md). Until then an outdated-schema file reads as no usual numbers here, where the old model re-freezes it.
-    {
-        const JsonFileRead f = m_sessions->readClubBaseline(m_id);
-        if (f.exists && f.ok) {
-            bool ok = false;
-            const analysis::ClubBaselineSnapshot snap = analysis::clubBaselineFromJson(f.root, &ok);
-            if (ok)
-                m_baseline = snap.clubs;
-            else
-                ppWarn() << "[SessionDiagnostics] club baseline unreadable, this session has no usual numbers:" << m_id.toString();
-        }
-    }
+    // The club baseline (FILE-SESS-04), read when frozen, else frozen now, at first need (DEC-46; step 3.6).
+    loadOrFreezeClubBaseline();
     // The athlete's record facts the norm cohort is read from, each shot's on its own date (D6: DEC-171), and the
     // session's day (the date of a shot that records no capture instant).
     {
@@ -826,6 +816,58 @@ void SessionDiagnostics::onSessionIntentChanged()
     settleIfDone();
 }
 
+// THE CLUB BASELINE AT FIRST NEED (refactor step 3.6; OBJ-CLUB-BASELINE; DEC-46, DEC-172; R-STAMP-4). FROZEN MEANS A
+// FILE OF THIS RULE IS THERE (the old model's rule): read it — and one that cannot be read, or a newer build's, stays
+// frozen and empty (no usual numbers), never rewritten. Otherwise — no file, or an OLDER RULE'S (the one case a frozen
+// baseline is written again) — the athlete level computes it from the predecessors' SUMMARIES
+// (AthleteDiagnostics::clubBaselineFor), and it is frozen: written by the Session with what it read (and the rewrite
+// recorded, EVT-16) when this owner persists; held in memory only when it does not (the parallel run: the old model
+// stays the file's writer). What it read is recorded with a rewrite only (FILE-SESS-04). Not computable yet (an earlier session not summed up by this build, or no day): nothing
+// is frozen, so nothing wrong is frozen for good, and the session has no usual numbers until the next load.
+void SessionDiagnostics::loadOrFreezeClubBaseline()
+{
+    const JsonFileRead f = m_sessions->readClubBaseline(m_id);
+    const int schemaOnDisk = f.exists && f.ok ? f.root.value(QStringLiteral("schema")).toInt(0) : 0;
+    const bool outdated = schemaOnDisk > 0 && schemaOnDisk < analysis::kClubBaselineSchemaVersion;
+    if (f.exists && !outdated) {
+        bool ok = false;
+        const analysis::ClubBaselineSnapshot snap = f.ok ? analysis::clubBaselineFromJson(f.root, &ok) : analysis::ClubBaselineSnapshot{};
+        if (ok)
+            m_baseline = snap.clubs;
+        else
+            ppWarn() << "[SessionDiagnostics] club baseline unreadable, this session has no usual numbers:" << m_id.toString();
+        return;
+    }
+    AthleteDiagnostics *athlete = AthleteDiagnostics::of(m_session ? m_session->athlete() : nullptr);
+    if (!athlete)
+        return;
+    const ClubBaselineComputation c = athlete->clubBaselineFor(m_id);
+    if (!c.computable) {
+        ppInfo() << "[SessionDiagnostics] club baseline not frozen yet for" << m_id.toString() << "-" << c.why;
+        return;
+    }
+    m_baseline = c.clubs;
+    ++m_counts.baselineFreezes;
+    ppInfo() << "[SessionDiagnostics] club baseline for" << m_id.toString() << "from" << c.read.size()
+             << "earlier session(s)' summaries:" << c.clubs.size() << "club(s)"
+             << (m_doors.persist ? (outdated ? "- rewritten (an older rule's file)" : "- frozen") : "- in memory only");
+    if (!m_doors.persist)
+        return;   // in memory only (the parallel run): the old model stays the file's one writer
+    analysis::ClubBaselineSnapshot snap;
+    snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+    snap.clubs    = c.clubs;
+    if (outdated) {   // the one case a frozen baseline is written again: the rewrite recorded (R-STAMP-4)
+        snap.rewrites = analysis::clubBaselineRewritesFromJson(f.root);
+        snap.rewrites.push_back(analysis::ClubBaselineSnapshot::Rewrite{ snap.frozenAt, c.read });
+    }
+    const WriteResult w = m_session->freezeClubBaseline(analysis::clubBaselineToJson(snap), outdated);
+    if (!w.ok()) {
+        ++m_counts.writeFailures;
+        m_lastWriteError = QStringLiteral("The session's club baseline: ") + w.error;
+        emit writeFailed(m_lastWriteError);
+    }
+}
+
 bool SessionDiagnostics::reloadClubBaseline()
 {
     if (m_retired)
@@ -924,15 +966,17 @@ bool SessionDiagnostics::write()
         m_sessionBlock = block;
         m_dirty = false;
         ++m_counts.writes;
-        // THE SUMMARY (FILE-SESS-05; DEC-192), with the diagnosis it is of — tests and tools only until step 3.6.
-        if (m_doors.writeSummary && m_diagnosis) {
+        // THE SUMMARY (FILE-SESS-05; DEC-55, DEC-192), with the diagnosis it is of: this object is its one writer
+        // (step 3.6). In the app from the catch-up's cut-over (3.7); until then nothing there persists.
+        if (m_diagnosis) {
             const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
             if (ws.ok()) {
                 ++m_counts.summaryWrites;
             } else {
                 ++m_counts.writeFailures;
+                m_lastWriteError = QStringLiteral("The session's work-ons: ") + ws.error;
                 ppWarn() << "[SessionDiagnostics] work_ons.json was not written for" << m_id.toString() << "-" << ws.error;
-                emit writeFailed(ws.error);
+                emit writeFailed(m_lastWriteError);
             }
         }
         emit written();
@@ -941,8 +985,9 @@ bool SessionDiagnostics::write()
     if (found == DiagnosticsRead::State::Newer || found == DiagnosticsRead::State::Unopenable)
         m_readOnly = true;
     ++m_counts.writeFailures;
+    m_lastWriteError = QStringLiteral("The session's diagnostics: ") + w.error;
     ppWarn() << "[SessionDiagnostics] diagnostics.json was not written for" << m_id.toString() << "-" << w.error;
-    emit writeFailed(w.error);
+    emit writeFailed(m_lastWriteError);
     return false;
 }
 
@@ -967,12 +1012,22 @@ analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
     in.baseline    = m_baseline;
     in.flightNorms = m_snapshot->inputs.flightNorms;
     in.shots.reserve(size_t(m_kept.size()));
+    // THE BOARD'S ANNOTATIONS (step 3.6; Stage 0.5's follow-up; board_annotations.h): the session's results read each
+    // shot as the golfer annotated it on the launch monitor board — its club override (the club it is pooled and summed
+    // under: the work-on facts, carry today, the factor mix, the club windows the distances and baselines come from,
+    // each shot's club in the summary), and a reading left out not read. Asked of each Shot (P10), on this thread.
+    const QSet<QString> lmMeasures = in.pack ? analysis::launchMonitorMeasures(in.pack->pack()) : QSet<QString>{};
     for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {   // by swing number: strike order
         ShotRecord r = it->findings;
         analysis::checkShotAgainstFlight(r, m_usuals, in.flightNorms);     // the rows as the file holds them
+        const analysis::BoardAnnotation board = boardOf(it.key());
+        r = analysis::annotatedShot(std::move(r), board, lmMeasures);
         in.shots.push_back(std::move(r));
         const int swing = it.key();
-        if (it->derived) {
+        // A shot the board annotated — a reading left out, or a club re-labelled (review CN-1) — is composed in the reduction
+        // from the annotated rows above, under its effective club's usual; its kept derived data was composed under the
+        // recorded club, and one shot must not be composed twice two ways (DEC-81).
+        if (it->derived && !board.any()) {
             in.derived.insert(swing, it->derived->data);
             in.intents.insert(swing, it->derived->intent);
             if (!it->derived->corrections.empty()) in.corrections.insert(swing, it->derived->corrections);
@@ -1047,15 +1102,47 @@ void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&resu
         m_writeTimer.start(std::max(0, m_doors.writeDebounceMs));
 }
 
+analysis::BoardAnnotation SessionDiagnostics::boardOf(int swing) const
+{
+    Shot *shot = m_session ? m_session->shot(ShotRef(m_id, swing)) : nullptr;
+    if (!shot)
+        return {};
+    const ShotSummary &s = shot->summary();   // read once by the Shot, then kept (its commands update it)
+    return s.ok ? analysis::BoardAnnotation{ s.lmExcluded, s.lmClubOverride } : analysis::BoardAnnotation{};
+}
+
+// WHAT THE SUMMARY WAS WORKED OUT FROM (FIELD-LIST §1.8's fingerprint; step 3.6, K12's settlement): the findings stamp,
+// the derived base stamp (the rest of the snapshot, the intent run, the reduction's version), every kept shot's document
+// stamp and the unread marks — so two summaries with one fingerprint were derived from the same inputs. The catch-up's
+// own freshness hash (WorkOnsController's) goes with it at the cut-over (3.7).
+QString SessionDiagnostics::summaryFingerprint() const
+{
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(QByteArray::number(analysis::kSessionResultsVersion));
+    h.addData(m_findingsStamp.toUtf8());
+    h.addData(derivedBaseStamp().toUtf8());
+    for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
+        h.addData(QByteArray::number(it.key()));
+        h.addData(QByteArray::number(it->document.size));
+        h.addData(QByteArray::number(it->document.mtimeMs));
+        h.addData("|");
+    }
+    QList<int> unread = m_unread.values();
+    std::sort(unread.begin(), unread.end());
+    for (const int n : unread)
+        h.addData(QByteArray::number(-n));
+    return QString::fromLatin1(h.result().toHex().left(16));
+}
+
 analysis::SessionResults SessionDiagnostics::summary() const
 {
     if (!m_diagnosis)
         return {};
     analysis::SessionResults r = m_diagnosis->results;
+    r.derivedFrom.fingerprint  = summaryFingerprint();
     r.derivedFrom.contentStamp = m_findingsStamp;
     r.derivedFrom.gradePolicy  = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();
     r.derivedFrom.writtenAtMs  = double(QDateTime::currentMSecsSinceEpoch());
-    // `fingerprint` is the catch-up's own freshness hash (WorkOnsController) until step 3.6 moves the summary here.
     if (r.workOns.startMs <= 0) {
         // No shot carried a clock: the Session's own start (its one writer, J-24), else the start of its day.
         const auto e = m_sessions->open(m_id);
@@ -1079,7 +1166,10 @@ QString SessionDiagnostics::derivedBaseStamp() const
     in.cohort = analysis::Cohort{};
     return m_findingsStamp + QLatin1Char('|') + analysis::firingStamp(in) + QLatin1Char('|')
          + QString::number(m_intentRun.fromShot) + QLatin1Char(':') + m_intentRun.shape + QLatin1Char('|')
-         + QString::number(analysis::kSessionReductionVersion);
+         + QString::number(analysis::kSessionReductionVersion)
+         // The rules the summary's per-shot facts are made under (review 2 of 3.6: a bump of either re-derives them).
+         + QLatin1Char('|') + QString::number(analysis::kTendencyRuleVersion) + QLatin1Char(':')
+         + QString::number(analysis::kThemeRuleVersion) + QLatin1Char(':') + QString::number(analysis::kBoardAnnotationRuleVersion);
 }
 
 QString SessionDiagnostics::derivedStampOf(const QString &base, int swing, const ClubFlightUsual &usual) const

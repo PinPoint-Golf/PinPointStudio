@@ -1,0 +1,113 @@
+/*
+ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+// THE LAUNCH MONITOR BOARD'S ANNOTATIONS, READ BY EVERY REDUCTION (refactor step 3.6; Stage 0.5's follow-up, 04 step 3
+// "Closes"; build/stage0-20261114/0.5/REPORT.md §4). On the board the golfer can LEAVE A SHOT'S READING OUT
+// (review.excluded: the monitor misread it) or RE-LABEL ITS CLUB (review.clubOverride). Stage 0.5 made the session
+// report's ball figures honour both (lm::LmBoardShot::inFigures, the board's own rule). This is the same two facts as
+// every other reduction reads them: a shot AS THE GOLFER ANNOTATED IT.
+//
+// THE RULE, annotatedShot() v1 (kBoardAnnotationRuleVersion):
+//   club       the board's club when set (any spelling the club vocabulary reads; readers canonicalise), else the
+//              row's own — the effective club (effective_context.h: "correction = the LM board's override")
+//   excluded   the shot reads AS IF THE MONITOR HAD NOT READ IT — exactly the shot the board leaves out of its
+//              figures (a reading left out and a reading never made are one case there, inFigures()): every monitor
+//              reading on the record is "not read" (NaN), and every row whose driving measure the monitor reads is
+//              NotAssessable, so no tally, window, usual or grade counts it. The camera's readings and rows stay.
+// A shot with neither is returned unchanged, so an unannotated session reads exactly as before.
+//
+// WHICH MEASURES THE MONITOR READS: those whose catalogue key ladder (measureKeyLadder) holds an "lm." key — read from
+// the pack, never a hand list, so a new monitor measure is covered when the pack names it (launchMonitorMeasures).
+//
+// Who reads it (step 3.6): the session reduction (SessionDiagnostics' input: the work-on facts, carry today, the club
+// windows the distances and baselines come from, each shot's club in the summary); Home's Tendencies and Your
+// distances (WorkOnsController's ledger read) and its Consistency marks (the club a reading is centred under). Not yet:
+// the shot's own derived data and findings (layers 3–5 fire from the readings as recorded), and the session report's
+// pages other than Stage 0.5's (3.7, with the report's cut-over).
+//
+// Rules ring (src/Coaching): pure, no I/O.
+
+#include "diagnostic_ledger.h"
+#include "../Diagnostics/engine/characteristic.h"
+
+#include <QHash>
+#include <QSet>
+#include <QString>
+
+#include <limits>
+#include <vector>
+
+namespace pinpoint::analysis {
+
+// 1 (16 Nov 2026, refactor step 3.6): the club override and the left-out reading, as above.
+inline constexpr int kBoardAnnotationRuleVersion = 1;
+
+// One shot's two board facts, as its review holds them. Empty: nothing said.
+struct BoardAnnotation {
+    bool    excluded = false;   // review.excluded: the reading is left out of the figures
+    QString clubOverride;       // review.clubOverride: the board's club ("" = the shot's own)
+    bool any() const { return excluded || !clubOverride.trimmed().isEmpty(); }
+    bool operator==(const BoardAnnotation &o) const { return excluded == o.excluded && clubOverride == o.clubOverride; }
+};
+
+// The pack's measures the launch monitor reads: an "lm." key on the measure's ladder.
+inline QSet<QString> launchMonitorMeasures(const CharacteristicPack &pack)
+{
+    QSet<QString> out;
+    for (const Measure &m : pack.measures)
+        for (const QString &key : measureKeyLadder(m))
+            if (key.startsWith(QLatin1String("lm."))) {
+                out.insert(m.id);
+                break;
+            }
+    return out;
+}
+
+// The shot as the golfer annotated it (the rule above).
+inline ShotRecord annotatedShot(ShotRecord shot, const BoardAnnotation &a, const QSet<QString> &lmMeasures)
+{
+    if (!a.any())
+        return shot;
+    if (!a.clubOverride.trimmed().isEmpty())
+        shot.club = a.clubOverride.trimmed();
+    if (a.excluded) {
+        constexpr double kNotRead = std::numeric_limits<double>::quiet_NaN();
+        for (const ShotReadingField &f : shotReadingFields())
+            if (lmMeasures.contains(QLatin1String(f.measureId)))
+                shot.*(f.field) = kNotRead;
+        for (ConditionRow &r : shot.rows)
+            if (!r.drivingMeasureId.isEmpty() && lmMeasures.contains(r.drivingMeasureId))
+                r.state = ShotState::NotAssessable;
+    }
+    return shot;
+}
+
+// Every shot of a session, each by its own annotation (by swing number = the record's shotId).
+inline void annotateShots(std::vector<ShotRecord> &shots, const QHash<int, BoardAnnotation> &board,
+                          const QSet<QString> &lmMeasures)
+{
+    if (board.isEmpty())
+        return;
+    for (ShotRecord &s : shots)
+        if (const auto it = board.constFind(s.shotId); it != board.constEnd())
+            s = annotatedShot(std::move(s), *it, lmMeasures);
+}
+
+} // namespace pinpoint::analysis

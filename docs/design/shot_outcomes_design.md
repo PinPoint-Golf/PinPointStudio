@@ -683,6 +683,11 @@ shot is re-composed from its row (`composeShotOutcome`, the panel's composer).
 - **Shots counted**: a launch-monitor reading, the ball's shape judged,
   straight intent (intended shapes excluded), corrections applied. A shot with a data warning still
   counts unless its rows are NotAssessable.
+- **The launch monitor board's annotations (refactor step 3.6, Stage 0.5's follow-up; `src/Coaching/board_annotations.h`)**:
+  every shot is read as the golfer annotated it on the board — a re-labelled club is the shot's club (its key, its
+  group, its distances), and a reading left out is read as one the monitor never made (its monitor readings and the
+  rows they drive are not read), exactly the shot the board leaves out of its own figures. The same for Your
+  distances and the consistency marks' clubs (`kTendencyRuleVersion` 18).
 - **Usual miss**: the miss on the biggest recency-weighted share of the key's shots, whatever its family;
   every miss a shot shows counts, the halves of a combined one among them (a push slice is a slice and a push
   too, so a thin pull counts as a pull as much as a thin). Ties: the most shots, then the id; on an exact tie a

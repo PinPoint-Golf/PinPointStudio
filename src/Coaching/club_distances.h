@@ -50,6 +50,7 @@
 #include <QDate>
 #include <QFile>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
@@ -410,6 +411,15 @@ struct ClubBaselineSnapshot {
     int     schema = kClubBaselineSchemaVersion;
     QString frozenAt;
     QHash<QString, ClubBaselineEntry> clubs;
+    // EACH REWRITE (R-STAMP-4; OBJ-CLUB-BASELINE, FILE-SESS-04: "the frozen baseline, its rule version, and each
+    // rewrite (when, what it read)"; DEC-46; refactor step 3.6, the Session's freeze from its predecessors' summaries,
+    // DEC-172): when, and the earlier sessions it read (folder names, newest first). The rule version is the file's
+    // `schema`. Written only when there is one, so a first freeze — the old model's or the Session's — is written as before.
+    struct Rewrite {
+        QString     at;     // ISO UTC
+        QStringList read;
+    };
+    std::vector<Rewrite> rewrites;   // oldest first
 };
 
 // The baseline for one club from its window.
@@ -485,7 +495,25 @@ inline QJsonObject clubBaselineToJson(const ClubBaselineSnapshot &snap)
     root[QStringLiteral("schema")]   = snap.schema;
     root[QStringLiteral("frozenAt")] = snap.frozenAt;
     root[QStringLiteral("clubs")]    = clubs;
+    QJsonArray rewrites;
+    for (const ClubBaselineSnapshot::Rewrite &r : snap.rewrites)
+        rewrites.append(QJsonObject{ { QStringLiteral("at"), r.at }, { QStringLiteral("read"), QJsonArray::fromStringList(r.read) } });
+    if (!rewrites.isEmpty()) root[QStringLiteral("rewrites")] = rewrites;
     return root;
+}
+
+// The rewrites an older file recorded (any schema: the history is kept across a rule change).
+inline std::vector<ClubBaselineSnapshot::Rewrite> clubBaselineRewritesFromJson(const QJsonObject &root)
+{
+    std::vector<ClubBaselineSnapshot::Rewrite> out;
+    for (const QJsonValue &v : root.value(QStringLiteral("rewrites")).toArray()) {
+        const QJsonObject o = v.toObject();
+        ClubBaselineSnapshot::Rewrite r;
+        r.at = o.value(QStringLiteral("at")).toString();
+        for (const QJsonValue &f : o.value(QStringLiteral("read")).toArray()) r.read << f.toString();
+        out.push_back(std::move(r));
+    }
+    return out;
 }
 
 // A snapshot written under an older rule for what goes in the pool: the one case a frozen baseline is
@@ -508,6 +536,7 @@ inline ClubBaselineSnapshot clubBaselineFromJson(const QJsonObject &root, bool *
     if (!good) return snap;
 
     snap.frozenAt = root.value(QStringLiteral("frozenAt")).toString();
+    snap.rewrites = clubBaselineRewritesFromJson(root);
     const QJsonObject clubs = root.value(QStringLiteral("clubs")).toObject();
     for (auto it = clubs.constBegin(); it != clubs.constEnd(); ++it) {
         const QJsonObject o = it.value().toObject();
@@ -682,12 +711,11 @@ inline void applyClubGaps(std::vector<ClubDistanceItem> &items)
 
 // One row per club with at least one qualifying shot, in `bagOrder` (the canonical order when empty,
 // and any club not in it follows, alphabetically). A club with no carry reported has no row.
-inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
-                                                         const QStringList &bagOrder = QStringList(),
-                                                         const FlightNorms &norms = shippedFlightNorms())
+// From each club's pools already made, oldest first (refactor step 3.6: the athlete level's distances
+// from the session summaries' club windows, DEC-172 — the pools a summary holds are poolSessionByClub's).
+inline std::vector<ClubDistanceItem> clubDistancesFromPools(const QHash<QString, std::vector<ClubSessionPool>> &pools,
+                                                            const QStringList &bagOrder = QStringList())
 {
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions), norms);
-
     std::vector<ClubDistanceItem> items;
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {
         const ClubDistanceWindow window = clubWindow(it.key(), it.value());
@@ -705,6 +733,13 @@ inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubD
     });
     applyClubGaps(items);
     return items;
+}
+
+inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
+                                                         const QStringList &bagOrder = QStringList(),
+                                                         const FlightNorms &norms = shippedFlightNorms())
+{
+    return clubDistancesFromPools(poolsByClub(sessionsByDay(sessions), norms), bagOrder);
 }
 
 } // namespace pinpoint::analysis

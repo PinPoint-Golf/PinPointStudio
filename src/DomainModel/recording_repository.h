@@ -258,6 +258,11 @@ struct ShotReview {
     // answer; an absent one sends the reader to diagnostics.json's older copy until migration M3 (J-33).
     bool                     hasShotIntent = false;
     bool                     hasLabelCorrections = false;
+    // The launch monitor board's annotations on the same review block (review.excluded, review.clubOverride), read
+    // with the rest for the reductions that honour them (refactor step 3.6; Stage 0.5's follow-up;
+    // Coaching/board_annotations.h). Written by the Shot's commands (excludeReading, correctClub), never here.
+    bool                     lmExcluded = false;
+    QString                  lmClubOverride;
 };
 
 // ── readSummary (refactor step 3.4b-ii: the carousel's rows over the Shots) ─────────────────────────────────

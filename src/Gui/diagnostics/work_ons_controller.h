@@ -70,6 +70,21 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 // Sessions are derived one at a time, and never while a session is live (`paused`) — detection
 // reads whole swing documents and must not compete with capture.
 //
+// REFACTOR STEP 3.6 (build/refactor/step-3/3.6/NOTES.md). The athlete level has its owner, AthleteDiagnostics
+// (src/DomainModel/athlete_diagnostics.h: the athlete work-ons, distances, club baselines, tendencies and themes, from the
+// session summaries only), and the catch-up its service (src/App/athlete_catch_up.h); both are cut over to Home at 3.7, when
+// SessionDiagnostics writes the summaries in the app. Until then THIS object still drives Home from the ledgers, and
+// carries the two rules 3.6 makes the golfer see now:
+//   • THE PRAISE RULE (04 step 3 item 5; D23): "what you do well" praises only a condition whose consistency mark is
+//     Repeatable or Grooved (publishSummary; swing_themes.h applyPraiseRule); ungraded is not praised;
+//   • STAGE 0.5'S FOLLOW-UP: Tendencies (and its shot filter), Your distances and the Consistency marks read every shot
+//     as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read).
+// And D-15: a pause (a session going live) also lets go of the derivation in flight.
+// AthleteDiagnostics now reduces the tendencies and the themes from the summaries' compact per-shot facts too (DEC-192
+// as Mark amended it, "b"); this object keeps doing them from the ledgers until the catch-up's cut-over (3.7), because in
+// the app the summaries are still this object's own (they carry no facts until SessionDiagnostics persists there). The
+// consistency marks stay here until their grader leaves the Gui ring (3.6 NOTES F7).
+//
 // YOUR SWING — the same catch-up ends in the golfer's swing summary (swing_themes.h,
 // docs/design/home_themes_design.md): the one thing to practise (the focus), what they do well,
 // what is next on their list, and what rises and falls together. It is reduced from every session's ledger once the work-ons are current — a current
@@ -415,8 +430,11 @@ public:
     static QString recordPath(const QString &sessionDir);
     // Tendencies as they stood at this session: its own folder and the ones before it in the athlete's. Reads the
     // ledgers and writes nothing; any thread. For the golfer report, so a report remade later still says the same.
+    // `lmMeasures` (step 3.6): the pack's launch monitor measures, so a reading the board left out is not read; empty
+    // (the report, until its cut-over in 3.7): the board's club override only.
     static pinpoint::analysis::TendencySet tendenciesAsOf(const QString &sessionDir, const pinpoint::analysis::ShotOutcomePack &pack,
-                                                          const pinpoint::analysis::INormProvider &norms);
+                                                          const pinpoint::analysis::INormProvider &norms,
+                                                          const QSet<QString> &lmMeasures = {});
     static QString themesPath(const QString &athleteDir);
     static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope);
     // A club × shot filter choice's: swing_themes.<club>.<filter>.json; the club scope's own file under All.
@@ -425,6 +443,10 @@ public:
     static QString tendenciesPath(const QString &athleteDir);
     // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).
     int  tendencyJobs() const { return m_tendencyJobs; }
+    // THE PRAISE RULE'S LAST CALL (step 3.6), for the tests and athlete_dump: the themes' "what you do well" condition
+    // ids before the rule (what Home showed until 3.6, before the view's cap) and after it.
+    QStringList doWellBeforePraise() const { return m_doWellBefore; }
+    QStringList doWellPraised() const { return m_doWellPraised; }
 
 signals:
     void athleteDirChanged();
@@ -522,6 +544,7 @@ private:
         std::shared_ptr<const pinpoint::analysis::ShotOutcomePack> outcomePack;
         std::shared_ptr<const pinpoint::analysis::INormProvider>   norms;
         QSet<QString> faultIds;
+        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6), with the outcome filter
     };
     struct ThemesOutcome {
         bool    fromDisk = false;   // the stored summary was current; nothing was reduced
@@ -567,6 +590,7 @@ private:
         std::vector<MarksRequest> requests;
         std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
         pinpoint::analysis::ClubScope scope;
+        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6)
     };
     struct MarksOutcome {
         QString fingerprint;
@@ -595,6 +619,7 @@ private:
     void cancelMarks();
     void applyMarks(int generation, MarksOutcome out);
     QVariant markFor(const QString &conditionId, const QString &measureId) const;
+    pinpoint::analysis::PraiseGrade praiseGradeOf(const QString &conditionId) const;   // the praise rule's read (3.6)
 
     // ── Tendencies ──
     struct TendenciesJob {
@@ -606,6 +631,7 @@ private:
         QStringList sessionDirs;        // name order
         pinpoint::analysis::ShotOutcomePack pack;
         std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
+        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6)
     };
     struct TendenciesOutcome {
         QString fingerprint;
@@ -666,6 +692,7 @@ private:
     QString      m_summarySubtitle;
     QVariantMap  m_focusItem;
     QVariantList m_doWellItems;
+    QStringList  m_doWellBefore, m_doWellPraised;   // the praise rule's last call (step 3.6)
     QVariantList m_nextItems;
     QVariantList m_togetherItems;
     QString      m_togetherNote;

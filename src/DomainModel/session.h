@@ -125,6 +125,14 @@ public:
     WriteResult setSessionIntent(const SessionIntentEdit &edit, const SessionInput &held = {});   // EVT-10
     WriteResult setIntentRun(const QVector<IntentRun> &runs, const SessionInput &held = {});      // EVT-08
 
+    // THE CLUB BASELINE FREEZE (refactor step 3.6; OBJ-CLUB-BASELINE, FILE-SESS-04; DEC-46, DEC-172; R-STAMP-4): the
+    // session's recorded input, frozen ONCE at first need from the athlete level's computation (AthleteDiagnostics::
+    // clubBaselineFor, from the predecessors' summaries), and rewritten ONLY when the file on disk is of an older rule
+    // (`rewrite`: kClubBaselineSchemaVersion moved), as EVT-16 naming what it read. `root` is the snapshot as the file
+    // holds it (club_distances.h clubBaselineToJson, its `read` and `rewrites` recorded): this file names no rule.
+    // Written through SessionRepository (the session's lock for the one write); EVT-16 only after a rewrite landed.
+    WriteResult freezeClubBaseline(const QJsonObject &root, bool rewrite);
+
     // This process started or resumed it, and has not ended it: what Athlete::startSession and resumeSession
     // end first (DEC-78, DEC-134). A session a crash left in progress is not running here: the repository's
     // Start ends it, with its end inferred (J-18), as today.
@@ -151,6 +159,7 @@ signals:
     void sessionEnded(const pinpoint::SessionId &session);   // EVT-09
     void intentRunChanged(const pinpoint::SessionId &session);       // EVT-08 IntentRunChanged
     void sessionIntentChanged(const pinpoint::SessionId &session);   // EVT-10 SessionIntentChanged
+    void clubBaselineRewritten(const pinpoint::SessionId &session);  // EVT-16 ClubBaselineRewritten (step 3.6)
     // Not domain events (refactor step 3.5-i), for its SessionDiagnostics, so this file links none of it:
     // a Shot is now in the collection (listed or added); and the session is being released by its Athlete (what its
     // diagnostics kept is written first, synchronously: DirectConnection).

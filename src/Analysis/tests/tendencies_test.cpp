@@ -808,7 +808,7 @@ int main()
         thirteen[QStringLiteral("rule")] = 13;
         bool thirteenOk = true;
         tendencySetFromJson(thirteen, &thirteenOk);
-        check(kTendencyRuleVersion == 17 && !thirteenOk, "rule 17: a file of rule 13 is not read");
+        check(kTendencyRuleVersion == 18 && !thirteenOk, "rule 18: a file of rule 13 is not read");
         QJsonObject fourteen = json;
         fourteen[QStringLiteral("rule")] = 14;
         bool fourteenOk = true;
@@ -824,6 +824,11 @@ int main()
         bool sixteenOk = true;
         tendencySetFromJson(sixteen, &sixteenOk);
         check(!sixteenOk, "rule 17: a file of rule 16 (no flow combinations) is not read");
+        QJsonObject seventeen = json;
+        seventeen[QStringLiteral("rule")] = 17;
+        bool seventeenOk = true;
+        tendencySetFromJson(seventeen, &seventeenOk);
+        check(!seventeenOk, "rule 18: a file of rule 17 (the board's annotations not read) is not read");
 
         TendencySessionEvidence ev;
         ev.tiers.insert(QStringLiteral("over_the_top"), Tier::Pattern);

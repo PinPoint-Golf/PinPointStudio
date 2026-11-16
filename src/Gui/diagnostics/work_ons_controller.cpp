@@ -26,7 +26,9 @@
 #include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
 #include "../variability/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 
+#include "../../Coaching/board_annotations.h"   // the launch monitor board's annotations (step 3.6)
 #include "../../Coaching/club_scope.h"
+#include "../../Coaching/tendencies_pack.h"   // the tendencies over read sessions: one rule (3.6)
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/swing_areas_pack.h"
 #include "../../Coaching/work_ons_pack.h"
@@ -76,7 +78,10 @@ using pinpoint::SessionFiles;
 
 // THE VERSION OF THE CONSISTENCY MARKS' RULE (the window, the filters, the scale): in the marks job's
 // fingerprint, so a new rule grades again. Nothing is stored, so a bump only costs the next settle a read.
-constexpr int kConsistencyMarksRule = 2;     // 2: every shot in, data-warning shots too (R13), outcomes ungraded (R4)
+constexpr int kConsistencyMarksRule = 3;     // 2: every shot in, data-warning shots too (R13), outcomes ungraded (R4);
+                                             // 3 (16 Nov 2026, refactor 3.6, Stage 0.5's follow-up): each shot read as
+                                             // the launch monitor board annotated it (its club override: the club a
+                                             // reading is centred under; a left-out reading not read)
 
 QString dayLabel(qint64 ms)
 {
@@ -138,20 +143,7 @@ QString packLabel(const CharacteristicPack &pack, const QString &id, const QStri
     return fallback.isEmpty() ? id : fallback;
 }
 
-// §7.1's club groups, by where the club resolves in the context tree. "" = a putter or an undeclared club.
-QString tendencyClubGroup(const ContextTree &tree, const QString &club)
-{
-    const QString id = contextIdForClub(club);
-    const auto under = [&tree, &id](const char *root) {
-        const QString r = QString::fromLatin1(root);
-        return id == r || tree.isDescendantOf(id, r);
-    };
-    if (under("driver"))       return QStringLiteral("driver");
-    if (under("fairway_wood")) return QStringLiteral("woods");
-    if (id == QLatin1String("wedge_pitching") || under("iron")) return tendencyIronGroup(club);
-    if (under("wedge"))        return QStringLiteral("wedges");
-    return QString();
-}
+// tendencyClubGroup and tendencySetFromSessions: Coaching/tendencies_pack.h (one rule with AthleteDiagnostics; 3.6).
 
 // One session as the tendency reduction reads it, from its ledger file already read (`legacy`: its older golfer
 // keys) and the shots read off it. The outcome scope reads a session through here too, so the two can never
@@ -160,14 +152,20 @@ QString tendencyClubGroup(const ContextTree &tree, const QString &club)
 // of its own (SessionDiagnosticsFiles::golferInput), never the app's. `place` is where the session sits in the
 // athlete's history: SessionIdentity's day and n-of-day (SessionDiagnosticsFiles::placeOf; step 2.7a), never
 // parsed from the folder's name.
+// STAGE 0.5'S FOLLOW-UP (refactor step 3.6; board_annotations.h): every shot is read AS THE GOLFER ANNOTATED IT on the
+// launch monitor board — its club override, and a reading left out not read (`lmMeasures`: the pack's monitor
+// measures; empty: the club override only). So Tendencies, its outcome filter and Your distances follow the board, as
+// the report's ball figures do since Stage 0.5. The annotations are the review's, read with the golfer's input.
 void tendencySessionFromLedger(const QString &dir, const SessionPlace &place, const QJsonObject &legacy,
-                               std::vector<ShotRecord> shots, TendencySessionInput &out)
+                               std::vector<ShotRecord> shots, TendencySessionInput &out,
+                               const QSet<QString> &lmMeasures = {})
 {
     out.session.folder = QFileInfo(dir).fileName();
     out.session.day    = place.day;
     out.session.nOfDay = place.nOfDay;
     out.session.shots  = std::move(shots);
     const pinpoint::GolferInput g = SessionDiagnosticsFiles::golferInput(dir, legacy);
+    annotateShots(out.session.shots, g.board, lmMeasures);
     out.session.corrections = g.corrections;
     out.intents = resolvedShotIntents(g.shotIntent, out.session.shots, g.intentRun.fromShot, g.intentRun.shape);
 
@@ -186,7 +184,8 @@ void tendencySessionFromLedger(const QString &dir, const SessionPlace &place, co
 }
 
 // One session as the tendency reduction reads it. False with no readable ledger (it adds nothing).
-bool readTendencySession(const QString &dir, const SessionPlace &place, TendencySessionInput &out)
+bool readTendencySession(const QString &dir, const SessionPlace &place, TendencySessionInput &out,
+                         const QSet<QString> &lmMeasures = {})
 {
     const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(dir);
     if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) return false;
@@ -195,7 +194,7 @@ bool readTendencySession(const QString &dir, const SessionPlace &place, Tendency
                  << qPrintable(read.error);
         return false;
     }
-    tendencySessionFromLedger(dir, place, read.envelope.legacyGolferInput, fromJson(read.envelope.ledger), out);
+    tendencySessionFromLedger(dir, place, read.envelope.legacyGolferInput, fromJson(read.envelope.ledger), out, lmMeasures);
     return true;
 }
 
@@ -220,23 +219,6 @@ SessionWorkOns scopedSessionRecord(const QString &dir, const std::vector<ShotRec
     return rec;
 }
 
-// The reduction over sessions already read, with the per-club distances from those same sessions.
-TendencySet tendencySetFromSessions(std::vector<TendencySessionInput> &sessions, const ShotOutcomePack &pack, const ContextTree &tree,
-                                    const std::atomic<bool> *cancel = nullptr)
-{
-    // The flight table every shot's height is judged against; its bytes are in the tendency fingerprint.
-    TendencySet set = reduceTendencies(sessions, pack, [&tree](const QString &club) { return tendencyClubGroup(tree, club); },
-                                       shippedFlightNorms(), TendencyOptions{}, cancel);
-    if (set.cancelled || (cancel && cancel->load())) return set;
-
-    std::vector<ClubDistanceSession> clubSessions;
-    clubSessions.reserve(sessions.size());
-    for (TendencySessionInput &s : sessions) clubSessions.push_back(std::move(s.session));
-    QJsonArray distances;
-    for (const ClubDistanceItem &it : reduceClubDistances(clubSessions)) distances.append(clubDistanceItemToJson(it));
-    set.clubDistances = distances;
-    return set;
-}
 
 // The flight table's bytes, hashed once (as shippedFlightNorms reads it once): in the tendency fingerprint, so a
 // threshold tuned in flight_norms.json re-reduces. Empty when the file can't be read (no flight is read either).
@@ -278,7 +260,8 @@ int workOnStatusRank(const QString &status)
 
 } // namespace
 
-TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const ShotOutcomePack &pack, const INormProvider &norms)
+TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const ShotOutcomePack &pack, const INormProvider &norms,
+                                              const QSet<QString> &lmMeasures)
 {
     const QFileInfo session{ QDir::cleanPath(sessionDir) };
     std::vector<TendencySessionInput> sessions;
@@ -289,9 +272,9 @@ TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const S
         const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, e.folder);
         if (!tendencySessionCounts(place, asOf)) continue;
         TendencySessionInput in;
-        if (readTendencySession(e.folder, place, in)) sessions.push_back(std::move(in));
+        if (readTendencySession(e.folder, place, in, lmMeasures)) sessions.push_back(std::move(in));
     }
-    return tendencySetFromSessions(sessions, pack, norms.contexts());
+    return tendencySetFromSessions(sessions, pack, norms.contexts(), shippedFlightNorms());
 }
 
 WorkOnsController::WorkOnsController(QObject *parent)
@@ -433,6 +416,17 @@ void WorkOnsController::setPaused(bool on)
     if (on) cancelTendencies();
     // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
     if (on) cancelMarks();
+    // NOR A DERIVATION IN FLIGHT (audit D-15; refactor step 3.6): a regrade of an old session (whole-document parses on
+    // the model's worker) must not keep running beside capture. The model lets go of the session (its own generation
+    // drops what its workers still deliver), and the session goes back to the front of the queue for the pause lifting.
+    if (on && m_deriving) {
+        const QString again = m_derivingDir;
+        m_deriving = false;
+        m_derivingDir.clear();
+        if (m_model) m_model->activateSession(QString());
+        if (!again.isEmpty() && !m_queue.contains(again)) m_queue.prepend(again);
+        emit updatingChanged();
+    }
     // Unpausing is a session ending: the one moment a session is certain to have gone stale.
     if (!on) refresh();
 }
@@ -1268,6 +1262,19 @@ QString WorkOnsController::markKey(const QString &conditionId, const QString &me
     return conditionId + QLatin1Char('\x1f') + measureId;
 }
 
+// The consistency grade the praise rule reads for a condition (step 3.6): the mark of the measure its area item (or
+// its detail) names — the one Your swing shows beside it; none asked or none landed yet: ungraded (not praised).
+PraiseGrade WorkOnsController::praiseGradeOf(const QString &conditionId) const
+{
+    for (auto it = m_markRequests.constBegin(); it != m_markRequests.constEnd(); ++it) {
+        if (it->conditionId != conditionId) continue;
+        const auto mark = m_marks.constFind(it.key());
+        if (mark == m_marks.constEnd()) continue;
+        if (mark->graded()) return PraiseGrade{ true, mark->grade(), mark->measurementLimited() };
+    }
+    return PraiseGrade{};
+}
+
 // The mark publish() shows for one condition on one measure: the last job's, else ungraded (no badge).
 QVariant WorkOnsController::markFor(const QString &conditionId, const QString &measureId) const
 {
@@ -1321,6 +1328,7 @@ void WorkOnsController::maybeMarks()
     // Taken per job: the job grades against one norm snapshot, and a corridor saved since the last job is in this
     // one (norm_provider.h).
     job.norms      = sharedNormProvider();
+    job.lmMeasures = launchMonitorMeasures(pack);   // the board's left-out readings (step 3.6)
 
     auto cancel = std::make_shared<std::atomic<bool>>(false);
     m_marksCancel = cancel;
@@ -1417,7 +1425,10 @@ WorkOnsController::MarksOutcome WorkOnsController::runMarks(const MarksJob &job,
             continue;
         }
         ++out.ledgersRead;
-        const std::vector<ShotRecord> shots = fromJson(read.envelope.ledger);
+        std::vector<ShotRecord> shots = fromJson(read.envelope.ledger);
+        // Each shot as the launch monitor board annotated it (step 3.6; Stage 0.5's follow-up): its club override is the
+        // club its reading is centred under (R2a) and scoped by; a left-out reading is not read.
+        annotateShots(shots, SessionDiagnosticsFiles::golferInput(s.dir, read.envelope.legacyGolferInput).board, job.lmMeasures);
         // Every shot, data-warning shots included (R13; variability_ledger.h): a broken recording's rows
         // are already NotAssessable in the ledger, and the shared rule leaves those out.
         for (const ShotRecord &shot : shots) {
@@ -1479,9 +1490,11 @@ void WorkOnsController::applyMarks(int generation, MarksOutcome out)
         m_marksFingerprint = out.fingerprint;
         if (out.marks != m_marks) {
             m_marks = std::move(out.marks);
-            // The marks ride on areaItems and faultDetail(): a changed one rebuilds them.
+            // The marks ride on areaItems and faultDetail(): a changed one rebuilds them — and "what you do well",
+            // whose praise reads them (step 3.6).
             if (m_summaryScope == clubScopeAllKey()) publish();
             else publishScreens();
+            publishSummary();
         }
     }
     if (m_marksAgain) maybeMarks();
@@ -1584,6 +1597,7 @@ void WorkOnsController::maybeThemes()
         // and the flight table is read here first so the worker only reads it.
         job.outcomePack = std::make_shared<const ShotOutcomePack>(outcomePack());
         job.norms       = sharedNormProvider();
+        job.lmMeasures  = launchMonitorMeasures(pack);   // the board's left-out readings (step 3.6)
         (void)shippedFlightNorms();
         for (auto it = job.conditions.constBegin(); it != job.conditions.constEnd(); ++it)
             if (it->fault) job.faultIds.insert(it.key());
@@ -1703,7 +1717,7 @@ WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &j
             if (!job.outcome.isAll() && !in.shots.empty()) {
                 TendencySessionInput tin;
                 tendencySessionFromLedger(dir, SessionDiagnosticsFiles::placeOf(placeIndex, dir), read.envelope.legacyGolferInput,
-                                          std::move(sessionShots), tin);
+                                          std::move(sessionShots), tin, job.lmMeasures);
                 QHash<int, ShotFactors> judged = judgedShotFactors(tin, *job.outcomePack, shippedFlightNorms());
                 // Tendencies leaves out a club with no group (a putter, an undeclared club), so its shots are
                 // judged by nothing here either: in no choice but All, and no one's other shot.
@@ -1888,6 +1902,8 @@ void WorkOnsController::publishSummary()
     m_summarySubtitle.clear();
     m_focusItem.clear();
     m_doWellItems.clear();
+    m_doWellBefore.clear();
+    m_doWellPraised.clear();
     m_nextItems.clear();
     // While Layer 2 is still working for a new scope, Matchups keeps the answer it has.
     const bool together = !matchupsRefreshing();
@@ -1897,8 +1913,15 @@ void WorkOnsController::publishSummary()
     }
     if (m_summaryReady) {
         if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+        // THE PRAISE RULE (refactor step 3.6; 04 step 3 item 5; D23): "what you do well" keeps a condition only when its
+        // consistency grade — the mark Your swing shows beside it — is Repeatable or Grooved; ungraded is not praised
+        // (still shown in range in its area). Applied to the stored ranked list before the view caps it.
+        SwingThemes shown = m_themes;
+        applyPraiseRule(shown.doWell, [this](const QString &id) { return praiseGradeOf(id); });
+        for (const DoWellRow &r : m_themes.doWell) m_doWellBefore << r.conditionId;
+        for (const DoWellRow &r : shown.doWell) m_doWellPraised << r.conditionId;
         // The drill set gives the focus its drill's name and instruction.
-        const SwingSummaryView view = swingSummaryView(m_themes, themePhrases(m_packProv->pack(), sharedDrillSet()));
+        const SwingSummaryView view = swingSummaryView(shown, themePhrases(m_packProv->pack(), sharedDrillSet()));
         const auto pips = [](const std::vector<bool> &v) {
             QVariantList out;
             out.reserve(qsizetype(v.size()));
@@ -2015,6 +2038,8 @@ void WorkOnsController::maybeTendencies()
     // Marshalled here, on the GUI thread: one norm snapshot per job (norm_provider.h).
     job.pack  = outcomePack();
     job.norms = sharedNormProvider();
+    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
+    job.lmMeasures = launchMonitorMeasures(m_packProv->pack());   // the board's left-out readings (step 3.6)
 
     QCryptographicHash seed(QCryptographicHash::Sha1);
     seed.addData(QByteArray::number(kTendencyRuleVersion));
@@ -2113,10 +2138,10 @@ WorkOnsController::TendenciesOutcome WorkOnsController::runTendencies(const Tend
     for (const QString &dir : job.sessionDirs) {
         if (cancel && cancel->load()) return out;
         TendencySessionInput in;
-        if (readTendencySession(dir, SessionDiagnosticsFiles::placeOf(index, dir), in)) sessions.push_back(std::move(in));
+        if (readTendencySession(dir, SessionDiagnosticsFiles::placeOf(index, dir), in, job.lmMeasures)) sessions.push_back(std::move(in));
     }
 
-    TendencySet set = tendencySetFromSessions(sessions, job.pack, job.norms->contexts(), cancel);
+    TendencySet set = tendencySetFromSessions(sessions, job.pack, job.norms->contexts(), shippedFlightNorms(), cancel);
     if (set.cancelled || (cancel && cancel->load())) return out;
 
     out.computed = true;
@@ -2313,23 +2338,9 @@ QVariantMap WorkOnsController::clubDistance(const QString &club) const
 
 QVariantMap WorkOnsController::onBallFor(const QString &conditionId) const
 {
-    for (const TendencyOnBall &b : m_tendencySet.onBall) {
-        if (b.conditionId != conditionId || !onBallInScope(b.tendencyKey)) continue;
-        QVariantList produced;
-        for (const TendencyProduced &p : b.produced)
-            produced.append(QVariantMap{ { QStringLiteral("phrase"), p.phrase }, { QStringLiteral("count"), p.count } });
-        return QVariantMap{
-            { QStringLiteral("conditionId"),  b.conditionId },
-            { QStringLiteral("text"),         b.text },
-            { QStringLiteral("produced"),     produced },
-            { QStringLiteral("costWords"),    b.costWords },
-            { QStringLiteral("tendencyKey"),  b.tendencyKey },
-            { QStringLiteral("factor"),       b.factor },
-            { QStringLiteral("value"),        b.value },
-            { QStringLiteral("tendencyText"), b.tendencyText },
-            { QStringLiteral("onTheBall"),    b.onTheBall },
-        };
-    }
+    // The one serialiser (audit D-17): the file's keys are the map's.
+    for (const TendencyOnBall &b : m_tendencySet.onBall)
+        if (b.conditionId == conditionId && onBallInScope(b.tendencyKey)) return tendencyOnBallToJson(b).toVariantMap();
     return QVariantMap();
 }
 

@@ -71,6 +71,7 @@
 #include "session_store.h"
 #include "swing_paths.h"
 #include "swing_store_repository.h"
+#include "../Coaching/board_annotations.h"    // BoardAnnotation (step 3.6)
 #include "../Coaching/club_distances.h"       // ShotCorrection
 #include "../Coaching/tendencies.h"           // shotCorrectionsFromJson, shotIntentsFromJson
 #include "../Core/atomic_write.h"
@@ -121,6 +122,9 @@ struct GolferInput {
     // something ("straight" kept, since it overrides a run; an empty intent or list is no entry).
     QHash<int, QString>                                  shotIntent;
     QHash<int, std::vector<analysis::ShotCorrection>>    corrections;
+    // The launch monitor board's annotations (review.excluded / review.clubOverride), by swing number, only where the
+    // board said something (refactor step 3.6; Stage 0.5's follow-up). Their only home is the review: no older copy.
+    QHash<int, analysis::BoardAnnotation>                board;
     // Where each half came from, for the logs and the tests.
     bool sessionFromNewHome = false;   // session_input.json held at least one field
     int  shotsFromReview = 0;          // shots whose review held a shot-level key
@@ -349,6 +353,10 @@ inline GolferInput SessionDiagnosticsFiles::golferInput(const QString &sessionDi
     for (const Swing &w : swings) {
         // No document: nothing to say about it. Else the review over the older copy, field by field (the one rule).
         if (golfer_input::applyReview(w.review, w.number, g.shotIntent, g.corrections)) ++g.shotsFromReview;
+        if (w.review.ok) {
+            const analysis::BoardAnnotation a{ w.review.lmExcluded, w.review.lmClubOverride };
+            if (a.any()) g.board.insert(w.number, a);
+        }
     }
     return g;
 }

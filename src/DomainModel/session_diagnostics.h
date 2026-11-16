@@ -67,8 +67,15 @@
 //     ledgers, the stage ratchet, the typed results (src/Coaching/session_results.h: work-ons, evidence, reasons,
 //     each shot's "because" (J-14 (b)), per club the usual, carry today, mix and baseline window (D7)). The session's
 //     status is read from the Session, its one writer (J-24): an ended session's diagnosis is closed.
-//   • THE SUMMARY (FILE-SESS-05, DEC-192): summary() is the session's typed results with their provenance;
-//     written to work_ons.json only with DiagnosticsDoors::writeSummary (tests and tools until step 3.6).
+//   • THE SUMMARY (FILE-SESS-05, DEC-55, DEC-192): summary() is the session's typed results with their provenance
+//     (derivedFrom: its fingerprint over what it was worked out from); written to work_ons.json with what it keeps,
+//     when it persists — THIS OBJECT IS THAT FILE'S ONE WRITER (step 3.6; in the app from the catch-up's cut-over, 3.7).
+//   • THE CLUB BASELINE AT FIRST NEED (step 3.6; DEC-46, DEC-172): at load, a current club_baseline.json is read;
+//     none, or an older rule's, is frozen from the athlete level's computation over the predecessors' summaries
+//     (AthleteDiagnostics::clubBaselineFor) — through Session::freezeClubBaseline when persisting (EVT-16 on a rewrite),
+//     in memory only when not — or not at all while it is not computable (loadOrFreezeClubBaseline).
+//   • THE BOARD'S ANNOTATIONS (step 3.6; Stage 0.5's follow-up): the reduction reads each shot as the golfer annotated
+//     it on the launch monitor board (Coaching/board_annotations.h), asked of the Shot (its summary).
 //   • HEADLESS (§4.4 step 11; R-HL-2): DiagnosticsDoors::synchronous runs the same jobs on the calling thread and
 //     hands each result to WorkReceiver::accept() itself; the same checks apply.
 //
@@ -95,6 +102,7 @@
 #include "firing_reader.h"
 #include "rule_data.h"
 #include "golfer_input_rules.h"
+#include "../Coaching/board_annotations.h"   // BoardAnnotation (step 3.6)
 #include "session_input.h"    // IntentRun
 #include "../Coaching/shot_outcomes_pack.h"
 #include "../Core/work_pool.h"
@@ -217,8 +225,11 @@ public:
         // derived data taken back from the file at a load; summaries written.
         quint64 reductionsAsked = 0, reductions = 0, reductionsSuperseded = 0, reductionFailures = 0;
         quint64 derivedRestored = 0, summaryWrites = 0;
+        quint64 baselineFreezes = 0;   // a club baseline computed at first need (step 3.6), written or held in memory
     };
     const Counts &counts() const { return m_counts; }
+    // The last write that failed, in words for the golfer's notice (DEC-126): "" when none has (the catch-up reports it).
+    QString lastWriteError() const { return m_lastWriteError; }
 
     // ── The diagnosis (§4.4 step 7; run 3.5-ii) ──────────────────────────────────────────────────────────
     // The latest applied, or null before the first reduction lands.
@@ -257,6 +268,9 @@ private:
     SessionDiagnostics(Session *session, const DiagnosticsDoors &doors);
 
     void load();
+    void loadOrFreezeClubBaseline();                       // step 3.6 (DEC-46)
+    analysis::BoardAnnotation boardOf(int swing) const;    // the board's word on a shot, asked of the Shot
+    QString summaryFingerprint() const;                    // what the summary was worked out from
     void hearShot(Shot *shot);
     void connectSession();
     std::shared_ptr<const FiringSnapshot> makeSnapshot() const;
@@ -331,6 +345,7 @@ private:
 
     std::vector<Ask> m_asks;
     Counts           m_counts;
+    QString          m_lastWriteError;
 
     // The diagnosis (run 3.5-ii): the golfer's session-level word, the stage ratchet held, the latest applied.
     DeclaredFocus        m_focus;

@@ -39,14 +39,50 @@
 //                                         "workOnsWhy"/"clubBaselineWhy" when either is absent } ] } ] }
 //
 // NOT A TEST, and not registered with ctest — it writes into the folders it is given.
+//
+// --engine old|new (refactor step 3.6; build/refactor/step-3/3.6/NOTES.md, the athlete parity):
+//   old (the default) — the above: WorkOnsController, what Home shows until the catch-up's cut-over (3.7), with the
+//       praise rule and Stage 0.5's follow-up wired through it. Its dump adds `doWell` { themes, praised }: the themes'
+//       "what you do well" condition ids before and after the praise rule.
+//   new — THE NEW OWNERS: the catch-up service (src/App/athlete_catch_up.h) over the real session store, Athlete,
+//       Session and SessionDiagnostics (headless, every shot fired again: DiagnosticsDoors::rebuild; each session's club
+//       baseline frozen from its predecessors' summaries when it has none or an older rule's), oldest session first,
+//       each released after; then AthleteDiagnostics (src/DomainModel/athlete_diagnostics.h), which reads the summaries
+//       only: its tendencies (with the distances, from the club windows), its themes and its athlete work-ons (the
+//       summaries' compact per-shot facts: DEC-192 as Mark amended it, 16 Nov "b"). The athlete is the folder's own.
+// Both dumps carry `themes` (every club; the stored swing_themes.json read back for old, AthleteDiagnostics' for new,
+// each through the one serialiser, its provenance left out).
+// Both dumps add `athleteWorkOns` (the athlete work-ons, DEC-138: ids, status and counts — old from the summaries' files
+// through the same aggregate, new from AthleteDiagnostics) and, per session, `boardAnnotations` (how many of its shots
+// the launch monitor board annotated: Stage 0.5's follow-up has something to change only there).
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "../../src/App/athlete_catch_up.h"
+#include "../../src/DomainModel/athlete.h"
+#include "../../src/DomainModel/athlete_diagnostics.h"
+#include "../../src/DomainModel/rule_data.h"
+#include "../../src/DomainModel/session.h"
+#include "../../src/DomainModel/session_diagnostics.h"
+#include "../../src/Core/work_pool.h"
+#include "../../src/Export/firing_reader_store.h"
+#include "../../src/Export/recording_loader.h"
 #include "../../src/Export/rule_data_install.h"
+#include "../../src/Export/session_diagnostics_files.h"
+#include "../../src/Export/session_store.h"
+#include "../../src/Export/swing_store_repository.h"
 #include "Core/PpMessageLog.h"
 #include "Export/session_files.h"
 #include "parity_json.h"
 
+#include <QCryptographicHash>
+#include <QSemaphore>
+#include <QThreadPool>
+#include <atomic>
+#include <map>
+#include <memory>
+
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -60,7 +96,7 @@ namespace {
 void printUsage(FILE *to)
 {
     std::fprintf(to,
-        "usage: athlete_dump [--fresh] [--timeout <seconds>] --out <out.json> <athlete-dir>...\n"
+        "usage: athlete_dump [--engine old|new] [--fresh] [--timeout <seconds>] --out <out.json> <athlete-dir>...\n"
         "\n"
         "Runs the app's work-ons catch-up (WorkOnsController, headless) over each athlete folder of a SCRATCH\n"
         "library and writes the PARITY DUMP: tendencies.json, the per-club distances, and every session's\n"
@@ -73,6 +109,8 @@ void printUsage(FILE *to)
         "                     the catch-up re-derives them with this build (for a parity run: regrade_ledger\n"
         "                     --dump each session first, then this with --fresh)\n"
         "  --timeout <s>      how long one athlete's catch-up may take (default 1800)\n"
+        "  --engine old|new   old (default): WorkOnsController, what Home shows; new: the catch-up service and the\n"
+        "                     new owners (SessionDiagnostics, AthleteDiagnostics), every shot fired again (refactor 3.6)\n"
         "  --help             this text\n"
         "\n"
         "Needs every PINPOINT_CORE_* (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n");
@@ -111,6 +149,112 @@ bool removeIfThere(const QString &path, int *removed)
     return true;
 }
 
+// The athlete work-ons (DEC-138) as the dump holds them: ids, status and counts, in the aggregate's order.
+QVariantList athleteWorkOnsDump(const std::vector<pinpoint::analysis::WorkOnSummary> &list)
+{
+    QVariantList out;
+    for (const pinpoint::analysis::WorkOnSummary &w : list)
+        out.append(QVariantMap{ { QStringLiteral("id"), w.id },
+                                { QStringLiteral("status"), pinpoint::analysis::workOnStatusToString(w.status) },
+                                { QStringLiteral("score"), w.score },
+                                { QStringLiteral("sessionsListed"), w.sessionsListed },
+                                { QStringLiteral("sessionsPattern"), w.sessionsPattern },
+                                { QStringLiteral("swingsFired"), w.swingsFired },
+                                { QStringLiteral("swingsAssessable"), w.swingsAssessable } });
+    return out;
+}
+
+// The old engine's: the same aggregate over the summaries it wrote, read by today's reader.
+QVariantList athleteWorkOnsFromFiles(const QStringList &sessions)
+{
+    std::vector<pinpoint::analysis::SessionWorkOns> records;
+    for (const QString &s : sessions) {
+        const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(s);
+        bool ok = false;
+        if (f.exists && f.ok) {
+            pinpoint::analysis::SessionWorkOns r = pinpoint::analysis::sessionWorkOnsFromJson(f.root, &ok);
+            if (ok) records.push_back(std::move(r));
+        }
+    }
+    return athleteWorkOnsDump(pinpoint::analysis::aggregateWorkOns(std::move(records)));
+}
+
+// How many of a session's shots the launch monitor board annotated (Stage 0.5's follow-up has only those to change).
+int boardAnnotations(const QString &sessionDir)
+{
+    return int(pinpoint::SessionDiagnosticsFiles::golferInput(sessionDir, QJsonObject()).board.size());
+}
+
+// ── --engine new: the catch-up service and the new owners, headless, over a scratch library ───────────────────────
+class NewEngine
+{
+public:
+    NewEngine()
+    {
+        m_store.setOsTrashForTest(false);   // a scratch library: nothing goes to the real Trash
+        m_recordings = std::make_unique<pinpoint::SwingStoreRecordingRepository>(m_store);
+        m_reader     = std::make_shared<pinpoint::SwingStoreRecordingReader>(m_store);
+        m_firing     = std::make_shared<pinpoint::SwingStoreFiringReader>(m_store, *m_recordings);
+        m_receiver   = std::make_unique<pinpoint::WorkReceiver>([this](const pinpoint::WorkAddress &a) {
+            const pinpoint::SessionId id = pinpoint::SessionId::fromString(a.owner);
+            for (auto &it : m_athletes)
+                if (pinpoint::Session *s = it.second->loadedSession(id)) return pinpoint::diagnosticsWorkTarget(s, a);
+            return pinpoint::diagnosticsWorkTarget(nullptr, a);
+        });
+    }
+    ~NewEngine() { m_athletes.clear(); }
+
+    // The athlete of a folder (no record: an id from the folder's name, no cohort facts), made once.
+    pinpoint::Athlete *athleteOf(const QString &dir)
+    {
+        using namespace pinpoint;
+        const QString name = QFileInfo(dir).fileName();
+        const AthleteId id = AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
+            .arg(QString::fromLatin1(QCryptographicHash::hash(name.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
+        auto it = m_athletes.find(id.toString());
+        if (it != m_athletes.end()) return it->second.get();
+        auto a = std::make_unique<Athlete>(nullptr, &m_store, id);
+        AthleteRecord rec;
+        rec.name = name;
+        a->setStored(rec, dir, SessionOwner{ id, name, QFileInfo(dir).absolutePath() }, Athlete::Source::Library, false);
+        a->setShotDoors({ m_recordings.get(), m_reader });
+        DiagnosticsDoors d;
+        d.receiver    = m_receiver.get();
+        d.ruleData    = RuleData::installed();
+        d.reader      = m_firing;
+        d.synchronous = true;    // §4.4 step 11 (R-HL-2)
+        d.persist     = true;    // a scratch copy (the tool refuses any other)
+        d.rebuild     = true;    // every shot fired again, the ratchet replayed from Cold
+        d.attach      = &SessionDiagnostics::attach;
+        a->setDiagnosticsDoors(d);
+        Athlete *raw = a.get();
+        m_athletes.emplace(id.toString(), std::move(a));
+        return raw;
+    }
+    pinpoint::AthleteCallables callables()
+    {
+        pinpoint::AthleteCallables c;
+        c.listAthletes = [this] {
+            QList<pinpoint::AthleteId> out;
+            for (auto &it : m_athletes) out << it.second->id();
+            return out;
+        };
+        c.loadAthlete = [this](const pinpoint::AthleteId &id) -> pinpoint::Athlete * {
+            const auto it = m_athletes.find(id.toString());
+            return it == m_athletes.end() ? nullptr : it->second.get();
+        };
+        return c;
+    }
+
+private:
+    pinpoint::SessionStore                                      m_store;
+    std::unique_ptr<pinpoint::SwingStoreRecordingRepository>    m_recordings;
+    std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
+    std::shared_ptr<pinpoint::SwingStoreFiringReader>           m_firing;
+    std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
+    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;   // destroyed before the receiver
+};
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -122,6 +266,7 @@ int main(int argc, char **argv)
     PpMessageLog::instance()->setEchoToStderr(true);
 
     QString     outPath;
+    QString     engine = QStringLiteral("old");
     bool        fresh = false;
     int         timeoutS = 1800;
     QStringList dirs;
@@ -129,6 +274,7 @@ int main(int argc, char **argv)
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--fresh")) { fresh = true; continue; }
+        if (a == QLatin1String("--engine") && i + 1 < argc) { engine = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--out") && i + 1 < argc) { outPath = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--timeout") && i + 1 < argc) { timeoutS = QString::fromLocal8Bit(argv[++i]).toInt(); continue; }
         if (a.startsWith(QLatin1String("--"))) {
@@ -138,7 +284,8 @@ int main(int argc, char **argv)
         }
         dirs << QDir(a).absolutePath();
     }
-    if (dirs.isEmpty() || outPath.isEmpty() || timeoutS <= 0) {
+    if (dirs.isEmpty() || outPath.isEmpty() || timeoutS <= 0
+        || (engine != QLatin1String("old") && engine != QLatin1String("new"))) {
         printUsage(stderr);
         return 2;
     }
@@ -180,7 +327,11 @@ int main(int argc, char **argv)
         bool settled = false;
         int sessionsFound = 0, sessionCount = 0;
         bool tendenciesReady = false;
-        {
+        QVariantMap doWell;
+        QVariantList athleteWorkOns;
+        QVariantMap newTendencies;
+        QVariant themes;
+        if (engine == QLatin1String("old")) {
             WorkOnsController c;
             c.setSynchronous(true);
             c.setAthleteDir(dir);
@@ -188,10 +339,49 @@ int main(int argc, char **argv)
             sessionsFound   = c.sessionsFound();
             sessionCount    = c.sessionCount();
             tendenciesReady = c.tendenciesReady();
+            doWell = QVariantMap{ { QStringLiteral("themes"), c.doWellBeforePraise() },
+                                  { QStringLiteral("praised"), c.doWellPraised() } };
+            bool tok = false;
+            const QJsonObject stored = QJsonDocument::fromVariant(parity::readJsonFile(WorkOnsController::themesPath(dir))).object();
+            const pinpoint::analysis::SwingThemes st = pinpoint::analysis::swingThemesFromJson(stored, &tok);
+            if (tok) themes = pinpoint::analysis::toJson(st).toVariantMap();
+        } else {
+            NewEngine ng;
+            pinpoint::Athlete *a = ng.athleteOf(dir);
+            pinpoint::AthleteCatchUp catchUp(ng.callables());
+            QElapsedTimer clock;
+            clock.start();
+            catchUp.run(a->id());   // synchronous doors: every session in hand, one at a time, inside this call
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the released sessions go
+            const pinpoint::AthleteCatchUp::Report &r = catchUp.report();
+            settled = !catchUp.running() && r.blocked == 0;
+            tendenciesReady = true;   // computed from the summaries when read (DEC-60)
+            pinpoint::AthleteDiagnostics *ad = pinpoint::AthleteDiagnostics::of(a);
+            sessionsFound = r.sessions - r.skipped;
+            sessionCount  = int(ad->records().size());
+            athleteWorkOns = athleteWorkOnsDump(ad->workOns());
+            newTendencies = pinpoint::analysis::tendencySetToJson(ad->tendencies()).toVariantMap();
+            QThreadPool *pool = QThreadPool::globalInstance();
+            const pinpoint::analysis::ThemeParallelFor parallel = [pool](int n, const std::function<void(int)> &body) {
+                std::atomic<int> next{ 0 };
+                const auto drain = [&]() { for (int i = next.fetch_add(1); i < n; i = next.fetch_add(1)) body(i); };
+                const int helpers = std::max(0, std::min(n - 1, pool->maxThreadCount() - 1));
+                QSemaphore done;
+                for (int h = 0; h < helpers; ++h) pool->start([&]() { drain(); done.release(); });
+                drain();
+                done.acquire(helpers);
+            };
+            themes = pinpoint::analysis::toJson(ad->themes(parallel)).toVariantMap();
+            std::printf("%-40s catch-up: %d session(s), %d written, %d skipped, %d blocked, %d released, %lld ms; "
+                        "athlete level: %llu summary read(s), %llu recompute(s)\n",
+                        qPrintable(name), r.sessions, r.written, r.skipped, r.blocked, r.released, (long long)clock.elapsed(),
+                        (unsigned long long)ad->counts().summaryReads, (unsigned long long)ad->counts().recomputes);
+            for (const QString &w : r.why) std::printf("%-40s   %s\n", "", qPrintable(w));
         }   // destroyed here: its pools drain before the files are read
-        if (!settled || !tendenciesReady) ++failures;
+        if (!settled || (engine == QLatin1String("old") && !tendenciesReady)) ++failures;
         std::printf("%-40s %s  sessions %d/%d  tendencies %s\n", qPrintable(name),
-                    settled ? "SETTLED" : "TIMEOUT", sessionCount, sessionsFound, tendenciesReady ? "ready" : "NOT READY");
+                    settled ? "SETTLED" : "TIMEOUT", sessionCount, sessionsFound,
+                    tendenciesReady ? "ready" : engine == QLatin1String("new") ? "not built (new engine: F1)" : "NOT READY");
 
         parity::PathTokens tokens;
         parity::addPathToken(tokens, dir, QStringLiteral("<athlete>"));
@@ -202,9 +392,24 @@ int main(int argc, char **argv)
             { QStringLiteral("sessionsFound"),   sessionsFound },
             { QStringLiteral("sessionCount"),    sessionCount },
             { QStringLiteral("tendenciesReady"), tendenciesReady },
+            { QStringLiteral("engine"),          engine },
         };
+        athlete.insert(QStringLiteral("themes"), themes);
+        if (engine == QLatin1String("old")) {
+            athlete.insert(QStringLiteral("doWell"), doWell);
+            athlete.insert(QStringLiteral("athleteWorkOns"), athleteWorkOnsFromFiles(sessions));
+        } else {
+            athlete.insert(QStringLiteral("athleteWorkOns"), athleteWorkOns);
+        }
         QString why;
-        QVariantMap tendencies = parity::readJsonFile(WorkOnsController::tendenciesPath(dir), &why).toMap();
+        QVariantMap tendencies = engine == QLatin1String("new")
+                                     ? QVariantMap()
+                                     : parity::readJsonFile(WorkOnsController::tendenciesPath(dir), &why).toMap();
+        if (engine == QLatin1String("new")) {
+            // tendencies.json's own keys (rule, schema) as the old engine's file holds them; no fingerprint
+            newTendencies.remove(QStringLiteral("fingerprint"));
+        }
+        if (engine == QLatin1String("new")) tendencies = newTendencies;
         if (tendencies.isEmpty()) {
             athlete.insert(QStringLiteral("tendencies"), QVariant());
             athlete.insert(QStringLiteral("tendenciesWhy"), why.isEmpty() ? QStringLiteral("empty") : why);
@@ -218,7 +423,8 @@ int main(int argc, char **argv)
         for (const QString &s : sessions) {
             parity::PathTokens st = tokens;
             parity::addPathToken(st, s, QStringLiteral("<session>"));
-            QVariantMap entry{ { QStringLiteral("session"), QFileInfo(s).fileName() } };
+            QVariantMap entry{ { QStringLiteral("session"), QFileInfo(s).fileName() },
+                               { QStringLiteral("boardAnnotations"), boardAnnotations(s) } };
             QString w;
             const QVariant rec = parity::readJsonFile(WorkOnsController::recordPath(s), &w);
             entry.insert(QStringLiteral("workOns"), parity::scrub(rec, st));

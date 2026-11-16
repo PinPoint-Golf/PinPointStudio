@@ -402,7 +402,7 @@ public:
             d.reader       = m_firing;
             d.synchronous  = true;    // §4.4 step 11 (R-HL-2)
             d.persist      = true;    // into the session NAMED: a scratch copy (the tool's own warning)
-            d.writeSummary = true;    // work_ons.json, the typed summary (DEC-192)
+            // with persist, work_ons.json (the typed summary, DEC-192) is written too: its one writer (step 3.6)
             d.rebuild      = true;    // every shot fired again, the ratchet replayed from Cold
             d.attach       = &SessionDiagnostics::attach;
             a->setDiagnosticsDoors(d);

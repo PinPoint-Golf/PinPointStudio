@@ -1908,6 +1908,7 @@ set(REGRADE_NEW_ENGINE_SOURCES
     ${SRC}/Identity/identity.h   # its Q_GADGETs, for AUTOMOC
     ${SRC}/DomainModel/athlete.cpp ${SRC}/DomainModel/session.cpp ${SRC}/DomainModel/shot.cpp
     ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+    ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp   # the freeze's computation (3.6)
     ${SRC}/DomainModel/session.h ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/athlete.h
     ${SRC}/Diagnostics/engine/session_reduction.cpp
     ${SRC}/Export/firing_reader_store.cpp
@@ -1954,8 +1955,15 @@ pp_apply_sanitizers(regrade_ledger)
 # written as one canonical JSON. Same link line as work_ons_controller_test, because it IS the controller.
 # NOT registered with ctest: the catch-up writes into the folders it is given (it refuses any not on scratch).
 # parity_json_test pins the canonical writer both dumps share (tools/diagnostics/parity_json.h).
+# --engine new (refactor step 3.6): the catch-up service and the new owners over the real store, Athlete, Session and
+# SessionDiagnostics — regrade_ledger's new-engine closure, less the tool and its parallel-run form, plus the athlete level.
+set(ATHLETE_NEW_ENGINE_SOURCES ${REGRADE_NEW_ENGINE_SOURCES}
+    ${SRC}/App/athlete_catch_up.h ${SRC}/App/athlete_catch_up.cpp)
+list(REMOVE_ITEM ATHLETE_NEW_ENGINE_SOURCES ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
+                                            ${SRC}/Gui/diagnostics/diag_parallel_run.cpp)
 add_executable(athlete_dump
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
+    ${ATHLETE_NEW_ENGINE_SOURCES}
     ${PP_REPO_ROOT}/tools/diagnostics/athlete_dump.cpp
     ${SRC}/Gui/diagnostics/work_ons_controller.cpp
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
@@ -1988,9 +1996,12 @@ add_executable(athlete_dump
     ${SRC}/Core/pp_log_stream.cpp
     ${SRC}/Core/PpMessageLog.cpp)
 target_include_directories(athlete_dump PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
-                                                ${SRC}/Gui ${SRC}/Gui/charts)
-target_link_libraries(athlete_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
-set_target_properties(athlete_dump PROPERTIES AUTOMOC ON)
+                                                ${SRC}/Gui ${SRC}/Gui/charts ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(athlete_dump PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+set_target_properties(athlete_dump PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+get_target_property(_athlete_dump_sources athlete_dump SOURCES)
+list(REMOVE_DUPLICATES _athlete_dump_sources)
+set_property(TARGET athlete_dump PROPERTY SOURCES ${_athlete_dump_sources})
 pp_apply_sanitizers(athlete_dump)
 pp_add_test(parity_json_test SOURCES ${PP_REPO_ROOT}/tools/diagnostics/parity_json_test.cpp)
 
@@ -2089,6 +2100,7 @@ pp_add_test(session_diagnostics_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+            ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp   # the freeze (3.6)
             ${SRC}/Diagnostics/engine/session_reduction.cpp   # §4.4 step 7, the diagnosis (refactor 3.5-ii)
             ${SRC}/Export/firing_reader_store.cpp
             ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
@@ -2098,6 +2110,42 @@ pp_add_test(session_diagnostics_test
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
     AUTOMOC)
 set_tests_properties(session_diagnostics_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
+# THE ATHLETE LEVEL'S OWNER AND THE CATCH-UP (refactor step 3.6; BRIEF §4.6, §6 row 3.6): AthleteDiagnostics over the
+# real store, Athlete, Session and SessionDiagnostics (headless and on the pool), the catch-up service (src/App), the
+# praise rule and the board's annotations. Reads summaries only (a spying repository); lazy; the freeze; D-15.
+pp_add_test(athlete_diagnostics_test
+    SOURCES ${SRC}/DomainModel/tests/athlete_diagnostics_test.cpp ${SESSION_DIAGNOSTICS_TEST_SOURCES}
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+            ${SRC}/DomainModel/athlete_diagnostics.h ${SRC}/DomainModel/athlete_diagnostics.cpp
+            ${SRC}/App/athlete_catch_up.h ${SRC}/App/athlete_catch_up.cpp
+            ${SRC}/Diagnostics/engine/session_reduction.cpp
+            ${SRC}/Export/firing_reader_store.cpp
+            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(athlete_diagnostics_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
+# THE REDUCTIONS' RULE VERSIONS (refactor step 3.6; J-13, C-05's other half): the session and athlete reductions (work_ons,
+# tendencies, outcome_scope, club_distances, swing_themes, the praise rule, the board's annotations) on the fired
+# live_swings fixtures over 3.3's FROZEN content copy, against data/rule_version_golden/reductions.json, keyed by each
+# reduction's versions. Re-record: PP_RECORD_RULE_GOLDEN=1 (see the test's header).
+pp_add_test(reduction_rule_golden_test
+    SOURCES ${DIAG}/tests/reduction_rule_golden_test.cpp ${FIRE_FINDINGS_TEST_SOURCES}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+                    -DPP_RULE_VERSION_GOLDEN_DIR="${DIAG}/tests/data/rule_version_golden"
+    AUTOMOC)
+set_tests_properties(reduction_rule_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's

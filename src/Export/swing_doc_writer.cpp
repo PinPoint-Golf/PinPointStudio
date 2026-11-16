@@ -745,6 +745,8 @@ ShotReview SwingDocWriter::readReview(const QString &swingDir)
     out.hasShotIntent       = review.contains(QStringLiteral("shotIntent"));
     out.hasLabelCorrections = review.contains(QStringLiteral("labelCorrections"));
     out.shotIntent = review.value(QStringLiteral("shotIntent")).toString();
+    out.lmExcluded     = review.value(QStringLiteral("excluded")).toBool(false);
+    out.lmClubOverride = review.value(QStringLiteral("clubOverride")).toString();
     for (const QJsonValue &v : review.value(QStringLiteral("labelCorrections")).toArray()) {
         const QJsonObject c = v.toObject();
         out.labelCorrections.append({ c.value(QStringLiteral("family")).toString(),

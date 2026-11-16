@@ -2963,6 +2963,14 @@ target_sources(PinPointStudio PRIVATE
     src/Coaching/session_results.h
     src/Core/work_pool.h
     src/Core/work_pool.cpp
+    # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
+    # athlete work-ons, the distances, from the summaries) and the catch-up service (Application) — wired to Home at
+    # the catch-up's cut-over (3.7). The launch monitor board's annotations, read by every reduction (Rules).
+    src/DomainModel/athlete_diagnostics.h
+    src/DomainModel/athlete_diagnostics.cpp
+    src/App/athlete_catch_up.h
+    src/App/athlete_catch_up.cpp
+    src/Coaching/board_annotations.h
     # The parallel run (refactor 3.5-ii; D14: PINPOINT_DIAG_PARALLEL=1): the two engines' form and their difference.
     # The app's (and regrade_ledger's) only — NOT a QML type, so not in PP_QML_SOURCES: the QML suites, which compile
     # the module's C++ without the session diagnostics owner, need none of it.

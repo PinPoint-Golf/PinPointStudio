@@ -1059,9 +1059,7 @@ static void testDiagnosis()
 {
     std::printf("\nDIAG — the session's diagnosis, its typed results and the summary (§4.4 step 7; DEC-192)\n");
     Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
-    DiagnosticsDoors doors = rig.athlete->diagnosticsDoors();
-    doors.writeSummary = true;
-    rig.athlete->setDiagnosticsDoors(doors);
+    // With persist the summary (work_ons.json) is written too: SessionDiagnostics its one writer (step 3.6).
     Session *s = rig.session({ Spec{}, Spec{}, Spec{} });   // lm_7iron's document in each
     SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
     const analysis::SessionDiagnosis *dg = d ? d->diagnosis() : nullptr;
