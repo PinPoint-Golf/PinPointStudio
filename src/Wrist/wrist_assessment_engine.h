@@ -26,8 +26,9 @@
 // The Tier-1 orchestrator (design §9.1). Pure, deterministic, Qt-GUI-free so it is unit-tested
 // standalone: sample the angle source → derive Δ-from-address → classify each cell against the band
 // provider → roll up a simple composite score. Tier-2 rules (findings/strengths) hang off this in
-// Phase 2. The QML-facing WristDiagnosticsModel (src/Gui/diagnostics) wraps this and exposes the
-// result to the view.
+// Phase 2. The Wrist chart's presenter (src/Gui/charts/session_wrist.cpp) runs it for each shot. (The QML-facing
+// WristDiagnosticsModel that used to wrap it was never created by any view and was deleted in refactor step 3.8:
+// D-18/D-19, DEC-123.)
 
 namespace pinpoint::analysis {
 

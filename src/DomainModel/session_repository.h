@@ -176,6 +176,17 @@ struct SessionArchiveResult {
 // archived, and restoring again finishes it.
 using SessionArchiveProgress = std::function<bool(int done, int total)>;
 
+// AN ARCHIVE THAT RUNS OFF ITS OWNER'S THREAD (refactor step 3.8; R-CON-3): the repository checks the session on its owner
+// thread and hands back `run`, a job that touches no domain object and no shared repository state — it archives the
+// session's folder through a repository of its own (SessionArchiveRun, as the Archiving tab's jobs do: step 2.4's J4), so
+// it is safe on a worker. Empty `run`: refused, and `refused` says why. The result is posted back to the owner, which tells
+// the repository (archiveLanded) and emits EVT-18 (Session::archiveLanded).
+struct SessionArchiveJob {
+    SessionArchiveResult                                                refused;
+    std::function<SessionArchiveResult(const SessionArchiveProgress &)> run;
+    explicit operator bool() const { return bool(run); }
+};
+
 // ── A SESSION'S DIAGNOSTICS FILES, AS READ (FILE-SESS-02…05; refactor step 2.5, moved here in 3.4a for
 //    J-42's id-keyed methods below). The rules for each: src/Export/session_diagnostics_files.h. ──────────
 
@@ -267,6 +278,18 @@ public:
     virtual SessionArchiveResult archive(const SessionId &id, const SessionArchiveOptions &options,
                                          const SessionArchiveProgress &progress = {}) = 0;
     virtual SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) = 0;
+    // The archive's two halves for an owner that must not block (refactor step 3.8; above): the check, on the owner
+    // thread, refusing what `archive` refuses, and the job; then, back on the owner thread, the landing — the held
+    // record reads the marker again. A repository that cannot archive off its thread refuses (the default).
+    virtual SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options)
+    {
+        Q_UNUSED(id);
+        Q_UNUSED(options);
+        SessionArchiveJob j;
+        j.refused.error = QStringLiteral("Archiving is not available here.");
+        return j;
+    }
+    virtual void archiveLanded(const SessionId &id) { Q_UNUSED(id); }
 
     // The whole session folder to the recoverable trash (the OS trash, else the library's own:
     // FILE-LIB-01). Refused while its session file says InProgress (Failed) or another writer holds its

@@ -758,6 +758,37 @@ SessionArchiveResult SessionStore::archive(const SessionId &id, const SessionArc
     return r;
 }
 
+SessionArchiveJob SessionStore::archiveJob(const SessionId &id, const SessionArchiveOptions &options)
+{
+    SessionArchiveJob job;
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd()) {
+        job.refused = archiveRefused(failed(QStringLiteral("That session is not known.")));
+        return job;
+    }
+    // The same refusals as archive(): in progress (here, or by its session file read afresh), or a newer build's file.
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/true); !c.ok()) {
+        job.refused = archiveRefused(c);
+        return job;
+    }
+    if (!m_archiveJobs) {
+        job.refused = archiveRefused(failed(QStringLiteral("Archiving is not available here.")));
+        return job;
+    }
+    // Values only: the folder, the options and the file work, which opens its own repositories (it re-checks the
+    // session's status from its file before each swing is thinned, J-52).
+    const QString folder = it->entry.folder;
+    const ArchiveJobs work = m_archiveJobs;
+    job.run = [work, folder, options](const SessionArchiveProgress &progress) { return work(folder, options, progress); };
+    return job;
+}
+
+void SessionStore::archiveLanded(const SessionId &id)
+{
+    if (const auto h = m_held.find(id); h != m_held.end())
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(h->entry.folder));
+}
+
 SessionArchiveResult SessionStore::restore(const SessionId &id, const SessionArchiveProgress &progress)
 {
     const auto it = m_held.constFind(id);

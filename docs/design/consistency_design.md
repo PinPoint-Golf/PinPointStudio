@@ -240,7 +240,7 @@ golfer-layer badge grading the measure of the **Biggest fault** beside it, over 
 every shot kept (R13). A yes/no, composite, fixed-number or outcome condition (ball flight, smash) is ungraded: "-". An
 opened area lists its faults, each with its own badge over the same window, and a work-on's badge sits beside its status
 (R10). The opened area's row of span words is gone. The column is `sp(136)`, still paid for by Habits (§6). Rules:
-`work_ons_controller.h`, CONSISTENCY MARKS; `src/Gui/variability/variability_ledger.h`.
+`work_ons_controller.h`, CONSISTENCY MARKS; `src/Coaching/consistency_grade.h` (the Rules ring since refactor step 3.8; `src/Gui/variability/variability_ledger.h` forwards to it).
 
 ![Home](consistency/6_home_your_swing.png)
 

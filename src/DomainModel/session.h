@@ -133,6 +133,24 @@ public:
     // Written through SessionRepository (the session's lock for the one write); EVT-16 only after a rewrite landed.
     WriteResult freezeClubBaseline(const QJsonObject &root, bool rewrite);
 
+    // THE ARCHIVE (LC-SESSION's `archive`; DEC-22, DEC-65; FILE-SESS-06, FILE-LIB-02; refactor step 3.8): the session
+    // mirrored into `options.archiveRoot` and thinned to stubs in the library, in TWO HALVES so the copy (GBs) never runs
+    // on this Session's thread (P8, R-CON-3):
+    //   archiveJob(options)   ON THIS THREAD: refused while in progress (and, by the repository, for a session file that
+    //                         says so when read afresh, or a newer build's); else a worker-safe job from
+    //                         SessionRepository::archiveJob — values only, no domain object in it (it archives the
+    //                         folder through a repository of its own, which re-checks the status before each swing is
+    //                         thinned: J-52)
+    //   archiveLanded(r)      ON THIS THREAD, the job's result posted back: the repository's record reads the marker
+    //                         again, and on success SessionArchived (EVT-18), whose consumer is the SessionIndex (DEC-113:
+    //                         nothing re-fires). A failure emits nothing
+    //   archive(options)      both, synchronously, on this thread (a tool or a test; the app uses the halves)
+    // `options.keepRaw` false drops the raw frames for good (SET-14 off: DEC-137). Housekeeping (src/App/housekeeping.h)
+    // is the app's caller.
+    SessionArchiveJob    archiveJob(const SessionArchiveOptions &options);
+    void                 archiveLanded(const SessionArchiveResult &result);
+    SessionArchiveResult archive(const SessionArchiveOptions &options, const SessionArchiveProgress &progress = {});
+
     // This process started or resumed it, and has not ended it: what Athlete::startSession and resumeSession
     // end first (DEC-78, DEC-134). A session a crash left in progress is not running here: the repository's
     // Start ends it, with its end inferred (J-18), as today.
@@ -160,6 +178,7 @@ signals:
     void intentRunChanged(const pinpoint::SessionId &session);       // EVT-08 IntentRunChanged
     void sessionIntentChanged(const pinpoint::SessionId &session);   // EVT-10 SessionIntentChanged
     void clubBaselineRewritten(const pinpoint::SessionId &session);  // EVT-16 ClubBaselineRewritten (step 3.6)
+    void sessionArchived(const pinpoint::SessionId &session);        // EVT-18 SessionArchived (step 3.8)
     // Not domain events (refactor step 3.5-i), for its SessionDiagnostics, so this file links none of it:
     // a Shot is now in the collection (listed or added); and the session is being released by its Athlete (what its
     // diagnostics kept is written first, synchronously: DirectConnection).

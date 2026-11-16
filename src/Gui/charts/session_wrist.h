@@ -31,7 +31,8 @@
 // change of archetype re-grades every shot from memory, and nothing of the swing document is held for
 // it. The angle source is built by the adapter's own buildWristAngleSource (same DOF keys, same
 // last-key-wins rule, same right-handed producer convention, same gimbal proxy), so this profile is the
-// one WristDiagnosticsModel draws for the same swing; the only difference is honesty about a missing
+// one the retired WristDiagnosticsModel (deleted in refactor step 3.8: DEC-123) drew for the same swing; the only
+// difference is honesty about a missing
 // sample: a non-finite value is a gap (unavailable), never a 0.
 //
 // ── THE PAYLOAD (QVariantMap; EMPTY when the shot has no wrist DOF) ─────────────────────────────

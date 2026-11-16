@@ -146,6 +146,13 @@ public:
 
     // The archive's file work (not owned; outlives the store's use of it). Null: archive and restore refuse.
     void setArchiving(SessionArchiving *archiving) { m_archiving = archiving; }
+    // The worker-safe archive job's file work (refactor step 3.8): today's archive of a session folder in a run of its own
+    // (SessionArchiveRun::archiveInOwnRun), set by the composition root. Null: archiveJob refuses.
+    using ArchiveJobs = std::function<SessionArchiveResult(const QString &sessionDir, const SessionArchiveOptions &options,
+                                                           const SessionArchiveProgress &progress)>;
+    void setArchiveJobs(ArchiveJobs jobs) { m_archiveJobs = std::move(jobs); }
+    SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options) override;
+    void              archiveLanded(const SessionId &id) override;
 
     // Today's athlete-folder derivation (until 2.3's Athlete::folder()).
     static QString athleteFolder(const SessionOwner &owner);
@@ -222,6 +229,7 @@ private:
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
     bool                        m_osTrash    = true;
     SessionArchiving           *m_archiving  = nullptr;
+    ArchiveJobs                 m_archiveJobs;
     CaptureEndOf                m_captureEndOf;
 };
 

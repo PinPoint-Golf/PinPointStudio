@@ -2215,7 +2215,7 @@ bool ChartsWristPresenter::waitForIdle(int msTimeout)
 }
 
 // The playhead's checkpoint: the latest present checkpoint at or before it, else the first present one
-// (WristDiagnosticsModel::recomputeSelected's rule). Fires only when it moves to another checkpoint.
+// (the retired WristDiagnosticsModel's rule, recomputeSelected). Fires only when it moves to another checkpoint.
 void ChartsWristPresenter::updateSelected(bool force)
 {
     int best = -1;

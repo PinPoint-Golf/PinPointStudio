@@ -232,7 +232,7 @@ What the retrofit left alone, what has no surface yet, the measurement surfaces 
 - **The matrix's short form** shows the grade's figure, 5 to 1 (0 for Not enough swings), ⚠ for Checking and "-". The old · ◐ ● are gone.
 - **Key figures** split the badge's basis onto its own line when the column can't hold it, column-wide.
 - **The Launch monitor appendix badge** sits on its own line under each graded row: a ninth column overflows the 674 px page.
-- **The report's work-on badge** grades that session only (R14), through the rule Home shares (`src/Gui/variability/variability_ledger.h`).
+- **The report's work-on badge** grades that session only (R14), through the rule Home shares (`src/Coaching/consistency_grade.h` since refactor step 3.8; `src/Gui/variability/variability_ledger.h` forwards to it).
 - **Traces are ungraded** (R16): the Overlay and TypicalityTrace hosts stay in place and show nothing until a trace has a corridor. *Superseded by R31 (built 7 Nov): the 24 traces that borrow a norm are graded; the rest still show nothing.*
 - **Diagnostics never sets measurement-limited:** ledger rows store no σ. Setting it would need a ledger schema change (`diagnostic_ledger.h`).
 - **Typicality's basis** says "average" (R18), so Replay's "median 72 mph" can sit beside "average 74 mph". Both are right.

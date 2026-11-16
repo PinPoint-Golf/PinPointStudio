@@ -728,8 +728,6 @@ set(PP_QML_SOURCES
     src/Export/rule_data_store.h
     src/Export/rule_data_store.cpp
     src/Export/rule_data_install.h
-    src/Gui/diagnostics/wrist_diagnostics_model.h
-    src/Gui/diagnostics/wrist_diagnostics_model.cpp
     src/Gui/diagnostics/session_diagnostics_model.h
     src/Gui/diagnostics/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp

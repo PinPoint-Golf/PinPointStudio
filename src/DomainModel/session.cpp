@@ -292,4 +292,47 @@ WriteResult Session::freezeClubBaseline(const QJsonObject &root, bool rewrite)
     return w;
 }
 
+// ── The archive (refactor step 3.8; LC-SESSION, DEC-22, DEC-65) ────────────────────────────────────────────────
+
+SessionArchiveJob Session::archiveJob(const SessionArchiveOptions &options)
+{
+    SessionArchiveJob job;
+    if (!m_sessions) {
+        job.refused.error = QStringLiteral("No session store.");
+        return job;
+    }
+    // A session still being recorded is never thinned under its capture (LC-SESSION: InProgress → Ended → Archived).
+    if (inProgress()) {
+        job.refused.error = QStringLiteral("The session is still in progress.");
+        ppWarn() << "[Session] archive refused: in progress:" << m_id.toString();
+        return job;
+    }
+    job = m_sessions->archiveJob(m_id, options);
+    if (!job)
+        ppWarn() << "[Session] archive refused:" << m_id.toString() << "-" << job.refused.error;
+    return job;
+}
+
+void Session::archiveLanded(const SessionArchiveResult &result)
+{
+    if (m_sessions)
+        m_sessions->archiveLanded(m_id);   // the record reads the marker again, whatever happened
+    if (!result.ok) {
+        ppWarn() << "[Session] not archived:" << m_id.toString() << "-" << result.error;
+        return;   // nothing changed for good: no event
+    }
+    ppInfo() << "[Session] EVT-18 session archived:" << m_id.toString() << "to" << result.archivePath;
+    emit sessionArchived(m_id);   // EVT-18, after the archive landed (DEC-69)
+}
+
+SessionArchiveResult Session::archive(const SessionArchiveOptions &options, const SessionArchiveProgress &progress)
+{
+    const SessionArchiveJob job = archiveJob(options);
+    if (!job)
+        return job.refused;
+    const SessionArchiveResult r = job.run(progress);
+    archiveLanded(r);
+    return r;
+}
+
 } // namespace pinpoint

@@ -21,6 +21,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -195,6 +196,56 @@ bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
     ppInfo() << "[SwingPaths] no trash on this volume — moved to" << dest;
     if (where) *where = dest;
     return true;
+}
+
+// The library's own trash (refactor step 3.8): moved here from the Archiving tab's controller, unchanged — the
+// entries of every athlete folder of `.pinpoint-trash`, the stamp trashPath writes, and the one purge.
+QStringList SwingPaths::trashEntries(const QString& libraryRoot)
+{
+    QStringList out;
+    const QDir t(libraryRoot + QStringLiteral("/.pinpoint-trash"));
+    for (const QString& athlete : t.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QDir a(t.filePath(athlete));
+        for (const QString& e : a.entryList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot))
+            out << a.filePath(e);
+    }
+    return out;
+}
+
+QDateTime SwingPaths::trashedAt(const QString& entry)
+{
+    const QDateTime t = QDateTime::fromString(QFileInfo(entry).fileName().left(15),
+                                              QStringLiteral("yyyyMMdd-HHmmss"));
+    return t.isValid() ? t : QFileInfo(entry).lastModified();
+}
+
+qint64 SwingPaths::libraryBytes(const QString& libraryRoot, const std::atomic_bool* abort)
+{
+    QDirIterator it(libraryRoot, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
+    qint64 total = 0;
+    int    n     = 0;
+    while (it.hasNext()) {
+        it.next();
+        total += it.fileInfo().size();
+        // Polled rather than checked every entry: on a network share the abort flag is far cheaper than the stat
+        // beside it, but the loop runs tens of thousands of times and there is no reason to make quitting more
+        // responsive than one batch of files.
+        if ((++n & 0xFF) == 0 && abort && abort->load())
+            return -1;
+    }
+    return total;
+}
+
+SwingPaths::Purged SwingPaths::purgeTrash(const QString& libraryRoot, const QDateTime& cutoff)
+{
+    Purged p;
+    for (const QString& e : trashEntries(libraryRoot)) {
+        if (cutoff.isValid() && !(trashedAt(e) < cutoff)) continue;
+        const QFileInfo fi(e);
+        const bool removed = fi.isDir() ? QDir(e).removeRecursively() : QFile::remove(e);
+        (removed ? p.removed : p.failed)++;
+    }
+    return p;
 }
 
 } // namespace pinpoint

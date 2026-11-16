@@ -840,6 +840,24 @@ pp_add_test(session_test
     STD 20
     AUTOMOC)
 
+# Housekeeping, the one application service that ends things for good (refactor step 3.8; src/App/housekeeping.h): one
+# purge; archiving by age and for space through the app's Session from a worker (the job, the posted landing, EVT-18); a
+# session in progress refused; a folder no athlete holds by today's path (N1); SET-14 off; the library's size. Over the
+# REAL stores the app wires (one session store with its archive job, one athlete store, the archiver, SwingPaths) on a
+# temporary library and a scratch settings file — never the share or the OS trash.
+pp_add_test(housekeeping_test
+    SOURCES ${SRC}/App/tests/housekeeping_test.cpp ${PP_RECORDING_STORE_SOURCES}
+            ${SRC}/App/housekeeping.h ${SRC}/App/housekeeping.cpp
+            ${SRC}/Export/session_archiver.cpp ${SRC}/Export/athlete_store.cpp
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+    INCLUDE ${SRC}/LaunchMonitor ${SRC}/Core ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    AUTOMOC)
+
 # Shaft v3.0-r1 evidence engines (E1 discrete band + E2 polarity ridge sweep) —
 # Qt-free math core (shaft_tracker_math). -O2: the suites set no build type and
 # these assert real hot-loop cost.

@@ -249,24 +249,8 @@ ConsistencyInput consistencyInput(const SessionSnapshot &s, const SessionAlignme
 
 std::vector<double> consistencyResiduals(const std::vector<double> &values, int samples, const QStringList &clubs)
 {
-    std::vector<double> out(values.size(), kNaN);
-    if (samples <= 0) return out;
-    std::map<QString, std::vector<int>> groups;     // a blank label is a group of its own
-    for (int i = 0; i < clubs.size(); ++i) groups[clubs.at(i)].push_back(i);
-    std::vector<double> column;
-    for (const auto &[club, rows] : groups) {
-        if (int(rows.size()) < kConsistencyMinClubShots) continue;
-        for (int j = 0; j < samples; ++j) {
-            column.clear();
-            for (int i : rows) column.push_back(values[size_t(i) * size_t(samples) + size_t(j)]);
-            const double median = medianOf(column);     // the shot itself included
-            for (int i : rows) {
-                const size_t at = size_t(i) * size_t(samples) + size_t(j);
-                out[at] = values[at] - median;
-            }
-        }
-    }
-    return out;
+    // The within-club pooling's (R2a), moved to the Vocabulary ring unchanged (refactor step 3.8; J-34).
+    return variability::withinClubResiduals(values, samples, clubs);
 }
 
 double consistencySpread(const std::vector<double> &values)

@@ -716,6 +716,9 @@ qt_add_executable(PinPointStudio
     src/Gui/app/app_settings_rule_data.cpp   # SET-06 / SET-15 as a view over RuleData (step 3.2)
     src/Gui/settings/library_converter.h     src/Gui/settings/library_converter.cpp
     src/Gui/settings/archive_controller.h    src/Gui/settings/archive_controller.cpp
+    # Housekeeping, the one application service that ends things for good (refactor step 3.8; DEC-80), over the
+    # composition root's callables (D18 (c): DEC-167). The Archiving tab forwards to it.
+    src/App/housekeeping.h                   src/App/housekeeping.cpp
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp

@@ -199,6 +199,26 @@ public:
     // session is then held, so SessionRepository::open answers for it.
     SessionId openSession(const QString &sessionDir);
 
+    // ONE SESSION FOLDER ARCHIVED IN A RUN OF ITS OWN (refactor step 3.8; moved unchanged from the Archiving tab's
+    // archiveOne): the folder translated to its SessionId at this edge, then SessionRepository::archive. Safe on any thread
+    // (it shares nothing). The Archiving tab's by-hand archive, housekeeping's archive of a folder no Athlete holds (N1),
+    // and the app's SessionStore::archiveJob all run this.
+    static SessionArchiveResult archiveInOwnRun(const QString &sessionDir, const SessionArchiveOptions &options,
+                                                const SessionArchiveProgress &progress = {});
+
+    // THE LIBRARY'S SESSION FOLDERS AS THE ARCHIVING TAB LISTS THEM (refactor step 3.8; moved unchanged from
+    // archive_controller.cpp's scanSessions): every `<root>/<dir>/<dir>` holding a swing, its day its SessionIdentity's
+    // (else the folder's modification time), its archive marker, newest first (then folder, descending). `withBytes`
+    // false skips the size walk (housekeeping needs no sizes). Reads only; call it off the GUI thread.
+    struct LibrarySession {
+        QString dir, name, athlete;
+        qint64  dateMs = 0;
+        qint64  bytes  = 0;
+        int     swings = 0;
+        bool    archived = false;
+    };
+    static QList<LibrarySession> scanLibrary(const QString &root, bool withBytes = true);
+
     // Tests.
     void setLockWaitForTest(int ms) { m_archiver.setLockWaitForTest(ms); m_sessions.setLockWaitForTest(ms); }
     void setReplaceForTest(SessionArchiver::ReplaceFn replace) { m_archiver.setReplaceForTest(std::move(replace)); }

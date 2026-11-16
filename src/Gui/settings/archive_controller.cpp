@@ -36,93 +36,12 @@
 
 namespace {
 
-struct SessionRow {
-    QString dir, name, athlete;
-    qint64  dateMs = 0;
-    qint64  bytes  = 0;
-    int     swings = 0;
-    bool    archived = false;
-};
-
+// The library's session folders, as the Archiving tab lists them: SessionArchiveRun::scanLibrary (moved there unchanged
+// in refactor step 3.8, so housekeeping's walk and this list are one scan).
+using SessionRow = pinpoint::SessionArchiveRun::LibrarySession;
 using pinpoint::SessionArchiver;
 
-// Every session folder of the library that holds a swing, as the session repository reads it (step 2.6):
-// its day is its SessionIdentity's — the start time's local day from its session file, or, for a session
-// older than step 2, the day its folder's name says (SessionIdentity reads the name, nobody else). A folder
-// that cannot be named as a session falls back to its modification time, as before.
-QList<SessionRow> scanSessions(const QString &root)
-{
-    QList<SessionRow> out;
-    pinpoint::SessionArchiveRun run;   // this scan's own (a worker thread: never the app's identity map)
-    const QDir r(root);
-    for (const QString &athlete : r.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        const QDir a(r.filePath(athlete));
-        for (const QString &session : a.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QString dir = a.filePath(session);
-            const int swings = int(pinpoint::SwingPaths::swingFolders(dir).size());
-            if (swings == 0) continue;
-            SessionRow s;
-            s.dir = QDir::cleanPath(dir);
-            s.name = session;
-            s.athlete = athlete;
-            s.dateMs   = QFileInfo(dir).lastModified().toMSecsSinceEpoch();
-            s.archived = SessionArchiver::isArchived(dir);
-            if (const auto e = run.sessions().open(run.openSession(dir))) {
-                if (e->identity.localDay().isValid())
-                    s.dateMs = e->identity.localDay().startOfDay().toMSecsSinceEpoch();
-                s.archived = e->archived;
-            }
-            s.bytes = SessionArchiver::folderBytes(dir);
-            s.swings = swings;
-            out << s;
-        }
-    }
-    std::sort(out.begin(), out.end(), [](const SessionRow &x, const SessionRow &y) {
-        return x.dateMs != y.dateMs ? x.dateMs > y.dateMs : x.dir > y.dir;
-    });
-    return out;
-}
-
-// The trash entries: <root>/.pinpoint-trash/<athlete>/<stamp>_<name>, each a session or a swing.
-QStringList listTrash(const QString &root)
-{
-    QStringList out;
-    const QDir t(root + QStringLiteral("/.pinpoint-trash"));
-    for (const QString &athlete : t.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        const QDir a(t.filePath(athlete));
-        for (const QString &e : a.entryList(QDir::Dirs | QDir::Files | QDir::NoDotAndDotDot))
-            out << a.filePath(e);
-    }
-    return out;
-}
-
-// When an entry was trashed: the yyyyMMdd-HHmmss stamp SwingPaths::trashPath puts on its name.
-QDateTime trashedAt(const QString &entry)
-{
-    const QDateTime t = QDateTime::fromString(QFileInfo(entry).fileName().left(15),
-                                              QStringLiteral("yyyyMMdd-HHmmss"));
-    return t.isValid() ? t : QFileInfo(entry).lastModified();
-}
-
-bool removeEntry(const QString &p)
-{
-    const QFileInfo fi(p);
-    return fi.isDir() ? QDir(p).removeRecursively() : QFile::remove(p);
-}
-
-// THE ONE PURGE (MD-08: DEC-137): the library trash's entries — sessions, swings, and whole athletes
-// (step 2.3's `<athlete>/<stamp>_<athlete>`) — trashed before `cutoff` (an invalid cutoff: every entry),
-// deleted for good. The only code that ends a trashed thing; "Empty now" and the retention pass both call it.
-struct Purged { int removed = 0, failed = 0; };
-Purged purgeTrash(const QString &root, const QDateTime &cutoff)
-{
-    Purged p;
-    for (const QString &e : listTrash(root)) {
-        if (cutoff.isValid() && !(trashedAt(e) < cutoff)) continue;
-        (removeEntry(e) ? p.removed : p.failed)++;
-    }
-    return p;
-}
+QList<SessionRow> scanSessions(const QString &root) { return pinpoint::SessionArchiveRun::scanLibrary(root); }
 
 } // namespace
 
@@ -198,7 +117,7 @@ void ArchiveController::refresh()
             if (s.swingsMeasured >= 30) break;
         }
         s.swingBytes = s.swingsMeasured > 0 ? double(bytes) / s.swingsMeasured : 0.0;
-        for (const QString &e : listTrash(root)) {
+        for (const QString &e : pinpoint::SwingPaths::trashEntries(root)) {
             ++s.trashEntries;
             s.trashBytes += QFileInfo(e).isDir() ? double(SessionArchiver::folderBytes(e)) : double(QFileInfo(e).size());
         }
@@ -278,16 +197,15 @@ pinpoint::SessionId sessionFor(pinpoint::SessionArchiveRun &run, const QString &
     return id;
 }
 
-// One session archived through its repository, by SessionId (brief §4.12), in a run of its own. The
-// repository refuses one its session file says is in progress — here or on another computer.
+// One session archived through its repository, by SessionId, in a run of its own (SessionArchiveRun::archiveInOwnRun:
+// moved there unchanged in refactor step 3.8). The repository refuses one its session file says is in progress.
 pinpoint::SessionArchiveResult archiveOne(const QString &sessionDir, const QString &location, bool keepRaw,
                                           const pinpoint::SessionArchiveProgress &progress)
 {
-    pinpoint::SessionArchiveRun run;
     pinpoint::SessionArchiveOptions opt;
     opt.archiveRoot = location;
     opt.keepRaw     = keepRaw;
-    return run.sessions().archive(sessionFor(run, sessionDir), opt, progress);
+    return pinpoint::SessionArchiveRun::archiveInOwnRun(sessionDir, opt, progress);
 }
 } // namespace
 
@@ -350,8 +268,14 @@ void ArchiveController::emptyTrash()
     if (!m_settings) return;
     const QString root = m_settings->athleteLibraryPath();
     if (root.isEmpty()) return;
-    startJob(tr("Emptying the trash…"), [root](ArchiveController *, std::shared_ptr<std::atomic_bool>) {
-        const Purged p = purgeTrash(root, QDateTime());
+    if (!m_housekeeping) {
+        ppWarn() << "[Archive] no housekeeping: the trash was not emptied";
+        return;
+    }
+    // THE ONE PURGE (DEC-80, DEC-137): housekeeping's, on the worker (a copy: it keeps no state).
+    const pinpoint::Housekeeping housekeeping = *m_housekeeping;
+    startJob(tr("Emptying the trash…"), [root, housekeeping](ArchiveController *, std::shared_ptr<std::atomic_bool>) {
+        const pinpoint::TrashPurge p = housekeeping.purge(root);
         return p.failed == 0 ? QObject::tr("Trash emptied: %1 items removed.").arg(p.removed)
                              : QObject::tr("Trash: %1 removed, %2 could not be.").arg(p.removed).arg(p.failed);
     });
@@ -362,62 +286,72 @@ void ArchiveController::cancel()
     if (m_abort) m_abort->store(true);
 }
 
+ArchiveController::ArchiveJobs ArchiveController::archiveJobs()
+{
+    return [](const QString &sessionDir, const pinpoint::SessionArchiveOptions &options,
+              const pinpoint::SessionArchiveProgress &progress) {
+        return pinpoint::SessionArchiveRun::archiveInOwnRun(sessionDir, options, progress);
+    };
+}
+
+void ArchiveController::stopJobs()
+{
+    if (m_abort) m_abort->store(true);
+    if (m_watcher.isRunning()) m_watcher.waitForFinished();
+}
+
 void ArchiveController::runHousekeeping()
 {
     if (!m_settings) return;
-    const QString root     = m_settings->athleteLibraryPath();
+    pinpoint::Housekeeping::Plan plan;
+    plan.libraryRoot        = m_settings->athleteLibraryPath();
+    plan.trashRetentionDays = m_settings->trashRetentionDays();
+    plan.archiveAfterDays   = m_settings->archiveAfterDays();
+    plan.archiveFloorGb     = m_settings->archiveFloorGb();
+    plan.keepRaw            = m_settings->archiveKeepRaw();
+    plan.liveFolder         = m_liveDir;
+    // An archive location that is not a folder here archives nothing (as before).
     const QString location = m_settings->archiveLocation();
-    const int  retention   = m_settings->trashRetentionDays();
-    const int  afterDays   = m_settings->archiveAfterDays();
-    const int  floorGb     = m_settings->archiveFloorGb();
-    const bool keepRaw     = m_settings->archiveKeepRaw();
-    if (root.isEmpty()) return;
-    const bool canArchive = !location.isEmpty() && QFileInfo(location).isDir();
-    const QString liveDir  = m_liveDir;
-    const pinpoint::report::ReportFingerprintFn fp = canArchive ? reportFingerprint() : pinpoint::report::ReportFingerprintFn();
-    if (retention <= 0 && (!canArchive || (afterDays <= 0 && floorGb <= 0))) {
+    plan.archiveLocation = !location.isEmpty() && QFileInfo(location).isDir() ? location : QString();
+    if (plan.libraryRoot.isEmpty()) return;
+    if (!plan.anythingOn()) {
         refresh();
         return;   // nothing is switched on: not even a status line
     }
+    if (!m_housekeeping) {
+        ppWarn() << "[Archive] no housekeeping: the startup pass did not run";
+        refresh();
+        return;
+    }
+    const pinpoint::report::ReportFingerprintFn fp = plan.canArchive() ? reportFingerprint() : pinpoint::report::ReportFingerprintFn();
+    const pinpoint::Housekeeping housekeeping = *m_housekeeping;   // a copy for the worker: it keeps no state
+    const QString root = plan.libraryRoot;
+    plan.freeBytes = [root] { return QStorageInfo(root).bytesAvailable(); };
+    // Today's walk of the library and today's archive of a folder no Athlete holds (Mark's N1), both this tab's.
+    pinpoint::LibraryWalk walk;
+    walk.scan = [](const QString &libraryRoot) {
+        QList<pinpoint::LibraryWalk::Folder> out;
+        for (const SessionRow &s : pinpoint::SessionArchiveRun::scanLibrary(libraryRoot, /*withBytes=*/false))
+            out.append({ s.dir, s.dateMs, s.archived });
+        return out;
+    };
+    walk.archiveUnheld = [](const QString &folder, const pinpoint::SessionArchiveOptions &options) {
+        return pinpoint::SessionArchiveRun::archiveInOwnRun(folder, options);
+    };
 
-    startJob(tr("Housekeeping…"), [=](ArchiveController *, std::shared_ptr<std::atomic_bool> abort) {
-        QStringList done;
-        // 1. The trash, past its retention.
-        if (retention > 0) {
-            const int removed = purgeTrash(root, QDateTime::currentDateTime().addDays(-retention)).removed;
-            if (removed) done << QObject::tr("%1 trash items older than %2 days removed").arg(removed).arg(retention);
-        }
-        if (canArchive && (afterDays > 0 || floorGb > 0)) {
-            const auto archiveDir = [&](const QString &dir) {
-                return pinpoint::report::keepReportCurrent(dir, fp, [&] {
-                    return archiveOne(dir, location, keepRaw, {});
-                }).ok;
+    startJob(tr("Housekeeping…"), [plan, housekeeping, fp, walk](ArchiveController *self, std::shared_ptr<std::atomic_bool> abort) {
+        // Each archive keeps a report that was current, current (S-D6).
+        const pinpoint::Housekeeping::ArchiveWrap wrap =
+            [fp](const QString &dir, const std::function<pinpoint::SessionArchiveResult()> &archive) {
+                return pinpoint::report::keepReportCurrent(dir, fp, archive);
             };
-            // Today's sessions are never touched: one may still be recording.
-            const qint64 today = QDate::currentDate().startOfDay().toMSecsSinceEpoch();
-            QList<SessionRow> sessions = scanSessions(root);   // newest first
-            int archived = 0;
-            // 2. By age.
-            if (afterDays > 0) {
-                const qint64 cutoff = QDate::currentDate().addDays(-afterDays).startOfDay().toMSecsSinceEpoch();
-                for (SessionRow &s : sessions) {
-                    if (abort->load()) break;
-                    if (s.archived || s.dateMs >= today || s.dateMs >= cutoff || s.dir == liveDir) continue;
-                    if (archiveDir(s.dir)) { s.archived = true; ++archived; }
-                }
-            }
-            // 3. Below the floor: the oldest first, until there is room again or nothing is left.
-            if (floorGb > 0) {
-                for (auto it = sessions.rbegin(); it != sessions.rend(); ++it) {
-                    if (abort->load()) break;
-                    QStorageInfo si(root);
-                    if (si.bytesAvailable() >= qint64(floorGb) * 1024 * 1024 * 1024) break;
-                    if (it->archived || it->dateMs >= today || it->dir == liveDir) continue;
-                    if (archiveDir(it->dir)) { it->archived = true; ++archived; }
-                }
-            }
-            if (archived) done << QObject::tr("%1 sessions archived").arg(archived);
-        }
+        // The Athletes and their Sessions are reached on this controller's (the GUI) thread; the archives run here.
+        const pinpoint::Housekeeping::Report r = housekeeping.run(plan, walk, self, abort.get(), wrap);
+        QStringList done;
+        if (r.trashRemoved)
+            done << QObject::tr("%1 trash items older than %2 days removed").arg(r.trashRemoved).arg(plan.trashRetentionDays);
+        if (r.archived)
+            done << QObject::tr("%1 sessions archived").arg(r.archived);
         return done.isEmpty() ? QObject::tr("Housekeeping: nothing to do.")
                               : QObject::tr("Housekeeping: %1.").arg(done.join(QStringLiteral("; ")));
     });

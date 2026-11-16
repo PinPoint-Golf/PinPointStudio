@@ -67,7 +67,7 @@ struct WristDomainContribution {
 
 struct WristDomainScoreResult {
     int     score = -1;         // -1 = not assessable (no wrist condition read)
-    QString band;               // "good"|"watch"|"weak"|"fault" — WristDiagnosticsModel::scoreBand's cut-offs
+    QString band;               // "good"|"watch"|"weak"|"fault" — the retired WristDiagnosticsModel::scoreBand's cut-offs
     int     base = 100;
     std::vector<WristDomainContribution> contributions;
 };
@@ -156,7 +156,7 @@ inline double wristDomainWeight(const QString &conditionId)
     return kWristDomainDefaultWeight;
 }
 
-// The engine's band cut-offs (WristDiagnosticsModel::scoreBand), so one number reads one way.
+// The engine's band cut-offs (the retired WristDiagnosticsModel::scoreBand's), so one number reads one way.
 inline QString wristDomainBand(int score)
 {
     if (score < 0)   return QString();

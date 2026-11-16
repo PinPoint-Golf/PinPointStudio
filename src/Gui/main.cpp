@@ -102,6 +102,7 @@
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
+#include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
 #include "../DomainModel/session.h"
@@ -327,8 +328,15 @@ int main(int argc, char *argv[])
     sessionStore.setCaptureEndReader(&pinpoint::SwingStoreRecordingRepository::captureEndOf);
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
-    // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
+    // Archiving tab: move sessions out of the library and back, the trash, hours of capture left. Its "Empty now" and
+    // the startup pass forward to housekeeping (below, once the athlete callables exist).
     ArchiveController        archiveController(&appSettings);
+    // The session repository's worker-safe archive job (step 3.8): Session::archiveJob hands it out, housekeeping runs it.
+    // ⚠ A LINT DODGE, recorded for Mark with J-9 (3.8-i NOTES, round 3): the job is the archiver's
+    // (SessionArchiveRun::archiveInOwnRun), and the honest wiring is this file naming src/Export/session_archiver.h —
+    // lint A5's count for main.cpp 8 → 9, an allowlist change only Mark makes. Until he decides, it comes through the
+    // Archiving tab, which already includes the archiver.
+    sessionStore.setArchiveJobs(ArchiveController::archiveJobs());
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;
@@ -380,8 +388,8 @@ int main(int argc, char *argv[])
     }
     // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
     // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
-    // re-pointed needs no new ones). AthleteController takes them (run 3.4a-ii); the catch-up, housekeeping and
-    // its purge in steps 3.6 and 3.8.
+    // re-pointed needs no new ones). AthleteController takes them (run 3.4a-ii); the catch-up in step 3.6; housekeeping
+    // in step 3.8 (with its purge and size doors, below).
     const pinpoint::AthleteCallables athleteCallables{
         [&athleteStore] { return athleteStore.list(); },
         [&athleteStore](const pinpoint::AthleteId &id) { return athleteStore.load(id); },
@@ -393,6 +401,21 @@ int main(int argc, char *argv[])
         },
         [&athleteStore](const pinpoint::SessionOwner &owner) { return athleteStore.readActivity(owner); },   // thread-safe
     };
+    // HOUSEKEEPING (refactor step 3.8; DEC-80, DEC-137): the one application service that ends things for good — the one
+    // purge, the startup pass (a session an Athlete holds archived through its Session) — and the library's size for the
+    // settings page (DEC-188). Its doors are the composition root's callables (D18 (c): DEC-167): the athlete callables
+    // above, and the purge and the size, carried out in Export (SwingPaths). The Archiving tab keeps a pointer (it is
+    // stopped after exec, before this goes); the settings page keeps a copy of the size door.
+    const pinpoint::Housekeeping housekeeping(pinpoint::HousekeepingDoors{
+        athleteCallables,
+        [](const QString &root, const QDateTime &cutoff) {
+            const pinpoint::SwingPaths::Purged p = pinpoint::SwingPaths::purgeTrash(root, cutoff);
+            return pinpoint::TrashPurge{ p.removed, p.failed };
+        },
+        [](const QString &root, const std::atomic_bool *abort) { return pinpoint::SwingPaths::libraryBytes(root, abort); },
+    });
+    appSettings.setLibrarySizer(housekeeping.librarySize());
+    archiveController.setHousekeeping(&housekeeping);
     AthleteController       athleteController;
     athleteController.setCallables(athleteCallables, &sessionStore);
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
@@ -579,7 +602,8 @@ int main(int argc, char *argv[])
     }
 
     // The startup housekeeping pass (trash retention, archive by age / below a floor), every part
-    // of it off until set. Deferred so it never competes with the launch itself.
+    // of it off until set — housekeeping's, run on the Archiving tab's worker. Deferred so it never competes with the
+    // launch itself.
     QTimer::singleShot(60'000, &archiveController, &ArchiveController::runHousekeeping);
     // Sessions and the live carousel are both athlete-scoped, but the reload above only
     // ever ran once, at startup — so switching athlete left BOTH showing the previous
@@ -1623,6 +1647,7 @@ int main(int argc, char *argv[])
     });
 
     exitCode = QCoreApplication::exec();
+    archiveController.stopJobs();         // its housekeeping pass reaches the Athletes: stopped before they go (step 3.8)
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
     SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
     pinpoint::parallel::uninstall();                     // `app` and the controller are locals of main (3.5-ii)

@@ -18,6 +18,8 @@
 
 #include "session_archiver.h"
 
+#include <algorithm>
+
 #include "athlete_files.h"   // the owner of a session older than step 2 (J-39)
 #include "session_files.h"   // archived.json, spelled once
 #include "swing_doc.h"
@@ -644,6 +646,51 @@ SessionArchiver::ReviewMerge SessionArchiver::mergeReview(const QJsonObject &arc
 }
 
 // ── The run ──────────────────────────────────────────────────────────────────────────────────────
+
+SessionArchiveResult SessionArchiveRun::archiveInOwnRun(const QString &sessionDir, const SessionArchiveOptions &options,
+                                                        const SessionArchiveProgress &progress)
+{
+    SessionArchiveRun run;
+    const SessionId id = run.openSession(sessionDir);
+    if (id.isNull())
+        ppWarn() << "[Archive] the session of" << sessionDir << "cannot be named (no session file, and no"
+                 << "athlete recorded for it)";
+    return run.sessions().archive(id, options, progress);
+}
+
+QList<SessionArchiveRun::LibrarySession> SessionArchiveRun::scanLibrary(const QString &root, bool withBytes)
+{
+    QList<LibrarySession> out;
+    SessionArchiveRun run;   // this scan's own (a worker thread: never the app's identity map)
+    const QDir r(root);
+    for (const QString &athlete : r.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        const QDir a(r.filePath(athlete));
+        for (const QString &session : a.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QString dir = a.filePath(session);
+            const int swings = int(SwingPaths::swingFolders(dir).size());
+            if (swings == 0) continue;
+            LibrarySession s;
+            s.dir = QDir::cleanPath(dir);
+            s.name = session;
+            s.athlete = athlete;
+            s.dateMs   = QFileInfo(dir).lastModified().toMSecsSinceEpoch();
+            s.archived = SessionArchiver::isArchived(dir);
+            if (const auto e = run.sessions().open(run.openSession(dir))) {
+                if (e->identity.localDay().isValid())
+                    s.dateMs = e->identity.localDay().startOfDay().toMSecsSinceEpoch();
+                s.archived = e->archived;
+            }
+            if (withBytes)
+                s.bytes = SessionArchiver::folderBytes(dir);
+            s.swings = swings;
+            out << s;
+        }
+    }
+    std::sort(out.begin(), out.end(), [](const LibrarySession &x, const LibrarySession &y) {
+        return x.dateMs != y.dateMs ? x.dateMs > y.dateMs : x.dir > y.dir;
+    });
+    return out;
+}
 
 SessionId SessionArchiveRun::openSession(const QString &sessionDirIn)
 {

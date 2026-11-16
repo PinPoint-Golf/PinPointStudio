@@ -44,8 +44,10 @@
 //   • THE THEMES ("Your swing", "what you do well", the focus; FILE-ATH-03's rule, every club): reduceSwingThemes over
 //     the summaries' compact theme facts (each assessed row: fired, in band; the shot's table cells), by session name,
 //     the replicates through the caller's parallel-for.
-// NOT HERE: the consistency grades (their grader and window rule are in src/Gui/variability, which the domain ring may
-// not include — they stay WorkOnsController's, now reading nothing a summary does not also carry: 3.6 NOTES round 2);
+// NOT HERE: the consistency grades — they stay WorkOnsController's, reading nothing a summary does not also carry (3.6
+// NOTES round 2). Their grader is in the Rules ring since refactor step 3.8 (src/Coaching/consistency_grade.h; J-34);
+// the window rule (a fault's last readings across the golfer's sessions) is still WorkOnsController's, so grading them
+// here is left for 3.8-ii (3.8-i NOTES);
 // the themes and work-ons under a club scope or a shot filter (WorkOnsController's until the catch-up's cut-over, 3.7);
 // intent consistency (no code computes it: DEC-58's intent summaries were never built). The praise rule is applied where
 // the grades are (swing_themes.h applyPraiseRule, WorkOnsController::publishSummary).

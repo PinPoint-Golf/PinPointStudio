@@ -380,6 +380,11 @@ public:
 
     qint64 sessionBytes() const         { return m_sessionBytes; }
     bool   sessionBytesScanning() const { return m_sessionBytesScanning; }
+    // THE LIBRARY'S SIZE COMES FROM HOUSEKEEPING AND THE REPOSITORIES (refactor step 3.8; Mark, 15 Nov 2026: DEC-188), not
+    // a walk of this object's own: the composition root hands in Housekeeping::librarySize() — called on the scan's
+    // worker with the library root and the abort flag, -1 when it stopped part-way. Not set: no scan (logged).
+    using LibrarySizer = std::function<qint64(const QString &libraryRoot, const std::atomic_bool *abort)>;
+    void setLibrarySizer(LibrarySizer sizer) { m_librarySizer = std::move(sizer); }
 
     // Cross-platform conversion of a FolderDialog/FileDialog url to a native local
     // path. QML's JS `url` type has no toLocalFile(), and naively stripping "file://"
@@ -1949,4 +1954,5 @@ private:
     // not cancellable, and waiting on a full network walk would stall every quit by as long as the
     // stall this change exists to remove — so the walk polls this and returns early instead.
     std::shared_ptr<std::atomic_bool> m_sessionBytesAbort;
+    LibrarySizer                      m_librarySizer;   // housekeeping's (DEC-188), copied into each scan
 };

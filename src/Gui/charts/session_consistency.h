@@ -47,6 +47,7 @@
 #include "../../Coaching/consistency_home.h"    // the table's shape: columns and areas
 #include "session_series_types.h"
 #include "session_warp.h"
+#include "../../Metrics/variability/variability_pooling.h"   // the within-club residuals (moved down in step 3.8)
 
 #include <QString>
 #include <QStringList>
@@ -62,7 +63,7 @@ inline constexpr int    kConsistencySamplesPerSpan = 5;     // doc §4.1: five p
                                                             // WEAKEST of the five (§4.3 "across the whole span")
 inline constexpr int    kConsistencyMinSpanSamples = 3;     // doc §4.1: a span needs a spread at 3 of its 5 points
 inline constexpr double kConsistencySpreadDivisor  = 1.349; // doc §4.1: the middle half ÷ 1.349
-inline constexpr int    kConsistencyMinClubShots   = 3;     // doc §4.1: a club under 3 shots is left out, counting every shot
+inline constexpr int    kConsistencyMinClubShots   = variability::kPoolMinClubShots;   // doc §4.1: 3 (the pooling's, step 3.8)
                                                             // with the label. The club's median INCLUDES the shot
 inline constexpr int    kConsistencyMinSpreadShots = 5;     // doc §4.1: a spread needs at least 5 shots
 inline constexpr int    kConsistencyMinOthers      = 6;     // doc §4.3: a stand-out needs 6 other shots at the point

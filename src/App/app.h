@@ -55,8 +55,9 @@ namespace pinpoint {
 
 // D18 (c): how the application services and AthleteController reach the athletes they act on. Made once by
 // the composition root over its one athlete repository; the repository reads the library setting (SET-03) on
-// every call, so a library re-pointed needs no new callables. AthleteController takes them from run 3.4a-ii;
-// the trash's purge joins them in step 3.8.
+// every call, so a library re-pointed needs no new callables. AthleteController takes them from run 3.4a-ii.
+// Housekeeping (step 3.8) takes them too, with its purge and size doors (HousekeepingDoors, housekeeping.h); its pass
+// runs on a worker and calls them on the GUI thread only.
 struct AthleteCallables {
     std::function<QList<AthleteId>()>                              listAthletes;    // the library's athletes
     std::function<Athlete *(const AthleteId &)>                    loadAthlete;     // the one instance (DEC-52)
