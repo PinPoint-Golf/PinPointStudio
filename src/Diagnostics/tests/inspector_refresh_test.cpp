@@ -40,12 +40,14 @@
 //   ctest --test-dir build/analyzer-tests -R inspector_refresh --output-on-failure
 
 #include "model_browser.h"
+#include "model_browser_test_support.h"
 #include "../../Export/rule_data_install.h"
 #include "../../Export/rule_data_store.h"   // the shipped pack factory, for the typed-value checks
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../packs/pack_provider.h"
 #include "../norms/norm_provider.h"
+#include "../norms/corridor_plot.h"
 #include "../packs/drill_pack.h"
 #include "../packs/screen_pack.h"
 #include "../measures/anatomy_vocabulary.h"
@@ -60,6 +62,11 @@
 #include <cstdio>
 
 using namespace pinpoint::analysis;
+using model_browser_test::asMap;
+using model_browser_test::asMaps;
+using model_browser_test::graphOptions;
+using model_browser_test::plotOptions;
+using model_browser_test::rowQuery;
 
 static int  g_fail = 0;
 static void check(bool c, const char *label)
@@ -189,6 +196,51 @@ QtObject {
         return ""
     }
     function ringSize(type, id, field) { return root.browser.ringValues(type, id, field).length }
+
+    // The second run (3.9-ii): what QML passes IN is a plain object, converted to a structured gadget.
+    // DiagnosticModel.qml's rows() idiom — the facet picks held as { key: [values] }, passed as a list.
+    function idsOf(rows) { var out = []; for (var i = 0; i < rows.length; i++) out.push(rows[i].id); return out.join(",") }
+    function rowsFaceted(type, key, value, sort) {
+        var facets = {}
+        facets[key] = [ value ]
+        return root.idsOf(root.browser.rows(type, { sort: sort, descending: true,
+                                                     facets: Object.keys(facets).map(
+                                                         k => ({ key: k, values: facets[k] })),
+                                                     search: "" }))
+    }
+    function rowsByIds(type, a, b) { return root.idsOf(root.browser.rows(type, { ids: [ a, b ] })) }
+    function rowsAll(type) { return root.idsOf(root.browser.rows(type, {})) }
+    // The graph call's idiom: a metrics object, the bound and the switches.
+    function graphShape(type, id, depth) {
+        var g = root.browser.graph(type, id, { nodeH: 34, gapX: 165, gapY: 39, depth: depth,
+                                               expanded: [], includeMeasures: false,
+                                               includeReferences: false, includeScreened: true,
+                                               hideWeak: false, hideProposed: false })
+        var linked = 0
+        for (var i = 0; i < g.edges.length; i++) if (!!g.edges[i].rowId) linked++
+        return g.nodes.length + "/" + g.edges.length + "/" + linked + "/" + Math.round(g.width)
+    }
+    function graphDefaultWidth(type, id) { return String(Math.round(root.browser.graph(type, id, {}).width)) }
+    // ModelCorridorPlot.qml's idiom: the canvas size, and a drag's preview only while dragging.
+    function plotAt(m, c, previewMu) {
+        var o = { width: 400, height: 150 }
+        if (!isNaN(previewMu)) o.previewMu = previewMu
+        var p = root.browser.corridorPlot(m, c, o)
+        return p.found === true ? p.mu + "/" + Math.round(p.width) : "not found"
+    }
+    function plotDefaultWidth(m, c) { var p = root.browser.corridorPlot(m, c, {}); return String(Math.round(p.width)) }
+    // ModelInspector.qml's idiom: a report field is checked live; an ordinary field is not.
+    function checkedFields(type, id, title) {
+        var d = root.browser.inspect(type, id), n = 0, all = 0
+        for (var s = 0; s < d.sections.length; s++) {
+            if (d.sections[s].title !== title) continue
+            for (var r = 0; r < d.sections[s].rows.length; r++) {
+                all++
+                if (d.sections[s].rows[r].wordingChecked === true) n++
+            }
+        }
+        return n + "/" + all
+    }
 }
 )QML";
 
@@ -279,6 +331,98 @@ static void typedValuesThroughQml(QQmlEngine &engine)
               && callString(root.get(), "ringCurrent", QStringLiteral("links"), linkId, QStringLiteral("strength"))
                      == strength,
           "QML reads five collar cells and the one marked current is the link's strength");
+
+    // ── What QML passes IN (3.9-ii, second run) ──────────────────────────────
+    std::printf("=== plain objects into the typed arguments (3.9-ii) ===\n");
+    const auto joinIds = [](const QList<ModelRow> &rows) {
+        QStringList ids;
+        for (const ModelRow &r : rows) ids << r.id;
+        return ids.join(QLatin1Char(','));
+    };
+    const QString chars = QStringLiteral("characteristics");
+    const QList<ModelFacet> fs = browser->facets(chars);
+    QString facetKey, facetValue;
+    for (const ModelFacet &f : fs)
+        if (f.kind == QStringLiteral("value") && f.options.size() > 1) {
+            facetKey   = f.key;
+            facetValue = f.options.at(1).value;
+            break;
+        }
+    check(!facetKey.isEmpty(), "a value facet with a second option to pick");
+    ModelRowQuery q;
+    q.sort       = QStringLiteral("name");
+    q.descending = true;
+    ModelFacetPick pick;
+    pick.key    = facetKey;
+    pick.values = QStringList{ facetValue };
+    q.facets.append(pick);
+    const QString wantFaceted = joinIds(browser->rows(chars, q));
+    QVariant got;
+    QMetaObject::invokeMethod(root.get(), "rowsFaceted", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, chars),
+                              Q_ARG(QVariant, facetKey), Q_ARG(QVariant, facetValue),
+                              Q_ARG(QVariant, QStringLiteral("name")));
+    check(!wantFaceted.isEmpty() && got.toString() == wantFaceted
+              && wantFaceted != joinIds(browser->rows(chars)),
+          "the panel's rows() object — sort, direction and the facet picks as a list — reaches the query");
+    const QList<ModelRow> all = browser->rows(chars);
+    check(all.size() > 2, "rows to pick by id");
+    if (all.size() > 2) {
+        ModelRowQuery byIds;
+        byIds.ids = QStringList{ all.at(2).id, all.at(0).id };
+        check(callString(root.get(), "rowsByIds", chars, all.at(2).id, all.at(0).id) == joinIds(browser->rows(chars, byIds))
+                  && joinIds(browser->rows(chars, byIds)).split(QLatin1Char(',')).size() == 2,
+              "an ids-only object keeps exactly those rows");
+        check(callString(root.get(), "rowsAll", chars) == joinIds(all), "and an empty object is the default query");
+    }
+
+    ModelGraphOptions go;
+    go.nodeH = 34; go.gapX = 165; go.gapY = 39; go.depth = 1;
+    go.includeMeasures = false; go.includeReferences = false; go.includeScreened = true;
+    const ModelGraph g1 = browser->graph(chars, effect, go);
+    int linked = 0;
+    for (const ModelGraphEdge &e : g1.edges) if (!e.rowId.isEmpty()) ++linked;
+    const QString wantGraph = QStringLiteral("%1/%2/%3/%4").arg(g1.nodes.size()).arg(g1.edges.size()).arg(linked)
+                                  .arg(qRound(g1.width));
+    QMetaObject::invokeMethod(root.get(), "graphShape", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, chars),
+                              Q_ARG(QVariant, effect), Q_ARG(QVariant, 1));
+    check(!g1.nodes.isEmpty() && got.toString() == wantGraph,
+          "the graph's options object lays out exactly as the typed options do, links marked by rowId");
+    QMetaObject::invokeMethod(root.get(), "graphDefaultWidth", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, chars),
+                              Q_ARG(QVariant, effect));
+    check(got.toString() == QString::number(qRound(browser->graph(chars, effect).width)),
+          "and an empty one keeps the layout's defaults");
+
+    QString plotMeasure, plotContext;
+    for (const ModelRow &r : browser->rows(QStringLiteral("corridors")))
+        if (!r.measureId.isEmpty()) { plotMeasure = r.measureId; plotContext = r.contextId; break; }
+    check(!plotMeasure.isEmpty(), "a corridor to plot");
+    if (!plotMeasure.isEmpty()) {
+        ModelCorridorPlotOptions po;
+        po.width = 400; po.height = 150;
+        const ModelCorridorPlot rest = browser->corridorPlot(plotMeasure, plotContext, po);
+        QMetaObject::invokeMethod(root.get(), "plotAt", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, plotMeasure),
+                                  Q_ARG(QVariant, plotContext), Q_ARG(QVariant, qQNaN()));
+        // JS prints a number shortest-round-trip; so does FloatingPointShortest.
+        const auto js = [](double v) { return QString::number(v, 'g', QLocale::FloatingPointShortest); };
+        check(rest.found && got.toString() == QStringLiteral("%1/400").arg(js(rest.mu)),
+              "the plot's size object lays out at that size, at the stored centre");
+        QMetaObject::invokeMethod(root.get(), "plotAt", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, plotMeasure),
+                                  Q_ARG(QVariant, plotContext), Q_ARG(QVariant, rest.mu + 1.5));
+        check(got.toString() == QStringLiteral("%1/400").arg(js(rest.mu + 1.5)),
+              "a drag's previewMu, given only while dragging, moves the centre");
+        QMetaObject::invokeMethod(root.get(), "plotDefaultWidth", Q_RETURN_ARG(QVariant, got),
+                                  Q_ARG(QVariant, plotMeasure), Q_ARG(QVariant, plotContext));
+        check(got.toString() == QString::number(qRound(CorridorPlotOptions{}.width)),
+              "and an empty object keeps CorridorPlotOptions' size");
+    }
+
+    const QString habit = QStringLiteral("s_posture");
+    const QString reportChecked = callString(root.get(), "checkedFields", chars, habit, QStringLiteral("Report"));
+    const QStringList rc = reportChecked.split(QLatin1Char('/'));
+    check(rc.size() == 2 && rc.at(0) == rc.at(1) && rc.at(0).toInt() > 0,
+          "QML reads every report field as checked live");
+    check(callString(root.get(), "checkedFields", chars, habit, QStringLiteral("Fields")).startsWith(QStringLiteral("0/")),
+          "and no ordinary field");
 }
 
 int main(int argc, char **argv)
@@ -297,6 +441,12 @@ int main(int argc, char **argv)
     // The editor's value types (model_browser.h; the app registers them through its QML module).
     qmlRegisterTypesAndRevisions<ModelLinkRefusals, ModelLinkRefusal, ModelMeasurePreview, ModelCandidate,
                                  ModelOption>("Probe", 1);
+    qmlRegisterTypesAndRevisions<ModelColumn, ModelCell, ModelRow, ModelFacetOption, ModelFacet, ModelFacetPick,
+                                 ModelRowQuery, ModelFieldIssue, ModelInspectorRow, ModelInspectorSection,
+                                 ModelInspection>("Probe", 1);
+    qmlRegisterTypesAndRevisions<ModelGraphMeasure, ModelGraphReference, ModelGraphNode, ModelGraphEdge,
+                                 ModelGraphHeading, ModelGraph, ModelGraphOptions, ModelPlotPoint, ModelPlotBand,
+                                 ModelCorridorPlot, ModelCorridorPlotOptions>("Probe", 1);
 
     QQmlEngine    engine;
     QQmlComponent component(&engine);
@@ -326,7 +476,7 @@ int main(int argc, char **argv)
 
     // Somewhere with room for one more cause.
     QString target, cause;
-    for (const QVariant &v : browser->rows(QStringLiteral("characteristics"))) {
+    for (const QVariant &v : asMaps(browser->rows(QStringLiteral("characteristics")))) {
         const QString      id    = v.toMap().value(QStringLiteral("id")).toString();
         const auto cands = browser->linkCandidates(QStringLiteral("causes"), id);
         if (cands.isEmpty()) continue;
@@ -388,7 +538,7 @@ int main(int argc, char **argv)
     }
 
     // ── The same question for the panes added in ADDENDUM-02 ────────────────
-    const QVariantList screens = browser->rows(QStringLiteral("screens"));
+    const QVariantList screens = asMaps(browser->rows(QStringLiteral("screens")));
     if (!screens.isEmpty()) {
         const QString screenId = screens.first().toMap().value(QStringLiteral("id")).toString();
         root->setProperty("selectedType", QStringLiteral("screens"));
@@ -414,7 +564,7 @@ int main(int argc, char **argv)
         while (browser->canUndo()) browser->undo();
     }
 
-    const QVariantList drills = browser->rows(QStringLiteral("drills"));
+    const QVariantList drills = asMaps(browser->rows(QStringLiteral("drills")));
     if (!drills.isEmpty()) {
         const QString drillId = drills.first().toMap().value(QStringLiteral("id")).toString();
         root->setProperty("selectedType", QStringLiteral("drills"));
@@ -434,7 +584,7 @@ int main(int argc, char **argv)
 
     // A corridor is edited through the plot, which reads a different binding — but its pane's rows
     // come through the same one.
-    const QVariantList corridors = browser->rows(QStringLiteral("corridors"));
+    const QVariantList corridors = asMaps(browser->rows(QStringLiteral("corridors")));
     if (!corridors.isEmpty()) {
         const QString cid = corridors.first().toMap().value(QStringLiteral("id")).toString();
         root->setProperty("selectedType", QStringLiteral("corridors"));

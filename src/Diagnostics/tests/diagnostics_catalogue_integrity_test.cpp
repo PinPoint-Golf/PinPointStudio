@@ -21,6 +21,7 @@
 #include "../measures/anatomy_vocabulary.h"  // roleName
 
 #include "model_browser.h"
+#include "model_browser_test_support.h"
 #include "metric_catalogue.h"
 
 #include <QDir>
@@ -35,6 +36,11 @@
 #include <map>
 
 using namespace pinpoint::analysis;
+using model_browser_test::asMap;
+using model_browser_test::asMaps;
+using model_browser_test::graphOptions;
+using model_browser_test::plotOptions;
+using model_browser_test::rowQuery;
 
 static int  g_fail = 0;
 static void check(bool c, const char *label)
@@ -609,7 +615,7 @@ int main()
     {
         ModelBrowser model;
 
-        const QVariantList all = model.rows(QStringLiteral("characteristics"));
+        const QVariantList all = asMaps(model.rows(QStringLiteral("characteristics")));
         check(!all.isEmpty(), "the directory has rows to search");
 
         // A word from the middle of some row's label — a substring match, not a prefix one.
@@ -619,7 +625,7 @@ int main()
 
         QVariantMap f;
         f.insert(QStringLiteral("search"), label);
-        const QVariantList byLabel = model.rows(QStringLiteral("characteristics"), f);
+        const QVariantList byLabel = asMaps(model.rows(QStringLiteral("characteristics"), rowQuery(f)));
         bool foundByLabel = false;
         for (const QVariant &v : byLabel)
             if (v.toMap().value(QStringLiteral("id")).toString() == id) foundByLabel = true;
@@ -628,24 +634,24 @@ int main()
 
         // Case-insensitive: a coach types lower case, the pack is written in sentence case.
         f.insert(QStringLiteral("search"), label.toUpper());
-        check(model.rows(QStringLiteral("characteristics"), f).size() == byLabel.size(),
+        check(asMaps(model.rows(QStringLiteral("characteristics"), rowQuery(f))).size() == byLabel.size(),
               "search ignores case");
 
         // The id is searchable too — it is what a deep link, a swing.json and this test all
         // name a characteristic by, and it is invisible in the row.
         f.insert(QStringLiteral("search"), id);
         bool foundById = false;
-        for (const QVariant &v : model.rows(QStringLiteral("characteristics"), f))
+        for (const QVariant &v : asMaps(model.rows(QStringLiteral("characteristics"), rowQuery(f))))
             if (v.toMap().value(QStringLiteral("id")).toString() == id) foundById = true;
         check(foundById, "searching a row's id finds that row");
 
         f.insert(QStringLiteral("search"), QStringLiteral("zzzznothingmatchesthis"));
-        check(model.rows(QStringLiteral("characteristics"), f).isEmpty(),
+        check(asMaps(model.rows(QStringLiteral("characteristics"), rowQuery(f))).isEmpty(),
               "a search that matches nothing returns nothing");
 
         // An empty search is not a filter — it must not quietly drop rows.
         f.insert(QStringLiteral("search"), QStringLiteral("   "));
-        check(model.rows(QStringLiteral("characteristics"), f).size() == all.size(),
+        check(asMaps(model.rows(QStringLiteral("characteristics"), rowQuery(f))).size() == all.size(),
               "a blank search filters nothing");
     }
 
@@ -677,7 +683,7 @@ int main()
     {
         ModelBrowser model;
 
-        const QVariantList screens = model.rows(QStringLiteral("screens"));
+        const QVariantList screens = asMaps(model.rows(QStringLiteral("screens")));
         check(!screens.isEmpty(), "the screen registry is marshalled");
         int settling = 0, named = 0;
         for (const QVariant &v : screens) {
@@ -701,7 +707,7 @@ int main()
                   .value(QStringLiteral("settlesCount")).toInt(),
               "screens are ranked by how much they settle, not alphabetically");
 
-        const QVariantList drills = model.rows(QStringLiteral("drills"));
+        const QVariantList drills = asMaps(model.rows(QStringLiteral("drills")));
         check(!drills.isEmpty(), "the drill registry is marshalled");
         int answering = 0;
         for (const QVariant &v : drills)
@@ -778,12 +784,12 @@ int main()
 
         // The pairing as the panel serves it: a paper, and the claims resting on it. A façade that
         // shipped the papers and dropped the claims would render a plausible, useless appendix.
-        const QVariantList refRows = model.rows(QStringLiteral("references"));
+        const QVariantList refRows = asMaps(model.rows(QStringLiteral("references")));
         check(!refRows.isEmpty(), "the reference registry is marshalled");
         int withClaims = 0;
         for (const QVariant &v : refRows) {
             const QString rid = v.toMap().value(QStringLiteral("id")).toString();
-            if (!model.linksCitingReference(rid).isEmpty()) ++withClaims;
+            if (!asMaps(model.linksCitingReference(rid)).isEmpty()) ++withClaims;
         }
         check(withClaims > 0, "references carry the claims that rest on them");
 

@@ -214,7 +214,7 @@ Item {
     function _edgeAt(x, y) {
         for (var i = 0; i < _edges.length; i++) {
             var e = _edges[i]
-            if (e.rowId === undefined) continue
+            if (!e.rowId) continue
             var lx = (e.labelX || 0) + root._edgeLabelDX(e, root._nudgeRev)
             var ly = (e.labelY || 0) + root._edgeLabelDY(e, root._nudgeRev)
             if (Math.abs(x - lx) <= Theme.sp(16) && Math.abs(y - ly) <= Theme.sp(9)) return e
@@ -470,7 +470,7 @@ Item {
                 z: selected ? 3 : 1
 
                 readonly property bool selected:
-                    modelData.rowId !== undefined
+                    !!modelData.rowId
                     && (modelData.rowId === root.selectedEdgeId
                         || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0)
                 // The selected edge must be identifiable ON THE CANVAS: drawn heavier, with the
@@ -555,10 +555,11 @@ Item {
                 required property var modelData
 
                 readonly property bool selected:
-                    modelData.rowId === root.selectedEdgeId
-                    || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0
+                    !!modelData.rowId
+                    && (modelData.rowId === root.selectedEdgeId
+                        || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0)
 
-                visible: modelData.rowId !== undefined
+                visible: !!modelData.rowId
                 // Follows the line it names. `_nudgeRev` is passed as an ARGUMENT rather than read
                 // as a bare statement — a mention would be compiled away and this would subscribe
                 // to nothing, which is exactly the failure qml_reactivity_test exists to catch.
@@ -1875,7 +1876,7 @@ Item {
         var edges = []
         for (var j = 0; j < root._edges.length; j++) {
             var e = root._edges[j]
-            if (e.rowId === undefined) continue
+            if (!e.rowId) continue
             // Nudged, exactly as the nodes above already are and as the label is drawn. A marquee
             // that swept the layout's original label points would take links whose word is no
             // longer inside the band and miss the ones that are.

@@ -252,9 +252,12 @@ Item {
         if (root._revision < 0) return []
         if (root._searching) return browser.searchAll(root._search)
         // `search` travels into rows() so a search narrowed to one type still filters it. The
-        // façade has always taken this filter; the panel simply never passed it.
+        // façade has always taken this filter; the panel simply never passed it. The picks go as
+        // rows()' typed list of { key, values } (ModelFacetPick), one per facet the rail holds.
         return browser.rows(root._type, { sort: root._sort, descending: root._descending,
-                                          facets: root._facets, search: root._search })
+                                          facets: Object.keys(root._facets).map(
+                                              k => ({ key: k, values: root._facets[k] })),
+                                          search: root._search })
     }
     readonly property int _totalForType: {
         if (root._revision < 0) return 0

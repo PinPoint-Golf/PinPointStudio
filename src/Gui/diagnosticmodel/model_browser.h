@@ -36,6 +36,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -117,9 +118,13 @@ struct ModelGateCounts {
 // it did. One difference QML has to know: a field a map left OUT is here a default — "" for a string,
 // false, 0 — so a test of absence (`x.id === undefined`) is a test of the default instead.
 //
-// A list is a QList of the gadget, which QML reads as a sequence (`length`, `[i]`, `modelData`). The
-// shapes the table, the inspector, the graph and the corridor plot read are typed in a later run
-// (NOTES-3.9-ii.md lists them).
+// A list is a QList of the gadget, which QML reads as a sequence (`length`, `[i]`, `modelData`). A
+// QVariant member (a cell's or a field's stored `value`) is invalid where the map had no such key, and
+// reads `undefined` in QML as the absent key did.
+//
+// What QML passes IN — a rows() query, the graph's and the corridor plot's options — is a
+// QML_STRUCTURED_VALUE gadget, so QML still writes a plain object (`{ sort: "name", ids: [id] }`); a key
+// left out keeps the gadget's default, which for the layout metrics is NaN ("not given").
 
 // The answer every write gives: whether it landed and, in the author's own terms, what happened or
 // why not. The other fields are set only by the writes that have them to say.
@@ -401,6 +406,796 @@ public:
     friend bool operator==(const ModelMeasurePreview &, const ModelMeasurePreview &) = default;
 };
 
+// ── The table: columns(), rows(), facets(), searchAll() (refactor step 3.9-ii, second run) ──────────
+//
+// The table delegate renders any type without knowing which one it has: a row's `cells` are parallel to
+// the type's columns().
+
+// One column of a type's table. `width` is in unscaled design pixels (QML runs it through Theme.sp());
+// `flex` marks the one column that takes the slack — the name column, which is what gets starved.
+struct ModelColumn
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelColumn)
+    Q_PROPERTY(QString key      MEMBER key      FINAL)
+    Q_PROPERTY(QString title    MEMBER title    FINAL)
+    Q_PROPERTY(int     width    MEMBER width    FINAL)
+    Q_PROPERTY(bool    flex     MEMBER flex     FINAL)
+    Q_PROPERTY(QString align    MEMBER align    FINAL)
+    Q_PROPERTY(bool    mono     MEMBER mono     FINAL)
+    Q_PROPERTY(bool    sortable MEMBER sortable FINAL)
+public:
+    QString key;
+    QString title;
+    int     width = 0;
+    bool    flex = false;
+    QString align = QStringLiteral("left");
+    bool    mono = false;
+    bool    sortable = true;
+
+    friend bool operator==(const ModelColumn &, const ModelColumn &) = default;
+};
+
+// One table cell. `kind` is what the EDITOR is, not what the value is: "text" types in place, "enum"
+// opens a one-click list of `options`, "number" is a numeric field, "none" cannot be edited. An editable
+// cell carries the `field` it writes and the stored `value` (invalid, so `undefined` in QML, on an inert
+// cell). `own` says the value is the user's own rather than the shipped one.
+struct ModelCell
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelCell)
+    Q_PROPERTY(QString            text     MEMBER text     FINAL)
+    Q_PROPERTY(QString            tone     MEMBER tone     FINAL)
+    Q_PROPERTY(bool               mono     MEMBER mono     FINAL)
+    Q_PROPERTY(QString            align    MEMBER align    FINAL)
+    Q_PROPERTY(QString            kind     MEMBER kind     FINAL)
+    Q_PROPERTY(bool               editable MEMBER editable FINAL)
+    Q_PROPERTY(bool               own      MEMBER own      FINAL)
+    Q_PROPERTY(QString            field    MEMBER field    FINAL)
+    Q_PROPERTY(QVariant           value    MEMBER value    FINAL)
+    Q_PROPERTY(QList<ModelOption> options  MEMBER options  FINAL)
+public:
+    QString            text;
+    QString            tone;
+    bool               mono = false;
+    QString            align = QStringLiteral("left");
+    QString            kind = QStringLiteral("none");
+    bool               editable = false;
+    bool               own = false;
+    QString            field;
+    QVariant           value;
+    QList<ModelOption> options;
+
+    friend bool operator==(const ModelCell &, const ModelCell &) = default;
+};
+
+// One row of a type's table, or of the cross-type search result (searchAll(), which sets `resultType`).
+// The other fields are set by the types that have them to say: a link's two ends (`fromId`, `toId`),
+// a corridor's measure and context, a gate's `reading` flag, a health finding's `subject`, `code` and
+// `severity`.
+struct ModelRow
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelRow)
+    Q_PROPERTY(QString          id          MEMBER id          FINAL)
+    Q_PROPERTY(QString          type        MEMBER type        FINAL)
+    Q_PROPERTY(QString          label       MEMBER label       FINAL)
+    // The row dot's tone name; empty: no dot.
+    Q_PROPERTY(QString          dot         MEMBER dot         FINAL)
+    Q_PROPERTY(bool             dirty       MEMBER dirty       FINAL)
+    // shipped · yours · both, and its words
+    Q_PROPERTY(QString          source      MEMBER source      FINAL)
+    Q_PROPERTY(QString          sourceLabel MEMBER sourceLabel FINAL)
+    Q_PROPERTY(QList<ModelCell> cells       MEMBER cells       FINAL)
+    Q_PROPERTY(QString          resultType  MEMBER resultType  FINAL)
+    Q_PROPERTY(QString          fromId      MEMBER fromId      FINAL)
+    Q_PROPERTY(QString          toId        MEMBER toId        FINAL)
+    Q_PROPERTY(QString          measureId   MEMBER measureId   FINAL)
+    Q_PROPERTY(QString          contextId   MEMBER contextId   FINAL)
+    Q_PROPERTY(bool             reading     MEMBER reading     FINAL)
+    Q_PROPERTY(QString          subject     MEMBER subject     FINAL)
+    Q_PROPERTY(QString          code        MEMBER code        FINAL)
+    Q_PROPERTY(QString          severity    MEMBER severity    FINAL)
+public:
+    QString          id;
+    QString          type;
+    QString          label;
+    QString          dot;
+    bool             dirty = false;
+    QString          source;
+    QString          sourceLabel;
+    QList<ModelCell> cells;
+    QString          resultType;
+    QString          fromId;
+    QString          toId;
+    QString          measureId;
+    QString          contextId;
+    bool             reading = false;
+    QString          subject;
+    QString          code;
+    QString          severity;
+    // C++ only, not on the QML boundary: what rows() sorts, filters and facets on, and the words a search
+    // matches. Sort keys are typed per key (an ordinal, a count, a label) and compared as such.
+    QVariantMap sortKeys;
+    QString     searchText;
+
+    friend bool operator==(const ModelRow &, const ModelRow &) = default;
+};
+
+// One value of a facet, and how many of the type's rows hold it. A quantile bucket also carries its
+// range: rows whose count is in [lo, hi] (`hasHi` false: no upper end).
+struct ModelFacetOption
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelFacetOption)
+    Q_PROPERTY(QString value MEMBER value FINAL)
+    Q_PROPERTY(QString label MEMBER label FINAL)
+    Q_PROPERTY(int     count MEMBER count FINAL)
+    Q_PROPERTY(int     lo    MEMBER lo    FINAL)
+    Q_PROPERTY(int     hi    MEMBER hi    FINAL)
+    Q_PROPERTY(bool    hasHi MEMBER hasHi FINAL)
+public:
+    QString value;
+    QString label;
+    int     count = 0;
+    int     lo = 0;
+    int     hi = 0;
+    bool    hasHi = false;
+
+    friend bool operator==(const ModelFacetOption &, const ModelFacetOption &) = default;
+};
+
+// One facet of the rail under the type list. `kind` is value (a column's text), tags (a list per row) or
+// quantile (a count bucketed by its spread; `max` is the largest count).
+struct ModelFacet
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelFacet)
+    Q_PROPERTY(QString                 key     MEMBER key     FINAL)
+    Q_PROPERTY(QString                 label   MEMBER label   FINAL)
+    Q_PROPERTY(QString                 kind    MEMBER kind    FINAL)
+    Q_PROPERTY(int                     max     MEMBER max     FINAL)
+    Q_PROPERTY(QList<ModelFacetOption> options MEMBER options FINAL)
+public:
+    QString                 key;
+    QString                 label;
+    QString                 kind;
+    int                     max = 0;
+    QList<ModelFacetOption> options;
+
+    friend bool operator==(const ModelFacet &, const ModelFacet &) = default;
+};
+
+// The values picked on one facet, as rows() is asked for them. QML passes a plain object
+// `{ key, values }` (a structured value).
+struct ModelFacetPick
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelFacetPick)
+    QML_STRUCTURED_VALUE
+    Q_PROPERTY(QString     key    MEMBER key    FINAL)
+    Q_PROPERTY(QStringList values MEMBER values FINAL)
+public:
+    QString     key;
+    QStringList values;
+
+    friend bool operator==(const ModelFacetPick &, const ModelFacetPick &) = default;
+};
+
+// What rows() is asked for: a search, a sort (a column key; empty is the type's default sort) and its
+// direction, the facet picks, and the ids to keep (empty: all). QML passes a plain object with any of
+// these keys (a structured value); a key left out keeps its default.
+struct ModelRowQuery
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelRowQuery)
+    QML_STRUCTURED_VALUE
+    Q_PROPERTY(QString               search     MEMBER search     FINAL)
+    Q_PROPERTY(QString               sort       MEMBER sort       FINAL)
+    Q_PROPERTY(bool                  descending MEMBER descending FINAL)
+    Q_PROPERTY(QList<ModelFacetPick> facets     MEMBER facets     FINAL)
+    Q_PROPERTY(QStringList           ids        MEMBER ids        FINAL)
+public:
+    QString               search;
+    QString               sort;
+    bool                  descending = false;
+    QList<ModelFacetPick> facets;
+    QStringList           ids;
+
+    friend bool operator==(const ModelRowQuery &, const ModelRowQuery &) = default;
+};
+
+// ── The inspector: inspect(), fieldIssues() ────────────────────────────────────────────────────
+
+// What the pack loader would say about one field's words: its code, "error" | "warning", and the
+// message (the same strings Health shows).
+struct ModelFieldIssue
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelFieldIssue)
+    Q_PROPERTY(QString code     MEMBER code     FINAL)
+    Q_PROPERTY(QString severity MEMBER severity FINAL)
+    Q_PROPERTY(QString message  MEMBER message  FINAL)
+public:
+    QString code;
+    QString severity;
+    QString message;
+
+    friend bool operator==(const ModelFieldIssue &, const ModelFieldIssue &) = default;
+};
+
+// One row of an inspector section, or one badge. Every row is the same shape: a related object one
+// click away (`type`, `id`, `navigable`), with its words (`label`, `detail`) and `tone`. A FIELD row also
+// carries the `field` it writes, its editor `kind`, its stored `value` (invalid on a non-field row) and
+// its `options`; a citation field the reference it resolves to (`linkType`, `linkId`, `linkLabel`); a
+// report field its `group` ("report"), `wordingChecked` (the façade checks its words as they are typed)
+// and `issues`. A binding row says where a characteristic applies (`depth`, `own`, `applicable`,
+// `material`); a measure row the swing's value (`pill`, `pillTone`, `pillHint`); a claim row on a
+// reference the link's `relation` and editable `strength` (its words `strengthLabel`, its `options`).
+struct ModelInspectorRow
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelInspectorRow)
+    Q_PROPERTY(QString                type           MEMBER type           FINAL)
+    Q_PROPERTY(QString                id             MEMBER id             FINAL)
+    Q_PROPERTY(QString                label          MEMBER label          FINAL)
+    Q_PROPERTY(QString                detail         MEMBER detail         FINAL)
+    Q_PROPERTY(QString                tone           MEMBER tone           FINAL)
+    Q_PROPERTY(bool                   navigable      MEMBER navigable      FINAL)
+    Q_PROPERTY(QString                field          MEMBER field          FINAL)
+    Q_PROPERTY(QString                kind           MEMBER kind           FINAL)
+    Q_PROPERTY(QVariant               value          MEMBER value          FINAL)
+    Q_PROPERTY(QList<ModelOption>     options        MEMBER options        FINAL)
+    Q_PROPERTY(QString                linkType       MEMBER linkType       FINAL)
+    Q_PROPERTY(QString                linkId         MEMBER linkId         FINAL)
+    Q_PROPERTY(QString                linkLabel      MEMBER linkLabel      FINAL)
+    Q_PROPERTY(QString                group          MEMBER group          FINAL)
+    Q_PROPERTY(bool                   wordingChecked MEMBER wordingChecked FINAL)
+    Q_PROPERTY(QList<ModelFieldIssue> issues         MEMBER issues         FINAL)
+    Q_PROPERTY(int                    depth          MEMBER depth          FINAL)
+    Q_PROPERTY(bool                   own            MEMBER own            FINAL)
+    Q_PROPERTY(bool                   applicable     MEMBER applicable     FINAL)
+    Q_PROPERTY(bool                   material       MEMBER material       FINAL)
+    Q_PROPERTY(QString                pill           MEMBER pill           FINAL)
+    Q_PROPERTY(QString                pillTone       MEMBER pillTone       FINAL)
+    Q_PROPERTY(QString                pillHint       MEMBER pillHint       FINAL)
+    Q_PROPERTY(QString                relation       MEMBER relation       FINAL)
+    Q_PROPERTY(QString                strength       MEMBER strength       FINAL)
+    Q_PROPERTY(QString                strengthLabel  MEMBER strengthLabel  FINAL)
+public:
+    QString                type;
+    QString                id;
+    QString                label;
+    QString                detail;
+    QString                tone;
+    bool                   navigable = true;
+    QString                field;
+    QString                kind;
+    QVariant               value;
+    QList<ModelOption>     options;
+    QString                linkType;
+    QString                linkId;
+    QString                linkLabel;
+    QString                group;
+    bool                   wordingChecked = false;
+    QList<ModelFieldIssue> issues;
+    int                    depth = 0;
+    bool                   own = false;
+    bool                   applicable = false;
+    bool                   material = false;
+    QString                pill;
+    QString                pillTone;
+    QString                pillHint;
+    QString                relation;
+    QString                strength;
+    QString                strengthLabel;
+
+    friend bool operator==(const ModelInspectorRow &, const ModelInspectorRow &) = default;
+};
+
+// One section of the inspector: its `title`, how it is drawn (`kind`: list, fields, prose, quote,
+// actions, claims, bindings, …), a `note` under it, its `rows` and their `count`, and the `action` its
+// add affordance names (empty: none).
+struct ModelInspectorSection
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelInspectorSection)
+    Q_PROPERTY(QString                  title  MEMBER title  FINAL)
+    Q_PROPERTY(QString                  kind   MEMBER kind   FINAL)
+    Q_PROPERTY(QString                  note   MEMBER note   FINAL)
+    Q_PROPERTY(QList<ModelInspectorRow> rows   MEMBER rows   FINAL)
+    Q_PROPERTY(int                      count  MEMBER count  FINAL)
+    Q_PROPERTY(QString                  action MEMBER action FINAL)
+public:
+    QString                  title;
+    QString                  kind = QStringLiteral("list");
+    QString                  note;
+    QList<ModelInspectorRow> rows;
+    int                      count = 0;
+    QString                  action;
+
+    friend bool operator==(const ModelInspectorSection &, const ModelInspectorSection &) = default;
+};
+
+// The inspector for one object: a RELATIONSHIP HUB, not a property sheet. `found` false: the id resolves
+// to nothing (only `type` and `id` are set). `metricKey` is a measure's metric; `source` and `dirty` say
+// whose content it is and whether it is unsaved.
+struct ModelInspection
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelInspection)
+    Q_PROPERTY(bool                         found     MEMBER found     FINAL)
+    Q_PROPERTY(QString                      type      MEMBER type      FINAL)
+    Q_PROPERTY(QString                      id        MEMBER id        FINAL)
+    Q_PROPERTY(QString                      label     MEMBER label     FINAL)
+    Q_PROPERTY(QString                      eyebrow   MEMBER eyebrow   FINAL)
+    Q_PROPERTY(QString                      subtitle  MEMBER subtitle  FINAL)
+    Q_PROPERTY(QList<ModelInspectorRow>     badges    MEMBER badges    FINAL)
+    Q_PROPERTY(QList<ModelInspectorSection> sections  MEMBER sections  FINAL)
+    Q_PROPERTY(QString                      metricKey MEMBER metricKey FINAL)
+    Q_PROPERTY(QString                      source    MEMBER source    FINAL)
+    Q_PROPERTY(bool                         dirty     MEMBER dirty     FINAL)
+public:
+    bool                         found = false;
+    QString                      type;
+    QString                      id;
+    QString                      label;
+    QString                      eyebrow;
+    QString                      subtitle;
+    QList<ModelInspectorRow>     badges;
+    QList<ModelInspectorSection> sections;
+    QString                      metricKey;
+    QString                      source;
+    bool                         dirty = false;
+
+    friend bool operator==(const ModelInspection &, const ModelInspection &) = default;
+};
+
+// ── The graph: graph() (and the C++-only dag()) ────────────────────────────────────────────────
+//
+// Every coordinate is dag_layout.h's; QML positions nothing.
+
+// A measure drawn as a row INSIDE its condition's box, at absolute y.
+struct ModelGraphMeasure
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphMeasure)
+    Q_PROPERTY(QString     id                MEMBER id                FINAL)
+    Q_PROPERTY(QString     label             MEMBER label             FINAL)
+    Q_PROPERTY(QString     statusLabel       MEMBER statusLabel       FINAL)
+    Q_PROPERTY(QString     metricKey         MEMBER metricKey         FINAL)
+    Q_PROPERTY(QString     detail            MEMBER detail            FINAL)
+    Q_PROPERTY(QStringList keyLadder         MEMBER keyLadder         FINAL)
+    Q_PROPERTY(bool        available         MEMBER available         FINAL)
+    Q_PROPERTY(QString     unavailableReason MEMBER unavailableReason FINAL)
+    Q_PROPERTY(double      y                 MEMBER y                 FINAL)
+    Q_PROPERTY(double      h                 MEMBER h                 FINAL)
+public:
+    QString     id;
+    QString     label;
+    QString     statusLabel;
+    QString     metricKey;
+    QString     detail;
+    QStringList keyLadder;
+    bool        available = true;
+    QString     unavailableReason;
+    double      y = 0.0;
+    double      h = 0.0;
+
+    friend bool operator==(const ModelGraphMeasure &, const ModelGraphMeasure &) = default;
+};
+
+// A citation drawn as a row inside its box. `id` is empty when the citation resolves to nothing.
+struct ModelGraphReference
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphReference)
+    Q_PROPERTY(QString id          MEMBER id          FINAL)
+    Q_PROPERTY(QString citation    MEMBER citation    FINAL)
+    Q_PROPERTY(QString label       MEMBER label       FINAL)
+    Q_PROPERTY(QString detailLabel MEMBER detailLabel FINAL)
+    Q_PROPERTY(bool    resolved    MEMBER resolved    FINAL)
+    Q_PROPERTY(double  y           MEMBER y           FINAL)
+    Q_PROPERTY(double  h           MEMBER h           FINAL)
+public:
+    QString id;
+    QString citation;
+    QString label;
+    QString detailLabel;
+    bool    resolved = true;
+    double  y = 0.0;
+    double  h = 0.0;
+
+    friend bool operator==(const ModelGraphReference &, const ModelGraphReference &) = default;
+};
+
+// One box. The layout's fields (dag_layout.h's DagNode), then the decoration graph() adds: the object's
+// type (`nodeType`) and `glyph`, whose content it is (`source`), `ubiquitous` (a condition almost everyone
+// shows) and a measure's `note` (its corridor).
+struct ModelGraphNode
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphNode)
+    Q_PROPERTY(QString                    id                MEMBER id                FINAL)
+    Q_PROPERTY(QString                    kind              MEMBER kind              FINAL)
+    Q_PROPERTY(QString                    label             MEMBER label             FINAL)
+    Q_PROPERTY(int                        rank              MEMBER rank              FINAL)
+    Q_PROPERTY(double                     x                 MEMBER x                 FINAL)
+    Q_PROPERTY(double                     y                 MEMBER y                 FINAL)
+    Q_PROPERTY(double                     w                 MEMBER w                 FINAL)
+    Q_PROPERTY(double                     h                 MEMBER h                 FINAL)
+    Q_PROPERTY(bool                       latent            MEMBER latent            FINAL)
+    Q_PROPERTY(bool                       offeredOnly       MEMBER offeredOnly       FINAL)
+    Q_PROPERTY(QString                    reach             MEMBER reach             FINAL)
+    Q_PROPERTY(QString                    reachLabel        MEMBER reachLabel        FINAL)
+    Q_PROPERTY(bool                       available         MEMBER available         FINAL)
+    Q_PROPERTY(QString                    unavailableReason MEMBER unavailableReason FINAL)
+    Q_PROPERTY(QString                    detection         MEMBER detection         FINAL)
+    Q_PROPERTY(QString                    detectionLabel    MEMBER detectionLabel    FINAL)
+    Q_PROPERTY(double                     captionH          MEMBER captionH          FINAL)
+    Q_PROPERTY(int                        coverage          MEMBER coverage          FINAL)
+    Q_PROPERTY(int                        hiddenCauses      MEMBER hiddenCauses      FINAL)
+    Q_PROPERTY(int                        hiddenEffects     MEMBER hiddenEffects     FINAL)
+    Q_PROPERTY(bool                       expanded          MEMBER expanded          FINAL)
+    Q_PROPERTY(QList<ModelGraphMeasure>   measures          MEMBER measures          FINAL)
+    Q_PROPERTY(QList<ModelGraphReference> references        MEMBER references        FINAL)
+    Q_PROPERTY(QString                    groupLabel        MEMBER groupLabel        FINAL)
+    Q_PROPERTY(bool                       dirty             MEMBER dirty             FINAL)
+    Q_PROPERTY(QString                    nodeType          MEMBER nodeType          FINAL)
+    Q_PROPERTY(QString                    glyph             MEMBER glyph             FINAL)
+    Q_PROPERTY(QString                    source            MEMBER source            FINAL)
+    Q_PROPERTY(bool                       ubiquitous        MEMBER ubiquitous        FINAL)
+    Q_PROPERTY(QString                    note              MEMBER note              FINAL)
+public:
+    QString                    id;
+    QString                    kind;
+    QString                    label;
+    int                        rank = 0;
+    double                     x = 0.0;
+    double                     y = 0.0;
+    double                     w = 0.0;
+    double                     h = 0.0;
+    bool                       latent = false;
+    bool                       offeredOnly = false;
+    QString                    reach;
+    QString                    reachLabel;
+    bool                       available = true;
+    QString                    unavailableReason;
+    QString                    detection;
+    QString                    detectionLabel;
+    double                     captionH = 0.0;
+    int                        coverage = 0;
+    int                        hiddenCauses = 0;
+    int                        hiddenEffects = 0;
+    bool                       expanded = false;
+    QList<ModelGraphMeasure>   measures;
+    QList<ModelGraphReference> references;
+    QString                    groupLabel;
+    bool                       dirty = false;
+    QString                    nodeType;
+    QString                    glyph;
+    QString                    source;
+    bool                       ubiquitous = false;
+    QString                    note;
+
+    friend bool operator==(const ModelGraphNode &, const ModelGraphNode &) = default;
+};
+
+// One line (dag_layout.h's DagEdge). `rowId` is the Causal links table's id for it — empty when the line
+// is not a link of the pack — with that row's `dirty` and `source`.
+struct ModelGraphEdge
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphEdge)
+    Q_PROPERTY(QString from        MEMBER from        FINAL)
+    Q_PROPERTY(QString to          MEMBER to          FINAL)
+    Q_PROPERTY(QString strength    MEMBER strength    FINAL)
+    Q_PROPERTY(double  weight      MEMBER weight      FINAL)
+    Q_PROPERTY(bool    offeredOnly MEMBER offeredOnly FINAL)
+    Q_PROPERTY(QString relation    MEMBER relation    FINAL)
+    Q_PROPERTY(bool    symmetric   MEMBER symmetric   FINAL)
+    Q_PROPERTY(int     segment     MEMBER segment     FINAL)
+    Q_PROPERTY(int     segments    MEMBER segments    FINAL)
+    Q_PROPERTY(double  x1          MEMBER x1          FINAL)
+    Q_PROPERTY(double  y1          MEMBER y1          FINAL)
+    Q_PROPERTY(double  c1x         MEMBER c1x         FINAL)
+    Q_PROPERTY(double  c1y         MEMBER c1y         FINAL)
+    Q_PROPERTY(double  c2x         MEMBER c2x         FINAL)
+    Q_PROPERTY(double  c2y         MEMBER c2y         FINAL)
+    Q_PROPERTY(double  x2          MEMBER x2          FINAL)
+    Q_PROPERTY(double  y2          MEMBER y2          FINAL)
+    Q_PROPERTY(QString label       MEMBER label       FINAL)
+    Q_PROPERTY(double  labelX      MEMBER labelX      FINAL)
+    Q_PROPERTY(double  labelY      MEMBER labelY      FINAL)
+    Q_PROPERTY(bool    tip         MEMBER tip         FINAL)
+    Q_PROPERTY(double  tipAx       MEMBER tipAx       FINAL)
+    Q_PROPERTY(double  tipAy       MEMBER tipAy       FINAL)
+    Q_PROPERTY(double  tipBx       MEMBER tipBx       FINAL)
+    Q_PROPERTY(double  tipBy       MEMBER tipBy       FINAL)
+    Q_PROPERTY(double  tipCx       MEMBER tipCx       FINAL)
+    Q_PROPERTY(double  tipCy       MEMBER tipCy       FINAL)
+    Q_PROPERTY(QString rowId       MEMBER rowId       FINAL)
+    Q_PROPERTY(bool    dirty       MEMBER dirty       FINAL)
+    Q_PROPERTY(QString source      MEMBER source      FINAL)
+public:
+    QString from;
+    QString to;
+    QString strength;
+    double  weight = 2.0;
+    bool    offeredOnly = false;
+    QString relation;
+    bool    symmetric = false;
+    int     segment = 0;
+    int     segments = 1;
+    double  x1 = 0.0;
+    double  y1 = 0.0;
+    double  c1x = 0.0;
+    double  c1y = 0.0;
+    double  c2x = 0.0;
+    double  c2y = 0.0;
+    double  x2 = 0.0;
+    double  y2 = 0.0;
+    QString label;
+    double  labelX = 0.0;
+    double  labelY = 0.0;
+    bool    tip = false;
+    double  tipAx = 0.0;
+    double  tipAy = 0.0;
+    double  tipBx = 0.0;
+    double  tipBy = 0.0;
+    double  tipCx = 0.0;
+    double  tipCy = 0.0;
+    QString rowId;
+    bool    dirty = false;
+    QString source;
+
+    friend bool operator==(const ModelGraphEdge &, const ModelGraphEdge &) = default;
+};
+
+// A column heading above the band.
+struct ModelGraphHeading
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphHeading)
+    Q_PROPERTY(QString label MEMBER label FINAL)
+    Q_PROPERTY(double  x     MEMBER x     FINAL)
+    Q_PROPERTY(double  y     MEMBER y     FINAL)
+    Q_PROPERTY(double  w     MEMBER w     FINAL)
+public:
+    QString label;
+    double  x = 0.0;
+    double  y = 0.0;
+    double  w = 0.0;
+
+    friend bool operator==(const ModelGraphHeading &, const ModelGraphHeading &) = default;
+};
+
+// The laid-out picture around one object: boxes, lines and headings, its bounding box, the centre of
+// the focus node and whether a bound cut it short. Empty (no nodes) for an object with no graph.
+struct ModelGraph
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraph)
+    Q_PROPERTY(QList<ModelGraphNode>    nodes     MEMBER nodes     FINAL)
+    Q_PROPERTY(QList<ModelGraphEdge>    edges     MEMBER edges     FINAL)
+    Q_PROPERTY(QList<ModelGraphHeading> headings  MEMBER headings  FINAL)
+    Q_PROPERTY(double                   width     MEMBER width     FINAL)
+    Q_PROPERTY(double                   height    MEMBER height    FINAL)
+    Q_PROPERTY(double                   focusX    MEMBER focusX    FINAL)
+    Q_PROPERTY(double                   focusY    MEMBER focusY    FINAL)
+    Q_PROPERTY(bool                     truncated MEMBER truncated FINAL)
+public:
+    QList<ModelGraphNode>    nodes;
+    QList<ModelGraphEdge>    edges;
+    QList<ModelGraphHeading> headings;
+    double                   width = 0.0;
+    double                   height = 0.0;
+    double                   focusX = 0.0;
+    double                   focusY = 0.0;
+    bool                     truncated = false;
+
+    friend bool operator==(const ModelGraph &, const ModelGraph &) = default;
+};
+
+// How graph() is asked to lay out: the pane's metrics (dag_layout.h's DagLayoutOptions, in layout units;
+// NaN: not given, so the layout's own default stands), the reader's bounds (`depth`, `maxPerRank`,
+// `maxPerExpand`; -1: not given), the boxes opened (`expanded`) and the switches. QML passes a plain
+// object (a structured value). The switches' defaults are DagLayoutOptions' (model_browser_test checks).
+struct ModelGraphOptions
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelGraphOptions)
+    QML_STRUCTURED_VALUE
+    Q_PROPERTY(double      nodeH             MEMBER nodeH             FINAL)
+    Q_PROPERTY(double      gapX              MEMBER gapX              FINAL)
+    Q_PROPERTY(double      gapY              MEMBER gapY              FINAL)
+    Q_PROPERTY(double      rowH              MEMBER rowH              FINAL)
+    Q_PROPERTY(double      captionH          MEMBER captionH          FINAL)
+    Q_PROPERTY(double      rowCharW          MEMBER rowCharW          FINAL)
+    Q_PROPERTY(double      rowMaxW           MEMBER rowMaxW           FINAL)
+    Q_PROPERTY(double      padX              MEMBER padX              FINAL)
+    Q_PROPERTY(double      charW             MEMBER charW             FINAL)
+    Q_PROPERTY(double      minW              MEMBER minW              FINAL)
+    Q_PROPERTY(double      maxW              MEMBER maxW              FINAL)
+    Q_PROPERTY(int         depth             MEMBER depth             FINAL)
+    Q_PROPERTY(int         maxPerRank        MEMBER maxPerRank        FINAL)
+    Q_PROPERTY(int         maxPerExpand      MEMBER maxPerExpand      FINAL)
+    Q_PROPERTY(QStringList expanded          MEMBER expanded          FINAL)
+    Q_PROPERTY(bool        includeMeasures   MEMBER includeMeasures   FINAL)
+    Q_PROPERTY(bool        includeReferences MEMBER includeReferences FINAL)
+    Q_PROPERTY(bool        includeScreened   MEMBER includeScreened   FINAL)
+    Q_PROPERTY(bool        hideWeak          MEMBER hideWeak          FINAL)
+    Q_PROPERTY(bool        hideProposed      MEMBER hideProposed      FINAL)
+public:
+    double      nodeH = std::numeric_limits<double>::quiet_NaN();
+    double      gapX = std::numeric_limits<double>::quiet_NaN();
+    double      gapY = std::numeric_limits<double>::quiet_NaN();
+    double      rowH = std::numeric_limits<double>::quiet_NaN();
+    double      captionH = std::numeric_limits<double>::quiet_NaN();
+    double      rowCharW = std::numeric_limits<double>::quiet_NaN();
+    double      rowMaxW = std::numeric_limits<double>::quiet_NaN();
+    double      padX = std::numeric_limits<double>::quiet_NaN();
+    double      charW = std::numeric_limits<double>::quiet_NaN();
+    double      minW = std::numeric_limits<double>::quiet_NaN();
+    double      maxW = std::numeric_limits<double>::quiet_NaN();
+    int         depth = -1;
+    int         maxPerRank = -1;
+    int         maxPerExpand = -1;
+    QStringList expanded;
+    bool        includeMeasures = true;
+    bool        includeReferences = false;
+    bool        includeScreened = true;
+    bool        hideWeak = false;
+    bool        hideProposed = false;
+};
+
+// ── The corridor plot: corridorPlot() ──────────────────────────────────────────────────────────
+
+// A point of the plot, in pixels.
+struct ModelPlotPoint
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelPlotPoint)
+    Q_PROPERTY(double x MEMBER x FINAL)
+    Q_PROPERTY(double y MEMBER y FINAL)
+public:
+    double x = 0.0;
+    double y = 0.0;
+
+    friend bool operator==(const ModelPlotPoint &, const ModelPlotPoint &) = default;
+};
+
+// One grade band as a region: its grade's WORD (ideal · good · watch · action), so a delegate colours by
+// meaning rather than by position, and its x and width in pixels.
+struct ModelPlotBand
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelPlotBand)
+    Q_PROPERTY(QString grade MEMBER grade FINAL)
+    Q_PROPERTY(double  x     MEMBER x     FINAL)
+    Q_PROPERTY(double  w     MEMBER w     FINAL)
+public:
+    QString grade;
+    double  x = 0.0;
+    double  w = 0.0;
+
+    friend bool operator==(const ModelPlotBand &, const ModelPlotBand &) = default;
+};
+
+// The distribution a norm CLAIMS, drawn over the readings the library holds (corridor_plot.h's layout).
+// `found` false: the key resolves to nothing. Then the norm's own numbers (under any drag preview), the
+// values the edge handles sit on, the unit's quantum (`step`, `decimals`), the plausibility bounds with
+// their presence flags (absent is not zero), and whether the readings are this measure's (`scanned`).
+struct ModelCorridorPlot
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelCorridorPlot)
+    Q_PROPERTY(bool                  found          MEMBER found          FINAL)
+    Q_PROPERTY(double                width          MEMBER width          FINAL)
+    Q_PROPERTY(double                height         MEMBER height         FINAL)
+    Q_PROPERTY(double                xMin           MEMBER xMin           FINAL)
+    Q_PROPERTY(double                xMax           MEMBER xMax           FINAL)
+    Q_PROPERTY(QString               unit           MEMBER unit           FINAL)
+    Q_PROPERTY(QList<ModelPlotBand>  bands          MEMBER bands          FINAL)
+    Q_PROPERTY(QList<ModelPlotPoint> curve          MEMBER curve          FINAL)
+    Q_PROPERTY(QList<ModelPlotPoint> samples        MEMBER samples        FINAL)
+    Q_PROPERTY(QList<double>         rug            MEMBER rug            FINAL)
+    Q_PROPERTY(double                muX            MEMBER muX            FINAL)
+    Q_PROPERTY(double                idealLoX       MEMBER idealLoX       FINAL)
+    Q_PROPERTY(double                idealHiX       MEMBER idealHiX       FINAL)
+    Q_PROPERTY(bool                  lowOpen        MEMBER lowOpen        FINAL)
+    Q_PROPERTY(bool                  highOpen       MEMBER highOpen       FINAL)
+    Q_PROPERTY(int                   n              MEMBER n              FINAL)
+    Q_PROPERTY(int                   ideal          MEMBER ideal          FINAL)
+    Q_PROPERTY(int                   good           MEMBER good           FINAL)
+    Q_PROPERTY(int                   watch          MEMBER watch          FINAL)
+    Q_PROPERTY(int                   action         MEMBER action         FINAL)
+    Q_PROPERTY(int                   implausible    MEMBER implausible    FINAL)
+    Q_PROPERTY(bool                  truncated      MEMBER truncated      FINAL)
+    Q_PROPERTY(QString               note           MEMBER note           FINAL)
+    Q_PROPERTY(double                mu             MEMBER mu             FINAL)
+    Q_PROPERTY(double                sigmaLo        MEMBER sigmaLo        FINAL)
+    Q_PROPERTY(double                sigmaHi        MEMBER sigmaHi        FINAL)
+    Q_PROPERTY(double                idealLo        MEMBER idealLo        FINAL)
+    Q_PROPERTY(double                idealHi        MEMBER idealHi        FINAL)
+    Q_PROPERTY(double                step           MEMBER step           FINAL)
+    Q_PROPERTY(int                   decimals       MEMBER decimals       FINAL)
+    Q_PROPERTY(bool                  hasPlausibleLo MEMBER hasPlausibleLo FINAL)
+    Q_PROPERTY(double                plausibleLo    MEMBER plausibleLo    FINAL)
+    Q_PROPERTY(bool                  hasPlausibleHi MEMBER hasPlausibleHi FINAL)
+    Q_PROPERTY(double                plausibleHi    MEMBER plausibleHi    FINAL)
+    Q_PROPERTY(bool                  scanned        MEMBER scanned        FINAL)
+public:
+    bool                  found = false;
+    double                width = 0.0;
+    double                height = 0.0;
+    double                xMin = 0.0;
+    double                xMax = 0.0;
+    QString               unit;
+    QList<ModelPlotBand>  bands;
+    QList<ModelPlotPoint> curve;
+    QList<ModelPlotPoint> samples;
+    QList<double>         rug;
+    double                muX = 0.0;
+    double                idealLoX = 0.0;
+    double                idealHiX = 0.0;
+    bool                  lowOpen = false;
+    bool                  highOpen = false;
+    int                   n = 0;
+    int                   ideal = 0;
+    int                   good = 0;
+    int                   watch = 0;
+    int                   action = 0;
+    int                   implausible = 0;
+    bool                  truncated = false;
+    QString               note;
+    double                mu = 0.0;
+    double                sigmaLo = 0.0;
+    double                sigmaHi = 0.0;
+    double                idealLo = 0.0;
+    double                idealHi = 0.0;
+    double                step = 0.0;
+    int                   decimals = 0;
+    bool                  hasPlausibleLo = false;
+    double                plausibleLo = 0.0;
+    bool                  hasPlausibleHi = false;
+    double                plausibleHi = 0.0;
+    bool                  scanned = false;
+
+    friend bool operator==(const ModelCorridorPlot &, const ModelCorridorPlot &) = default;
+};
+
+// How corridorPlot() is asked: the pane's own size, the axis window (frozen during a drag), the curve's
+// resolution and the scatter's cap, and a drag in progress (`previewMu`, `previewIdealLo`,
+// `previewIdealHi`, in the measure's units). NaN or -1: not given — CorridorPlotOptions' default stands,
+// and no preview. QML passes a plain object (a structured value).
+struct ModelCorridorPlotOptions
+{
+    Q_GADGET
+    QML_VALUE_TYPE(modelCorridorPlotOptions)
+    QML_STRUCTURED_VALUE
+    Q_PROPERTY(double width           MEMBER width           FINAL)
+    Q_PROPERTY(double height          MEMBER height          FINAL)
+    Q_PROPERTY(double windowMin       MEMBER windowMin       FINAL)
+    Q_PROPERTY(double windowMax       MEMBER windowMax       FINAL)
+    Q_PROPERTY(int    curveSteps      MEMBER curveSteps      FINAL)
+    Q_PROPERTY(int    maxSamplePoints MEMBER maxSamplePoints FINAL)
+    Q_PROPERTY(double previewMu       MEMBER previewMu       FINAL)
+    Q_PROPERTY(double previewIdealLo  MEMBER previewIdealLo  FINAL)
+    Q_PROPERTY(double previewIdealHi  MEMBER previewIdealHi  FINAL)
+public:
+    double width = std::numeric_limits<double>::quiet_NaN();
+    double height = std::numeric_limits<double>::quiet_NaN();
+    double windowMin = std::numeric_limits<double>::quiet_NaN();
+    double windowMax = std::numeric_limits<double>::quiet_NaN();
+    int    curveSteps = -1;
+    int    maxSamplePoints = -1;
+    double previewMu = std::numeric_limits<double>::quiet_NaN();
+    double previewIdealLo = std::numeric_limits<double>::quiet_NaN();
+    double previewIdealHi = std::numeric_limits<double>::quiet_NaN();
+};
+
+
 class ModelBrowser : public QObject
 {
     Q_OBJECT
@@ -542,7 +1337,7 @@ public:
     QString      redoLabel() const;
     QList<ModelEditEntry> edits() const;
     bool         undoIsSessionScoped() const { return true; }
-    QVariantList validation() const;
+    QList<ModelRow> validation() const;
     int          validationErrorCount() const;
     int          validationWarningCount() const;
 
@@ -569,37 +1364,34 @@ public:
 
     // ── Reading ─────────────────────────────────────────────────────────────
 
-    // The column spec for one type. Rows come back with a `cells` array parallel to this, so the
-    // table delegate renders any type without knowing which one it has:
-    //   { key, title, width, flex, align, mono, sortable, defaultDescending }
-    // `width` is in unscaled design pixels; QML runs it through Theme.sp(). `flex` marks the one
-    // column that takes the slack — the name column, which is what gets starved otherwise.
-    Q_INVOKABLE QVariantList columns(const QString &type) const;
+    // The column spec for one type, as ModelColumn values. Rows come back with `cells` parallel to
+    // this, so the table delegate renders any type without knowing which one it has.
+    Q_INVOKABLE QList<ModelColumn> columns(const QString &type) const;
 
-    // Rows for one type. filters: { search, sort, descending, facets:{key:[values…]}, ids:[…] }.
+    // Rows for one type, as asked by a ModelRowQuery: { search, sort, descending, facets:[{key,
+    // values}], ids:[…] } from QML.
     //
     // Sorting and filtering happen HERE. `sort` names a column key and falls back to the type's
     // default sort — the one that answers the question the author arrived with (measures by status
     // then least-read, so the 42 nothing reads are on screen without asking).
     //
-    // Each row: { id, type, label, dirty, source, sourceLabel, dot, cells[] }
-    // Each cell: { text, value, field, kind, options[], tone, mono, align, editable, own }
-    Q_INVOKABLE QVariantList rows(const QString &type, const QVariantMap &filters = {}) const;
+    // Each row is a ModelRow, each cell a ModelCell.
+    Q_INVOKABLE QList<ModelRow> rows(const QString &type, const ModelRowQuery &query = {}) const;
 
-    // The facet rail under the type list: [{ key, label, options:[{ value, label, count }] }],
+    // The facet rail under the type list, as ModelFacet values (each option a ModelFacetOption),
     // counted over the type's rows BEFORE its own facet is applied, so a count never reads zero for
     // the thing you are looking at.
-    Q_INVOKABLE QVariantList facets(const QString &type) const;
+    Q_INVOKABLE QList<ModelFacet> facets(const QString &type) const;
 
     // One search across every registry at once (the brief's 4b). Rows carry a Type column and the
     // same cell shape as everything else, so "hip" returns characteristics, measures, signals,
     // screens and drills in one list. Cannot be assembled in QML — it spans nine registries.
-    Q_INVOKABLE QVariantList searchAll(const QString &query) const;
+    Q_INVOKABLE QList<ModelRow> searchAll(const QString &query) const;
 
-    // The inspector: a RELATIONSHIP HUB, not a property sheet. Sections are
-    //   { title, kind, note, rows:[{ type, id, label, detail, tone, navigable }] }
-    // so every related object is one click away and QML never decides what relates to what.
-    Q_INVOKABLE QVariantMap inspect(const QString &type, const QString &id) const;
+    // The inspector: a RELATIONSHIP HUB, not a property sheet — a ModelInspection whose sections are
+    // ModelInspectorSection values of ModelInspectorRow rows, so every related object is one click away
+    // and QML never decides what relates to what.
+    Q_INVOKABLE ModelInspection inspect(const QString &type, const QString &id) const;
 
     // What the row dot means in a type's table, as ModelLegendEntry rows in the order a reader ranks
     // them, for the legend in the context bar above it. Empty for a type whose rows carry no dot.
@@ -614,9 +1406,10 @@ public:
     // what points at it on the left, what it points to on the right — which is the honest shape for
     // a relation that is one hop and has no direction to iterate.
     //
-    // Same node and edge shape either way, so the renderer does not branch.
-    Q_INVOKABLE QVariantMap graph(const QString &type, const QString &id,
-                                  const QVariantMap &options = {}) const;
+    // Same node and edge shape either way (a ModelGraph), so the renderer does not branch. `options`
+    // is a ModelGraphOptions (a plain object from QML); what it leaves out keeps the layout's default.
+    Q_INVOKABLE ModelGraph graph(const QString &type, const QString &id,
+                                 const ModelGraphOptions &options = {}) const;
 
     // Which object the GRAPH should centre on when this one is selected, as a ModelObjectRef.
     //
@@ -631,7 +1424,7 @@ public:
     // WORKING assembly so an unsaved edge is drawn. Same shape as
     // the graph pane renders.
     // C++ only since 3.9-ii: no view calls it (the graph reads graph(); NOTES-3.9-ii J3).
-    QVariantMap dag(const QString &conditionId, const QVariantMap &options = {}) const;
+    ModelGraph dag(const QString &conditionId, const ModelGraphOptions &options = {}) const;
 
     // Legal targets for a link from `fromId`, pre-filtered: no self, no existing edge, no cycle,
     // and for `corroborates` no pair that already has a causal path (which the validator forbids).
@@ -806,8 +1599,8 @@ public:
 
     // ── Report wording, checked while it is typed ───────────────────────────
     //
-    // What the pack loader would say about ONE field if it held `value` — [{ code, severity, message }]
-    // with severity "error" | "warning", empty when the words are clean. Asked of a temporary copy of
+    // What the pack loader would say about ONE field if it held `value` — ModelFieldIssue values with
+    // severity "error" | "warning", empty when the words are clean. Asked of a temporary copy of
     // the draft object, so nothing is written and nothing reaches the undo stack: this is the line
     // under the editor while the author types, and a keystroke is not an edit.
     //
@@ -815,13 +1608,13 @@ public:
     // report fields, and gateWordsMessage()'s (gate_words_pack.h) for a gate's or a reading's golfer
     // words — the SAME strings validatePack() and validateGateWordSet() put in Health, so the inspector
     // and the health list cannot word one fault two ways. Any other field answers empty.
-    Q_INVOKABLE QVariantList fieldIssues(const QString &type, const QString &id, const QString &field,
+    Q_INVOKABLE QList<ModelFieldIssue> fieldIssues(const QString &type, const QString &id, const QString &field,
                                          const QVariant &value) const;
 
     // Every link resting on one reference. The citation is imported and stays read-only; the CLAIM
     // resting on it is ours, and its strength is editable through the ordinary setField("links", …).
     // C++ only since 3.9-ii: no view calls it; the reference pane reads inspect() (NOTES-3.9-ii J3).
-    QVariantList linksCitingReference(const QString &refId) const;
+    QList<ModelInspectorRow> linksCitingReference(const QString &refId) const;
 
     // One record as CSL-JSON, for the reference pane's copy action — the same format the whole-set
     // export writes, because a coach pasting one citation into Zotero wants what the file would have
@@ -858,10 +1651,11 @@ public:
     // The distribution the norm CLAIMS, drawn over the readings the library actually holds. All
     // geometry from corridor_plot.h — QML draws these points and positions nothing.
     //
-    // `options` carries the pane's own metrics (width, height); anything omitted keeps the
-    // CorridorPlotOptions default. Returns an empty `curve` for a key that resolves to nothing.
-    Q_INVOKABLE QVariantMap corridorPlot(const QString &measureId, const QString &contextId,
-                                         const QVariantMap &options = {}) const;
+    // `options` (a ModelCorridorPlotOptions; a plain object from QML) carries the pane's own metrics
+    // (width, height) and any drag preview; anything omitted keeps the CorridorPlotOptions default.
+    // Returns `found` false and an empty `curve` for a key that resolves to nothing.
+    Q_INVOKABLE ModelCorridorPlot corridorPlot(const QString &measureId, const QString &contextId,
+                                               const ModelCorridorPlotOptions &options = {}) const;
 
     // Read every swing in the library and reduce this measure over each. Asynchronous, because it
     // walks the whole library; the plot renders from whatever has been read so far and says so.
@@ -1079,17 +1873,17 @@ private:
     int countBySource(const QString &want) const;
 
     // Rows for one type, unsorted and unfiltered. Everything else composes over this.
-    QVariantList rawRows(const QString &type) const;
+    QList<ModelRow> rawRows(const QString &type) const;
 
     // Marshalling helpers shared by rows() and searchAll().
-    QVariantMap conditionRow(const pinpoint::analysis::Condition &c, bool asCause) const;
-    QVariantMap measureRow(const pinpoint::analysis::Measure &m) const;
-    QVariantMap signalRow(const pinpoint::analysis::Signal &s) const;
-    QVariantMap edgeRow(const pinpoint::analysis::Edge &e) const;
+    ModelRow conditionRow(const pinpoint::analysis::Condition &c, bool asCause) const;
+    ModelRow measureRow(const pinpoint::analysis::Measure &m) const;
+    ModelRow signalRow(const pinpoint::analysis::Signal &s) const;
+    ModelRow edgeRow(const pinpoint::analysis::Edge &e) const;
 
     // Every writable field of one object, as editor rows. THE list — the inspector renders exactly
     // these, so "what can I edit" has one answer per type rather than one per surface.
-    QVariantList fieldsOf(const QString &type, const QString &id) const;
+    QList<ModelInspectorRow> fieldsOf(const QString &type, const QString &id) const;
 
     // "shipped" | "yours" | "both" for one id — the Source column, and the thing that tells an
     // author whose content they are about to change.
@@ -1099,19 +1893,19 @@ private:
     // layoutHub(), and marshals the result through marshalLayout() — the SAME function the causal
     // DAG goes through, because QML reads one schema and a second hand-written copy of it is how
     // this view once shipped lines drawn between two points belonging to neither box.
-    QVariantMap neighbourhood(const QString &type, const QString &id,
-                              const QVariantMap &options) const;
+    ModelGraph neighbourhood(const QString &type, const QString &id,
+                             const ModelGraphOptions &options) const;
 
     // A DagLayout as the graph delegate reads it. ONE marshaller for both pictures: the causal DAG
     // and the hub are two layouts, and every key QML reads is declared here exactly once.
     //
     // `hideWeak` and `hideProposed` are the two view switches that drop whole EDGES, and they are
     // applied here rather than by the caller because dropping an edge after marshalling would mean
-    // filtering a QVariantMap on a string it had just finished writing.
-    QVariantMap marshalLayout(const pinpoint::analysis::DagLayout &l,
+    // filtering a list on a string it had just finished writing.
+    ModelGraph  marshalLayout(const pinpoint::analysis::DagLayout &l,
                               bool hideWeak, bool hideProposed) const;
     // The type's own colour key and glyph, and whatever one line a node can say about itself.
-    void        decorateNode(QVariantMap &node, const QString &type, const QString &id) const;
+    void        decorateNode(ModelGraphNode &node, const QString &type, const QString &id) const;
 
     // ── How far a condition reaches, and how much reaches it ────────────────
     //
@@ -1147,10 +1941,10 @@ private:
     // Bounds travel INSIDE each option map, and rows() filters by calling this rather than by
     // re-deriving them. That is what keeps "a chip cannot say twelve and return nine" true by
     // construction for a kind whose values are ranges instead of strings.
-    QVariantList quantileFacets(const QString &type) const;
+    QList<ModelFacet> quantileFacets(const QString &type) const;
 
     int  measureUsers(const QString &measureId) const;     // what it detects, as a count
-    QVariantList measureUserRows(const QString &measureId) const;   // and as the actual list
+    QList<ModelInspectorRow> measureUserRows(const QString &measureId) const;   // and as the actual list
 
     // The three columns the flat cross-type list adds — what an object is connected to, how many
     // links it has, and its status word. Per type, because "connected to" means something different
@@ -1309,7 +2103,7 @@ private:
     // all, no corridor authored to judge it against, and a reading the norm refuses to believe
     // (norm.h's plausibility rule — grading a mis-tracked ball in EITHER direction launders a
     // capture fault into a diagnosis). Each of them renders muted, not warned.
-    QVariantMap swingCell(const pinpoint::analysis::Measure &m,
+    ModelCell   swingCell(const pinpoint::analysis::Measure &m,
                           const std::optional<double>      &value) const;
 
     // The tone alone, so the table cell and the inspector's corridor pill reach ONE grading rule.
