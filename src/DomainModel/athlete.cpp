@@ -269,7 +269,43 @@ Session *Athlete::hold(const SessionId &id, bool startedHere, bool onDemand)
         return nullptr;   // not held, or another athlete's session
     Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere, onDemand);
     m_loaded.insert(id, s);
+    // Every loaded session's diagnostics run (DEC-02), when the composition root gave the doors (step 3.5-i).
+    if (m_diagnosticsDoors.attach)
+        m_diagnosticsDoors.attach(s, m_diagnosticsDoors);
     return s;
+}
+
+bool Athlete::releaseSession(const SessionId &id, QString *whyNot)
+{
+    const auto refuse = [whyNot](const QString &why) {
+        if (whyNot)
+            *whyNot = why;
+        return false;
+    };
+    Session *s = m_loaded.value(id);
+    if (!s)
+        return refuse(QStringLiteral("That session is not loaded."));
+    if (s->runningHere() && s->inProgress())
+        return refuse(QStringLiteral("That session is being recorded here."));
+    if (s->uses() > 0)
+        return refuse(QStringLiteral("That session is in use."));
+    // What its diagnostics kept is written FIRST and their waiting jobs cancelled (§4.4 steps 8–9), on this
+    // thread, before the session leaves the identity map; a job still running is dropped at the receiver.
+    emit s->releasing();
+    m_loaded.remove(id);
+    ppInfo() << "[Athlete] session released:" << id.toString();
+    s->deleteLater();   // a view still bound to it reads a live object until the event loop runs
+    return true;
+}
+
+int Athlete::releaseUnused()
+{
+    int n = 0;
+    const QList<SessionId> ids = m_loaded.keys();
+    for (const SessionId &id : ids)
+        if (releaseSession(id))
+            ++n;
+    return n;
 }
 
 void Athlete::endRunningSessions(const SessionId &except)

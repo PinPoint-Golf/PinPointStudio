@@ -32,8 +32,8 @@
 //                      3.4b-ii). rereadSummary() reads it again (the carousel's session load and refresh: the
 //                      document is the truth, as the carousel has always read it). A read that finds no
 //                      document is not kept, so a shot whose document capture is still writing is read again
-//   diagnostics()      ShotDiagnostics: a read-only view of its findings, EMPTY until step 3.5 fires them
-//                      ("-", never a zero: DEC-96)
+//   diagnostics()      ShotDiagnostics: a read-only view of its findings, EMPTY until the views move to it
+//                      (step 3.7; its Session's SessionDiagnostics keeps them from step 3.5-i) ("-", never a zero: DEC-96)
 //   recordingSource()  a RecordingSource (recording_source.h): how any thread reads this shot's Recording
 //   folder()           its folder, as a property only (its media; a row's swingDir until step 4)
 //
@@ -67,12 +67,13 @@
 // carousel, the launch monitor's late reading and the clip filer log it only, as before this step — the gap
 // against DEC-126 is scheduled for step 3.7's cut-overs (information_model.md §11). A save is made now, on this thread, unless
 // the caller names its worker (SaveLater: setShotIntent and correctLabel, the diagnostics panel's, whose save is
-// made off the GUI thread today; D25, DEC-183). Its Session hears every event (P10); nothing consumes them for a
-// re-fire until step 3.5.
+// made off the GUI thread today; D25, DEC-183). Its Session hears every event (P10), and its SessionDiagnostics
+// re-asks the shot on each (step 3.5-i).
 // THE SUMMARY FOLLOWS THE SAVES: a rating, note, declared club, club correction or exclusion saved updates the kept
 // summary's field (nothing is read again); a late part or a re-analysis saved marks it to be read again on the next
 // summary() (their write changes what the summary block holds). A failed save changes nothing in it.
-// NOT YET: the Shot fires nothing until step 3.5 (fireFindings, its ask number).
+// ITS FINDINGS (step 3.5-i): fired by its Session's SessionDiagnostics, which keeps them (DEC-135); the Shot holds its
+// latest ask number (latestAsk). ShotDiagnostics, the view, reads nothing yet: the views move in step 3.7.
 //
 // Domain model ring (src/DomainModel): names no store type.
 
@@ -96,12 +97,13 @@ namespace pinpoint {
 class Session;
 
 // ShotDiagnostics (OBJ-SHOT-DIAG, CLS-SHOT-DIAG): a read-only view of the shot's findings and derived data,
-// reached through the Shot; owns and caches nothing. EMPTY IN STEP 3.4a: nothing fires until step 3.5, so it
-// has no value yet, and a view shows "-" for it, never a zero (DEC-96).
+// reached through the Shot; owns and caches nothing. EMPTY UNTIL STEP 3.7: its Session's SessionDiagnostics keeps the
+// findings from step 3.5-i (DEC-135), and this view reads them when the views move (3.7); until then it has no
+// value, and a view shows "-" for it, never a zero (DEC-96).
 class ShotDiagnostics
 {
 public:
-    // Whether the shot's findings have fired. False until step 3.5.
+    // Whether the shot's findings have fired. False until the views move to it (step 3.7).
     bool fired() const { return false; }
 };
 
@@ -151,6 +153,13 @@ public:
     // keypoints) as before. Made on the caller's thread (the GUI thread in the app, as the write-back always was).
     WriteResult applyAnalysis(const AnalysisOutcome &outcome, const PersistOptions &options = {});
 
+    // ITS ASK NUMBER (refactor step 3.5-i; BRIEF.md §4.4 step 3): each ask of its findings or derived data takes the
+    // next number of the one process-wide counter (nextWorkNumber, src/Core/work_pool.h) and records it here as the
+    // Shot's LATEST; a result is kept only when its number is exactly this. Recorded by its Session's
+    // SessionDiagnostics, which assembles the job (it holds the snapshot and the doors); 0 = never asked.
+    quint64 latestAsk() const { return m_latestAsk; }
+    void    recordAsk(quint64 number) { m_latestAsk = number; }
+
     // The label correction this Shot last saved: what its Athlete appends to the tuning log on EVT-06 (DEC-43).
     const LabelCorrectionNote &lastLabelCorrection() const { return m_lastCorrection; }
 
@@ -186,6 +195,7 @@ private:
     bool                                       m_summaryRead = false;   // m_summary holds a read (ok) summary
     ShotDiagnostics                            m_diagnostics;
     LabelCorrectionNote                        m_lastCorrection;
+    quint64                                    m_latestAsk = 0;
 };
 
 } // namespace pinpoint

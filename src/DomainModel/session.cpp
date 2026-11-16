@@ -55,13 +55,14 @@ Shot *Session::hold(const ShotRef &ref, const std::optional<recording::ShotKind>
     Shot *s = new Shot(ref, kind, m_doors, this);
     m_shots.insert(ref.swingNumber(), s);
     hear(s);
+    emit shotHeld(ref);   // its diagnostics, if any, hear it too (step 3.5-i)
     return s;
 }
 
 void Session::hear(Shot *shot)
 {
-    // P10 (DEC-69): the Session hears every change to its shots, synchronously and in order. Step 3.4b-i wires
-    // the hearing; nothing consumes it for a re-fire until step 3.5 (SessionDiagnostics), so it is logged.
+    // P10 (DEC-69): the Session hears every change to its shots, synchronously and in order, and logs it. Its
+    // SessionDiagnostics (step 3.5-i), when it has one, hears each Shot itself (shotHeld) and re-asks on it.
     const auto heard = [](const char *event) {
         return [event](const ShotRef &ref) { ppInfo() << "[Session] heard" << event << "for" << ref.toString(); };
     };

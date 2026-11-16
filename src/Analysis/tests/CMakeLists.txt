@@ -2058,6 +2058,30 @@ pp_add_test(rule_version_golden_test
 set_tests_properties(rule_version_golden_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# THE SESSION'S DIAGNOSTICS OWNER AND THE RE-FIRE (refactor step 3.5-i; build/refactor/step-3/BRIEF.md §4.4, §6 row 3.5;
+# DEC-191): SessionDiagnostics over the real session store, swing door, Athlete, Session and Shot, the real pool and
+# receiver, the process's RuleData and the real fireFindings, on a temporary library (every trash into its own
+# .pinpoint-trash). J-2, REVIEW-1's case, superseded and trashed results, T1–T4, a usual's change re-deriving only,
+# the real firing reader headless, and release in a sweep (Q-18). The fire_findings link line plus the session's.
+set(SESSION_DIAGNOSTICS_TEST_SOURCES ${FIRE_FINDINGS_TEST_SOURCES} ${PP_RECORDING_STORE_SOURCES})
+list(REMOVE_DUPLICATES SESSION_DIAGNOSTICS_TEST_SOURCES)   # the two lines share the swing door's sources
+pp_add_test(session_diagnostics_test
+    SOURCES ${SRC}/DomainModel/tests/session_diagnostics_test.cpp ${SESSION_DIAGNOSTICS_TEST_SOURCES}
+            ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Identity/identity.h
+            ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+            ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
+            ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
+            ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+            ${SRC}/Export/firing_reader_store.cpp
+            ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(session_diagnostics_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # diag_uncertainty_report — the session_diagnostics_design.md §A8.8 gates over real sessions: the panel's
 # model run under each measurement-uncertainty switch, verdict identity, the soft tier's moves, the
 # posterior's root order, re-rank cost and word sensitivity. READ-ONLY on the library: it runs over a

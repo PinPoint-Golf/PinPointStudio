@@ -56,8 +56,9 @@
 //                 did before (step 2.5)
 //
 // IT HEARS ITS SHOTS (P10; DEC-69; refactor step 3.4b-i): every Shot it holds is connected (DirectConnection)
-// at the moment it is held, and each of the Shot's events is heard here, synchronously and in order. Nothing
-// consumes them for a re-fire until step 3.5 (SessionDiagnostics); the app log says what was heard. It also
+// at the moment it is held, and each of the Shot's events is heard here, synchronously and in order; the app log
+// says what was heard. Its SessionDiagnostics (step 3.5-i), when it has one, hears each Shot itself and re-asks on
+// its events (shotHeld). It also
 // hands each Shot to its Athlete, which appends the tuning log on EVT-06 (DEC-43).
 //
 // ITS EVENTS (DEC-69; src/Core/work_pool.h's conventions): Qt signals carrying only the id, emitted on this
@@ -92,6 +93,7 @@
 
 namespace pinpoint {
 
+class SessionDiagnostics;
 class Shot;
 namespace recording { enum class ShotKind : int; }   // src/Recording/recording.h
 
@@ -131,15 +133,33 @@ public:
     // discard's, whatever ends it — as today, where only a session the golfer started is discarded (DEC-93).
     bool onDemand() const { return m_onDemand; }
 
+    // ITS DIAGNOSTICS (refactor step 3.5-i: SessionDiagnostics, its child, one per instance; CLS-SESSION-DIAG). Made
+    // by SessionDiagnostics::attach when the Athlete's DiagnosticsDoors name it, else null (the app until the
+    // cut-over; every tool and test that wires none). Not owned by a view (DEC-165).
+    SessionDiagnostics *diagnostics() const { return m_diagnostics; }
+
+    // WHO HOLDS IT (refactor step 3.5-i; Q-18): a caller that keeps this Session across event-loop turns — a panel,
+    // the report — adds a use and drops it when done; Athlete::releaseSession refuses a session in use. A sweep
+    // that touched it holds none, so it may be released when the sweep moves on.
+    void addUse() { ++m_uses; }
+    void dropUse() { if (m_uses > 0) --m_uses; }
+    int  uses() const { return m_uses; }
+
 signals:
     void shotAdded(const pinpoint::ShotRef &shot);        // EVT-01 (D19: when capture's document write lands)
     void shotTrashed(const pinpoint::ShotRef &shot);      // EVT-03
     void sessionEnded(const pinpoint::SessionId &session);   // EVT-09
     void intentRunChanged(const pinpoint::SessionId &session);       // EVT-08 IntentRunChanged
     void sessionIntentChanged(const pinpoint::SessionId &session);   // EVT-10 SessionIntentChanged
+    // Not domain events (refactor step 3.5-i), for its SessionDiagnostics, so this file links none of it:
+    // a Shot is now in the collection (listed or added); and the session is being released by its Athlete (what its
+    // diagnostics kept is written first, synchronously: DirectConnection).
+    void shotHeld(const pinpoint::ShotRef &shot);
+    void releasing();
 
 private:
     friend class Athlete;   // one instance per SessionId: made by its Athlete only
+    friend class SessionDiagnostics;   // attaches itself (m_diagnostics); reads the repository it was made with
     // `startedHere`: made by this run's Athlete::startSession (the empty discard may take it, DEC-93, unless
     // `onDemand`).
     Session(Athlete *athlete, SessionRepository *sessions, const ShotDoors &doors, const SessionId &id,
@@ -150,7 +170,7 @@ private:
     WriteResult endSession(bool discardIfEmpty);
     void  loadShots();
     Shot *hold(const ShotRef &ref, const std::optional<recording::ShotKind> &kind);
-    // P10: hears each of the Shot's events (step 3.4b-i); nothing re-fires on them until step 3.5.
+    // P10: hears each of the Shot's events (step 3.4b-i); its SessionDiagnostics re-asks on them (step 3.5-i).
     void  hear(Shot *shot);
     // The session's input as its file holds it, each field it does not hold yet taken from `held` (J-33).
     SessionInput inputWith(const SessionInput &held) const;
@@ -165,6 +185,8 @@ private:
     bool                m_shotsLoaded = false;
     QMap<int, Shot *>   m_shots;       // by swing number; each a child of this Session
     QSet<int>           m_announced;   // swing numbers whose EVT-01 has been emitted
+    SessionDiagnostics *m_diagnostics = nullptr;   // its child (attach)
+    int                 m_uses = 0;
 };
 
 } // namespace pinpoint

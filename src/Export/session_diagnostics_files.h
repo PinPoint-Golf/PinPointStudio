@@ -76,6 +76,7 @@
 #include "../Core/atomic_write.h"
 #include "../Core/folder_lock.h"
 #include "../Core/pp_debug.h"
+#include "../DomainModel/golfer_input_rules.h"     // the J-33 resolution, one rule (step 3.5-i)
 #include "../DomainModel/recording_repository.h"   // WriteResult, RecordingRepository
 #include "../DomainModel/session_input.h"
 
@@ -228,41 +229,14 @@ inline QThreadPool &reviewReadPool()
     return pool;
 }
 
-// ── The older shape's keys, read as the model always read them ────────────────────────────────────────
+// ── The older shape's keys: the one rule, src/DomainModel/golfer_input_rules.h (moved there in step 3.5-i so
+//    SessionDiagnostics resolves the golfer's input by the same rule) ───────────────────────────────────────
 
-inline DeclaredFocus legacyFocus(const QJsonObject &legacy)
-{
-    const QJsonObject intent = legacy.value(QStringLiteral("intent")).toObject();
-    return { intent.value(QStringLiteral("focusConditionId")).toString(),
-             intent.value(QStringLiteral("focusFromShot")).toInt(-1) };
-}
-
-inline QString legacyMiss(const QJsonObject &legacy)
-{
-    return legacy.value(QStringLiteral("intent")).toObject().value(QStringLiteral("declaredMiss")).toString();
-}
-
-inline QHash<QString, bool> legacyScreens(const QJsonObject &legacy)
-{
-    QHash<QString, bool> out;
-    const QJsonObject screens = legacy.value(QStringLiteral("screens")).toObject();
-    for (auto it = screens.constBegin(); it != screens.constEnd(); ++it) out.insert(it.key(), it.value().toBool());
-    return out;
-}
-
-inline IntentRun legacyRun(const QJsonObject &legacy)
-{
-    const QJsonObject run = legacy.value(QStringLiteral("intentFrom")).toObject();
-    return { run.value(QStringLiteral("fromShot")).toInt(-1), run.value(QStringLiteral("shape")).toString() };
-}
-
-inline std::vector<analysis::ShotCorrection> toShotCorrections(const QVector<LabelCorrection> &list)
-{
-    std::vector<analysis::ShotCorrection> out;
-    out.reserve(size_t(list.size()));
-    for (const LabelCorrection &c : list) out.push_back(analysis::ShotCorrection{ c.family, c.from, c.to });
-    return out;
-}
+using golfer_input::legacyFocus;
+using golfer_input::legacyMiss;
+using golfer_input::legacyScreens;
+using golfer_input::legacyRun;
+using golfer_input::toShotCorrections;
 
 } // namespace session_diagnostics_detail
 
@@ -330,15 +304,11 @@ inline GolferInput SessionDiagnosticsFiles::golferInput(const QString &sessionDi
     } else {
         g.screens = session_diagnostics_detail::legacyScreens(legacy);
     }
-    if (in.intentRuns) {
-        if (!in.intentRuns->isEmpty()) g.intentRun = in.intentRuns->last();   // one run today: the latest
-    } else {
-        g.intentRun = session_diagnostics_detail::legacyRun(legacy);
-    }
+    g.intentRun = golfer_input::resolveIntentRun(in, legacy);   // one run today: the latest
 
     // Shot level: the older copy first, then every shot's review over it, field by field.
-    g.shotIntent  = analysis::shotIntentsFromJson(legacy.value(QStringLiteral("shotIntent")).toObject());
-    g.corrections = analysis::shotCorrectionsFromJson(legacy.value(QStringLiteral("corrections")).toObject());
+    g.shotIntent  = golfer_input::legacyShotIntents(legacy);
+    g.corrections = golfer_input::legacyShotCorrections(legacy);
     if (sessionDir.isEmpty()) return g;
     // Each folder named on this thread (shotOfFolder is the owner thread's; after the first swing of a
     // session it is a lookup in the identity map) ...
@@ -377,21 +347,8 @@ inline GolferInput SessionDiagnosticsFiles::golferInput(const QString &sessionDi
         finished.acquire(workers);
     }
     for (const Swing &w : swings) {
-        const ShotReview &review = w.review;
-        if (!review.ok) continue;                         // no document: nothing to say about it
-        const int num = w.number;
-        bool fromReview = false;
-        if (review.hasShotIntent) {
-            fromReview = true;
-            if (review.shotIntent.isEmpty()) g.shotIntent.remove(num);          // cleared, explicitly
-            else                             g.shotIntent.insert(num, review.shotIntent);
-        }
-        if (review.hasLabelCorrections) {
-            fromReview = true;
-            if (review.labelCorrections.isEmpty()) g.corrections.remove(num);   // cleared, explicitly
-            else                                   g.corrections.insert(num, session_diagnostics_detail::toShotCorrections(review.labelCorrections));
-        }
-        if (fromReview) ++g.shotsFromReview;
+        // No document: nothing to say about it. Else the review over the older copy, field by field (the one rule).
+        if (golfer_input::applyReview(w.review, w.number, g.shotIntent, g.corrections)) ++g.shotsFromReview;
     }
     return g;
 }

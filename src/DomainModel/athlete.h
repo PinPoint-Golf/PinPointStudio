@@ -55,7 +55,7 @@
 //   session(id), sessions()   the Session for an id of the index, and every one (loaded when first asked)
 // ONE INSTANCE PER SessionId: the Athlete holds each Session it has loaded as its child, so the panel, the
 // report and a sweep asking for one get the same object (LIVE-2; Mark, 15 Nov 2026: DEC-190); the session
-// repository holds the records. Nothing releases one but a trash until step 3.5 (Q-18).
+// repository holds the records. A trash lets one go; so does releaseSession, for one nobody holds (step 3.5-i: Q-18).
 // The events are Qt signals carrying the id, emitted after the repository write returned ok (DEC-69).
 // ITS CALLERS (run 3.4a-ii): capture (ShotProcessor) starts, resumes and ends through these; AthleteController
 // reaches the athletes through the composition root's callables (D18 (c)); the drawer's session delete still
@@ -88,14 +88,20 @@
 #include <QVariant>
 #include <QVariantMap>
 
+#include <functional>
 #include <memory>
 
 namespace pinpoint {
 
 class AthleteRepository;
+class FiringReader;
 class RecordingReader;
+class RuleData;
 class Session;
+class SessionDiagnostics;
 class Shot;
+class WorkPool;
+class WorkReceiver;
 
 // The doors a Session's shots read and (from step 3.4b) write through (refactor step 3.4a): the composition
 // root's one RecordingRepository and RecordingReader, handed down Athlete → Session → Shot by the athlete
@@ -108,6 +114,25 @@ enum class SessionStart { Deliberate, OnDemand };
 struct ShotDoors {
     RecordingRepository             *recordings = nullptr;
     std::shared_ptr<RecordingReader> reader;
+};
+
+// The doors a Session's SessionDiagnostics works through (refactor step 3.5-i; build/refactor/step-3/BRIEF.md §4.4),
+// handed down Athlete → Session → SessionDiagnostics by the composition root, as ShotDoors are: the one pool and its
+// receiver (D15), the machine's RuleData (D5), the firing reader (firing_reader.h). None is owned here; each outlives
+// every Athlete. `attach` is SessionDiagnostics::attach, set by the composition root that links it: the Athlete calls
+// it for every Session it makes, so every loaded session's diagnostics run (DEC-02) — and with no `attach` (the app in
+// run 3.5-i, every tool and test that sets none) no Session has one. `persist`: it writes diagnostics.json — false in
+// the app until the cut-over (step 3.7: the old model is the file's one writer until then). `synchronous`: headless
+// (R-HL-2: the jobs run on the calling thread). `writeDebounceMs`: how long after a batch settles the write waits.
+struct DiagnosticsDoors {
+    WorkPool                           *pool     = nullptr;
+    WorkReceiver                       *receiver = nullptr;
+    RuleData                           *ruleData = nullptr;
+    std::shared_ptr<const FiringReader> reader;
+    bool                                persist         = false;
+    bool                                synchronous     = false;
+    int                                 writeDebounceMs = 1500;
+    std::function<SessionDiagnostics *(Session *, const DiagnosticsDoors &)> attach;
 };
 
 // OBJ-ATHLETE-RECORD and OBJ-BAG: SET-01's keys exactly as stored today, so M1's move is lossless.
@@ -219,6 +244,10 @@ public:
                    Source source, bool readOnly);
     // THE REPOSITORY'S SIDE: the doors its sessions' shots use (the sessions loaded before keep theirs).
     void setShotDoors(const ShotDoors &doors) { m_shotDoors = doors; }
+    // THE COMPOSITION ROOT'S SIDE: the doors its sessions' diagnostics use (refactor step 3.5-i). Sessions loaded
+    // before keep what they have (none, or theirs).
+    void setDiagnosticsDoors(const DiagnosticsDoors &doors) { m_diagnosticsDoors = doors; }
+    const DiagnosticsDoors &diagnosticsDoors() const { return m_diagnosticsDoors; }
 
     // ── Its sessions (step 3.4a) ─────────────────────────────────────────────────────────────────────
     // `type` by name (DEC-88: "swing", "wrist", "grf", "coach", "" for none); `namingPattern` is SET-04,
@@ -231,6 +260,19 @@ public:
     Session    *sessionAt(const QString &folder);
     Session    *session(const SessionId &id);
     QList<Session *> sessions();
+    // The Session for `id` if it is loaded now, never loading one (the composition root's identity-map lookup for
+    // the work receiver: §4.4 step 6), and every one loaded now.
+    Session    *loadedSession(const SessionId &id) const { return m_loaded.value(id); }
+    QList<Session *> loadedSessions() const { return m_loaded.values(); }
+
+    // RELEASING A SESSION NOBODY HOLDS (refactor step 3.5-i; DEC-190's follow-up, Q-18): a sweep or a catch-up
+    // must not keep every session it touched. The Session's diagnostics write what they kept FIRST and cancel their
+    // waiting jobs (Session::releasing; §4.4 steps 8–9); then it leaves the identity map and is deleted later
+    // (deleteLater), so a view still bound to it reads a live object until the event loop runs. A later
+    // session(id) loads a new instance. Refused (false, `*whyNot`) for a session not loaded, the one running here,
+    // or one a caller holds (Session::addUse). releaseUnused releases every loaded session it may; returns how many.
+    bool        releaseSession(const SessionId &id, QString *whyNot = nullptr);
+    int         releaseUnused();
 
     // ── Its tuning log (refactor step 3.4b-i; OBJ-TUNING-LOG, FILE-ATH-04; DEC-43) ────────────────────────────
     // Each Session hands it every Shot it holds; the Athlete then hears that Shot's EVT-06 (LabelCorrected) and
@@ -258,6 +300,7 @@ private:
     Source             m_source   = Source::Library;
     bool               m_readOnly = false;
     ShotDoors          m_shotDoors;
+    DiagnosticsDoors   m_diagnosticsDoors;
     QHash<SessionId, Session *> m_loaded;   // each Session loaded, a child of this Athlete (one per id)
 
     // The Session object for a session the repository holds, made once; `startedHere` marks the one this
