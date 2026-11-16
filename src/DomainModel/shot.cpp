@@ -23,6 +23,8 @@
 #include "../Core/pp_debug.h"
 
 #include <QCoreApplication>
+
+#include <algorithm>
 #include <QMetaObject>
 #include <QPointer>
 #include <QThreadPool>
@@ -51,6 +53,32 @@ recording::ShotKind Shot::kind() const
     return *m_kind;
 }
 
+// ── The summary (refactor step 3.4b-ii: the carousel's rows over the Shots) ─────────────────────────────────
+
+const ShotSummary &Shot::summary()
+{
+    return m_summaryRead ? m_summary : rereadSummary();
+}
+
+const ShotSummary &Shot::rereadSummary(bool parseIfUnindexed)
+{
+    // The cheap read, through the repository (never the multi-MB analysis). A read that finds no document (capture
+    // still writing it, or gone) is not kept: the next ask reads again.
+    m_summary     = m_doors.recordings ? m_doors.recordings->readSummary(m_ref, parseIfUnindexed) : ShotSummary{};
+    m_summaryRead = m_summary.ok;
+    return m_summary;
+}
+
+void Shot::keepInSummary(const ReviewEdit &edit)
+{
+    // The summary follows the saves (shot.h): the field the save wrote, as readSummary would now read it.
+    if (edit.rating)       m_summary.rating         = std::clamp(*edit.rating, 0, 5);
+    if (edit.note)         m_summary.note           = *edit.note;
+    if (edit.club)         m_summary.club           = *edit.club;
+    if (edit.excluded)     m_summary.lmExcluded     = *edit.excluded;
+    if (edit.clubOverride) m_summary.lmClubOverride = *edit.clubOverride;
+}
+
 // ── The commands for its own facts (refactor step 3.4b-i) ────────────────────────────────────────────────
 //
 // Each: one save through the repository by ShotRef (the session's lock taken for that write: step 2.8b), then
@@ -67,6 +95,7 @@ void Shot::emitEvent(Event event)
     case Event::LabelCorrected:   emit labelCorrected(m_ref);      return;   // EVT-06
     case Event::ShotIntent:       emit shotIntentChanged(m_ref);   return;   // EVT-07
     case Event::CaptureCompleted: emit captureCompleted(m_ref);    return;   // EVT-22
+    case Event::Reanalysed:       emit reanalysed(m_ref);          return;   // EVT-02
     }
 }
 
@@ -76,6 +105,9 @@ WriteResult Shot::finish(const WriteResult &result, Event event, const char *com
         ppWarn() << "[Shot]" << command << "not saved for" << m_ref.toString() << "-" << result.error;
         return result;   // nothing changed: no event
     }
+    // A late part or a re-analysis rewrote what the summary block holds: read it again when next asked.
+    if (result.changed() && (event == Event::CaptureCompleted || event == Event::Reanalysed))
+        m_summaryRead = false;
     if (result.changed())
         emitEvent(event);
     return result;
@@ -83,7 +115,10 @@ WriteResult Shot::finish(const WriteResult &result, Event event, const char *com
 
 WriteResult Shot::saveReview(const ReviewEdit &edit, Event event, const char *command)
 {
-    return finish(m_doors.recordings ? m_doors.recordings->editReview(m_ref, edit) : noDoor(), event, command);
+    const WriteResult w = m_doors.recordings ? m_doors.recordings->editReview(m_ref, edit) : noDoor();
+    if (w.ok() && m_summaryRead)
+        keepInSummary(edit);   // before the event, so a listener reads the saved value
+    return finish(w, event, command);
 }
 
 void Shot::saveReviewLater(const ReviewEdit &edit, Event event, const char *command, const SaveLater &later,
@@ -107,10 +142,12 @@ void Shot::saveReviewLater(const ReviewEdit &edit, Event event, const char *comm
     const auto           done = later.done;
     later.pool->start([repo, ref, edit, event, command, self, done, note]() {
         const WriteResult w = repo ? repo->editReview(ref, edit) : noDoor();
-        QMetaObject::invokeMethod(QCoreApplication::instance(), [self, w, event, command, done, note, ref]() {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [self, w, edit, event, command, done, note, ref]() {
             if (self) {
                 if (note && w.ok())
                     self->m_lastCorrection = *note;
+                if (w.ok() && self->m_summaryRead)
+                    self->keepInSummary(edit);
                 self->finish(w, event, command);
             } else if (!w.ok()) {
                 ppWarn() << "[Shot]" << command << "not saved for" << ref.toString() << "-" << w.error;
@@ -221,6 +258,12 @@ WriteResult Shot::setMarkupTruth(TruthView view, const QJsonObject &truth)
 {
     return finish(m_doors.recordings ? m_doors.recordings->writeTruth(m_ref, view, truth) : noDoor(),
                   Event::None, "setMarkupTruth");   // no event (DEC-187: IM-S3-9)
+}
+
+WriteResult Shot::applyAnalysis(const AnalysisOutcome &outcome, const PersistOptions &options)
+{
+    return finish(m_doors.recordings ? m_doors.recordings->writeAnalysis(m_ref, outcome, options) : noDoor(),
+                  Event::Reanalysed, "applyAnalysis");   // EVT-02 (DEC-103)
 }
 
 } // namespace pinpoint

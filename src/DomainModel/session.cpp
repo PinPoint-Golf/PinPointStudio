@@ -71,6 +71,7 @@ void Session::hear(Shot *shot)
     connect(shot, &Shot::labelCorrected,      this, heard("EVT-06"), Qt::DirectConnection);
     connect(shot, &Shot::shotIntentChanged,   this, heard("EVT-07"), Qt::DirectConnection);
     connect(shot, &Shot::captureCompleted,    this, heard("EVT-22"), Qt::DirectConnection);
+    connect(shot, &Shot::reanalysed,          this, heard("EVT-02"), Qt::DirectConnection);   // refactor step 3.4b-ii
     // EVT-06's tuning log is the Athlete's (DEC-43): it hears the Shot itself.
     if (m_athlete)
         m_athlete->hearLabelCorrections(shot);

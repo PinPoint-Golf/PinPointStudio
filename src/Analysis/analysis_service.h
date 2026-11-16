@@ -29,17 +29,19 @@
 //                                           re-analysis' reuse gate): the job must have come from
 //                                           buildAnalysisJob on this Recording
 //   integrity(recording)                    the verdicts alone: a capture that ran no analysis
-//   load(shot)                              a stored shot's Recording by its ShotRef, through the
-//                                           RecordingReader the service was given (recording_reader.h)
+//   load(source)                            a stored shot's Recording, read through the RecordingSource
+//                                           its Shot handed out (recording_source.h; refactor step 3.4b-ii:
+//                                           "they ask the Shot", 04 step 3 item 8)
 //
 // Called by the live capture (ShotProcessor, on its analysis worker), re-analysis
-// (reanalyzeShot, by ShotRef through the RecordingReader: the app's ReanalysisController and the one
+// (reanalyzeShot, through the shot's RecordingSource: the app's ReanalysisController and the one
 // write-back, reanalyseAndPersist)
 // and SwingLab (swinglab_run --out / --doc-blocks / --write-back). So a shot analysed live and the
 // same shot re-analysed are run, and judged, by the same code.
 //
-// IT HOLDS NO DATA and writes nothing: its result goes back to the caller, which persists it through
-// RecordingRepository. Stateless (the reader it is given is stateless too), so any thread may call it.
+// IT HOLDS NO DATA and writes nothing: its result goes back to the caller, which persists it (the Shot's
+// applyAnalysis in the app). Stateless, so any thread may call it; it reads only through the RecordingSource it is
+// handed, never a reader or a repository of its own (P11).
 // The analyzer call is wrapped: a throwing stage degrades to { ok=false, error }.
 //
 // Application ring (src/Analysis).
@@ -51,7 +53,7 @@
 #include "effective_context.h"
 #include "recording_integrity.h"       // IntegrityVerdicts, integrityFor
 #include "../Recording/recording.h"
-#include "../DomainModel/recording_reader.h"
+#include "../DomainModel/recording_source.h"   // RecordingSource: how a stored shot is read (refactor step 3.4b-ii)
 
 namespace pinpoint::analysis {
 
@@ -62,8 +64,7 @@ struct AnalysedRecording {
 
 class AnalysisService {
 public:
-    // `reader` is what load() reads stored shots through; the live capture needs none.
-    explicit AnalysisService(pinpoint::RecordingReader *reader = nullptr) : m_reader(reader) {}
+    AnalysisService() = default;
 
     AnalysedRecording analyse(const pinpoint::recording::Recording &recording,
                               const EffectiveContext &effective, const RunOptions &options) const;
@@ -71,12 +72,9 @@ public:
                                  const ShotAnalysisJob &job) const;
     IntegrityVerdicts integrity(const pinpoint::recording::Recording &recording) const;
 
-    // ok=false with an error when the service was given no reader.
-    pinpoint::LoadedRecording load(const pinpoint::ShotRef &shot,
+    // ok=false with the reason when the source reads nothing (no shot, no reader, its session unpublished).
+    pinpoint::LoadedRecording load(const pinpoint::RecordingSource &source,
                                    const pinpoint::RecordingLoadOptions &options = {}) const;
-
-private:
-    pinpoint::RecordingReader *m_reader = nullptr;
 };
 
 } // namespace pinpoint::analysis

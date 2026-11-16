@@ -658,6 +658,9 @@ int main(int argc, char *argv[])
     ReanalysisController      reanalysisController;
     reanalysisController.setRecordingRepository(&recordingRepository);
     reanalysisController.setRecordingReader(&recordingReader);
+    // A held shot is read through its Shot's RecordingSource and written back by Shot::applyAnalysis (EVT-02;
+    // refactor step 3.4b-ii); a shot no Session holds keeps the two doors above (N1).
+    reanalysisController.setShotCommands(&appObject);
     // Storage → Save pose keypoints, honoured by the write-back as by the live save (asked at each
     // write, on the GUI thread).
     reanalysisController.setPersistOptions([&appSettings] {

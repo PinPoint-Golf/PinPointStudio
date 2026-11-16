@@ -29,7 +29,8 @@
 //
 //   ShotCommandDoor     (refactor step 3.4b-i; shot_command_door.h) how today's writers of a shot's facts, which
 //                       still hold a folder, reach the Shot's and the Session's commands: through sessionAt, then
-//                       the Session's own Shot (P10). C++ only; no QML calls it
+//                       the Session's own Shot (P10); and (3.4b-ii) how the carousel's rows read a held shot's
+//                       summary and trash it, and how re-analysis reads and writes it back. C++ only; no QML calls it
 //
 // Step 4 grows it (app.session, app.athlete, app.state: R-QML-1); nothing is re-pointed twice. It includes no
 // repository (P11): the current athlete comes from the composition root as a function.
@@ -97,6 +98,13 @@ public:
                                    const SessionInput &held) override;
     ForwardResult setIntentRun(const QString &sessionFolder, const QVector<IntentRun> &runs,
                                const SessionInput &held) override;
+    // The rows and the readers (refactor step 3.4b-ii).
+    std::optional<ShotSummary> shotSummary(const QString &sessionFolder, const ShotRef &shot, SummaryRead how) override;
+    std::optional<QVector<HeldShot>> sessionShots(const QString &sessionFolder) override;
+    ForwardResult trashShot(const QString &sessionFolder, const ShotRef &shot, QString *where) override;
+    std::optional<RecordingSource> recordingSourceOf(const QString &sessionFolder, const ShotRef &shot) override;
+    ForwardResult applyAnalysis(const QString &sessionFolder, const ShotRef &shot, const AnalysisOutcome &outcome,
+                                const PersistOptions &options) override;
 
 private:
     std::function<Athlete *()> m_currentAthlete;

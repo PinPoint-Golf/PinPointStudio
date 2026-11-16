@@ -60,15 +60,10 @@ IntegrityVerdicts AnalysisService::integrity(const pinpoint::recording::Recordin
     return integrityFor(recording);
 }
 
-pinpoint::LoadedRecording AnalysisService::load(const pinpoint::ShotRef &shot,
+pinpoint::LoadedRecording AnalysisService::load(const pinpoint::RecordingSource &source,
                                                 const pinpoint::RecordingLoadOptions &options) const
 {
-    if (!m_reader) {
-        pinpoint::LoadedRecording none;
-        none.error = QStringLiteral("no Recording reader");
-        return none;
-    }
-    return m_reader->load(shot, options);
+    return source.read(options);
 }
 
 

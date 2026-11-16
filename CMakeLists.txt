@@ -2925,6 +2925,7 @@ target_sources(PinPointStudio PRIVATE
     # The analysis service and the one integrity rule (refactor step 1.5), the reading interface the
     # service loads a stored shot through, and the pipeline's one rebase to window time.
     src/DomainModel/recording_reader.h
+    src/DomainModel/recording_source.h
     src/Analysis/analysis_service.h
     src/Analysis/analysis_service.cpp
     src/Analysis/recording_integrity.h
@@ -3349,6 +3350,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Export/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
         src/Export/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/DomainModel/session_identity.cpp
         src/Core/folder_lock.cpp

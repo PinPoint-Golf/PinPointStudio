@@ -148,7 +148,7 @@ pp_add_test(shot_list_model_test
     LINK    Qt6::Qml  AUTOMOC)
 
 # ReanalysisController — the single re-analyse seam the carousel forwards to.
-# The controller's worker body (reanalyzeSwingDir) is satisfied
+# The controller's worker body (reanalyzeShot, through the shot's RecordingSource) is satisfied
 # by reanalysis_stubs.cpp so the funnel test stays free of the analysis pipeline.
 pp_add_test(reanalysis_controller_test
     SOURCES reanalysis_controller_test.cpp

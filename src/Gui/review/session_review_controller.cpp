@@ -36,6 +36,7 @@
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
 #include "../DomainModel/athlete.h"
+#include "../DomainModel/session.h"    // the Session its Athlete holds (the drawer's delete, refactor step 3.4b-ii)
 #include "../DomainModel/recording_repository.h"
 #include "../DomainModel/session_repository.h"
 
@@ -262,14 +263,16 @@ void SessionReviewController::loadSession(const QString &sessionId)
         });
 
     QVector<pinpoint::ShotSummaryInput> ins;
-    for (const pinpoint::PersistedShot &ps : parsed) {
+    for (int i = 0; i < parsed.size(); ++i) {
+        const pinpoint::PersistedShot &ps = parsed.at(i);
         if (!ps.ok)
             continue;
         m_reviewModel.addPersistedShot(
             ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
             ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
             ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning,
-            ps.lmDevice, ps.dataWarningDetail, ps.excluded, ps.clubOverride);
+            ps.lmDevice, ps.dataWarningDetail, ps.excluded, ps.clubOverride,
+            swings.at(i).second);   // the ShotRef translated above, once (blockingMapped keeps the order)
         ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath, ps.devices });
     }
 
@@ -362,12 +365,27 @@ bool SessionReviewController::trashSession(const QString &sessionId)
     // refusal or a failure everything stays in place.
     pinpoint::SessionRepository *sessions = m_athlete ? m_athlete->sessionRepository() : nullptr;
     pinpoint::Athlete           *athlete  = m_athlete ? m_athlete->currentAthlete() : nullptr;
+    const QString                folder   = QDir::cleanPath(QFileInfo(sessionId).absoluteFilePath());
+    // A SESSION ITS ATHLETE HOLDS IS TRASHED BY ITS ATHLETE (refactor step 3.4b-ii; DEC-71: Athlete::trashSession,
+    // EVT-20): the same refusals and the same move, through the same repository, and the Athlete lets its Session
+    // (and its Shots) go. A session no Athlete holds — another golfer's folder — keeps the path below (N1).
+    if (pinpoint::Session *held = athlete ? athlete->sessionAt(folder) : nullptr) {
+        QString where;
+        const pinpoint::WriteResult t = athlete->trashSession(held->id(), &where);
+        if (!t.ok()) {
+            ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId << "-" << t.error;
+            return false;
+        }
+        if (m_reviewActive && QFileInfo(sessionId).absoluteFilePath() == m_loadedSessionDir)
+            resumeLive();
+        refresh();
+        return true;
+    }
     if (!sessions) {
         ppWarn() << "[SessionReviewController] no session repository: cannot trash" << sessionId;
         return false;
     }
-    const pinpoint::SessionId id = sessions->openFolder(QDir::cleanPath(QFileInfo(sessionId).absoluteFilePath()),
-                                                        athlete ? athlete->id() : pinpoint::AthleteId());
+    const pinpoint::SessionId id = sessions->openFolder(folder, athlete ? athlete->id() : pinpoint::AthleteId());
     const pinpoint::WriteResult r = id.isNull()
         ? pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
                                  QStringLiteral("the session cannot be named (no session file, and no athlete)") }

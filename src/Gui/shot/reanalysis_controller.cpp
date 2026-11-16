@@ -24,6 +24,7 @@
 #include <QtConcurrent>
 
 #include "../Analysis/reanalyse_and_persist.h"   // the one write-back
+#include "../../App/shot_command_door.h"           // the Shot's read and write-back (refactor step 3.4b-ii)
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
 
@@ -67,16 +68,41 @@ void ReanalysisController::reanalyse(const QVariantList &swingDirs)
     }
 }
 
+pinpoint::analysis::AnalysisWrite ReanalysisController::writeBackOf(const QString &dir, const pinpoint::ShotRef &shot) const
+{
+    // A shot a Session holds: the Shot's own write-back (Shot::applyAnalysis, EVT-02), reached through `app`. The
+    // door is asked again at the write, on this thread: a shot trashed or a session let go mid-batch is not reached,
+    // and then today's write keeps the repository's empty-document guard (the folder gone: nothing written).
+    pinpoint::ShotCommandDoor     *door = m_commands;
+    pinpoint::RecordingRepository *repo = m_repo;
+    return [door, repo, dir, shot](const pinpoint::AnalysisOutcome &outcome, const pinpoint::PersistOptions &options) {
+        if (door) {
+            const pinpoint::ForwardResult f =
+                door->applyAnalysis(pinpoint::sessionFolderOf(dir), shot, outcome, options);
+            if (f.reached)
+                return f.result;
+        }
+        if (!repo)
+            return pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
+                                          QStringLiteral("no swing store is connected") };
+        return repo->writeAnalysis(shot, outcome, options);   // N1's interim: no Session holds the shot
+    };
+}
+
 bool ReanalysisController::refreshIfDeviceOnly(const QString &dir)
 {
     if (!m_repo)
         return false;
     // The edge (DEC-90): the queued folder to its ShotRef, on this (the owner) thread.
     const pinpoint::ShotRef shot = m_repo->shotOfFolder(dir);
+    // LAUNCH MONITOR ONLY is the DOCUMENT's classification (RecordingRepository::isDeviceOnly: the recorded kind,
+    // else the content rule, R-REC-8), as before — not the Shot's kind: a camera shot whose export failed and whose
+    // folder the launch monitor then filled (the rescue) is device-only by its document while its Shot was allocated
+    // as captured (53a3bb0a's case; review 1, CN-1). Its rows are then derived again, through its Shot if held.
     if (!m_repo->isDeviceOnly(shot))
         return false;
     const pinpoint::analysis::PersistedReanalysis p =
-        pinpoint::analysis::persistReanalysis(*m_repo, shot, nullptr, persistOptions());
+        pinpoint::analysis::persistReanalysis(writeBackOf(dir, shot), nullptr, persistOptions());
     if (p.ok()) {
         ++m_succeeded;
         emit reanalysed(dir);
@@ -127,16 +153,25 @@ void ReanalysisController::startNext()
     // The edge (DEC-90): translated here, on the owner thread; the worker reads by the ShotRef, whose
     // folder the session repository resolves from any thread.
     m_currentShot = m_repo ? m_repo->shotOfFolder(dir) : pinpoint::ShotRef();
-    pinpoint::RecordingReader *reader = m_reader;
-    const pinpoint::ShotRef    shot   = m_currentShot;
-    m_watcher.setFuture(QtConcurrent::run([reader, shot] {
+    // HOW THE WORKER READS IT (04 step 3 item 8, "they ask the Shot"): the Shot's RecordingSource for a shot a
+    // Session holds; else (N1) the same reader main.cpp hands the Shots, wrapped as a source (not owned).
+    const std::optional<pinpoint::RecordingSource> held =
+        m_commands ? m_commands->recordingSourceOf(pinpoint::sessionFolderOf(dir), m_currentShot) : std::nullopt;
+    const pinpoint::RecordingSource source =
+        held ? *held
+             : pinpoint::RecordingSource(m_currentShot,
+                                         m_reader ? std::shared_ptr<pinpoint::RecordingReader>(
+                                                        m_reader, [](pinpoint::RecordingReader *) {})
+                                                  : std::shared_ptr<pinpoint::RecordingReader>());
+    const bool noReader = !held && !m_reader;
+    m_watcher.setFuture(QtConcurrent::run([source, noReader] {
         pinpoint::osmetrics::ThreadScope _tscope("Analysis.Worker");
-        if (!reader) {
+        if (noReader) {
             pinpoint::analysis::ReanalyzeResult none;
             none.error = QStringLiteral("This shot couldn't be re-analysed: no swing reader is connected.");
             return none;
         }
-        return pinpoint::analysis::reanalyzeShot(*reader, shot, pinpoint::analysis::ReanalyzeOptions{});
+        return pinpoint::analysis::reanalyzeShot(source, pinpoint::analysis::ReanalyzeOptions{});
     }));
 }
 
@@ -172,7 +207,7 @@ void ReanalysisController::onWorkerFinished()
     // keypoints. An empty read (the folder was trashed mid-batch, a transient failure) writes
     // nothing: writing then would replace the whole document with only {schema, analysis}.
     const pinpoint::analysis::PersistedReanalysis p =
-        pinpoint::analysis::persistReanalysis(*m_repo, shot, &r, persistOptions());
+        pinpoint::analysis::persistReanalysis(writeBackOf(dir, shot), &r, persistOptions());
     if (p.ok()) {
         ++m_succeeded;
         emit reanalysed(dir);   // host refreshes the row in the active model

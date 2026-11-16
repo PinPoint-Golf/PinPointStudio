@@ -207,11 +207,14 @@ swinglab_run <swing_dir> --out <run_dir> [--params p.json] [--trace]
 ### Stage 1–2 — reconstruct, via `SwingDiskLoader`
 
 **This used to be the runner's own code and is now shared.** One call —
-`SwingDiskLoader::load(swingDir, opts)` (`src/Analysis/swing_reanalyzer.h`) —
+`SwingDiskLoader::load(source, opts)` (`src/Analysis/swing_reanalyzer.h`; the shot's
+`RecordingSource`, which swinglab makes over its own reader — refactor step 3.4b-ii) —
 returns a `LoadedSwing`: a disk-backed `SwingWindow` plus a `ShotAnalysisJob`
 resolved from `swing.json`. The in-app re-analyse path
-(`ReanalysisController`) calls the same loader, so a reconstruction bug cannot
-exist in one and not the other.
+(`ReanalysisController`, through the `Shot`'s `RecordingSource`) calls the same loader, so a reconstruction
+bug cannot exist in one and not the other. A tool or test holding only a folder reads it by its path
+through `loadSwingFolder` / `reanalyzeSwingDir` (`src/Export/swing_folder_reanalysis.h`: the Export ring, the
+same loader, then the same job builder).
 
 The important behavioural change: it **streams**. The old runner rebuilt a full
 `EventBuffer` and wrote every payload into it at its original timestamp, which

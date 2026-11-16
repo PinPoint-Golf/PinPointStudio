@@ -89,19 +89,14 @@
 #include <cstdio>
 #include <cstdlib>
 
-// THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeSwingDir, which needs the
+// THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeShot, which needs the
 // whole pipeline. This test is about the write half, so the analysis it gets is the one set here.
 namespace {
 pinpoint::analysis::ReanalyzeResult g_reanalysis;
 int g_reanalysisCalls = 0;
 }
 namespace pinpoint::analysis {
-ReanalyzeResult reanalyzeSwingDir(const QString &, const ReanalyzeOptions &)
-{
-    ++g_reanalysisCalls;
-    return g_reanalysis;
-}
-ReanalyzeResult reanalyzeShot(RecordingReader &, const ShotRef &, const ReanalyzeOptions &)
+ReanalyzeResult reanalyzeShot(const RecordingSource &, const ReanalyzeOptions &)
 {
     ++g_reanalysisCalls;
     return g_reanalysis;
@@ -118,9 +113,28 @@ struct NullReader final : pinpoint::RecordingReader {
         std::abort();
     }
 } g_reader;
+
+// The write-back as a tool makes it (refactor step 3.4b-ii: reanalyseAndPersist takes the shot's write, its
+// RecordingSource and its kind): the repository's writeAnalysis by the ShotRef, the shot read through `g_reader`.
+pinpoint::analysis::PersistedReanalysis reanalyseThrough(pinpoint::RecordingRepository &repo,
+                                                         const pinpoint::ShotRef &ref,
+                                                         const pinpoint::PersistOptions &options)
+{
+    const pinpoint::analysis::AnalysisWrite write = [&repo, ref](const pinpoint::AnalysisOutcome &o,
+                                                                const pinpoint::PersistOptions &opt) {
+        return repo.writeAnalysis(ref, o, opt);
+    };
+    const pinpoint::RecordingSource source(
+        ref, std::shared_ptr<pinpoint::RecordingReader>(&g_reader, [](pinpoint::RecordingReader *) {}));
+    return pinpoint::analysis::reanalyseAndPersist(write, source, repo.isDeviceOnly(ref), options);
 }
-namespace pinpoint::analysis {
-} // namespace pinpoint::analysis
+pinpoint::analysis::AnalysisWrite writeTo(pinpoint::RecordingRepository &repo, const pinpoint::ShotRef &ref)
+{
+    return [&repo, ref](const pinpoint::AnalysisOutcome &o, const pinpoint::PersistOptions &opt) {
+        return repo.writeAnalysis(ref, o, opt);
+    };
+}
+}
 
 using namespace pinpoint;
 
@@ -629,7 +643,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     PersistOptions off;
     off.savePose = false;
     g_reanalysisCalls = 0;
-    const PersistedReanalysis p = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), off);
+    const PersistedReanalysis p = reanalyseThrough(repo, testdoc::ref(t.path()), off);
     check(g_reanalysisCalls == 1 && p.ok() && p.analysed && !p.deviceOnly && p.score == 91, "re-analysed and persisted");
     const QJsonObject root = doc(t.path());
     check(overallScoreFromAnalysis(root.value(QStringLiteral("analysis")).toObject()) == 91, "the new analysis on disk");
@@ -642,7 +656,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     g_reanalysis = ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no frames");
     const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
-    const PersistedReanalysis failed = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
+    const PersistedReanalysis failed = reanalyseThrough(repo, testdoc::ref(t.path()), PersistOptions{});
     check(!failed.ok() && !failed.analysed && failed.analysisError == QLatin1String("no frames")
               && bytesOf(SwingStore::ppswPath(t.path())) == before,
           "an analysis that fails writes nothing");
@@ -652,7 +666,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     meta.swingId = QStringLiteral("swing_0002");
     check(repo.create(testdoc::ref(lmOnly.path()), reading(70.0), meta).ok(), "a launch-monitor-only shot");
     g_reanalysisCalls = 0;
-    const PersistedReanalysis d = reanalyseAndPersist(repo, g_reader, testdoc::ref(lmOnly.path()), PersistOptions{});
+    const PersistedReanalysis d = reanalyseThrough(repo, testdoc::ref(lmOnly.path()), PersistOptions{});
     check(d.ok() && d.deviceOnly && g_reanalysisCalls == 0 && d.write.status == WriteResult::Status::Unchanged,
           "...is not analysed: its rows are checked (current, Unchanged)");
 
@@ -660,7 +674,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     ReanalyzeResult r;
     r.ok = true;
     r.analysis.detail = std::make_shared<SwingAnalysis>(poseAnalysis(10));
-    const PersistedReanalysis g = persistReanalysis(repo, testdoc::ref(gone.path()), &r, PersistOptions{});
+    const PersistedReanalysis g = persistReanalysis(writeTo(repo, testdoc::ref(gone.path())), &r, PersistOptions{});
     check(!g.ok() && g.analysed && g.write.status == WriteResult::Status::NoDocument
               && !SwingStore::hasDocument(gone.path()),
           "the document went missing mid-batch: NoDocument, nothing written");
@@ -962,7 +976,7 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
           "now device-only by today's content rule, its lm. rows written");
 
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis p = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
+    const analysis::PersistedReanalysis p = reanalyseThrough(repo, testdoc::ref(t.path()), PersistOptions{});
     check(p.ok() && p.deviceOnly && !p.analysed && g_reanalysisCalls == 0
               && p.write.status == WriteResult::Status::Unchanged,
           "re-analysis: not analysed, its launch monitor rows checked (current) — as today");
@@ -987,7 +1001,7 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
     g_reanalysis = analysis::ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no video streams in swing.json");   // the clip has not landed
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis r = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(rescue.path()), PersistOptions{});
+    const analysis::PersistedReanalysis r = reanalyseThrough(repo, testdoc::ref(rescue.path()), PersistOptions{});
     check(g_reanalysisCalls == 1 && !r.deviceOnly,
           "re-analysis takes the capture path (the analyzer is called), as today");
 

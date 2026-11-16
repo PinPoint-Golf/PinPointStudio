@@ -44,7 +44,7 @@
 //     window's start rides as windowT0Us, which the pipeline rebases the analysis with (step 1.5).
 //
 // THE ONLY BUILDER (since step 1.5): the live capture (ShotProcessor, from its capture-side snapshot,
-// src/Gui/shot/capture_context.h), re-analysis (SwingDiskLoader → reanalyzeSwingDir) and SwingLab
+// src/Gui/shot/capture_context.h), re-analysis (SwingDiskLoader → reanalyzeShot / reanalyzeLoaded) and SwingLab
 // all build the job here, and run it through the analysis service (analysis_service.h).
 //
 // Rules ring: pure, no I/O, linkable without ONNX, OpenCV video or Qt Multimedia.

@@ -72,8 +72,8 @@
 // ITS CALLERS (step 3.4a-ii): capture (ShotProcessor, the capture service, which holds the Session it captures
 // into: BRIEF §4.8) starts, resumes and ends through its Athlete and this Session, and allocates every shot —
 // a camera shot's and the launch monitor's — through addShot; capture and the launch monitor report each
-// shot's first document (shotDocumentWritten). INTERIM: the carousel still trashes a swing itself (step 3.4b),
-// so a Session already holding its shots does not see that trash until then.
+// shot's first document (shotDocumentWritten). The carousel trashes a swing of a session its Athlete holds through
+// trashShot (refactor step 3.4b-ii), so the collection sees it; a session no Athlete holds keeps today's trash (N1).
 //
 // Domain model ring (src/DomainModel): names no store type.
 

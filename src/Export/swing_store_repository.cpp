@@ -327,6 +327,36 @@ ShotReview SwingStoreRecordingRepository::readReview(const ShotRef &shot)
     return SwingDocWriter::readReview(swingDir);
 }
 
+// The carousel's cheap read (SwingDocReader::readSwingSummary), the same fields with the same values, by ShotRef
+// (refactor step 3.4b-ii: the Shot's summary; the carousel's rows over the Shots).
+ShotSummary SwingStoreRecordingRepository::readSummary(const ShotRef &shot, bool parseIfUnindexed)
+{
+    ShotSummary out;
+    QString why;
+    const QString swingDir = folderOf(shot, &why);
+    if (swingDir.isEmpty())
+        return out;
+    const SwingSummary s = SwingDocReader::readSwingSummary(swingDir, parseIfUnindexed);
+    if (!s.ok)
+        return out;
+    out.ok                = true;
+    out.ordinal           = s.ordinal;
+    out.timestampLabel    = s.timestampLabel;
+    out.club              = s.club;
+    out.hasVideo          = s.hasVideo;
+    out.thumbnailPath     = s.thumbnailPath;
+    out.score             = s.score;
+    out.metrics           = s.metrics;
+    out.rating            = s.rating;
+    out.note              = s.note;
+    out.lmDevice          = s.lmDevice;
+    out.dataWarning       = s.dataWarning;
+    out.dataWarningDetail = s.dataWarningDetail;
+    out.lmExcluded        = s.excluded;
+    out.lmClubOverride    = s.clubOverride;
+    return out;
+}
+
 ConversionResult SwingStoreRecordingRepository::convert(const ShotRef &shot, bool deleteJson)
 {
     QString why;

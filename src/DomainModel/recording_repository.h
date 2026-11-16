@@ -47,6 +47,9 @@
 //                     corrections)
 //   readReview        the golfer's shot-level input read back (the shot intent, the label
 //                     corrections); a document older than the keys reads as having none
+//   readSummary       the shot's SUMMARY as recorded (ShotSummary: what a carousel row shows of it), by the
+//                     cheap read (the document's summary block; never the multi-MB analysis): what the Shot
+//                     answers its summary() from (refactor step 3.4b-ii: the carousel's rows over the Shots)
 //   convert           a JSON-era swing → swing.ppsw, proven before the JSON is deleted
 //   writeSummarySidecar  the JSON-era swing_summary.json cache
 //   writeArchiveStub  the archive's stub (FILE-SHOT-10): the document thinned to what stays in the
@@ -91,6 +94,7 @@
 
 #include <QJsonObject>
 #include <QString>
+#include <QVariantMap>
 #include <QVector>
 
 #include <optional>
@@ -256,6 +260,31 @@ struct ShotReview {
     bool                     hasLabelCorrections = false;
 };
 
+// ── readSummary (refactor step 3.4b-ii: the carousel's rows over the Shots) ─────────────────────────────────
+// THE SHOT'S SUMMARY, as its document records it: everything a carousel row shows of the shot, read by the cheap
+// path (the document's summary block — the JSON-era sidecar for a document older than swing.ppsw — never the
+// multi-MB analysis: the read Export's SwingDocReader::readSwingSummary has made for the carousel since
+// 2026-09-16). The same fields with the same values that read gives, so a row built from it is today's row.
+// The Shot keeps the one it read (Shot::summary) and updates it with its own commands' saves.
+struct ShotSummary {
+    bool        ok = false;          // false: no document yet, or it could not be read
+    int         ordinal = 0;         // the swing number the document records
+    QString     timestampLabel;      // hh:mm:ss of the capture
+    QString     club;                // the club the row names: the review's declared club, else the captured
+                                     // club, else the stub (club_vocabulary.h)
+    bool        hasVideo = false;
+    QString     thumbnailPath;       // absolute; "" when none
+    int         score = 0;
+    QVariantMap metrics;             // key → { label, value }
+    int         rating = 0;          // the golfer's stars, 0–5 (review.rating)
+    QString     note;                // review.note
+    QString     lmDevice;            // the device that measured it (lm_device.h key); "" for none
+    bool        dataWarning = false;    // an integrity block warns
+    QVariantMap dataWarningDetail;      // the facts behind it
+    bool        lmExcluded = false;     // the launch monitor board's exclusion (review.excluded)
+    QString     lmClubOverride;         // the board's club correction (review.clubOverride; "" = none)
+};
+
 // ── writeTruth, truth (FILE-SHOT-12) ─────────────────────────────────────────────────────────────
 // Which camera's ground truth: the markup tool's two sidecars (face-on pixel space and down-the-line
 // pixel space never cross; Gui/markup/markup_truth.h says why).
@@ -315,6 +344,12 @@ public:
 
     virtual WriteResult editReview(const ShotRef &shot, const ReviewEdit &edit) = 0;
     virtual ShotReview  readReview(const ShotRef &shot) = 0;
+    // The shot's summary (above); ok = false when there is no document. `parseIfUnindexed` (readSwingSummary's
+    // writeSidecar): true — a document with no current summary (a JSON-era swing without its sidecar, or a stale
+    // one) is parsed whole and its sidecar written (FILE-SHOT-09; DEC-178 keeps that file until its decision), as
+    // the carousel's session load has always done; false — it answers ok = false instead, for a GUI-thread path
+    // that must never parse a whole document (the row of a shot just captured).
+    virtual ShotSummary readSummary(const ShotRef &shot, bool parseIfUnindexed = true) = 0;
 
     virtual ConversionResult convert(const ShotRef &shot, bool deleteJson) = 0;
 

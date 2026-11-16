@@ -145,4 +145,56 @@ ForwardResult App::setIntentRun(const QString &sessionFolder, const QVector<Inte
     return { true, s->setIntentRun(runs, held) };
 }
 
+// ── The rows and the readers (refactor step 3.4b-ii) ─────────────────────────────────────────────────────────
+
+std::optional<ShotSummary> App::shotSummary(const QString &sessionFolder, const ShotRef &shot, SummaryRead how)
+{
+    Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return std::nullopt;
+    switch (how) {
+    case SummaryRead::KeptOnly:   return s->summaryKept() ? s->summary() : ShotSummary{};
+    case SummaryRead::Kept:       return s->summary();
+    case SummaryRead::Again:      return s->rereadSummary(/*parseIfUnindexed=*/true);
+    case SummaryRead::AgainCheap: return s->rereadSummary(/*parseIfUnindexed=*/false);
+    }
+    return std::nullopt;
+}
+
+std::optional<QVector<HeldShot>> App::sessionShots(const QString &sessionFolder)
+{
+    Session *session = sessionAt(sessionFolder);
+    if (!session)
+        return std::nullopt;
+    QVector<HeldShot> out;
+    for (Shot *s : session->shots()) {   // by swing number
+        const ShotSummary &sum = s->rereadSummary();
+        if (sum.ok)
+            out.append(HeldShot{ s->ref(), s->folder(), sum });
+    }
+    return out;
+}
+
+ForwardResult App::trashShot(const QString &sessionFolder, const ShotRef &shot, QString *where)
+{
+    Session *s = sessionAt(sessionFolder);
+    if (!s || !shotAt(sessionFolder, shot))
+        return {};
+    return { true, s->trashShot(shot, where) };
+}
+
+std::optional<RecordingSource> App::recordingSourceOf(const QString &sessionFolder, const ShotRef &shot)
+{
+    Shot *s = shotAt(sessionFolder, shot);
+    if (!s)
+        return std::nullopt;
+    return s->recordingSource();
+}
+
+ForwardResult App::applyAnalysis(const QString &sessionFolder, const ShotRef &shot, const AnalysisOutcome &outcome,
+                                 const PersistOptions &options)
+{
+    return forward(shotAt(sessionFolder, shot), [&](Shot &s) { return s.applyAnalysis(outcome, options); });
+}
+
 } // namespace pinpoint

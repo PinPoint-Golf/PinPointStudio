@@ -18,32 +18,34 @@
 
 #pragma once
 
-// THE ONE RE-ANALYSIS WRITE-BACK (refactor step 1.4; step 1 design §4.7, A-09).
+// THE ONE RE-ANALYSIS WRITE-BACK (refactor step 1.4; step 1 design §4.7, A-09), WRITTEN BY THE SHOT (refactor step
+// 3.4b-ii; DEC-103: applyAnalysis is the Shot's command, EVT-02).
 //
-//   reanalyseAndPersist(repo, reader, shot, PersistOptions)
-//       a launch-monitor-only shot: its launch monitor rows derived again (nothing to analyse);
-//       any other: re-analyse it (reanalyzeShot, read through `reader`) → persistReanalysis
-//   persistReanalysis(repo, shot, result, PersistOptions)
-//       the write half alone: RecordingRepository::writeAnalysis with the analysis and BOTH
-//       integrity verdicts the pass reached (a verdict it could not reach is withdrawn), the
-//       repository's empty-document guard, and PersistOptions::savePose (Save pose keypoints)
+//   persistReanalysis(write, result, PersistOptions)
+//       the write half's one rule: what a re-analysis persists — the analysis and BOTH integrity verdicts the
+//       pass reached (a verdict it could not reach is withdrawn), or with no result a launch-monitor-only shot's
+//       rows derived again — handed to `write`, the shot's write-back. In the app `write` is the Shot's
+//       applyAnalysis (through `app`, the door); a tool's is its repository's writeAnalysis (R-REC-3's tools).
+//       The empty-document guard and PersistOptions::savePose (Save pose keypoints) are the repository's, as
+//       before.
+//   reanalyseAndPersist(write, source, deviceOnly, PersistOptions, ReanalyzeOptions)
+//       both halves on the calling thread: a launch-monitor-only shot (`deviceOnly`, its kind) has nothing to
+//       analyse, so its rows are derived again; any other is re-analysed, read through its RecordingSource
+//       (reanalyzeShot), then persisted as above
 //
-// The in-app ReanalysisController runs the analysis on a worker and calls persistReanalysis on the
-// GUI thread, as it always has — so a rating or a launch monitor reading written on the GUI thread
-// meanwhile is never lost to a write-back that read the document before it. SwingLab's --write-back
-// calls reanalyseAndPersist (its --save-pose fills PersistOptions::savePose). The analysis half runs on
-// the analysis service (reanalyzeShot, reading through the RecordingReader → AnalysisService, steps 1.5
-// and 2.4); the write half stays this one.
+// The in-app ReanalysisController runs the analysis on a worker and persists it on the GUI thread, as it always has
+// — so a rating or a launch monitor reading written on the GUI thread meanwhile is never lost to a write-back that
+// read the document before it. SwingLab's --write-back calls reanalyseAndPersist over its own repository (its
+// --save-pose fills PersistOptions::savePose).
 //
-// Keyed by the shot's ShotRef (step 2.4; IM-S2-2: DEC-160), as the repository and the reader are: a
-// caller holding a folder translates it once, at its edge (RecordingRepository::shotOfFolder).
-//
-// Application ring (src/Analysis): names the repository interface, never the store.
+// Names no repository (P11): the write is the caller's. Application ring (src/Analysis).
 
 #include <QString>
 
-#include "swing_reanalyzer.h"   // ReanalyzeResult, ReanalyzeOptions
-#include "../DomainModel/recording_repository.h"
+#include <functional>
+
+#include "swing_reanalyzer.h"   // ReanalyzeResult, ReanalyzeOptions; RecordingSource
+#include "../DomainModel/shot_command_values.h"   // the Shot's command values: AnalysisOutcome, PersistOptions, WriteResult
 
 namespace pinpoint::analysis {
 
@@ -57,16 +59,16 @@ struct PersistedReanalysis {
     bool ok() const { return (deviceOnly || analysed) && write.ok(); }
 };
 
-// The write half, by the shot's ShotRef (step 2.4). `result` null = a launch-monitor-only shot (its
-// rows derived again).
-PersistedReanalysis persistReanalysis(RecordingRepository &repo, const ShotRef &shot,
-                                      const ReanalyzeResult *result, const PersistOptions &options);
+// The shot's write-back: what the outcome is written through (Shot::applyAnalysis in the app).
+using AnalysisWrite = std::function<WriteResult(const AnalysisOutcome &outcome, const PersistOptions &options)>;
 
-// Both halves, on the calling thread: the shot read through `reader` (reanalyzeShot), written through
-// `repo`. `reanalyse` is what re-analysis runs with (the app's defaults unless a tool says otherwise).
-PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, RecordingReader &reader, const ShotRef &shot,
-                                        const PersistOptions &options,
-                                        const ReanalyzeOptions &reanalyse = {});
+// The write half. `result` null = a launch-monitor-only shot (its rows derived again).
+PersistedReanalysis persistReanalysis(const AnalysisWrite &write, const ReanalyzeResult *result,
+                                      const PersistOptions &options);
 
+// Both halves, on the calling thread: the shot read through `source` (reanalyzeShot), written through `write`.
+// `reanalyse` is what re-analysis runs with (the app's defaults unless a tool says otherwise).
+PersistedReanalysis reanalyseAndPersist(const AnalysisWrite &write, const RecordingSource &source, bool deviceOnly,
+                                        const PersistOptions &options, const ReanalyzeOptions &reanalyse = {});
 
 } // namespace pinpoint::analysis

@@ -515,7 +515,8 @@ pipeline changes.
 
 ### `SwingDiskLoader` — swing.json → SwingWindow
 
-`SwingDiskLoader::load(swingDir)` returns a `LoadedSwing`: a **disk-backed**
+`SwingDiskLoader::load(source)` (the shot's `RecordingSource`; refactor step 3.4b-ii — a folder by its path is
+`loadSwingFolder(swingDir)` in `src/Export/swing_folder_reanalysis.h`) returns a `LoadedSwing`: a **disk-backed**
 `SwingWindow` plus a `ShotAnalysisJob` resolved entirely from `swing.json`
 (session type, face-on-first camera sources, IMU sources, serial-matched A/M
 bindings, impact, handedness, club record, quality tier, ball baseline).
@@ -561,7 +562,8 @@ never touches the live ring, so it may run alongside live capture. Fresh analysi
 is written back into `swing.json`, preserving the `capture` / `streams` / `review`
 blocks.
 
-`reanalyzeSwingDir(dir, opts)` is the convenience wrapper — load, run
+`reanalyzeShot(source, opts)` (the app; `reanalyzeSwingDir(dir, opts)` for a folder, in the Export file above)
+is the convenience wrapper — load, run
 `makeShotAnalyzer(...)->analyze()`, and wrap the call so a thrown analyzer
 degrades to `{ok=false, error}` rather than propagating. The `swinglab_run` tool
 uses the same loader, so both paths exercise one tested reconstruction.
@@ -805,7 +807,7 @@ src/Analysis/
 ├── analysis_stage.h            The stage mechanism — AnalysisStage, AnalysisContext,
 │                                 CaptureCapabilities, runStages (pipeline guide)
 ├── analysis_pipeline.{h,cpp}   The full profile: the stage list + projectResult
-├── swing_reanalyzer.{h,cpp}    SwingDiskLoader / SwingDiskSource / reanalyzeSwingDir —
+├── swing_reanalyzer.{h,cpp}    SwingDiskLoader / SwingDiskSource / reanalyzeShot —
 │                                 the offline disk-backed path (§9a)
 ├── swing_scorer.{h,cpp}        Band tables + weighted-geometric-mean scoring
 ├── score_uncertainty.h         Uncertainty-interval propagation (§7)

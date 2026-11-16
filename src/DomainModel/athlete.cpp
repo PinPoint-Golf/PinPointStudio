@@ -380,6 +380,13 @@ Session *Athlete::sessionAt(const QString &folder)
     // Only a session folder in this athlete's folder is one of its sessions (path text only, nothing read).
     if (QDir::cleanPath(folder + QStringLiteral("/..")) != QDir::cleanPath(m_folder))
         return nullptr;
+    // A SESSION ALREADY HELD IS ANSWERED FROM MEMORY (refactor step 3.4b-ii, review 1: CN-2): the repository's
+    // identity map knows its folder, so no session.json is read again. Every row, edit and refresh asks this; only a
+    // folder not held yet is read (once).
+    const QString clean = QDir::cleanPath(folder);
+    for (Session *s : std::as_const(m_loaded))
+        if (const auto e = m_sessions->open(s->id()); e && QDir::cleanPath(e->folder) == clean)
+            return s;
     const SessionId id = m_sessions->openFolder(folder, m_id);
     return id.isNull() ? nullptr : hold(id, /*startedHere=*/false);
 }

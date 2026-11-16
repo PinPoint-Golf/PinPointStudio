@@ -1749,6 +1749,10 @@ pp_add_test(shot_commands_test
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/App/app.h ${SRC}/App/app.cpp
             ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+            # Re-analysis through the Shot (refactor step 3.4b-ii, C16): the controller and the one write-back; the
+            # analysis itself is stubbed in the test (reanalyzeShot), as reanalysis_controller_test stubs it.
+            ${SRC}/Gui/shot/reanalysis_controller.h ${SRC}/Gui/shot/reanalysis_controller.cpp
+            ${SRC}/Analysis/reanalyse_and_persist.cpp ${SRC}/Core/pp_os_metrics.cpp
             ${SRC}/Identity/identity.h   # moc: ShotRef / SessionId are gadgets (the events carry them)
             ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
             ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
@@ -1770,7 +1774,7 @@ pp_add_test(shot_commands_test
             ${SESSION_DIAG_MARKS_SOURCES}
             ${SESSION_DIAG_CATALOGUE_SOURCES}
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui
-    LINK    Qt6::Qml
+    LINK    Qt6::Qml Qt6::Concurrent
     AUTOMOC
     COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings")
 set_tests_properties(shot_commands_test PROPERTIES
