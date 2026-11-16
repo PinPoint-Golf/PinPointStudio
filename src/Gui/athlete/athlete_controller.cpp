@@ -24,7 +24,6 @@
 #include "club_standards.h"
 #include "height_text.h"
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
-#include "../../DomainModel/athlete_repository.h"
 #include "../../DomainModel/session_repository.h"
 #include "../../Export/swing_paths.h"           // a swing folder's number, at the Wrist ★'s edge
 #include "../../Export/athlete_files.h"         // tendencies.json's name (step 2.5)
@@ -108,10 +107,10 @@ AthleteController::~AthleteController()
     m_pool.waitForDone();
 }
 
-void AthleteController::setRepositories(pinpoint::AthleteRepository *athletes, pinpoint::SessionRepository *sessions)
+void AthleteController::setCallables(const pinpoint::AthleteCallables &athletes, pinpoint::SessionRepository *sessions)
 {
-    m_repo     = athletes;
-    m_sessions = sessions;
+    m_athletesDoor = athletes;
+    m_sessions     = sessions;
     refreshActivity();
 }
 
@@ -130,7 +129,7 @@ QString AthleteController::computeInitials(const QString &name)
 Athlete *AthleteController::athleteFor(const QString &uuid) const
 {
     const AthleteId id = AthleteId::fromString(uuid);
-    return (m_repo && !id.isNull()) ? m_repo->load(id) : nullptr;
+    return (m_athletesDoor.loadAthlete && !id.isNull()) ? m_athletesDoor.loadAthlete(id) : nullptr;
 }
 
 QString AthleteController::folderOf(const QString &uuid) const
@@ -204,7 +203,7 @@ QVariantMap AthleteController::mapOf(const Athlete &a) const
 
 void AthleteController::reload()
 {
-    m_ids = m_repo ? m_repo->list() : QList<AthleteId>{};
+    m_ids = m_athletesDoor.listAthletes ? m_athletesDoor.listAthletes() : QList<AthleteId>{};
     rebuild();
 }
 
@@ -213,7 +212,7 @@ void AthleteController::rebuild()
     QVariantList list;
     list.reserve(m_ids.size());
     for (const AthleteId &id : std::as_const(m_ids)) {
-        Athlete *a = m_repo ? m_repo->load(id) : nullptr;
+        Athlete *a = m_athletesDoor.loadAthlete ? m_athletesDoor.loadAthlete(id) : nullptr;
         if (!a) continue;
         // An edit is announced by the Athlete itself (the interim for EVT-14).
         connect(a, &Athlete::recordChanged, this, &AthleteController::rebuild, Qt::UniqueConnection);
@@ -224,7 +223,7 @@ void AthleteController::rebuild()
     // even when the library no longer lists them (a library re-pointed mid-session, D7): the session's
     // athlete must not change until it ends.
     const AthleteId wanted = AthleteId::fromString(ppSettings().value(kCurrentUuid, QString()).toString());
-    Athlete *cur = m_ids.contains(wanted) ? m_repo->load(wanted) : nullptr;
+    Athlete *cur = m_ids.contains(wanted) ? m_athletesDoor.loadAthlete(wanted) : nullptr;
     if (!cur && m_current && sessionRunning() && m_current->id() == wanted) {
         cur = m_current;
         list.append(mapOf(*cur));
@@ -265,17 +264,17 @@ void AthleteController::sortAthletes(QVariantList &list)
 void AthleteController::refreshActivity()
 {
     reload();
-    if (!m_repo) return;
+    if (!m_athletesDoor.loadAthlete || !m_athletesDoor.readActivity) return;
     QVector<QPair<QString, pinpoint::SessionOwner>> owners;   // taken on this thread
     owners.reserve(m_ids.size());
     for (const AthleteId &id : std::as_const(m_ids))
-        if (const Athlete *a = m_repo->load(id))
+        if (const Athlete *a = m_athletesDoor.loadAthlete(id))
             owners.append({ id.toString(), a->sessionOwner() });
     const int generation = ++m_activityGeneration;
-    pinpoint::AthleteRepository *repo = m_repo;
-    const auto readAll = [owners, repo]() {
+    const auto readActivity = m_athletesDoor.readActivity;   // the repository's thread-safe read
+    const auto readAll = [owners, readActivity]() {
         QHash<QString, AthleteActivity> out;
-        for (const auto &o : owners) out.insert(o.first, repo->readActivity(o.second));   // thread-safe
+        for (const auto &o : owners) out.insert(o.first, readActivity(o.second));   // thread-safe
         return out;
     };
     if (m_syncActivity) { applyActivity(generation, readAll()); return; }
@@ -308,7 +307,7 @@ QString AthleteController::saveAthlete(
     double         speedTarget,
     const QString &notes)
 {
-    if (name.trimmed().isEmpty() || !m_repo)
+    if (name.trimmed().isEmpty() || !m_athletesDoor.createAthlete)
         return {};
 
     const bool creating = uuid.isEmpty();
@@ -353,12 +352,13 @@ QString AthleteController::saveAthlete(
     r.createdAt = QDateTime::currentSecsSinceEpoch();
     r.bag       = bagOf(r);
     r.hasBag    = true;
-    const pinpoint::AthleteCreateResult made = m_repo->create(r);
-    if (!made.ok()) {
-        ppWarn() << "[Athlete] could not create" << r.name << "-" << made.result.error;
+    WriteResult made;
+    Athlete    *created = m_athletesDoor.createAthlete(r, &made);
+    if (!created || !made.ok()) {
+        ppWarn() << "[Athlete] could not create" << r.name << "-" << made.error;
         return {};
     }
-    const QString newUuid = made.athlete->id().toString();
+    const QString newUuid = created->id().toString();
 
     // A new athlete becomes current — except while a session runs, when the session's athlete
     // must stay current (its swings are being saved under them; see setSessionRunningCheck).

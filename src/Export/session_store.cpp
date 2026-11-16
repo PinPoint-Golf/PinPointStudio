@@ -369,6 +369,12 @@ QList<ShotRef> SessionStore::shots(const SessionId &id) const
     return out;
 }
 
+bool SessionStore::folderPresent(const SessionId &id) const
+{
+    const auto it = m_held.constFind(id);
+    return it != m_held.constEnd() && QFileInfo(it->entry.folder).isDir();
+}
+
 ShotRef SessionStore::openSwingFolder(const QString &swingFolder, const AthleteId &legacyAthlete)
 {
     if (swingFolder.isEmpty())
@@ -614,13 +620,13 @@ WriteResult SessionStore::resume(const SessionId &id, const QString &type)
         h.file  = fileBefore;
         return r;
     }
-    h.createdHere = false;   // somebody's earlier work: never the empty discard's
+    h.createdHere = false;   // somebody's earlier work, not the folder this run's start() made
     ppInfo() << "[SwingExport] begin session:" << h.entry.folder << "(extend)"
              << "holding" << SwingPaths::swingFolders(h.entry.folder).size() << "swing(s)";
     return r;
 }
 
-WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
+WriteResult SessionStore::end(const SessionId &id)
 {
     const auto it = m_held.find(id);
     if (it == m_held.end())
@@ -629,19 +635,9 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
     if (!h.entry.hasSessionFile && !h.entry.readOnly)
         return unchanged();   // a session older than step 2 that nothing resumed: nothing is in progress
 
-    // ⚠ THE EMPTY DISCARD TAKES ONLY A FOLDER THIS RUN'S start() MADE, and only while it holds no swing
-    // (DEC-93; unchanged). A resumed session is somebody's earlier work, whatever its count did.
-    if (discardIfEmpty && h.createdHere && QFileInfo::exists(h.entry.folder)
-        && SwingPaths::swingFolders(h.entry.folder).isEmpty()) {
-        QString where;
-        if (SwingPaths::trashPath(h.entry.folder, &where, m_osTrash)) {
-            ppInfo() << "[SwingExport] discarded session (to" << where << "):" << h.entry.folder;
-            unpublish(id);
-            m_held.erase(it);
-            return written();
-        }
-        ppWarn() << "[SwingExport] could not trash empty session:" << h.entry.folder;
-    }
+    // ⚠ NO EMPTY DISCARD HERE (refactor step 3.4a-ii): the store ends the session and nothing more. Whether an
+    // empty session is discarded instead is the Session's rule (Session::end, which then asks
+    // Athlete::trashSession: DEC-143; the rule itself DEC-93's, unchanged).
     h.createdHere = false;
     if (h.entry.readOnly)
         return readOnly(h.entry.folder);
@@ -654,31 +650,6 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
     if (!r.ok())
         h.entry = before;   // still in progress, as its file says (DEC-73)
     return r;
-}
-
-SessionStartResult SessionStore::restartInLibrary(const SessionId &running, const SessionOwner &owner,
-                                                  const QString &namingPattern, QString *oldEndProblem)
-{
-    QString type;
-    QString was;
-    if (oldEndProblem)
-        oldEndProblem->clear();
-    if (const auto it = m_held.constFind(running); it != m_held.constEnd()) {
-        type = it->entry.identity.type();
-        was  = it->entry.folder;
-        if (const WriteResult r = end(running, /*discardIfEmpty=*/true); !r.ok()) {
-            ppWarn() << "[SessionStore] the session in the old library could not be ended (it stays in progress"
-                        " until the athlete's next session there):" << was << "-" << r.error;
-            // A folder still there (a held lock, a read-only file) is a failure to report; a library that
-            // has gone (a dropped share) is the expected case, and the "not being saved" notices cover it.
-            if (oldEndProblem && QFileInfo::exists(was))
-                *oldEndProblem = r.error;
-        }
-    }
-    SessionStartResult s = start(owner, type, namingPattern);
-    ppWarn() << "[SwingExport] the library changed during a session: the session" << was
-             << "ended, and a new one started in" << s.folder;
-    return s;
 }
 
 SwingAllocation SessionStore::allocateSwing(const SessionId &id)

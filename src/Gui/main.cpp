@@ -340,8 +340,8 @@ int main(int argc, char *argv[])
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
     // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
     // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
-    // re-pointed needs no new ones). Their takers move onto them from run 3.4a-ii (AthleteController) and
-    // steps 3.6 and 3.8 (the catch-up, housekeeping and its purge); until then nothing calls them.
+    // re-pointed needs no new ones). AthleteController takes them (run 3.4a-ii); the catch-up, housekeeping and
+    // its purge in steps 3.6 and 3.8.
     const pinpoint::AthleteCallables athleteCallables{
         [&athleteStore] { return athleteStore.list(); },
         [&athleteStore](const pinpoint::AthleteId &id) { return athleteStore.load(id); },
@@ -351,10 +351,10 @@ int main(int argc, char *argv[])
                 *result = made.result;
             return made.athlete;
         },
+        [&athleteStore](const pinpoint::SessionOwner &owner) { return athleteStore.readActivity(owner); },   // thread-safe
     };
-    Q_UNUSED(athleteCallables);
     AthleteController       athleteController;
-    athleteController.setRepositories(&athleteStore, &sessionStore);
+    athleteController.setCallables(athleteCallables, &sessionStore);
     // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
     // the current athlete. No QML calls it yet (the panels move in step 3.7).
     pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
@@ -583,7 +583,7 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
-    shotProcessor.setSessionRepository(&sessionStore);            // Start, End, every swing number (step 2.2)
+    shotProcessor.setSessionRepository(&sessionStore);            // the interim: a session no Athlete holds (3.4a-ii)
     // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one, same type and
     // club, the declared focus carried — applying from the new session's first shot.
     QObject::connect(&shotProcessor, &ShotProcessor::sessionRestartedForLibrary, &sessionController,
@@ -612,9 +612,18 @@ int main(int argc, char *argv[])
                                                       &athleteController, &sessionController,
                                                       &cameraManager);
     launchMonitorController.setRecordingRepository(&recordingRepository);
-    // One allocator (D10): a standalone device-only shot goes into the running session.
-    launchMonitorController.setSessionRepository(&sessionStore);
-    launchMonitorController.setCaptureSession([&shotProcessor] { return shotProcessor.captureSession(); });
+    // One allocator (D10): a standalone device-only shot goes into the running session, added by the capture
+    // service to the Session it captures into (Session::addShot: DEC-142); its document's landing is EVT-01's
+    // moment (D19), reported back to that Session.
+    launchMonitorController.setShotMaker([&shotProcessor] {
+        pinpoint::SwingAllocation a;
+        shotProcessor.addDeviceOnlyShot(&a);
+        return LaunchMonitorController::NewShot{ a.ok() ? a.shot : pinpoint::ShotRef(), a.swingFolder, a.swingName,
+                                                 a.sessionFolderName, a.result.error };
+    });
+    launchMonitorController.setDocumentWritten([&shotProcessor](const pinpoint::ShotRef &shot) {
+        shotProcessor.shotDocumentWritten(shot);
+    });
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);

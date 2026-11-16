@@ -57,11 +57,8 @@ public:
     SessionStartResult start(const SessionOwner &, const QString &, const QString &) override { return {}; }
     SessionId   todaysSession(const SessionOwner &, const QString &) override { return {}; }
     WriteResult resume(const SessionId &, const QString &) override { return {}; }
-    WriteResult end(const SessionId &, bool) override { return {}; }
-    SessionStartResult restartInLibrary(const SessionId &, const SessionOwner &, const QString &, QString *) override
-    {
-        return {};
-    }
+    WriteResult end(const SessionId &) override { return {}; }
+    bool        folderPresent(const SessionId &) const override { return false; }
     QList<SessionIndexEntry>         enumerate(const SessionOwner &) override { return {}; }
     std::optional<SessionIndexEntry> open(const SessionId &) const override { return std::nullopt; }
     SessionId       openFolder(const QString &, const AthleteId &) override { return {}; }

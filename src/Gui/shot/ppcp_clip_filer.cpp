@@ -268,6 +268,9 @@ bool PpcpClipFiler::ensureSwingDocument(const Shot &s)
     }
     // The one header writer (recording_header.h) with nothing known: the schema and an empty
     // streams[]. No athlete, clock or analysis context is invented for a shot the host never saw.
+    // ⚠ NOT EVT-01's MOMENT (D19; BRIEF-NOTES U12; refactor step 3.4a-ii): the shot is capture's (its Session
+    // added it, Session::addShot), and this placeholder holds nothing to fire findings from, so it is NOT
+    // reported as the shot's first document (no Session::shotDocumentWritten). The filer adds no shot itself.
     pinpoint::NewRecording placeholder;
     placeholder.header = pinpoint::recordingHeaderJson(pinpoint::RecordingHeader{}, QJsonArray{});
     const pinpoint::WriteResult w = m_repo->create(s.shot, placeholder);

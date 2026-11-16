@@ -31,7 +31,7 @@
 // repository (P11): the current athlete comes from the composition root as a function.
 //
 // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167) are declared here, beside it, for the application
-// services and AthleteController that take them (from run 3.4a-ii and steps 3.6, 3.8): functions over the
+// services and AthleteController that take them (AthleteController from run 3.4a-ii; steps 3.6, 3.8): functions over the
 // athlete repository that main.cpp makes and hands out, so no service includes a repository and no new domain
 // object stands between them (no Library object: IM-S3-11 not needed).
 
@@ -49,11 +49,15 @@ namespace pinpoint {
 
 // D18 (c): how the application services and AthleteController reach the athletes they act on. Made once by
 // the composition root over its one athlete repository; the repository reads the library setting (SET-03) on
-// every call, so a library re-pointed needs no new callables. The trash's purge joins them in step 3.8.
+// every call, so a library re-pointed needs no new callables. AthleteController takes them from run 3.4a-ii;
+// the trash's purge joins them in step 3.8.
 struct AthleteCallables {
     std::function<QList<AthleteId>()>                              listAthletes;    // the library's athletes
     std::function<Athlete *(const AthleteId &)>                    loadAthlete;     // the one instance (DEC-52)
     std::function<Athlete *(const AthleteRecord &, WriteResult *)> createAthlete;   // mints the AthleteId
+    // An athlete's activity (its sessions with a swing, the latest one's start: DEC-89), read from its
+    // SessionIndex. SAFE FROM ANY THREAD (AthleteRepository::readActivity): the picker's read runs on a pool.
+    std::function<AthleteActivity(const SessionOwner &)>           readActivity;
 };
 
 class App : public QObject

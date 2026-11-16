@@ -105,9 +105,7 @@ public:
                              const QString &namingPattern) override;
     SessionId          todaysSession(const SessionOwner &owner, const QString &type) override;
     WriteResult        resume(const SessionId &id, const QString &type) override;
-    WriteResult        end(const SessionId &id, bool discardIfEmpty) override;
-    SessionStartResult restartInLibrary(const SessionId &running, const SessionOwner &owner,
-                                        const QString &namingPattern, QString *oldEndProblem = nullptr) override;
+    WriteResult        end(const SessionId &id) override;
     QList<SessionIndexEntry>         enumerate(const SessionOwner &owner) override;
     std::optional<SessionIndexEntry> open(const SessionId &id) const override;
     SessionId       openFolder(const QString &folder, const AthleteId &legacyAthlete = {}) override;
@@ -115,6 +113,7 @@ public:
     SwingAllocation allocateSwing(const SessionId &id) override;
     QList<ShotRef>  shots(const SessionId &id) const override;
     QString         swingFolder(const ShotRef &shot) const override;
+    bool            folderPresent(const SessionId &id) const override;
     SessionArchiveResult archive(const SessionId &id, const SessionArchiveOptions &options,
                                  const SessionArchiveProgress &progress = {}) override;
     SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
@@ -177,7 +176,7 @@ public:
     void setClockForTest(std::function<QDateTime()> nowUtc) { m_now = std::move(nowUtc); }
     void setTimeZoneForTest(const QTimeZone &zone) { m_zone = zone; }
     void setLockWaitForTest(int ms) { m_lockWaitMs = ms; }
-    // Tests: never use the OS trash — the empty discard, trash and trashShot move into the library's own
+    // Tests: never use the OS trash — trash and trashShot (and so Session::end's empty discard) move into the library's own
     // `.pinpoint-trash` (FILE-LIB-01) instead, inside the test's temporary folder (AthleteStore's seam).
     void setOsTrashForTest(bool on) { m_osTrash = on; }
 
@@ -185,7 +184,9 @@ private:
     struct Held {
         SessionIndexEntry entry;
         QJsonObject       file;              // the session file as read (unknown keys kept)
-        bool              createdHere = false;   // start() made it this run: the empty discard may take it
+        bool              createdHere = false;   // start() made it this run and nothing has ended it: the session
+                                                 // capture writes into (the running one's folder is kept, and a
+                                                 // trash or archive of it refused)
     };
     enum class FileState { Missing, Read, Unreadable };
 

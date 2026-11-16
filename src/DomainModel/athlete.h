@@ -41,10 +41,13 @@
 //   startSession(type)   ends the athlete's session running here first (EVT-09; never the empty discard,
 //                 which only End itself makes, as today), then SessionRepository::start, which mints the
 //                 SessionId, writes the session file and ends any session a crash left in progress, its end
-//                 inferred (J-18) as today; EVT-17
+//                 inferred (J-18) as today; EVT-17. A session started ON DEMAND (SessionStart::OnDemand: capture's
+//                 session for a swing outside a session) is never the empty discard's (today's rule)
 //   todaysSession(type), resumeSession(id, type)   today's session of that type, resumed with its own id
 //                 (DEC-77; only one started today, of the same type: DEC-134); the session running here is
-//                 ended first; EVT-23
+//                 ended first; EVT-23. Resuming the session already running here — when it is today's of that type
+//                 (DEC-134) — changes nothing (Unchanged, no write, no event) but that it is no longer the empty
+//                 discard's: it is resumed work; another type or day is refused, as any resume
 //   trashSession(id)   the whole session to the recoverable trash, refused while it is in progress (J-46);
 //                 EVT-20; its Session is let go and deleted later (deleteLater)
 //   sessionAt(folder)  THE EDGE TRANSLATION for a view that still holds a folder (D1: DEC-164; DEC-90): that
@@ -54,7 +57,9 @@
 // report and a sweep asking for one get the same object (LIVE-2; Mark, 15 Nov 2026: DEC-190); the session
 // repository holds the records. Nothing releases one but a trash until step 3.5 (Q-18).
 // The events are Qt signals carrying the id, emitted after the repository write returned ok (DEC-69).
-// INTERIM (run 3.4a-i): no caller uses these yet; run 3.4a-ii moves capture and AthleteController onto them.
+// ITS CALLERS (run 3.4a-ii): capture (ShotProcessor) starts, resumes and ends through these; AthleteController
+// reaches the athletes through the composition root's callables (D18 (c)); the drawer's session delete still
+// goes to the repository directly until step 3.4b (SessionReviewController).
 //
 // recordChanged() is THE EDIT SIGNAL — the interim for EVT-14 until step 3's events. A switch of the
 // current athlete is not an Athlete's business: the holder replaces the Athlete (R-APP-1).
@@ -94,6 +99,10 @@ class Session;
 // root's one RecordingRepository and RecordingReader, handed down Athlete → Session → Shot by the athlete
 // repository that makes the Athlete. Not owned here (the reader is shared: every RecordingSource keeps it
 // alive). Null doors: the shots know no kind and read nothing (a tool or test that wires none).
+// How a session is started (Athlete::startSession): by the golfer (the wizard, the toolbar), or on demand by
+// capture for a swing outside a session. Only the first is ever the empty discard's (DEC-93, as today).
+enum class SessionStart { Deliberate, OnDemand };
+
 struct ShotDoors {
     RecordingRepository             *recordings = nullptr;
     std::shared_ptr<RecordingReader> reader;
@@ -212,7 +221,8 @@ public:
     // ── Its sessions (step 3.4a) ─────────────────────────────────────────────────────────────────────
     // `type` by name (DEC-88: "swing", "wrist", "grf", "coach", "" for none); `namingPattern` is SET-04,
     // which the caller reads. Null on failure, with `*result` saying why (DEC-126); else `*result` the write's.
-    Session    *startSession(const QString &type, const QString &namingPattern, WriteResult *result = nullptr);
+    Session    *startSession(const QString &type, const QString &namingPattern, WriteResult *result = nullptr,
+                             SessionStart how = SessionStart::Deliberate);
     SessionId   todaysSession(const QString &type) const;
     Session    *resumeSession(const SessionId &id, const QString &type, WriteResult *result = nullptr);
     WriteResult trashSession(const SessionId &id, QString *where = nullptr);
@@ -240,7 +250,7 @@ private:
 
     // The Session object for a session the repository holds, made once; `startedHere` marks the one this
     // run's startSession made. Null when the repository does not hold it or it is not this athlete's.
-    Session *hold(const SessionId &id, bool startedHere);
+    Session *hold(const SessionId &id, bool startedHere, bool onDemand = false);
     // The session running here (started or resumed by this process and not ended), ended first by a start
     // or a resume (DEC-78, DEC-134); `except` is left alone.
     void endRunningSessions(const SessionId &except);

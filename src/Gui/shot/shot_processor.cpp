@@ -39,7 +39,10 @@
 #include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
-#include "../DomainModel/session_repository.h"   // the session's files and swing numbers (step 2.2)
+#include "../DomainModel/athlete.h"            // the current Athlete, whose sessions capture writes into
+#include "../DomainModel/session.h"                // the Session capture writes into (step 3.4a-ii)
+#include "../DomainModel/session_repository.h"   // the interim: a session no Athlete holds (NOTES-3.4a-ii N1)
+#include "../Recording/recording.h"               // recording::ShotKind (Session::addShot)
 #include "pp_version.h"
 
 #include <QSysInfo>
@@ -547,6 +550,7 @@ void ShotProcessor::finishGatherAndLaunch()
     m_segmentation    = {};
     m_swingDir.clear();
     m_shot = {};
+    m_shotSession = nullptr;
     m_allocResult = {};
     m_thumbnailPath.clear();
     setState(State::Processing);
@@ -1219,10 +1223,15 @@ pinpoint::SwingExportJob ShotProcessor::buildSwingExportJob()
     if (snap)
         pinpoint::capture::fillExportFromSnapshot(job, *snap);
 
-    // One allocator (D10: DEC-157): the next swing number of the session this swing is written into.
+    // One allocator (D10: DEC-157): the next swing number of the session this swing is written into —
+    // Session::addShot (allocate → the Shot → returned: DEC-142), the allocation's folder handed back for
+    // the media; for a session no Athlete holds, the repository's allocator itself (the interim).
     const pinpoint::SessionId session = captureSession();
     pinpoint::SwingAllocation alloc;
-    if (m_sessions && !session.isNull())
+    m_shotSession = m_openSessionObject;
+    if (m_openSessionObject)
+        m_openSessionObject->addShot(pinpoint::recording::ShotKind::Captured, &alloc);
+    else if (m_sessions && !session.isNull())
         alloc = m_sessions->allocateSwing(session);
     if (!alloc.ok())
         ppWarn() << "[SwingExport] no swing folder:"
@@ -1279,13 +1288,87 @@ void ShotProcessor::setSessionRepository(pinpoint::SessionRepository *sessions)
                 Qt::UniqueConnection);
 }
 
-void ShotProcessor::setOpenSession(const pinpoint::SessionId &id)
+void ShotProcessor::setOpenSession(pinpoint::Session *session)
 {
+    m_openSessionObject = session;
+    m_openStartedHere   = false;   // the interim's flag; an Athlete's Session keeps its own
+    const auto entry = session ? session->entry() : std::nullopt;
+    m_openSession    = session ? session->id() : pinpoint::SessionId();
+    m_openSessionDir = entry ? entry->folder : QString();
+    if (!session)
+        m_openedOnDemand = false;
+}
+
+void ShotProcessor::setOpenSessionId(const pinpoint::SessionId &id)
+{
+    m_openSessionObject = nullptr;
+    m_openStartedHere   = false;
     m_openSession = id;
     const auto entry = (m_sessions && !id.isNull()) ? m_sessions->open(id) : std::nullopt;
     m_openSessionDir = entry ? entry->folder : QString();
     if (id.isNull())
         m_openedOnDemand = false;
+}
+
+pinpoint::Athlete *ShotProcessor::captureAthlete() const
+{
+    pinpoint::Athlete *a = pinpoint::capture::currentAthlete(m_athlete);
+    if (!a || !m_appSettings)
+        return nullptr;
+    // Its sessions live where capture writes (today's composition: the athlete's token under SET-03). A golfer
+    // kept current while the library was re-pointed under a session (D7), and not listed by the new library,
+    // is not: that session no Athlete holds (the interim).
+    return libraryKey(a->sessionOwner().libraryRoot) == libraryKey(m_appSettings->athleteLibraryPath()) ? a : nullptr;
+}
+
+bool ShotProcessor::startOpenSession(const QString &type, bool onDemand, pinpoint::WriteResult *result)
+{
+    const QString pattern = m_appSettings->sessionNamingPattern();
+    if (pinpoint::Athlete *a = captureAthlete()) {
+        // DEC-78: the Athlete ends the session running here first (never the empty discard), then starts.
+        pinpoint::WriteResult r;
+        pinpoint::Session *s = a->startSession(type, pattern, &r,
+                                               onDemand ? pinpoint::SessionStart::OnDemand : pinpoint::SessionStart::Deliberate);
+        if (result)
+            *result = r;
+        setOpenSession(s);
+        return s != nullptr;
+    }
+    // THE INTERIM (NOTES-3.4a-ii N1): no Athlete holds this session, so the repository starts it directly, as
+    // before step 3.4a-ii; the empty discard at End is made here, by the same rule (m_openStartedHere).
+    const pinpoint::SessionStartResult s = m_sessions->start(ownerOf(m_athlete, m_appSettings), type, pattern);
+    if (result)
+        *result = s.result;
+    setOpenSessionId(s.ok() ? s.id : pinpoint::SessionId());
+    m_openStartedHere = s.ok() && !onDemand;
+    return s.ok();
+}
+
+pinpoint::WriteResult ShotProcessor::endOpenSession(bool golferEnd)
+{
+    pinpoint::WriteResult r{ pinpoint::WriteResult::Status::Unchanged, {} };
+    if (m_openSessionObject) {
+        // The Session's End: Ended, then — an empty session the golfer started here — trashed by its Athlete
+        // (EVT-20), else EVT-09 (DEC-143). A session started on demand never is, whatever ends it. Only End
+        // itself, or the end of one started on demand, is asked for here: a start or a resume of the same
+        // Athlete ends its running session itself, never discarding (beginSessionFolder).
+        // ⚠ `golferEnd` is not read on this path: a non-End end (golferEnd false) of an Athlete's Session is
+        // safe only because it can only be an on-demand one (never discarded) — a deliberate session is ended
+        // by its own Athlete's start/resume, and an athlete switch is refused while it runs (Stage 0.8g).
+        r = m_openSessionObject->end();
+    } else if (m_sessions && !m_openSession.isNull()) {
+        // THE INTERIM: the same end and the same discard (DEC-93), through the repository.
+        r = m_sessions->end(m_openSession);
+        if (r.ok() && golferEnd && m_openStartedHere && m_sessions->shots(m_openSession).isEmpty()) {
+            QString where;
+            if (const pinpoint::WriteResult t = m_sessions->trash(m_openSession, &where); t.ok())
+                ppInfo() << "[SwingExport] discarded the empty session (to" << where << ")";
+            else
+                ppWarn() << "[SwingExport] could not trash the empty session:" << t.error;
+        }
+    }
+    setOpenSession(nullptr);
+    return r;
 }
 
 pinpoint::SessionId ShotProcessor::captureSession()
@@ -1298,10 +1381,7 @@ pinpoint::SessionId ShotProcessor::captureSession()
     if (m_sessionBegun) {
         // A session whose folder could not be made at Start: its first swing makes it (as before).
         if (m_openSession.isNull()) {
-            const pinpoint::SessionStartResult s =
-                m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
-            if (s.ok()) {
-                setOpenSession(s.id);
+            if (startOpenSession(type, /*onDemand=*/false)) {
                 m_openLibraryKey     = libraryKey(owner.libraryRoot);
                 m_sessionFolderReady = true;
                 emit activeSessionDirChanged();
@@ -1317,14 +1397,11 @@ pinpoint::SessionId ShotProcessor::captureSession()
     const QString key = owner.athlete.toString() + QLatin1Char('|') + libraryKey(owner.libraryRoot)
                         + QLatin1Char('|') + QDate::currentDate().toString(Qt::ISODate) + QLatin1Char('|') + type;
     if (!m_openSession.isNull() && key != m_onDemandKey) {
-        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
-        setOpenSession({});
+        endOpenSession(/*golferEnd=*/false);   // started on demand: never discarded
         emit activeSessionDirChanged();
     }
     if (m_openSession.isNull()) {
-        const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
-        if (s.ok()) {
-            setOpenSession(s.id);
+        if (startOpenSession(type, /*onDemand=*/true)) {
             m_openedOnDemand = true;
             m_onDemandKey    = key;
             m_openLibraryKey = libraryKey(owner.libraryRoot);
@@ -1332,6 +1409,30 @@ pinpoint::SessionId ShotProcessor::captureSession()
         }
     }
     return m_openSession;
+}
+
+pinpoint::ShotRef ShotProcessor::addDeviceOnlyShot(pinpoint::SwingAllocation *allocation)
+{
+    pinpoint::SwingAllocation none;
+    pinpoint::SwingAllocation &out = allocation ? *allocation : none;
+    out = {};
+    const pinpoint::SessionId session = captureSession();
+    if (m_openSessionObject)
+        m_openSessionObject->addShot(pinpoint::recording::ShotKind::DeviceOnly, &out);   // DEC-142
+    else if (m_sessions && !session.isNull())
+        out = m_sessions->allocateSwing(session);   // the interim
+    else
+        out.result = { pinpoint::WriteResult::Status::Failed, QStringLiteral("no session to record it in") };
+    return out.ok() ? out.shot : pinpoint::ShotRef();
+}
+
+void ShotProcessor::shotDocumentWritten(const pinpoint::ShotRef &shot)
+{
+    for (pinpoint::Session *s : { m_openSessionObject.data(), m_shotSession.data() })
+        if (s && s->id() == shot.session()) {
+            s->shotDocumentWritten(shot);   // EVT-01, once per shot (D19)
+            return;
+        }
 }
 
 void ShotProcessor::onLibraryChanged()
@@ -1345,25 +1446,37 @@ void ShotProcessor::onLibraryChanged()
     if (!m_sessionBegun) {
         // A session started on demand for a swing outside a session: ended; the next swing starts one
         // in the new library.
-        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);
-        setOpenSession({});
+        endOpenSession(/*golferEnd=*/false);
         emit activeSessionDirChanged();
         return;
     }
-    // ⚠ D7 (DEC-154): the session ENDS (written if the old library is still reachable; if not it stays
-    // in progress until the athlete's next Start there, DEC-73) and a NEW one of the same type starts
-    // in the new library. The club and the declared focus are SessionController's and carry over
+    // ⚠ D7 (DEC-154): the session ENDS — the Session's End, its empty discard included (as the store's
+    // restart made it before step 3.4a-ii), written if the old library is still reachable; if not it stays
+    // in progress until the athlete's next Start there, DEC-73 — and a NEW one of the same type starts in
+    // the new library. The club and the declared focus are SessionController's and carry over
     // untouched; the focus applies from the new session's first shot. The views bound to
     // activeSessionDir follow it as they follow any Start. (This replaces step 0.3's stopgap.)
-    QString oldEndProblem;
-    const pinpoint::SessionStartResult s =
-        m_sessions->restartInLibrary(m_openSession, owner, m_appSettings->sessionNamingPattern(), &oldEndProblem);
-    if (!oldEndProblem.isEmpty())
-        emit sessionFileFailed(oldEndProblem);   // the old library is still there, but its session's end was not saved
-    setOpenSession(s.ok() ? s.id : pinpoint::SessionId());
+    const pinpoint::SessionId oldId = m_openSession;
+    const auto oldEntry = m_openSessionObject ? m_openSessionObject->entry() : m_sessions->open(m_openSession);
+    const QString type  = oldEntry ? oldEntry->identity.type() : QString();
+    const QString was   = oldEntry ? oldEntry->folder : QString();
+    const pinpoint::WriteResult ended = endOpenSession(/*golferEnd=*/true);
+    if (!ended.ok()) {
+        ppWarn() << "[SessionStore] the session in the old library could not be ended (it stays in progress"
+                    " until the athlete's next session there):" << was << "-" << ended.error;
+        // A folder still there (a held lock, a read-only file) is a failure to report; a library that has
+        // gone (a dropped share) is the expected case, and the "not being saved" notices cover it. Still
+        // there: the folder, whatever its session file's state (the repository's read; nothing here touches the
+        // disk) — so an unreadable session file in a present folder is still shown (DEC-140).
+        if (!oldId.isNull() && m_sessions->folderPresent(oldId))
+            emit sessionFileFailed(ended.error);   // the old library is still there, but its end was not saved
+    }
+    const bool started = startOpenSession(type, /*onDemand=*/false);
+    ppWarn() << "[SwingExport] the library changed during a session: the session" << was
+             << "ended, and a new one started in" << m_openSessionDir;
     m_openedOnDemand     = false;
     m_openLibraryKey     = libraryKey(owner.libraryRoot);
-    m_sessionFolderReady = s.ok();   // if not, the next swing tries again (captureSession)
+    m_sessionFolderReady = started;   // if not, the next swing tries again (captureSession)
     emit sessionRestartedForLibrary();   // first: the focus's "from shot" is reset before the views re-point
     emit activeSessionDirChanged();
 }
@@ -1372,8 +1485,13 @@ QString ShotProcessor::todaySessionDir(int sessionType)
 {
     if (!m_appSettings || !m_athlete || !m_sessions)
         return {};
-    const pinpoint::SessionId id =
-        m_sessions->todaysSession(ownerOf(m_athlete, m_appSettings), sessionTypeName(sessionType));
+    const QString type = sessionTypeName(sessionType);
+    if (pinpoint::Athlete *a = captureAthlete()) {
+        const pinpoint::Session *s = a->session(a->todaysSession(type));
+        const auto entry = s ? s->entry() : std::nullopt;
+        return entry ? entry->folder : QString();
+    }
+    const pinpoint::SessionId id = m_sessions->todaysSession(ownerOf(m_athlete, m_appSettings), type);
     const auto entry = id.isNull() ? std::nullopt : m_sessions->open(id);
     return entry ? entry->folder : QString();
 }
@@ -1386,48 +1504,68 @@ void ShotProcessor::beginSessionFolder(int sessionType, bool extend)
     // already been lost — precisely what happened on 1 September 2026 with /mnt/swingdata unmounted.
     // The session-start preflight reads it through sessionFolderReady().
     m_sessionFolderReady = false;
-    if (m_sessions && !m_openSession.isNull())
-        m_sessions->end(m_openSession, /*discardIfEmpty=*/false);   // one still open (on demand): ended
-    setOpenSession({});
+    pinpoint::Athlete *athlete = captureAthlete();
+    // One still open (on demand): ended, never discarded. The current Athlete's own running session is
+    // ended by its startSession / resumeSession below (DEC-78, DEC-134), never discarded either, as before;
+    // any other — another athlete's on-demand session, or one no Athlete holds — is ended here.
+    if (!m_openSession.isNull() && !(m_openSessionObject && m_openSessionObject->athlete() == athlete))
+        endOpenSession(/*golferEnd=*/false);
+    setOpenSession(nullptr);
     m_sessionBegun = true;
     if (m_sessions && m_appSettings && m_athlete) {
         const pinpoint::SessionOwner owner = ownerOf(m_athlete, m_appSettings);
         const QString type = sessionTypeName(sessionType);
-        pinpoint::SessionId id;
+        bool started = false;
         // Extend: today's latest session of this type, resumed with its own SessionId (MD-05: DEC-134).
         // A resume that is refused or cannot be written starts a new session instead.
         if (extend) {
-            id = m_sessions->todaysSession(owner, type);
-            if (!id.isNull()) {
-                if (const pinpoint::WriteResult r = m_sessions->resume(id, type); !r.ok()) {
-                    ppWarn() << "[SwingExport] today's session could not be continued - a new one starts:" << r.error;
-                    emit sessionResumeFailed(r.error);   // the golfer asked to continue: say why they did not
-                    id = {};
+            if (athlete) {
+                const pinpoint::SessionId id = athlete->todaysSession(type);
+                if (!id.isNull()) {
+                    pinpoint::WriteResult r;
+                    if (pinpoint::Session *s = athlete->resumeSession(id, type, &r)) {
+                        setOpenSession(s);
+                        started = true;
+                    } else {
+                        ppWarn() << "[SwingExport] today's session could not be continued - a new one starts:" << r.error;
+                        emit sessionResumeFailed(r.error);   // the golfer asked to continue: say why they did not
+                    }
+                }
+            } else {
+                const pinpoint::SessionId id = m_sessions->todaysSession(owner, type);   // the interim
+                if (!id.isNull()) {
+                    if (const pinpoint::WriteResult r = m_sessions->resume(id, type); !r.ok()) {
+                        ppWarn() << "[SwingExport] today's session could not be continued - a new one starts:" << r.error;
+                        emit sessionResumeFailed(r.error);
+                    } else {
+                        setOpenSessionId(id);
+                        started = true;
+                    }
                 }
             }
         }
-        if (id.isNull()) {
-            const pinpoint::SessionStartResult s = m_sessions->start(owner, type, m_appSettings->sessionNamingPattern());
-            if (!s.ok())
-                ppError() << "[SwingExport] no session started:" << s.result.error;
-            id = s.id;
+        if (!started) {
+            pinpoint::WriteResult r;
+            started = startOpenSession(type, /*onDemand=*/false, &r);
+            if (!started)
+                ppError() << "[SwingExport] no session started:" << r.error;
         }
-        setOpenSession(id);
         m_openLibraryKey     = libraryKey(owner.libraryRoot);
-        m_sessionFolderReady = !id.isNull();
+        m_sessionFolderReady = started;
     }
     emit activeSessionDirChanged();
 }
 
 void ShotProcessor::endSessionFolder()
 {
-    if (m_sessions && !m_openSession.isNull()) {
-        // The empty discard (DEC-93): a session this Start made that captured nothing goes to the trash.
-        const pinpoint::WriteResult r = m_sessions->end(m_openSession, /*discardIfEmpty=*/!m_openedOnDemand);
+    if (!m_openSession.isNull()) {
+        // THE END (DEC-143): the Session's own, with its empty discard (DEC-93) — a session the golfer
+        // started here that captured nothing goes to the trash; one started on demand never does.
+        const pinpoint::WriteResult r = endOpenSession(/*golferEnd=*/true);
         if (!r.ok())
             emit sessionFileFailed(r.error);
     }
-    setOpenSession({});
+    setOpenSession(nullptr);
     m_sessionBegun = false;
     emit activeSessionDirChanged();
 }
@@ -1631,6 +1769,11 @@ void ShotProcessor::onSwingDocWritten()
         savedSwingDir = m_swingDir;
         ppInfo() << "[SwingDoc] wrote" << res.documentPath
                  << (analysisOk ? "(with analysis)" : "(raw only)");
+        // EVT-01's moment (D19: DEC-168): the shot's first document has landed — with or without its
+        // analysis (an analysis-skipped corpus shot fires too, from what it has: BRIEF-NOTES U12). Its
+        // Session announces it, once; a session no Athlete holds has no Session to (the interim).
+        if (m_shotSession)
+            m_shotSession->shotDocumentWritten(m_shot);
     } else if (!res.error.isEmpty()) {
         ppError() << "[SwingDoc]" << res.error;
     }

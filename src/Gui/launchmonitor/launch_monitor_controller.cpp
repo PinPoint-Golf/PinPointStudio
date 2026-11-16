@@ -28,7 +28,6 @@
 #include "../../Export/swing_doc.h"
 #include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
-#include "../../DomainModel/session_repository.h"   // the one allocator (D10)
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -472,11 +471,16 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     // The edge (DEC-90): the folder this shot was handed (its own allocation's, or a failed camera
     // shot's on the rescue path) to its key, once.
-    const pinpoint::WriteResult w = m_repo->create(m_repo->shotOfFolder(swingDir), r, meta);
+    const pinpoint::ShotRef     shot = m_repo->shotOfFolder(swingDir);
+    const pinpoint::WriteResult w    = m_repo->create(shot, r, meta);
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << w.error;
         return false;
     }
+    // EVT-01's moment (D19): this is the shot's first document — a standalone shot's, or a camera shot's that
+    // wrote none (the rescue path). It fires from its readings (BRIEF-NOTES U12).
+    if (m_documentWritten)
+        m_documentWritten(shot);
 
     if (m_shotModel) {
         if (existingShotId >= 0) {
@@ -527,19 +531,19 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
 
     // ONE ALLOCATOR (D10: DEC-157): the next swing number of the running session — the session the
     // gate above requires — not a "…_session_NN" folder of its own, which split the session in two.
-    const pinpoint::SessionId session = m_captureSession ? m_captureSession() : pinpoint::SessionId();
-    if (!m_sessions || session.isNull()) {
+    // Added by the capture service to the session it captures into (Session::addShot: DEC-142).
+    if (!m_addShot) {
         ppWarn() << "LaunchMonitor: standalone shot skipped — no session to record it in";
         return false;
     }
-    const pinpoint::SwingAllocation alloc = m_sessions->allocateSwing(session);
-    if (!alloc.ok()) {
-        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << alloc.result.error;
+    const NewShot made = m_addShot();
+    if (made.shot.isNull()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << made.error;
         return false;
     }
 
-    return writeDeviceOnly(alloc.swingFolder, reading, alloc.swingName, alloc.shot.swingNumber(),
-                           alloc.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
+    return writeDeviceOnly(made.folder, reading, made.swingName, made.shot.swingNumber(),
+                           made.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
 }
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)

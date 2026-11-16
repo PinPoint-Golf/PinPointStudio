@@ -72,6 +72,7 @@ class ImuManager;
 class SessionController;
 
 namespace pinpoint {
+class Athlete;
 class SwingWindow;
 class RecordingRepository;
 struct SwingExportJob;
@@ -99,6 +100,9 @@ CaptureAthlete readCaptureAthlete(const AthleteController *athlete, const Sessio
 // athlete.json (D4: fixed at creation, kept on a rename), the typed name for one still in settings.
 struct AthleteIdentity { QString name, uuid; };
 AthleteIdentity athleteIdentity(const AthleteController *athlete);
+// The current Athlete (refactor step 3.4a-ii): the one capture starts, resumes and ends its sessions through.
+// Null when none is selected. Here, beside athleteIdentity, so the capture service needs no controller header.
+pinpoint::Athlete *currentAthlete(const AthleteController *athlete);
 
 // One camera with frames in the window, as the capture holds it.
 struct CaptureCamera {

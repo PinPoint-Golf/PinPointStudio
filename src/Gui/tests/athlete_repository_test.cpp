@@ -166,7 +166,7 @@ private slots:
         const SessionStartResult s1 = lib.sessions.start(a->sessionOwner(), QStringLiteral("swing"), QStringLiteral("date-name-type"));
         QVERIFY(s1.ok());
         QVERIFY(lib.sessions.allocateSwing(s1.id).ok());
-        QVERIFY(lib.sessions.end(s1.id, true).ok());
+        QVERIFY(lib.sessions.end(s1.id).ok());
 
         QSignalSpy edited(a, &Athlete::recordChanged);
         AthleteRecord r = a->record();
@@ -185,7 +185,7 @@ private slots:
         const SessionStartResult s2 = lib.sessions.start(a->sessionOwner(), QStringLiteral("swing"), QStringLiteral("date-name-type"));
         QVERIFY(s2.ok());
         QCOMPARE(clean(QFileInfo(s2.folder).absolutePath()), clean(folder));                         // N6 the next session too
-        QVERIFY(lib.sessions.end(s2.id, true).ok());
+        QVERIFY(lib.sessions.end(s2.id).ok());
     }
 
     // S1–S9: an athlete created before step 2 — read from settings, never written by a read; its
@@ -271,7 +271,7 @@ private slots:
         QVERIFY(QFileInfo::exists(AthleteFiles::athleteFile(folder)));
         QVERIFY(lib.athletes->list().contains(a->id()));
 
-        QVERIFY(lib.sessions.end(s.id, true).ok());
+        QVERIFY(lib.sessions.end(s.id).ok());
         QVERIFY2(a->remove().ok(), "remove after the session ended");                                // D2
         QVERIFY(!QFileInfo::exists(folder));                                                         // D3 the folder left the library
         QVERIFY(!lib.athletes->list().contains(a->id()));                                            // D4 and the list
@@ -480,7 +480,7 @@ private slots:
         QVERIFY(s.ok());
         const SwingAllocation sw = lib.sessions.allocateSwing(s.id);
         QVERIFY(sw.ok());
-        QVERIFY(lib.sessions.end(s.id, true).ok());
+        QVERIFY(lib.sessions.end(s.id).ok());
 
         QVERIFY(c.wristReferenceSwingDir().isEmpty());                                               // W1 none yet
         QVERIFY(c.setWristReferenceSwingDir(sw.swingFolder));                                        // W2 recorded…
@@ -493,7 +493,7 @@ private slots:
             AthleteStore  athletes([&lib] { return lib.root(); }, &sessions);
             AthleteController again;
             again.setSynchronousActivity(true);
-            again.setRepositories(&athletes, &sessions);
+            again.setCallables(callablesOver(athletes), &sessions);
             QCOMPARE(again.currentUuid(), uuid);
             QCOMPARE(clean(again.wristReferenceSwingDir()), clean(sw.swingFolder));
         }
@@ -547,7 +547,7 @@ private slots:
         const auto entry = lib.sessions.open(s.id);
         QVERIFY(entry);
         QCOMPARE(act.lastAtSec, entry->startedAtUtc.toSecsSinceEpoch());                             // A4 a new one: its start
-        QVERIFY(lib.sessions.end(s.id, true).ok());
+        QVERIFY(lib.sessions.end(s.id).ok());
 
         AthleteController &c = lib.makeController();                                                // the controller's rows
         QCOMPARE(c.athletes().first().toMap().value(QStringLiteral("sessionCount")).toInt(), 2);

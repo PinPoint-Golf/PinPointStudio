@@ -20,6 +20,8 @@
 #include "athlete_repository.h"
 #include "session.h"
 
+#include "../Core/pp_debug.h"
+
 #include <QDateTime>
 #include <QDir>
 #include <QTime>
@@ -254,14 +256,14 @@ bool Athlete::ensureHeld(const SessionId &id)
     return m_sessions->open(id).has_value();
 }
 
-Session *Athlete::hold(const SessionId &id, bool startedHere)
+Session *Athlete::hold(const SessionId &id, bool startedHere, bool onDemand)
 {
     if (Session *s = m_loaded.value(id))
         return s;
     const auto e = m_sessions ? m_sessions->open(id) : std::nullopt;
     if (!e || e->athlete != m_id)
         return nullptr;   // not held, or another athlete's session
-    Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere);
+    Session *s = new Session(this, m_sessions, m_shotDoors, id, startedHere, onDemand);
     m_loaded.insert(id, s);
     return s;
 }
@@ -274,7 +276,8 @@ void Athlete::endRunningSessions(const SessionId &except)
             s->endSession(/*discardIfEmpty=*/false);   // EVT-09; never the empty discard (today's rule)
 }
 
-Session *Athlete::startSession(const QString &type, const QString &namingPattern, WriteResult *result)
+Session *Athlete::startSession(const QString &type, const QString &namingPattern, WriteResult *result,
+                               SessionStart how)
 {
     if (!m_sessions) {
         if (result)
@@ -287,9 +290,12 @@ Session *Athlete::startSession(const QString &type, const QString &namingPattern
         *result = r.result;
     if (!r.ok())
         return nullptr;
-    Session *s = hold(r.id, /*startedHere=*/true);
-    if (s)
+    Session *s = hold(r.id, /*startedHere=*/true, how == SessionStart::OnDemand);
+    if (s) {
+        ppInfo() << "[Athlete] EVT-17 session started:" << r.id.toString()
+                 << (how == SessionStart::OnDemand ? "(on demand)" : "");
         emit sessionStarted(r.id);   // EVT-17
+    }
     return s;
 }
 
@@ -310,6 +316,19 @@ Session *Athlete::resumeSession(const SessionId &id, const QString &type, WriteR
             *result = refused(QStringLiteral("That session is another athlete's."));
         return nullptr;
     }
+    // The session already running here: nothing to resume (no write, no event), but it is resumed work from
+    // now on, so never the empty discard's (as today's extend made it, which ended it and resumed it). ONLY
+    // WHERE DEC-134 WOULD ALLOW THE RESUME: today's session of that type, as the repository judges it
+    // (todaysSession: its clock and time zone). Any other day or type falls through to the rules below, and
+    // the repository refuses it, as before.
+    if (Session *running = m_loaded.value(id);
+        running && running->runningHere() && running->inProgress() && todaysSession(type) == id) {
+        if (result)
+            *result = { WriteResult::Status::Unchanged, {} };
+        running->m_startedHere = false;
+        running->m_onDemand    = false;
+        return running;
+    }
     // The session running here is ended FIRST, with its end observed (DEC-134: "any other InProgress session of
     // the athlete is ended first"), as today's extend does; then the repository judges the resume: only a
     // session started today, of the same type, with its own SessionId (DEC-77, DEC-134). A refused resume
@@ -324,7 +343,9 @@ Session *Athlete::resumeSession(const SessionId &id, const QString &type, WriteR
     if (!s)
         return nullptr;
     s->m_startedHere = false;   // somebody's earlier work: never the empty discard's
+    s->m_onDemand    = false;
     s->m_runningHere = true;
+    ppInfo() << "[Athlete] EVT-23 session resumed:" << id.toString();
     emit sessionResumed(id);   // EVT-23
     return s;
 }
@@ -339,6 +360,7 @@ WriteResult Athlete::trashSession(const SessionId &id, QString *where)
     if (!r.ok())
         return r;
     Session *s = m_loaded.take(id);
+    ppInfo() << "[Athlete] EVT-20 session trashed:" << id.toString();
     emit sessionTrashed(id);   // EVT-20
     if (s)
         s->deleteLater();      // a view still bound to it reads a live object until the event loop runs

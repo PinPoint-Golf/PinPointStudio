@@ -31,12 +31,11 @@
 //                    the same type (MD-05: DEC-134 — today's "extend" rule)
 //   resume           that session InProgress again, with the same SessionId (DEC-77); refused for any
 //                    other; any other InProgress session of the athlete is ended first
-//   end              Ended, with its end time; today's empty-session discard, unchanged (DEC-93):
-//                    a session this run started and that holds no swing goes to the trash instead
-//   restartInLibrary the library re-pointed mid-session (D7: DEC-154): the running session ends
-//                    (written if its folder is still reachable; else it stays InProgress, DEC-73) and
-//                    a new one of the same type starts under the new library. A session's folder
-//                    never changes during its life, so nothing relocates
+//   end              Ended, with its end time — and nothing more: the empty-session discard (DEC-93) is
+//                    Session::end's, which ends the session here and then asks Athlete::trashSession
+//                    (DEC-143; refactor step 3.4a-ii). A library re-pointed mid-session (D7: DEC-154) is
+//                    an end and a start, made by the capture service through the Session and its
+//                    Athlete; a session's folder never changes during its life, so nothing relocates
 //   enumerate        one typed entry per session folder of the athlete, without loading the session:
 //                    identity, status, start and end times (MD-07: DEC-136); n-of-day by start time
 //   allocateSwing    the next swing number past the recorded high-water (DEC-91), its folder made
@@ -76,13 +75,13 @@
 // is read-only: every write refuses it (WriteResult::Status::ReadOnly). A folder held by another
 // writer's advisory lock (FolderLock, R-PERS-6) past the wait is Locked, with the holder named (J-22).
 //
-// INTERIM (IM-S2-4: DEC-160): until step 3 the callers are today's — ShotProcessor's session-folder
-// commands and the launch monitor's standalone shot (one allocator: D10, DEC-157); the Archiving tab and
-// housekeeping (ArchiveController: archive, restore) and the drawer's delete (SessionReviewController:
-// trash), from step 2.6. Step 3's
-// Athlete::startSession / resumeSession / trashSession and Session::end / addShot / trashShot
-// (src/DomainModel/session.h, step 3.4a) take them over: the objects are built in run 3.4a-i, and their
-// callers move in run 3.4a-ii (capture, the launch monitor, the clip filer, AthleteController).
+// ITS CALLERS (refactor step 3.4a): the Athlete and its Sessions (Athlete::startSession / resumeSession /
+// trashSession, Session::end / addShot / trashShot: src/DomainModel/athlete.h, session.h), through which
+// capture starts, resumes and ends its sessions and allocates every shot, the launch monitor's among them
+// (run 3.4a-ii). INTERIM (IM-S2-4: DEC-160), still direct: capture's sessions that no Athlete holds (no
+// golfer selected — the "unknown" folder — or a library re-pointed mid-session that does not list the golfer:
+// ShotProcessor, NOTES-3.4a-ii N1); the Archiving tab and housekeeping (ArchiveController: archive, restore)
+// and the drawer's delete (SessionReviewController: trash), from step 2.6, until steps 3.4b and 3.8.
 //
 // Domain model ring (src/DomainModel): names no store type.
 
@@ -235,15 +234,9 @@ public:
     // Refused (Failed) unless it was started today and is of `type`; ReadOnly for a newer file.
     virtual WriteResult resume(const SessionId &id, const QString &type) = 0;
 
-    // Unchanged for a session that is not held or has no session file (nothing to end).
-    virtual WriteResult end(const SessionId &id, bool discardIfEmpty) = 0;
-
-    // D7. `owner` names the new library. The result is the NEW session's. `oldEndProblem`, when given,
-    // is set to why the old session could not be ended while its folder is still there (a held lock, a
-    // read-only file) — a failure for the caller to show; it stays empty when the old library is
-    // unreachable (the expected case, DEC-73) or the end succeeded.
-    virtual SessionStartResult restartInLibrary(const SessionId &running, const SessionOwner &owner,
-                                                const QString &namingPattern, QString *oldEndProblem = nullptr) = 0;
+    // Unchanged for a session that is not held or has no session file (nothing to end). Never discards:
+    // the empty discard is Session::end's (DEC-143).
+    virtual WriteResult end(const SessionId &id) = 0;
 
     virtual QList<SessionIndexEntry> enumerate(const SessionOwner &owner) = 0;
 
@@ -262,6 +255,11 @@ public:
     virtual QList<ShotRef> shots(const SessionId &id) const = 0;
     // "" when the session is not held or the ref is null. Safe from any thread.
     virtual QString swingFolder(const ShotRef &shot) const = 0;
+    // Whether the held session's folder is still on disk, whatever state its session file is in (a library that
+    // has gone, a dropped share: false; not held: false). Reads only. Its one caller: the capture service's
+    // library change (D7), which shows the golfer an old session's failed End only while the folder is still
+    // there (DEC-140), and says nothing for a library that has gone (the expected case, DEC-73).
+    virtual bool folderPresent(const SessionId &id) const = 0;
 
     // The archive (step 2.6). The session must be held (enumerate, open, openFolder). Refused while its
     // session file says InProgress, and for a newer build's session file (ReadOnly). Owner thread, like

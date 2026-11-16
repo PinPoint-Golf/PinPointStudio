@@ -19,7 +19,7 @@
 
 #include "launch_monitor_base.h"
 #include "shot_pairing.h"
-#include "../../Identity/identity.h"   // SessionId: the running session a standalone shot goes into
+#include "../../Identity/identity.h"   // ShotRef: the standalone shot the capture service adds
 
 #include <QHash>
 #include <QJsonObject>
@@ -36,7 +36,7 @@ class AthleteController;
 class CameraManager;
 class SessionController;
 class ShotListModel;
-namespace pinpoint { class RecordingRepository; class SessionRepository; }
+namespace pinpoint { class RecordingRepository; }
 
 // The launch monitor's place in the app (QML context property `launchMonitor`).
 //
@@ -137,12 +137,21 @@ public:
     // The one door to the swing files (main.cpp's): a device-only shot is created through it, and
     // every reading is folded in through completeCapture (IM-4). Without one nothing is written.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
-    // ONE ALLOCATOR (D10: DEC-157): a standalone device-only shot goes into the RUNNING session, with
-    // the next swing number from the session repository, never a folder of its own. `captureSession`
-    // answers which session that is (ShotProcessor::captureSession, main.cpp's). Without both, no
-    // standalone shot is created.
-    void setSessionRepository(pinpoint::SessionRepository *sessions) { m_sessions = sessions; }
-    void setCaptureSession(std::function<pinpoint::SessionId()> session) { m_captureSession = std::move(session); }
+    // ONE ALLOCATOR (D10: DEC-157): a standalone device-only shot goes into the RUNNING session, with the
+    // next swing number, never a folder of its own — added by the capture service, which holds the Session
+    // it captures into (Session::addShot: DEC-142; refactor step 3.4a-ii): ShotProcessor::addDeviceOnlyShot,
+    // main.cpp's. Without it no standalone shot is created.
+    struct NewShot {
+        pinpoint::ShotRef shot;                // null: none could be added (`error` says why)
+        QString           folder;              // the swing folder the document goes into
+        QString           swingName;           // "swing_0007"
+        QString           sessionFolderName;   // provenance only
+        QString           error;
+    };
+    void setShotMaker(std::function<NewShot()> addShot) { m_addShot = std::move(addShot); }
+    // EVT-01's moment (D19: DEC-168): a device-only document — the first document of its shot — has
+    // landed. Reported to the capture service, whose Session announces it (ShotProcessor::shotDocumentWritten).
+    void setDocumentWritten(std::function<void(const pinpoint::ShotRef &)> written) { m_documentWritten = std::move(written); }
 
 public slots:
     // ShotController::shotDetected. Which swing a reading belongs to is decided by ORDER
@@ -229,9 +238,10 @@ private:
     // createStandaloneShot — a shot is only ours to record while the user says they are
     // hitting, and no buffer state can answer that when there are no devices to register.
     CameraManager                 *m_cameras   = nullptr;
-    // The one allocator's door and the running session (D10): see setSessionRepository.
-    pinpoint::SessionRepository   *m_sessions = nullptr;
-    std::function<pinpoint::SessionId()> m_captureSession;
+    // The capture service's: a standalone shot added to the running session, and a first document reported
+    // (see setShotMaker).
+    std::function<NewShot()>                        m_addShot;
+    std::function<void(const pinpoint::ShotRef &)>  m_documentWritten;
     pinpoint::lm::LaunchMonitorBase *m_monitor = nullptr;   // never null — see makeLaunchMonitor
     pinpoint::lm::ShotPairing      m_pairing;
     // Whether the destination the pairing knows about actually holds a document. False

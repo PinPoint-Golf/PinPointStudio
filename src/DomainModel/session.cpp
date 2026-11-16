@@ -29,9 +29,9 @@ WriteResult failedWith(const QString &why) { return { WriteResult::Status::Faile
 }
 
 Session::Session(Athlete *athlete, SessionRepository *sessions, const ShotDoors &doors, const SessionId &id,
-                 bool startedHere)
+                 bool startedHere, bool onDemand)
     : QObject(athlete), m_athlete(athlete), m_sessions(sessions), m_doors(doors), m_id(id),
-      m_startedHere(startedHere), m_runningHere(startedHere)
+      m_startedHere(startedHere), m_runningHere(startedHere), m_onDemand(onDemand)
 {
 }
 
@@ -92,9 +92,20 @@ Shot *Session::addShot(WriteResult *result)
 
 Shot *Session::addShot(recording::ShotKind kind, WriteResult *result)
 {
+    SwingAllocation a;
+    Shot *s = addShot(kind, &a);
+    if (result)
+        *result = a.result;
+    return s;
+}
+
+Shot *Session::addShot(recording::ShotKind kind, SwingAllocation *allocation)
+{
+    SwingAllocation none;
+    SwingAllocation &out = allocation ? *allocation : none;
     if (!m_sessions) {
-        if (result)
-            *result = failedWith(QStringLiteral("No session store."));
+        out = SwingAllocation{};
+        out.result = failedWith(QStringLiteral("No session store."));
         return nullptr;
     }
     // DEC-142's order. 1. ALLOCATE: the next swing number past the high-water, its folder made, the
@@ -102,9 +113,8 @@ Shot *Session::addShot(recording::ShotKind kind, WriteResult *result)
     // allocator, so the folders and numbers are today's). 2. CREATE the Shot, in the collection from now
     // (LC-SHOT: capturing). 3. RETURN it; capture writes the document into it next. No event yet: EVT-01
     // is the document write's (D19), shotDocumentWritten.
-    const SwingAllocation a = m_sessions->allocateSwing(m_id);
-    if (result)
-        *result = a.result;
+    out = m_sessions->allocateSwing(m_id);
+    const SwingAllocation &a = out;
     if (!a.ok())
         return nullptr;
     loadShots();   // the listing (if first) sees the new folder; hold() keeps the one instance either way
@@ -119,6 +129,7 @@ bool Session::shotDocumentWritten(const ShotRef &ref)
     if (!s || m_announced.contains(ref.swingNumber()))
         return false;
     m_announced.insert(ref.swingNumber());
+    ppInfo() << "[Session] EVT-01 shot added:" << ref.toString();
     emit shotAdded(ref);   // EVT-01
     return true;
 }
@@ -133,6 +144,7 @@ WriteResult Session::trashShot(const ShotRef &ref, QString *where)
         return r;   // nothing changed: no event
     m_shots.remove(ref.swingNumber());
     m_announced.remove(ref.swingNumber());
+    ppInfo() << "[Session] EVT-03 shot trashed:" << ref.toString();
     emit shotTrashed(ref);   // EVT-03
     s->deleteLater();        // a view still bound to it reads a live object until the event loop runs
     return r;
@@ -155,24 +167,29 @@ WriteResult Session::endSession(bool discardIfEmpty)
         return { WriteResult::Status::Unchanged, {} };
     }
     // ⚠ THE EMPTY DISCARD TAKES ONLY WHAT THIS RUN'S START MADE, and only while it holds no swing (DEC-93,
-    // unchanged; DEC-143). A resumed session is somebody's earlier work, whatever it holds.
-    const bool empty = discardIfEmpty && m_startedHere && m_sessions->shots(m_id).isEmpty();
+    // unchanged; DEC-143). A resumed session is somebody's earlier work, whatever it holds; a session started
+    // on demand for a swing outside a session is never discarded (today's rule).
+    const bool empty = discardIfEmpty && m_startedHere && !m_onDemand && m_sessions->shots(m_id).isEmpty();
 
     // Ended first, with its end time (FILE-SESS-01): Athlete::trashSession refuses a session in progress
     // (J-46), so the empty session is ended, then trashed.
-    const WriteResult r = m_sessions->end(m_id, /*discardIfEmpty=*/false);
+    const WriteResult r = m_sessions->end(m_id);   // the repository ends it; it never discards
     if (!r.ok())
         return r;   // still in progress, as its file says (DEC-73): no event
     m_startedHere = false;
     m_runningHere = false;
 
     if (empty && m_athlete) {
-        const WriteResult t = m_athlete->trashSession(m_id);   // EVT-20, from the Athlete (DEC-71, DEC-143)
-        if (t.ok())
+        QString where;
+        const WriteResult t = m_athlete->trashSession(m_id, &where);   // EVT-20, from the Athlete (DEC-71, DEC-143)
+        if (t.ok()) {
+            ppInfo() << "[Session] discarded the empty session" << m_id.toString() << "(to" << where << ")";
             return t;   // this Session is deleted later; touch nothing more
+        }
         // As today: a discard that cannot be made leaves the session ended, and says so in the log.
         ppWarn() << "[Session] could not trash the empty session" << m_id.toString() << "-" << t.error;
     }
+    ppInfo() << "[Session] EVT-09 session ended:" << m_id.toString();
     emit sessionEnded(m_id);   // EVT-09
     return r;
 }

@@ -843,20 +843,20 @@ bag as `clubs`, the Wrist ★ as `wristReference`, a `ShotRef` string; never `la
 
 ### The session lifecycle — `SessionRepository` (step 2.2)
 
-| Call | Does | Caller (until step 3) |
+| Call | Does | Caller (step 3.4a-ii: through the `Athlete` and its `Session`s, below) |
 |---|---|---|
-| `start(owner, type, pattern)` | ends any other in-progress session of the athlete (one per athlete), names a new folder (`SwingPaths`, SET-04, the counter past any name taken), makes it, writes the file in progress. A file that cannot be written leaves no folder | `ShotProcessor::beginSessionFolder` (QML: the wizard's Start, the toolbar's Capture) |
-| `todaysSession(owner, type)` | the athlete's latest session **started today of that type** — a session-file session before a legacy one, then by start time, then its place in the day — the "extend" offer (MD-05: DEC-134) | `ShotProcessor::todaySessionDir` |
-| `resume(id, type)` | that session in progress again with **the same `SessionId`**; refused for any other day or type; any other in-progress session of the athlete ended first. A refused or failed resume starts a new session instead, and says so (the notice `session.resume.failed`) | `beginSessionFolder(type, extend = true)` |
-| `end(id, discardIfEmpty)` | ended, with `endedAt`. **The empty discard is unchanged** (DEC-93): only a session this run's `start` made, and only while it holds no `swing_*` folder, goes to the trash; a resumed session never does | `ShotProcessor::endSessionFolder` (a failed write is posted as the notice `session.file.failed`) |
-| `restartInLibrary(id, owner, pattern)` | **D7** (DEC-154): the library was re-pointed mid-session — the session ends (written if its folder is still reachable; else it stays in progress until the athlete's next Start there; a failed end of an old session whose folder is still there — a held lock, a read-only file — is posted as `session.file.failed`), an empty one is discarded as at End, and a new session of the same type starts under the new library. The club and the declared focus are `SessionController`'s and carry over; the focus applies from the new session's first shot | `ShotProcessor`, on `athleteLibraryPathChanged` |
+| `start(owner, type, pattern)` | ends any other in-progress session of the athlete (one per athlete), names a new folder (`SwingPaths`, SET-04, the counter past any name taken), makes it, writes the file in progress. A file that cannot be written leaves no folder | `Athlete::startSession`, asked by `ShotProcessor::beginSessionFolder` (QML: the wizard's Start, the toolbar's Capture) and its start on demand |
+| `todaysSession(owner, type)` | the athlete's latest session **started today of that type** — a session-file session before a legacy one, then by start time, then its place in the day — the "extend" offer (MD-05: DEC-134) | `Athlete::todaysSession`, asked by `ShotProcessor::todaySessionDir` and the extend |
+| `resume(id, type)` | that session in progress again with **the same `SessionId`**; refused for any other day or type; any other in-progress session of the athlete ended first. A refused or failed resume starts a new session instead, and says so (the notice `session.resume.failed`) | `Athlete::resumeSession`, asked by `beginSessionFolder(type, extend = true)` |
+| `end(id)` | ended, with `endedAt` — **and nothing more** (step 3.4a-ii): the empty discard (DEC-93, unchanged: only a session this run's `start` made, started by the golfer and not on demand, while it holds no `swing_*` folder; a resumed session never) is `Session::end`'s, which ends the session here and then asks `Athlete::trashSession` (EVT-20: DEC-143) | `Session::end`, asked by `ShotProcessor::endSessionFolder` (a failed write is posted as the notice `session.file.failed`) |
 | `enumerate(owner)` | one typed `SessionIndexEntry` per session folder (identity, status, start/end, `hasSessionFile`, `readOnly`, `archived`) with n-of-day by start time (MD-07: DEC-136); a day with an untimed (legacy) session orders by folder name (step 2.7a). A folder is a session when it has a file, a name this app made, or a swing | `todaysSession` |
 | `enumerateFolder(athleteDir, legacyAthlete)` (the store, not the interface; step 2.7a) | the same for a caller that holds an athlete's folder (the diagnostics model, the work-ons controller and their tools, through `SessionDiagnosticsFiles::athleteSessions` / `identityOf`): a legacy session's D3 id from `legacyAthlete` (J-39's owner: `SwingStoreRecordingRepository::legacyOwnerOf`); with none, it is still listed and placed by its name (`SessionIdentity::placeOfLegacyFolder`) with a null id, and never held | the day and place in the day the club baseline, club distances, tendencies and the history columns go by |
-| `allocateSwing(id)` | the next swing number (below), under the session's lock; a `ShotRef` and the folder | `ShotProcessor::buildSwingExportJob`, and `LaunchMonitorController`'s standalone shot — **one allocator** (D10: DEC-157), so a device-only shot goes into the running session, never a `…_session_NN` folder of its own |
+| `allocateSwing(id)` | the next swing number (below), under the session's lock; a `ShotRef` and the folder | `Session::addShot` (DEC-142), asked by `ShotProcessor::buildSwingExportJob` and, for `LaunchMonitorController`'s standalone shot, by `ShotProcessor::addDeviceOnlyShot` — **one allocator** (D10: DEC-157), so a device-only shot goes into the running session, never a `…_session_NN` folder of its own |
 | `archive(id, options, progress)`, `restore(id, progress)` | the whole session to its archive mirror and back (below). **Refused while the session file says in progress** — read afresh, so another computer's live session, or one a crash left open, is refused too (D11: DEC-158); `archive` also refuses a newer build's session file (read-only) | `ArchiveController` (the Archiving tab, the review's "restore", housekeeping), each job in a `SessionArchiveRun` of its own |
 | `trash(id, &where)` | the whole session folder to the OS trash, else the library's own `.pinpoint-trash` (FILE-LIB-01). Refused while its session file says in progress, or while another writer holds its lock (`Locked`; the lock is taken for a moment and let go **before** the move: a lock file must not travel with the folder, and Windows will not move a folder holding an open file). The identity map lets the session go | `SessionReviewController::trashSession` (the drawer's delete, the bulk delete): the row's folder translated once with `openFolder` (D3 from the current athlete for a legacy session) |
 | `trashShot(ref, &where)` (step 3.4a; J-24) | one shot's swing folder to the same trash: its number recorded as the high-water first (`.pinpoint-last-swing`), so it is never issued again (DEC-91), then the folder moved (`SwingPaths::trashPath`), both under the session's lock (`Locked` when another writer holds it) | `Session::trashShot` (no app caller yet: the carousel moves to it in step 3.4b) |
 | `readDiagnostics(id)` … `writeWorkOns(id, …)` (step 3.4a; J-42) | the session's diagnostics files (`diagnostics.json`, its backups and set-aside copy, `session_input.json`, `club_baseline.json`, `work_ons.json`) by `SessionId`: the same file work as `SessionDiagnosticsFiles`' folder-keyed functions — both forward to `session_diagnostics_io.h` — on the held session's folder; a session not held reads empty and refuses every write | none yet (step 3.5's `SessionDiagnostics`) |
+| `folderPresent(id)` (step 3.4a-ii) | whether the held session's folder is still on disk, whatever its session file's state; reads only | `ShotProcessor`'s D7: an old session's failed End is shown only while its folder is there (DEC-140) |
 | `shots(id)`, `swingFolder(ref)`, `open(id)`, `openFolder(path, athlete)` | the identity map's reads. A copied session keeps its id (D3, or a copied file): re-read from another folder, the map takes the fresh folder, so a library re-pointed to a copy never hands out the old library's folder — except the session this run started and is still running, which keeps its own | (2.4 onwards) |
 
 **The objects over it (step 3.4a; information_model.md LC-SESSION, LC-SHOT).** The `Athlete` starts, resumes and
@@ -868,8 +868,26 @@ announces it (EVT-01) only when capture reports its document written (`shotDocum
 goes through `trashShot` above (EVT-03); `end()` ends it and, for an empty session this run started, asks
 its `Athlete` to trash it (EVT-20), the empty discard's new home. A `Shot` (`shot.*`) is reached only through
 its `Session`; its `RecordingSource` reads the Recording through the one `RecordingReader`, which resolves
-the folder only through `swingFolder`, so a source whose session is no longer held reads nothing. **Until
-step 3.4a-ii the callers in the table above are unchanged**: nothing in the app calls these objects yet.
+the folder only through `swingFolder`, so a source whose session is no longer held reads nothing.
+
+**Capture through the objects (step 3.4a-ii).** `ShotProcessor`, the capture service, holds the `Session` it
+captures into (`QPointer`; BRIEF §4.8): Start and the extend go through the current `Athlete`, which ends its
+session running here first (never discarding); a swing outside a session starts one on demand
+(`SessionStart::OnDemand`: never the empty discard's, whatever ends it); End is `Session::end`. Every camera
+shot and every standalone launch-monitor shot is added by `Session::addShot(kind, &allocation)` — the
+allocation handed back because capture still writes the media into the folder itself (the platform
+refactor). EVT-01 is reported when the shot's first document lands: capture's live write
+(`onSwingDocWritten`, an analysis-skipped shot's too) and the launch monitor's device-only write (the
+`setDocumentWritten` callable, a standalone shot's or the rescue of a camera shot that wrote none); the
+phone-clip placeholder (`PpcpClipFiler::ensureSwingDocument`) is not. **D7** (DEC-154) — the library
+re-pointed mid-session — is the running session's End (its empty discard included; a failed end of an old
+session whose folder is still there — a held lock, a read-only or unreadable file; `folderPresent(id)` — is
+posted as `session.file.failed`, a gone library is not) and a Start of the same type in the new library; the club and the declared focus are
+`SessionController`'s and carry over, the focus applying from the new session's first shot.
+**THE INTERIM:** a session no `Athlete` holds — no golfer selected (the `unknown` folder), or a library
+re-pointed mid-session that does not list the golfer — is started, resumed, ended and allocated through the
+repository directly, exactly as before, the empty discard made by `ShotProcessor` with the same rule
+(`build/refactor/step-3/3.4a/NOTES-3.4a-ii.md` N1).
 
 **The folder is fixed for the session's life** (E-01): `allocateSwing` takes only the `SessionId`, so a
 rename, midnight or a changed pattern or type cannot move it; nothing relocates (D7). The 0.3 stopgap
@@ -1414,10 +1432,12 @@ unknown keys kept); the naming patterns; allocation, and a number never reissued
 restart or a trashed swing (these sections moved here from `swing_paths_test` with the allocator);
 resume keeps the `SessionId`, only for today's session of the same type; a legacy folder read with
 D3's id and never written by a read, its first write a backfilled file; one in-progress session per
-athlete; enumerate's typed entries and n-of-day under `name-date-type`; End and the empty discard,
-including the resumed morning session that must never be discarded; the folder fixed past midnight and
-a rename; D7 (a new session in the new library, the old ended, or left in progress when unreachable,
-or discarded when empty); a held `FolderLock` refusing the write, as `Locked` in the lock's own words, for
+athlete; enumerate's typed entries and n-of-day under `name-date-type`; End, which never discards (the
+discard is `Session::end`'s: `session_test` S3, S12), the resumed morning session included; the folder
+fixed past midnight and a rename; D7's store half (the old session ended where it is, or left in progress
+when unreachable — `folderPresent` true while its folder is there, even with an unreadable session file:
+the rule the capture service reports by — and
+a new session of the same type in the new library); a held `FolderLock` refusing the write, as `Locked` in the lock's own words, for
 End and for an allocation (J-22, step 2.4); and (step 2.4, S) a swing folder to its `ShotRef` and back — an
 allocation's, a fresh store's read of a session file, a legacy swing's D3 id with no file written, a held
 session keeping its listed id, no ShotRef for a non-swing folder — `swingFolder` read on a worker thread

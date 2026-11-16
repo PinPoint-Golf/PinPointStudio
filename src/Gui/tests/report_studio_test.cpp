@@ -428,7 +428,7 @@ private slots:
         }
         AthleteController b;                                   // a fresh reload() sees all of it
         b.setSynchronousActivity(true);
-        b.setRepositories(lib.athletes.get(), &lib.sessions);
+        b.setCallables(callablesOver(*lib.athletes), &lib.sessions);
         QVariantMap d = b.reportDetails(QStringLiteral("  nick henn "));
         QCOMPARE(d.value("uuid").toString(), uuid);
         QCOMPARE(d.value("greeting").toString(), QStringLiteral("Nicky"));

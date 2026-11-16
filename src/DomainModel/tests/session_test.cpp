@@ -44,6 +44,14 @@
 //   S10 the session's diagnostics files by its id (J-42): written and read back where SessionFiles names them;
 //       an id not held refused
 //   S11 trashSession refuses a session in progress (J-46)
+//   S12 (3.4a-ii) a session started ON DEMAND (capture's, for a swing outside a session) is never the empty
+//       discard's: ended empty, it stays, with EVT-09 (DEC-93, today's rule); the repository's own End never
+//       discards (the discard is Session::end's alone)
+//   S13 (3.4a-ii) resuming the session already running here: the same object, Unchanged, no write, no event —
+//       and it is resumed work from then on, so ended empty it stays (today's extend ended and resumed it); as
+//       another type it is refused (DEC-134), review 1
+//   S14 (3.4a-ii) addShot hands the capture service the whole allocation (its ShotRef, folder and names) for a
+//       device-only shot as for a captured one; its kind is the caller's; EVT-01 only on the document's report
 //
 // Every trash stays in the temporary folder: the store is set with setOsTrashForTest(false), so the trashes land in
 // the library's own .pinpoint-trash (asserted in S3, S5, S8), never in the OS trash (review 1, round 2).
@@ -67,6 +75,7 @@
 #include <QDate>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -574,6 +583,87 @@ static void testTrashRefusedInProgress()
           !r.ok() && QFileInfo::exists(rig.folderOf(s->id())) && rig.events.isEmpty() && rig.athlete->session(s->id()) == s);
 }
 
+// ── S12 ──────────────────────────────────────────────────────────────────────────────────────────
+static void testOnDemandNeverDiscarded()
+{
+    std::printf("\nS12 — a session started on demand is never the empty discard's (DEC-93)\n");
+    Rig rig;
+    if (!rig.valid()) { check(QStringLiteral("S12 temp dir"), false); return; }
+    Session *s = rig.athlete->startSession(kSwing, kPat, nullptr, SessionStart::OnDemand);
+    if (!s) { check(QStringLiteral("S12 start"), false); return; }
+    rig.listen(s);
+    const QString folder = rig.folderOf(s->id());
+    check(QStringLiteral("S12a it says it was started on demand, and is running here"), s->onDemand() && s->runningHere());
+    rig.events.clear();
+    const bool ended = s->end().ok();
+    check(QStringLiteral("S12b ended empty: EVT-09, and it stays (got %1)").arg(rig.events.join(QStringLiteral(", "))),
+          ended && rig.events == QStringList{ ev("EVT-09", s->id()) } && QFileInfo::exists(folder));
+    check(QStringLiteral("S12c ended, nothing in the trash"),
+          s->status() == SessionStatus::Ended && !QFileInfo::exists(rig.trashDir()));
+
+    // The repository's End never discards, whatever the session: only Session::end makes the discard.
+    const SessionStartResult direct = rig.store.start(rig.athlete->sessionOwner(), kSwing, kPat);
+    check(QStringLiteral("S12d the repository's End of an empty session it started keeps it"),
+          direct.ok() && rig.store.end(direct.id).ok() && QFileInfo::exists(direct.folder)
+              && !QFileInfo::exists(rig.trashDir()));
+}
+
+// ── S13 ──────────────────────────────────────────────────────────────────────────────────────────
+static void testResumeTheRunningOne()
+{
+    std::printf("\nS13 — resuming the session already running here changes nothing\n");
+    Rig rig;
+    if (!rig.valid()) { check(QStringLiteral("S13 temp dir"), false); return; }
+    Session *s = rig.athlete->startSession(kSwing, kPat);
+    if (!s) { check(QStringLiteral("S13 start"), false); return; }
+    rig.listen(s);
+    const QString folder = rig.folderOf(s->id());
+    const QByteArray before = [&] { QFile f(folder + QStringLiteral("/session.json")); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }();
+    rig.events.clear();
+    WriteResult r;
+    // DEC-134 still holds for the session running here: another type is refused, and nothing changes.
+    Session *wrong = rig.athlete->resumeSession(s->id(), kWrist, &r);
+    check(QStringLiteral("S13w resuming the running session as another type is refused: no write, no event, still running"),
+          wrong == nullptr && !r.ok() && r.status != WriteResult::Status::Unchanged && s->inProgress() && s->runningHere()
+              && rig.events.isEmpty());
+    r = {};
+    Session *again = rig.athlete->resumeSession(s->id(), kSwing, &r);
+    const QByteArray after = [&] { QFile f(folder + QStringLiteral("/session.json")); return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray(); }();
+    check(QStringLiteral("S13a the same object, Unchanged, still in progress"),
+          again == s && r.status == WriteResult::Status::Unchanged && s->inProgress());
+    check(QStringLiteral("S13b no event, and the session file not rewritten"),
+          rig.events.isEmpty() && !before.isEmpty() && before == after);
+    check(QStringLiteral("S13c resumed work: ended empty, it stays with EVT-09"),
+          s->end().ok() && rig.events == QStringList{ ev("EVT-09", s->id()) } && QFileInfo::exists(folder));
+}
+
+// ── S14 ──────────────────────────────────────────────────────────────────────────────────────────
+static void testAddShotAllocation()
+{
+    std::printf("\nS14 — addShot hands the capture service the allocation (DEC-142)\n");
+    Rig rig;
+    if (!rig.valid()) { check(QStringLiteral("S14 temp dir"), false); return; }
+    Session *s = rig.athlete->startSession(kSwing, kPat);
+    if (!s) { check(QStringLiteral("S14 start"), false); return; }
+    rig.listen(s);
+    rig.events.clear();
+    SwingAllocation a;
+    Shot *shot = s->addShot(recording::ShotKind::DeviceOnly, &a);
+    check(QStringLiteral("S14a the allocation is the Shot's: its ref, a folder made under the session's, its name"),
+          shot && a.ok() && a.shot == shot->ref() && QFileInfo(a.swingFolder).isDir()
+              && QFileInfo(a.swingFolder).path() == rig.folderOf(s->id()) && a.swingName == QStringLiteral("swing_0001")
+              && a.sessionFolderName == QFileInfo(rig.folderOf(s->id())).fileName());
+    check(QStringLiteral("S14b its kind is the caller's"), shot && shot->kind() == recording::ShotKind::DeviceOnly);
+    check(QStringLiteral("S14c no EVT-01 at the allocation; one at the document's report"),
+          rig.events.isEmpty() && shot && s->shotDocumentWritten(shot->ref())
+              && rig.events == QStringList{ ev("EVT-01", shot->ref()) });
+    SwingAllocation b;
+    s->end();
+    check(QStringLiteral("S14d an ended session that is not held allocates nothing, and says why"),
+          rig.athlete->trashSession(s->id()).ok() && s->addShot(recording::ShotKind::Captured, &b) == nullptr
+              && !b.ok() && !b.result.error.isEmpty());
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QTemporaryDir, deleteLater
@@ -589,6 +679,9 @@ int main(int argc, char **argv)
     testAppSessionAt();
     testDiagnosticsById();
     testTrashRefusedInProgress();
+    testOnDemandNeverDiscarded();
+    testResumeTheRunningOne();
+    testAddShotAllocation();
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;
 }

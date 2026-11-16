@@ -83,6 +83,11 @@ AthleteIdentity athleteIdentity(const AthleteController *athlete)
     return athlete ? AthleteIdentity{ athlete->currentSessionOwner().name, athlete->currentUuid() } : AthleteIdentity{};
 }
 
+pinpoint::Athlete *currentAthlete(const AthleteController *athlete)
+{
+    return athlete ? athlete->currentAthlete() : nullptr;
+}
+
 namespace {
 
 // The IMU → segment bindings, resolved from the live instances: the Witmotion lanes through the

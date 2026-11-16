@@ -28,10 +28,12 @@
 //                 the Session never keeps a second copy of its status (DEC-41: the status is persisted)
 //   shots(), shot(ref)   its collection: one Shot per swing number, its child, the ONLY way to a Shot (P10).
 //                 Listed from the repository when first asked; addShot and trashShot keep it after that
-//   addShot()     allocate → create → returns the Shot (DEC-142): the next swing number and its folder
-//                 through SessionRepository::allocateSwing (the one allocator: DEC-157), then the Shot,
-//                 added to the collection. Capture then writes the shot's document through
-//                 RecordingRepository::create, as it does today
+//   addShot()     allocate → create → returns the Shot (DEC-142; "create" here is the Shot object: DEC-142's
+//                 wording is JUDGEMENT-CALLS J-15's): the next swing number and its folder through
+//                 SessionRepository::allocateSwing (the one allocator: DEC-157), then the Shot, added to the
+//                 collection. Capture then writes the shot's document through RecordingRepository::create, as
+//                 it does today. The allocation (its folder and names) is handed back to the capture service,
+//                 which writes the shot's media into that folder itself until the platform refactor (capture)
 //   shotDocumentWritten(ref)   EVT-01, AT THE MOMENT D19 PICKS (DEC-168): when capture's document write has
 //                 landed, not at the allocation. Capture reports it, on this thread; the first report for
 //                 a shot in the collection emits shotAdded once, any later one nothing
@@ -39,8 +41,10 @@
 //                 SessionRepository (J-24); EVT-03; the Shot taken out of the collection and deleted LATER
 //                 (deleteLater), so a view still bound to it never touches freed memory. A swing number is
 //                 never reissued (DEC-91)
-//   end()         Ended with its end time; a session this run's Athlete::startSession made that holds no
-//                 swing is then trashed by its Athlete (Athlete::trashSession, EVT-20: DEC-143), else EVT-09
+//   end()         Ended with its end time; a session this run's Athlete::startSession made deliberately (not
+//                 on demand) that holds no swing is then trashed by its Athlete (Athlete::trashSession,
+//                 EVT-20: DEC-143), else EVT-09. THE EMPTY DISCARD IS THIS RULE ALONE (DEC-93): the session
+//                 repository's end never discards (refactor step 3.4a-ii)
 //
 // ITS EVENTS (DEC-69; src/Core/work_pool.h's conventions): Qt signals carrying only the id, emitted on this
 // thread after the repository write returned ok, in command order; listeners connect with
@@ -51,10 +55,11 @@
 // session, sessions), which holds the sessions it has loaded as its children; the session repository holds
 // their records (LIVE-2; Mark, 15 Nov 2026: DEC-190).
 //
-// INTERIM (step 3.4a, run i): the objects exist and are tested, but no caller has moved yet — capture, the
-// launch monitor, the phone-clip filer and AthleteController still start, end and allocate through
-// SessionRepository directly (run 3.4a-ii moves them), and the carousel still trashes a swing itself (step
-// 3.4b). A Session already holding its shots does not see a swing those paths add or trash until then.
+// ITS CALLERS (step 3.4a-ii): capture (ShotProcessor, the capture service, which holds the Session it captures
+// into: BRIEF §4.8) starts, resumes and ends through its Athlete and this Session, and allocates every shot —
+// a camera shot's and the launch monitor's — through addShot; capture and the launch monitor report each
+// shot's first document (shotDocumentWritten). INTERIM: the carousel still trashes a swing itself (step 3.4b),
+// so a Session already holding its shots does not see that trash until then.
 //
 // Domain model ring (src/DomainModel): names no store type.
 
@@ -92,6 +97,9 @@ public:
     // The commands.
     Shot       *addShot(WriteResult *result = nullptr);   // a captured shot
     Shot       *addShot(recording::ShotKind kind, WriteResult *result = nullptr);
+    // The same, handing back the whole allocation (its result, folder and names) for the capture service,
+    // which writes the shot's media into the folder itself (until the platform refactor: capture).
+    Shot       *addShot(recording::ShotKind kind, SwingAllocation *allocation);
     bool        shotDocumentWritten(const ShotRef &ref);
     WriteResult trashShot(const ShotRef &ref, QString *where = nullptr);
     WriteResult end();
@@ -100,6 +108,9 @@ public:
     // end first (DEC-78, DEC-134). A session a crash left in progress is not running here: the repository's
     // Start ends it, with its end inferred (J-18), as today.
     bool runningHere() const { return m_runningHere; }
+    // Started on demand for a swing outside a session (ShotProcessor's capture outside one): never the empty
+    // discard's, whatever ends it — as today, where only a session the golfer started is discarded (DEC-93).
+    bool onDemand() const { return m_onDemand; }
 
 signals:
     void shotAdded(const pinpoint::ShotRef &shot);        // EVT-01 (D19: when capture's document write lands)
@@ -108,9 +119,10 @@ signals:
 
 private:
     friend class Athlete;   // one instance per SessionId: made by its Athlete only
-    // `startedHere`: made by this run's Athlete::startSession (the empty discard may take it, DEC-93).
+    // `startedHere`: made by this run's Athlete::startSession (the empty discard may take it, DEC-93, unless
+    // `onDemand`).
     Session(Athlete *athlete, SessionRepository *sessions, const ShotDoors &doors, const SessionId &id,
-            bool startedHere);
+            bool startedHere, bool onDemand = false);
 
     // end(), and the end a start or a resume makes of the session running here (Athlete::endRunningSessions),
     // which never discards an empty one — as today, where only End itself discards (DEC-93).
@@ -124,6 +136,7 @@ private:
     SessionId           m_id;
     bool                m_startedHere = false;
     bool                m_runningHere = false;
+    bool                m_onDemand    = false;
     bool                m_shotsLoaded = false;
     QMap<int, Shot *>   m_shots;       // by swing number; each a child of this Session
     QSet<int>           m_announced;   // swing numbers whose EVT-01 has been emitted
