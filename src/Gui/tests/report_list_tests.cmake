@@ -31,6 +31,7 @@ pp_add_test(report_list_test
             ${SRC}/Core/pp_log_stream.cpp
             ${SRC}/Core/PpMessageLog.cpp
     INCLUDE ${GUI} ${GUI}/report ${GUI}/review ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor
+            ${SRC}/Analysis   # metric_descriptor.h names the bare "swing_analysis.h" (reached through session_diagnostics_files.h since a6220739)
     LINK    Qt6::Network
     AUTOMOC)
 set_tests_properties(report_list_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

@@ -149,8 +149,8 @@ int main(int argc, char **argv)
     QFile::remove(userNormPath());
     QFile::remove(userScreenSetPath());
     QFile::remove(userDrillSetPath());
-    resetSharedScreenSet();
-    resetSharedDrillSet();
+    // The browser reads RuleData's snapshot, never the files (refactor step 3.9): read them again.
+    pinpoint::RuleData::installed()->reload();
 
     qmlRegisterType<ModelBrowser>("Probe", 1, 0, "ModelBrowser");
 

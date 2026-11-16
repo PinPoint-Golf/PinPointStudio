@@ -17,7 +17,7 @@
  */
 
 #include "model_browser.h"
-#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot and commands (refactor steps 3.2, 3.9)
 
 #include "../../Diagnostics/norms/corridor_plot.h"
 #include "../../Diagnostics/engine/dag_layout.h"
@@ -33,13 +33,13 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
-#include <QDir>
 #include <cmath>
 #include <QStandardPaths>
 #include <QtConcurrent/QtConcurrent>
 #include <QJsonDocument>
 
 #include <algorithm>
+#include <utility>
 
 using namespace pinpoint::analysis;
 
@@ -808,11 +808,18 @@ private:
 
 // ── Construction ────────────────────────────────────────────────────────────
 
-ModelBrowser::ModelBrowser(QObject *parent)
+ModelBrowser::ModelBrowser(QObject *parent) : ModelBrowser(pinpoint::RuleData::installed(), parent) {}
+
+ModelBrowser::ModelBrowser(pinpoint::RuleData *ruleData, QObject *parent)
     : QObject(parent)
-    , m_core(shippedPackProvider())     // RuleData's shipped layer (step 3.2): no private parse
-    , m_coreNorms(makeResourceNormProvider())
-    , m_norms(sharedNormProvider())
+    , m_ruleData(ruleData)
+    // EVERY READ OF THE PACKS, NORMS AND CONTENT SETS IS THIS SNAPSHOT'S (refactor step 3.9; DEC-170,
+    // R-CON-4): the shipped layers, the user's own layers as parsed, the bibliography. No file is read
+    // here. Without a RuleData (a process that installed none) it is the empty snapshot.
+    , m_snap(ruleData ? ruleData->snapshot() : pinpoint::RuleData::current())
+    , m_core(m_snap->shippedPack)
+    , m_coreNorms(m_snap->shippedNorms)
+    , m_norms(m_snap->norms)
     , m_cat(makeMetricCatalogue())
     , m_policyName(QStringLiteral("standard"))
     , m_corridorWatcher(new QFutureWatcher<QVariantList>(this))
@@ -835,17 +842,27 @@ ModelBrowser::ModelBrowser(QObject *parent)
     connect(m_gateWatcher, &QFutureWatcher<ModelGateCounts>::finished,
             this, &ModelBrowser::onGateScanFinished);
 
-    // The user's override file, read separately from the merged view — saving must write back the
-    // user's own entries and never a flattened copy of the shipped pack.
-    //
-    // `parsed`, NOT `loaded`. An overlay routinely fails STANDALONE referential validation because
-    // its edges point at core conditions it does not contain; keying off `loaded` would start with
-    // an empty working copy and the first save would erase every override the user had.
-    QFile f(userPackPath());
-    if (f.open(QIODevice::ReadOnly)) {
-        PackLoadResult res = loadPack(f.readAll(), userPackPath(), &sharedReferenceSet());
-        if (res.parsed) m_savedUser = std::move(res.pack);
+    // EVT-12 / EVT-13 refresh the editor (refactor step 3.9): a snapshot published by anyone else — a
+    // reload, another editor's save — is taken here; the editor's own saves take it once, at their end
+    // (WriteScope). Nothing here resets or re-reads anything of its own.
+    if (m_ruleData) {
+        connect(m_ruleData, &pinpoint::RuleData::normsChanged, this, [this]() { onRuleDataPublished(); });
+        connect(m_ruleData, &pinpoint::RuleData::packChanged, this, [this]() { onRuleDataPublished(); });
     }
+
+    takeUserLayers(*m_snap);
+    rebuild();
+}
+
+const ReferenceSet &ModelBrowser::refs() const { return m_snap->references->merged; }
+
+// The user's own layers, as the snapshot parsed them, become both the saved baseline and the working
+// copy. `parsed`, NOT `loaded` (the store's RulePacks / RuleNorms say why): keying off a validated read
+// would start with an empty working copy, and the first save would erase every override and corridor
+// the user had. A layer that is absent or unparseable starts as an empty one named "user".
+void ModelBrowser::takeUserLayers(const pinpoint::RuleDataSnapshot &snap)
+{
+    m_savedUser = *snap.userPack;
     if (m_savedUser.id.isEmpty()) {
         m_savedUser.id            = QStringLiteral("user");
         m_savedUser.version       = QStringLiteral("1");
@@ -853,15 +870,7 @@ ModelBrowser::ModelBrowser(QObject *parent)
     }
     m_working = m_savedUser;
 
-    // The user norm set, read the same way and for the same reason. `parsed`, not `loaded`: a user
-    // layer routinely fails standalone referential checks because its rows name measures it does
-    // not itself contain, and keying off `loaded` would start with an empty set and let the first
-    // save erase every corridor the user had authored.
-    QFile nf(userNormPath());
-    if (nf.open(QIODevice::ReadOnly)) {
-        NormPackLoadResult res = loadNormPack(nf.readAll(), userNormPath());
-        if (res.parsed) m_savedNorms = std::move(res.pack);
-    }
+    m_savedNorms = *snap.userNorms;
     if (m_savedNorms.id.isEmpty()) {
         m_savedNorms.id      = QStringLiteral("user");
         m_savedNorms.version = QStringLiteral("1");
@@ -869,14 +878,14 @@ ModelBrowser::ModelBrowser(QObject *parent)
     m_workingNorms = m_savedNorms;
 
     // The screen and drill layers, read the same way and for the same reason.
-    m_savedScreens = loadUserScreenSet();
+    m_savedScreens = snap.screens->user;
     if (m_savedScreens.id.isEmpty()) {
         m_savedScreens.id      = QStringLiteral("user");
         m_savedScreens.version = QStringLiteral("1");
     }
     m_workingScreens = m_savedScreens;
 
-    m_savedDrills = loadUserDrillSet();
+    m_savedDrills = snap.drills->user;
     if (m_savedDrills.id.isEmpty()) {
         m_savedDrills.id      = QStringLiteral("user");
         m_savedDrills.version = QStringLiteral("1");
@@ -885,14 +894,124 @@ ModelBrowser::ModelBrowser(QObject *parent)
 
     // The gate words, read the same way and for the same reason (#60) — the fifth layer, and the only
     // part of a gate this panel writes.
-    m_savedGateWords = loadUserGateWordSet();
+    m_savedGateWords = snap.gateWords->user;
     if (m_savedGateWords.id.isEmpty()) {
         m_savedGateWords.id      = QStringLiteral("user");
         m_savedGateWords.version = QStringLiteral("1");
     }
     m_workingGateWords = m_savedGateWords;
+}
 
+// A snapshot someone else published (EVT-12 / EVT-13). The editor's own writes are inside a
+// WriteScope, which takes the snapshot once when they are done.
+void ModelBrowser::onRuleDataPublished()
+{
+    if (m_writing || !m_ruleData) return;
+    adoptSnapshot(m_ruleData->snapshot(), /*userLayersToo*/ true, /*announce*/ true);
+}
+
+// Takes `next` as the editor's snapshot. The shipped layers and the content sets' cores are re-taken
+// when they changed. The user's own layers are re-taken only when asked, when the editor holds no
+// unsaved edit (a draft is never thrown away by somebody else's publish), and when their CONTENT differs
+// from the editor's saved layers: a byte-identical save elsewhere takes nothing. A publish that changed
+// nothing this editor shows (SET-06 / SET-15, the flight norms) costs a pointer compare and no rebuild.
+//
+// THE UNDO STACK IS NEVER TOUCHED HERE (3.9-i review 2; J-38). Adopting somebody else's layers neither
+// clears nor rewrites the history, so undo, redo and revert behave exactly as before step 3.9 and no
+// draft or undo step is lost. The theoretical cost — undoing past the adoption and saving reverts the
+// other editor's save — is today's last-save-wins, unreachable in the app (one editor, no in-app reload).
+//
+// Returns whether it rebuilt. `announce` emits libraryChanged when it did — a publish by anyone else;
+// the editor's own writes announce once themselves, after this (WriteScope::finish).
+bool ModelBrowser::adoptSnapshot(std::shared_ptr<const pinpoint::RuleDataSnapshot> next, bool userLayersToo,
+                                 bool announce)
+{
+    if (!next || next == m_snap) return false;
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> prev = std::exchange(m_snap, std::move(next));
+
+    bool changed = prev->shippedPack != m_snap->shippedPack || prev->shippedNorms != m_snap->shippedNorms
+                   || prev->references != m_snap->references || prev->screens != m_snap->screens
+                   || prev->drills != m_snap->drills || prev->gateWords != m_snap->gateWords;
+    const bool userMoved = prev->userPack != m_snap->userPack || prev->userNorms != m_snap->userNorms
+                           || prev->screens != m_snap->screens || prev->drills != m_snap->drills
+                           || prev->gateWords != m_snap->gateWords;
+    if (userLayersToo && userMoved && !dirty() && !savedLayersMatch(*m_snap)) {
+        takeUserLayers(*m_snap);
+        changed = true;
+    }
+    if (!changed) return false;
+
+    m_core      = m_snap->shippedPack;
+    m_coreNorms = m_snap->shippedNorms;
     rebuild();
+    if (announce) emit libraryChanged();
+    return true;
+}
+
+// Whether the snapshot's user layers hold what the editor's saved layers hold, compared as dirtyIds()
+// compares a draft: entity by entity, through the serialisers a save uses.
+bool ModelBrowser::savedLayersMatch(const pinpoint::RuleDataSnapshot &snap) const
+{
+    const auto normsOf = [](const NormPack &p) {
+        QHash<QString, QJsonObject> h;
+        for (const Norm &n : p.norms) h.insert(corridorId(n.measureId, n.contextId), normJson(n));
+        return h;
+    };
+    return entitiesOf(*snap.userPack) == entitiesOf(m_savedUser) && normsOf(*snap.userNorms) == normsOf(m_savedNorms)
+           && screenEntities(snap.screens->user) == screenEntities(m_savedScreens)
+           && drillEntities(snap.drills->user) == drillEntities(m_savedDrills)
+           && gateWordEntities(snap.gateWords->user) == gateWordEntities(m_savedGateWords);
+}
+
+// The editor's own writes (save, reset): RuleData publishes after each command that lands, and the
+// editor takes the result ONCE, when the last write is done, instead of once per publish (five per
+// save). Its user layers are its own working copy by then, so only the rest is re-taken, and the
+// caller announces the one refresh itself (finish() emits nothing).
+ModelBrowser::WriteScope::WriteScope(ModelBrowser *b) : m_b(b) { m_b->m_writing = true; }
+ModelBrowser::WriteScope::~WriteScope() { finish(); }
+
+// Ends the scope and takes the published snapshot. True when that rebuilt the panel (which then has
+// re-derived everything: the caller need not invalidate again).
+bool ModelBrowser::WriteScope::finish()
+{
+    if (m_done) return false;
+    m_done           = true;
+    m_b->m_writing   = false;
+    if (!m_b->m_ruleData) return false;
+    return m_b->adoptSnapshot(m_b->m_ruleData->snapshot(), /*userLayersToo*/ false, /*announce*/ false);
+}
+
+// The five commands the editor writes through: RuleData's (DEC-170). With no RuleData the write is
+// refused in the words the interim accessors used.
+bool ModelBrowser::writeUserPack(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserPack(m_working, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserNorms(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserNorms(m_workingNorms, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserScreens(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserScreens(m_workingScreens, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserDrills(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserDrills(m_workingDrills, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserGateWords(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserGateWords(m_workingGateWords, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
 }
 
 ModelBrowser::~ModelBrowser()
@@ -949,14 +1068,14 @@ void ModelBrowser::rebuild()
     // Screens and drills, assembled the same way: core, then the working layer over it by id. A user
     // row REPLACES the shipped one rather than merging field by field — half a protocol from one
     // movement with another's pass criterion would be worse than either.
-    m_screens = coreScreenSet();
+    m_screens = m_snap->screens->core;
     for (const Screen &s : m_workingScreens.screens) {
         auto it = std::find_if(m_screens.screens.begin(), m_screens.screens.end(),
                                [&](const Screen &x) { return x.id == s.id; });
         if (it != m_screens.screens.end()) *it = s;
         else                                m_screens.screens.push_back(s);
     }
-    m_drills = coreDrillSet();
+    m_drills = m_snap->drills->core;
     for (const Drill &d : m_workingDrills.drills) {
         auto it = std::find_if(m_drills.drills.begin(), m_drills.drills.end(),
                                [&](const Drill &x) { return x.id == d.id; });
@@ -967,7 +1086,7 @@ void ModelBrowser::rebuild()
     // The gate words, the same again — and PER LIST, because a gate's clause and a reading's words
     // are two lists that happen to share a file. The same overlay sharedGateWordSet() assembles for
     // the report, so the Gates page and the next report read one answer.
-    m_gateWords = coreGateWordSet();
+    m_gateWords = m_snap->gateWords->core;
     const auto overlayWords = [](std::vector<GateWord> &into, const std::vector<GateWord> &from) {
         for (const GateWord &w : from) {
             auto it = std::find_if(into.begin(), into.end(),
@@ -1142,14 +1261,14 @@ QString ModelBrowser::sourceOf(const QString &id) const
     // Screens and drills live in their own flat sets, so they cannot be answered from the pack
     // either. Same three states, read off the same two layers the rows are assembled from.
     if (id.startsWith(QStringLiteral("screen."))) {
-        const bool shipped = coreScreenSet().screen(id) != nullptr;
+        const bool shipped = m_snap->screens->core.screen(id) != nullptr;
         const bool mine    = m_workingScreens.screen(id) != nullptr;
         if (mine && shipped) return QStringLiteral("both");
         if (mine)            return QStringLiteral("yours");
         return QStringLiteral("shipped");
     }
     if (id.startsWith(QStringLiteral("drill."))) {
-        const bool shipped = coreDrillSet().drill(id) != nullptr;
+        const bool shipped = m_snap->drills->core.drill(id) != nullptr;
         const bool mine    = m_workingDrills.drill(id) != nullptr;
         if (mine && shipped) return QStringLiteral("both");
         if (mine)            return QStringLiteral("yours");
@@ -1181,7 +1300,7 @@ QString ModelBrowser::sourceOf(const QString &id) const
 // the pack about it would be asking the wrong registry.
 QString ModelBrowser::gateWordsSourceOf(const QString &id) const
 {
-    const GateWordSet &core    = coreGateWordSet();
+    const GateWordSet &core    = m_snap->gateWords->core;
     const bool         shipped = core.gate(id) != nullptr || core.subject(id) != nullptr;
     const bool         mine    = m_workingGateWords.gate(id) != nullptr
                               || m_workingGateWords.subject(id) != nullptr;
@@ -1997,7 +2116,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             out.append(r);
         }
     } else if (type == kReferences) {
-        for (const Reference &ref : sharedReferenceSet().references) {
+        for (const Reference &ref : refs().references) {
             // The citation joins against ANY of the three identifiers: a handful of journals issue
             // no DOI, a book never had one, and a strict DOI match would render "cited by nothing"
             // on a paper the library leans on.
@@ -2267,7 +2386,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             // files, so a drill written here a minute ago and attached to a habit read as a dangling
             // reference until it was saved — the strip accusing the author of a fault the save they
             // had not yet made would cure.
-            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills, &sharedReferenceSet()))
+            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills, &refs()))
                 issues.push_back(i);
         }
         // The gate words the draft holds (#60): a clause left empty, or one with a capital or a number
@@ -2946,11 +3065,11 @@ QVariantMap fieldRow(const QString &field, const QString &label, const QString &
 //
 // Nothing is hung on a citation that does NOT resolve. A dead link is worse than no link, and the
 // section below is where an unresolved citation is called out.
-QVariantMap citationField(const QString &citation, const QString &hint = QString())
+QVariantMap citationField(const ReferenceSet &refs, const QString &citation, const QString &hint = QString())
 {
     QVariantMap r = fieldRow(QStringLiteral("citation"), QObject::tr("Citation"),
                              QStringLiteral("text"), citation, {}, hint);
-    if (const Reference *ref = sharedReferenceSet().byCitation(citation)) {
+    if (const Reference *ref = refs.byCitation(citation)) {
         r.insert(QStringLiteral("linkType"), kReferences);
         r.insert(QStringLiteral("linkId"), ref->id);
         r.insert(QStringLiteral("linkLabel"),
@@ -3013,16 +3132,17 @@ QVariantMap prose(const QString &title, const QString &text, const QString &tone
 // `onlyWhenResolved` is for the types whose `citation` doubles as a free-text note. A norm's may be
 // a paragraph explaining a provisional figure (norm.h) rather than an identifier, and rendering that
 // as a failed lookup would accuse the author of a typo they did not make.
-void appendCitation(QVariantList &sections, const QString &citation, bool onlyWhenResolved = false)
+void appendCitation(const ReferenceSet &refs, QVariantList &sections, const QString &citation,
+                    bool onlyWhenResolved = false)
 {
     if (citation.isEmpty()) return;
 
-    const Reference *ref = sharedReferenceSet().byCitation(citation);
+    const Reference *ref = refs.byCitation(citation);
     if (!ref && onlyWhenResolved) return;
 
     QVariantList rows;
     rows.append(ref ? hubRow(kReferences, ref->id, ref->title, ref->identifierLabel())
-                    : hubRow(QString(), QString(), citationLabel(citation),
+                    : hubRow(QString(), QString(), citationLabel(citation, refs),
                              QObject::tr("not in the bibliography"), QStringLiteral("warn"),
                              false));
     sections.append(section(QObject::tr("Cited from"), rows));
@@ -3308,7 +3428,7 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
         out.insert(QStringLiteral("status"), e->rule ? tr("Rule") : tr("Gate"));
         out.insert(QStringLiteral("statusTone"), e->rule ? QStringLiteral("dim") : QString());
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return out;
         const auto cites = [ref](const QString &citation) {
             if (citation.isEmpty()) return false;
@@ -3392,7 +3512,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           provenanceTierName(c->provenance.tier), tierOptions(),
                           citationRequired(c->provenance.tier) ? tr("needs a citation")
                                                                : QString()));
-        f.append(citationField(c->provenance.citation, tr("DOI, PMID or ISBN")));
+        f.append(citationField(refs(), c->provenance.citation, tr("DOI, PMID or ISBN")));
 
         // ── What the session report prints (#60) ─────────────────────────────
         //
@@ -3534,7 +3654,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           provenanceTierName(e->provenance.tier), tierOptions(),
                           citationRequired(e->provenance.tier) ? tr("needs a citation")
                                                                : QString()));
-        f.append(citationField(e->provenance.citation, tr("DOI, PMID or ISBN")));
+        f.append(citationField(refs(), e->provenance.citation, tr("DOI, PMID or ISBN")));
 
     } else if (type == kCorridors) {
         QString mid, ctx;
@@ -3561,7 +3681,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         // No hint on this one, deliberately: a norm's citation doubles as the note explaining a
         // provisional figure (norm.h), so "DOI, PMID or ISBN" would be telling the author the wrong
         // thing about most of the rows in the library. It still links when it happens to be one.
-        f.append(citationField(n->citation));
+        f.append(citationField(refs(), n->citation));
 
     } else if (type == kScreens) {
         const Screen *sc = m_screens.screen(id);
@@ -3583,7 +3703,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                                                           : QString()));
         f.append(fieldRow(QStringLiteral("note"), tr("What it does not settle"),
                           QStringLiteral("prose"), sc->note));
-        f.append(citationField(sc->citation, tr("DOI or PMID")));
+        f.append(citationField(refs(), sc->citation, tr("DOI or PMID")));
 
     } else if (type == kDrills) {
         const Drill *d = m_drills.drill(id);
@@ -3805,7 +3925,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                     QStringLiteral("bindings"), QStringLiteral("binding")));
         }
 
-        appendCitation(sections, c->provenance.citation);
+        appendCitation(refs(), sections, c->provenance.citation);
 
     } else if (type == kMeasures) {
         const Measure *m = p.measure(id);
@@ -4260,7 +4380,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         }
 
 
-        appendCitation(sections, edge->provenance.citation);
+        appendCitation(refs(), sections, edge->provenance.citation);
 
     } else if (type == kCorridors) {
         QString mid, ctx;
@@ -4336,7 +4456,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // Only when it resolves. A norm's `citation` doubles as the note explaining a provisional
         // figure — most of the shipped ones are a paragraph, not an identifier — and running those
         // through the failed-lookup row would report a typo on every corridor in the library.
-        appendCitation(sections, res.norm->citation, /*onlyWhenResolved*/ true);
+        appendCitation(refs(), sections, res.norm->citation, /*onlyWhenResolved*/ true);
 
     } else if (type == kScreens) {
         // From the ASSEMBLY, so an unsaved edit is what the pane shows.
@@ -4362,7 +4482,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                 QStringLiteral("list"), QStringLiteral("settles")));
         // A screen's citation IS an identifier — screen_pack.h says DOI or PMID and nothing else —
         // so an unresolved one here is a real gap and is shown as one.
-        appendCitation(sections, s->citation);
+        appendCitation(refs(), sections, s->citation);
 
     } else if (type == kDrills) {
         const Drill *d = m_drills.drill(id);
@@ -4383,7 +4503,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                 QStringLiteral("list"), QStringLiteral("answers")));
 
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return out;
         out.insert(QStringLiteral("found"), true);
         out.insert(QStringLiteral("label"), ref->title.isEmpty() ? ref->id : ref->title);
@@ -4549,7 +4669,7 @@ QVariantMap ModelBrowser::dag(const QString &conditionId, const QVariantMap &opt
     // The layout resolves citations against what it is HANDED — see the note on the field. This is
     // the one place that decides which bibliography the graph is drawn against, and it is the same
     // one the inspector's citation links join through.
-    opt.references = &sharedReferenceSet();
+    opt.references = &refs();
 
     // Over the WORKING assembly, so an unsaved edge is drawn. Every coordinate comes from
     // dag_layout.h; QML positions nothing.
@@ -5141,9 +5261,16 @@ QVariantMap ModelBrowser::undoTo(int index) { return applyStackPosition(index); 
 QVariantMap ModelBrowser::save()
 {
     QVariantMap r;
+    // Every write below is RuleData's command, and each one that lands publishes (EVT-12 for the
+    // corridors, EVT-13 for the rest): the norm slot, the report, Charts and every other reader see it
+    // from the next read on, with no reset here (refactor step 3.9). The editor takes the published
+    // snapshot once, when the scope ends.
+    WriteScope writing(this);
+    // The writes are done: take the published snapshot, and re-derive once (a rebuild, or else this).
+    const auto settle = [this, &writing]() { if (!writing.finish()) invalidateDerived(); };
 
     QString whyNot;
-    if (!saveUserPack(m_working, &whyNot)) {
+    if (!writeUserPack(&whyNot)) {
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"), whyNot.isEmpty() ? tr("Could not save.") : whyNot);
         return r;
@@ -5151,65 +5278,50 @@ QVariantMap ModelBrowser::save()
     // The norm set is written second and reported separately. A half-save is the one outcome worth
     // naming precisely: the pack landed, the corridors did not, and an author told only "could not
     // save" would not know which half to redo.
-    if (!saveUserNormPack(m_workingNorms, &whyNot)) {
+    if (!writeUserNorms(&whyNot)) {
         m_savedUser = m_working;   // the half that DID land is on disk; do not claim otherwise
-        invalidateDerived();
+        settle();
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"),
                  tr("Characteristics were saved; the corridors were not. %1").arg(whyNot));
         return r;
     }
-    // The corridors are on disk from here on, whatever happens to the registries after them, so the
-    // shared norm snapshot is dropped now: the next grade anywhere in the app (the wrist grid, Charts,
-    // the report, a work-ons job) takes the provider again and assembles it from the file just
-    // written. Readers mid-pass keep the snapshot they hold (norm_provider.h), so this is safe while
-    // a worker is grading.
-    resetSharedNormProvider();
 
     // The screen and drill layers, written third and fourth. Reported the same way as the corridor
     // half: an author told only "could not save" would not know which registry to redo.
-    if (!saveUserScreenSet(m_workingScreens, &whyNot)) {
+    if (!writeUserScreens(&whyNot)) {
         m_savedUser  = m_working;
         m_savedNorms = m_workingNorms;
-        invalidateDerived();
+        settle();
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"),
                  tr("Characteristics and corridors were saved; the screens were not. %1").arg(whyNot));
         return r;
     }
-    if (!saveUserDrillSet(m_workingDrills, &whyNot)) {
+    if (!writeUserDrills(&whyNot)) {
         m_savedUser    = m_working;
         m_savedNorms   = m_workingNorms;
         m_savedScreens = m_workingScreens;
-        invalidateDerived();
+        settle();
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"),
                  tr("Everything but the drills and the gates' golfer words was saved. %1").arg(whyNot));
         return r;
     }
-    // The gate words, written fifth (#60), and a failure named the same way. The two registries that
-    // DID land are dropped from their caches first: the next report would otherwise print last
-    // session's drills beside this session's characteristics.
-    if (!saveUserGateWordSet(m_workingGateWords, &whyNot)) {
-        resetSharedScreenSet();
-        resetSharedDrillSet();
+    // The gate words, written fifth (#60), and a failure named the same way. The layers that DID land
+    // were published as each landed, so the next report reads this session's drills beside this
+    // session's characteristics.
+    if (!writeUserGateWords(&whyNot)) {
         m_savedUser    = m_working;
         m_savedNorms   = m_workingNorms;
         m_savedScreens = m_workingScreens;
         m_savedDrills  = m_workingDrills;
-        invalidateDerived();
+        settle();
         r.insert(QStringLiteral("ok"), false);
         r.insert(QStringLiteral("message"),
                  tr("Everything but the gates' golfer words was saved. %1").arg(whyNot));
         return r;
     }
-    // The rest of the app reads these three through their process-wide caches, so a write that did
-    // not drop them would be on disk and invisible until relaunch — the report builder re-takes the
-    // gate words for each report, and it would re-take the old ones. (The norms were dropped above,
-    // as soon as they landed.)
-    resetSharedScreenSet();
-    resetSharedDrillSet();
-    resetSharedGateWordSet();
 
     const int wrote = unsavedCount();
     m_savedUser      = m_working;
@@ -5220,10 +5332,10 @@ QVariantMap ModelBrowser::save()
     m_savedIndex     = m_stackIndex;
     // The stack is NOT cleared. Saving and immediately spotting the mistake is the common case, and
     // an undo that stopped at the last save would be an undo the author could not rely on.
-    invalidateDerived();
+    settle();
 
-    // Every other façade in the app caches its provider, so an edit written here is on disk and
-    // invisible until relaunch unless they re-take.
+    // ONE refresh per save, after the snapshot is taken: the panel's own readers (DiagnosticModel.qml)
+    // re-read on this; the rest of the app follows RuleData's events.
     emit libraryChanged();
 
     r.insert(QStringLiteral("ok"), true);
@@ -5282,30 +5394,6 @@ QVariantMap accept(const QString &message)
     return r;
 }
 
-// Copy a user layer aside before it is replaced. COPY rather than rename: the write that follows
-// goes through saveUserPack(), which writes a temporary and renames it over the original — and an
-// original that had already been moved away would leave a window with no file at all.
-//
-// A missing file is a success with nothing to do. That is the ordinary case for an install that has
-// only ever edited one of the two registries.
-bool copyAside(const QString &path, const QString &stamp, QStringList *written, QString *whyNot)
-{
-    if (path.isEmpty() || !QFile::exists(path)) return true;
-
-    QFileInfo     info(path);
-    const QString backup = info.absolutePath() + QLatin1Char('/') + info.completeBaseName()
-                           + QStringLiteral("-") + stamp + QStringLiteral(".backup.")
-                           + info.suffix();
-    QFile::remove(backup);
-    if (!QFile::copy(path, backup)) {
-        if (whyNot)
-            *whyNot = QObject::tr("Could not write the backup %1, so nothing was reset.").arg(backup);
-        return false;
-    }
-    if (written) written->append(backup);
-    return true;
-}
-
 } // namespace
 
 QVariantMap ModelBrowser::resetToStandard()
@@ -5317,14 +5405,12 @@ QVariantMap ModelBrowser::resetToStandard()
 
     // The copies come FIRST. If the backup cannot be written the reset does not happen at all — a
     // reset that half-succeeded would have destroyed the thing the backup existed to protect.
+    // The copies are RuleData's (its repository writes them beside the files: refactor step 3.9).
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
     QStringList   backups;
     QString       whyNot;
-    if (!copyAside(userPackPath(), stamp, &backups, &whyNot))      return refuse(whyNot);
-    if (!copyAside(userNormPath(), stamp, &backups, &whyNot))      return refuse(whyNot);
-    if (!copyAside(userScreenSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
-    if (!copyAside(userDrillSetPath(), stamp, &backups, &whyNot))  return refuse(whyNot);
-    if (!copyAside(userGateWordSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
+    if (m_ruleData && !m_ruleData->backupUserLayers(stamp, &backups, &whyNot)) return refuse(whyNot);
+    WriteScope writing(this);
 
     const CharacteristicPack prior        = m_working;
     const NormPack           priorNorms   = m_workingNorms;
@@ -5368,13 +5454,10 @@ QVariantMap ModelBrowser::resetToStandard()
     // Written through immediately. A reset that only cleared the draft would leave the files it just
     // backed up still on disk and the panel reading "n unsaved" — which is not what "reset" means to
     // anybody who clicked it.
-    const bool wrote = saveUserPack(m_working, &whyNot) && saveUserNormPack(m_workingNorms, &whyNot)
-                       && saveUserScreenSet(m_workingScreens, &whyNot)
-                       && saveUserDrillSet(m_workingDrills, &whyNot)
-                       && saveUserGateWordSet(m_workingGateWords, &whyNot);
-    // Whatever landed of the norm set, the shared snapshot is re-read from the file on its next take:
-    // a reset only ever re-reads what is on disk, so it is right whether the write landed or not.
-    resetSharedNormProvider();
+    // Each that lands is RuleData's command and publishes, so the rest of the app reads whatever
+    // landed from its next read on, whether or not the others did.
+    const bool wrote = writeUserPack(&whyNot) && writeUserNorms(&whyNot) && writeUserScreens(&whyNot)
+                       && writeUserDrills(&whyNot) && writeUserGateWords(&whyNot);
     if (!wrote) {
         // The draft is already the standard model and the stack still holds the way back, so this is
         // a failure to PERSIST rather than a failure to reset. Say exactly that.
@@ -5382,19 +5465,15 @@ QVariantMap ModelBrowser::resetToStandard()
         r.insert(QStringLiteral("backups"), backups);
         return r;
     }
-    resetSharedScreenSet();
-    resetSharedDrillSet();
-    resetSharedGateWordSet();
     m_savedUser      = m_working;
     m_savedNorms     = m_workingNorms;
     m_savedScreens   = m_workingScreens;
     m_savedDrills    = m_workingDrills;
     m_savedGateWords = m_workingGateWords;
     m_savedIndex     = m_stackIndex;
-    invalidateDerived();
+    if (!writing.finish()) invalidateDerived();
 
-    // Everybody else caches their provider, so without this the app keeps grading against the model
-    // that was just reset away until relaunch.
+    // ONE refresh per reset, after the snapshot is taken. The rest of the app follows RuleData's events.
     emit libraryChanged();
 
     QVariantMap r = accept(backups.isEmpty()
@@ -6879,8 +6958,8 @@ QVariantMap ModelBrowser::removeObject(const QString &type, const QString &id)
     // dangling join rather than a loose end.
     if (type == kScreens || type == kDrills) {
         const bool isScreen  = type == kScreens;
-        const bool isShipped = isScreen ? coreScreenSet().screen(id) != nullptr
-                                        : coreDrillSet().drill(id) != nullptr;
+        const bool isShipped = isScreen ? m_snap->screens->core.screen(id) != nullptr
+                                        : m_snap->drills->core.drill(id) != nullptr;
         const bool inWorking = isScreen ? m_workingScreens.screen(id) != nullptr
                                         : m_workingDrills.drill(id) != nullptr;
         if (!inWorking)
@@ -7198,7 +7277,7 @@ QVariantList ModelBrowser::fieldIssues(const QString &type, const QString &id, c
 QVariantList ModelBrowser::linksCitingReference(const QString &refId) const
 {
     QVariantList out;
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    const Reference *ref = refs().reference(refId);
     if (!ref) return out;
 
     // Any of the three identifiers, as the row list joins them: a handful of journals issue no DOI,
@@ -7237,21 +7316,21 @@ QVariantList ModelBrowser::linksCitingReference(const QString &refId) const
 
 QString ModelBrowser::referenceCsl(const QString &refId) const
 {
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    const Reference *ref = refs().reference(refId);
     if (!ref) return QString();
     // A one-record set through the real exporter, so the copied text is byte-for-byte what the
     // whole-set export would have written for this entry. A second hand-rolled serialiser here would
     // drift the first time the CSL mapping changed.
     ReferenceSet one;
-    one.id      = sharedReferenceSet().id;
-    one.version = sharedReferenceSet().version;
+    one.id      = refs().id;
+    one.version = refs().version;
     one.references.push_back(*ref);
     return QString::fromUtf8(exportReferenceSetCsl(one));
 }
 
 QString ModelBrowser::referenceDoiUrl(const QString &refId) const
 {
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    const Reference *ref = refs().reference(refId);
     if (!ref || ref->doi.isEmpty()) return QString();
     return QStringLiteral("https://doi.org/") + ref->doi;
 }
@@ -8249,7 +8328,7 @@ QVariantMap ModelBrowser::exportReferences() const
         r.insert(QStringLiteral("message"), tr("Could not write to %1.").arg(path));
         return r;
     }
-    f.write(exportReferenceSetCsl(sharedReferenceSet()));
+    f.write(exportReferenceSetCsl(refs()));
     f.close();
 
     r.insert(QStringLiteral("ok"), true);
@@ -8443,31 +8522,25 @@ void ModelBrowser::scanGates()
         constexpr int kMaxSwings = 20000;   // a cap, reported when it bites
         ModelGateCounts c;
         c.root = root;
-        const QDir rootDir(root);
-        for (const QString &athlete : rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDir aDir(rootDir.filePath(athlete));
-            for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-                const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : pinpoint::SwingPaths::swingFolders(sDir.path())) {   // THE one listing (2.7b)
-                    if (c.swings >= kMaxSwings) {
-                        c.capped = true;
-                        c.valid  = true;
-                        return c;
-                    }
-                    const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing), /*writeSidecar*/ true);
-                    if (grid.swingDir.isEmpty()) continue;    // no readable analysis: not a swing
-                    ++c.swings;
-                    if (grid.gatesVersion <= 0) { ++c.notRecorded; continue; }
-                    c.byVersion[grid.gatesVersion] += 1;
-                    QSet<QString> once;                        // a swing counts once per gate
-                    for (const GateRecord &r : grid.gates) once.insert(r.gate);
-                    for (const QString &g : once) {
-                        c.fired[g] += 1;
-                        c.sessions[g][session] += 1;
-                    }
-                }
+        // The library's listing is SwingPaths' (refactor step 3.9; THE one swing listing, 2.7b).
+        pinpoint::SwingPaths::visitLibrarySwings(root, [&c](const QString &session, const QString &swingDir) {
+            if (c.swings >= kMaxSwings) {
+                c.capped = true;
+                return false;
             }
-        }
+            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true);
+            if (grid.swingDir.isEmpty()) return true;    // no readable analysis: not a swing
+            ++c.swings;
+            if (grid.gatesVersion <= 0) { ++c.notRecorded; return true; }
+            c.byVersion[grid.gatesVersion] += 1;
+            QSet<QString> once;                           // a swing counts once per gate
+            for (const GateRecord &r : grid.gates) once.insert(r.gate);
+            for (const QString &g : once) {
+                c.fired[g] += 1;
+                c.sessions[g][session] += 1;
+            }
+            return true;
+        });
         c.valid = true;
         return c;
     }));
@@ -8510,25 +8583,19 @@ void ModelBrowser::scanCorridor(const QString &measureId)
 
     m_corridorWatcher->setFuture(QtConcurrent::run([root, copy]() -> QVariantList {
         QVariantList out;
-        const QDir   rootDir(root);
-        for (const QString &athlete : rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDir aDir(rootDir.filePath(athlete));
-            for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-                const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : pinpoint::SwingPaths::swingFolders(sDir.path())) {   // THE one listing (2.7b)
-                    if (out.size() >= kMaxScan) return out;
-                    // The expensive part is reading the phase grid, which is sidecar-cached and
-                    // pack-independent — which is exactly why measure_sample caches the grid rather
-                    // than measure values.
-                    // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
-                    const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing),
-                                                              /*writeSidecar*/ true,
-                                                              withMsWindows({}, msWindowsOf({ copy })));
-                    const std::optional<double> v = reduceOverGrid(grid, copy);
-                    if (v) out.append(*v);
-                }
-            }
-        }
+        // The library's listing is SwingPaths' (refactor step 3.9; THE one swing listing, 2.7b).
+        pinpoint::SwingPaths::visitLibrarySwings(root, [&out, &copy](const QString &, const QString &swingDir) {
+            if (out.size() >= kMaxScan) return false;
+            // The expensive part is reading the phase grid, which is sidecar-cached and
+            // pack-independent — which is exactly why measure_sample caches the grid rather
+            // than measure values.
+            // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
+            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true,
+                                                      withMsWindows({}, msWindowsOf({ copy })));
+            const std::optional<double> v = reduceOverGrid(grid, copy);
+            if (v) out.append(*v);
+            return true;
+        });
         return out;
     }));
 }
@@ -8889,7 +8956,7 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
         for (const Condition &c : p.conditions)
             if (c.drills.contains(id)) addCondition(c, -1, conditionGroupLabel(c.group));
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return {};
         focusLabel = ref->title.isEmpty() ? ref->id : ref->title;
         const auto cites = [ref](const QString &c) {

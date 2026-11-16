@@ -55,10 +55,24 @@ struct FlightNorms;   // Coaching/strike_from_flight.h — not included here: it
 
 namespace pinpoint {
 
-// The assembled characteristic library and its shipped layer alone (the editor's "does this ship?").
+// The assembled characteristic library, its shipped layer alone (the editor's "does this ship?") and the
+// user's own pack as PARSED (FILE-APP-01; refactor step 3.9): the pack editor's baseline. Parsed, not
+// loaded: an overlay routinely fails standalone referential validation (its edges name core conditions it
+// does not hold), so a validated read would hand the editor an empty pack and its first save would erase
+// every override. Empty (a default pack) when the file is absent or cannot be parsed.
 struct RulePacks {
     std::shared_ptr<const analysis::ICharacteristicPackProvider> assembled;
     std::shared_ptr<const analysis::ICharacteristicPackProvider> shipped;
+    std::shared_ptr<const analysis::CharacteristicPack>          user;
+};
+
+// The assembled norm sets, the shipped set and context tree alone (the corridor editor's "does this
+// ship?", one parse serving both) and the user's own norm set as parsed (FILE-APP-02; step 3.9), for the
+// same reason as the user pack: parsed, not validated. Empty when absent or unparseable.
+struct RuleNorms {
+    std::shared_ptr<const analysis::INormProvider> assembled;
+    std::shared_ptr<const analysis::INormProvider> shipped;
+    std::shared_ptr<const analysis::NormPack>      user;
 };
 
 class RuleDataRepository {
@@ -72,7 +86,7 @@ public:
     virtual analysis::ContentLayers<analysis::GateWordSet>  loadGateWords()  = 0;
     // `refs` is the bibliography the pack loader's book gate reads (loadPack()).
     virtual RulePacks                                       loadPacks(const analysis::ReferenceSet *refs) = 0;
-    virtual std::shared_ptr<const analysis::INormProvider>  loadNorms()       = 0;
+    virtual RuleNorms                                       loadNorms()       = 0;
     virtual analysis::FlightNorms                           loadFlightNorms() = 0;
     virtual QStringList                                     readDisabledNormSets() = 0;   // SET-06
     virtual QString                                         readGradePolicy()      = 0;   // SET-15
@@ -88,6 +102,15 @@ public:
     virtual bool saveUserGateWords(const analysis::GateWordSet &set, QString *whyNot)    = 0;
     virtual void writeDisabledNormSets(const QStringList &sets) = 0;
     virtual void writeGradePolicy(const QString &name)          = 0;
+
+    // A copy of each of the user's own layers that exists (user.json, user.norms.json, screens.json,
+    // drills.json, gate_words.json), taken beside it before the pack editor's "Reset to the standard
+    // model" replaces them (refactor step 3.9: the editor used to copy them itself). COPIED, never moved:
+    // the save that follows writes a temporary and renames it over the original, and a moved original
+    // would leave a moment with no file at all. A missing layer is a success with nothing to do. `stamp`
+    // names the copies; `written` gets each copy's path. False, with the reason, at the first copy that
+    // cannot be written, and the reset does not go ahead. Changes no content, so it publishes nothing.
+    virtual bool backupUserLayers(const QString &stamp, QStringList *written, QString *whyNot) = 0;
 };
 
 } // namespace pinpoint

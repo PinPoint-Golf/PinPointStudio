@@ -66,6 +66,12 @@ struct RuleDataSnapshot {
     std::shared_ptr<const analysis::ICharacteristicPackProvider> pack;       // core + user + community
     std::shared_ptr<const analysis::ICharacteristicPackProvider> shippedPack;
     std::shared_ptr<const analysis::INormProvider>               norms;      // core + user + community
+    // The editor's layers (refactor step 3.9): the shipped norm set and context tree alone, and the user's
+    // own pack and norm set AS PARSED (RulePacks / RuleNorms say why parsed, not loaded). The pack and
+    // corridor editor reads these, never the files.
+    std::shared_ptr<const analysis::INormProvider>               shippedNorms;
+    std::shared_ptr<const analysis::CharacteristicPack>          userPack;
+    std::shared_ptr<const analysis::NormPack>                    userNorms;
     std::shared_ptr<const analysis::ContentLayers<analysis::ReferenceSet>> references;
     std::shared_ptr<const analysis::ContentLayers<analysis::DrillSet>>     drills;
     std::shared_ptr<const analysis::ContentLayers<analysis::ScreenSet>>    screens;
@@ -105,6 +111,9 @@ public:
     bool saveUserGateWords(const analysis::GateWordSet &set, QString *whyNot = nullptr);       // EVT-13
     void setDisabledNormSets(const QStringList &sets);                                          // EVT-12
     void setGradePolicy(const QString &name);                                                   // EVT-12
+    // Copies the user's own layers aside before the editor's reset replaces them (the repository's
+    // backupUserLayers says how). Changes no content, so it publishes nothing.
+    bool backupUserLayers(const QString &stamp, QStringList *written, QString *whyNot = nullptr);
 
     // Re-read parts from the repository (a file changed outside the commands: a tool pointed the
     // PINPOINT_CORE_* seams elsewhere, an interim reader asked for a fresh read) and publish one snapshot.
@@ -134,9 +143,10 @@ private:
     // which installProcessRuleData() never destroys (the app's included): the interim accessors below
     // hand out references into a snapshot, as the registries they replace did, and an edit must not
     // free one a reader still holds. Bounded by the PUBLISHES: one per command that lands (a save in
-    // the Diagnostic Model, a SET-06 / SET-15 change) and one per reload() — which only the editor's
-    // post-save resets, a tool switching its PINPOINT_CORE_* seams and the tests ask for. Nothing
-    // publishes per report, per shot or per session, so in the app the list grows with edits only.
+    // the Diagnostic Model, a SET-06 / SET-15 change) and one per reload() — which only a tool switching
+    // its PINPOINT_CORE_* seams and the tests ask for (the editor's post-save resets went in step 3.9: its
+    // saves are the commands, and they publish). Nothing publishes per report, per shot or per session,
+    // so in the app the list grows with edits only.
     std::vector<std::shared_ptr<const RuleDataSnapshot>> m_published;
     quint64                                          m_serial = 0;
 };
@@ -148,7 +158,9 @@ private:
 // For the readers not yet handed the snapshot (refactor items 3.5–3.9, steps 5 and 7 move them). Each
 // reads RuleData::current() — the one assembly, never a private one (B-02) — under the names the lazy
 // registries had, so no reader changed what it calls. A reference is into a snapshot RuleData keeps for
-// the process's life. The writes are RuleData's commands; the resets ask it to re-read that part.
+// the process's life. The writes are RuleData's commands; the resets ask it to re-read that part (since
+// step 3.9 no app code calls a reset: the pack and corridor editor reads RuleData's snapshot and writes
+// through its commands; the tests and tools that switch seams still do).
 // With no RuleData installed, every accessor answers from an EMPTY snapshot.
 namespace pinpoint::analysis {
 

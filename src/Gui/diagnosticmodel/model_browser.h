@@ -42,6 +42,8 @@
 // Forward-declared rather than included: only the two layout marshallers below name it, and both
 // are private. dag_layout.h is a heavy header for a signature.
 namespace pinpoint::analysis { struct DagLayout; }
+// The packs and norms' owner and its snapshot (src/DomainModel/rule_data.h; refactor step 3.9).
+namespace pinpoint { class RuleData; struct RuleDataSnapshot; }
 
 // ModelBrowser — the whole Diagnostic Model panel's model: one connected content graph, read and
 // edited through one object.
@@ -230,7 +232,11 @@ class ModelBrowser : public QObject
     Q_PROPERTY(bool gatesScanning READ gatesScanning NOTIFY gateCountsChanged)
 
 public:
+    // The QML-made one (DiagnosticModel.qml) reaches the process's RuleData (RuleData::installed(), the
+    // interim door until step 4's `app`); a test hands it one. It reads that RuleData's snapshot and writes
+    // through its commands, never a file (refactor step 3.9; DEC-170).
     explicit ModelBrowser(QObject *parent = nullptr);
+    explicit ModelBrowser(pinpoint::RuleData *ruleData, QObject *parent = nullptr);
     ~ModelBrowser() override;
 
     QVariantList types() const;
@@ -646,8 +652,9 @@ public:
     //
     // Recoverable twice over, because the panel's rule is that nothing here is unrecoverable:
     //   · it is a command like every other write, so ⌘Z restores the whole draft for the session
-    //   · the user layers are COPIED ASIDE before they are replaced (`*-<stamp>.backup.json`), so an
-    //     author who resets in error still has the file after the session's undo has expired
+    //   · the user layers are COPIED ASIDE before they are replaced (`*-<stamp>.backup.json`, by
+    //     RuleData::backupUserLayers), so an author who resets in error still has the file after the
+    //     session's undo has expired
     // The returned map carries `backups` — the paths written — because a backup nobody is told about
     // is a backup nobody can use.
     Q_INVOKABLE QVariantMap resetToStandard();
@@ -658,11 +665,41 @@ signals:
     void currentSwingChanged();
     // The Gates view's library count landed (or a walk started). Rows refresh on it.
     void gateCountsChanged();
-    // A save landed. The rest of the app caches its providers, so whoever is listening has to
-    // re-take theirs or the edit is on disk and invisible until relaunch.
+    // The library this panel shows changed: a save or reset of its own landed, or a snapshot RuleData
+    // published moved a layer it shows (EVT-12 / EVT-13). The panel re-reads on it. The rest of the app
+    // follows RuleData's events, not this (refactor step 3.9).
     void libraryChanged();
 
 private:
+    // ── RuleData (refactor step 3.9) ────────────────────────────────────────────────────────────
+    pinpoint::RuleData                              *m_ruleData = nullptr;   // null: no RuleData installed
+    std::shared_ptr<const pinpoint::RuleDataSnapshot> m_snap;               // every read of the rule data
+    bool                                             m_writing  = false;    // inside a WriteScope
+
+    const pinpoint::analysis::ReferenceSet &refs() const;   // the snapshot's bibliography
+    void takeUserLayers(const pinpoint::RuleDataSnapshot &snap);
+    void onRuleDataPublished();
+    bool adoptSnapshot(std::shared_ptr<const pinpoint::RuleDataSnapshot> next, bool userLayersToo, bool announce);
+    bool savedLayersMatch(const pinpoint::RuleDataSnapshot &snap) const;
+    bool writeUserPack(QString *whyNot);
+    bool writeUserNorms(QString *whyNot);
+    bool writeUserScreens(QString *whyNot);
+    bool writeUserDrills(QString *whyNot);
+    bool writeUserGateWords(QString *whyNot);
+    // The editor's own writes: RuleData's publishes are taken once, when the scope ends.
+    class WriteScope {
+    public:
+        explicit WriteScope(ModelBrowser *b);
+        ~WriteScope();
+        bool finish();   // ends the scope and takes the snapshot, emitting nothing; true when it rebuilt
+        WriteScope(const WriteScope &)            = delete;
+        WriteScope &operator=(const WriteScope &) = delete;
+
+    private:
+        ModelBrowser *m_b;
+        bool          m_done = false;
+    };
+
     // ── Assembly ────────────────────────────────────────────────────────────
     void rebuild();                       // m_assembled = core + memory(m_working)
     const pinpoint::analysis::CharacteristicPack &pack() const;

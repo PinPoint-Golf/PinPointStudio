@@ -46,6 +46,9 @@ std::shared_ptr<const RuleDataSnapshot> emptySnapshot()
         e->shippedPack = e->pack;
         e->norms       = std::shared_ptr<const INormProvider>(
             makeMemoryNormProvider(NormPack{}, ContextTree{}, QStringLiteral("(no rule data)"), PackOrigin::Core).release());
+        e->shippedNorms = e->norms;
+        e->userPack     = std::make_shared<const CharacteristicPack>();
+        e->userNorms    = std::make_shared<const NormPack>();
         e->references  = std::make_shared<const ContentLayers<ReferenceSet>>();
         e->drills      = std::make_shared<const ContentLayers<DrillSet>>();
         e->screens     = std::make_shared<const ContentLayers<ScreenSet>>();
@@ -140,8 +143,14 @@ std::shared_ptr<RuleDataSnapshot> RuleData::assemble(unsigned parts) const
         RulePacks p       = m_repository->loadPacks(&next->references->merged);
         next->pack        = std::move(p.assembled);
         next->shippedPack = std::move(p.shipped);
+        next->userPack    = p.user ? std::move(p.user) : std::make_shared<const CharacteristicPack>();
     }
-    if (parts & Norms) next->norms = m_repository->loadNorms();
+    if (parts & Norms) {
+        RuleNorms n        = m_repository->loadNorms();
+        next->norms        = std::move(n.assembled);
+        next->shippedNorms = std::move(n.shipped);
+        next->userNorms    = n.user ? std::move(n.user) : std::make_shared<const NormPack>();
+    }
     if (parts & Flight) next->flightNorms = std::make_shared<const FlightNorms>(m_repository->loadFlightNorms());
     if (parts & Settings) {
         next->disabledNormSets = m_repository->readDisabledNormSets();
@@ -221,6 +230,11 @@ void RuleData::setGradePolicy(const QString &name)
     if (snapshot()->gradePolicy == name) return;
     m_repository->writeGradePolicy(name);
     publish(assemble(Settings), Settings, QString());
+}
+
+bool RuleData::backupUserLayers(const QString &stamp, QStringList *written, QString *whyNot)
+{
+    return m_repository->backupUserLayers(stamp, written, whyNot);
 }
 
 void RuleData::reload(unsigned parts)

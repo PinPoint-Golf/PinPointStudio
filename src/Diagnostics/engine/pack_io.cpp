@@ -119,6 +119,8 @@ QStringList readStringList(const QJsonValue &v)
 
 QString diagnosticsDataDir()
 {
+    const QString forced = qEnvironmentVariable("PINPOINT_DIAGNOSTICS_DIR");
+    if (!forced.isEmpty()) return forced;
     const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     return base.isEmpty() ? QString() : base + QStringLiteral("/diagnostics");
 }

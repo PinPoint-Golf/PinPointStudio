@@ -182,6 +182,10 @@ QStringList readStringList(const QJsonValue &v);
 //
 // Empty when there is no writable location at all, which is a real state on a locked-down system
 // and is why every caller has to check.
+//
+// PINPOINT_DIAGNOSTICS_DIR overrides it (refactor step 3.9), as PINPOINT_STUDIO_DIR does the studio
+// profile's: the one way a probe of the running app reaches SCRATCH user files on macOS, where the app
+// data location ignores XDG_DATA_HOME. Read at each call, like the location it replaces.
 QString diagnosticsDataDir();
 
 // One file in that directory, or empty when the directory is. The isEmpty() dance was written out

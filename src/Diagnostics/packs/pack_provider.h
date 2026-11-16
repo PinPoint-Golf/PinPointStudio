@@ -104,10 +104,15 @@ public:
 };
 
 // Where the user's own pack lives, and its file name. A PATH, not an access: the rule data's repository
-// (src/Export/rule_data_store.cpp) reads and writes the file (refactor step 3.2; FILE-APP-01), and the
-// editor names it for its own reads of the working copy until it writes through RuleData (item 3.9).
+// (src/Export/rule_data_store.cpp) reads and writes the file (refactor step 3.2; FILE-APP-01); since item
+// 3.9 the editor reads RuleData's snapshot and names no file.
 QString userPackPath();
 QString userPackFileName();
+
+// The end of the copies the pack editor's reset takes of each user layer, beside it
+// (`<name>-<stamp>.backup.json`; RuleDataRepository::backupUserLayers). Never a pack: the enumeration
+// below skips it (refactor step 3.9).
+inline constexpr const char kUserLayerBackupSuffix[] = ".backup.json";
 
 // The shipped core pack, from the bytes the repository read (the Qt resource, or the file
 // PINPOINT_CORE_PACK names). Read-only. `refs` is the bibliography the loader's book gate reads
@@ -118,7 +123,7 @@ std::unique_ptr<ICharacteristicPackProvider> makeResourcePackProvider(const Rule
 // Which of the `*.json` files in the diagnostics directory are characteristic packs, in LAYERING
 // ORDER: `user.json` first if present, then the rest alphabetically. Every *.json is a pack EXCEPT the
 // sibling registries that share the directory (`*.norms.json`, `screens.json`, `drills.json`,
-// `gate_words.json`, `references.json`, `contexts.json`). Pure: the repository lists the directory and
+// `gate_words.json`, `references.json`, `contexts.json`) and the reset's copies (`*.backup.json`). Pure: the repository lists the directory and
 // asks this which files to read, so the skip list and the order are ONE decision with one home.
 QStringList characteristicPackFileOrder(const QStringList &jsonFileNames);
 

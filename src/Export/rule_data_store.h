@@ -60,7 +60,7 @@ public:
     analysis::ContentLayers<analysis::ScreenSet>    loadScreens() override;
     analysis::ContentLayers<analysis::GateWordSet>  loadGateWords() override;
     RulePacks                                       loadPacks(const analysis::ReferenceSet *refs) override;
-    std::shared_ptr<const analysis::INormProvider>  loadNorms() override;
+    RuleNorms                                       loadNorms() override;
     analysis::FlightNorms                           loadFlightNorms() override;
     QStringList                                     readDisabledNormSets() override;
     QString                                         readGradePolicy() override;
@@ -74,6 +74,7 @@ public:
     bool saveUserGateWords(const analysis::GateWordSet &set, QString *whyNot) override;
     void writeDisabledNormSets(const QStringList &sets) override;
     void writeGradePolicy(const QString &name) override;
+    bool backupUserLayers(const QString &stamp, QStringList *written, QString *whyNot) override;
 
     // One file's bytes, and whether there were any (RuleFile, pack_io.h).
     static analysis::RuleFile readFile(const QString &path);

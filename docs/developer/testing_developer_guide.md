@@ -497,7 +497,15 @@ Since refactor step 3.2 the packs, norms and content sets have one owner, `RuleD
   `setApplicationName`), and before anything reads. With none installed every accessor answers from an
   empty snapshot;
 - after changing a seam or a data location mid-run, calls `installProcessRuleData().reload(parts)`: one
-  snapshot per change, so a test that swaps the core pack is a change RuleData must be told about.
+  snapshot per change, so a test that swaps the core pack is a change RuleData must be told about;
+- likewise after removing or hand-writing a user file (`user.json`, `user.norms.json`, …) once RuleData is
+  installed: since step 3.9 the pack and corridor editor (`ModelBrowser`) reads RuleData's snapshot, never
+  the files, so `model_browser_test` and `inspector_refresh_test` call `RuleData::installed()->reload()`
+  after clearing their scratch files.
+
+A probe of the running app keeps its saves off the real user files with `PINPOINT_DIAGNOSTICS_DIR`
+(`docs/developer/feature_switches_developer_guide.md`); on macOS the app data location ignores
+`XDG_DATA_HOME`.
 
 A save through RuleData's commands publishes at once (EVT-12 / EVT-13); there is no "written but not yet
 reset" state. `shared_norm_provider_test` deliberately installs none: it is the headless norm slot's test.

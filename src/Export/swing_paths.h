@@ -24,6 +24,7 @@
 #include <QStringList>
 
 #include <atomic>
+#include <functional>
 
 namespace pinpoint {
 
@@ -71,6 +72,12 @@ public:
     // THE one listing of a session's swing folders: the names of its "swing_*" sub-folders, by name.
     // Read each one's number with swingNumberOf.
     static QStringList swingFolders(const QString& sessionDir);
+    // Every swing folder of a library, for a scan across it (the Diagnostic Model's gate count and corridor
+    // scan; refactor step 3.9 moved their walk here from model_browser.cpp): athlete folder by athlete folder
+    // and session by session, in name order, each session's swings as swingFolders() lists them. `visit`
+    // gets the session folder's name and the swing folder's path, and returns false to stop the walk.
+    static void visitLibrarySwings(const QString& libraryRoot,
+                                   const std::function<bool(const QString& session, const QString& swingDir)>& visit);
 
     // ⭐ DELETE = TRASH, AND THE VOLUME MAY NOT HAVE ONE (2 Sept 2026).  Every
     // delete in this application is a move to the OS trash, so it is

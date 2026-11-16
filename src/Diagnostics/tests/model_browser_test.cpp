@@ -42,6 +42,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -618,9 +619,9 @@ int main(int argc, char **argv)
     QFile::remove(userDrillSetPath());
     // …and the gate words, the fifth user layer since #60.
     QFile::remove(userGateWordSetPath());
-    resetSharedScreenSet();
-    resetSharedDrillSet();
-    resetSharedGateWordSet();
+    // The editor reads RuleData's snapshot, never the files (refactor step 3.9), so the files just
+    // removed are read again before the first browser is made.
+    pinpoint::RuleData::installed()->reload();
 
     ModelBrowser m;
 
@@ -3850,8 +3851,13 @@ int main(int argc, char **argv)
         check(m.save().value(QStringLiteral("ok")).toBool(), "the draft saves");
         check(QFile::exists(userPackPath()), "and there is a user pack on disk to reset away");
 
+        int resetRefreshed = 0;
+        const QMetaObject::Connection counting = QObject::connect(&m, &ModelBrowser::libraryChanged,
+                                                                  [&resetRefreshed]() { ++resetRefreshed; });
         const QVariantMap reset = m.resetToStandard();
+        QObject::disconnect(counting);
         check(reset.value(QStringLiteral("ok")).toBool(), "the reset lands");
+        check(resetRefreshed == 1, "and refreshes the panel exactly once (refactor step 3.9)");
         check(m.overriddenCount() == 0 && m.authoredCount() == 0,
               "and this install is back on the standard model");
         check(rowFor(m.rows(QStringLiteral("characteristics")),
@@ -3878,14 +3884,141 @@ int main(int argc, char **argv)
         }
         check(everyBackupLoads, "and every backup file parses as the layer it came from");
 
+
         // Recoverable for the session, as a command like any other.
         check(m.canUndo(), "the reset is on the undo stack");
         check(m.undo().value(QStringLiteral("ok")).toBool(), "and undoes");
         check(m.overriddenCount() == 1 && m.authoredCount() == 1,
               "putting the whole draft back");
 
+        // A backup is a copy for the author, NEVER a layer. The copies sit beside the files they copy and
+        // end in `.json`; the pack enumeration read every `*.json` there, so at the next read each one
+        // was a community pack and the reset was undone by its own backup (refactor step 3.9).
+        const QStringList packFiles = characteristicPackFilesIn();
+        bool backupEnumerated = false;
+        for (const QString &path : backups)
+            for (const QString &f : packFiles)
+                backupEnumerated = backupEnumerated || QFileInfo(f).fileName() == QFileInfo(path).fileName();
+        check(!backupEnumerated, "no backup is enumerated as a characteristic pack");
+        // Read again (after the undo checks: a publish taken by a clean editor drops its history).
+        pinpoint::RuleData::installed()->reload(pinpoint::RuleData::Packs);
+        const Condition *afterReload = pinpoint::RuleData::current()->pack->pack().condition(charId);
+        check(afterReload && afterReload->label != QStringLiteral("Edited for the reset test"),
+              "and the app's assembled pack, read again, is the standard model, not the backup");
+
         for (const QString &path : backups) QFile::remove(path);
         while (m.canUndo()) m.undo();
+    }
+
+    std::printf("=== the editor reads RuleData's snapshot and follows its events (refactor step 3.9) ===\n");
+    {
+        auto bytesOf = [](const QString &path) {
+            QFile f(path);
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        const QString mid = QStringLiteral("m_ballPosition"), ctx = QStringLiteral("driver");
+        const QString id  = QStringLiteral("norm:m_ballPosition@driver");
+        auto muOf = [&id](const ModelBrowser &b) {
+            return fieldValue(b, QStringLiteral("corridors"), id, QStringLiteral("mu")).toDouble();
+        };
+        ModelBrowser a;
+        int          aRefreshed = 0;
+        QObject::connect(&a, &ModelBrowser::libraryChanged, [&aRefreshed]() { ++aRefreshed; });
+        const double mu0 = muOf(a);
+        check(okOf(a.setField(QStringLiteral("corridors"), id, QStringLiteral("mu"), mu0 + 1.5)), "a corridor is nudged");
+        // What the editor stored: setField snaps a number to the measure's step.
+        const double muNudged = muOf(a);
+        check(okOf(a.save()), "and saved through RuleData's commands");
+        check(aRefreshed == 1, qPrintable(QStringLiteral("an own save refreshes the panel exactly once (%1)").arg(aRefreshed)));
+        const QByteArray norms0 = bytesOf(userNormPath()), pack0 = bytesOf(userPackPath());
+        check(!norms0.isEmpty(), "user.norms.json is on disk");
+        check(a.canUndo(), "an own save keeps its undo stack");
+
+        // The norms round trip: a browser made from the snapshot reads the save back, and an unchanged
+        // save writes the very same bytes.
+        {
+            ModelBrowser fresh;
+            check(!fresh.dirty(), "a fresh browser starts clean");
+            check(muOf(fresh) == muNudged, "and reads the saved corridor from RuleData's snapshot");
+            check(okOf(fresh.save()), "an unchanged save lands");
+            check(bytesOf(userNormPath()) == norms0, "user.norms.json is byte-identical after an unchanged save");
+            check(bytesOf(userPackPath()) == pack0, "and so is user.json");
+        }
+        // A byte-identical save elsewhere: the layers' content is what this editor saved, so it takes
+        // nothing, and loses no undo step.
+        check(a.canUndo() && !a.dirty(), "a byte-identical save elsewhere leaves the undo stack (canUndo) as it was");
+
+        // EVT-12 / EVT-13: a clean editor follows a save made elsewhere, with no reset of its own.
+        ModelBrowser follower;
+        int          refreshed = 0;
+        QObject::connect(&follower, &ModelBrowser::libraryChanged, [&refreshed]() { ++refreshed; });
+        check(okOf(a.setField(QStringLiteral("corridors"), id, QStringLiteral("mu"), mu0 + 2.5)), "the corridor is moved again");
+        const double muAgain = muOf(a);
+        check(okOf(a.save()), "and saved");
+        check(refreshed > 0 && !follower.dirty() && muOf(follower) == muAgain,
+              "a clean editor shows another's save at once (EVT-12)");
+
+        // A publish that moves nothing an editor shows (the flight norms) costs it no refresh.
+        refreshed = 0;
+        pinpoint::RuleData::installed()->reload(pinpoint::RuleData::Flight);
+        check(refreshed == 0, "a publish of the flight norms alone does not refresh the editor");
+
+        // A clean editor that takes somebody else's layers keeps its whole history (3.9-i review 2, J-38):
+        // undo still reaches its earlier draft, and Revert keeps its own undo.
+        const QString charId = firstShippedId(follower.rows(QStringLiteral("characteristics")));
+        {
+            ModelBrowser other;
+            check(okOf(other.setField(QStringLiteral("characteristics"), charId, QStringLiteral("label"),
+                                      QStringLiteral("Other's label"))),
+                  "another editor renames a characteristic");
+            check(okOf(other.save()), "and saves");
+        }
+        check(!a.dirty()
+                  && fieldValue(a, QStringLiteral("characteristics"), charId, QStringLiteral("label"))
+                         == QStringLiteral("Other's label"),
+              "a clean editor takes the other's save");
+        check(a.canUndo() && okOf(a.undo()) && std::abs(muOf(a) - muNudged) < 1e-9,
+              "and undo still reaches its earlier draft");
+        check(okOf(a.redo()) && std::abs(muOf(a) - muAgain) < 1e-9, "and redo comes back");
+        check(a.dirty() && okOf(a.revert()) && !a.dirty(), "Revert puts it back on the saved layers");
+        check(a.canUndo() && okOf(a.undo()) && a.dirty(), "and Revert keeps its own undo");
+        check(okOf(a.redo()) && !a.dirty(), "which redoes");
+
+        // A draft is never thrown away by somebody else's publish…
+        check(okOf(follower.setField(QStringLiteral("characteristics"), charId, QStringLiteral("label"),
+                                     QStringLiteral("Follower draft"))),
+              "the follower has an unsaved edit");
+        check(okOf(a.resetCorridor(mid, ctx)), "the other editor drops its corridor");
+        check(okOf(a.save()), "and saves");
+        check(follower.dirty()
+                  && fieldValue(follower, QStringLiteral("characteristics"), charId, QStringLiteral("label"))
+                         == QStringLiteral("Follower draft")
+                  && muOf(follower) == muAgain,
+              "and the follower keeps its draft, over the layers it was edited from");
+        // …nor is an undo step: undone and redone, the draft is still there.
+        check(okOf(follower.undo()) && !follower.dirty(), "the follower's draft is undone");
+        check(follower.canRedo() && okOf(follower.redo())
+                  && fieldValue(follower, QStringLiteral("characteristics"), charId, QStringLiteral("label"))
+                         == QStringLiteral("Follower draft"),
+              "and redo still reaches it");
+        follower.undo();
+
+        // A file changed outside the commands is the editor's at RuleData's next reload, not before.
+        {
+            QFile f(userNormPath());
+            check(f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(norms0) == norms0.size(),
+                  "user.norms.json is put back by hand");
+        }
+        check(muOf(a) == mu0, "the editor does not read the file itself");
+        pinpoint::RuleData::installed()->reload(pinpoint::RuleData::Norms);
+        check(!a.dirty(), "the editor is still clean after RuleData reloads");
+        check(std::abs(muOf(a) - muNudged) < 1e-9, "and shows the file's corridor once RuleData publishes it");
+        QFile::remove(userNormPath());
+        pinpoint::RuleData::installed()->reload(pinpoint::RuleData::Norms);
+        check(std::abs(muOf(a) - mu0) < 1e-9, "and the shipped corridor again once the file is gone");
+        // Leave the files as the block found them: no user pack (the other editor's rename) either.
+        QFile::remove(userPackPath());
+        pinpoint::RuleData::installed()->reload();
     }
 
     std::printf("=== a shortcut is not a cycle ===\n");

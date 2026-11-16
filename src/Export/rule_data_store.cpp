@@ -52,6 +52,32 @@ private:
     std::shared_ptr<const ICharacteristicPackProvider> m_p;
 };
 
+// The shipped norm set, presented to the norm merge as its core while the snapshot keeps the same parsed
+// provider as "the shipped norms alone" (refactor step 3.9) — one parse of norms.json and contexts.json
+// serves both, as SharedPackView does for core.json (the corridor editor used to make a second, private
+// one). Every virtual is forwarded, so the merge answers exactly as it did over the provider itself.
+class SharedNormView final : public INormProvider {
+public:
+    explicit SharedNormView(std::shared_ptr<const INormProvider> p) : m_p(std::move(p)) {}
+    const NormPack         &norms() const override { return m_p->norms(); }
+    const ContextTree      &contexts() const override { return m_p->contexts(); }
+    const ValidationReport &report() const override { return m_p->report(); }
+    QString                 label() const override { return m_p->label(); }
+    PackOrigin              origin() const override { return m_p->origin(); }
+    const Norm *shippedNorm(const QString &measureId, const QString &contextId, const Cohort &cohort) const override
+    {
+        return m_p->shippedNorm(measureId, contextId, cohort);
+    }
+    bool isOverridden(const QString &measureId, const QString &contextId, const Cohort &cohort) const override
+    {
+        return m_p->isOverridden(measureId, contextId, cohort);
+    }
+    std::vector<NormSetInfo> layers() const override { return m_p->layers(); }
+
+private:
+    std::shared_ptr<const INormProvider> m_p;
+};
+
 // The copy of the user's pack taken before its one migration. It must NOT end in `.json`: the pack
 // enumeration reads `*.json` in this directory and would load the copy as a second pack.
 QString regroupBackupPath(const QString &path)
@@ -200,8 +226,12 @@ RulePacks RuleDataStore::loadPacks(const ReferenceSet *refs)
         const QStringList names = QDir(dir).entryList({ QStringLiteral("*.json") }, QDir::Files, QDir::Name);
         for (const QString &name : characteristicPackFileOrder(names)) {
             RuleFile f = readFile(userFile(name));
-            if (name == userPackFileName() && f.state == RuleFile::State::Read)
+            if (name == userPackFileName() && f.state == RuleFile::State::Read) {
                 isNewer(f.path, f.bytes, kPackSchemaVersion);
+                // The editor's baseline: PARSED, not loaded (RulePacks says why), from the same bytes.
+                PackLoadResult parsed = loadPack(f.bytes, f.path, refs);
+                if (parsed.parsed) out.user = std::make_shared<const CharacteristicPack>(std::move(parsed.pack));
+            }
             seenUserPack = seenUserPack || name == userPackFileName();
             layers.push_back(std::move(f));
         }
@@ -212,16 +242,27 @@ RulePacks RuleDataStore::loadPacks(const ReferenceSet *refs)
     return out;
 }
 
-std::shared_ptr<const INormProvider> RuleDataStore::loadNorms()
+RuleNorms RuleDataStore::loadNorms()
 {
-    // The norm set's own file, checked on read like the user's other layers (B-20).
+    RuleNorms out;
+    // The norm set's own file, checked on read like the user's other layers (B-20), and parsed for the
+    // corridor editor (RuleNorms says why parsed, not validated).
     const RuleFile user = readFile(userFile(QLatin1String("user") + QLatin1String(kNormSetSuffix)));
-    if (user.state != RuleFile::State::Read) m_newer.removeAll(user.path);
-    else isNewer(user.path, user.bytes, kNormPackSchemaVersion);
+    if (user.state != RuleFile::State::Read) {
+        m_newer.removeAll(user.path);
+    } else {
+        isNewer(user.path, user.bytes, kNormPackSchemaVersion);
+        NormPackLoadResult parsed = loadNormPack(user.bytes, user.path);
+        if (parsed.parsed) out.user = std::make_shared<const NormPack>(std::move(parsed.pack));
+    }
     // The shipped set and context tree (PINPOINT_CORE_NORMS / _CONTEXTS) and one provider per norm-set
-    // file in the directory, assembled exactly as makeNormProvider() does over the default directory.
-    return std::shared_ptr<const INormProvider>(
-        makeMergedNormProvider(makeResourceNormProvider(), makeFileNormProviders(dataDir())).release());
+    // file in the directory, assembled exactly as makeNormProvider() does over the default directory —
+    // the shipped layer through a view, so the snapshot keeps that one parse as "the shipped norms alone".
+    out.shipped   = std::shared_ptr<const INormProvider>(makeResourceNormProvider().release());
+    out.assembled = std::shared_ptr<const INormProvider>(
+        makeMergedNormProvider(std::make_unique<SharedNormView>(out.shipped), makeFileNormProviders(dataDir()))
+            .release());
+    return out;
 }
 
 FlightNorms RuleDataStore::loadFlightNorms()
@@ -288,6 +329,34 @@ void RuleDataStore::writeDisabledNormSets(const QStringList &sets)
 void RuleDataStore::writeGradePolicy(const QString &name)
 {
     ppSettings().setValue(QStringLiteral("ui/diagnosticsGradePolicy"), name);
+}
+
+// The pack editor's "Reset to the standard model" copies (refactor step 3.9: moved here from
+// model_browser.cpp, which copied the files itself). `<name>-<stamp>.backup.<suffix>` beside each layer,
+// the name the editor's design gave them (ADDENDUM-02); the pack enumeration skips that suffix
+// (characteristicPackFileOrder), so a copy is never loaded as a community pack.
+bool RuleDataStore::backupUserLayers(const QString &stamp, QStringList *written, QString *whyNot)
+{
+    const QStringList names{ userPackFileName(), QLatin1String("user") + QLatin1String(kNormSetSuffix),
+                             QLatin1String(kScreenSetFileName), QLatin1String(kDrillSetFileName),
+                             QLatin1String(kGateWordSetFileName) };
+    for (const QString &name : names) {
+        const QString path = userFile(name);
+        if (path.isEmpty() || !QFile::exists(path)) continue;   // a layer never edited: nothing to copy
+
+        const QFileInfo info(path);
+        const QString   backup = info.absolutePath() + QLatin1Char('/') + info.completeBaseName()
+                               + QStringLiteral("-") + stamp + QStringLiteral(".backup.") + info.suffix();
+        // Every layer is a .json file, so the copy ends in kUserLayerBackupSuffix, which the enumeration skips.
+        QFile::remove(backup);
+        if (!QFile::copy(path, backup)) {
+            if (whyNot)
+                *whyNot = QObject::tr("Could not write the backup %1, so nothing was reset.").arg(backup);
+            return false;
+        }
+        if (written) written->append(backup);
+    }
+    return true;
 }
 
 // ── How a process gets its one RuleData (rule_data_install.h) ─────────────────────────────────────

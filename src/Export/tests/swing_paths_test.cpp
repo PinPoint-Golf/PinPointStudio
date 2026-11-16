@@ -286,6 +286,47 @@ static void testNames()
                SwingPaths::nextSessionCounter(lib.root() + QStringLiteral("/") + kToken, QStringLiteral("s")), 2);
 }
 
+// visitLibrarySwings (refactor step 3.9): the Diagnostic Model's library scans walk through it.
+static void testLibraryWalk()
+{
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("W1–W4"), QStringLiteral("no temp dir")); return; }
+    const QString root = lib.root();
+    // Two athletes, made out of order; sessions with swings out of order, a non-swing folder, a FILE named
+    // like a swing, an empty session, and a hidden folder at the top (the library's trash).
+    for (const char *d : { "zed/s_02/swing_0001", "ann/s_02/swing_0003", "ann/s_02/swing_0001", "ann/s_02/notes",
+                           "ann/s_01/swing_0002", "ann/s_03", ".pinpoint-trash/x/swing_0001" })
+        QDir().mkpath(root + QLatin1Char('/') + QLatin1String(d));
+    QFile f(root + QStringLiteral("/ann/s_01/swing_0004"));
+    check(QStringLiteral("W1 (setup) a file named swing_0004"), f.open(QIODevice::WriteOnly));
+    f.close();
+
+    QStringList seen;
+    SwingPaths::visitLibrarySwings(root, [&](const QString &session, const QString &swingDir) {
+        seen << session + QLatin1Char(':') + QDir(root).relativeFilePath(swingDir);
+        return true;
+    });
+    checkEq(QStringLiteral("W2 athlete, then session, then swing, each by name; only swing folders"),
+            seen.join(QLatin1Char(',')),
+            QStringLiteral("s_01:ann/s_01/swing_0002,s_02:ann/s_02/swing_0001,s_02:ann/s_02/swing_0003,"
+                           "s_02:zed/s_02/swing_0001"));
+
+    QStringList first;
+    SwingPaths::visitLibrarySwings(root, [&](const QString &, const QString &swingDir) {
+        first << QDir(root).relativeFilePath(swingDir);
+        return first.size() < 2;
+    });
+    checkEq(QStringLiteral("W3 the walk stops when the visitor says so"), first.join(QLatin1Char(',')),
+            QStringLiteral("ann/s_01/swing_0002,ann/s_02/swing_0001"));
+
+    int none = 0;
+    SwingPaths::visitLibrarySwings(root + QStringLiteral("/gone"), [&](const QString &, const QString &) {
+        ++none;
+        return true;
+    });
+    checkEqInt(QStringLiteral("W4 a missing library has no swings"), none, 0);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QStandardPaths / QTemporaryDir
@@ -293,6 +334,7 @@ int main(int argc, char **argv)
     testSanitise();
     testTrashPath();
     testNames();
+    testLibraryWalk();
     std::printf("\n%d checks, %d failed, %d skipped\n", g_run, g_fail, g_skip);
     return g_fail == 0 ? 0 : 1;
 }

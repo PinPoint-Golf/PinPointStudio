@@ -133,6 +133,11 @@ QStringList characteristicPackFileOrder(const QStringList &jsonFileNames)
         // (audit B-13), so a registry renamed or added in its own header cannot be loaded as a
         // Community characteristic pack by a list that forgot it.
         if (name.endsWith(QLatin1String(kNormSetSuffix))) continue;
+        // The pack editor's reset copies every user layer aside beside it as `<name>-<stamp>.backup.json`
+        // (RuleDataRepository::backupUserLayers). A copy is for the author, never a layer: read as a
+        // community pack it brought the reset model back at the next read (refactor step 3.9, seen in
+        // model_browser_test).
+        if (name.endsWith(QLatin1String(kUserLayerBackupSuffix))) continue;
         if (name == QLatin1String(kScreenSetFileName) || name == QLatin1String(kDrillSetFileName)
             || name == QLatin1String(kGateWordSetFileName)
             || name == QLatin1String(kReferenceSetFileName)

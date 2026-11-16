@@ -149,6 +149,20 @@ QStringList SwingPaths::swingFolders(const QString& sessionDir)
     return QDir(sessionDir).entryList({QStringLiteral("swing_*")}, QDir::Dirs | QDir::NoDotAndDotDot);
 }
 
+void SwingPaths::visitLibrarySwings(const QString& libraryRoot,
+                                    const std::function<bool(const QString&, const QString&)>& visit)
+{
+    const QDir root(libraryRoot);
+    for (const QString& athlete : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        const QDir aDir(root.filePath(athlete));
+        for (const QString& session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QDir sDir(aDir.filePath(session));
+            for (const QString& swing : swingFolders(sDir.path()))
+                if (!visit(session, sDir.filePath(swing))) return;
+        }
+    }
+}
+
 bool SwingPaths::trashPath(const QString& path, QString* where, bool useOsTrash)
 {
     if (path.isEmpty() || !QFileInfo::exists(path))
