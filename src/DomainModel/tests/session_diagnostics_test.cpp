@@ -71,12 +71,14 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstdio>
@@ -716,6 +718,30 @@ static bool hasCorrectedLabel(const ShotDerived &d, const QString &id)
     return false;
 }
 
+// A diagnostics.json written before run 3.5-ii holds no derived data: its `derived` key taken out (scratch).
+static bool stripDerived(const QString &folder)
+{
+    const QString path = SessionFiles::diagnosticsFile(folder);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    QJsonObject session = root.value(QStringLiteral("session")).toObject();
+    if (!session.contains(QStringLiteral("derived"))) return false;
+    session.remove(QStringLiteral("derived"));
+    root.insert(QStringLiteral("session"), session);
+    QFile w(path);
+    return w.open(QIODevice::WriteOnly | QIODevice::Truncate) && w.write(QJsonDocument(root).toJson()) > 0;
+}
+
+// The ids and numbers of a shot's derived data (what FILE-SESS-03 keeps: R-DER-9), and the word it used.
+static QByteArray factsKey(const ShotDerived &d)
+{
+    return QJsonDocument(QJsonObject{ { QStringLiteral("outcome"), analysis::shotOutcomeFactsToJson(d.data.outcome) },
+                                      { QStringLiteral("factors"), analysis::shotFactorsToJson(d.data.factors) },
+                                      { QStringLiteral("intent"), d.intent } }).toJson(QJsonDocument::Compact);
+}
+
 // C1: a load derives each kept shot with the golfer's word, read on the worker.
 static void testWordAfterLoad()
 {
@@ -733,6 +759,8 @@ static void testWordAfterLoad()
     s->end();
     const SessionId id = s->id();
     rig.athlete->releaseSession(id);
+    // A file of the older shape (no derived data: run 3.5-ii persists it, DEC-135), so the load derives.
+    check(QStringLiteral("WORDa2 the file's derived data taken out (an older file)"), stripDerived(rig.folderOf(id)));
     Session *again = rig.athlete->session(id);
     SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
     check(QStringLiteral("WORDb loaded again; it settles"), Rig::settled(d2));
@@ -836,6 +864,7 @@ static void testDeriveFailure(bool headless)
     two.throwReview = true;
     rig.fake->set(2, two);
     rig.athlete->releaseSession(id);
+    stripDerived(rig.folderOf(id));              // an older file (no derived data): the load derives every shot
     Session *again = rig.athlete->session(id);   // its load derives 2, whose review read throws
     SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
     check(QStringLiteral("FAILa loaded; it settles (no loop)"), Rig::settled(d2, 5000));
@@ -980,6 +1009,265 @@ static void testWordCommands()
               && k->derived && k->derived->intent == QLatin1String("slice") && k->derived->corrections.size() == 1);
 }
 
+// ── 3.5-ii ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+// DER: each shot's derived data is persisted with its findings (DEC-135) and taken back at a load.
+static void testDerivedRestored()
+{
+    std::printf("\nDER — the derived data is persisted with the findings and taken back at a load (DEC-135)\n");
+    Rig rig;
+    QVector<Spec> specs{ spec(kA, 10), spec(kA, 12), spec(kA, 14), spec(kA, 16), spec(kA, 18) };
+    specs[2].review = reviewSaying(QStringLiteral("slice"), QStringLiteral("slice"));
+    Session *s = rig.session(specs);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!Rig::settled(d) || !d->kept(3) || !d->kept(3)->derived) { check(QStringLiteral("DER setup"), false); return; }
+    QHash<int, QByteArray> before;
+    for (int sw = 1; sw <= 5; ++sw) before.insert(sw, factsKey(*d->kept(sw)->derived));
+    s->end();
+    const SessionId id = s->id();
+    rig.athlete->releaseSession(id);
+    const QJsonObject block = rig.store.readDiagnostics(id).envelope.session;
+    check(QStringLiteral("DERa the file holds each shot's derived data, stamped"),
+          block.value(QStringLiteral("derived")).toObject().size() == 5
+              && !block.value(QStringLiteral("derived")).toObject().value(QStringLiteral("3")).toObject()
+                      .value(QStringLiteral("stamp")).toString().isEmpty());
+    check(QStringLiteral("DERb … ids and numbers only: no sentence is written (R-DER-9)"),
+          !QJsonDocument(block.value(QStringLiteral("derived")).toObject()).toJson().contains("\"phrase\"")
+              && !QJsonDocument(block.value(QStringLiteral("derived")).toObject()).toJson().contains("\"story\""));
+    const int reviewsBefore = rig.fake->reviewReads(3);
+    Session *again = rig.athlete->session(id);
+    SessionDiagnostics *d2 = again ? again->diagnostics() : nullptr;
+    check(QStringLiteral("DERc loaded again; it settles"), Rig::settled(d2));
+    const AskTally t = d2 ? asksSince(d2, 0) : AskTally{};
+    std::printf("    %s; restored %llu\n", qPrintable(tallyText(t)), d2 ? (unsigned long long)d2->counts().derivedRestored : 0ULL);
+    check(QStringLiteral("DERd nothing fired, nothing derived, no review read: every shot's derived data taken back"),
+          d2 && t.totalFires == 0 && t.totalDerives == 0 && d2->counts().derivedRestored == 5
+              && rig.fake->reviewReads(3) == reviewsBefore);
+    bool same = d2 != nullptr;
+    for (int sw = 1; sw <= 5 && same; ++sw)
+        same = d2->kept(sw) && d2->kept(sw)->derived && factsKey(*d2->kept(sw)->derived) == before.value(sw);
+    check(QStringLiteral("DERe each shot's ids and numbers (labels, corrections, intent, factors) are the ones before"), same);
+    // A layer-3 input moves (the intent run): every shot derives again, the restored ones too.
+    again->setIntentRun({ IntentRun{ 4, QStringLiteral("fade") } });
+    check(QStringLiteral("DERf an input moves: it settles"), Rig::settled(d2));
+    const AskTally t2 = asksSince(d2, 0);
+    check(QStringLiteral("DERg … and every shot derives once, none fires"), t2.totalFires == 0 && t2.totalDerives == 5);
+}
+
+// DIAG: §4.4 step 7 — the diagnosis on the lane, the typed results and the summary (DEC-192), headless and real.
+static void testDiagnosis()
+{
+    std::printf("\nDIAG — the session's diagnosis, its typed results and the summary (§4.4 step 7; DEC-192)\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    DiagnosticsDoors doors = rig.athlete->diagnosticsDoors();
+    doors.writeSummary = true;
+    rig.athlete->setDiagnosticsDoors(doors);
+    Session *s = rig.session({ Spec{}, Spec{}, Spec{} });   // lm_7iron's document in each
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const analysis::SessionDiagnosis *dg = d ? d->diagnosis() : nullptr;
+    check(QStringLiteral("DIAGa headless: one batch settled, one reduction applied"),
+          d && dg && d->idle() && d->counts().reductions >= 1 && d->counts().reductionFailures == 0);
+    if (!dg) return;
+    const analysis::SessionResults &r = dg->results;
+    const QString folderName = QFileInfo(rig.folderOf(s->id())).fileName();
+    check(QStringLiteral("DIAGb the typed results: three shots, three \"because\", the work-ons keyed by the folder's name"),
+          r.hasGrowth && r.shots.size() == 3 && r.because.size() == 3 && r.workOns.sessionId == folderName
+              && r.workOns.shotCount == 3 && !dg->ledgers.empty());
+    check(QStringLiteral("DIAGc the session's usuals are the owner's own (G-10: stored, not recomputed)"),
+          r.usuals.keys() == d->usuals().keys());
+    check(QStringLiteral("DIAGd each shot's own outcome carries no \"because\" (J-14 (b)); the session's reasons do"),
+          std::all_of(r.shots.begin(), r.shots.end(), [](const analysis::ShotResult &x) { return x.outcome.driver.id.isEmpty(); }));
+    check(QStringLiteral("DIAGe an in-progress session is not closed"), dg->stage != analysis::Stage::Closing);
+    check(QStringLiteral("DIAGf written"), d->flush());
+    const JsonFileRead wo = rig.store.readWorkOns(s->id());
+    bool todayOk = false, growthOk = false;
+    const analysis::SessionWorkOns today = analysis::sessionWorkOnsFromJson(wo.root, &todayOk);
+    const analysis::SessionResults back = analysis::sessionResultsFromJson(wo.root, analysis::SessionResultsRead::Strict, &growthOk);
+    check(QStringLiteral("DIAGg work_ons.json: today's reader reads it as today (its keys unchanged)"),
+          wo.exists && todayOk && today.shotCount == 3 && today.sessionId == folderName);
+    QJsonObject a = analysis::sessionResultsToJson(back), b = analysis::sessionResultsToJson(d->summary());
+    a.remove(QStringLiteral("derivedFrom"));
+    b.remove(QStringLiteral("derivedFrom"));
+    check(QStringLiteral("DIAGh … and the typed reader gives back every DEC-192 field as written"),
+          growthOk && back.hasGrowth && back.shots.size() == 3 && back.clubWindows.size() == r.clubWindows.size() && a == b);
+    const QJsonObject block = rig.store.readDiagnostics(s->id()).envelope.session;
+    check(QStringLiteral("DIAGi diagnostics.json: the stage and `closed` written (closed false: in progress)"),
+          block.contains(QStringLiteral("stage")) && block.value(QStringLiteral("closed")).toBool(true) == false);
+    check(QStringLiteral("DIAGi2 … and every key the old model writes: sessionDir, sessionId (the folder's name), gradePolicy, writtenAtMs"),
+          block.value(QStringLiteral("sessionId")).toString() == folderName
+              && QFileInfo(block.value(QStringLiteral("sessionDir")).toString()).fileName() == folderName
+              && !block.value(QStringLiteral("gradePolicy")).toString().isEmpty()
+              && block.value(QStringLiteral("writtenAtMs")).toDouble() > 0);
+    // EVT-09: the Session ends — its one writer says so, and the diagnosis is closed (J-24).
+    s->end();
+    check(QStringLiteral("DIAGj ended: the diagnosis is closed (stage closing), from the Session's status"),
+          d->diagnosis() && d->diagnosis()->stage == analysis::Stage::Closing);
+    d->flush();
+    check(QStringLiteral("DIAGk … and `closed` is written from it"),
+          rig.store.readDiagnostics(s->id()).envelope.session.value(QStringLiteral("closed")).toBool(false));
+    // EVT-10: a declared focus is read by the diagnosis only: one more reduction, no shot asked.
+    const size_t asks = d->asks().size();
+    const quint64 reds = d->counts().reductions;
+    SessionIntentEdit edit;
+    edit.focus = DeclaredFocus{ QStringLiteral("early_extension"), 2 };
+    s->setSessionIntent(edit);
+    check(QStringLiteral("DIAGl EVT-10: one more reduction, no shot asked"),
+          d->counts().reductions == reds + 1 && d->asks().size() == asks);
+}
+
+// TS (CARRY: 3.5-i review 1 §6): the REAL firing reader on the pool's workers while the GUI thread writes the same
+// shots' reviews through their commands — the case ThreadSanitizer has to see (build/tests-tsan). Every ask settles,
+// every shot is kept, and the diagnosis lands.
+static void testRealReaderBesideReviewWrites()
+{
+    std::printf("\nTS — the real reader on workers beside the GUI thread's review writes (run under TSan)\n");
+    Rig rig(/*synchronous=*/false, 600000, /*realReader=*/true);
+    Session *s = rig.session({ Spec{}, Spec{}, Spec{}, Spec{} });
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!d) { check(QStringLiteral("TS setup"), false); return; }
+    int saved = 0;
+    for (int round = 0; round < 5; ++round) {
+        d->fireAll();   // four reads on the lane …
+        for (Shot *shot : s->shots()) {   // … while each shot's review is written here (EVT-07 re-asks it, too)
+            if (shot->rate(round % 5).ok()) ++saved;
+            if (shot->setShotIntent(round % 2 ? QStringLiteral("fade") : QStringLiteral("draw")).ok()) ++saved;
+        }
+    }
+    check(QStringLiteral("TSa the review writes saved (%1 of 40)").arg(saved), saved == 40);
+    check(QStringLiteral("TSb every ask settles and the diagnosis lands"),
+          pump([d] { return d->idle(); }, 60000) && d->keptShots().size() == 4 && d->diagnosis()
+              && d->diagnosis()->results.shots.size() == 4);
+    check(QStringLiteral("TSc a kept shot's word is the last intent written (round 4: draw)"),
+          d->kept(1) && d->kept(1)->derived && d->kept(1)->derived->intent == QLatin1String("draw"));
+}
+
+// G08 (review 1 of 3.5-ii): a reason's carry cost counts only against an EARNED usual (n >= 10: B-22, G-08), and the
+// cost is the reasons' tie-break — so an unearned usual can reorder two reasons with as many shots. reduceSession on two
+// real fired records (lm_7iron's, as the real reader fires it), each made a miss with a face-to-path cause.
+static void setRow(ShotRecord &r, const QString &id, analysis::ShotState state)
+{
+    for (analysis::ConditionRow &row : r.rows)
+        if (row.conditionId == id) { row.state = state; return; }
+    analysis::ConditionRow row;
+    row.conditionId = id;
+    row.state = state;
+    r.rows.push_back(row);
+}
+static void testG08()
+{
+    std::printf("\nG08 — a reason's carry cost needs an earned usual; the cost is the tie-break of two reasons\n");
+    Rig rig(/*synchronous=*/true, 0, /*realReader=*/true);
+    Session *s = rig.session({ Spec{} });
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    const KeptShot *k = d ? d->kept(1) : nullptr;
+    if (!k || !std::isfinite(k->findings.carry)) { check(QStringLiteral("G08 setup (a fired record with a carry)"), false); return; }
+    ShotRecord a = k->findings, b = k->findings;
+    a.shotId = 1; a.club = QStringLiteral("7 IRON");
+    b.shotId = 2; b.club = QStringLiteral("5 IRON");
+    for (ShotRecord *r : { &a, &b })
+        for (const char *id : { "slice", "hook", "open_face_to_path", "closed_face_to_path" })
+            setRow(*r, QLatin1String(id), analysis::ShotState::Clean);
+    setRow(a, QStringLiteral("slice"), analysis::ShotState::Fired);
+    setRow(a, QStringLiteral("open_face_to_path"), analysis::ShotState::Fired);
+    setRow(b, QStringLiteral("hook"), analysis::ShotState::Fired);
+    setRow(b, QStringLiteral("closed_face_to_path"), analysis::ShotState::Fired);
+    const auto entry = [](const QString &club, double carryMean, int n) {
+        analysis::ClubBaselineEntry e;
+        e.club = club; e.carryMean = carryMean; e.carrySd = 5.0; e.n = n;
+        return e;
+    };
+    const auto run = [&](int nB) {
+        analysis::SessionReductionInput in;
+        in.pack        = d->snapshot()->inputs.pack;
+        in.outcomePack = d->snapshot()->outcomePack;
+        in.flightNorms = d->snapshot()->inputs.flightNorms;
+        in.shots       = { a, b };
+        QHash<QString, analysis::ClubBaselineEntry> base;
+        base.insert(canonicalClubId(a.club), entry(canonicalClubId(a.club), a.carry + 10.0, 20));   // earned, 10 yd short
+        base.insert(canonicalClubId(b.club), entry(canonicalClubId(b.club), b.carry + 30.0, nB));   // 30 yd short
+        in.baseline = base;
+        in.sessionId = in.folderName = QStringLiteral("g08");
+        return analysis::reduceSession(in);
+    };
+    const auto costOf = [](const analysis::SessionDiagnosis &dg, int shotId) {
+        for (const analysis::SessionReason &x : dg.results.reasons)
+            for (const analysis::ReasonTick &t : x.ticks)
+                if (t.shotId == shotId && t.state == analysis::ShotState::Fired) return std::make_pair(x.conditionId, x.cost);
+        return std::make_pair(QString(QStringLiteral("(none)")), std::numeric_limits<double>::quiet_NaN());
+    };
+    const analysis::SessionDiagnosis unearned = run(5), earned = run(12);
+    const auto ua = costOf(unearned, 1), ub = costOf(unearned, 2), ea = costOf(earned, 1), eb = costOf(earned, 2);
+    std::printf("    unearned 5 iron: %s %.1f, %s %.1f; earned: %s %.1f, %s %.1f\n", qPrintable(ua.first), ua.second,
+                qPrintable(ub.first), ub.second, qPrintable(ea.first), ea.second, qPrintable(eb.first), eb.second);
+    check(QStringLiteral("G08a the two bad shots are two reasons of one shot each"),
+          unearned.results.reasons.size() >= 2 && ua.first != ub.first && !ua.first.isEmpty() && !ub.first.isEmpty());
+    check(QStringLiteral("G08b against an unearned usual (n 5) the reason's cost is null (\"-\"); against an earned one, counted"),
+          !std::isfinite(ub.second) && std::abs(eb.second - 30.0) < 1e-9 && std::abs(ua.second - 10.0) < 1e-9);
+    check(QStringLiteral("G08c the cost breaks the tie: earned, the 30-yd reason leads; unearned, the 10-yd one does"),
+          unearned.results.reasons.size() >= 2 && earned.results.reasons.size() >= 2
+              && unearned.results.reasons[0].conditionId == ua.first && earned.results.reasons[0].conditionId == eb.first);
+}
+
+// RJ: the typed reader, an older file and a newer one (FIELD-LIST F12; DEC-192: older files without its keys load).
+static void testResultsJson()
+{
+    std::printf("\nRJ — work_ons.json read strictly, leniently, older and newer\n");
+    analysis::SessionResults r;
+    r.workOns.sessionId = QStringLiteral("2026-11-16_Test-Golfer_Swing_01");
+    r.workOns.shotCount = 4;
+    r.hasGrowth = true;
+    r.shotMix.corrections = 1;
+    analysis::SessionReason reason;
+    reason.conditionId = QStringLiteral("early_extension");
+    reason.shots = 2;
+    reason.tier = analysis::Tier::Pattern;
+    r.reasons.push_back(reason);
+    QJsonObject root = analysis::sessionResultsToJson(r);
+    bool ok = false;
+    analysis::SessionResults same = analysis::sessionResultsFromJson(root, analysis::SessionResultsRead::Strict, &ok);
+    check(QStringLiteral("RJa this build's file reads back whole"),
+          ok && same.hasGrowth && same.reasons.size() == 1 && same.reasons[0].tier == analysis::Tier::Pattern
+              && same.shotMix.corrections == 1 && same.workOns.shotCount == 4);
+    QJsonObject older = root;
+    for (const char *k : { "resultsVersion", "shots", "usuals", "carryToday", "clubMix", "clubWindows", "reasons", "because", "shotMix" })
+        older.remove(QLatin1String(k));
+    older.insert(QStringLiteral("schemaVersion"), 2);
+    analysis::sessionResultsFromJson(older, analysis::SessionResultsRead::Strict, &ok);
+    check(QStringLiteral("RJb an older schema is not this build's answer when read strictly (re-derived)"), !ok);
+    const analysis::SessionResults lenient = analysis::sessionResultsFromJson(older, analysis::SessionResultsRead::Lenient, &ok);
+    check(QStringLiteral("RJc … read leniently it is read as it stands (\"Earlier today\"), without DEC-192's keys"),
+          ok && !lenient.hasGrowth && lenient.workOns.shotCount == 4 && lenient.reasons.empty());
+    QJsonObject newer = root;
+    newer.insert(QStringLiteral("schemaVersion"), analysis::kWorkOnSchemaVersion + 1);
+    analysis::sessionResultsFromJson(newer, analysis::SessionResultsRead::Lenient, &ok);
+    check(QStringLiteral("RJd a newer schema is never read as ours"), !ok);
+    // F10: the link grade is stored by position; the positions are pinned (static_assert in session_results.h too).
+    analysis::ShotOutcomeLink l;
+    l.grade = analysis::LinkGrade::MovedTogether;
+    const QJsonArray links = analysis::shotOutcomeLinksToJson({ l });
+    check(QStringLiteral("RJe LinkGrade's positions are 0..4 (Unanchored..MovedTogether), and stored as such"),
+          int(analysis::LinkGrade::Unanchored) == 0 && int(analysis::LinkGrade::PresentTogether) == 1
+              && int(analysis::LinkGrade::Coherent) == 2 && int(analysis::LinkGrade::ConditionallyDependent) == 3
+              && int(analysis::LinkGrade::MovedTogether) == 4
+              && links[0].toObject().value(QStringLiteral("grade")).toInt() == 4);
+    // FIELD-LIST §2: the session block's typed state writes the old model's keys exactly.
+    analysis::SessionDiagnosisState st;
+    st.sessionDir = QStringLiteral("/lib/Test-Golfer/2026-11-16_Test-Golfer_Swing_01");
+    st.sessionId  = QStringLiteral("2026-11-16_Test-Golfer_Swing_01");
+    st.stage = analysis::Stage::Forming;
+    st.lmShots = { 3, 1 };
+    st.gradedFrom.insert(1, analysis::GradedFrom{ 10, 20, QStringLiteral("c") });
+    const QJsonObject block = analysis::sessionDiagnosisStateToJson(st);
+    QStringList keys = block.keys();
+    keys.sort();
+    const analysis::SessionDiagnosisState back = analysis::sessionDiagnosisStateFromJson(block);
+    check(QStringLiteral("RJf the session block's keys are today's eleven, and read back"),
+          keys == QStringList{ "closed", "gradePolicy", "gradedFrom", "lmShots", "reachedEstablished", "sessionDir",
+                               "sessionId", "shotCount", "stage", "swingDirs", "writtenAtMs" }
+              && back.hasStage && back.stage == analysis::Stage::Forming && back.lmShots == QList<int>{ 1, 3 }
+              && back.gradedFrom.value(1).content == QLatin1String("c") && back.sessionId == st.sessionId);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
@@ -1011,6 +1299,11 @@ int main(int argc, char **argv)
     testCohortDate();
     testCohortNoInstant();
     testWordCommands();
+    testDerivedRestored();
+    testDiagnosis();
+    testResultsJson();
+    testRealReaderBesideReviewWrites();
+    testG08();
 
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail == 0 ? 0 : 1;

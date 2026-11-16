@@ -285,7 +285,7 @@ int main()
         const auto two = reduceClubDistances({ sessionOn(QStringLiteral("2026-10-01"), k7i, { 150, 160 }) });
         const ClubDistanceItem *t = itemFor(two, k7i);
         check(t && !std::isfinite(t->carrySd) && near(t->carryMean, 155.0, 1e-9), "below the floor the mean stands and the SD is absent");
-        check(t && t->carryText == QStringLiteral("155 ± — yd"), "…printed as a dash");
+        check(t && t->carryText == QStringLiteral("155 ± - yd"), "…printed as \"-\" (Mark: a missing figure shows \"-\")");
 
         ClubDistanceSession none = sessionOn(QStringLiteral("2026-10-01"), k7i, { 150 });
         none.shots.back().carry = std::numeric_limits<double>::quiet_NaN();
@@ -399,8 +399,8 @@ int main()
     std::printf("the formatter:\n");
     {
         check(yardsMeanSdText(161.4, 6.6) == QStringLiteral("161 ± 7 yd"), "161 ± 7 yd");
-        check(yardsMeanSdText(161.4, std::numeric_limits<double>::quiet_NaN()) == QStringLiteral("161 ± — yd"), "a blank SD");
-        check(yardsMeanSdText(std::numeric_limits<double>::quiet_NaN(), 6.6) == QStringLiteral("—"), "no mean");
+        check(yardsMeanSdText(161.4, std::numeric_limits<double>::quiet_NaN()) == QStringLiteral("161 ± - yd"), "a blank SD shows \"-\"");
+        check(yardsMeanSdText(std::numeric_limits<double>::quiet_NaN(), 6.6) == QStringLiteral("-"), "no mean shows \"-\"");
         check(yardsShortText(24.1) == QStringLiteral("24 yd short"), "24 yd short");
     }
 

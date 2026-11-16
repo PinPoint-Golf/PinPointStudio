@@ -60,10 +60,10 @@ FiringRead SwingStoreFiringReader::read(const ShotRef &shot, const analysis::Cha
 
     // ONE PARSE FOR BOTH READERS (issue #142), released straight after them (detectShot's comment holds).
     SwingStore::LazyDocument parsed(swingDir);
-    out.readings.grid = analysis::readLivePhaseGrid(swingDir, pack, /*writeSidecar=*/true, analysis::PhaseGridConfig{},
+    out.readings.grid = analysis::readLivePhaseGrid(swingDir, pack, /*writeSidecar=*/m_writeSidecars, analysis::PhaseGridConfig{},
                                                     &parsed);
     // The capture instant the document records, not the file's mtime (detectShot's ⚠); the mtime as the fallback.
-    const SwingSummary summary = SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/true, &parsed);
+    const SwingSummary summary = SwingDocReader::readSwingSummary(swingDir, /*writeSidecar=*/m_writeSidecars, &parsed);
     out.timestampMs = summary.wallclockMs > 0 ? summary.wallclockMs : SwingStore::info(swingDir).mtimeMs;
     out.captureMs   = summary.wallclockMs > 0 ? summary.wallclockMs : 0;   // the cohort's date: never the mtime
     parsed.release();

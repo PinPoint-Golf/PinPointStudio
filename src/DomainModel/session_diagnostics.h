@@ -23,8 +23,8 @@
 // OBJ-SESSION-DIAG, FILE-SESS-03, M-SHOT-LAYERS, R-STAMP-1…3, R-CON-2…5; DEC-100, DEC-124, DEC-130, DEC-135,
 // DEC-141, DEC-190, DEC-191).
 //
-// WHAT IT DOES (run 3.5-i: the owner and the re-fire; the diagnosis on the lane, the typed summary and the
-// parallel run are run 3.5-ii's):
+// WHAT IT DOES (run 3.5-i: the owner and the re-fire; run 3.5-ii: the diagnosis on the lane, the typed summary,
+// the persisted derived data and the parallel run):
 //   • holds THE FIRING SNAPSHOT (FiringSnapshot below): one shared_ptr<const>, OWNING the pack and norms of a
 //     RuleData snapshot (R-CON-4), the grade policy and SET-06 from that same snapshot (never a live read: audit
 //     D-12), the flight table, the session's frozen club baseline (club_baseline.json, FILE-SESS-04), the session's
@@ -56,8 +56,19 @@
 //   • LOADS (§4.4 step 10): reads diagnostics.json, puts each kept row back as fired (the file holds rows checked
 //     against the flight), rebuilds the usuals from the readings it holds BEFORE any shot is asked, then asks every
 //     shot that has no kept result, is marked unread, or whose stamp is stale (its findings stamp, or its document's
-//     size and mtime: R-STAMP-2), and derives the others' data again (derived data is not persisted: today's file
-//     has no key for it; NOTES-3.5-i.md, For Mark).
+//     size and mtime: R-STAMP-2). Each kept shot's DERIVED DATA is persisted with its findings (DEC-135, FILE-SESS-03:
+//     the session block's `derived`, ids and numbers only, R-DER-9), stamped with what it was derived from; a load
+//     takes it back when that stamp still holds and derives only the others again (run 3.5-ii).
+//   • DIAGNOSES THE SESSION (§4.4 step 7; run 3.5-ii): when a batch settles, it copies what it keeps — the rows
+//     checked against the usual flight, each shot's derived data and word, the usuals, the baseline, the golfer's
+//     session-level word, the stage held — into one immutable value and posts reduceSession()
+//     (src/Diagnostics/engine/session_reduction.h) to the same lane, under the next number of the one counter; the
+//     receiver keeps only the latest (an older reduction is dropped as superseded), and the owner applies it: the
+//     ledgers, the stage ratchet, the typed results (src/Coaching/session_results.h: work-ons, evidence, reasons,
+//     each shot's "because" (J-14 (b)), per club the usual, carry today, mix and baseline window (D7)). The session's
+//     status is read from the Session, its one writer (J-24): an ended session's diagnosis is closed.
+//   • THE SUMMARY (FILE-SESS-05, DEC-192): summary() is the session's typed results with their provenance;
+//     written to work_ons.json only with DiagnosticsDoors::writeSummary (tests and tools until step 3.6).
 //   • HEADLESS (§4.4 step 11; R-HL-2): DiagnosticsDoors::synchronous runs the same jobs on the calling thread and
 //     hands each result to WorkReceiver::accept() itself; the same checks apply.
 //
@@ -88,6 +99,7 @@
 #include "../Coaching/shot_outcomes_pack.h"
 #include "../Core/work_pool.h"
 #include "../Diagnostics/engine/fire_findings.h"
+#include "../Diagnostics/engine/session_reduction.h"
 #include "../Identity/identity.h"
 
 #include <QDate>
@@ -201,8 +213,26 @@ public:
     const std::vector<Ask> &asks() const { return m_asks; }
     struct Counts {
         quint64 kept = 0, unread = 0, superseded = 0, itemGone = 0, writes = 0, writeFailures = 0, deriveFailures = 0;
+        // §4.4 step 7 (run 3.5-ii): reductions asked, applied, dropped as superseded (a newer one in the lane), failed;
+        // derived data taken back from the file at a load; summaries written.
+        quint64 reductionsAsked = 0, reductions = 0, reductionsSuperseded = 0, reductionFailures = 0;
+        quint64 derivedRestored = 0, summaryWrites = 0;
     };
     const Counts &counts() const { return m_counts; }
+
+    // ── The diagnosis (§4.4 step 7; run 3.5-ii) ──────────────────────────────────────────────────────────
+    // The latest applied, or null before the first reduction lands.
+    const analysis::SessionDiagnosis *diagnosis() const { return m_diagnosis ? &*m_diagnosis : nullptr; }
+    bool    reducing() const { return m_reductionInFlight; }
+    // Nothing asked and not come back, no reduction in flight or owed: what is kept is what the diagnosis says.
+    bool    idle() const { return m_outstanding == 0 && !m_reductionInFlight && !m_reductionOwed; }
+    quint64 latestReduction() const { return m_reductionLatest; }   // the receiver's check for the owner's own work
+    qint64  lastReductionMs() const { return m_lastReductionMs; }   // the last applied reduction's run time
+    // THE SESSION SUMMARY (OBJ-SESSION-SUMMARY, FILE-SESS-05; DEC-192): the typed results with their provenance and,
+    // when no shot had a clock, the Session's own start (its one writer, J-24). Empty before the first reduction.
+    analysis::SessionResults summary() const;
+    // The findings stamp of this snapshot (R-STAMP-1): what the parallel run shows beside the old model's stamp.
+    QString findingsStamp() const { return m_findingsStamp; }
 
     // ── Commands (owner thread) ─────────────────────────────────────────────────────────────────────────
     void fire(const ShotRef &shot);       // that shot (its own command's chain)
@@ -219,6 +249,7 @@ signals:
     void resultKept(const pinpoint::ShotRef &shot);
     void shotUnread(const pinpoint::ShotRef &shot, const QString &reason);
     void batchSettled();                        // every ask so far has come back, kept or dropped
+    void diagnosisApplied();                    // a reduction was applied (§4.4 step 7)
     void written();
     void writeFailed(const QString &error);     // DEC-126: the caller shows it
 
@@ -235,6 +266,13 @@ private:
     void submit(const WorkAddress &address, std::function<std::any()> work);
     void reconcile();               // the usuals again; every kept result whose inputs are not current asked again
     void settleIfDone();
+    void askReduction();                                   // §4.4 step 7
+    analysis::SessionReductionInput reductionInput() const;
+    void deliverReduction(WorkVerdict verdict, WorkResult &&result);
+    void readSessionWord();                                // focus, miss, screens: the one rule (J-33)
+    QString derivedBaseStamp() const;                      // what every shot's derived stamp shares
+    bool    sessionEnded() const;                          // the Session's status, through its repository (J-24)
+    QString derivedStampOf(const QString &base, int swing, const analysis::ClubFlightUsual &usual) const;
     void drop(int swing);
     void retire(bool writeFirst);
     bool write();
@@ -244,6 +282,7 @@ private:
     void onRulesChanged();
     void onAthleteChanged();
     void onIntentRunChanged();
+    void onSessionIntentChanged();   // EVT-10: the declared focus, miss or a screen answer
 
     Session           *m_session  = nullptr;
     SessionRepository *m_sessions = nullptr;
@@ -292,6 +331,19 @@ private:
 
     std::vector<Ask> m_asks;
     Counts           m_counts;
+
+    // The diagnosis (run 3.5-ii): the golfer's session-level word, the stage ratchet held, the latest applied.
+    DeclaredFocus        m_focus;
+    QString              m_miss;
+    QHash<QString, bool> m_screens;
+    analysis::Stage      m_stage = analysis::Stage::Cold;
+    bool                 m_reachedEstablished = false;
+    bool                 m_stageHeld = false;      // false: none read or reduced yet (the ratchet replays)
+    std::optional<analysis::SessionDiagnosis> m_diagnosis;
+    quint64              m_reductionLatest = 0;
+    bool                 m_reductionInFlight = false;
+    bool                 m_reductionOwed = false;  // what is kept moved since the last reduction was asked
+    qint64               m_lastReductionMs = 0;
 };
 
 // THE COMPOSITION ROOT'S LOOKUP, for its WorkResolver (§4.4 step 6; U9: a function, no interface): what the receiver

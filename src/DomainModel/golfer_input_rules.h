@@ -103,6 +103,31 @@ inline IntentRun resolveIntentRun(const SessionInput &in, const QJsonObject &leg
     return legacyRun(legacy);
 }
 
+// The session's declared focus, declared miss and screen answers (refactor step 3.5-ii: the diagnosis reads them): the
+// new home's field when it holds the key, else the older copy's — SessionDiagnosticsFiles::golferInput's session level.
+struct SessionWord {
+    DeclaredFocus        focus;
+    QString              miss;
+    QHash<QString, bool> screens;
+    friend bool operator==(const SessionWord &a, const SessionWord &b)
+    {
+        return a.focus == b.focus && a.miss == b.miss && a.screens == b.screens;
+    }
+};
+inline SessionWord resolveSessionWord(const SessionInput &in, const QJsonObject &legacy)
+{
+    SessionWord w;
+    w.focus = in.declaredFocus ? *in.declaredFocus : legacyFocus(legacy);
+    w.miss  = in.declaredMiss ? *in.declaredMiss : legacyMiss(legacy);
+    if (in.screenAnswers) {
+        for (auto it = in.screenAnswers->constBegin(); it != in.screenAnswers->constEnd(); ++it)
+            w.screens.insert(it.key(), it.value());
+    } else {
+        w.screens = legacyScreens(legacy);
+    }
+    return w;
+}
+
 // One shot's word over the older copy, field by field: a review that holds a key wins (empty: cleared, so no entry);
 // one that does not leaves the older copy's entry. Returns whether the review held a shot-level key. A review that
 // could not be read (no document) leaves both as they are.

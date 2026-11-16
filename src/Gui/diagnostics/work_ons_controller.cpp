@@ -2304,7 +2304,7 @@ QVariantMap WorkOnsController::clubDistance(const QString &club) const
             { QStringLiteral("n"),         n },
             { QStringLiteral("total"),     o.value(QStringLiteral("totalMean")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
             { QStringLiteral("offlineSd"), o.value(QStringLiteral("offlineSd")).toDouble(std::numeric_limits<double>::quiet_NaN()) },
-            { QStringLiteral("earned"),    n >= kClubBaselineMinShots },
+            { QStringLiteral("earned"),    clubUsualEarned(n) },
             { QStringLiteral("line"),      o.value(QStringLiteral("carryText")).toString() },
         };
     }

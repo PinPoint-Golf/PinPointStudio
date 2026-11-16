@@ -2949,6 +2949,25 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/session.cpp
     src/DomainModel/shot.h
     src/DomainModel/shot.cpp
+    # The session's diagnostics owner (refactor step 3.5; Domain model), its firing reader (Adapters), the pure
+    # session reduction (Rules), the typed results (Rules) and the one pool (Platform, D15) — the app runs them only
+    # with PINPOINT_DIAG_PARALLEL=1 until the cut-over (3.7).
+    src/DomainModel/session_diagnostics.h
+    src/DomainModel/session_diagnostics.cpp
+    src/DomainModel/firing_reader.h
+    src/DomainModel/golfer_input_rules.h
+    src/Export/firing_reader_store.h
+    src/Export/firing_reader_store.cpp
+    src/Diagnostics/engine/session_reduction.h
+    src/Diagnostics/engine/session_reduction.cpp
+    src/Coaching/session_results.h
+    src/Core/work_pool.h
+    src/Core/work_pool.cpp
+    # The parallel run (refactor 3.5-ii; D14: PINPOINT_DIAG_PARALLEL=1): the two engines' form and their difference.
+    # The app's (and regrade_ledger's) only — NOT a QML type, so not in PP_QML_SOURCES: the QML suites, which compile
+    # the module's C++ without the session diagnostics owner, need none of it.
+    src/Gui/diagnostics/diag_parallel_run.h
+    src/Gui/diagnostics/diag_parallel_run.cpp
     src/App/app.h
     src/App/app.cpp
     src/Analysis/effective_context.h

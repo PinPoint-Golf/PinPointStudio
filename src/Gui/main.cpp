@@ -31,6 +31,8 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QDir>
+#include <functional>
+#include <memory>
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
@@ -101,6 +103,11 @@
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
+#include "../DomainModel/session.h"
+#include "../DomainModel/session_diagnostics.h"   // SessionDiagnostics::attach, diagnosticsWorkTarget (3.5-ii)
+#include "../Export/firing_reader_store.h"
+#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
@@ -331,6 +338,22 @@ int main(int argc, char *argv[])
     LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     BufferController        bufferController(&eventBuffer);
+    // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): with PINPOINT_DIAG_PARALLEL=1
+    // every session an Athlete loads (a live one, one a view opens) gets its new diagnostics owner, SessionDiagnostics,
+    // IN MEMORY ONLY (persist false: diagnostics.json and work_ons.json keep the old model as their one writer until
+    // the cut-over, 3.7), on the one pool (D15; J-3's size) with the GUI thread's receiver; after each reduction the
+    // old model settles, the two are compared and one line per session goes to the app log ("[DiagParallel]").
+    // Declared BEFORE the athlete store, so the receiver and the pool outlive every Athlete (DiagnosticsDoors).
+    const bool diagParallel = pinpoint::parallel::enabledByEnvironment();
+    std::function<pinpoint::WorkTarget(const pinpoint::WorkAddress &)> diagLookup;   // set once the store exists
+    std::unique_ptr<pinpoint::WorkReceiver> diagReceiver;   // made before the pool, destroyed after it
+    std::unique_ptr<pinpoint::WorkPool>     diagPool;
+    if (diagParallel) {
+        diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
+            return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
+        });
+        diagPool = std::make_unique<pinpoint::WorkPool>();
+    }
     // THE ONE DOOR TO THE ATHLETE'S RECORD (AthleteRepository, step 2.3): athlete.json in each athlete's
     // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
     // controller, so it outlives every Athlete the controller holds.
@@ -339,6 +362,22 @@ int main(int argc, char *argv[])
     // reading door above, shared, never owned (both are static and outlive every Athlete).
     athleteStore.setShotDoors({ &recordingRepository,
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
+    if (diagParallel) {
+        diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
+            return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
+        };
+        pinpoint::DiagnosticsDoors doors;
+        doors.pool     = diagPool.get();
+        doors.receiver = diagReceiver.get();
+        doors.ruleData = &ruleData;
+        // IN MEMORY ONLY (§4.9): no diagnostics file (persist false) and no sidecar either (the reader writes none),
+        // so the old model stays the only writer of every file of the session during the parallel run.
+        doors.reader   = std::make_shared<pinpoint::SwingStoreFiringReader>(sessionStore, recordingRepository,
+                                                                            /*writeSidecars=*/false);
+        doors.persist  = false;
+        doors.attach   = &pinpoint::SessionDiagnostics::attach;
+        athleteStore.setDiagnosticsDoors(doors);
+    }
     // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
     // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
     // re-pointed needs no new ones). AthleteController takes them (run 3.4a-ii); the catch-up, housekeeping and
@@ -363,6 +402,17 @@ int main(int argc, char *argv[])
     // them through `app` (ShotCommandDoor) and write nothing themselves. The diagnostics panel's model is made by
     // QML, so its door is process-wide; reset after exec (it outlives this local).
     SessionDiagnosticsModel::setShotCommands(&appObject);
+    if (diagParallel) {
+        pinpoint::parallel::install(
+            [&appObject](const QString &folder) { return appObject.sessionAt(folder); },
+            [&athleteController](const QString &folder) -> pinpoint::Session * {
+                pinpoint::Athlete *a = athleteController.currentAthlete();
+                if (!a) return nullptr;
+                for (pinpoint::Session *s : a->loadedSessions())
+                    if (const auto e = s->entry(); e && QDir::cleanPath(e->folder) == QDir::cleanPath(folder)) return s;
+                return nullptr;
+            });
+    }
     // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
@@ -1575,6 +1625,8 @@ int main(int argc, char *argv[])
     exitCode = QCoreApplication::exec();
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
     SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
+    pinpoint::parallel::uninstall();                     // `app` and the controller are locals of main (3.5-ii)
+    diagLookup = {};                                     // a result still queued finds no owner (the store goes first)
     ppcpClipFiler.setShotCommands(nullptr);              // a static: it outlives `app`
     return exitCode;
 }

@@ -112,6 +112,11 @@ public:
     // composition root's RecordingRepository and RecordingReader. Set once, before the athletes are used;
     // the athletes already made get them too.
     void setShotDoors(const ShotDoors &doors);
+    // The doors every held Athlete's sessions' diagnostics work through (refactor step 3.5-ii; the parallel run, D14:
+    // set by the composition root only with PINPOINT_DIAG_PARALLEL=1, `persist` false), as setShotDoors.
+    void setDiagnosticsDoors(const DiagnosticsDoors &doors);
+    // A Session any held Athlete has loaded, by id (the receiver's lookup, §4.4 step 6); null when none has.
+    Session *loadedSession(const SessionId &id) const;
 
     // The library folder the athletes are listed from (the app-data fallback when SET-03 is empty).
     QString libraryDir() const;
@@ -150,6 +155,7 @@ private:
     QHash<AthleteId, QJsonObject>         m_files;       // each library athlete's athlete.json as last read
     QHash<AthleteId, QString>             m_settingsKey; // each settings athlete's group name
     ShotDoors                             m_shotDoors;
+    DiagnosticsDoors                      m_diagnosticsDoors;
     bool                                  m_osTrash    = true;
     int                                   m_lockWaitMs = -1;
 };

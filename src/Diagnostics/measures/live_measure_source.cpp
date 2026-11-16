@@ -230,7 +230,7 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::historyValue(const 
         m_clubBaseline ? m_clubBaseline->forClub(pinpoint::canonicalClubId(m_grid.club)) : std::nullopt;
     const double mean = !usual ? std::nan("") : carry ? usual->carryMean : usual->ballSpeedMean;
     const double sd   = !usual ? std::nan("") : carry ? usual->carrySd : usual->ballSpeedSd;
-    if (!usual || usual->n < kClubBaselineMinShots || !std::isfinite(mean) || !std::isfinite(sd) || !(sd > 0.0)) {
+    if (!usual || !usual->earned() || !std::isfinite(mean) || !std::isfinite(sd) || !(sd > 0.0)) {
         note(m.id, MissingKind::ClubBaselineNotEarned);
         return std::nullopt;
     }

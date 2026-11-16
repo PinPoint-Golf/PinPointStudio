@@ -158,6 +158,21 @@ void AthleteStore::setShotDoors(const ShotDoors &doors)
         a->setShotDoors(doors);
 }
 
+void AthleteStore::setDiagnosticsDoors(const DiagnosticsDoors &doors)
+{
+    m_diagnosticsDoors = doors;
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        a->setDiagnosticsDoors(doors);
+}
+
+Session *AthleteStore::loadedSession(const SessionId &id) const
+{
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        if (Session *s = a->loadedSession(id))
+            return s;
+    return nullptr;
+}
+
 Athlete *AthleteStore::hold(const Found &f)
 {
     Athlete *a = m_held.value(f.id);
@@ -165,6 +180,7 @@ Athlete *AthleteStore::hold(const Found &f)
         m_owned.push_back(std::make_unique<Athlete>(this, m_sessions, f.id));
         a = m_owned.back().get();
         a->setShotDoors(m_shotDoors);
+        a->setDiagnosticsDoors(m_diagnosticsDoors);
         m_held.insert(f.id, a);
     }
     if (f.source == Athlete::Source::Library) {

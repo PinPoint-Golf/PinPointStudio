@@ -72,6 +72,7 @@ namespace {
 // The golfer's commands' door (refactor step 3.4b-i): main.cpp's `app`, process-wide because QML makes the panel's
 // model; none in the tools and tests. INTERIM: it goes with this model (step 5; information_model.md §11).
 pinpoint::ShotCommandDoor *g_shotCommands = nullptr;
+SessionDiagnosticsModel::ParallelHook g_parallelHook;   // refactor 3.5-ii: the parallel run (main.cpp; D14)
 }
 namespace PV = pinpoint::variability;
 
@@ -1061,6 +1062,8 @@ void SessionDiagnosticsModel::settleBatch()
     rebuild();
     persist();
     if (afterShot >= 0) emit shotIngested(afterShot, !m_quiet);
+    // THE PARALLEL RUN (refactor 3.5-ii; D14): the new owner of this session compared with this reduction, in memory.
+    if (g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -1425,7 +1428,11 @@ void SessionDiagnosticsModel::continueActivation()
     rebuild();
     // Rows the reconcile dropped are written now when nothing was queued behind them; with a
     // batch still landing, its own settle writes them.
+    const bool owed = m_owedRebuild;
     settleBatch();
+    // THE PARALLEL RUN (refactor 3.5-ii; D14): a session opened with nothing to regrade is compared once here (a batch
+    // that is owed is compared by settleBatch when it lands).
+    if (!owed && m_pending == 0 && g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
 }
 
 void SessionDiagnosticsModel::closeSession()
@@ -1839,7 +1846,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         const LmFieldStats *carry = clubStat(stats, "lm.carryDistance");
 
         const ClubBaselineEntry *usual = usualFor(pool.club);
-        const bool earned = usual && usual->n >= kClubBaselineMinShots && std::isfinite(usual->carryMean);
+        const bool earned = usual && usual->earned() && std::isfinite(usual->carryMean);
         QString line = QStringLiteral("%1 carry today %2").arg(clubDistanceLabel(pool.club), yardsMeanSdText(mean, sd));
         if (earned) line += QStringLiteral(" · your usual ") + yardsMeanSdText(usual->carryMean, usual->carrySd);
 
@@ -1971,6 +1978,13 @@ ShotFactors SessionDiagnosticsModel::shotFactorsOf(int shotId) const
     derivedFrom.flightNorms = flightNorms();
     derivedFrom.usuals      = outcomeSessionFacts().flightUsuals;
     return deriveShotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, derivedFrom);
+}
+
+ShotOutcome SessionDiagnosticsModel::composedOutcomeOf(int shotId) const
+{
+    ensureOutcomes();
+    const int at = indexOfShot(shotId);
+    return (at < 0 || size_t(at) >= m_composed.size()) ? ShotOutcome() : m_composed[size_t(at)];
 }
 
 QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
@@ -2962,6 +2976,11 @@ pinpoint::SessionInput SessionDiagnosticsModel::sessionInputOf() const
 void SessionDiagnosticsModel::setShotCommands(pinpoint::ShotCommandDoor *door)
 {
     g_shotCommands = door;
+}
+
+void SessionDiagnosticsModel::setParallelHook(ParallelHook hook)
+{
+    g_parallelHook = std::move(hook);
 }
 
 void SessionDiagnosticsModel::writeSessionInput(InputField changed, const QString &screenId)

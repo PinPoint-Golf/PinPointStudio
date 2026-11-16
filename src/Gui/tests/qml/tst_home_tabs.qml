@@ -298,7 +298,7 @@ Item {
         function test_tendencies_usual_distance_is_the_average_and_spread_in_words() {
             showTendencies()
             compare(one(rowOf("driver|full"), "tendencyDistance").text, "188 ± 20 yd")
-            compare(one(rowOf("wedges|partial"), "tendencyDistance").text, "—", "a part swing has no usual distance")
+            compare(one(rowOf("wedges|partial"), "tendencyDistance").text, "-", "a part swing has no usual distance")
         }
 
         function clubBox() { return one(tabs, "shotFilterClub") }
@@ -345,7 +345,7 @@ Item {
             verify(!Qt.colorEqual(solid.color, Theme.colorWarn), "a value is plain")
             verify(!drawn(one(one(i, "tendencyStrike"), "tendencyFactorWords")), "and stands alone")
             compare(one(one(d, "tendencyFlight"), "tendencyFactorLabel").text, "High")
-            compare(one(one(w, "tendencyFlight"), "tendencyFactorLabel").text, "—", "nothing to name")
+            compare(one(one(w, "tendencyFlight"), "tendencyFactorLabel").text, "-", "nothing to name")
             compare(one(d, "tendencyWorkOn").text, "Active")
             compare(one(i, "tendencyWorkOn").text, "—")
         }

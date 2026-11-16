@@ -188,7 +188,7 @@ Item {
                                                 || (isHackMotion && hmStep > 0)
 
         // Presentation helpers — every one of these is STATE, never a score.
-        function _hmDeg(v) { return (v === undefined || isNaN(v)) ? "—" : v.toFixed(2) + "°" }
+        function _hmDeg(v) { return (v === undefined || isNaN(v)) ? "-" : v.toFixed(2) + "°" }
         function _hmStateText(s) {
             if (s === calCalibrated)   return Theme.caps(qsTr("Calibrated"))
             if (s === calUncalibrated) return Theme.caps(qsTr("Uncalibrated"))

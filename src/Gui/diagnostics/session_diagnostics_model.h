@@ -43,6 +43,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -663,6 +664,17 @@ public:
     // ledger. A pure read with no state of its own, for the parity dump (tools/diagnostics/regrade_ledger
     // --dump); no surface reads it.
     pinpoint::analysis::ShotFactors shotFactorsOf(int shotId) const;
+    // One shot's composed outcome as this model holds it (its corrections, intent, usual and the session's evidence
+    // applied), for the parallel run's comparison and the parity dump (refactor step 3.5-ii). A pure read.
+    pinpoint::analysis::ShotOutcome composedOutcomeOf(int shotId) const;
+    // The stage ratchet's latch (rebuild): the session ever established. A pure read, for the parallel run.
+    bool reachedEstablished() const { return m_reachedEstablished; }
+    // THE PARALLEL RUN'S HOOK (refactor step 3.5-ii; BRIEF §4.9; D14: PINPOINT_DIAG_PARALLEL=1): called after each
+    // reduction this model settles and writes, so the new owner of the same session (SessionDiagnostics) can be
+    // compared with it and one line per session written to the app log. Process-wide, as setShotCommands; main.cpp
+    // sets it only with the switch on. It writes nothing (the parallel run is in memory only).
+    using ParallelHook = std::function<void(const SessionDiagnosticsModel &)>;
+    static void setParallelHook(ParallelHook hook);
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────

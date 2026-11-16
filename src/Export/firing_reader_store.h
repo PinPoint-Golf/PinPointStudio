@@ -43,8 +43,11 @@ class SessionRepository;
 class SwingStoreFiringReader final : public FiringReader
 {
 public:
-    SwingStoreFiringReader(const SessionRepository &sessions, RecordingRepository &recordings)
-        : m_sessions(sessions), m_recordings(recordings) {}
+    // `writeSidecars`: the read may write the phase-grid and summary sidecars it rebuilds (detectShot's behaviour, a
+    // known interim against R-CON-3: CARRY C5). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in memory only"),
+    // so with PINPOINT_DIAG_PARALLEL=1 the old model stays the only writer of every file of the session.
+    SwingStoreFiringReader(const SessionRepository &sessions, RecordingRepository &recordings, bool writeSidecars = true)
+        : m_sessions(sessions), m_recordings(recordings), m_writeSidecars(writeSidecars) {}
 
     FiringRead    read(const ShotRef &shot, const analysis::CharacteristicPack &pack) const override;
     DocumentStamp stamp(const ShotRef &shot) const override;
@@ -53,6 +56,7 @@ public:
 private:
     const SessionRepository &m_sessions;
     RecordingRepository     &m_recordings;
+    bool                     m_writeSidecars = true;
 };
 
 } // namespace pinpoint

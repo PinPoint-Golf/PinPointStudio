@@ -68,11 +68,33 @@
 //                                 "factors": { "strike"|"direction"|"flight": { read, values, faults,
 //                                                                               method, rawValue } } } ] } ] }
 //
+// --engine old|new — RUN P, THE PARALLEL RUN OVER A SET (refactor step 3.5-ii; build/refactor/step-3/BRIEF.md §4.9,
+// §5.3). `new` regrades each session through the NEW owner of its diagnostics instead of the old model: an Athlete
+// over the session's folder (its record — the norm cohort's sex and date of birth, D6 — from --athletes-ini, a COPY of
+// the app's settings, matched by the athlete folder's or the session folder's name), its Session, and that Session's
+// SessionDiagnostics run headless (§4.4 step 11) with every shot fired again (DiagnosticsDoors::rebuild), which writes
+// diagnostics.json (with each shot's derived data) and work_ons.json (the typed summary, DEC-192) into the session.
+// `old` is the old model, as without the flag. With either, --dump writes the PARALLEL RUN'S FORM ("P", dumpVersion 2:
+// src/Gui/diagnostics/diag_parallel_run.h — ids and numbers both engines own; no words, no view state), so
+// tools/parity/parity_diff.py compares an `old` run with a `new` one. `new` also prints, per session, D7's check
+// (DEC-172): the club baseline from the earlier sessions' SUMMARIES against the one from their LEDGERS.
+//
 // Dump mode needs every PINPOINT_CORE_* the diagnostics read (parity_json.h contentVariables(): the flight
 // table and the gate words too, which a plain regrade can do without), because a dump graded without the
 // flight table would read no flight on any shot and say so silently.
 
 #include "Gui/diagnostics/session_diagnostics_model.h"
+#include "Gui/diagnostics/diag_parallel_run.h"
+#include "Coaching/session_results.h"
+#include "Core/work_pool.h"
+#include "DomainModel/athlete.h"
+#include "DomainModel/rule_data.h"
+#include "DomainModel/session.h"
+#include "DomainModel/session_diagnostics.h"
+#include "Export/firing_reader_store.h"
+#include "Export/recording_loader.h"
+#include "Export/swing_paths.h"
+#include "Export/swing_store_repository.h"
 #include "../../src/Export/rule_data_install.h"
 #include "Export/session_diagnostics_files.h"
 #include "Export/session_store.h"          // SessionStore::fileSaysInProgress (D11)
@@ -81,16 +103,20 @@
 #include "parity_json.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <QSettings>
 #include <QStringList>
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
+#include <memory>
 
 // SessionDiagnosticsModel is a QML_ELEMENT façade in the global namespace, as the app registers it.
 
@@ -298,6 +324,132 @@ DumpEntry dumpEntry(const QString &dir, const QString &status, QVariantMap body,
     return e;
 }
 
+// ── --engine new: the new owner, headless, over a scratch library ──────────────────────────────────────────────
+
+struct AthleteSeen { pinpoint::AthleteId id; pinpoint::AthleteRecord record; };
+
+// The record for a session's athlete from a copy of the app's settings ([athletes]/<uuid>/name, dob, sex): the one
+// whose sanitised name is the athlete folder's name, else the one named in the session folder's name (the corpus).
+AthleteSeen athleteFor(const QString &sessionDir, const QString &ini)
+{
+    using namespace pinpoint;
+    const QString athleteFolder = QFileInfo(QFileInfo(sessionDir).absolutePath()).fileName();
+    const QString sessionName   = QFileInfo(sessionDir).fileName();
+    AthleteSeen out;
+    if (!ini.isEmpty()) {
+        QSettings s(ini, QSettings::IniFormat);
+        s.beginGroup(QStringLiteral("athletes"));
+        QString match;
+        for (const QString &uuid : s.childGroups()) {
+            const QString token = SwingPaths::sanitise(s.value(uuid + QStringLiteral("/name")).toString());
+            if (token.isEmpty()) continue;
+            if (token == athleteFolder || sessionName.contains(QLatin1Char('_') + token + QLatin1Char('_'))) {
+                match = uuid;
+                if (token == athleteFolder) break;
+            }
+        }
+        if (!match.isEmpty()) {
+            out.id = AthleteId::fromString(match);
+            out.record.name = s.value(match + QStringLiteral("/name")).toString();
+            out.record.dob  = s.value(match + QStringLiteral("/dob")).toString();
+            out.record.sex  = s.value(match + QStringLiteral("/sex")).toString();
+        }
+        s.endGroup();
+    }
+    if (out.id.isNull()) {   // no record: an athlete of the folder's name, with no cohort facts
+        out.id = AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
+                                           .arg(QString::fromLatin1(QCryptographicHash::hash(
+                                                    athleteFolder.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
+        out.record.name = athleteFolder;
+    }
+    return out;
+}
+
+class NewEngine
+{
+public:
+    explicit NewEngine(QString ini) : m_ini(std::move(ini))
+    {
+        m_store.setOsTrashForTest(false);   // a scratch library: nothing goes to the real Trash
+        m_recordings = std::make_unique<pinpoint::SwingStoreRecordingRepository>(m_store);
+        m_reader     = std::make_shared<pinpoint::SwingStoreRecordingReader>(m_store);
+        m_firing     = std::make_shared<pinpoint::SwingStoreFiringReader>(m_store, *m_recordings);
+        m_receiver   = std::make_unique<pinpoint::WorkReceiver>([this](const pinpoint::WorkAddress &a) {
+            const pinpoint::SessionId id = pinpoint::SessionId::fromString(a.owner);
+            for (auto &it : m_athletes)
+                if (pinpoint::Session *s = it.second->loadedSession(id)) return pinpoint::diagnosticsWorkTarget(s, a);
+            return pinpoint::diagnosticsWorkTarget(nullptr, a);
+        });
+    }
+    ~NewEngine() { m_athletes.clear(); }
+
+    pinpoint::Session *open(const QString &dir, AthleteSeen *who)
+    {
+        using namespace pinpoint;
+        const AthleteSeen seen = athleteFor(dir, m_ini);
+        if (who) *who = seen;
+        const QString folder = QFileInfo(dir).absolutePath();
+        const QString key = seen.id.toString() + QLatin1Char('|') + folder;
+        auto it = m_athletes.find(key);
+        if (it == m_athletes.end()) {
+            auto a = std::make_unique<Athlete>(nullptr, &m_store, seen.id);
+            a->setStored(seen.record, folder, SessionOwner{ seen.id, seen.record.name, QFileInfo(folder).absolutePath() },
+                         Athlete::Source::Library, false);
+            a->setShotDoors({ m_recordings.get(), m_reader });
+            DiagnosticsDoors d;
+            d.receiver     = m_receiver.get();
+            d.ruleData     = RuleData::installed();
+            d.reader       = m_firing;
+            d.synchronous  = true;    // §4.4 step 11 (R-HL-2)
+            d.persist      = true;    // into the session NAMED: a scratch copy (the tool's own warning)
+            d.writeSummary = true;    // work_ons.json, the typed summary (DEC-192)
+            d.rebuild      = true;    // every shot fired again, the ratchet replayed from Cold
+            d.attach       = &SessionDiagnostics::attach;
+            a->setDiagnosticsDoors(d);
+            it = m_athletes.emplace(key, std::move(a)).first;
+        }
+        return it->second->sessionAt(dir);
+    }
+    void release(pinpoint::Session *s)
+    {
+        if (!s || !s->athlete()) return;
+        s->athlete()->releaseSession(s->id());   // what it kept is written first; a sweep holds one at a time (Q-18)
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
+    const pinpoint::SessionStore &store() const { return m_store; }
+
+private:
+    QString                                                     m_ini;
+    pinpoint::SessionStore                                      m_store;
+    std::unique_ptr<pinpoint::SwingStoreRecordingRepository>    m_recordings;
+    std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
+    std::shared_ptr<pinpoint::SwingStoreFiringReader>           m_firing;
+    std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
+    std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;   // destroyed before the receiver
+};
+
+// D7's check (DEC-172), per athlete: each session's earlier sessions, from their summaries and from their ledgers.
+struct D7Session {
+    QString athleteKey, name;
+    pinpoint::analysis::SessionPlace place;
+    std::vector<pinpoint::analysis::ClubWindow> windows;   // read back from the work_ons.json written
+    pinpoint::analysis::ClubDistanceSession ledger;      // the rows as diagnostics.json holds them, the corrections
+};
+
+QString baselineText(const QHash<QString, pinpoint::analysis::ClubBaselineEntry> &b)
+{
+    QStringList keys = b.keys();
+    keys.sort();
+    QStringList parts;
+    for (const QString &k : keys) {
+        const auto &e = b.value(k);
+        parts << QStringLiteral("%1 n%2 carry %3±%4 ball %5 speed %6 smash %7 p4 %8").arg(k).arg(e.n)
+                     .arg(e.carryMean, 0, 'g', 12).arg(e.carrySd, 0, 'g', 12).arg(e.ballSpeedMean, 0, 'g', 12)
+                     .arg(e.speedMean, 0, 'g', 12).arg(e.smashMean, 0, 'g', 12).arg(e.shaftAngleP4Mean, 0, 'g', 12);
+    }
+    return parts.join(QStringLiteral("; "));
+}
+
 void printUsage(FILE *to)
 {
     std::fprintf(to,
@@ -317,6 +469,11 @@ void printUsage(FILE *to)
         "                     (PACK NORMS FLIGHT_NORMS CONTEXTS SCREENS DRILLS GATE_WORDS REFERENCES).\n"
         "  --allow-in-progress  also regrade a session whose session.json says it is in progress (one a crash\n"
         "                     left open); without it such a session is skipped untouched (D11)\n"
+        "  --engine old|new   RUN P (refactor 3.5-ii): `new` regrades through the new owner (SessionDiagnostics,\n"
+        "                     headless), writing diagnostics.json and work_ons.json; `old` the old model. With\n"
+        "                     either, --dump writes the parallel run's form (dumpVersion 2) for parity_diff.py\n"
+        "  --athletes-ini <f> (with --engine new) a COPY of the app's settings: each athlete's sex and date of\n"
+        "                     birth for the norm cohort (D6), matched by the athlete folder's or session's name\n"
         "  --help             this text\n");
 }
 
@@ -336,8 +493,13 @@ int main(int argc, char **argv)
     QString     dumpPath;
     QStringList dirs;
     bool        allowInProgress = false;
+    QString     engine;          // "", "old", "new" (run P)
+    QString     athletesIni;
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
+        if (a == QLatin1String("--engine") && i + 1 < argc) { engine = QString::fromLocal8Bit(argv[++i]); continue; }
+        if (a.startsWith(QLatin1String("--engine="))) { engine = a.mid(9); continue; }
+        if (a == QLatin1String("--athletes-ini") && i + 1 < argc) { athletesIni = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--tag") && i + 1 < argc) { tag = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--dump") && i + 1 < argc) { dumpPath = QString::fromLocal8Bit(argv[++i]); continue; }
@@ -349,10 +511,14 @@ int main(int argc, char **argv)
         }
         dirs << a;
     }
-    if (dirs.isEmpty()) {
+    if (dirs.isEmpty() || (!engine.isEmpty() && engine != QLatin1String("old") && engine != QLatin1String("new"))) {
         printUsage(stderr);
         return 2;
     }
+    const bool newEngine = engine == QLatin1String("new");
+    std::unique_ptr<NewEngine> ng;
+    if (newEngine) ng = std::make_unique<NewEngine>(athletesIni);
+    std::vector<D7Session> d7;
     if (!dumpPath.isEmpty()) {
         if (const QStringList missing = parity::missingContent(); !missing.isEmpty()) {
             std::fprintf(stderr, "regrade_ledger: --dump needs every content file; unset or unreadable: %s\n",
@@ -419,6 +585,69 @@ int main(int argc, char **argv)
             carried = before.envelope.legacyGolferInput;
         }
 
+        if (newEngine) {
+            // ── The new owner (run P) ──
+            AthleteSeen who;
+            pinpoint::Session *s = ng->open(dir, &who);
+            pinpoint::SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+            if (!d) {
+                std::printf("%-48s SKIP  the new owner could not open the session\n", qPrintable(name));
+                dump.push_back(dumpEntry(dir, QStringLiteral("skipped"), {}, QStringLiteral("the new owner could not open it")));
+                ++failures;
+                continue;
+            }
+            d->flush();
+            const pinpoint::analysis::SessionDiagnosis *dg = d->diagnosis();
+            std::printf("%-48s %s  shots %2d  stage %-11s patterns %2d  (new owner: %llu asks, %llu reductions, %lld ms, "
+                        "cohort %s %s)\n",
+                        qPrintable(name), hadLedger ? "REGRADED" : "GRADED  ", int(d->keptShots().size()),
+                        dg ? qPrintable(pinpoint::parallel::formOf(*d).value(QStringLiteral("stage")).toString()) : "-",
+                        dg ? int(dg->patterns.size()) : 0, (unsigned long long)d->asks().size(),
+                        (unsigned long long)d->counts().reductions, (long long)d->lastReductionMs(),
+                        who.record.sex.isEmpty() ? "-" : qPrintable(who.record.sex),
+                        who.record.dob.isEmpty() ? "-" : qPrintable(who.record.dob));
+            if (dg && !dg->patterns.isEmpty())
+                std::printf("%-48s   patterns: %s\n", "", qPrintable(dg->patterns.join(QLatin1Char(' '))));
+            const DiagnosticsRead now = SessionDiagnosticsFiles::readDiagnostics(dir);
+            const bool wrote = d->counts().writes > 0 && now.parsed() && !now.envelope.ledger.isEmpty();
+            if (!wrote) {
+                std::printf("%-48s WARN  no diagnostics.json was written by the new owner\n", qPrintable(name));
+                ++failures;
+            } else if (!carried.isEmpty() && now.envelope.legacyGolferInput != carried) {
+                std::printf("%-48s WARN  the golfer's input did not survive the new owner's write\n", qPrintable(name));
+                ++failures;
+            }
+            // D7: what the summary written holds, read back through its one reader, and the ledger it sits beside.
+            {
+                D7Session e;
+                e.athleteKey = who.id.toString() + QLatin1Char('|') + QFileInfo(dir).absolutePath();
+                e.name = name;
+                const auto entry = ng->store().open(s->id());
+                e.place = pinpoint::analysis::SessionPlace{ name, entry ? entry->identity.localDay() : QDate(), 0 };
+                bool ok = false;
+                const pinpoint::analysis::SessionResults back = pinpoint::analysis::sessionResultsFromJson(
+                    SessionDiagnosticsFiles::readWorkOns(dir).root, pinpoint::analysis::SessionResultsRead::Strict, &ok);
+                if (!ok || !back.hasGrowth)
+                    std::printf("%-48s WARN  work_ons.json does not read back with its DEC-192 keys\n", qPrintable(name));
+                e.windows = back.clubWindows;
+                e.ledger.folder = name;
+                e.ledger.day    = e.place.day;
+                e.ledger.shots  = now.parsed() ? pinpoint::analysis::fromJson(now.envelope.ledger)
+                                               : std::vector<pinpoint::analysis::ShotRecord>{};
+                for (const int swing : d->keptShots())
+                    if (const pinpoint::KeptShot *k = d->kept(swing); k && k->derived && !k->derived->corrections.empty())
+                        e.ledger.corrections.insert(swing, k->derived->corrections);
+                d7.push_back(std::move(e));
+            }
+            if (!dumpPath.isEmpty()) {
+                QVariantMap body = pinpoint::parallel::formOf(*d).toVariantMap();
+                body.insert(QStringLiteral("ledgerWritten"), wrote);
+                dump.push_back(dumpEntry(dir, hadLedger ? QStringLiteral("regraded") : QStringLiteral("graded"), body));
+            }
+            ng->release(s);
+            continue;
+        }
+
         SessionDiagnosticsModel m;
         m.setSynchronous(true);
         m.setCadence(QStringLiteral("everyShot"));
@@ -467,9 +696,34 @@ int main(int argc, char **argv)
             }
         }
         if (!dumpPath.isEmpty()) {
-            QVariantMap body = sessionDump(m);
+            QVariantMap body = engine.isEmpty() ? sessionDump(m) : pinpoint::parallel::formOf(m).toVariantMap();
             body.insert(QStringLiteral("ledgerWritten"), modelWrote);
             dump.push_back(dumpEntry(dir, hadLedger ? QStringLiteral("regraded") : QStringLiteral("graded"), body));
+        }
+    }
+
+    // D7's check (DEC-172; run P case 7): for every session, the club baseline as of its day from the earlier
+    // sessions' summaries, against the one from their ledgers (clubBaselineAsOf, today's freeze path).
+    if (newEngine) {
+        const pinpoint::analysis::FlightNorms flight = pinpoint::RuleData::installed() && pinpoint::RuleData::installed()->snapshot()->flightNorms
+                                                           ? *pinpoint::RuleData::installed()->snapshot()->flightNorms
+                                                           : pinpoint::analysis::FlightNorms{};
+        for (const D7Session &me : d7) {
+            std::vector<pinpoint::analysis::SummaryClubWindows> summaries;
+            std::vector<pinpoint::analysis::ClubDistanceSession> ledgers;
+            for (const D7Session &o : d7) {
+                if (o.athleteKey != me.athleteKey) continue;
+                summaries.push_back(pinpoint::analysis::SummaryClubWindows{ o.place, o.windows });
+                ledgers.push_back(o.ledger);
+            }
+            const auto fromSummaries = pinpoint::analysis::clubBaselineFromSummaries(summaries, me.place.day);
+            const auto fromLedgers   = pinpoint::analysis::clubBaselineAsOf(ledgers, me.place.day, flight);
+            const QString a = baselineText(fromSummaries), b = baselineText(fromLedgers);
+            if (a == b) std::printf("D7  %-44s baseline from summaries == from ledgers (%d club(s))\n", qPrintable(me.name), int(fromSummaries.size()));
+            else {
+                std::printf("D7  %-44s DIFFERS\n      summaries: %s\n      ledgers:   %s\n", qPrintable(me.name), qPrintable(a), qPrintable(b));
+                ++failures;
+            }
         }
     }
 
@@ -482,7 +736,9 @@ int main(int argc, char **argv)
         for (const DumpEntry &e : dump) sessions.append(e.body);
         const QVariantMap root{
             { QStringLiteral("tool"),        QStringLiteral("regrade_ledger --dump") },
-            { QStringLiteral("dumpVersion"), 1 },
+            { QStringLiteral("dumpVersion"), engine.isEmpty() ? 1 : 2 },
+            { QStringLiteral("form"),        engine.isEmpty() ? QStringLiteral("v1") : QStringLiteral("P") },
+            { QStringLiteral("engine"),      engine.isEmpty() ? QStringLiteral("old") : engine },
             { QStringLiteral("content"),     parity::contentHashes() },
             { QStringLiteral("sessions"),    sessions },
         };

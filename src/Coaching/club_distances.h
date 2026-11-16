@@ -118,19 +118,19 @@ inline QString clubDistanceLabel(const QString &id)
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 
-// "161 ± 7 yd". An SD below the floor is an em dash and the mean still stands ("161 ± — yd"); no
-// mean is the em dash alone.
+// "161 ± 7 yd". An SD below the floor is "-" and the mean still stands ("161 ± - yd"); no mean is "-" alone:
+// Mark's rule, a missing figure shows "-" (figure_format.h kMissing), never an em dash (refactor 3.5-ii, J-24).
 inline QString yardsMeanSdText(double mean, double sd)
 {
-    if (!std::isfinite(mean)) return QStringLiteral("—");
+    if (!std::isfinite(mean)) return QStringLiteral("-");
     return lmFormat(mean, 0) + QStringLiteral(" ± ")
-         + (std::isfinite(sd) ? lmFormat(sd, 0) : QStringLiteral("—")) + QStringLiteral(" yd");
+         + (std::isfinite(sd) ? lmFormat(sd, 0) : QStringLiteral("-")) + QStringLiteral(" yd");
 }
 
-// "161 yd", or the em dash.
+// "161 yd", or "-".
 inline QString yardsText(double yards)
 {
-    return std::isfinite(yards) ? lmFormat(yards, 0) + QStringLiteral(" yd") : QStringLiteral("—");
+    return std::isfinite(yards) ? lmFormat(yards, 0) + QStringLiteral(" yd") : QStringLiteral("-");
 }
 
 // "24 yd short".
@@ -641,7 +641,7 @@ inline ClubDistanceItem clubDistanceItemFromWindow(const ClubDistanceWindow &win
     if (const LmFieldStats *carry = clubStat(stats, "lm.carryDistance")) item.shots = carry->n;
     item.sessions = int(window.sessions.size());
     item.mishits  = window.mishits;
-    item.fewShots = item.shots < kClubBaselineMinShots;
+    item.fewShots = !clubUsualEarned(item.shots);
     if (std::isfinite(item.carrySd)) item.shortBelow = item.carryMean - kClubShortBelowSds * item.carrySd;
 
     for (const ClubWindowSession &s : window.sessions) {

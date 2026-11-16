@@ -1900,9 +1900,22 @@ set_tests_properties(work_ons_controller_test PROPERTIES
 # and lets the model re-ingest every shot. Same link line as the model test above, because it IS the
 # model — driven synchronously, exactly as the test drives it. Hand-rolled rather than pp_add_test
 # and NOT registered with ctest: it writes into the swing library. Precedent: rank_shift_report.
+# --engine new (refactor step 3.5-ii, run P): the new owner of a session's diagnostics, headless, over the real
+# session store, swing door, Athlete, Session and Shot, with the parallel run's form (diag_parallel_run.cpp).
+set(REGRADE_NEW_ENGINE_SOURCES
+    ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
+    ${SRC}/Gui/diagnostics/diag_parallel_run.cpp
+    ${SRC}/Identity/identity.h   # its Q_GADGETs, for AUTOMOC
+    ${SRC}/DomainModel/athlete.cpp ${SRC}/DomainModel/session.cpp ${SRC}/DomainModel/shot.cpp
+    ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+    ${SRC}/DomainModel/session.h ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/athlete.h
+    ${SRC}/Diagnostics/engine/session_reduction.cpp
+    ${SRC}/Export/firing_reader_store.cpp
+    ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
+    ${PP_RECORDING_STORE_SOURCES})
 add_executable(regrade_ledger
     ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
-    ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp
+    ${REGRADE_NEW_ENGINE_SOURCES}
     ${SRC}/Gui/diagnostics/session_diagnostics_model.cpp
     ${SESSION_DIAG_MARKS_SOURCES}
     ${SESSION_DIAG_CATALOGUE_SOURCES}
@@ -1923,10 +1936,14 @@ add_executable(regrade_ledger
     ${SRC}/LaunchMonitor/launch_monitor_reading.cpp
     ${SRC}/Core/pp_log_stream.cpp
     ${SRC}/Core/PpMessageLog.cpp)
-target_include_directories(regrade_ledger PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor)
+target_include_directories(regrade_ledger PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS})
 pp_require_swingstore()
-target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore)
-set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON)
+target_link_libraries(regrade_ledger PRIVATE Qt6::Core Qt6::Gui Qt6::Qml pinpoint_swingstore ${OpenCV_LIBS})
+set_target_properties(regrade_ledger PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+# The same file named on two lines (the swing door's sources are in both): one compile.
+get_target_property(_regrade_sources regrade_ledger SOURCES)
+list(REMOVE_DUPLICATES _regrade_sources)
+set_property(TARGET regrade_ledger PROPERTY SOURCES ${_regrade_sources})
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
 
@@ -2072,6 +2089,7 @@ pp_add_test(session_diagnostics_test
             ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp
             ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
             ${SRC}/DomainModel/session_diagnostics.h ${SRC}/DomainModel/session_diagnostics.cpp
+            ${SRC}/Diagnostics/engine/session_reduction.cpp   # §4.4 step 7, the diagnosis (refactor 3.5-ii)
             ${SRC}/Export/firing_reader_store.cpp
             ${SRC}/Core/work_pool.h ${SRC}/Core/work_pool.cpp
     INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}

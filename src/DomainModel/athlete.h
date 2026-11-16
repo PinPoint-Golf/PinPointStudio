@@ -124,6 +124,11 @@ struct ShotDoors {
 // run 3.5-i, every tool and test that sets none) no Session has one. `persist`: it writes diagnostics.json — false in
 // the app until the cut-over (step 3.7: the old model is the file's one writer until then). `synchronous`: headless
 // (R-HL-2: the jobs run on the calling thread). `writeDebounceMs`: how long after a batch settles the write waits.
+// `rebuild` (refactor step 3.5-ii; regrade_ledger --engine=new): a regrade — the file's rows, derived data and
+// diagnosis state are not kept, so every shot fires and the stage ratchet replays from Cold; the older golfer keys
+// are still read and carried (J-33), as the old model's setRebuildCache does. `writeSummary`: with `persist`, the
+// session summary (work_ons.json, FILE-SESS-05; DEC-192) is written too — tests and tools only until step 3.6 moves
+// that file's writer here.
 struct DiagnosticsDoors {
     WorkPool                           *pool     = nullptr;
     WorkReceiver                       *receiver = nullptr;
@@ -132,6 +137,8 @@ struct DiagnosticsDoors {
     bool                                persist         = false;
     bool                                synchronous     = false;
     int                                 writeDebounceMs = 1500;
+    bool                                rebuild         = false;
+    bool                                writeSummary    = false;
     std::function<SessionDiagnostics *(Session *, const DiagnosticsDoors &)> attach;
 };
 

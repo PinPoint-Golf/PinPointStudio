@@ -435,7 +435,7 @@ inline ShotCarryBlock composeCarryBlock(const ShotRecord &shot, const std::vecto
     const auto hasLabel = [&labels](const char *id) {
         return std::any_of(labels.begin(), labels.end(), [id](const ShotOutcomeLabel &l) { return l.id == QLatin1String(id); });
     };
-    if (!usual || usual->n < kClubBaselineMinShots || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean)
+    if (!usual || !usual->earned() || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean)
         || !hasLabel("carry_deficit"))
         return b;
     const double shortBy = usual->carryMean - shot.carry;

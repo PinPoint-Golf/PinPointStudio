@@ -27,7 +27,10 @@
 
 #include <QCryptographicHash>
 #include <QDateTime>
+#include <QElapsedTimer>
+#include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QPointer>
 
 #include <algorithm>
@@ -164,6 +167,25 @@ FireOutcome fireOn(const FiringSnapshot &snap, const ShotRef &shot, const Firing
     return out;
 }
 
+// ── §4.4 step 7: the reduction's job (values in, values out) ────────────────────────────────────────────────────
+struct ReductionOutcome {
+    analysis::SessionDiagnosis diagnosis;
+    qint64                     ms = 0;
+};
+
+// One shot's derived data as FILE-SESS-03 keeps it (DEC-135): ids and numbers only (R-DER-9) — the outcome's facts,
+// the three factors, the golfer's word and the club's usual it was derived with, and its stamp.
+QJsonObject derivedToJson(const ShotDerived &d, const QString &stamp)
+{
+    return QJsonObject{ { QStringLiteral("stamp"), stamp },
+                        { QStringLiteral("intent"), d.intent },
+                        { QStringLiteral("corrections"),
+                          analysis::shotCorrectionsToJson({ { 0, d.corrections } }).value(QStringLiteral("0")) },
+                        { QStringLiteral("usual"), analysis::clubFlightUsualToJson(d.usual) },
+                        { QStringLiteral("outcome"), analysis::shotOutcomeFactsToJson(d.data.outcome) },
+                        { QStringLiteral("factors"), analysis::shotFactorsToJson(d.data.factors) } };
+}
+
 } // namespace
 
 QDate shotCohortDate(qint64 timestampMs, const QDate &sessionDay)
@@ -237,6 +259,12 @@ void SessionDiagnostics::connectSession()
     }, Qt::DirectConnection);
     connect(s, &Session::intentRunChanged, this, [this](const SessionId &) { onIntentRunChanged(); },          // EVT-08
             Qt::DirectConnection);
+    connect(s, &Session::sessionIntentChanged, this, [this](const SessionId &) { onSessionIntentChanged(); },  // EVT-10
+            Qt::DirectConnection);
+    connect(s, &Session::sessionEnded, this, [this](const SessionId &) {   // EVT-09: the diagnosis is closed (J-24)
+        m_reductionOwed = true;
+        settleIfDone();
+    }, Qt::DirectConnection);
     connect(s, &Session::shotHeld, this, [this](const ShotRef &ref) {
         if (Shot *shot = m_session->shot(ref)) hearShot(shot);
     }, Qt::DirectConnection);
@@ -276,7 +304,9 @@ void SessionDiagnostics::load()
     // §4.4 step 10.
     m_rules = m_doors.ruleData->snapshot();
 
-    // The frozen club baseline (FILE-SESS-04), when the session has one. Freezing one is run 3.5-ii's (D7).
+    // The frozen club baseline (FILE-SESS-04), when the session has one; read only. FREEZING one is step 3.6's
+    // (AthleteDiagnostics computes it from the predecessors' summaries, D7/DEC-172, and the Session freezes it, DEC-46;
+    // CARRY.md). Until then an outdated-schema file reads as no usual numbers here, where the old model re-freezes it.
     {
         const JsonFileRead f = m_sessions->readClubBaseline(m_id);
         if (f.exists && f.ok) {
@@ -325,18 +355,21 @@ void SessionDiagnostics::load()
         ppWarn() << "[SessionDiagnostics] diagnostics.json is a newer build's, read and not written:" << m_id.toString();
         [[fallthrough]];
     case DiagnosticsRead::State::Read: {
-        m_sessionBlock = read.envelope.session;
         m_legacyGolfer = read.envelope.legacyGolferInput;
+        if (m_doors.rebuild)
+            break;   // a regrade (regrade_ledger --engine=new): the golfer keys only, as a file with no rows
+        m_sessionBlock = read.envelope.session;
+        const analysis::SessionDiagnosisState held = analysis::sessionDiagnosisStateFromJson(m_sessionBlock);
+        if (held.hasStage) {   // the ratchet as it was left (rebuild's)
+            m_stage              = held.stage;
+            m_reachedEstablished = held.reachedEstablished;
+            m_stageHeld          = true;
+        }
         std::vector<ShotRecord> rows = analysis::fromJson(read.envelope.ledger, &m_ledgerOptions);
-        QSet<int> lm;
-        for (const QJsonValue &v : m_sessionBlock.value(QStringLiteral("lmShots")).toArray())
-            lm.insert(v.toInt());
-        const QJsonObject graded = m_sessionBlock.value(QStringLiteral("gradedFrom")).toObject();
-        for (auto it = graded.constBegin(); it != graded.constEnd(); ++it) {
-            const QJsonObject g = it.value().toObject();
-            stamps.insert(it.key().toInt(), DocumentStamp{ true, qint64(g.value(QStringLiteral("size")).toDouble()),
-                                                           qint64(g.value(QStringLiteral("mtimeMs")).toDouble()) });
-            contents.insert(it.key().toInt(), g.value(QStringLiteral("content")).toString());
+        const QSet<int> lm(held.lmShots.begin(), held.lmShots.end());
+        for (auto it = held.gradedFrom.constBegin(); it != held.gradedFrom.constEnd(); ++it) {
+            stamps.insert(it.key(), DocumentStamp{ true, it->size, it->mtimeMs });
+            contents.insert(it.key(), it->content);
         }
         for (const QJsonValue &v : m_sessionBlock.value(QStringLiteral("unread")).toArray())
             m_unread.insert(v.toInt());
@@ -360,6 +393,7 @@ void SessionDiagnostics::load()
     // its job. The same doors golferInput reads through (the session input by id, the envelope just read, the reviews
     // through the swing door).
     m_intentRun        = golfer_input::resolveIntentRun(m_sessions->readSessionInput(m_id).input, m_legacyGolfer);
+    readSessionWord();
     m_legacyIntents     = golfer_input::legacyShotIntents(m_legacyGolfer);
     m_legacyCorrections = golfer_input::legacyShotCorrections(m_legacyGolfer);
 
@@ -388,17 +422,42 @@ void SessionDiagnostics::load()
         if (!present.contains(swing)) m_unread.remove(swing);
 
     // RE-ASK EVERY SHOT WHOSE STAMP IS STALE, THAT HAS NO KEPT RESULT, OR THAT IS MARKED UNREAD (§4.4 step 10): the
-    // shots a release cancelled, the ones left unread, the ones captured while no object held the session.
+    // shots a release cancelled, the ones left unread, the ones captured while no object held the session. A shot
+    // that is current takes its DERIVED DATA back from the file when the stamp it was derived under still holds
+    // (DEC-135; run 3.5-ii); the others derive again (reconcile).
+    const QJsonObject persisted = m_sessionBlock.value(QStringLiteral("derived")).toObject();
+    const QString     base      = persisted.isEmpty() ? QString() : derivedBaseStamp();
+    const analysis::FlightNorms flight = m_snapshot->inputs.flightNorms;
     for (Shot *s : shots) {
         const int swing = s->swingNumber();
-        const auto k = m_kept.constFind(swing);
-        const bool stale = k == m_kept.constEnd() || m_unread.contains(swing) || k->findingsStamp != m_findingsStamp
+        const auto k = m_kept.find(swing);
+        const bool stale = k == m_kept.end() || m_unread.contains(swing) || k->findingsStamp != m_findingsStamp
                         || k->document != m_doors.reader->stamp(s->ref());
-        if (stale)
+        if (stale) {
             askFire(s);
+            continue;
+        }
+        const QJsonObject e = persisted.value(QString::number(swing)).toObject();
+        if (e.isEmpty())
+            continue;
+        const ClubFlightUsual usual = m_usuals.value(canonicalClubId(k->findings.club));
+        if (e.value(QStringLiteral("stamp")).toString() != derivedStampOf(base, swing, usual))
+            continue;
+        ShotDerived d;
+        d.checked = k->findings;
+        analysis::checkShotAgainstFlight(d.checked, m_usuals, flight);
+        d.data.outcome = analysis::shotOutcomeFactsFromJson(e.value(QStringLiteral("outcome")).toObject());
+        d.data.factors = analysis::shotFactorsFromJson(e.value(QStringLiteral("factors")).toObject());
+        d.usual        = usual;
+        d.generation   = m_derivedGeneration;
+        d.intent       = e.value(QStringLiteral("intent")).toString();
+        d.corrections  = analysis::shotCorrectionsFromJson(
+                             QJsonObject{ { QStringLiteral("0"), e.value(QStringLiteral("corrections")) } }).value(0);
+        k->derived = std::move(d);
+        ++m_counts.derivedRestored;
     }
     --m_holdReconcile;
-    // The others: their derived data again (it is not persisted).
+    m_reductionOwed = true;   // the diagnosis of what was loaded (§4.4 step 7), once the asks above have settled
     reconcile();
     settleIfDone();
 }
@@ -537,6 +596,10 @@ void SessionDiagnostics::submit(const WorkAddress &address, std::function<std::a
     if (!postToOwner(*m_doors.pool, *m_doors.receiver, m_instance, address, std::move(work), WorkPriority::Low)) {
         // Refused (the pool is going): this ask will never come back, so it does not hold the batch open.
         ppWarn() << "[SessionDiagnostics] the pool refused the ask for" << address.item;
+        if (address.item.isEmpty()) {   // the owner's own work (§4.4 step 7)
+            m_reductionInFlight = false;
+            return;
+        }
         m_outstanding = std::max(0, m_outstanding - 1);
         const ShotRef ref = ShotRef::fromString(address.item);
         m_inFlight.remove(ref.swingNumber());
@@ -550,6 +613,10 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
 {
     if (m_retired)
         return;
+    if (result.address.item.isEmpty()) {   // the owner's own work: a reduction (§4.4 step 7)
+        deliverReduction(verdict, std::move(result));
+        return;
+    }
     m_outstanding = std::max(0, m_outstanding - 1);
     const ShotRef ref   = ShotRef::fromString(result.address.item);
     const int     swing = ref.swingNumber();
@@ -606,12 +673,15 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
             m_kept.insert(swing, std::move(k));
             m_unread.remove(swing);
             m_dirty = true;
+            m_reductionOwed = true;
         } else {
             auto it = m_kept.find(swing);
             if (it == m_kept.end()) break;   // its findings left (a trash raced the receiver): nothing to put it on
             it->derived = derived->derived;
             it->deriveFailed.reset();
             if (derived->review) it->review = derived->review;
+            m_dirty = true;            // its derived data is persisted (DEC-135)
+            m_reductionOwed = true;
         }
         ++m_counts.kept;
         emit resultKept(ref);
@@ -670,16 +740,21 @@ void SessionDiagnostics::settleIfDone()
     if (m_retired || m_outstanding > 0 || m_holdReconcile > 0)   // a load settles once, at its end (J18)
         return;
     emit batchSettled();
-    // What is kept is written, debounced (§4.4 step 8; the reduction that triggers it is run 3.5-ii's). Headless: the
-    // tool flushes when it is done, and the release and the destructor write anyway.
+    // §4.4 step 7: the batch settled, so the session is diagnosed on its lane — once per settle that moved what is kept.
+    if (m_reductionOwed && !m_reductionInFlight)
+        askReduction();
+    // What is kept is written, debounced (§4.4 step 8; again when the reduction is applied). Headless: the tool
+    // flushes when it is done, and the release and the destructor write anyway.
     if (m_dirty && m_doors.persist && !m_doors.synchronous && !m_readOnly)
         m_writeTimer.start(std::max(0, m_doors.writeDebounceMs));
 }
 
 void SessionDiagnostics::drop(int swing)
 {
-    if (m_kept.remove(swing) > 0)
+    if (m_kept.remove(swing) > 0) {
         m_dirty = true;
+        m_reductionOwed = true;
+    }
     if (m_unread.remove(swing))
         m_dirty = true;
 }
@@ -723,7 +798,31 @@ void SessionDiagnostics::onIntentRunChanged()
     m_intentRun = run;
     ++m_derivedGeneration;   // a shot's intent is read by its derived data only: every shot derives again
     m_snapshot = makeSnapshot();
+    m_reductionOwed = true;
     reconcile();
+    settleIfDone();
+}
+
+void SessionDiagnostics::readSessionWord()
+{
+    const golfer_input::SessionWord w =
+        golfer_input::resolveSessionWord(m_sessions->readSessionInput(m_id).input, m_legacyGolfer);
+    m_focus   = w.focus;
+    m_miss    = w.miss;
+    m_screens = w.screens;
+}
+
+void SessionDiagnostics::onSessionIntentChanged()
+{
+    if (m_retired)
+        return;
+    // EVT-10: the focus, the miss or a screen answer — read by the diagnosis only (no finding, no derived data reads
+    // them), so the session is diagnosed again and nothing is asked of a shot.
+    const golfer_input::SessionWord before{ m_focus, m_miss, m_screens };
+    readSessionWord();
+    if (before == golfer_input::SessionWord{ m_focus, m_miss, m_screens })
+        return;
+    m_reductionOwed = true;
     settleIfDone();
 }
 
@@ -766,35 +865,57 @@ bool SessionDiagnostics::flush()
 bool SessionDiagnostics::write()
 {
     // TODAY'S SHAPE (FILE-SESS-03): the ledger holds the rows CHECKED against the session's usual flight, as every
-    // reader of the file counts them; the session block keeps every key this object does not own, as read, and
-    // gains DEC-191's `unread`.
+    // reader of the file counts them. The session block is FIELD-LIST §2's typed state, every key the old model's
+    // sessionBlock() writes, as it writes them (review 1 of 3.5-ii: no key change) — `closed` FROM THE SESSION, the one
+    // writer of its status (J-24) — over any key of the file this object does not know (kept as read), with DEC-191's
+    // `unread` and each shot's derived data, stamped (DEC-135).
     std::vector<ShotRecord> rows;
-    QJsonObject graded, dirs;
-    QJsonArray  lm, unread;
+    QJsonArray  unread;
+    analysis::SessionDiagnosisState st;
     const analysis::FlightNorms flight = m_snapshot ? m_snapshot->inputs.flightNorms : analysis::FlightNorms{};
     for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {
         ShotRecord r = it->findings;
         analysis::checkShotAgainstFlight(r, m_usuals, flight);
         rows.push_back(std::move(r));
-        const QString key = QString::number(it.key());
-        graded.insert(key, QJsonObject{ { QStringLiteral("size"),    double(it->document.size) },
-                                        { QStringLiteral("mtimeMs"), double(it->document.mtimeMs) },
-                                        { QStringLiteral("content"), it->findingsStamp } });
-        dirs.insert(key, m_sessions->swingFolder(ShotRef(m_id, it.key())));
+        st.gradedFrom.insert(it.key(), analysis::GradedFrom{ it->document.size, it->document.mtimeMs, it->findingsStamp });
+        st.swingDirs.insert(it.key(), m_sessions->swingFolder(ShotRef(m_id, it.key())));
         if (it->hasLaunchMonitor)
-            lm.append(it.key());
+            st.lmShots.append(it.key());
     }
     QList<int> marks = m_unread.values();
     std::sort(marks.begin(), marks.end());
     for (const int n : marks)
         unread.append(n);
+    {
+        const auto e = m_sessions->open(m_id);
+        st.sessionDir = e ? e->folder : QString();
+        st.sessionId  = QFileInfo(st.sessionDir).fileName();   // the folder's name, as today (F1)
+    }
+    st.closed             = sessionEnded();
+    st.stage              = m_stage;
+    st.reachedEstablished = m_reachedEstablished;
+    st.shotCount          = int(rows.size());
+    st.gradePolicy        = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();
+    st.writtenAtMs        = double(QDateTime::currentMSecsSinceEpoch());
 
     QJsonObject block = m_sessionBlock;
-    block.insert(QStringLiteral("gradedFrom"), graded);
-    block.insert(QStringLiteral("lmShots"), lm);
-    block.insert(QStringLiteral("swingDirs"), dirs);
-    block.insert(QStringLiteral("shotCount"), int(rows.size()));
+    const QJsonObject typed = analysis::sessionDiagnosisStateToJson(st);
+    for (auto it = typed.constBegin(); it != typed.constEnd(); ++it)
+        block.insert(it.key(), it.value());
     block.insert(QStringLiteral("unread"), unread);   // DEC-191: the shots whose last read failed
+    {
+        const QString base = derivedBaseStamp();
+        QJsonObject derived;
+        for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it)
+            if (it->derived) {
+                const ClubFlightUsual usual = m_usuals.value(canonicalClubId(it->findings.club));
+                const bool current = it->derived->generation == m_derivedGeneration && sameUsual(it->derived->usual, usual)
+                                  && it->findingsStamp == m_findingsStamp;
+                if (current)
+                    derived.insert(QString::number(it.key()), derivedToJson(*it->derived, derivedStampOf(base, it.key(), usual)));
+            }
+        block.insert(QStringLiteral("derived"), derived);
+    }
 
     DiagnosticsRead::State found = DiagnosticsRead::State::Missing;
     const WriteResult w = m_sessions->writeDiagnostics(m_id, block, analysis::toJson(rows, m_ledgerOptions),
@@ -803,6 +924,17 @@ bool SessionDiagnostics::write()
         m_sessionBlock = block;
         m_dirty = false;
         ++m_counts.writes;
+        // THE SUMMARY (FILE-SESS-05; DEC-192), with the diagnosis it is of — tests and tools only until step 3.6.
+        if (m_doors.writeSummary && m_diagnosis) {
+            const WriteResult ws = m_sessions->writeWorkOns(m_id, analysis::sessionResultsToJson(summary()));
+            if (ws.ok()) {
+                ++m_counts.summaryWrites;
+            } else {
+                ++m_counts.writeFailures;
+                ppWarn() << "[SessionDiagnostics] work_ons.json was not written for" << m_id.toString() << "-" << ws.error;
+                emit writeFailed(ws.error);
+            }
+        }
         emit written();
         return true;
     }
@@ -812,6 +944,154 @@ bool SessionDiagnostics::write()
     ppWarn() << "[SessionDiagnostics] diagnostics.json was not written for" << m_id.toString() << "-" << w.error;
     emit writeFailed(w.error);
     return false;
+}
+
+// ── The diagnosis (§4.4 step 7) ────────────────────────────────────────────────────────────────────────────
+
+// The session's status, as its one writer holds it (J-24), read through the repository's identity map — never through
+// the Session object, which is already gone when this object writes from its destructor.
+bool SessionDiagnostics::sessionEnded() const
+{
+    const auto e = m_sessions->open(m_id);
+    return !e || e->status != SessionStatus::InProgress;
+}
+
+analysis::SessionReductionInput SessionDiagnostics::reductionInput() const
+{
+    analysis::SessionReductionInput in;
+    in.pack        = m_snapshot->inputs.pack;
+    in.outcomePack = m_outcomePack;
+    in.options     = m_ledgerOptions;
+    in.withSigma   = m_snapshot->inputs.withSigma;
+    in.usuals      = m_usuals;
+    in.baseline    = m_baseline;
+    in.flightNorms = m_snapshot->inputs.flightNorms;
+    in.shots.reserve(size_t(m_kept.size()));
+    for (auto it = m_kept.constBegin(); it != m_kept.constEnd(); ++it) {   // by swing number: strike order
+        ShotRecord r = it->findings;
+        analysis::checkShotAgainstFlight(r, m_usuals, in.flightNorms);     // the rows as the file holds them
+        in.shots.push_back(std::move(r));
+        const int swing = it.key();
+        if (it->derived) {
+            in.derived.insert(swing, it->derived->data);
+            in.intents.insert(swing, it->derived->intent);
+            if (!it->derived->corrections.empty()) in.corrections.insert(swing, it->derived->corrections);
+        } else {
+            const ShotWord w = wordOf(*m_snapshot, swing, it->review.value_or(ShotReview{}));
+            in.intents.insert(swing, w.intent);
+            if (!w.corrections.empty()) in.corrections.insert(swing, w.corrections);
+        }
+    }
+    in.focusConditionId = m_focus.conditionId;
+    in.focusFromShot    = m_focus.fromShot;
+    in.declaredMiss     = m_miss;
+    in.screens          = m_screens;
+    in.previousStage      = m_stageHeld ? m_stage : analysis::Stage::Cold;
+    in.reachedEstablished = m_stageHeld && m_reachedEstablished;
+    in.replay             = !m_stageHeld;
+    in.closed             = sessionEnded();   // the Session is the one writer of its status (J-24)
+    const auto e = m_sessions->open(m_id);
+    in.folderName = e ? QFileInfo(e->folder).fileName() : QString();
+    in.sessionId  = in.folderName;   // today's files key a session by its folder's name (FIELD-LIST F1)
+    in.day        = m_sessionDay;
+    return in;
+}
+
+void SessionDiagnostics::askReduction()
+{
+    if (m_retired || !m_snapshot)
+        return;
+    m_reductionOwed     = false;
+    m_reductionLatest   = nextWorkNumber();   // the one counter (§4.4 step 7): latest wins
+    m_reductionInFlight = true;
+    ++m_counts.reductionsAsked;
+    auto input = std::make_shared<const analysis::SessionReductionInput>(reductionInput());   // values only
+    submit(WorkAddress{ m_id.toString(), m_instance, QString(), m_reductionLatest },
+           [input]() -> std::any {
+               QElapsedTimer t;
+               t.start();
+               ReductionOutcome out;
+               out.diagnosis = analysis::reduceSession(*input);
+               out.ms = t.elapsed();
+               return out;
+           });
+}
+
+void SessionDiagnostics::deliverReduction(WorkVerdict verdict, WorkResult &&result)
+{
+    const bool latest = result.address.ask == m_reductionLatest;
+    if (latest)
+        m_reductionInFlight = false;
+    if (verdict != WorkVerdict::Kept) {
+        ++m_counts.reductionsSuperseded;   // a newer reduction is in the lane: its own result is applied
+        return;
+    }
+    ReductionOutcome *r = std::any_cast<ReductionOutcome>(&result.value);
+    if (!result.error.isEmpty() || !r) {
+        ++m_counts.reductionFailures;
+        ppWarn() << "[SessionDiagnostics] the diagnosis of" << m_id.toString() << "failed:"
+                 << (result.error.isEmpty() ? QStringLiteral("the job returned nothing") : result.error);
+    } else {
+        m_stage              = r->diagnosis.stage;
+        m_reachedEstablished = r->diagnosis.reachedEstablished;
+        m_stageHeld          = true;
+        m_lastReductionMs    = r->ms;
+        m_diagnosis          = std::move(r->diagnosis);
+        m_dirty              = true;   // the diagnosis state is written with what is kept (§4.4 step 8)
+        ++m_counts.reductions;
+        emit diagnosisApplied();
+    }
+    if (m_reductionOwed && m_outstanding == 0 && m_holdReconcile == 0)
+        askReduction();   // what is kept moved while it ran
+    else if (m_dirty && m_doors.persist && !m_doors.synchronous && !m_readOnly)
+        m_writeTimer.start(std::max(0, m_doors.writeDebounceMs));
+}
+
+analysis::SessionResults SessionDiagnostics::summary() const
+{
+    if (!m_diagnosis)
+        return {};
+    analysis::SessionResults r = m_diagnosis->results;
+    r.derivedFrom.contentStamp = m_findingsStamp;
+    r.derivedFrom.gradePolicy  = m_snapshot ? m_snapshot->inputs.gradePolicy : QString();
+    r.derivedFrom.writtenAtMs  = double(QDateTime::currentMSecsSinceEpoch());
+    // `fingerprint` is the catch-up's own freshness hash (WorkOnsController) until step 3.6 moves the summary here.
+    if (r.workOns.startMs <= 0) {
+        // No shot carried a clock: the Session's own start (its one writer, J-24), else the start of its day.
+        const auto e = m_sessions->open(m_id);
+        if (e && e->startedAtUtc.isValid())  r.workOns.startMs = e->startedAtUtc.toMSecsSinceEpoch();
+        else if (m_sessionDay.isValid())     r.workOns.startMs = m_sessionDay.startOfDay().toMSecsSinceEpoch();
+        r.workOns.endMs = r.workOns.startMs;
+    }
+    return r;
+}
+
+// THE DERIVED STAMP (DEC-135; R-STAMP-1 for layer 3): everything a shot's derived data was computed from besides its
+// own findings (whose stamp it carries) — the flight table and the rest of the snapshot (firingStamp with the usuals
+// and the cohort neutral), the intent run, the reduction's rule version — then per shot its club's usual and the
+// older copy of its word. A shot whose review moved has a new document stamp and fires anyway.
+QString SessionDiagnostics::derivedBaseStamp() const
+{
+    if (!m_snapshot)
+        return QString();
+    analysis::FiringInputs in = m_snapshot->inputs;
+    in.usuals.clear();
+    in.cohort = analysis::Cohort{};
+    return m_findingsStamp + QLatin1Char('|') + analysis::firingStamp(in) + QLatin1Char('|')
+         + QString::number(m_intentRun.fromShot) + QLatin1Char(':') + m_intentRun.shape + QLatin1Char('|')
+         + QString::number(analysis::kSessionReductionVersion);
+}
+
+QString SessionDiagnostics::derivedStampOf(const QString &base, int swing, const ClubFlightUsual &usual) const
+{
+    QCryptographicHash h(QCryptographicHash::Sha1);
+    h.addData(base.toUtf8());
+    const auto add = [&h](double v) { h.addData(std::isnan(v) ? QByteArrayLiteral("nan") : QByteArray::number(v, 'g', 17)); h.addData("|"); };
+    add(usual.launch); add(usual.smash); add(usual.attack); add(usual.carry);
+    h.addData(m_legacyIntents.value(swing).toUtf8());
+    h.addData(QJsonDocument(analysis::shotCorrectionsToJson({ { swing, m_legacyCorrections.value(swing) } }))
+                  .toJson(QJsonDocument::Compact));
+    return QString::fromLatin1(h.result().toHex().left(16));
 }
 
 const KeptShot *SessionDiagnostics::kept(int swingNumber) const
@@ -830,7 +1110,8 @@ WorkTarget diagnosticsWorkTarget(Session *session, const WorkAddress &address)
         return t;   // no owner of that id loaded: OwnerGone
     t.instance = d->instance();
     if (address.item.isEmpty()) {
-        t.itemFound = true;   // the owner's own work (run 3.5-ii's diagnosis): none asked in 3.5-i
+        t.itemFound = true;   // the owner's own work: its diagnosis (§4.4 step 7), the latest kept
+        t.latestAsk = d->latestReduction();
     } else {
         const ShotRef ref = ShotRef::fromString(address.item);
         Shot *shot = (!ref.isNull() && ref.session() == d->sessionId()) ? session->shot(ref) : nullptr;

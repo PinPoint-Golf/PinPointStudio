@@ -94,15 +94,15 @@ PpGroupCard {
         hi = Math.ceil(hi / step) * step
         return { lo: lo, hi: hi > lo ? hi : lo + step }
     }
-    function _figure(v, unit, dec)  { return root._fin(v) ? Figures.withUnit(Figures.figure(v, dec), unit) : "—" }
-    function _spread(sd, unit, dec) { return root._fin(sd) ? "± " + Figures.withUnit(Figures.figure(sd, dec), unit) : "—" }
+    function _figure(v, unit, dec)  { return root._fin(v) ? Figures.withUnit(Figures.figure(v, dec), unit) : "-" }
+    function _spread(sd, unit, dec) { return root._fin(sd) ? "± " + Figures.withUnit(Figures.figure(sd, dec), unit) : "-" }
     function _meanSd(mean, sd, unit, dec) {
-        if (!root._fin(mean)) return "—"
-        return Figures.figure(mean, dec) + " ± " + Figures.withUnit(root._fin(sd) ? Figures.figure(sd, dec) : "—", unit)
+        if (!root._fin(mean)) return "-"
+        return Figures.figure(mean, dec) + " ± " + Figures.withUnit(root._fin(sd) ? Figures.figure(sd, dec) : "-", unit)
     }
     // The six figures of the selected club.
     function _distanceCells(it) {
-        return [{ key: qsTr("Carry"),      val: it.carryText || "—" },
+        return [{ key: qsTr("Carry"),      val: it.carryText || "-" },
                 { key: qsTr("Total"),      val: root._meanSd(it.totalMean, it.totalSd, "yd", 0) },
                 { key: qsTr("Left–right"), val: root._spread(it.offlineSd, "yd", 0) },
                 { key: qsTr("Club speed"), val: root._meanSd(it.speedMean, it.speedSd, "mph", 0) },
@@ -291,7 +291,7 @@ PpGroupCard {
                 Text {                              // carry
                     objectName: "athleteDistanceCarry"
                     width: distanceRow.columnWidth(1)
-                    text:  distanceRow.modelData.carryText || "—"
+                    text:  distanceRow.modelData.carryText || "-"
                     elide: Text.ElideRight
                     font.family:    Theme.fontData
                     font.pixelSize: Theme.fontSzBody2
