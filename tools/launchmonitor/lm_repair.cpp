@@ -51,7 +51,11 @@
 // Safe to re-run. Safe on a swing that never had a reading (there is nothing to read back,
 // and it is skipped). Reports what it changed and touches nothing else in the document.
 //
-//   lm_repair [--dry-run] <path> [<path> ...]
+//   lm_repair [--dry-run] [--allow-in-progress] <path> [<path> ...]
+//
+// A session whose session.json says it is in progress (being recorded here or on another computer) is
+// refused, never written (D11: DEC-158), unless --allow-in-progress — for one a crash left open. A dry run
+// writes nothing and is never refused.
 //
 // A path may be a swing directory (one holding swing.json) or a session directory, in which
 // case every swing_* beneath it is visited.
@@ -157,7 +161,8 @@ struct Tally {
     int visited = 0, repaired = 0, derived = 0, intact = 0, noReading = 0, noDoc = 0, failed = 0, rows = 0;
 };
 
-void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, bool dryRun, Tally &t)
+void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, bool dryRun, bool allowInProgress,
+                 Tally &t)
 {
     if (!SwingStore::hasDocument(swingDir)) {
         // SAID OUT LOUD, not passed over. A silent skip here reads as a clean session on the
@@ -171,11 +176,20 @@ void repairSwing(pinpoint::RecordingRepository &repo, const QString &swingDir, b
     const QString name = QDir(swingDir).dirName();
     // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once, over
     // a session reader of its own (a legacy session: D3's id from the athlete who owns its folder, by its athlete.json, else the
-    // athlete the swing records; J-39, proposed, for Mark).
+    // athlete the swing records; J-39; confirmed by Mark, 15 Nov 2026).
     const pinpoint::ShotRef shot = repo.shotOfFolder(swingDir);
     if (shot.isNull()) {
         out() << "  " << name << ": FAILED — not a swing folder of a session this tool can name"
                  " (a swing_NNNN folder whose session has a session.json, or whose owner or swing records its athlete)\n";
+        ++t.failed;
+        return;
+    }
+    // A SESSION IN PROGRESS IS NOT WRITTEN (D11: DEC-158; H-14): one whose session.json says inProgress — being
+    // recorded here or on the other machine — unless --allow-in-progress. A dry run writes nothing: no check.
+    if (!dryRun && !allowInProgress
+        && pinpoint::SessionStore::fileSaysInProgress(pinpoint::SessionStore::sessionFolderOfSwing(swingDir))) {
+        out() << "  " << name << ": REFUSED — "
+              << pinpoint::SessionStore::inProgressRefusal(pinpoint::SessionStore::sessionFolderOfSwing(swingDir)) << "\n";
         ++t.failed;
         return;
     }
@@ -277,9 +291,12 @@ int main(int argc, char *argv[])
 
     QStringList paths;
     bool dryRun = false;
+    bool allowInProgress = false;
     for (const QString &a : QCoreApplication::arguments().mid(1)) {
         if (a == QStringLiteral("--dry-run") || a == QStringLiteral("-n"))
             dryRun = true;
+        else if (a == QStringLiteral("--allow-in-progress"))
+            allowInProgress = true;
         else if (a.startsWith(QStringLiteral("-"))) {
             out() << "unknown option: " << a << "\n";
             return 2;
@@ -288,7 +305,7 @@ int main(int argc, char *argv[])
     }
 
     if (paths.isEmpty()) {
-        out() << "usage: lm_repair [--dry-run] <swing-or-session-dir> [...]\n";
+        out() << "usage: lm_repair [--dry-run] [--allow-in-progress] <swing-or-session-dir> [...]\n";
         return 2;
     }
 
@@ -305,7 +322,7 @@ int main(int argc, char *argv[])
 
         if (SwingStore::hasDocument(clean)) {
             out() << clean << "\n";
-            repairSwing(repo, clean, dryRun, t);
+            repairSwing(repo, clean, dryRun, allowInProgress, t);
             continue;
         }
 
@@ -320,7 +337,7 @@ int main(int argc, char *argv[])
         }
         out() << clean << "\n";
         for (const QString &s : swings)
-            repairSwing(repo, d.filePath(s), dryRun, t);
+            repairSwing(repo, d.filePath(s), dryRun, allowInProgress, t);
     }
 
     out() << "\n" << (dryRun ? "would repair " : "repaired ") << t.repaired

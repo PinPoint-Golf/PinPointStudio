@@ -47,8 +47,12 @@
 // a library that already has its ledgers, which is the one the app meets first.
 
 #include "Gui/diagnostics/work_ons_controller.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
+#include "Coaching/board_annotations.h"
 #include "Coaching/frequency_words.h"
+#include "Coaching/shot_outcomes_pack.h"
 #include "Coaching/swing_themes.h"
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
@@ -656,6 +660,29 @@ static void stageMarks(const QString &athleteDir, const QString &session, qint64
 
 static pv::VariabilityResultView markOf(const QVariant &v) { return v.value<pv::VariabilityResultView>(); }
 
+// THE PRAISE RULE AS HOME APPLIES IT (refactor step 3.6; 04 step 3 item 5; D23): every condition "what you do well"
+// keeps is one the themes praised AND whose consistency mark — the one Your swing shows beside it (its area item) — is
+// graded Repeatable or Grooved and not measurement-limited; every one it drops has no such mark. Prints the call.
+static bool praiseRuleHolds(const WorkOnsController &c, const char *when)
+{
+    const auto repeatable = [&c](const QString &id) {
+        for (const QVariant &a : c.areaItems())
+            for (const QVariant &iv : a.toMap().value(QStringLiteral("items")).toList()) {
+                const QVariantMap it = iv.toMap();
+                if (it.value(QStringLiteral("conditionId")).toString() != id) continue;
+                const pv::VariabilityResultView m = markOf(it.value(QStringLiteral("consistency")));
+                if (m.graded() && !m.measurementLimited() && m.grade() >= 4) return true;
+            }
+        return false;
+    };
+    const QStringList before = c.doWellBeforePraise(), praised = c.doWellPraised();
+    bool ok = true;
+    for (const QString &id : praised) ok = ok && before.contains(id) && repeatable(id);
+    for (const QString &id : before) ok = ok && (praised.contains(id) || !repeatable(id));
+    std::printf("      praise (%s): %d of %d \"do well\" kept\n", when, int(praised.size()), int(before.size()));
+    return ok;
+}
+
 static void checkConsistencyMarks(const QString &root)
 {
     std::printf("consistency marks\n");
@@ -781,6 +808,8 @@ static void checkConsistencyMarks(const QString &root)
     const pv::VariabilityResultView after = markOf(area(c, "lateral").value(QStringLiteral("consistency")));
     check(c.waitForIdle() && c.consistencyLedgersRead() > read && after.graded() && after.grade() == 1,
           "a changed ledger is read again: the newest readings now scatter, and the column says so");
+    check(praiseRuleHolds(c, "consistency marks"),
+          "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
 }
 
 // ── Tendencies and the frozen baseline (shot_outcomes_design.md §7.1, Contract A) ──────────
@@ -835,6 +864,51 @@ static QVariantMap tendencyItem(const WorkOnsController &c, const char *key)
     for (const QVariant &v : c.tendencyItems())
         if (v.toMap().value(QStringLiteral("key")).toString() == QLatin1String(key)) return v.toMap();
     return {};
+}
+
+// STAGE 0.5'S FOLLOW-UP ON HOME'S OLD PATH (refactor step 3.6; board_annotations.h): Tendencies and Your distances read
+// each shot as the launch monitor board annotated it. One session of 20 driver shots; the board re-labels shot 1 a 3 wood
+// and leaves shot 2's reading out (each swing's review, as the board's commands leave it; a document naming its athlete so
+// the swing is named). The same session without the documents is the control.
+static void checkBoardFollowUp(const QString &root)
+{
+    std::printf("\nStage 0.5's follow-up: Tendencies and Your distances read the board's annotations\n");
+    const qint64 t0 = 1'780'000'000'000LL;
+    const QString golfer = root + QStringLiteral("/tBoard"), control = root + QStringLiteral("/tBoardControl");
+    QDir().mkpath(golfer);
+    QDir().mkpath(control);
+    const QString name = QStringLiteral("2026-03-01_M_01");
+    stageTendencySession(golfer, name, t0, 20);
+    stageTendencySession(control, name, t0, 20);
+    const QString dir = QDir(golfer).filePath(name);
+    const QJsonObject who{ { QStringLiteral("uuid"), QStringLiteral("3c9e1b2a-4d5f-4a6b-9c7d-8e0f1a2b3c4d") } };
+    const auto doc = [&](int swing, const QJsonObject &review) {
+        QFile f(dir + QStringLiteral("/swing_%1/swing.json").arg(swing, 4, 10, QLatin1Char('0')));
+        return f.open(QIODevice::WriteOnly)
+            && f.write(QJsonDocument(QJsonObject{ { QStringLiteral("athlete"), who }, { QStringLiteral("review"), review } }).toJson()) > 0;
+    };
+    check(doc(1, QJsonObject{ { QStringLiteral("clubOverride"), QStringLiteral("3 WOOD") } })
+              && doc(2, QJsonObject{ { QStringLiteral("excluded"), true } }),
+          "the board's two annotations are on the swings' reviews");
+    const std::unique_ptr<ICharacteristicPackProvider> prov = makeCharacteristicPackProvider();
+    const ShotOutcomePack outcomes = shotOutcomePackFor(&prov->pack());
+    const std::shared_ptr<const INormProvider> norms = sharedNormProvider();
+    const QSet<QString> lm = launchMonitorMeasures(prov->pack());
+    const TendencySet annotated = WorkOnsController::tendenciesAsOf(dir, outcomes, *norms, lm);
+    const TendencySet plain = WorkOnsController::tendenciesAsOf(QDir(control).filePath(name), outcomes, *norms, lm);
+    const auto shotsOf = [](const TendencySet &t, const QString &club) {
+        for (const QJsonValue &v : t.clubDistances)
+            if (v.toObject().value(QStringLiteral("club")).toString() == club) return v.toObject().value(QStringLiteral("shots")).toInt();
+        return 0;
+    };
+    const QString driver = pinpoint::canonicalClubId(QStringLiteral("DRIVER")), wood = pinpoint::canonicalClubId(QStringLiteral("3 WOOD"));
+    std::printf("      distances: control driver %d; annotated driver %d, 3 wood %d\n", shotsOf(plain, driver),
+                shotsOf(annotated, driver), shotsOf(annotated, wood));
+    check(shotsOf(plain, driver) == 20 && shotsOf(annotated, driver) == 18 && shotsOf(annotated, wood) == 1,
+          "Your distances: the re-labelled shot is a 3 wood's, the left-out reading is not counted, the rest are the driver's");
+    bool woodKey = false;
+    for (const TendencyItem &it : annotated.items) woodKey = woodKey || it.clubId == wood;
+    check(woodKey, "Tendencies: the re-labelled shot is judged under the 3 wood");
 }
 
 static void checkTendencies(const QString &root)
@@ -1587,6 +1661,7 @@ static void checkShotFilter(const QString &root)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("work_ons_controller_test\n");
 
     QTemporaryDir tmp;
@@ -1661,6 +1736,8 @@ int main(int argc, char **argv)
               "conditionLabel() falls back to the id for a condition the pack does not know, \"\" for \"\"");
     }
     checkSummaryShape(c, themesFile(golfer), "two small sessions");
+    check(praiseRuleHolds(c, "two small sessions"),
+          "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
 
     // ── The list ────────────────────────────────────────────────────────────────
     check(c.items().size() == 3 && c.clearedCount() == 0, "three work-ons, the outcome is not one of them");
@@ -1883,6 +1960,7 @@ int main(int argc, char **argv)
         check(t.summarySubtitle() == QStringLiteral("From 90 swings over 3 sessions"),
               "the subtitle: 'From 90 swings over 3 sessions'");
         checkSummaryShape(t, themesFile(themed), "three sessions");
+        check(praiseRuleHolds(t, "three sessions"), "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
         check(!saysCause(summaryText(t)), "no string says because / cause / due to / leads to");
 
         // Nothing changed: nothing is recomputed or rewritten.
@@ -1902,6 +1980,7 @@ int main(int argc, char **argv)
               && t.summarySubtitle() == QStringLiteral("From 120 swings over 4 sessions"),
               "a new session makes it recompute: 120 swings over 4 sessions");
         checkSummaryShape(t, themesFile(themed), "four sessions");
+        check(praiseRuleHolds(t, "four sessions"), "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
 
         // A session goes live part way through a recompute: the job stops, nothing is written, the
         // summary on screen stays — and the pause lifting computes it.
@@ -2030,6 +2109,7 @@ int main(int argc, char **argv)
 
     checkConsistencyMarks(tmp.path());
     checkTendencies(tmp.path());
+    checkBoardFollowUp(tmp.path());
     checkClubScope(tmp.path());
     checkShotFilter(tmp.path());
 

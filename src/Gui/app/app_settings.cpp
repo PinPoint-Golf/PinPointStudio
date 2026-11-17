@@ -21,7 +21,6 @@
 #include "../imu/imu_role_map.h"
 #include "pp_debug.h"
 
-#include <QDirIterator>
 #include <QStorageInfo>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -119,6 +118,10 @@ void AppSettings::refreshSessionBytes()
     const QString path = athleteLibraryPath();
     if (path.isEmpty())
         return;
+    if (!m_librarySizer) {
+        ppWarn() << "[AppSettings] no library sizer (housekeeping): the library was not measured";
+        return;
+    }
 
     m_sessionBytesScanning = true;
     emit sessionBytesChanged();
@@ -140,20 +143,10 @@ void AppSettings::refreshSessionBytes()
         emit sessionBytesChanged();
     });
 
-    m_sessionBytesWatcher.setFuture(QtConcurrent::run([path, abort]() -> qint64 {
-        QDirIterator it(path, QDir::Files | QDir::Hidden, QDirIterator::Subdirectories);
-        qint64 total = 0;
-        int    n     = 0;
-        while (it.hasNext()) {
-            it.next();
-            total += it.fileInfo().size();
-            // Polled rather than checked every entry: on a network share the abort flag is far
-            // cheaper than the stat beside it, but the loop runs tens of thousands of times and
-            // there is no reason to make quitting more responsive than one batch of files.
-            if ((++n & 0xFF) == 0 && abort->load())
-                return -1;
-        }
-        return total;
+    // Housekeeping's measure (DEC-188), copied into the job so the job touches no member: the walk itself is the
+    // repositories' (SwingPaths::libraryBytes, through the composition root's door), every file under the library, the abort polled as it goes.
+    m_sessionBytesWatcher.setFuture(QtConcurrent::run([path, abort, sizer = m_librarySizer]() -> qint64 {
+        return sizer(path, abort.get());
     }));
 }
 
@@ -161,7 +154,7 @@ AppSettings::~AppSettings()
 {
     if (m_sessionBytesAbort)
         m_sessionBytesAbort->store(true);
-    // The lambda captures `path` and `abort` BY VALUE and touches no member, so it is safe on its
+    // The lambda captures `path`, `abort` and the sizer BY VALUE and touches no member, so it is safe on its
     // own — but the watcher is a member and would be destroyed under a running future. Waiting is
     // bounded by one poll interval because of the abort above, not by the length of the walk.
     m_sessionBytesWatcher.disconnect();

@@ -26,8 +26,9 @@
 #include "standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
+#include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
-#include "../../DomainModel/session_repository.h"   // the one allocator (D10)
+#include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
 
 #include "gspro_monitor.h"
 #include "lm_device.h"
@@ -448,9 +449,11 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     meta.swingIndex = swingIndex;
     if (swingIndex == 0) {
-        // "swing_0007" → 7. Falls back to 0, which is only an ordering hint.
-        const QString digits = meta.swingId.section(QLatin1Char('_'), -1);
-        meta.swingIndex = digits.toInt();
+        // The rescue path's folder is capture's allocation: its swing number is the folder's, read by
+        // SwingPaths, the one reader of a swing folder's name (step 2.7b, lint A3). 0 when the folder is
+        // not a "swing_NNNN" one, which is only an ordering hint. The session's folder name above stays
+        // provenance (DeviceOnlyMeta::sessionId), never read back as a key.
+        meta.swingIndex = pinpoint::SwingPaths::swingNumberOf(dir.dirName());
     }
     if (m_athletes) {
         meta.athleteName = m_athletes->currentName();
@@ -469,11 +472,16 @@ bool LaunchMonitorController::writeDeviceOnly(const QString &swingDir,
     }
     // The edge (DEC-90): the folder this shot was handed (its own allocation's, or a failed camera
     // shot's on the rescue path) to its key, once.
-    const pinpoint::WriteResult w = m_repo->create(m_repo->shotOfFolder(swingDir), r, meta);
+    const pinpoint::ShotRef     shot = m_repo->shotOfFolder(swingDir);
+    const pinpoint::WriteResult w    = m_repo->create(shot, r, meta);
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write a device-only shot to" << swingDir << ":" << w.error;
         return false;
     }
+    // EVT-01's moment (D19): this is the shot's first document — a standalone shot's, or a camera shot's that
+    // wrote none (the rescue path). It fires from its readings (BRIEF-NOTES U12).
+    if (m_documentWritten)
+        m_documentWritten(shot);
 
     if (m_shotModel) {
         if (existingShotId >= 0) {
@@ -524,19 +532,19 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
 
     // ONE ALLOCATOR (D10: DEC-157): the next swing number of the running session — the session the
     // gate above requires — not a "…_session_NN" folder of its own, which split the session in two.
-    const pinpoint::SessionId session = m_captureSession ? m_captureSession() : pinpoint::SessionId();
-    if (!m_sessions || session.isNull()) {
+    // Added by the capture service to the session it captures into (Session::addShot: DEC-142).
+    if (!m_addShot) {
         ppWarn() << "LaunchMonitor: standalone shot skipped — no session to record it in";
         return false;
     }
-    const pinpoint::SwingAllocation alloc = m_sessions->allocateSwing(session);
-    if (!alloc.ok()) {
-        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << alloc.result.error;
+    const NewShot made = m_addShot();
+    if (made.shot.isNull()) {
+        ppWarn() << "LaunchMonitor: standalone shot skipped — could not create the swing folder:" << made.error;
         return false;
     }
 
-    return writeDeviceOnly(alloc.swingFolder, reading, alloc.swingName, alloc.shot.swingNumber(),
-                           alloc.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
+    return writeDeviceOnly(made.folder, reading, made.swingName, made.shot.swingNumber(),
+                           made.sessionFolderName, /*existingShotId*/ -1, /*standalone*/ true);
 }
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)
@@ -548,9 +556,7 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     const QString club = followedClub(r);
     const QJsonObject captureClub = club.isEmpty() ? QJsonObject() : captureClubFor(club);
     bool clubReplaced = false;
-    const pinpoint::WriteResult w =
-        m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(swingDir), r, captureClub, &clubReplaced)
-               : pinpoint::WriteResult{};
+    const pinpoint::WriteResult w = completeCapture(swingDir, r, captureClub, &clubReplaced);
     if (!w.ok()) {
         ppWarn() << "LaunchMonitor: cannot write reading to" << swingDir << ":"
                  << (m_repo ? w.error : QStringLiteral("no recording repository"));
@@ -576,6 +582,24 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
 
     emit readingApplied(swingDir);
     return true;
+}
+
+pinpoint::WriteResult LaunchMonitorController::completeCapture(const QString &swingDir, const LaunchMonitorReading &r,
+                                                               const QJsonObject &captureClub, bool *clubReplaced)
+{
+    if (clubReplaced)
+        *clubReplaced = false;
+    if (!m_repo)
+        return pinpoint::WriteResult{};
+    const pinpoint::ShotRef shot = m_repo->shotOfFolder(swingDir);
+    // The Shot's own command (EVT-22), through its Session; today's write only for a shot no Session holds (N1).
+    if (m_commands) {
+        const pinpoint::ForwardResult f =
+            m_commands->completeCapture(pinpoint::sessionFolderOf(swingDir), shot, r, captureClub, clubReplaced);
+        if (f.reached)
+            return f.result;
+    }
+    return m_repo->completeCapture(shot, r, captureClub, clubReplaced);
 }
 
 QString LaunchMonitorController::summaryOf(const LaunchMonitorReading &r) const
@@ -697,8 +721,7 @@ void LaunchMonitorController::flushUpdates()
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
 
-        const pinpoint::WriteResult w =
-            m_repo ? m_repo->completeCapture(m_repo->shotOfFolder(dir), r) : pinpoint::WriteResult{};
+        const pinpoint::WriteResult w = completeCapture(dir, r);
         if (!w.ok()) {
             ppWarn() << "LaunchMonitor: cannot write the club data for" << r.deviceShotId
                      << "to" << dir << ":" << (m_repo ? w.error : QStringLiteral("no recording repository"));

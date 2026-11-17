@@ -51,6 +51,7 @@
 #include "athlete.h"
 #include "../Identity/identity.h"
 
+#include <QByteArray>
 #include <QList>
 
 namespace pinpoint {
@@ -76,6 +77,11 @@ public:
 
     // Reads only, keeps no state: safe from a worker thread.
     virtual AthleteActivity readActivity(const SessionOwner &owner) const = 0;
+
+    // THE TUNING LOG's append (OBJ-TUNING-LOG, FILE-ATH-04: append-only, never rewritten; DEC-43): one line
+    // added to `athlete`'s log under its folder's lock, for that one append (refactor step 3.4b-i: the
+    // Athlete's own append, on EVT-06).
+    virtual WriteResult appendTuningLine(const Athlete &athlete, const QByteArray &line) = 0;
 };
 
 } // namespace pinpoint

@@ -161,8 +161,23 @@ SessionIdentity SessionIdentity::fromLegacyFolder(const QString &folder, const A
     s = fromSessionFile(id, folder, typeFromToken(parsed.typeToken), startedAtUtc, zone);
     if (!s.m_localDay.isValid())
         s.m_localDay = parsed.day;
-    s.m_counter = parsed.counter;
     s.m_legacy  = true;
+    return s;
+}
+
+SessionIdentity SessionIdentity::placeOfLegacyFolder(const QString &folder, const QDateTime &startedAtUtc,
+                                                     const QTimeZone &zone)
+{
+    SessionIdentity s;
+    const QString name = lastComponent(folder, 0);
+    if (name.isEmpty())
+        return s;
+    const LegacyFolderName parsed = parseLegacyFolderName(name, lastComponent(folder, 1));
+    s.m_folder       = QDir::cleanPath(folder);
+    s.m_type         = typeFromToken(parsed.typeToken);
+    s.m_startedAtUtc = startedAtUtc.isValid() ? startedAtUtc.toUTC() : QDateTime();
+    s.m_localDay     = s.m_startedAtUtc.isValid() ? s.m_startedAtUtc.toTimeZone(zone).date() : parsed.day;
+    s.m_legacy       = true;
     return s;
 }
 
@@ -189,8 +204,10 @@ void SessionIdentity::assignDayOrder(QList<SessionIdentity> &sessions)
             const SessionIdentity &y = sessions.at(b);
             if (allTimed && x.m_startedAtUtc != y.m_startedAtUtc)
                 return x.m_startedAtUtc < y.m_startedAtUtc;
-            if (!allTimed && x.m_counter != y.m_counter)
-                return x.m_counter < y.m_counter;
+            // A day with an untimed session (a legacy folder, before migration M2 gives it a start time)
+            // keeps the order the app has always given it: the folders' names (step 2.7a). Not the `_NN`
+            // alone: the counter is per type ("…_Wrist_01" and "…_Swing_02" can be one morning in either
+            // order), and a session file's session has none, so it would rank first whatever its name.
             return x.m_folder < y.m_folder;
         });
         for (qsizetype n = 0; n < day.size(); ++n)

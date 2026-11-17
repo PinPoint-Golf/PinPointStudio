@@ -21,7 +21,7 @@
 #include "variability_grader.h"   // circular helpers, tracePeak, peakMagnitude
 #include "variability_result.h"   // formatWithUnit
 
-#include "../../Gui/typeset/box_stats.h"   // quantile7: the one type-7 quantile (header-only, no Qt)
+#include "../box_stats.h"   // quantile7: the one type-7 quantile (header-only, no Qt)
 
 #include <QCoreApplication>
 

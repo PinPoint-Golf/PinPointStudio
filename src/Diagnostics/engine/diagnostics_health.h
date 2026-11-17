@@ -230,12 +230,14 @@ std::optional<OneBandShare> oneBandShareOf(const CorpusGradeCounts &counts);
 // area's doctrine: a module takes what it needs as arguments, and a global read here would make the
 // picture depend on process state no test could set. See referenceHealth() below for the same seam
 // applied to the bibliography; this is that argument applied one registry further. Callers reading
-// the shipped library pass sharedScreenSet() / sharedDrillSet() and see no change.
+// the shipped library pass RuleData's snapshot's screens and drills (src/DomainModel/rule_data.h).
+// `references` is the bibliography the `referenceOrphan` check reads; null skips it.
 std::vector<ValidationIssue> diagnosticsHealth(const CharacteristicPack &pack,
                                                const INormProvider      &norms,
                                                const MetricCatalogue    &catalogue,
                                                const ScreenSet          &screens,
-                                               const DrillSet           &drills);
+                                               const DrillSet           &drills,
+                                               const ReferenceSet       *references = nullptr);
 
 // The corpus-share check, over counts a caller has already gathered.
 std::vector<ValidationIssue> corpusShareHealth(const std::vector<CorpusGradeCounts> &counts);
@@ -246,7 +248,8 @@ std::vector<ValidationIssue> corpusShareHealth(const std::vector<CorpusGradeCoun
 // Split out rather than folded into diagnosticsHealth() for the same reason corpusShareHealth() is:
 // it is the seam that makes the check testable. Taking the set as a parameter lets both directions be
 // asserted over fixtures — and a check whose negative case is untested passes everything.
-// diagnosticsHealth() calls this with sharedReferenceSet(), so callers see no change.
+// diagnosticsHealth() calls this with the bibliography it is handed (its `references`; the editor passes
+// RuleData's snapshot's), and skips it when handed none (refactor step 3.2).
 std::vector<ValidationIssue> referenceHealth(const CharacteristicPack &pack,
                                              const ReferenceSet       &refs);
 

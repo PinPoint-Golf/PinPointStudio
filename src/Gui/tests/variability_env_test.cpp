@@ -22,6 +22,7 @@
 // stub env and in-memory descriptors, since the shipped manifest states no variabilityScale yet.
 
 #include "charts/consistency_env.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_warp.h"                // phase ids
 #include "charts/variability_env.h"
 
@@ -58,6 +59,7 @@ class VariabilityEnvTest : public QObject {
 private slots:
     void initTestCase()
     {
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         // The GUI thread's first call, as the contract asks: the provider takes the env here.
         m_provider = makeVariabilityScaleProvider();
         m_env = consistencyEnvFromPacks();

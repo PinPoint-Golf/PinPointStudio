@@ -20,7 +20,7 @@
 
 // AthleteFiles — the names of an athlete folder's own files, spelled once (H-12; refactor step 2.3,
 // brief §4.7). Adapters ring (src/Export), beside the repository that reads and writes them
-// (athlete_store.h). Lint A4 names this file the owner of "athlete.json".
+// (athlete_store.h). Lint A4 names this file the owner of every name below.
 //
 //   <library>/<athlete>/
 //     athlete.json            FILE-ATH-01: the record and the bag (DEC-05, DEC-151). Written by
@@ -28,14 +28,18 @@
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
 //     <session folders>/      SessionFiles (session_files.h)
 //
-// ⚠ THE OTHER ATHLETE FILES JOIN HERE WITH THE ITEM THAT MOVES THEIR READER OR WRITER, not before (as
-// SessionFiles does, step 2.2's J14): `tendencies.json` and `swing_themes*.json` are owned by lint A4's
-// table today (the work-ons controller; their writer is step 3's AthleteDiagnostics), `fault_profile.json`
-// by the diagnostics model (deleted in step 3), and the tuning log `outcome_corrections.jsonl`
-// (FILE-ATH-04) is still spelled by the diagnostics model's tuningLogPath(), whose folder derivation is
-// 2.7a's — its APPEND already goes through the repository's appendTuningLine below, under the folder's
-// lock. Header-only (like SessionFiles), so the diagnostics model's six link lines gain folder_lock.cpp
-// only, not the store.
+//     tendencies.json         FILE-ATH-02: the athlete's tendencies and club distances (step 2.5: named here;
+//                             written by the work-ons controller until step 3's AthleteDiagnostics)
+//     swing_themes[.<scope>[.<filter>]].json   FILE-ATH-03: the swing summary, per club scope and shot
+//                             filter (the same: named here, written by the work-ons controller)
+//
+//     outcome_corrections.jsonl   FILE-ATH-04: the tuning log, append-only (appendTuningLine, below)
+//     fault_profile.json      FILE-ATH-05: to be deleted (H-11, D-07; step 3); the diagnostics model reads
+//                             and writes it until then, through the name here
+//
+// Lint A4 names this file the owner of every name above (IM-S2-6: DEC-160; step 2.8b), so each is spelled
+// here and nowhere else in src/. Header-only (like SessionFiles), so the diagnostics model's six link lines
+// gain folder_lock.cpp only, not the store.
 
 #include "../Core/atomic_write.h"   // AtomicWriteResult
 #include "../Core/folder_lock.h"
@@ -47,7 +51,9 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QString>
+#include <QStringList>
 
 namespace pinpoint {
 
@@ -58,20 +64,72 @@ public:
     static QString athleteFileName() { return QStringLiteral("athlete.json"); }
     static QString athleteFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + athleteFileName(); }
 
-    // The athlete whose folder this is, by its athlete.json (`athleteId`, a schema `pinpoint.athlete/<n>`);
-    // null when the folder has none or it cannot be read. A read only: what a tool names a legacy session's
-    // owner by (J-39, proposed, for Mark: D3's id is derived from the OWNING athlete's id). AthleteStore
-    // remains the reader of the record itself.
-    static AthleteId ownerOf(const QString &athleteDir)
+    // THE ONE READER OF athlete.json (R-PERS-1; step 2.8b, J-40): AthleteStore and the legacy-owner lookup read
+    // it here. The one exception is the one-off migrator, tools/migrate/migrate_step2.cpp (its M1 scan and M4),
+    // which reads the file itself under J-62 (Mark, 15 Nov 2026: the migration tool's own reads and writes are
+    // accepted as a one-off) and is deleted in step 3.0. The file parsed and its envelope checked: the schema
+    // `pinpoint.athlete/<n>` (n ≥ 1; n > 1 is a newer build's: `readOnly`) and an `athleteId`. Missing: the
+    // folder has none (a settings athlete's, the corpus, a scratch folder). Unreadable: it is there but cannot
+    // be opened, parsed, or is not an athlete file — kept as it is for someone to look at, never listed and
+    // never overwritten (`why` says which). Header-only, so the swing door and the archiver (which name a
+    // legacy session's owner by it: J-39, DEC-150) need none of the store's sources.
+    struct Read {
+        enum class State { Missing, Unreadable, Read } state = State::Missing;
+        AthleteId   id;              // Read only
+        int         version  = 0;    // the schema's n (Read only)
+        bool        readOnly = false;   // written by a newer build (n > 1)
+        QJsonObject json;            // the whole file (Read only), unknown keys and all
+        QString     why;             // Unreadable: what is wrong, naming the file
+
+        bool isRead() const { return state == State::Read; }
+    };
+    static Read read(const QString &athleteDir)
     {
+        Read r;
         QFile f(athleteFile(athleteDir));
-        if (!f.open(QIODevice::ReadOnly))
-            return {};
-        const QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
-        if (!o.value(QStringLiteral("schema")).toString().startsWith(QLatin1String("pinpoint.athlete/")))
-            return {};
-        return AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
+        if (!f.exists())
+            return r;
+        r.state = Read::State::Unreadable;
+        if (!f.open(QIODevice::ReadOnly)) {
+            r.why = QStringLiteral("cannot read %1 (%2)").arg(f.fileName(), f.errorString());
+            return r;
+        }
+        QJsonParseError pe{};
+        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
+        const QJsonObject   o   = doc.object();
+        const QString schema = o.value(QStringLiteral("schema")).toString();
+        const QString prefix = QStringLiteral("pinpoint.athlete/");
+        const int version = schema.startsWith(prefix) ? schema.mid(prefix.size()).toInt() : 0;
+        const AthleteId id = AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
+        if (pe.error != QJsonParseError::NoError || !doc.isObject() || version < 1 || id.isNull()) {
+            r.why = QStringLiteral("not an athlete file (schema %1): %2").arg(schema, f.fileName());
+            return r;
+        }
+        r.state    = Read::State::Read;
+        r.id       = id;
+        r.version  = version;
+        r.readOnly = version > 1;
+        r.json     = o;
+        return r;
     }
+
+    // "tendencies.json" (FILE-ATH-02)
+    static QString tendenciesFileName() { return QStringLiteral("tendencies.json"); }
+    static QString tendenciesFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + tendenciesFileName(); }
+    // "swing_themes.json", "swing_themes.<scope>.json", "swing_themes.<scope>.<filter>.json" (FILE-ATH-03): one
+    // ".<key>" per entry of `keys`, which the caller has made file-safe (clubScopeFileKey).
+    static QString themesFile(const QString &athleteDir, const QStringList &keys = {})
+    {
+        QString name = QStringLiteral("swing_themes");
+        for (const QString &k : keys) name += QLatin1Char('.') + k;
+        return athleteDir + QLatin1Char('/') + name + QStringLiteral(".json");
+    }
+
+    // "outcome_corrections.jsonl" (FILE-ATH-04: the tuning log) and "fault_profile.json" (FILE-ATH-05)
+    static QString tuningLogFileName() { return QStringLiteral("outcome_corrections.jsonl"); }
+    static QString tuningLogFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + tuningLogFileName(); }
+    static QString faultProfileFileName() { return QStringLiteral("fault_profile.json"); }
+    static QString faultProfileFile(const QString &athleteDir) { return athleteDir + QLatin1Char('/') + faultProfileFileName(); }
 
     // ".pinpoint-lock": FolderLock's own, named here so the list is complete.
     static QString lockFileName() { return FolderLock::fileName(); }

@@ -31,7 +31,8 @@
 //                [--trunk-calib-from <standTallSwingDir | trunk_ceremony.json>] [--dtl [--dtl-pose p.json]]
 //                [--bands <csv mm>] [--club-length-mm N] [--hosel-mm N]
 //                [--shaft-length-mm N] [--hands-end-mm N] [--height-m N]
-//   swinglab_run <swing_dir> --write-back [--save-pose on|off]
+//   swinglab_run <swing_dir> --write-back [--save-pose on|off] [--allow-in-progress]
+//                  (a session whose session.json says it is in progress is refused: D11, DEC-158)
 //
 // Outputs in <run_dir>:
 //   result.json    swing.json-shaped document with the re-run analysis block
@@ -683,10 +684,14 @@ int main(int argc, char **argv)
         "file");
     QCommandLineOption optWriteBack("write-back",
         "Re-analyse the swing exactly as the in-app ReanalysisController does "
-        "(reanalyzeSwingDir, production defaults, no overrides) and write the fresh "
+        "(reanalyzeShot, production defaults, no overrides) and write the fresh "
         "analysis back into the SOURCE swing.json, preserving capture/streams/review. "
         "Exclusive: every other option except the positional swing dir is ignored "
         "(and --force, --full-window, --session-type, --params, --pooled, --save-pose).");
+    QCommandLineOption optLive("allow-in-progress",
+        "--write-back only: also write back into a session whose session.json says it is in progress (one a crash "
+        "left open). Without it such a session is refused, never written (D11): it is being recorded here or on "
+        "another computer.");
     QCommandLineOption optSavePose("save-pose",
         "--write-back only: Storage → Save pose keypoints for the write-back, \"on\" (the app's default) "
         "or \"off\". Off, newly inferred pose tracks are not written back; a reused one always is "
@@ -702,7 +707,7 @@ int main(int argc, char **argv)
     QCommandLineOption optDocBlocks("doc-blocks",
         "--out only: also put into result.json the `summary` block and this pass's `imuIntegrity` / "
         "`captureIntegrity` verdicts, as a write-back of this analysis would store them. The verdicts "
-        "are reached as reanalyzeSwingDir reaches them; the source document, carrying them and this "
+        "are reached as reanalyzeShot reaches them; the source document, carrying them and this "
         "analysis, goes through the production writer (RecordingRepository::create) into <run>/doc (no pose) and the three "
         "blocks are read back from it; <run>/doc is then removed. Unset, result.json is unchanged. "
         "For the refactor's parity baseline (tools/parity/).");
@@ -710,7 +715,7 @@ int main(int argc, char **argv)
                      optBall, optRefuse, optRefuseBeta, optWriteBack, optBind, optIgnoreRole, optTrunkCalib,
                      optDtl, optDtlPose, optDtlCalib,
                      optBands, optClubLen, optHosel, optShaftLen, optHandsEnd, optHeight,
-                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose });
+                     optCalib, optPool, optPoolPrefix, optPoolOut, optDag, optDocBlocks, optSavePose, optLive });
     cli.process(app);
 
     // ── Pool mode ────────────────────────────────────────────────────────────
@@ -747,11 +752,15 @@ int main(int argc, char **argv)
     // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once; every
     // read and write below is keyed by it. Over a session reader of its own (a corpus or library
     // session without a session file: D3's id from the athlete who owns its folder, by its athlete.json,
-    // else the athlete the swing records; J-39, proposed, for Mark).
+    // else the athlete the swing records; J-39; confirmed by Mark, 15 Nov 2026).
     pinpoint::SessionStore                  sessions;
     pinpoint::SwingStoreRecordingRepository repo(sessions);   // the composition root's one door
     pinpoint::SwingStoreRecordingReader     recordingReader(sessions);
     const pinpoint::ShotRef shot = repo.shotOfFolder(swingDir);
+    // How the shot is read (refactor step 3.4b-ii): a RecordingSource, the value a Shot hands out in the app, made
+    // here over this tool's own reader (not owned: it lives on this stack frame).
+    const pinpoint::RecordingSource source(
+        shot, std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}));
     if (shot.isNull())
         return fail(QStringLiteral("%1 is not a swing folder of a session this tool can name (a swing_NNNN "
                                    "folder whose session has a session.json, or whose owner or swing records its athlete)")
@@ -768,6 +777,10 @@ int main(int argc, char **argv)
     // Pose is kept unless --save-pose off (PersistOptions::savePose; the app's "Save pose keypoints").
     if (cli.isSet(optWriteBack)) {
         using namespace pinpoint::analysis;
+        // A SESSION IN PROGRESS IS NOT WRITTEN BY A TOOL (D11: DEC-158; H-14). --out never writes the source.
+        if (!cli.isSet(optLive)
+            && pinpoint::SessionStore::fileSaysInProgress(pinpoint::SessionStore::sessionFolderOfSwing(swingDir)))
+            return fail(pinpoint::SessionStore::inProgressRefusal(pinpoint::SessionStore::sessionFolderOfSwing(swingDir)));
         pinpoint::PersistOptions persist;
         // --save-pose: the app's "Save pose keypoints" for this write-back (default on, the app's default).
         const QString savePose = cli.value(optSavePose).trimmed().toLower();
@@ -796,6 +809,12 @@ int main(int argc, char **argv)
         // --pooled: run on a QThreadPool thread as the app's ReanalysisController does
         // (QtConcurrent::run), not the main thread — the pool's threads have the platform
         // default stack (512 KiB on macOS against the main thread's 8 MiB).
+        // The write-back is this tool's repository (a tool: R-REC-3); in the app it is the Shot's applyAnalysis.
+        const AnalysisWrite writeBack = [&repo, shot](const pinpoint::AnalysisOutcome &o,
+                                                      const pinpoint::PersistOptions &opt) {
+            return repo.writeAnalysis(shot, o, opt);
+        };
+        const bool deviceOnly = repo.isDeviceOnly(shot);
         PersistedReanalysis r;
         if (cli.isSet(optPooled)) {
             // PINPOINT_SWINGLAB_CVBUSY=1: another thread keeps OpenCV's parallel_for_ busy
@@ -807,12 +826,12 @@ int main(int argc, char **argv)
                     cv::Mat big(1024, 1024, CV_8UC3, cv::Scalar(10, 20, 30)), out;
                     while (!busyStop.load()) cv::GaussianBlur(big, out, cv::Size(31, 31), 0);
                 });
-            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts); });
+            QThreadPool::globalInstance()->start([&] { r = reanalyseAndPersist(writeBack, source, deviceOnly, persist, ropts); });
             QThreadPool::globalInstance()->waitForDone();
             busyStop = true;
             if (busy.joinable()) busy.join();
         } else {
-            r = reanalyseAndPersist(repo, recordingReader, shot, persist, ropts);
+            r = reanalyseAndPersist(writeBack, source, deviceOnly, persist, ropts);
         }
         if (r.deviceOnly) {
             if (!r.write.ok())
@@ -849,12 +868,12 @@ int main(int argc, char **argv)
     // The composition root of this run: the Recording is read through the domain's RecordingReader
     // (its store adapter), the job made by the one builder, and run — and judged — by the analysis
     // service, as the app's live capture and re-analysis are (step 1.5).
-    const AnalysisService analysisService(&recordingReader);
+    const AnalysisService analysisService{};
     SwingLoadOptions lopts;
     lopts.faceOnExplicit  = cli.isSet(optFaceOn);
     lopts.faceOnSubstring = cli.value(optFaceOn);
     lopts.tuningOverrides = tuning;   // decode.* (the MP4 readers)
-    LoadedSwing ls = SwingDiskLoader::load(recordingReader, shot, lopts);
+    LoadedSwing ls = SwingDiskLoader::load(source, lopts);
     if (!ls.ok)
         return fail(ls.error);
     SwingWindow     &window = *ls.window;

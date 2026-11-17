@@ -95,6 +95,15 @@ enum class MissingKind {
 // these are mechanical statements about the pipeline rather than guesses about the capture.
 QString missingReasonText(MissingKind k);
 
+// THE GRID A LIVE SOURCE READS: the swing's phase grid with the millisecond spans the pack's measures name
+// (msWindowsOf) added to `cfg`, its swingDir set even on the empty grid a missing document gives. The first
+// constructor below reads exactly this; a caller that keeps the grid as a value (the firing job's readings,
+// fire_findings.h) reads it here and hands it to the second. readPhaseGrid()'s contract on `writeSidecar`
+// and `parsed` applies.
+SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
+                                 bool writeSidecar = true, const PhaseGridConfig &cfg = {},
+                                 SwingStore::LazyDocument *parsed = nullptr);
+
 // One recorded swing, presented as measure values.
 //
 // Construction reads the phase grid, which prefers the swing's sidecar and falls back to a full

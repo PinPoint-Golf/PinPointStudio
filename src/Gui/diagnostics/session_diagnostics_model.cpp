@@ -17,16 +17,24 @@
  */
 
 #include "session_diagnostics_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Diagnostics/measures/live_measure_source.h"
 #include "../../Diagnostics/measures/session_measure_source.h"
 #include "../../Diagnostics/measures/measure_facets.h"
 #include "../../Diagnostics/norms/norm_provider.h"
 #include "../../Diagnostics/engine/condition_reading.h"
+#include "../../Diagnostics/engine/fire_findings.h"   // the shot's findings and derived data, pure (refactor step 3.3)
 #include "../../Diagnostics/engine/pack_io.h"
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/screen_pack.h"
-#include "../../Export/athlete_files.h"   // the tuning log's append, under the athlete folder's lock
+#include "../../App/shot_command_door.h"   // the golfer's commands forward to the Shot's and Session's (step 3.4b-i)
+#include "../../Export/athlete_files.h"   // the tuning log's append, under the athlete folder's lock (N1's interim)
+#include "../../Export/session_diagnostics_files.h"   // diagnostics.json, session_input.json, the golfer's input
+#include "../../Export/session_files.h"
+#include "../../Export/session_store.h"
+#include "../../Export/swing_paths.h"
+#include "../../Export/swing_store_repository.h"
 #include "../../Export/swing_doc.h"
 #include "../../Coaching/sequence_checks.h"
 #include "../../Coaching/shot_outcomes_pack.h"
@@ -44,12 +52,14 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaObject>
+#include <QPointer>
 
 #include <algorithm>
 #include <cmath>
@@ -57,18 +67,16 @@
 #include <utility>
 
 using namespace pinpoint::analysis;
+
+namespace {
+// The golfer's commands' door (refactor step 3.4b-i): main.cpp's `app`, process-wide because QML makes the panel's
+// model; none in the tools and tests. INTERIM: it goes with this model (step 5; information_model.md §11).
+pinpoint::ShotCommandDoor *g_shotCommands = nullptr;
+SessionDiagnosticsModel::ParallelHook g_parallelHook;   // refactor 3.5-ii: the parallel run (main.cpp; D14)
+}
 namespace PV = pinpoint::variability;
 
 namespace {
-
-// THE AUTHORED NUMBER A THRESHOLD SIGNAL FIRES AT, or NaN for any other test (#16): a threshold reading's
-// distance is measured against its own line (ConditionRow::faultAt), not the band its measure carries.
-double thresholdOf(const CharacteristicPack &pack, const QString &signalId)
-{
-    const Signal *s = pack.signal(signalId);
-    return s && s->test == SignalTest::Threshold && s->threshold ? *s->threshold
-                                                                 : std::numeric_limits<double>::quiet_NaN();
-}
 
 // WHETHER A SWING FOLDER IS ONE OF THIS SESSION'S: its parent is the session folder, compared as
 // cleaned absolute paths (so "…/lib//athlete/…" and "…/lib/athlete/…" agree). False with no session
@@ -81,35 +89,15 @@ bool swingIsInSession(const QString &swingDir, const QString &sessionDir)
         == QDir::cleanPath(QFileInfo(sessionDir).absoluteFilePath());
 }
 
-// The envelope's own schema tag, separate from kDiagSchemaVersion.
+// The envelope's own schema tag, separate from kDiagSchemaVersion: SessionDiagnosticsFiles::kEnvelopeVersion
+// (Export/session_diagnostics_files.h), its one reader and writer since step 2.5.
 //
 // TWO VERSIONS BECAUSE THERE ARE TWO CONTRACTS. kDiagSchemaVersion tags the ROW shape, which
 // diagnostic_ledger.h owns and which a corpus tool reads without knowing this class exists.
-// This one tags what the MODEL wraps around it — the focus contract, the declared miss, the
-// screen answers, the session meta. They change on completely different schedules, and
-// sharing one number would force a bump on every consumer whenever a panel gained a field.
-constexpr int kEnvelopeVersion = 1;
-
-// WHAT A NOT-JUDGED ROW SAYS, versioned apart from the row shape: the shape did not change when the rows
-// began naming the engine rule behind a refusal and the capture gate behind an excluded shot (trust stage 6
-// session 2), but a ledger written before did not fill them. Hashed into the content stamp, so such a
-// ledger regrades once on activation.
-constexpr int kRowWordsVersion = 1;
-
-// HOW A ROW IS GRADED, versioned apart from the row shape and the words: a change to what detection
-// decides for a swing, with no new field to fill, would otherwise leave every stored ledger looking
-// current. Hashed into the content stamp, so a ledger graded under an older rule regrades once on
-// activation (re-reading each swing's stored readings; it never re-runs pose, ball or shaft).
-// 1 (14 Nov 2026, audit B-07): a swing that declares no club is graded as an undeclared context — its
-//   corridor readings carry the engine's inferred-context demotion (×0.7, "club assumed") and its rows
-//   ConditionRow::contextInferred. Before, the live path graded it as a declared full swing at full
-//   confidence and every row said not inferred.
-constexpr int kRowGradingVersion = 1;
-
-const QString kDiagnosticsFile = QStringLiteral("diagnostics.json");
-const QString kProfileFile     = QStringLiteral("fault_profile.json");
-const QString kBaselineFile    = QStringLiteral("club_baseline.json");
-const QString kTuningLogFile   = QStringLiteral("outcome_corrections.jsonl");
+// The envelope's tags what the MODEL wraps around it — the session meta. They change on completely
+// different schedules, and sharing one number would force a bump on every consumer whenever a panel
+// gained a field.
+constexpr int kEnvelopeVersion = pinpoint::SessionDiagnosticsFiles::kEnvelopeVersion;
 
 // What the launch monitor saw often enough to seed the session's graph as an observed miss (§4.5).
 constexpr int kDiagObservedMissMin = 3;
@@ -121,19 +109,6 @@ const QString kProvisionalSuffix = QStringLiteral("|provisional");
 // −0 as 0. Brief §6: the value slot and the corridor slot must agree, and a hyphen-minus beside a
 // typographic one in the same cell is the kind of thing a golfer reads as a bug in the numbers.
 namespace F = pinpoint::figures;
-
-// The corridor's shape as the ledger row records it — the one translation between
-// MeasureEvidence's two open-side flags and CorridorShape, so there is exactly one place
-// that decides what a missing scale means.
-CorridorShape corridorShapeOf(const MeasureEvidence &e)
-{
-    if (!e.hasCorridor) return CorridorShape::None;              // graded against a number
-    if (!(e.corridorHi - e.corridorLo > 0.0)) return CorridorShape::None;   // degenerate band
-    if (e.lowOpen && e.highOpen) return CorridorShape::None;     // nothing to normalise by
-    if (e.lowOpen)  return CorridorShape::Ceiling;
-    if (e.highOpen) return CorridorShape::Floor;
-    return CorridorShape::TwoSided;
-}
 
 // ── The strength meter's fields, written in ONE place ───────────────────────────────────
 //
@@ -181,26 +156,6 @@ QString compositeShareWord(double share)
     if (share >= kShareMost)  return QStringLiteral("most of it");
     if (share >= kShareSome)  return QStringLiteral("some");
     return QStringLiteral("a little");
-}
-
-// A measure that is not live (held, planned, no producer…) is not graded at all: say it is held back,
-// which is the honest reason, rather than "not measured" — the series may well be on the swing. ONE
-// sentence for a composite's unread part and a plain row the engine refused as NotLive (#176), so the
-// two can never word the same fact differently. `status` is measureStatusName's spelling.
-QString notLiveWords(const QString &status)
-{
-    return status == QLatin1String("held") ? QStringLiteral("held back until it is trusted to grade")
-                                           : QStringLiteral("not graded yet");
-}
-
-// The status of the first measure in `measureIds` the pack does not grade — the one behind a NotLive
-// refusal (the engine names it among the signal's missing measures). Empty when none is non-live.
-QString notLiveStatusOf(const CharacteristicPack &pack, const QStringList &measureIds)
-{
-    for (const QString &mid : measureIds)
-        if (const Measure *m = pack.measure(mid); m && !measureStatusGrades(m->status))
-            return measureStatusName(m->status);
-    return QString();
 }
 
 // Why a composite part was not read (CompositeUnreadRow::reason), in the trust fold's words.
@@ -312,39 +267,6 @@ QString gatedClause(const ConditionRow &r, const RowGate &g)
 {
     if (g.rule || g.subject == QLatin1String("shot") || r.notAssessableReason.isEmpty()) return g.words;
     return r.notAssessableReason;
-}
-
-// The reason a row or a sequence check reads when the engine refused a reading it HAD (Finding::refusal)
-// — the sequence checks' existing sentences where they have one, else a mechanical one of the same kind.
-// Empty for a refusal that is not one of the engine's rules (signalRefusalRuleId).
-QString refusalReason(SignalRefusal k, const QString &measureId)
-{
-    switch (k) {
-    case SignalRefusal::NoCorridor:             return QStringLiteral("no range to judge it against on this shot");
-    case SignalRefusal::NonPositiveDenominator: return QStringLiteral("the ratio could not be formed on this swing");
-    case SignalRefusal::MixedScale:             return sequenceGapReason(SequenceGap::MixedScale, measureId);
-    case SignalRefusal::Implausible:            return sequenceGapReason(SequenceGap::Implausible, measureId);
-    case SignalRefusal::PeakAfterImpact:        return sequenceGapReason(SequenceGap::PeakAfterImpact, measureId);
-    case SignalRefusal::CompositeCoverage:      return missingReasonText(MissingKind::CompositeCoverage);
-    default:                                    return QString();
-    }
-}
-
-// A composite's parts and coverage, from the engine's evidence into the ledger's row (schema 9). The
-// two structs are copies of one shape — the ledger header stands apart from the Diagnostics module —
-// and this is the one place the copy is made. Empty for any measure that is not a composite.
-CompositeRowEvidence compositeRowOf(const MeasureEvidence &e)
-{
-    CompositeRowEvidence c;
-    c.weightRead  = e.partsWeightRead;
-    c.weightTotal = e.partsWeightTotal;
-    c.parts.reserve(e.parts.size());
-    for (const CompositePart &p : e.parts)
-        c.parts.push_back({ p.name, p.measureId, p.value, p.unit, p.z, p.weight, p.share, p.sign,
-                            p.atStart, p.atEnd });
-    for (const CompositeUnread &u : e.partsUnread)
-        c.unread.push_back({ u.name, u.measureId, u.reason, u.status });
-    return c;
 }
 
 // "4 measures not assessable on this capture", and of those, the ones a gate or rule accounts for, by
@@ -662,57 +584,18 @@ QString patternsExplained(int n)
 constexpr int kDetailMaxPaths = 8;
 constexpr int kDetailMaxDepth = 7;
 
-// THE LEDGER'S SHOT ID IS THE SWING FOLDER'S NUMBER (swing_0007 -> 7), on every path in. The
-// back-fill has always read it from there; the live path used to take ShotProcessor's id, which
-// is the carousel's own counter and agrees with the folder only in a session whose carousel was
-// never reloaded. Extend today's session and the next shot arrived as "91" beside folders 1–30:
-// filed under a number no reload would give it, so the next activation graded swing_0031 a
-// second time as 31, and in other orders the counter landed ON a number already held and the
-// shot was dropped as a repeat. −1 when the folder carries no number.
-int folderShotId(const QString &swingDir)
+// THE LEDGER'S SHOT ID IS THE SWING NUMBER (ID-SWING-NUMBER: swing_0007 -> 7), on every path in, and
+// "shot N" on the panel is that number (DEC-91; refactor step 2.7a, audit E-06). The back-fill has always
+// read it from the folder; the live path used to take ShotProcessor's id, which is the carousel's own
+// counter and agrees with the folder only in a session whose carousel was never reloaded. Extend today's
+// session and the next shot arrived as "91" beside folders 1–30: filed under a number no reload would give
+// it, so the next activation graded swing_0031 a second time as 31, and in other orders the counter landed
+// ON a number already held and the shot was dropped as a repeat. The number is read by SwingPaths, the one
+// reader of a swing folder's name (P7, lint A3). −1 when the folder is not named as a swing.
+int swingNumberOfFolder(const QString &swingDir)
 {
-    const QString name = QFileInfo(QDir::cleanPath(swingDir)).fileName();
-    const int us = name.lastIndexOf(QLatin1Char('_'));
-    if (us < 0) return -1;
-    bool ok = false;
-    const int id = name.mid(us + 1).toInt(&ok);
-    return (ok && id >= 0) ? id : -1;
-}
-
-// The baseline's keys are canonical bag ids; the detection asks with whatever spelling the swing carries.
-class CanonicalClubBaseline final : public IClubBaselineProvider {
-public:
-    explicit CanonicalClubBaseline(std::shared_ptr<IClubBaselineProvider> inner) : m_inner(std::move(inner)) {}
-    std::optional<ClubBaselineEntry> forClub(const QString &club) const override
-    {
-        return m_inner->forClub(pinpoint::canonicalClubId(club));
-    }
-private:
-    std::shared_ptr<IClubBaselineProvider> m_inner;
-};
-
-// The reading a measure records, NaN when the capture had none (absent is never zero). A PLAIN read, for
-// a number that is shown or stored: it does not ask the measure's status. A read a verdict rests on goes
-// through gradedOrNaN() instead.
-double measuredOrNaN(const LiveMeasureSource &src, const char *measureId)
-{
-    const auto v = src.value(QLatin1String(measureId));
-    return (v && std::isfinite(v->value)) ? v->value : std::numeric_limits<double>::quiet_NaN();
-}
-
-// THE SAME READ FOR A VERDICT (#176): NaN — "not read" — when the measure is not live in the pack
-// (packMeasureGrades, the engine's own rule), whatever the producer emitted.
-double gradedOrNaN(const LiveMeasureSource &src, const CharacteristicPack &pack, const char *measureId)
-{
-    return packMeasureGrades(pack, QLatin1String(measureId)) ? measuredOrNaN(src, measureId)
-                                                             : std::numeric_limits<double>::quiet_NaN();
-}
-
-QString normaliseHandedness(const QString &raw)
-{
-    if (raw.compare(QLatin1String("Left"), Qt::CaseInsensitive) == 0)  return QStringLiteral("Left");
-    if (raw.compare(QLatin1String("Right"), Qt::CaseInsensitive) == 0) return QStringLiteral("Right");
-    return QString();
+    const int n = pinpoint::SwingPaths::swingNumberOf(QFileInfo(QDir::cleanPath(swingDir)).fileName());
+    return n > 0 ? n : -1;
 }
 
 } // namespace
@@ -731,6 +614,10 @@ SessionDiagnosticsModel::SessionDiagnosticsModel(QObject *parent)
     // arrives every twenty seconds and takes well under a second to reduce.
     m_pool.setMaxThreadCount(1);
     m_historyPool.setMaxThreadCount(1);
+    m_reviewPool.setMaxThreadCount(1);
+    m_freezePool.setMaxThreadCount(1);
+    m_sessions   = std::make_unique<pinpoint::SessionStore>();
+    m_recordings = std::make_unique<pinpoint::SwingStoreRecordingRepository>(*m_sessions);
     if (m_packProv) m_outcomePack = shotOutcomePackFor(&m_packProv->pack());
     rebuild();
 }
@@ -745,13 +632,17 @@ SessionDiagnosticsModel::~SessionDiagnosticsModel()
     // context is this object, so a scan that lands after destruction is simply dropped — but the
     // worker itself must not outlive the members it was started from.
     m_historyPool.waitForDone();
+    // A shot's intent or correction on its way to the swing file: it lands before the doors go.
+    m_reviewPool.waitForDone();
+    // A freeze's predecessor read captures `this` for its landing: done before the members go.
+    m_freezePool.waitForDone();
     // A batch still coalescing (decision 1) has rows placed and not yet written. Write them:
     // they are graded and stamped, and on disk they will not be detected again. The deliveries
     // still queued die with this object, as they always did, and the next activation re-does them.
     // A block met by this last write is logged and not announced: the panel that would turn it into a
     // notification is being torn down with this object.
     m_destroying = true;
-    if (m_owedRebuild) persist(/*adoptMerged=*/false);
+    if (m_owedRebuild || m_shotInputUnflushed) persist(/*adoptInput=*/false);
 }
 
 // ── Simple inputs ───────────────────────────────────────────────────────────────────────
@@ -827,12 +718,10 @@ int SessionDiagnosticsModel::shotIdForSwingDir(const QString &dir) const
         if (QFileInfo(QDir::cleanPath(it.value())).fileName() == name && indexOfShot(it.key()) >= 0)
             return it.key();
 
-    if (name.startsWith(QLatin1String("swing_"))) {
-        bool ok = false;
-        const int n = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-        if (ok && indexOfShot(n) >= 0) return n;
-    }
-    return -1;
+    // The swing number, read by SwingPaths (step 2.7a). ⚠ Like the name match above, this does not ask
+    // whether the swing is this session's (audit E-05, R-APP-4): the selection by ShotRef is step 4's.
+    const int n = swingNumberOfFolder(want);
+    return (n >= 0 && indexOfShot(n) >= 0) ? n : -1;
 }
 
 Stage SessionDiagnosticsModel::effectiveStage() const
@@ -854,6 +743,7 @@ int SessionDiagnosticsModel::patternCount() const
 
 void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     // IDEMPOTENCE IS DECIDED HERE, ON THE CALLING THREAD, AND BEFORE ANY WORK IS QUEUED.
     // Doing it in applyIngested() would still produce one row per shot, but it would parse
     // the same 30 MB document twice when a back-fill scan raced a live shotProcessed — which
@@ -872,9 +762,9 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
                                                       : QDir::cleanPath(m_sessionDir));
         return;
     }
-    // The folder's number, whatever the caller numbered it (folderShotId above). The caller's id
-    // stands only for a folder that carries none.
-    if (const int fromFolder = folderShotId(swingDir); fromFolder >= 0) shotId = fromFolder;
+    // The swing number, whatever the caller numbered it (swingNumberOfFolder above). The caller's id
+    // stands only for a folder that is not named as a swing.
+    if (const int fromFolder = swingNumberOfFolder(swingDir); fromFolder >= 0) shotId = fromFolder;
     if (shotId < 0) return;
     // A CLOSED SESSION IS FROZEN. Closing is the one lifecycle transition that is an event
     // rather than a threshold, and the panel it produces is the session's summary — a shot
@@ -889,12 +779,11 @@ void SessionDiagnosticsModel::ingestShot(int shotId, const QString &swingDir)
 
 void SessionDiagnosticsModel::regradeShot(const QString &swingDir)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     // A re-analysis of another session's swing is that session's business: no warning, it is routine.
     if (!swingIsInSession(swingDir, m_sessionDir)) return;
-    const QString name = QFileInfo(swingDir).fileName();
-    bool ok = false;
-    const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-    if (!ok || id < 0) return;
+    const int id = swingNumberOfFolder(swingDir);
+    if (id < 0) return;
     if (!m_ingested.contains(id)) { ingestShot(id, swingDir); return; }
     m_swingDirs.insert(id, swingDir);
     queueDetect(id, swingDir, true);
@@ -925,11 +814,12 @@ bool SessionDiagnosticsModel::dropShot(int shotId)
 
 void SessionDiagnosticsModel::forgetShot(const QString &swingDir)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_sessionDir.isEmpty() || swingDir.isEmpty()) return;
     const QFileInfo fi(swingDir);
     if (QDir::cleanPath(fi.absolutePath()) != QDir::cleanPath(QFileInfo(m_sessionDir).absoluteFilePath()))
         return;
-    const int id = folderShotId(swingDir);
+    const int id = swingNumberOfFolder(swingDir);
     if (id < 0 || !dropShot(id)) return;
     resolveSelectedSwingDir();
     // Reduced and written as any arrival is — at once, or with the batch still landing.
@@ -1016,22 +906,15 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
     // so there only the grid can parse. Local to this call: the worker threads that run
     // detectShot() never see each other's.
     //
-    // Both reads happen HERE, before detection, and the document is released straight after them:
-    // nothing below needs it, and holding a ~33 MB swing's parse through detectForSwing() and the
+    // Both reads happen HERE, before the findings fire, and the document is released straight after
+    // them: nothing below needs it, and holding a ~33 MB swing's parse through fireFindings() and the
     // rows would keep it alive longer than either reader ever did on its own.
     pinpoint::SwingStore::LazyDocument parsed(swingDir);
 
     // writeSidecar true: the phase grid is cached beside the swing, so a re-activation of the
     // same session costs a small read rather than a second fat parse of every document.
-    LiveMeasureSource src(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
-    src.setWithSigma(m_withSigma);
-    // Null while unfrozen: the two history measures then read as not earned, and nothing else changes.
-    // A part swing never sees them either: "short" is judged on full swings only (design §3.3), so
-    // a pitch falls through to the duff guard rather than being measured against a full-swing carry.
-    if (m_clubBaseline
-        && classifySwingLength(gradedOrNaN(src, pack, "m_shaftAngleP4"), gradedOrNaN(src, pack, "m_lmClubheadSpeed"),
-                               usualFor(src.club()), gradedOrNaN(src, pack, "m_lmBallSpeed")) != QLatin1String("partial"))
-        src.setClubBaselineProvider(m_clubBaseline);
+    FiringReadings readings;
+    readings.grid = readLivePhaseGrid(swingDir, pack, /*writeSidecar=*/true, PhaseGridConfig{}, &parsed);
 
     // ⚠ THE INSTANT THE DOCUMENT RECORDS, NOT THE INSTANT THE FILE WAS LAST TOUCHED.
     // This read the file's mtime, which is only incidentally the capture time: copying, moving or
@@ -1056,290 +939,36 @@ SessionDiagnosticsModel::Ingested SessionDiagnosticsModel::detectShot(
             : pinpoint::SwingStore::info(swingDir).mtimeMs;
     parsed.release();
 
-    // The kinematic sequence checks' signals ride the SAME call, so each is evaluated on the graded
-    // source detect() read (§10.6 E4: the tile and the diagnosis cannot disagree).
-    const LiveDetection     d = detectForSwing(src, pack, norms, gradePolicyByName(m_policyName),
-                                               {}, QString(), sequenceCheckSignalIds());
+    // The document's own facts the findings read: the hand, and the two recording-integrity facts that
+    // withhold the whole shot (a refused club track also carries the warning but withholds nothing).
+    readings.handedness    = summary.handedness;
+    readings.dataWarning   = summary.dataWarning;
+    readings.captureBroken = summary.dataWarningDetail.value(QStringLiteral("capture")).toBool();
+    readings.imuBroken     = summary.dataWarningDetail.value(QStringLiteral("imu")).toBool();
 
-    ShotRecord rec;
-    rec.shotId      = shotId;
-    rec.club        = d.club;
-    rec.contextId   = d.contextId;
-    rec.timestampMs = timestampMs;
+    // THE FIRING INPUTS (fire_findings.h; refactor step 3.3), read from this model exactly where and when
+    // detectShot always read them: on the worker, from the members activateSession() holds still while a
+    // job is in flight. The pack is this model's own view of a RuleData snapshot, held without ownership —
+    // the model outlives every job it queues (its destructor waits for its pool). The grade policy is read
+    // live, as before (audit D-12; refactor 3.5's snapshot fixes it). No cohort yet: unqualified, as before
+    // (D6 lands with 3.5). SET-06 is not held here; it is recorded, never applied, so the findings are the
+    // same. The flight table and the usuals are layer 3's and play no part in the findings.
+    FiringInputs inputs;
+    inputs.pack        = std::shared_ptr<const ICharacteristicPackProvider>(std::shared_ptr<const void>(), m_packProv.get());
+    inputs.norms       = norms;
+    inputs.gradePolicy = m_policyName;
+    inputs.withSigma   = m_withSigma;
+    if (m_clubBaseline) inputs.clubBaseline = m_baselineClubs;
 
-    rec.rows.reserve(d.result.findings.size());
-    for (const Finding &f : d.result.findings) {
-        // A SESSION-scope condition has no per-swing verdict (§10.8 E2, NR-04/NR-11): its measures
-        // are refused on every swing, and a row here would draw a tick, a pip and a "not assessable"
-        // for a question no swing is asked. rebuild() reads it over the session instead.
-        if (isSessionScopeCondition(pack, f.conditionId)) continue;
-        ConditionRow r;
-        r.conditionId      = f.conditionId;
-        r.confidence       = f.confidence;
-        r.material         = f.material;
-        r.sharp            = f.sharp;
-        r.pFire            = f.pFire;        // §A8.4 — −1 when not formed
-        r.grossRisk        = f.grossRisk;
-        r.quantified       = f.quantified;
-        r.contextId        = d.contextId;
-        r.firedSignalCount = int(f.firedSignals.size());
-        // "CLUB ASSUMED" (rule.diag.inferredContext): the swing declared no club, so it was graded at
-        // the default context and detect() already demoted its corridor readings. The row carries
-        // the shot's fact so the ranking demotes it too (rankScores, work_ons.h).
-        r.contextInferred  = d.contextInferred;
-
-        switch (f.state) {
-        case FindingState::Fired:
-            r.state     = ShotState::Fired;
-            r.direction = (f.direction == Direction::High) ? 1 : -1;
-            break;
-        case FindingState::NotFired:
-            r.state     = ShotState::Clean;
-            r.direction = 0;
-            break;
-        case FindingState::Unavailable:
-            r.state = ShotState::NotAssessable;
-            // Never blank (ConditionRow's contract): the review strip prints this where a
-            // corridor would go. The source knows WHY for the measure that failed; where a
-            // condition names several, the first is the one that stopped it.
-            if (!f.missingMeasures.isEmpty())
-                r.notAssessableReason = src.missingReason(f.missingMeasures.first());
-            // A value the producer measured but marked not for judging (KB-18): its own reason.
-            if (r.notAssessableReason.isEmpty() && !f.missingMeasures.isEmpty())
-                if (const auto w = src.value(f.missingMeasures.first()); w && !w->withheld.isEmpty())
-                    r.notAssessableReason = w->withheld;
-            if (r.notAssessableReason.isEmpty())
-                r.notAssessableReason = missingReasonText(MissingKind::MetricNotProduced);
-            // A REFUSAL THE ENGINE MADE ON A READING IT HAD (trust stage 6 session 2): no range to judge
-            // against, a reading not believed, two scales, no ratio, a peak after impact. The measure
-            // read, so the absence reasons above say nothing true ("metric not produced") — the row says
-            // the refusal and carries the engine RULE behind it (rule.diag.*), with no subject: a rule
-            // leaves no per-swing record, so there is no Trust-panel reading to open, only its words.
-            // Re-derived on every read, so it holds on a swing analysed before records existed too.
-            if (const char *rule = signalRefusalRuleId(f.refusal)) {
-                r.notAssessableReason = refusalReason(f.refusal, f.missingMeasures.value(0));
-                r.notJudgedGate       = QString::fromLatin1(rule);
-                r.notJudgedSubject.clear();
-                // A MEASURE THE PACK DOES NOT GRADE (#176): held, planned, no producer. Its value may be on
-                // the swing, so "not produced" would be false; the row says it is held back and carries
-                // the status, the token-plus-status a composite's unread part already carries.
-                if (f.refusal == SignalRefusal::NotLive) {
-                    r.notLiveStatus       = notLiveStatusOf(pack, f.missingMeasures);
-                    r.notAssessableReason = notLiveWords(r.notLiveStatus);
-                }
-            } else {
-                // THE GATE THAT STOPPED IT (trust_and_gates_design.md §4.4): a missing or withheld measure
-                // standing on a sequence node a gate refused says which gate, in its words, and the row
-                // carries the gate and the reading so the Trust panel can list what each gate blocked.
-                for (const QString &mid : f.missingMeasures) {
-                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
-                    if (gc.gate.isEmpty()) continue;
-                    r.notJudgedGate       = gc.gate;
-                    r.notJudgedSubject    = gc.subject;
-                    r.notAssessableReason = gc.clause;      // "pelvis peak out of sight"
-                    break;
-                }
-            }
-            break;
-        }
-
-        if (f.evidence.hasEvidence) {
-            r.drivingMeasureId = f.evidence.drivingMeasureId;
-            r.value            = f.evidence.value;
-            r.corridorLo       = f.evidence.corridorLo;
-            r.corridorHi       = f.evidence.corridorHi;
-            r.z                = f.evidence.z;
-            // WHICH SIDE THE BAND IS OPEN, recorded here because this is the only place it is
-            // known: MeasureEvidence carries the flags, the ledger row carries the number they
-            // scale, and the strength meter downstream cannot read one without the other.
-            // Every branch that left z at 0 for want of a scale records None, so a meter is
-            // never drawn over a reading that was graded against an authored number.
-            r.corridorShape    = corridorShapeOf(f.evidence);
-            // …and which of the band's ends THIS condition fires on (schema 10, #16), so a clean
-            // reading out on the end it never fires on is not scored as a near miss.
-            r.firingSide       = conditionFiringSide(pack, f.conditionId, r.drivingMeasureId);
-            // …the threshold test's own line when one decided it, and whether every signal must fire —
-            // what a clean row's distance is read against (rowStrength).
-            r.faultAt          = thresholdOf(pack, f.evidence.drivingSignalId);
-            if (const Condition *pc = pack.condition(f.conditionId)) r.allOf = pc->detection == DetectionMode::All;
-            // Schema 9: a composite's parts and coverage, the evidence its detail page draws.
-            r.composite        = compositeRowOf(f.evidence);
-        }
-        // Every signal's measure, when there is more than one to show (schema 4).
-        if (f.readings.size() > 1) {
-            for (const MeasureEvidence &e : f.readings) {
-                MeasureRow m;
-                m.measureId     = e.drivingMeasureId;
-                m.signalId      = e.drivingSignalId;
-                m.value         = e.value;
-                m.corridorLo    = e.corridorLo;
-                m.corridorHi    = e.corridorHi;
-                m.z             = e.z;
-                m.corridorShape = corridorShapeOf(e);
-                m.firingSide    = conditionFiringSide(pack, f.conditionId, m.measureId);
-                m.faultAt       = thresholdOf(pack, e.drivingSignalId);
-                m.fired         = e.fired;
-                m.composite     = compositeRowOf(e);
-                r.readings.push_back(std::move(m));
-            }
-        }
-        rec.rows.push_back(std::move(r));
-    }
-
-    // Each sequence check's own verdict (schema 5), and why one could not be assessed — in golfer
-    // words, naming the missing piece where the engine's refusal says which it was.
-    rec.signalRows.reserve(d.signalOutcomes.size());
-    for (const SignalOutcome &o : d.signalOutcomes) {
-        SignalRow g;
-        g.signalId = o.signalId;
-        if (o.available) {
-            g.state      = o.fired ? ShotState::Fired : ShotState::Clean;
-            g.pFire      = o.pFire;
-            g.quantified = o.quantified;
-            g.comparedWith = o.comparedWith;
-        } else {
-            g.state = ShotState::NotAssessable;
-            const QString first = o.missing.value(0);
-            SequenceGap gap = SequenceGap::Unknown;
-            switch (o.refusal) {
-            case SignalRefusal::MeasureMissing:
-                // The KS keys are emitted only for placed nodes (§10.9 P3), so "not produced" on
-                // one of them IS an unplaced node. Every other reason (no analysis, no impact)
-                // is the pipeline's, and says so in its own words below.
-                if (src.missingKind(first) == MissingKind::MetricNotProduced) gap = SequenceGap::NotPlaced;
-                break;
-            case SignalRefusal::MixedScale:  gap = SequenceGap::MixedScale;  break;
-            case SignalRefusal::Implausible: gap = SequenceGap::Implausible; break;
-            case SignalRefusal::PeakAfterImpact: gap = SequenceGap::PeakAfterImpact; break;
-            case SignalRefusal::Withheld:    gap = SequenceGap::Withheld;    break;
-            default: break;
-            }
-            g.reason = sequenceGapReason(gap, first);
-            if (gap == SequenceGap::Unknown && o.refusal == SignalRefusal::MeasureMissing) {
-                const MissingKind k = src.missingKind(first);
-                if (k != MissingKind::None && k != MissingKind::MetricNotProduced)
-                    g.reason = missingReasonText(k);
-            }
-            // the gate behind an unplaced or withheld peak, as for the condition rows above
-            if (o.refusal == SignalRefusal::MeasureMissing || o.refusal == SignalRefusal::Withheld)
-                for (const QString &mid : o.missing) {
-                    const LiveMeasureSource::GateCause gc = src.gateCause(mid);
-                    if (gc.gate.isEmpty()) continue;
-                    g.notJudgedGate    = gc.gate;
-                    g.notJudgedSubject = gc.subject;
-                    g.reason           = gc.clause;
-                    break;
-                }
-            // ...and the engine rule behind a refusal on a reading it had, as for the rows above: the
-            // sentence the gap already chose (or the rule's own where the gap had none), no subject
-            if (const char *rule = signalRefusalRuleId(o.refusal)) {
-                if (gap == SequenceGap::Unknown) {
-                    const QString why = refusalReason(o.refusal, first);
-                    if (!why.isEmpty()) g.reason = why;
-                }
-                g.notJudgedGate = QString::fromLatin1(rule);
-                g.notJudgedSubject.clear();
-                if (o.refusal == SignalRefusal::NotLive) {      // as the condition rows above (#176)
-                    g.notLiveStatus = notLiveStatusOf(pack, o.missing);
-                    g.reason        = notLiveWords(g.notLiveStatus);
-                }
-            }
-        }
-        rec.signalRows.push_back(std::move(g));
-    }
-    // The placed peak instants the session's timing spread is reduced from (schema 6, §10.9 P8). Only
-    // placed nodes emit, so an absent value IS an unplaced node; a time a signal refused as
-    // implausible on this swing is a capture fault, not a reading, and stays out of the spread too.
-    for (const SequenceSpreadSegmentDef &seg : sequenceSpreadSegments()) {
-        const QString mid = QLatin1String(seg.measureId);
-        // The spread is graded (m_ksTimingSpread), so a peak time the pack does not grade — held,
-        // planned — stays out of it, exactly as the engine refuses it on the order checks (#176).
-        if (!packMeasureGrades(pack, mid)) continue;
-        bool implausible = false;
-        for (const SignalOutcome &o : d.signalOutcomes)
-            if (o.refusal == SignalRefusal::Implausible && o.missing.contains(mid)) implausible = true;
-        if (implausible) continue;
-        // Nor does a time its producer marked not for judging (the camera club peak, KB-18).
-        if (const auto v = src.value(mid); v && std::isfinite(v->value) && v->withheld.isEmpty()) {
-            PeakTimeRow t;
-            t.measureId = mid;
-            t.valueMs   = v->value;
-            t.sigmaMs   = v->sigma;
-            rec.peakTimes.push_back(std::move(t));
-        }
-    }
-
-    // The ranking's last tie-break: the measured clubhead speed where there is one, else ours.
-    for (const char *mid : { "m_lmClubheadSpeed", "m_clubheadSpeedImpact" }) {
-        if (const auto v = src.value(QLatin1String(mid)); v && std::isfinite(v->value)) {
-            rec.clubheadSpeed = v->value;
-            break;
-        }
-    }
-
-    // Schema 11: the monitor's readings the per-club distances are reduced from, the backswing, and
-    // how far the swing went against this club's frozen usual numbers (Contract E). Read PLAINLY and kept
-    // as recorded, from the one table (shotReadingFields: carry, total, offline, ball and club speed,
-    // smash, the P4 shaft angle; schema 12/13 launch, start direction, attack, descent, apex in feet,
-    // spin and its axis), so a reading is shown whatever its measure's status; one whose measure is not
-    // live is named in ungradedReadings (schema 15), and every verdict reads them through gradedReadings().
-    for (const ShotReadingField &f : shotReadingFields()) {
-        rec.*(f.field) = measuredOrNaN(src, f.measureId);
-        if (!packMeasureGrades(pack, QLatin1String(f.measureId))) rec.ungradedReadings << QLatin1String(f.measureId);
-    }
-    rec.handedness   = normaliseHandedness(summary.handedness);
-    {
-        // The swing length decides what may be judged (a part swing is never short), so it is a verdict's input.
-        ShotRecord scratch;
-        const ShotRecord &g = gradedReadings(rec, scratch);
-        rec.swingLength = classifySwingLength(g.shaftAngleP4, g.lmClubSpeed, usualFor(rec.club), g.ballSpeed);
-    }
-
-    // Data-integrity exclusion. A shot whose recording is known broken — frames lost
-    // during capture (captureIntegrity), or an IMU record that does not reproduce
-    // (imuIntegrity) — is still drawn on the strip, still carries the ⚠ the card shows,
-    // but says nothing to the session: every row becomes NotAssessable, which rule 1
-    // already keeps out of every denominator (diagnostic_ledger.h tierAtPrefix). Done
-    // here rather than in the ledger arithmetic so the reason reads in the corridor
-    // slot like any other withheld row, and the ledger needs no new rule.
-    // A refused CLUB track (dataWarningDetail.clubRefused, 2026-10-01) also carries
-    // the ⚠ but withholds nothing here: its club rows are already absent (the
-    // track is invalid, so no club-derived producer ran) and the body/wrist rows
-    // are untouched by it. Only the two recording-integrity facts exclude the shot.
-    if (summary.dataWarning) rec.dataWarning = true;
-    if (summary.dataWarning
-        && (summary.dataWarningDetail.value(QStringLiteral("capture")).toBool()
-            || summary.dataWarningDetail.value(QStringLiteral("imu")).toBool())) {
-        // THE GATE IS THE SHOT'S, NOT WHATEVER THE ROW NAMED BEFORE (trust stage 6 session 2): the
-        // integrity record on `shot` (frames missing, sensor recording inconsistent) replaces a gate or
-        // rule the detection left on the row, which no longer explains it. Empty on a swing analysed
-        // before records existed — the stale names are cleared, never kept.
-        const LiveMeasureSource::GateCause shotGate = src.gateForSubject(QStringLiteral("shot"));
-        for (ConditionRow &r : rec.rows) {
-            r.state               = ShotState::NotAssessable;
-            r.direction           = 0;
-            r.notAssessableReason = missingReasonText(MissingKind::CaptureDataIssue);
-            r.notJudgedGate       = shotGate.gate;
-            r.notJudgedSubject    = shotGate.subject;
-            r.notLiveStatus.clear();
-        }
-        for (SignalRow &g : rec.signalRows) {
-            g.state            = ShotState::NotAssessable;
-            g.pFire            = -1.f;
-            g.quantified       = false;
-            g.reason           = missingReasonText(MissingKind::CaptureDataIssue);
-            g.notJudgedGate    = shotGate.gate;
-            g.notJudgedSubject = shotGate.subject;
-            g.notLiveStatus.clear();
-        }
-        rec.peakTimes.clear();
-    }
-
-    out.record           = std::move(rec);
-    out.hasLaunchMonitor = src.hasLaunchMonitor();
-    out.ok               = true;
+    FiredShot fired = fireFindings(std::move(readings), inputs);
+    fired.record.shotId      = shotId;
+    fired.record.timestampMs = timestampMs;
+    out.record           = std::move(fired.record);
+    out.hasLaunchMonitor = fired.hasLaunchMonitor;
+    out.ok               = fired.ok;
     return out;
 }
+
 
 void SessionDiagnosticsModel::applyIngested(const Ingested &in)
 {
@@ -1433,6 +1062,8 @@ void SessionDiagnosticsModel::settleBatch()
     rebuild();
     persist();
     if (afterShot >= 0) emit shotIngested(afterShot, !m_quiet);
+    // THE PARALLEL RUN (refactor 3.5-ii; D14): the new owner of this session compared with this reduction, in memory.
+    if (g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -1454,6 +1085,23 @@ bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
 void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
 {
     m_pool.waitForDone();
+    // A shot's intent or correction still on its way to the swing file lands first: this activation
+    // reads it back.
+    m_reviewPool.waitForDone();
+    // A freeze of the previous session still reading its predecessors: let go of it. Nothing of that
+    // activation past the freeze ran, so nothing of it is owed (its queued landing finds the token moved).
+    if (m_freezing) {
+        m_freezePool.waitForDone();
+        m_freezing = false;
+        m_pending = std::max(0, m_pending - 1);
+        {
+            const QMutexLocker guard(&m_freezeMutex);
+            m_freezeResult = PredecessorRead();
+        }
+        // Said, as every change of m_pending is: a listener waiting on busy() (the work-ons catch-up,
+        // the report) hears that the freeze it was waiting for is gone.
+        emit busyChanged();
+    }
 
     // The previous activation's batch, if one was still coalescing: the rows it placed are
     // graded and stamped, so they are written to THAT session's file before it is let go
@@ -1461,13 +1109,22 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // read the reduction, and the next load re-reduces from the rows anyway. Its deliveries
     // still queued carry the old generation and are dropped on arrival; their swings remain
     // stale on disk and are graded again the next time that session is activated.
-    if (m_owedRebuild) persist(/*adoptMerged=*/false);
+    // A shot's intent or correction that has landed (the pool drained above) and whose rewrite of
+    // diagnostics.json was still queued: made now, for THAT session (see writeShotInput).
+    if (m_owedRebuild || m_shotInputUnflushed) persist(/*adoptInput=*/false);
+    m_shotInputUnflushed = false;
     m_owedRebuild   = false;
     m_owedAfterShot = -1;
     ++m_activationGen;
 
     m_sessionDir = sessionDir;
+    // Its day — the start time's, or a legacy folder's name's, read by SessionIdentity (step 2.7a) — read
+    // once here: the club baseline's predecessors and the carry against the usual are placed by it.
+    m_sessionIdentity = pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir, *m_sessions, *m_recordings);
     m_ledgerWriteBlocked = false;
+    m_writeFailing = false;
+    m_legacyGolfer = QJsonObject();
+    const bool rebuildCache = std::exchange(m_rebuildCache, false);
     m_shots.clear();
     m_outcomesDirty = true;
     m_ingested.clear();
@@ -1511,8 +1168,6 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     emit sessionChanged();
     emit detailChanged();
 
-    m_golferBase = golferInputJson();
-
     if (sessionDir.isEmpty()) {
         scanHistory();
         rebuild();
@@ -1531,29 +1186,39 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     //   · it cannot be OPENED (a share that dropped, a permission, a lock): the file is most likely
     //     good and was met at a bad moment. It is left where it is and nothing is written to the
     //     session this activation, with a warning; the next activation reads it again.
+    //   · it was saved by a NEWER build (its envelope version is above this one's): it is read as far as
+    //     this build can, and nothing is written to the session this activation — the cache nor the
+    //     golfer's input (step 2.5; R-PERS-3: a newer schema is read-only), with a warning.
+    // diagnostics.json is a cache (step 2.5): the golfer's input is read from its own homes below,
+    // whatever this file's state, with this file's older keys as the fallback (J-33).
     QJsonObject root;
     bool haveFile = false;
     {
         const QString path = diagnosticsPath();
-        if (QFileInfo::exists(path)) {
-            QString why;
-            QFile f(path);
-            if (!f.open(QIODevice::ReadOnly)) {
-                blockLedgerWrites(path, f.errorString());
-            } else {
-                QJsonParseError err;
-                const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
-                f.close();
-                if (err.error != QJsonParseError::NoError)
-                    why = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
-                else if (!doc.isObject())
-                    why = QStringLiteral("not a JSON object");
-                else {
-                    root = doc.object();
-                    haveFile = true;
-                }
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(sessionDir);
+        switch (read.state) {
+        case pinpoint::DiagnosticsRead::State::Missing:
+            break;
+        case pinpoint::DiagnosticsRead::State::Unopenable:
+            blockLedgerWrites(path, read.error);
+            break;
+        case pinpoint::DiagnosticsRead::State::Unparseable:
+            setAsideUnreadableLedger(path, read.error);
+            break;
+        case pinpoint::DiagnosticsRead::State::Newer:
+            ppWarn() << "[Diagnostics] diagnostics.json is read, not written:" << qPrintable(path) << "—"
+                     << qPrintable(read.error);
+            markLedgerWritesBlocked(tr("It was saved by a newer version of PinPoint Studio, so this one only reads it."));
+            [[fallthrough]];
+        case pinpoint::DiagnosticsRead::State::Read:
+            m_legacyGolfer = read.envelope.legacyGolferInput;
+            // Rebuilding the cache (regrade_ledger): the golfer keys only, as a file with no rows.
+            if (!rebuildCache) {
+                root.insert(QStringLiteral("session"), read.envelope.session);
+                root.insert(QStringLiteral("ledger"),  read.envelope.ledger);
+                haveFile = true;
             }
-            if (!haveFile && !m_ledgerWriteBlocked) setAsideUnreadableLedger(path, why);
+            break;
         }
     }
     // The file opened (or there was none, or a bad one was set aside): whatever a past activation of this
@@ -1590,12 +1255,12 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         }
 
         // A row filed under a number that is not its folder's was written by the live path
-        // before it took the folder's number (folderShotId). It is dropped here and the
+        // before it took the swing number (swingNumberOfFolder). It is dropped here and the
         // reconcile below grades the swing again under the right one — kept, the same swing
         // would stand in the ledger twice.
         for (auto it = m_swingDirs.begin(); it != m_swingDirs.end(); ) {
             const int id = it.key();
-            const int fromFolder = folderShotId(it.value());
+            const int fromFolder = swingNumberOfFolder(it.value());
             if (fromFolder < 0 || fromFolder == id) { ++it; continue; }
             m_shots.erase(std::remove_if(m_shots.begin(), m_shots.end(),
                                          [id](const ShotRecord &s) { return s.shotId == id; }),
@@ -1609,17 +1274,74 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
         // A ledger written before schema 14, or by a tool, holds the rows as detected: checked here, as
         // every change to the rows is, before anything reads them.
         checkRowsAgainstFlight();
-
-        // The golfer's half: focus, declared miss, screen answers, shot intent, corrections.
-        readGolferInput(root);
-        m_golferBase = golferInputJson();
     }
+
+    // ── 1b. What the golfer said ────────────────────────────────────────────────────
+    // From its own homes — session_input.json, each shot's review — whether or not the cache was there,
+    // so deleting diagnostics.json loses nothing; each field the new homes do not hold yet from the older
+    // keys this file still carries (J-33). A file that could not be opened gave none: then nothing is
+    // written this activation either (m_ledgerWriteBlocked), so no new home can hide its older copy.
+    readGolferInput(pinpoint::SessionDiagnosticsFiles::golferInput(sessionDir, m_legacyGolfer, *m_recordings));
 
     // ── 2. The athlete's history ────────────────────────────────────────────────────
     loadProfile();
     // BEFORE ANYTHING IS QUEUED: every row graded from here on reads this baseline, and carries the
     // stamp that says which it read.
-    prepareClubBaseline();
+    //
+    // A FREEZE READS ITS PREDECESSORS OFF THE GUI THREAD (step 2.5, the lead's call J-44): up to ten earlier
+    // sessions' ledgers and each of their shots' reviews, ~1 s on the share. The model is busy meanwhile
+    // (m_pending counts the freeze, so busy() and waitForIdle() see it), and the rest of the activation —
+    // the reconcile and everything it queues — runs only once the baseline is frozen (continueActivation),
+    // so the order is the one it always was. Anything that would act on the session before that (a shot, a
+    // golfer command, closing it) first waits for the freeze to land (joinFreeze). Synchronous: inline.
+    if (beginClubBaseline()) {
+        const QDate day = m_sessionIdentity.localDay();
+        if (m_synchronous) {
+            finishClubBaseline(day, readPredecessors(sessionDir, day));
+        } else {
+            m_freezing = true;
+            const int token = ++m_freezeToken;
+            ++m_pending;
+            emit busyChanged();
+            // What the file gave, published for the wait (as the back-fill publishes it).
+            emit intentChanged();
+            rebuild();
+            m_freezePool.start([this, sessionDir, day, token]() {
+                PredecessorRead r = readPredecessors(sessionDir, day);
+                {
+                    const QMutexLocker guard(&m_freezeMutex);
+                    m_freezeResult = std::move(r);
+                }
+                QMetaObject::invokeMethod(this, [this, token]() {
+                    if (m_freezing && token == m_freezeToken) joinFreeze();
+                }, Qt::QueuedConnection);
+            });
+            return;
+        }
+    }
+    continueActivation();
+}
+
+void SessionDiagnosticsModel::joinFreeze()
+{
+    if (!m_freezing) return;
+    m_freezePool.waitForDone();           // the read has finished (or does now): its result is in hand
+    PredecessorRead r;
+    {
+        const QMutexLocker guard(&m_freezeMutex);
+        r = std::move(m_freezeResult);
+        m_freezeResult = PredecessorRead();
+    }
+    m_freezing = false;
+    m_pending = std::max(0, m_pending - 1);
+    finishClubBaseline(m_sessionIdentity.localDay(), r);
+    continueActivation();
+    emit busyChanged();
+}
+
+void SessionDiagnosticsModel::continueActivation()
+{
+    const QString sessionDir = m_sessionDir;
 
     // ── 3. Reconcile against what is actually on disk ───────────────────────────────
     //
@@ -1639,8 +1361,9 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     // then would see this session's rows against that session's ledgers. Synchronously it is
     // also the state the back-fill's per-shot reductions ratchet from (stage, card order).
     const QDir dir(sessionDir);
-    QStringList swings = dir.entryList(QStringList{ QStringLiteral("swing_*") },
-                                       QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    // The session's swing folders: SwingPaths' one listing, by name (so by swing number).
+    QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);
+    std::sort(swings.begin(), swings.end());
 
     // The other half of the reconcile (#56): a row whose swing has LEFT the folder — moved to
     // the trash, here or in another copy of the app — is not a shot of this session any more.
@@ -1655,7 +1378,7 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     if (dir.exists()) {
         QSet<int> onDisk;
         for (const QString &name : std::as_const(swings))
-            if (const int id = folderShotId(dir.filePath(name)); id >= 0) onDisk.insert(id);
+            if (const int id = swingNumberOfFolder(name); id >= 0) onDisk.insert(id);
         int dropped = 0;
         for (const int id : QSet<int>(m_ingested))
             if (m_swingDirs.contains(id) && !onDisk.contains(id) && dropShot(id)) ++dropped;
@@ -1669,9 +1392,8 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     rebuild();
 
     for (const QString &name : swings) {
-        bool ok = false;
-        const int id = name.mid(name.lastIndexOf(QLatin1Char('_')) + 1).toInt(&ok);
-        if (!ok) continue;
+        const int id = swingNumberOfFolder(name);
+        if (id < 0) continue;
         const QString swingDir = dir.filePath(name);
         if (!m_ingested.contains(id)) { ingestShot(id, swingDir); continue; }
 
@@ -1706,11 +1428,16 @@ void SessionDiagnosticsModel::activateSession(const QString &sessionDir)
     rebuild();
     // Rows the reconcile dropped are written now when nothing was queued behind them; with a
     // batch still landing, its own settle writes them.
+    const bool owed = m_owedRebuild;
     settleBatch();
+    // THE PARALLEL RUN (refactor 3.5-ii; D14): a session opened with nothing to regrade is compared once here (a batch
+    // that is owed is compared by settleBatch when it lands).
+    if (!owed && m_pending == 0 && g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
 }
 
 void SessionDiagnosticsModel::closeSession()
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_closed) return;
     m_pool.waitForDone();
     m_closed = true;
@@ -1738,6 +1465,7 @@ void SessionDiagnosticsModel::declareFocus(const QString &conditionId)
 
 void SessionDiagnosticsModel::declareFocusFrom(const QString &conditionId, int fromShot)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (conditionId.isEmpty()) { clearFocus(); return; }
     // No validation against the pack: a focus the pack does not author is recorded and simply
     // matches no condition. The split cannot sit outside the rows the ledger holds.
@@ -1747,25 +1475,30 @@ void SessionDiagnosticsModel::declareFocusFrom(const QString &conditionId, int f
     m_focusFromShot = fromShot;
     emit intentChanged();
     rebuild();
+    writeSessionInput(InputField::Focus);
     persist();
 }
 
 void SessionDiagnosticsModel::clearFocus()
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_focusConditionId.isEmpty() && m_focusFromShot < 0) return;
     m_focusConditionId.clear();
     m_focusFromShot = -1;
     emit intentChanged();
     rebuild();
+    writeSessionInput(InputField::Focus);
     persist();
 }
 
 void SessionDiagnosticsModel::declareMiss(const QString &missId)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (m_declaredMiss == missId) return;
     m_declaredMiss = missId;
     emit intentChanged();
     rebuild();
+    writeSessionInput(InputField::Miss);
     persist();
 }
 
@@ -1814,12 +1547,14 @@ void SessionDiagnosticsModel::setBaselineAuthorityName(const QString &name)
 
 void SessionDiagnosticsModel::recordScreenResult(const QString &conditionId, bool present)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (conditionId.isEmpty()) return;
     m_screens.insert(conditionId, present);
     // A screen answered mid-session counts immediately (§A5) — the whole point of a screened
     // root is that one thirty-second test settles what no number of swings can.
     m_patternSet.clear();       // force explain() to re-run: knownScreenResults changed
     rebuild();
+    writeSessionInput(InputField::Screen, conditionId);
     persist();
 }
 
@@ -2098,7 +1833,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     // ── Today's carry against the usual (§4.2), from the FROZEN sidecar ──
     ClubDistanceSession self;
     self.folder = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
-    self.day    = sessionDayOfFolder(m_sessionDir);
+    self.day    = m_sessionIdentity.localDay();      // SessionIdentity's (step 2.7a), never the folder's name
     self.shots  = m_shots;
     self.corrections = m_corrections;
     for (const ClubSessionPool &pool : poolSessionByClub(self, flightNorms())) {
@@ -2111,7 +1846,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         const LmFieldStats *carry = clubStat(stats, "lm.carryDistance");
 
         const ClubBaselineEntry *usual = usualFor(pool.club);
-        const bool earned = usual && usual->n >= kClubBaselineMinShots && std::isfinite(usual->carryMean);
+        const bool earned = usual && usual->earned() && std::isfinite(usual->carryMean);
         QString line = QStringLiteral("%1 carry today %2").arg(clubDistanceLabel(pool.club), yardsMeanSdText(mean, sd));
         if (earned) line += QStringLiteral(" · your usual ") + yardsMeanSdText(usual->carryMean, usual->carrySd);
 
@@ -2136,6 +1871,10 @@ void SessionDiagnosticsModel::ensureOutcomes() const
     // it as not read. ──
     QStringList mixClubs;
     struct ClubFactorMix { int judged = 0; ShotFactorTally strike, direction, flight; };
+    // The factors are the shot's derived data (layer 3; fire_findings.h): the flight table and the session's usuals.
+    FiringInputs derivedFrom;
+    derivedFrom.flightNorms = flightNorms();
+    derivedFrom.usuals      = facts.flightUsuals;
     QHash<QString, ClubFactorMix> mixByClub;
     for (size_t i = 0; i < m_composed.size() && i < m_shots.size(); ++i) {
         const ShotOutcome &o = m_composed[i];
@@ -2143,7 +1882,7 @@ void SessionDiagnosticsModel::ensureOutcomes() const
         if (!o.ready || club.isEmpty()) continue;
         if (!mixByClub.contains(club)) mixClubs << club;
         ClubFactorMix &mix = mixByClub[club];
-        const ShotFactors f = shotFactors(m_shots[i], o, m_outcomePack, flightNorms(), facts.flightUsuals);
+        const ShotFactors f = deriveShotFactors(m_shots[i], o, m_outcomePack, derivedFrom);
         if (f.judged()) ++mix.judged;
         const auto tally = [this](ShotFactorTally &t, const ShotFactor &part) {
             if (!part.read) { ++t.notRead; return; }
@@ -2235,8 +1974,17 @@ ShotFactors SessionDiagnosticsModel::shotFactorsOf(int shotId) const
     const int at = indexOfShot(shotId);
     if (at < 0 || size_t(at) >= m_composed.size() || size_t(at) >= m_shots.size()) return ShotFactors{};
     // The club mix's own call (ensureOutcomes), on the same composed shot and the same session facts.
-    return shotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, flightNorms(),
-                       outcomeSessionFacts().flightUsuals);
+    FiringInputs derivedFrom;
+    derivedFrom.flightNorms = flightNorms();
+    derivedFrom.usuals      = outcomeSessionFacts().flightUsuals;
+    return deriveShotFactors(m_shots[size_t(at)], m_composed[size_t(at)], m_outcomePack, derivedFrom);
+}
+
+ShotOutcome SessionDiagnosticsModel::composedOutcomeOf(int shotId) const
+{
+    ensureOutcomes();
+    const int at = indexOfShot(shotId);
+    return (at < 0 || size_t(at) >= m_composed.size()) ? ShotOutcome() : m_composed[size_t(at)];
 }
 
 QVariantMap SessionDiagnosticsModel::shotOutcome(int shotId) const
@@ -2482,6 +2230,7 @@ void SessionDiagnosticsModel::appendTuningLine(const QJsonObject &line) const
 
 void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, const QString &toId)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     const int at = indexOfShot(shotId);
     if (at < 0 || family.isEmpty()) return;
     const ShotRecord &s = m_shots[size_t(at)];
@@ -2511,25 +2260,26 @@ void SessionDiagnosticsModel::correctOutcome(int shotId, const QString &family, 
     if (list.empty()) m_corrections.remove(shotId);
     else              m_corrections.insert(shotId, list);
 
-    appendTuningLine(QJsonObject{
-        { QStringLiteral("kind"),      QStringLiteral("correction") },
-        { QStringLiteral("session"),   QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
-        { QStringLiteral("shotId"),    shotId },
-        { QStringLiteral("swingDir"),  m_swingDirs.value(shotId) },
-        { QStringLiteral("family"),    family },
-        { QStringLiteral("detected"),  detected },
-        { QStringLiteral("corrected"), to },
-        { QStringLiteral("measures"),  shotMeasures(s) },
-        { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
-    });
+    // What the tuning log is told (DEC-43): the correction and the shot's measures now, with today's provenance
+    // fields. Appended once the correction is saved — by the Shot's Athlete on EVT-06 (step 3.4b-i), or here for
+    // a session no Athlete holds (N1's interim, writeShotInput).
+    pinpoint::LabelCorrectionNote note;
+    note.family      = family;
+    note.detected    = detected;
+    note.corrected   = to;
+    note.measures    = shotMeasures(s);
+    note.sessionName = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
+    note.swingDir    = m_swingDirs.value(shotId);
 
     emit intentChanged();
     rebuild();
-    persist();
+    // Onto the shot's review; diagnostics.json is rewritten once it has landed (writeShotInput).
+    writeShotInput(shotId, /*intent=*/false, /*corrections=*/true, &note);
 }
 
 void SessionDiagnosticsModel::setShotIntent(int shotId, const QString &shape)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     if (indexOfShot(shotId) < 0) return;
     // "" is straight. Straight is the default and not written, unless a run from setIntentFrom would
     // otherwise cover this shot: then it has to say so.
@@ -2541,22 +2291,26 @@ void SessionDiagnosticsModel::setShotIntent(int shotId, const QString &shape)
     else                m_shotIntent.insert(shotId, next);
     emit intentChanged();
     rebuild();
-    persist();
+    // Onto the shot's review; diagnostics.json is rewritten once it has landed (writeShotInput).
+    writeShotInput(shotId, /*intent=*/true, /*corrections=*/false);
 }
 
 void SessionDiagnosticsModel::setIntentFrom(int fromShot, const QString &shape)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     const int from = shape.isEmpty() ? -1 : std::max(0, fromShot);
     if (m_intentFromShot == from && m_intentFromShape == shape) return;
     m_intentFromShot  = from;
     m_intentFromShape = shape;
     emit intentChanged();
     rebuild();
+    writeSessionInput(InputField::Run);
     persist();
 }
 
 void SessionDiagnosticsModel::flagForReview(int shotId)
 {
+    joinFreeze();      // a freeze still reading its predecessors lands first (activateSession)
     const int at = indexOfShot(shotId);
     if (at < 0) return;
     ensureOutcomes();
@@ -2564,14 +2318,30 @@ void SessionDiagnosticsModel::flagForReview(int shotId)
     const ShotRecord &s = m_shots[size_t(at)];
     QJsonArray labels;
     for (const ShotOutcomeLabel &l : m_composed[size_t(at)].labels) labels.append(l.id);
+    pinpoint::TuningFlagNote note;
+    note.phrase      = m_composed[size_t(at)].phrase;
+    note.labels      = labels;
+    note.measures    = shotMeasures(s);
+    note.sessionName = QFileInfo(QDir::cleanPath(m_sessionDir)).fileName();
+    note.swingDir    = m_swingDirs.value(shotId);
+    // THE TUNING LOG IS THE ATHLETE'S (DEC-43; review 1 of 3.4b-i): the flag goes to the session's Athlete through
+    // `app` (Athlete::flagForTuning), as every label correction does; this model appends it itself only for a
+    // session no Athlete holds, or with no door (N1's interim). appendTuningLine's own gates, first.
+    if (m_sessionDir.isEmpty() || !m_persistEnabled) return;
+    if (g_shotCommands) {
+        const QString swingDir = QDir(m_sessionDir).filePath(pinpoint::SwingPaths::swingFolderName(shotId));
+        const pinpoint::ForwardResult f =
+            g_shotCommands->flagForTuning(m_sessionDir, m_recordings->shotOfFolder(swingDir), note);
+        if (f.reached) return;   // a failed append is logged by the Athlete, as today's was
+    }
     appendTuningLine(QJsonObject{
         { QStringLiteral("kind"),     QStringLiteral("flag") },
-        { QStringLiteral("session"),  QFileInfo(QDir::cleanPath(m_sessionDir)).fileName() },
+        { QStringLiteral("session"),  note.sessionName },
         { QStringLiteral("shotId"),   shotId },
-        { QStringLiteral("swingDir"), m_swingDirs.value(shotId) },
-        { QStringLiteral("phrase"),   m_composed[size_t(at)].phrase },
-        { QStringLiteral("labels"),   labels },
-        { QStringLiteral("measures"), shotMeasures(s) },
+        { QStringLiteral("swingDir"), note.swingDir },
+        { QStringLiteral("phrase"),   note.phrase },
+        { QStringLiteral("labels"),   note.labels },
+        { QStringLiteral("measures"), note.measures },
         { QStringLiteral("atMs"),     double(QDateTime::currentMSecsSinceEpoch()) },
     });
 }
@@ -2593,86 +2363,108 @@ void SessionDiagnosticsModel::adoptClubBaseline(const QHash<QString, ClubBaselin
 {
     m_baselineClubs = clubs;
     // The sidecar's keys are canonical; the provider asks with the swing's own spelling.
-    m_clubBaseline  = std::make_shared<CanonicalClubBaseline>(makeClubBaselineProvider(clubs));
+    m_clubBaseline  = canonicalClubBaselineProvider(clubs);
 }
 
-void SessionDiagnosticsModel::prepareClubBaseline()
+bool SessionDiagnosticsModel::beginClubBaseline()
 {
-    const QString path = clubBaselinePath();
-    if (path.isEmpty()) return;
+    if (m_sessionDir.isEmpty()) return false;
+    const QString path = pinpoint::SessionFiles::clubBaselineFile(m_sessionDir);
 
     // FROZEN MEANS THE FILE EXISTS. A file we cannot read as ours still says "this session was frozen":
     // the rows must not regrade every activation because of it, and the snapshot is simply empty.
-    if (QFileInfo::exists(path) && !clubBaselineIsOutdated(path)) {
+    if (pinpoint::SessionDiagnosticsFiles::clubBaselineExists(m_sessionDir) && !clubBaselineIsOutdated(path)) {
         m_baselineFrozen = true;
-        QFile f(path);
+        const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readClubBaseline(m_sessionDir);
         bool ok = false;
-        if (f.open(QIODevice::ReadOnly)) {
-            const ClubBaselineSnapshot snap = clubBaselineFromJson(QJsonDocument::fromJson(f.readAll()).object(), &ok);
+        if (f.exists) {
+            const ClubBaselineSnapshot snap = clubBaselineFromJson(f.root, &ok);
             if (ok) adoptClubBaseline(snap.clubs);
         }
         if (!ok)
             ppWarn() << "[Diagnostics] club baseline unreadable, this session has no usual numbers:" << qPrintable(path);
-        return;
+        return false;
     }
 
     if (!m_persistEnabled || m_baselineAuthority == BaselineAuthority::Never
         || (m_baselineAuthority == BaselineAuthority::Live && m_reviewing))
-        return;
+        return false;
 
-    // Predecessors: strictly earlier folder days, the newest ten that hold a session. A sibling with
-    // nothing recorded is not a session; one that cannot be read just gives no shots.
-    const QDate day = sessionDayOfFolder(m_sessionDir);
-    // A folder with no date has no predecessors, so a snapshot now would be empty for good. The catch-up
+    // A session with no day has no predecessors, so a snapshot now would be empty for good. The catch-up
     // still writes one (it has to reach an end); a panel leaves the session unfrozen.
-    if (m_baselineAuthority == BaselineAuthority::Live && !day.isValid()) return;
-    const QDir athlete = QFileInfo(QDir::cleanPath(m_sessionDir)).absoluteDir();
-    struct Candidate { QDate day; QString name; };
-    std::vector<Candidate> candidates;
+    if (m_baselineAuthority == BaselineAuthority::Live && !m_sessionIdentity.localDay().isValid()) return false;
+    return true;
+}
+
+SessionDiagnosticsModel::PredecessorRead SessionDiagnosticsModel::readPredecessors(const QString &sessionDir, const QDate &day)
+{
+    // ANY THREAD: it touches no member, and reads the shots' reviews with a reader of its own.
+    PredecessorRead out;
+    QElapsedTimer clock;
+    clock.start();
+    // Predecessors: sessions on strictly earlier days, the newest ten that hold a session — newest by day,
+    // then by place in the day, both SessionIdentity's (start times; step 2.7a), never parsed from a folder
+    // name. A sibling with nothing recorded is not a session; one that cannot be read just gives no shots.
+    pinpoint::SessionStore                  sessions;
+    pinpoint::SwingStoreRecordingRepository recordings(sessions);
+    const QString athleteDir = QFileInfo(QDir::cleanPath(sessionDir)).absolutePath();
+    std::vector<SessionPlace> candidates;
     if (day.isValid()) {
-        for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDate d = sessionDayOfFolder(name);
-            if (d.isValid() && d < day) candidates.push_back(Candidate{ d, name });
+        for (const pinpoint::SessionIndexEntry &e :
+             pinpoint::SessionDiagnosticsFiles::athleteSessions(athleteDir, sessions, recordings)) {
+            const SessionPlace p{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
+            if (p.day.isValid() && p.day < day) candidates.push_back(p);
         }
-        std::sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
-            return a.day != b.day ? a.day > b.day : a.name > b.name;
-        });
+        std::sort(candidates.begin(), candidates.end(),
+                  [](const SessionPlace &a, const SessionPlace &b) { return sessionPlaceBefore(b, a); });
     }
 
-    std::vector<ClubDistanceSession> earlier;
-    bool allCurrent = true;
+    const QDir athlete(athleteDir);
     int taken = 0;
-    for (const Candidate &c : candidates) {
+    for (const SessionPlace &c : candidates) {
         if (taken >= kClubDistanceWindowSessions) break;
-        const QDir sessionFolder(athlete.filePath(c.name));
-        const bool hasSwings = !sessionFolder.entryList(QStringList{ QStringLiteral("swing_*") },
-                                                        QDir::Dirs | QDir::NoDotAndDotDot).isEmpty();
-        QFile f(sessionFolder.filePath(kDiagnosticsFile));
-        if (!f.open(QIODevice::ReadOnly)) {
-            if (hasSwings) { allCurrent = false; ++taken; }       // a session not reduced yet, or a damaged one
+        const QDir sessionFolder(athlete.filePath(c.folder));
+        const bool hasSwings = !pinpoint::SwingPaths::swingFolders(sessionFolder.path()).isEmpty();
+        // Through the one reader. A file that is there and does not parse reads as an empty ledger, as
+        // it always did here (the predecessor is out of date, not missing).
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(sessionFolder.path());
+        if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) {
+            if (hasSwings) { out.allCurrent = false; ++taken; }    // a session not reduced yet, or a damaged one
             continue;
         }
         ++taken;
-        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
-        const QJsonObject ledgerObj = root.value(QStringLiteral("ledger")).toObject();
-        if (ledgerObj.value(QStringLiteral("schemaVersion")).toInt() != kDiagSchemaVersion) allCurrent = false;
+        const QJsonObject &ledgerObj = read.envelope.ledger;
+        if (ledgerObj.value(QStringLiteral("schemaVersion")).toInt() != kDiagSchemaVersion) out.allCurrent = false;
 
         ClubDistanceSession s;
-        s.folder = c.name;
+        s.folder = c.folder;
         s.day    = c.day;
+        s.nOfDay = c.nOfDay;
         s.shots  = fromJson(ledgerObj);
-        s.corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
-        earlier.push_back(std::move(s));
+        // The golfer's corrections from their homes (each shot's review), the older keys as the fallback.
+        s.corrections = pinpoint::SessionDiagnosticsFiles::golferInput(sessionFolder.path(), read.envelope.legacyGolferInput,
+                                                                       recordings).corrections;
+        out.earlier.push_back(std::move(s));
     }
-    if (m_baselineAuthority == BaselineAuthority::Live && !allCurrent) return;
+    // Once per freeze: what it read and how long it took (off the GUI thread since step 2.5's J-44).
+    ppInfo() << "[Diagnostics] club baseline: read" << int(out.earlier.size()) << "predecessor(s) in" << clock.elapsed()
+             << "ms —" << qPrintable(sessionDir);
+    return out;
+}
 
+void SessionDiagnosticsModel::finishClubBaseline(const QDate &day, const PredecessorRead &r)
+{
+    if (m_baselineAuthority == BaselineAuthority::Live && !r.allCurrent) return;
+
+    const QString path = pinpoint::SessionFiles::clubBaselineFile(m_sessionDir);
     ClubBaselineSnapshot snap;
     snap.frozenAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    snap.clubs    = clubBaselineAsOf(earlier, day, flightNorms());
-    QString why;
-    if (!atomicWrite(path, QJsonDocument(clubBaselineToJson(snap)).toJson(QJsonDocument::Compact), &why)) {
-        ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(why);
+    snap.clubs    = clubBaselineAsOf(r.earlier, day, flightNorms());
+    const pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::writeClubBaseline(m_sessionDir, clubBaselineToJson(snap));
+    if (!w.ok()) {
+        ppWarn() << "[Diagnostics] could not freeze the club baseline:" << qPrintable(path) << "—" << qPrintable(w.error);
+        // Said (DEC-126), unless writes are switched off for this activation anyway (the persist below).
+        if (!m_ledgerWriteBlocked) reportWriteFailure(tr("The session's club baseline"), w.error);
         return;
     }
     m_baselineFrozen = true;
@@ -3106,15 +2898,15 @@ double SessionDiagnosticsModel::profileBias(const QString &conditionId) const
 }
 
 // ── Persistence ─────────────────────────────────────────────────────────────────────────
+//
+// THE SESSION'S FILES THROUGH THEIR ONE READER AND WRITER, SessionDiagnosticsFiles (Export/
+// session_diagnostics_files.h; refactor step 2.5): diagnostics.json is the cache, session_input.json and
+// each shot's review hold what the golfer said. Every write's result is checked and a failure said
+// (DEC-126): ledgerWritesBlocked, the panel's existing notice.
 
 QString SessionDiagnosticsModel::diagnosticsPath() const
 {
-    return m_sessionDir.isEmpty() ? QString() : QDir(m_sessionDir).filePath(kDiagnosticsFile);
-}
-
-QString SessionDiagnosticsModel::clubBaselinePath() const
-{
-    return m_sessionDir.isEmpty() ? QString() : QDir(m_sessionDir).filePath(kBaselineFile);
+    return m_sessionDir.isEmpty() ? QString() : pinpoint::SessionFiles::diagnosticsFile(m_sessionDir);
 }
 
 QString SessionDiagnosticsModel::tuningLogPath() const
@@ -3123,7 +2915,7 @@ QString SessionDiagnosticsModel::tuningLogPath() const
     if (m_sessionDir.isEmpty()) return QString();
     QDir d(m_sessionDir);
     if (!d.cdUp()) return QString();
-    return d.filePath(kTuningLogFile);
+    return pinpoint::AthleteFiles::tuningLogFile(d.path());   // FILE-ATH-04's name (lint A4)
 }
 
 QString SessionDiagnosticsModel::faultProfilePath() const
@@ -3134,145 +2926,264 @@ QString SessionDiagnosticsModel::faultProfilePath() const
     if (m_sessionDir.isEmpty()) return QString();
     QDir d(m_sessionDir);
     if (!d.cdUp()) return QString();
-    return d.filePath(kProfileFile);
+    return pinpoint::AthleteFiles::faultProfileFile(d.path());   // FILE-ATH-05's name (lint A4)
 }
 
-// ── The golfer's half of the envelope ──────────────────────────────────────────────────────
+// ── The golfer's input ──────────────────────────────────────────────────────────────────────
 
-const QStringList &SessionDiagnosticsModel::golferInputKeys()
+void SessionDiagnosticsModel::readGolferInput(const pinpoint::GolferInput &g)
 {
-    static const QStringList keys{ QStringLiteral("intent"),     QStringLiteral("screens"),
-                                   QStringLiteral("shotIntent"), QStringLiteral("intentFrom"),
-                                   QStringLiteral("corrections") };
-    return keys;
-}
-
-QJsonObject SessionDiagnosticsModel::golferInput(const QJsonObject &envelope)
-{
-    QJsonObject out;
-    for (const QString &k : golferInputKeys())
-        if (envelope.contains(k)) out.insert(k, envelope.value(k));
-    return out;
-}
-
-void SessionDiagnosticsModel::readGolferInput(const QJsonObject &root)
-{
-    const QJsonObject intent = root.value(QStringLiteral("intent")).toObject();
-    m_focusConditionId = intent.value(QStringLiteral("focusConditionId")).toString();
-    m_focusFromShot    = intent.value(QStringLiteral("focusFromShot")).toInt(-1);
-    m_declaredMiss     = intent.value(QStringLiteral("declaredMiss")).toString();
-
-    m_screens.clear();
-    const QJsonObject screens = root.value(QStringLiteral("screens")).toObject();
-    for (auto it = screens.constBegin(); it != screens.constEnd(); ++it)
-        m_screens.insert(it.key(), it.value().toBool());
-
+    m_focusConditionId = g.focus.conditionId;
+    m_focusFromShot    = g.focus.fromShot;
+    m_declaredMiss     = g.declaredMiss;
+    m_screens          = g.screens;
     // §4.4. Read only into the outcome surfaces; detection, corridors and tiers never see them.
-    m_shotIntent  = shotIntentsFromJson(root.value(QStringLiteral("shotIntent")).toObject());
-    m_corrections = shotCorrectionsFromJson(root.value(QStringLiteral("corrections")).toObject());
-    const QJsonObject intentRun = root.value(QStringLiteral("intentFrom")).toObject();
-    m_intentFromShot  = intentRun.value(QStringLiteral("fromShot")).toInt(-1);
-    m_intentFromShape = intentRun.value(QStringLiteral("shape")).toString();
-    m_outcomesDirty   = true;
+    m_shotIntent       = g.shotIntent;
+    m_corrections      = g.corrections;
+    m_intentFromShot   = g.intentRun.fromShot;
+    m_intentFromShape  = g.intentRun.shape;
+    m_outcomesDirty    = true;
 }
 
-QJsonObject SessionDiagnosticsModel::golferInputJson() const
+pinpoint::GolferInput SessionDiagnosticsModel::golferInputHeld() const
 {
-    QJsonObject intent;
-    intent[QStringLiteral("focusConditionId")] = m_focusConditionId;
-    intent[QStringLiteral("focusFromShot")]    = m_focusFromShot;
-    intent[QStringLiteral("declaredMiss")]     = m_declaredMiss;
+    pinpoint::GolferInput g;
+    g.focus        = pinpoint::DeclaredFocus{ m_focusConditionId, m_focusFromShot };
+    g.declaredMiss = m_declaredMiss;
+    g.screens      = m_screens;
+    g.intentRun    = pinpoint::IntentRun{ m_intentFromShot, m_intentFromShape };
+    g.shotIntent   = m_shotIntent;
+    g.corrections  = m_corrections;
+    return g;
+}
 
-    QJsonObject screens;
-    for (auto it = m_screens.constBegin(); it != m_screens.constEnd(); ++it)
-        screens.insert(it.key(), it.value());
-
-    QJsonObject root;
-    root[QStringLiteral("intent")]  = intent;
-    root[QStringLiteral("screens")] = screens;
-    // §4.4: per shot, in the envelope, never in the rows. Each written only when there is something to say.
-    if (!m_shotIntent.isEmpty()) {
-        QJsonObject shotIntent;
-        for (auto it = m_shotIntent.constBegin(); it != m_shotIntent.constEnd(); ++it)
-            shotIntent.insert(QString::number(it.key()), it.value());
-        root[QStringLiteral("shotIntent")] = shotIntent;
-    }
+pinpoint::SessionInput SessionDiagnosticsModel::sessionInputOf() const
+{
+    pinpoint::SessionInput in;
+    in.declaredFocus = pinpoint::DeclaredFocus{ m_focusConditionId, m_focusFromShot };
+    in.declaredMiss  = m_declaredMiss;
+    QMap<QString, bool> answers;
+    for (auto it = m_screens.constBegin(); it != m_screens.constEnd(); ++it) answers.insert(it.key(), it.value());
+    in.screenAnswers = answers;
+    // One run today (setIntentFrom replaces it); none written as an empty list, so "no run" is said.
+    QVector<pinpoint::IntentRun> runs;
     if (m_intentFromShot >= 0 && !m_intentFromShape.isEmpty())
-        root[QStringLiteral("intentFrom")] = QJsonObject{ { QStringLiteral("fromShot"), m_intentFromShot },
-                                                          { QStringLiteral("shape"),    m_intentFromShape } };
-    if (!m_corrections.isEmpty())
-        root[QStringLiteral("corrections")] = shotCorrectionsToJson(m_corrections);
-    return root;
+        runs.append(pinpoint::IntentRun{ m_intentFromShot, m_intentFromShape });
+    in.intentRuns = runs;
+    return in;
 }
 
-namespace {
-// One entry, three ways: the file's value where the file moved since `base`, ours where it did not.
-// An absent entry is QJsonValue::Undefined on every side, so an entry added or removed is a move too.
-QJsonValue pickThreeWay(const QJsonValue &base, const QJsonValue &ours, const QJsonValue &theirs)
+void SessionDiagnosticsModel::setShotCommands(pinpoint::ShotCommandDoor *door)
 {
-    return theirs == base ? ours : theirs;
+    g_shotCommands = door;
 }
 
-QJsonObject mergeEntries(const QJsonObject &base, const QJsonObject &ours, const QJsonObject &theirs)
+void SessionDiagnosticsModel::setParallelHook(ParallelHook hook)
 {
-    QSet<QString> keys;
-    for (const QJsonObject *o : { &base, &ours, &theirs })
-        for (auto it = o->constBegin(); it != o->constEnd(); ++it) keys.insert(it.key());
-    QJsonObject out;
-    for (const QString &k : std::as_const(keys)) {
-        const QJsonValue v = pickThreeWay(base.value(k), ours.value(k), theirs.value(k));
-        if (!v.isUndefined()) out.insert(k, v);
+    g_parallelHook = std::move(hook);
+}
+
+void SessionDiagnosticsModel::writeSessionInput(InputField changed, const QString &screenId)
+{
+    // As every write: not for a reader, not while this activation's files could not be read.
+    if (m_sessionDir.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) return;
+    // THE SESSION'S OWN COMMANDS (refactor step 3.4b-i): the field this command changed, from this model; every
+    // field the file does not hold yet from this model too (`held`: J-33). The Session writes field by field and
+    // emits EVT-10 (focus, miss, screen) or EVT-08 (the run). Not reached (N1): today's write below.
+    if (g_shotCommands) {
+        const pinpoint::SessionInput held = sessionInputOf();
+        pinpoint::ForwardResult f;
+        if (changed == InputField::Run) {
+            f = g_shotCommands->setIntentRun(m_sessionDir, held.intentRuns.value_or(QVector<pinpoint::IntentRun>()), held);
+        } else {
+            pinpoint::SessionIntentEdit edit;
+            if (changed == InputField::Focus) edit.focus = held.declaredFocus;
+            if (changed == InputField::Miss)  edit.miss  = held.declaredMiss;
+            if (changed == InputField::Screen && m_screens.contains(screenId)) {
+                edit.screenId      = screenId;
+                edit.screenPresent = m_screens.value(screenId);
+            }
+            f = g_shotCommands->setSessionIntent(m_sessionDir, edit, held);
+        }
+        if (f.reached) {
+            if (!f.result.ok()) {
+                ppWarn() << "[Diagnostics] the golfer's session input was not saved:" << qPrintable(m_sessionDir) << "—"
+                         << qPrintable(f.result.error);
+                reportWriteFailure(tr("The focus, declared miss, screen answers and intent run"), f.result.error);
+                return;
+            }
+            reportWriteSuccess();
+            return;
+        }
     }
-    return out;
-}
-} // namespace
-
-QJsonObject SessionDiagnosticsModel::mergeGolferInput(const QJsonObject &base, const QJsonObject &ours,
-                                                      const QJsonObject &theirs)
-{
-    const QString kFocus = QStringLiteral("focusConditionId"), kFrom = QStringLiteral("focusFromShot"),
-                  kMiss  = QStringLiteral("declaredMiss");
-    const QJsonObject bi = base.value(QStringLiteral("intent")).toObject();
-    const QJsonObject oi = ours.value(QStringLiteral("intent")).toObject();
-    const QJsonObject ti = theirs.value(QStringLiteral("intent")).toObject();
-    // The focus is ONE entry: a split from one declaration under the id of another is neither.
-    auto focusOf = [&](const QJsonObject &i) { return QJsonValue(QJsonObject{ { kFocus, i.value(kFocus) },
-                                                                              { kFrom,  i.value(kFrom) } }); };
-    const QJsonObject focus = pickThreeWay(focusOf(bi), focusOf(oi), focusOf(ti)).toObject();
-    QJsonObject intent{ { kFocus, focus.value(kFocus) }, { kFrom, focus.value(kFrom) } };
-    const QJsonValue miss = pickThreeWay(bi.value(kMiss), oi.value(kMiss), ti.value(kMiss));
-    if (!miss.isUndefined()) intent.insert(kMiss, miss);
-
-    QJsonObject out;
-    out[QStringLiteral("intent")] = intent;
-    // Per entry: one screen's answer, one shot's intent, one shot's corrections.
-    for (const QString &k : { QStringLiteral("screens"), QStringLiteral("shotIntent"), QStringLiteral("corrections") }) {
-        const QJsonObject m = mergeEntries(base.value(k).toObject(), ours.value(k).toObject(), theirs.value(k).toObject());
-        if (!m.isEmpty()) out.insert(k, m);
+    // FIELD BY FIELD, against the file as it stands now. The one field this command changed is this
+    // model's (a screen answer: that one entry). Every other field keeps what the file holds — another
+    // model on the session (the catch-up, a second panel) may have written it since this one read — and a
+    // field the file does not hold yet is written from this model's, which is what it resolved from
+    // diagnostics.json's older keys. So after the first write all four fields are in session_input.json,
+    // and an older key still standing in diagnostics.json is never read again (J-33).
+    const pinpoint::SessionInputRead disk = pinpoint::SessionDiagnosticsFiles::readSessionInput(m_sessionDir);
+    const pinpoint::SessionInput     ours = sessionInputOf();
+    pinpoint::SessionInput out = disk.state == pinpoint::SessionInputRead::State::Read ? disk.input : pinpoint::SessionInput();
+    if (!out.declaredFocus) out.declaredFocus = ours.declaredFocus;
+    if (!out.declaredMiss)  out.declaredMiss  = ours.declaredMiss;
+    if (!out.screenAnswers) out.screenAnswers = ours.screenAnswers;
+    if (!out.intentRuns)    out.intentRuns    = ours.intentRuns;
+    switch (changed) {
+    case InputField::Focus:  out.declaredFocus = ours.declaredFocus; break;
+    case InputField::Miss:   out.declaredMiss  = ours.declaredMiss;  break;
+    case InputField::Run:    out.intentRuns    = ours.intentRuns;    break;
+    case InputField::Screen:
+        if (m_screens.contains(screenId)) out.screenAnswers->insert(screenId, m_screens.value(screenId));
+        break;
     }
-    // The run of intent is one entry (from which shot, which shape).
-    const QJsonValue run = pickThreeWay(base.value(QStringLiteral("intentFrom")), ours.value(QStringLiteral("intentFrom")),
-                                        theirs.value(QStringLiteral("intentFrom")));
-    if (!run.isUndefined()) out.insert(QStringLiteral("intentFrom"), run);
-    return out;
+    const pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::writeSessionInput(m_sessionDir, out);
+    if (!w.ok()) {
+        ppWarn() << "[Diagnostics] the golfer's session input was not saved:" << qPrintable(m_sessionDir) << "—"
+                 << qPrintable(w.error);
+        reportWriteFailure(tr("The focus, declared miss, screen answers and intent run"), w.error);
+        return;
+    }
+    reportWriteSuccess();
+}
+
+void SessionDiagnosticsModel::writeShotInput(int shotId, bool intent, bool corrections,
+                                             const pinpoint::LabelCorrectionNote *correction)
+{
+    // diagnostics.json is rewritten AFTER the review has landed (onShotInputWritten): the athlete's
+    // tendencies are fingerprinted by that file, so a reduction it sets off reads the new answer.
+    if (m_sessionDir.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) { persist(); return; }
+    // The swing folder BY NUMBER IN THIS SESSION, never at the path a row was filed under: a session
+    // recorded on the cabin PC and opened here carries that machine's paths.
+    const QString swingDir = QDir(m_sessionDir).filePath(pinpoint::SwingPaths::swingFolderName(shotId));
+    const pinpoint::ShotRef shot = m_recordings->shotOfFolder(swingDir);
+    if (shot.isNull()) {
+        const QString why = tr("Shot %1 could not be found in this session's folder.").arg(shotId);
+        ppWarn() << "[Diagnostics] shot input not saved:" << qPrintable(swingDir) << "—" << qPrintable(why);
+        reportWriteFailure(tr("A shot's intent or correction"), why);
+        persist();
+        return;
+    }
+    pinpoint::ReviewEdit edit;
+    bool olderCopy = false;      // diagnostics.json's older keys hold this shot's answer (J-33)
+    if (intent) {
+        edit.shotIntent = m_shotIntent.value(shotId);
+        olderCopy = olderCopy || m_legacyGolfer.value(QStringLiteral("shotIntent")).toObject()
+                                     .contains(QString::number(shotId));
+    }
+    if (corrections) {
+        QVector<pinpoint::LabelCorrection> list;
+        for (const ShotCorrection &c : m_corrections.value(shotId)) list.append({ c.family, c.from, c.to });
+        edit.labelCorrections = list;
+        olderCopy = olderCopy || m_legacyGolfer.value(QStringLiteral("corrections")).toObject()
+                                     .contains(QString::number(shotId));
+    }
+    // Cleared while the older copy still says otherwise: the review says "none" explicitly, or the older
+    // copy would be read again as the fallback.
+    edit.keepEmptyGolferInput = olderCopy;
+
+    // A REVIEW EDIT IS NOT A NEW RECORDING. The shot's intent and corrections reach only the outcome surfaces
+    // — detection never reads them — so a row graded from this document before the edit is still current
+    // after it: its stamp follows the document (onShotInputWritten) and the next activation does not
+    // regrade the shot for it. A row already stale stays stale.
+    const auto graded = m_gradedFrom.constFind(shotId);
+    const pinpoint::SwingStore::DocInfo before = pinpoint::SwingStore::info(swingDir);
+    const bool rowCurrent = graded != m_gradedFrom.constEnd() && before.exists()
+                         && pinpoint::SwingStore::sameDocumentStamp(graded->docSize, graded->docMtimeMs,
+                                                                    before.size, before.mtimeMs);
+
+    const int generation = m_activationGen;
+    m_shotInputUnflushed = true;
+
+    // THE SHOT'S OWN COMMAND (refactor step 3.4b-i): Shot::setShotIntent (EVT-07) or Shot::correctLabel (EVT-06,
+    // its Athlete appending the tuning log), through its Session. The save is made where this model makes it
+    // today — on the review pool, inline when synchronous (D25) — and onShotInputWritten follows it as before.
+    if (g_shotCommands && intent != corrections) {
+        const QPointer<SessionDiagnosticsModel> self(this);
+        pinpoint::SaveLater later;
+        later.pool = m_synchronous ? nullptr : &m_reviewPool;
+        later.done = [self, generation, shotId, rowCurrent](const pinpoint::WriteResult &w) {
+            if (self) self->onShotInputWritten(generation, shotId, rowCurrent, w);
+        };
+        const bool reached = intent
+            ? g_shotCommands->setShotIntent(m_sessionDir, shot, *edit.shotIntent, edit.keepEmptyGolferInput, later)
+            : g_shotCommands->correctLabel(m_sessionDir, shot, *edit.labelCorrections,
+                                           correction ? *correction : pinpoint::LabelCorrectionNote(),
+                                           edit.keepEmptyGolferInput, later);
+        if (reached) return;
+    }
+    // N1's interim: a session no Athlete holds (or no door: the tools and tests) — today's writes.
+    if (correction)
+        appendTuningLine(QJsonObject{
+            { QStringLiteral("kind"),      QStringLiteral("correction") },
+            { QStringLiteral("session"),   correction->sessionName },
+            { QStringLiteral("shotId"),    shotId },
+            { QStringLiteral("swingDir"),  correction->swingDir },
+            { QStringLiteral("family"),    correction->family },
+            { QStringLiteral("detected"),  correction->detected },
+            { QStringLiteral("corrected"), correction->corrected },
+            { QStringLiteral("measures"),  correction->measures },
+            { QStringLiteral("atMs"),      double(QDateTime::currentMSecsSinceEpoch()) },
+        });
+    if (m_synchronous) {
+        onShotInputWritten(generation, shotId, rowCurrent, m_recordings->editReview(shot, edit));
+        return;
+    }
+    // A swing file rewrite is not made on the GUI thread (as the carousel's rating is not). editReview is
+    // safe from a worker: the folder comes from the session store's published map.
+    pinpoint::SwingStoreRecordingRepository *recordings = m_recordings.get();
+    m_reviewPool.start([this, recordings, shot, edit, generation, shotId, rowCurrent]() {
+        const pinpoint::WriteResult w = recordings->editReview(shot, edit);
+        QMetaObject::invokeMethod(this, [this, generation, shotId, rowCurrent, w]() {
+            onShotInputWritten(generation, shotId, rowCurrent, w);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void SessionDiagnosticsModel::onShotInputWritten(int generation, int shotId, bool rowCurrent,
+                                                 const pinpoint::WriteResult &result)
+{
+    // Another session since: the write still landed in its own swing file, and activateSession() has
+    // rewritten that session's diagnostics.json after it; nothing here to say about it.
+    if (generation != m_activationGen) {
+        if (!result.ok())
+            ppWarn() << "[Diagnostics] a shot's intent or correction was not saved:" << qPrintable(result.error);
+        return;
+    }
+    if (!result.ok()) {
+        ppWarn() << "[Diagnostics] a shot's intent or correction was not saved:" << qPrintable(result.error);
+        reportWriteFailure(tr("A shot's intent or correction"), result.error);
+    } else {
+        reportWriteSuccess();
+        if (rowCurrent && result.changed()) {
+            const pinpoint::SwingStore::DocInfo after = pinpoint::SwingStore::info(
+                QDir(m_sessionDir).filePath(pinpoint::SwingPaths::swingFolderName(shotId)));
+            const auto it = m_gradedFrom.find(shotId);
+            if (it != m_gradedFrom.end() && after.exists()) {
+                it->docSize    = after.size;
+                it->docMtimeMs = after.mtimeMs;
+            }
+        }
+    }
+    m_shotInputUnflushed = false;
+    persist();
 }
 
 bool SessionDiagnosticsModel::setAsideUnreadableLedger(const QString &path, const QString &why)
 {
-    // A name of its own, never reused: a second unreadable file in the same second is a second copy.
-    const QString stem = path + QStringLiteral(".unreadable-")
-                       + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
-    QString aside = stem;
-    for (int n = 2; QFileInfo::exists(aside); ++n) aside = stem + QLatin1Char('-') + QString::number(n);
-    if (QFile::rename(path, aside)) {
+    QString aside;
+    const pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::setAsideDiagnostics(m_sessionDir, &aside);
+    if (w.ok()) {
         ppWarn() << "[Diagnostics] diagnostics.json could not be read:" << qPrintable(path) << "—" << qPrintable(why)
                  << "— kept as" << qPrintable(QFileInfo(aside).fileName())
-                 << "; the session is regraded from its swings, and the focus, declared miss, screen answers,"
-                 << "shot intent and corrections in that file are not in the new one";
+                 << "; the session is regraded from its swings. Any focus, declared miss, screen answers,"
+                 << "shot intent or corrections that file held from before step 2.5 stay in it (migration M3"
+                 << "reads it); what the golfer said since is in session_input.json and the shots' reviews";
         return true;
     }
     ppWarn() << "[Diagnostics] diagnostics.json could not be read:" << qPrintable(path) << "—" << qPrintable(why)
-             << "— and could not be set aside either, so nothing will be written over it this session";
+             << "— and could not be set aside either (" << qPrintable(w.error)
+             << "), so nothing will be written to this session this activation";
     markLedgerWritesBlocked(tr("Its diagnostics file could not be read or moved aside. "
                                "Check the library's drive or share."));
     return false;
@@ -3300,13 +3211,37 @@ void SessionDiagnosticsModel::markLedgerWritesBlocked(const QString &reason)
     // pending call with it (the context object is `this`).
     const bool already = m_ledgerWriteBlocked;
     m_ledgerWriteBlocked = true;
-    if (already || m_destroying) return;
+    if (already || m_writeFailing || m_destroying) return;
     const QString dir = m_sessionDir;
     QMetaObject::invokeMethod(this, [this, dir, reason] { emit ledgerWritesBlocked(dir, reason); },
                               Qt::QueuedConnection);
 }
 
-QJsonObject SessionDiagnosticsModel::envelope() const
+void SessionDiagnosticsModel::reportWriteFailure(const QString &what, const QString &why)
+{
+    // A WRITE THAT FAILS SAYS SO (DEC-126, brief §4.11): the same notice as a block ("Changes to the
+    // diagnostics of <session> are not being saved"), once while writes keep failing — the panel's id is
+    // per session folder, so a repeating failure is one notice — and taken back by the next one that lands.
+    // Nothing is switched off: the next write tries again.
+    const bool already = m_writeFailing || m_ledgerWriteBlocked;
+    m_writeFailing = true;
+    if (already || m_destroying) return;
+    const QString dir = m_sessionDir;
+    const QString reason = tr("%1 could not be saved: %2").arg(what, why);
+    QMetaObject::invokeMethod(this, [this, dir, reason] { emit ledgerWritesBlocked(dir, reason); },
+                              Qt::QueuedConnection);
+}
+
+void SessionDiagnosticsModel::reportWriteSuccess()
+{
+    if (!m_writeFailing || m_ledgerWriteBlocked) return;
+    m_writeFailing = false;
+    if (m_destroying) return;
+    const QString dir = m_sessionDir;
+    QMetaObject::invokeMethod(this, [this, dir] { emit ledgerWritesResumed(dir); }, Qt::QueuedConnection);
+}
+
+QJsonObject SessionDiagnosticsModel::sessionBlock() const
 {
     QJsonArray lm;
     QList<int> lmIds(m_lmShots.constBegin(), m_lmShots.constEnd());
@@ -3335,73 +3270,84 @@ QJsonObject SessionDiagnosticsModel::envelope() const
                                    { QStringLiteral("content"), it->content } });
     session[QStringLiteral("gradedFrom")] = graded;
     session[QStringLiteral("writtenAtMs")]= double(QDateTime::currentMSecsSinceEpoch());
-
-    // The golfer's keys first, from their one writer; then the cache half.
-    QJsonObject root = golferInputJson();
-    root[QStringLiteral("schemaVersion")] = kEnvelopeVersion;
-    root[QStringLiteral("session")]       = session;
-    // The ledger is nested rather than merged, so diagnostic_ledger.h's reader takes exactly
-    // the object its writer produced — including ITS schemaVersion, which is a different
-    // number about a different contract.
-    root[QStringLiteral("ledger")]        = toJson(m_shots, m_opt);
-    return root;
+    return session;
 }
 
-void SessionDiagnosticsModel::persist(bool adoptMerged)
+void SessionDiagnosticsModel::persist(bool adoptInput)
 {
     const QString path = diagnosticsPath();
     if (path.isEmpty() || !m_persistEnabled || m_ledgerWriteBlocked) return;
-    // THE CATCH-UP MUST NOT WRITE OVER THE GOLFER. While it regrades a session a panel can declare a
-    // focus or a miss, answer a screen or correct a shot in that same file, and what the catch-up read
-    // at activation is by now out of date. Every golfer key is merged from the file at the last moment
-    // before the write, entry by entry (mergeGolferInput): what the file changed since this model read
-    // or wrote it is the file's, the rest is this model's. A file that does not parse is set aside, not
-    // written over (setAsideUnreadableLedger), and the ones in hand stand. One that cannot be opened is
-    // left where it is and this write, and every later one this activation, is not made
-    // (blockLedgerWrites): the golfer's input it may hold is not ours to merge or to replace.
-    if (m_baselineAuthority == BaselineAuthority::Always && QFileInfo::exists(path)) {
-        QFile current(path);
-        QString why;
-        QJsonObject disk;
-        if (!current.open(QIODevice::ReadOnly)) {
-            blockLedgerWrites(path, current.errorString());
-            return;
-        } else {
-            QJsonParseError err;
-            const QJsonDocument doc = QJsonDocument::fromJson(current.readAll(), &err);
-            current.close();
-            if (err.error != QJsonParseError::NoError)
-                why = QStringLiteral("%1 at byte %2").arg(err.errorString()).arg(err.offset);
-            else if (!doc.isObject())
-                why = QStringLiteral("not a JSON object");
-            else
-                disk = doc.object();
-        }
-        if (!why.isEmpty()) {
-            if (!setAsideUnreadableLedger(path, why)) return;
-        } else {
-            const QJsonObject ours = golferInputJson();
-            readGolferInput(disk);
-            const QJsonObject theirs = golferInputJson();     // the file's, in the same shape as base and ours
-            readGolferInput(mergeGolferInput(m_golferBase, ours, theirs));
-            const QJsonObject merged = golferInputJson();
-            if (merged != ours && adoptMerged) {
-                // A focus, miss or screen answer reaches the reduction (focus split, link grades, the
-                // stage ratchet): re-reduce under the golfer's before the stage is written.
-                if (merged.value(QStringLiteral("screens")) != ours.value(QStringLiteral("screens")))
-                    m_patternSet.clear();     // knownScreenResults changed: explain() runs again
+    // THE CATCH-UP MUST NOT WRITE A STAGE THE GOLFER DID NOT MAKE. While it regrades a session a panel
+    // can declare a focus or a miss or answer a screen, and what the catch-up read at activation is by
+    // now out of date; those reach the reduction (focus split, link grades, the stage ratchet), which
+    // this write records. So the catch-up reads the session-level input again at the last moment and,
+    // when it moved, re-reduces under it. Its one writer is the panel's command (session_input.json),
+    // so there is nothing to merge: the file's is the golfer's. (A shot's intent and corrections reach
+    // only the outcome surfaces, which nothing here writes.)
+    if (adoptInput && !m_destroying && m_baselineAuthority == BaselineAuthority::Always) {
+        const pinpoint::SessionInputRead read = pinpoint::SessionDiagnosticsFiles::readSessionInput(m_sessionDir);
+        if (read.state != pinpoint::SessionInputRead::State::Missing && !read.input.isEmpty()) {
+            const pinpoint::SessionInput ours = sessionInputOf();
+            pinpoint::SessionInput theirs = ours;
+            if (read.input.declaredFocus) theirs.declaredFocus = read.input.declaredFocus;
+            if (read.input.declaredMiss)  theirs.declaredMiss  = read.input.declaredMiss;
+            if (read.input.screenAnswers) theirs.screenAnswers = read.input.screenAnswers;
+            if (read.input.intentRuns)    theirs.intentRuns    = read.input.intentRuns;
+            if (!(theirs == ours)) {
+                const bool screensMoved = !(theirs.screenAnswers == ours.screenAnswers);
+                m_focusConditionId = theirs.declaredFocus->conditionId;
+                m_focusFromShot    = theirs.declaredFocus->fromShot;
+                m_declaredMiss     = *theirs.declaredMiss;
+                m_screens.clear();
+                for (auto it = theirs.screenAnswers->constBegin(); it != theirs.screenAnswers->constEnd(); ++it)
+                    m_screens.insert(it.key(), it.value());
+                const pinpoint::IntentRun run = theirs.intentRuns->isEmpty() ? pinpoint::IntentRun() : theirs.intentRuns->last();
+                m_intentFromShot  = run.fromShot;
+                m_intentFromShape = run.shape;
+                m_outcomesDirty   = true;
+                if (screensMoved) m_patternSet.clear();     // knownScreenResults changed: explain() runs again
                 emit intentChanged();
                 rebuild();
             }
         }
     }
-    // The house's write-to-temp-then-rename helper (pack_io.h), not a bare QFile: an
-    // interrupted write must not truncate the session's evidence, and a half-written
-    // diagnostics.json would load, report what survived, and look exactly like a session in
-    // which nothing happened after shot 6.
-    if (atomicWrite(path, QJsonDocument(envelope()).toJson(QJsonDocument::Compact)))
-        m_golferBase = golferInputJson();
-    ++m_persistCount;
+    // The cache half, and diagnostics.json's older golfer keys CARRIED over as they stand (J-33) — through
+    // the one writer: atomic (an interrupted write must not truncate the session's evidence, and a
+    // half-written diagnostics.json would load, report what survived, and look exactly like a session in
+    // which nothing happened after shot 6), under the session folder's lock.
+    pinpoint::DiagnosticsRead::State found = pinpoint::DiagnosticsRead::State::Missing;
+    pinpoint::WriteResult w = pinpoint::SessionDiagnosticsFiles::writeDiagnostics(
+        m_sessionDir, sessionBlock(), toJson(m_shots, m_opt), m_legacyGolfer, &found);
+    // A write ATTEMPTED counts (persistCount); one refused before it began — a file that cannot be opened,
+    // or a newer build's — does not.
+    if (found != pinpoint::DiagnosticsRead::State::Unopenable && found != pinpoint::DiagnosticsRead::State::Newer)
+        ++m_persistCount;
+    if (w.ok()) {
+        reportWriteSuccess();
+        return;
+    }
+    switch (found) {
+    case pinpoint::DiagnosticsRead::State::Unparseable:
+        // Damaged since it was read: set aside, not written over; then written fresh, carrying the older
+        // keys this activation read.
+        if (!setAsideUnreadableLedger(path, w.error)) return;
+        w = pinpoint::SessionDiagnosticsFiles::writeDiagnostics(m_sessionDir, sessionBlock(), toJson(m_shots, m_opt),
+                                                                 m_legacyGolfer);
+        if (w.ok()) { reportWriteSuccess(); return; }
+        break;
+    case pinpoint::DiagnosticsRead::State::Unopenable:
+        blockLedgerWrites(path, w.error);
+        return;
+    case pinpoint::DiagnosticsRead::State::Newer:
+        ppWarn() << "[Diagnostics] diagnostics.json is read, not written:" << qPrintable(path) << "—" << qPrintable(w.error);
+        markLedgerWritesBlocked(tr("It was saved by a newer version of PinPoint Studio, so this one only reads it."));
+        return;
+    case pinpoint::DiagnosticsRead::State::Missing:
+    case pinpoint::DiagnosticsRead::State::Read:
+        break;
+    }
+    ppWarn() << "[Diagnostics] diagnostics.json was not written:" << qPrintable(path) << "—" << qPrintable(w.error);
+    reportWriteFailure(tr("The session's diagnostics"), w.error);
 }
 
 void SessionDiagnosticsModel::loadProfile()
@@ -3508,7 +3454,7 @@ void SessionDiagnosticsModel::updateProfile()
     root[QStringLiteral("conditions")]    = conds;
     root[QStringLiteral("updatedAtMs")]   = double(QDateTime::currentMSecsSinceEpoch());
     m_profile = root;
-    atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact));
+    (void)pinpoint::atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), nullptr);
 }
 
 // ── Work-ons ────────────────────────────────────────────────────────────────────────────
@@ -4060,20 +4006,21 @@ QVariantMap SessionDiagnosticsModel::spreadFor(const ConditionLedger &l, int fi,
 
     // ── the readout: one line per shot, for the line between the strip and the run ────────
     //
-    // WHAT THE HOVERED SHOT IS, in words, on one ruler: its number in the session, its reading
+    // WHAT THE HOVERED SHOT IS, in words, on one ruler: its swing number ("shot N" is always the swing
+    // number, never its place in the ledger: ID-SWING-NUMBER, DEC-91; step 2.7a, audit E-06), its reading
     // at the axis's own precision, where that sits against the bands drawn above it, and the
     // verdict the ledger recorded. A shot nobody measured reads "-" in every slot that would hold
     // a number — the panel's NA marker — and says so, rather than a zero or a blank.
     auto readoutOf = [&](int i) -> QString {
         const double v = values[size_t(i)];
         if (!std::isfinite(v))
-            return QStringLiteral("shot %1 · - · %2").arg(i + 1)
+            return QStringLiteral("shot %1 · - · %2").arg(m_shots[size_t(i)].shotId)
                 .arg(gatesOf[size_t(i)].on ? gatesOf[size_t(i)].words : QStringLiteral("not measured"));
         const QString verdict = states[size_t(i)] == QLatin1String("fired") ? QStringLiteral("fired")
                               : states[size_t(i)] == QLatin1String("clean") ? QStringLiteral("clean")
                                                                             : QStringLiteral("-");
         return QStringLiteral("shot %1 · %2 · %3 · %4")
-            .arg(i + 1)
+            .arg(m_shots[size_t(i)].shotId)
             .arg(fmtSpread(v, a.decimals, unit), spreadPositionWords(c, v, a.decimals), verdict);
     };
     out[QStringLiteral("currentReadout")] = (fi >= 0 && fi < n) ? readoutOf(fi) : QString();
@@ -4570,10 +4517,11 @@ QVariantMap SessionDiagnosticsModel::spreadOf(const QString &conditionId) const
 // ── Across sessions ─────────────────────────────────────────────────────────────────────
 
 std::vector<SessionDiagnosticsModel::HistorySession>
-SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
+SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing, int *selfNOfDay)
 {
     std::vector<HistorySession> out;
     if (missing) *missing = 0;
+    if (selfNOfDay) *selfNOfDay = 0;
     if (sessionDir.isEmpty()) return out;
 
     // THE SAME GOLFER is the session folder's PARENT — the athlete folder, the one place the fault
@@ -4583,6 +4531,10 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
     const QString selfCanon = self.canonicalFilePath().isEmpty() ? self.absoluteFilePath()
                                                                  : self.canonicalFilePath();
     const QDir athlete = self.absoluteDir();
+    // Each session's day and place in it, for the columns' labels: SessionIdentity's (step 2.7a).
+    const QList<pinpoint::SessionIndexEntry> index =
+        pinpoint::SessionDiagnosticsFiles::athleteSessions(athlete.absolutePath());
+    if (selfNOfDay) *selfNOfDay = pinpoint::SessionDiagnosticsFiles::placeOf(index, sessionDir).nOfDay;
     const QStringList dirs = athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QString &name : dirs) {
         const QString dir = athlete.filePath(name);
@@ -4591,25 +4543,26 @@ SessionDiagnosticsModel::readHistory(const QString &sessionDir, int *missing)
                                                                : fi.canonicalFilePath();
         if (canon == selfCanon) continue;           // this session comes from memory, not disk
 
-        QFile f(QDir(dir).filePath(kDiagnosticsFile));
-        if (!f.open(QIODevice::ReadOnly)) {
+        // Through the envelope's one reader (Export/session_diagnostics_files.h).
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
+        if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) {
             // A session with swings and no ledger yet — never opened with the panel. Counted, so
             // the caption can say so; reducing it here would be running detection on somebody
             // else's behalf from a read-only view.
-            if (missing && !QDir(dir).entryList(QStringList{ QStringLiteral("swing_*") },
-                                                QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+            if (missing && !pinpoint::SwingPaths::swingFolders(dir).isEmpty())
                 ++*missing;
             continue;
         }
-        const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-        f.close();
         // READ THROUGH THE LEDGER'S OWN READER, so a schema the panel can load is a schema this
         // can load, and nothing here re-implements the row format.
-        const std::vector<ShotRecord> shots = fromJson(root.value(QStringLiteral("ledger")).toObject());
+        const std::vector<ShotRecord> shots = fromJson(read.envelope.ledger);
         if (shots.empty()) continue;
 
         HistorySession hs;
         hs.sessionDir = dir;
+        const SessionPlace place = pinpoint::SessionDiagnosticsFiles::placeOf(index, dir);
+        hs.day    = place.day;
+        hs.nOfDay = place.nOfDay;
         hs.firstMs = std::numeric_limits<qint64>::max();
         for (const ShotRecord &s : shots) {
             if (s.timestampMs > 0) hs.firstMs = std::min(hs.firstMs, s.timestampMs);
@@ -4641,25 +4594,26 @@ void SessionDiagnosticsModel::scanHistory()
 
     const QString dir = m_sessionDir;
     if (m_synchronous) {
-        int missing = 0;
-        const std::vector<HistorySession> got = readHistory(dir, &missing);
-        applyHistory(gen, got, missing);
+        int missing = 0, selfNOfDay = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing, &selfNOfDay);
+        applyHistory(gen, got, missing, selfNOfDay);
         return;
     }
     m_historyPool.start([this, gen, dir]() {
-        int missing = 0;
-        const std::vector<HistorySession> got = readHistory(dir, &missing);
-        QMetaObject::invokeMethod(this, [this, gen, got, missing]() { applyHistory(gen, got, missing); },
+        int missing = 0, selfNOfDay = 0;
+        const std::vector<HistorySession> got = readHistory(dir, &missing, &selfNOfDay);
+        QMetaObject::invokeMethod(this, [this, gen, got, missing, selfNOfDay]() { applyHistory(gen, got, missing, selfNOfDay); },
                                   Qt::QueuedConnection);
     });
 }
 
 void SessionDiagnosticsModel::applyHistory(int generation, const std::vector<HistorySession> &sessions,
-                                           int missing)
+                                           int missing, int selfNOfDay)
 {
     if (generation != m_historyGen) return;     // a scan for a session no longer loaded
     m_history        = sessions;
     m_historyMissing = missing;
+    m_historySelfNOfDay = selfNOfDay;
     m_historyLoading = false;
     // Only the detail draws history, so only the detail is republished — the zones did not
     // change and a surfaceChanged here would re-run every card for nothing.
@@ -4679,8 +4633,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
     const QString unit      = measureUnitOf(measureId);
 
     // `clubs` and `contexts` run beside `v`, one per reading, for the funnel (one series per club).
-    struct Col { QString dir, label; qint64 firstMs = 0; bool current = false; std::vector<double> v;
-                 std::vector<QString> clubs, contexts; };
+    struct Col { QString dir, label; qint64 firstMs = 0; QDate day; int nOfDay = 0; bool current = false;
+                 std::vector<double> v; std::vector<QString> clubs, contexts; };
     std::vector<Col> cols;
     auto onRuler = [&](const QString &m) { return measureId.isEmpty() || m == measureId; };
 
@@ -4688,6 +4642,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         Col c;
         c.dir = hs.sessionDir;
         c.firstMs = hs.firstMs;
+        c.day = hs.day;
+        c.nOfDay = hs.nOfDay;
         const auto it = hs.byCondition.constFind(l.id);
         if (it != hs.byCondition.constEnd())
             for (const HistoryReading &r : *it)
@@ -4702,6 +4658,8 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         Col c;
         c.dir = m_sessionDir;
         c.current = true;
+        c.day = m_sessionIdentity.localDay();
+        c.nOfDay = m_historySelfNOfDay;
         c.firstMs = std::numeric_limits<qint64>::max();
         for (const ShotRecord &s : m_shots) {
             if (s.timestampMs > 0) c.firstMs = std::min(c.firstMs, s.timestampMs);
@@ -4726,22 +4684,22 @@ QVariantMap SessionDiagnosticsModel::historyFor(const ConditionLedger &l, int fi
         return a.dir < b.dir;
     });
 
-    // The label is the session's date: off the folder name the library writes (yyyy-MM-dd_…), and
-    // off the first swing only when the folder does not carry one. Two sessions on one day are
-    // told apart by the folder's trailing number.
+    // The label is the session's day — SessionIdentity's (its start time's; a session without a session
+    // file, its name's, read there: step 2.7a, audit F-06) — and off the first swing only when it has none.
+    // Two sessions on one day are told apart by their place in it ("2 Nov #02"), the n-of-day, written with
+    // two digits as the folders' own counters were.
     for (Col &c : cols) {
-        const QString name = QFileInfo(QDir::cleanPath(c.dir)).fileName();
-        QDate d = QDate::fromString(name.left(10), QStringLiteral("yyyy-MM-dd"));
+        QDate d = c.day;
         if (!d.isValid() && c.firstMs > 0) d = QDateTime::fromMSecsSinceEpoch(c.firstMs).date();
-        c.label = d.isValid() ? d.toString(QStringLiteral("d MMM")) : name;
+        c.label = d.isValid() ? d.toString(QStringLiteral("d MMM")) : QFileInfo(QDir::cleanPath(c.dir)).fileName();
     }
     for (size_t i = 0; i < cols.size(); ++i) {
         int same = 0;
         for (const Col &o : cols) same += (o.label == cols[i].label);
-        if (same > 1) {
-            const QString name = QFileInfo(QDir::cleanPath(cols[i].dir)).fileName();
-            cols[i].label += QStringLiteral(" #") + name.section(QLatin1Char('_'), -1);
-        }
+        if (same > 1)
+            cols[i].label += QStringLiteral(" #")
+                           + (cols[i].nOfDay > 0 ? QStringLiteral("%1").arg(cols[i].nOfDay, 2, 10, QLatin1Char('0'))
+                                                 : QFileInfo(QDir::cleanPath(cols[i].dir)).fileName());
     }
 
     // At most kHistoryMaxColumns, the newest — but never a window that leaves THIS session out,
@@ -4931,11 +4889,20 @@ void SessionDiagnosticsModel::buildHeader()
     h[QStringLiteral("recordedStageLabel")] = stageName(m_stage).toUpper();
     h[QStringLiteral("reachedEstablished")] = m_reachedEstablished;
 
+    // "SHOT N" IS THE SWING NUMBER (ID-SWING-NUMBER, DEC-91; step 2.7a, audit E-06): the number on the
+    // carousel's card, never the shot's place in the ledger, which a trashed swing or one with no document
+    // yet moves. Where the text says how far through the session it is and the two differ, it says both,
+    // apart: "shot 8 · 6 of 7" — the swing number names the shot, the position counts the ledger's shots (the
+    // lead's call J-54). Where they agree (a session with no gap) it reads as it always did: "shot 3 of 6".
+    const int focusNumber = fi >= 0 ? m_shots[size_t(fi)].shotId : -1;
+    const QString ofText = focusNumber == fi + 1
+                               ? QStringLiteral("shot %1 of %2").arg(focusNumber).arg(n)
+                               : QStringLiteral("shot %1 · %2 of %3").arg(focusNumber).arg(fi + 1).arg(n);
     h[QStringLiteral("shotLabel")] =
         n == 0 ? QStringLiteral("no shots yet")
                : (m_reviewing && fi >= 0
-                      ? QStringLiteral("shot %1 of %2").arg(fi + 1).arg(n)
-                      : QStringLiteral("shot %1").arg(n));
+                      ? ofText
+                      : QStringLiteral("shot %1").arg(m_shots.back().shotId));
 
     // A COUNT over all shots, and it says so — the review header's whole job is stating the
     // tense, because the panel deliberately does NOT rewind to what it knew at the selected
@@ -4948,7 +4915,7 @@ void SessionDiagnosticsModel::buildHeader()
             .arg(n == 1 ? QStringLiteral("shot") : QStringLiteral("shots"));
 
     h[QStringLiteral("reviewBadge")] =
-        m_reviewing && fi >= 0 ? QStringLiteral("REVIEWING · shot %1 of %2").arg(fi + 1).arg(n)
+        m_reviewing && fi >= 0 ? QStringLiteral("REVIEWING · ") + ofText
                                : QString();
     h[QStringLiteral("reviewNote")] =
         m_reviewing ? QStringLiteral("final session state · this shot read inside the finished ledger")

@@ -1,0 +1,79 @@
+/*
+ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+// THE PARALLEL RUN (refactor step 3.5-ii; build/refactor/step-3/BRIEF.md §4.9; D14: DEC-179, D22: DEC-180).
+//
+// The new owner of a session's diagnostics (SessionDiagnostics) runs beside the old model (SessionDiagnosticsModel),
+// IN MEMORY ONLY — it writes no file, so diagnostics.json and work_ons.json keep the old model as their one writer
+// until the cut-over (3.7) — and the two are compared:
+//   • in the app, with PINPOINT_DIAG_PARALLEL=1 (main.cpp installs the hook below): after each reduction the old
+//     model settles, the new owner of the same session (app.sessionAt) is compared once it is idle over the same
+//     shots, and ONE LINE PER SESSION goes to the app log ("[DiagParallel] <session> …"), written again only when
+//     what it says changes;
+//   • over a set of sessions, by regrade_ledger --engine=old|new, which dumps each engine in this same form for
+//     tools/parity/parity_diff.py (run P).
+//
+// THE FORM ("P"): what both engines own, in ids and numbers — the stage, the pattern set, every condition's ledger
+// figures, every shot's rows, its outcome's facts (its "because" joined from the session's reasons on the new side:
+// J-14 (b)) and its three factors, the shot mix's counts, per club the factor mix's counts and carry today against the
+// frozen usual, the reasons, the work-ons and evidence, the outcome evidence, the session's usuals. Left out: the
+// panel's view state and every golfer-facing sentence (the cards' order, the coverage line, the shot's words), which
+// are the thin adapter's at the cut-over (3.7; R-DER-9), and the club windows (D7), checked apart (run P case 7).
+// The stamp (`stamp`) is in the dump and left out of the app's line: it differs on every session by design (run P
+// case 1, R-STAMP-1).
+//
+// Adapters ring (src/Gui): reads the old model and the new owner; writes nothing but the log.
+
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QString>
+#include <QStringList>
+
+#include <functional>
+
+class SessionDiagnosticsModel;
+
+namespace pinpoint {
+
+class Session;
+class SessionDiagnostics;
+
+namespace parallel {
+
+// The form of one session, from each engine. `withStamp`: the findings stamp under "stamp" (the dump keeps it).
+QJsonObject formOf(const SessionDiagnosticsModel &model, bool withStamp = true);
+QJsonObject formOf(const SessionDiagnostics &owner, bool withStamp = true);   // empty before its first diagnosis
+
+// Every difference between two forms: arrays of objects matched by their identity (shotId, conditionId, id, clubId),
+// numbers within rtol/atol (whole numbers exact), everything else exact. One line per difference, "path: old → new".
+QStringList differences(const QJsonValue &oldForm, const QJsonValue &newForm, double rtol = 1e-9, double atol = 1e-12);
+
+// The app's switch (D14): installs the old model's hook. `sessionAt` is app.sessionAt (the folder's Session, loaded if
+// it is not; null for a no-golfer session: N1); `loadedAt` answers only a Session already loaded. The catch-up's model
+// (baseline authority "always") sweeps every ended session, so it is compared only for a session already loaded — the
+// live one at its End (§4.9: the live session with the panel off) — and never loads one (Q-18). uninstall() before the
+// objects the two reach are destroyed.
+bool enabledByEnvironment();   // PINPOINT_DIAG_PARALLEL=1
+void install(std::function<Session *(const QString &folder)> sessionAt,
+             std::function<Session *(const QString &folder)> loadedAt);
+void uninstall();
+
+} // namespace parallel
+} // namespace pinpoint

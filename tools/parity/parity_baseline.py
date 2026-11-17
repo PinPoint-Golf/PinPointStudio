@@ -12,7 +12,10 @@ Design: build/refactor/step-G/BRIEF.md section 2.
 
 --half mac (default; the Mac)
   1. Copies every session of the parity set (parity_set.json, from parity_select.py) from the
-     library to <label>/lib/<Athlete>/<session> (a copy; the library is only read).
+     library to <label>/lib/<Athlete>/<session> (a copy; the library is only read). With
+     --athlete-files, also every plain file directly in each of those athlete folders (athlete.json,
+     the athlete's caches), so a run on a migrated copy carries M1's athlete.json (refactor step 2.8b,
+     parity run B); off by default, so a baseline run copies exactly what it always did.
   2. regrade_ledger --tag parity --dump out/diagnostics.json <every session copy>
   3. athlete_dump --fresh --out out/athlete.json <every athlete folder of the copy>
      (that order: the catch-up trusts ledgers stamped current, so step 2 makes them this build's).
@@ -133,6 +136,17 @@ def mac_half(a, pset, run_dir):
         if ad not in athletes:
             athletes.append(ad)
         log("copied  %-55s %5.1f s" % (s["path"], copy_s[s["path"]]))
+    athlete_files = []
+    if a.athlete_files:
+        for ad in athletes:
+            src_ad = os.path.join(a.library, os.path.relpath(ad, lib))
+            for name in sorted(os.listdir(src_ad)):
+                sp = os.path.join(src_ad, name)
+                if os.path.isfile(sp) and not os.path.islink(sp):
+                    shutil.copy2(sp, os.path.join(ad, name))
+                    athlete_files.append(os.path.relpath(os.path.join(ad, name), lib).replace(os.sep, "/"))
+                    log("copied  %s" % athlete_files[-1])
+    meta["athleteFiles"] = athlete_files
     meta["seconds"]["copy"] = round(time.time() - t0, 1)
     meta["seconds"]["copyPerSession"] = copy_s
 
@@ -352,6 +366,8 @@ def main():
     ap.add_argument("--bin-dir", default=os.path.join(pc.REPO, "build", "tests", "Analysis"),
                     help="mac: where regrade_ledger and athlete_dump are (default %(default)s)")
     ap.add_argument("--keep-copies", action="store_true", help="mac: keep <label>/lib after the dumps")
+    ap.add_argument("--athlete-files", action="store_true",
+                    help="mac: also copy the plain files of each athlete folder (athlete.json: M1's output)")
     ap.add_argument("--swinglab", help="analysis: the swinglab_run binary")
     ap.add_argument("--only", nargs="+", metavar="ID", help="analysis: just these swing ids (a smoke test)")
     ap.add_argument("--keep-results", action="store_true", help="analysis: keep <label>/analysis/")

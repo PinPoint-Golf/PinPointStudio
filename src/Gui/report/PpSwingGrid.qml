@@ -138,9 +138,12 @@ Column {
                     delegate: Text {
                         required property int index
                         readonly property var sw: sg.swings[band.from + index]
+                        // `best` is the reference swing's PLACE (1-based), as the carry bar reads it; the head prints its
+                        // swing number, which a trashed swing makes differ from the place (step 2.7b)
+                        readonly property bool isBest: band.from + index + 1 === sg.g.best
                         x: sg.mx(index) - width / 2; y: parent.height - 20
-                        text: sw; font: sw === sg.g.best ? sg.ro.fFigB : sg.ro.fFigM
-                        color: sw === sg.g.best ? sg.ro.accent : sg.ro.ink3
+                        text: sw; font: isBest ? sg.ro.fFigB : sg.ro.fFigM
+                        color: isBest ? sg.ro.accent : sg.ro.ink3
                     }
                 }
                 Text { x: sg.width - sg.countW; y: parent.height - 19; width: sg.countW; horizontalAlignment: Text.AlignRight

@@ -55,7 +55,7 @@ namespace pinpoint::report {
 
 // One report swing's launch monitor facts: the board's shot for it, if the board has one.
 struct LmSwing {
-    int     number = 0;       // the report's swing number, 1-based
+    int     number = 0;       // the report's number for the swing: its swing number (step 2.7b)
     QString ledgerClub;       // the diagnostics ledger's club — the club only when the board has no shot for the swing
     std::optional<pinpoint::lm::LmBoardShot> shot;
 
@@ -88,8 +88,10 @@ struct LmFigures {
 
 // Joins the board's shots to the report's swings. `swingDirs[k]` is report swing k + 1's folder (cleaned), and
 // `ledgerClubs[k]` its ledger club.
+// `swingNumbers[k]`, when given, is report swing k's printed number — its swing number (step 2.7b); else k + 1.
 LmFigures lmFiguresOf(const std::vector<pinpoint::lm::LmBoardShot> &board, const QStringList &swingDirs,
-                      const QStringList &ledgerClubs, const QString &device, bool leftHanded);
+                      const QStringList &ledgerClubs, const QString &device, bool leftHanded,
+                      const QList<int> &swingNumbers = {});
 
 // The precision the golfer pages print a reading at: whole units, except a ratio (smash factor) and the club's delivery
 // angles, which keep the board's own decimals (lmDecimals).

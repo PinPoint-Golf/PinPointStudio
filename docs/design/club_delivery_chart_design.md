@@ -240,7 +240,10 @@ The section's reason to exist (§2.2).
   against the swing plane at P6, and against the hand-plane steepening; monitor attack against the plane at P6.
   Least squares, slope, intercept, r, the residual scatter and n. In v1 that is **the golfer's day**: this
   session and the golfer's other sessions on the same date, read from their `swing_phasegrid.json` files (small,
-  and they already carry the plane and the `lm.*` values). A day is one camera set-up, so the uncalibrated
+  and they already carry the plane and the `lm.*` values). "The same date" is the sessions' own local day
+  (`SessionIdentity`, by start time; a session older than step 2 by the day in its folder's name, under every
+  naming pattern), and the scatter names another session's dots by its place in that day ("session 2, shot 5":
+  n-of-day and the swing number) — never parsed from a folder name (step 2.7b, F-06). A day is one camera set-up, so the uncalibrated
   camera's offset cancels, and it is the only pool that lets Jess's and Nick's 20 Oct shots (three and two
   session folders, at most 10 monitor shots in any one) reach 12. Mark's 5 Oct set is one session. A fit across
   days mixes camera set-ups and needs the camera calibration first (§8.2).

@@ -48,13 +48,11 @@
 #include "../LaunchMonitor/lm_session_reductions.h"
 
 #include <QDate>
-#include <QDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 
@@ -81,24 +79,37 @@ struct ShotCorrection {
     QString family, from, to;
 };
 
-// One session as the reductions read it.
-struct ClubDistanceSession {
-    QString folder;     // session folder name
-    QDate   day;        // sessionDayOfFolder(); invalid = a folder with no date, ordered nowhere
-    std::vector<ShotRecord> shots;      // in strike order
-    QHash<int, std::vector<ShotCorrection>> corrections;      // keyed by shotId
+// WHERE A SESSION SITS IN THE ATHLETE'S HISTORY: its local day and its place in that day (n-of-day, from 1),
+// both SessionIdentity's (src/DomainModel/session_identity.h; refactor step 2.7a, audit F-06/C-11). The day and
+// the order come from the session's START TIME, never from its folder's name: under the `name-date-type` naming
+// pattern no folder starts with its date, and reading its first ten characters left it "ordered nowhere". A session
+// without a session file yet (every session before migration M2) is placed by SessionIdentity from its name — in
+// that one place. The rules take the place as a VALUE and never read a folder; the folder's name is kept only as
+// the last tie-break and as a label.
+struct SessionPlace {
+    QString folder;     // the session folder's name: a label and the last tie-break, never parsed here
+    QDate   day;        // SessionIdentity::localDay(); invalid = a session with no day, ordered nowhere
+    int     nOfDay = 0; // SessionIdentity::nOfDay(); 0 when not placed
 };
 
-// The leading yyyy-MM-dd of a session folder ("<date>_<athlete>_<type>_<nn>"). A session's day is the
-// day in its name, so re-analysis, copying and clock changes cannot reorder a golfer's history. Takes a
-// bare name or a path.
-inline QDate sessionDayOfFolder(const QString &folder)
+// Oldest first: by day, then by the place in the day, then (a tie the identity could not break) by folder name.
+inline bool sessionPlaceBefore(const SessionPlace &a, const SessionPlace &b)
 {
-    static const QRegularExpression re(QStringLiteral("^(\\d{4}-\\d{2}-\\d{2})"));
-    const QRegularExpressionMatch m = re.match(QFileInfo(QDir::cleanPath(folder)).fileName());
-    if (!m.hasMatch()) return QDate();
-    return QDate::fromString(m.captured(1), Qt::ISODate);
+    if (a.day != b.day) return a.day < b.day;
+    if (a.nOfDay != b.nOfDay) return a.nOfDay < b.nOfDay;
+    return a.folder < b.folder;
 }
+
+// One session as the reductions read it.
+struct ClubDistanceSession {
+    QString folder;     // session folder name (a label; never parsed)
+    QDate   day;        // SessionPlace::day; invalid = a session with no day, ordered nowhere
+    int     nOfDay = 0; // SessionPlace::nOfDay: its place within its day
+    std::vector<ShotRecord> shots;      // in strike order
+    QHash<int, std::vector<ShotCorrection>> corrections;      // keyed by shotId
+
+    SessionPlace place() const { return SessionPlace{ folder, day, nOfDay }; }
+};
 
 // A canonical club id for display ("7 IRON" -> "7 iron"). Keys stay uppercase.
 inline QString clubDistanceLabel(const QString &id)
@@ -108,19 +119,19 @@ inline QString clubDistanceLabel(const QString &id)
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 
-// "161 ± 7 yd". An SD below the floor is an em dash and the mean still stands ("161 ± — yd"); no
-// mean is the em dash alone.
+// "161 ± 7 yd". An SD below the floor is "-" and the mean still stands ("161 ± - yd"); no mean is "-" alone:
+// Mark's rule, a missing figure shows "-" (figure_format.h kMissing), never an em dash (refactor 3.5-ii, J-24).
 inline QString yardsMeanSdText(double mean, double sd)
 {
-    if (!std::isfinite(mean)) return QStringLiteral("—");
+    if (!std::isfinite(mean)) return QStringLiteral("-");
     return lmFormat(mean, 0) + QStringLiteral(" ± ")
-         + (std::isfinite(sd) ? lmFormat(sd, 0) : QStringLiteral("—")) + QStringLiteral(" yd");
+         + (std::isfinite(sd) ? lmFormat(sd, 0) : QStringLiteral("-")) + QStringLiteral(" yd");
 }
 
-// "161 yd", or the em dash.
+// "161 yd", or "-".
 inline QString yardsText(double yards)
 {
-    return std::isfinite(yards) ? lmFormat(yards, 0) + QStringLiteral(" yd") : QStringLiteral("—");
+    return std::isfinite(yards) ? lmFormat(yards, 0) + QStringLiteral(" yd") : QStringLiteral("-");
 }
 
 // "24 yd short".
@@ -175,8 +186,8 @@ inline QString shotMishitKind(const ShotRecord &recorded, const std::vector<Shot
 {
     // Which shots leave the usual is a JUDGEMENT, so every reading below is the graded one (#176): a carry,
     // launch or smash whose measure is not live never calls a shot short, thin or skied.
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();
     QString corrected;
     QStringList removed;
     for (const ShotCorrection &c : corrections) {
@@ -292,8 +303,8 @@ inline std::vector<ClubSessionPool> poolSessionByClub(const ClubDistanceSession 
     return pools;
 }
 
-// The sessions in day order, oldest first, then by folder name within a day. Sessions with no date
-// are left out: nothing can say what comes before or after them.
+// The sessions in day order, oldest first, then by their place in the day (sessionPlaceBefore). Sessions
+// with no day are left out: nothing can say what comes before or after them.
 inline std::vector<const ClubDistanceSession *> sessionsByDay(const std::vector<ClubDistanceSession> &sessions)
 {
     std::vector<const ClubDistanceSession *> out;
@@ -301,7 +312,7 @@ inline std::vector<const ClubDistanceSession *> sessionsByDay(const std::vector<
     for (const ClubDistanceSession &s : sessions)
         if (s.day.isValid()) out.push_back(&s);
     std::stable_sort(out.begin(), out.end(), [](const ClubDistanceSession *a, const ClubDistanceSession *b) {
-        return a->day != b->day ? a->day < b->day : a->folder < b->folder;
+        return sessionPlaceBefore(a->place(), b->place());
     });
     return out;
 }
@@ -400,6 +411,15 @@ struct ClubBaselineSnapshot {
     int     schema = kClubBaselineSchemaVersion;
     QString frozenAt;
     QHash<QString, ClubBaselineEntry> clubs;
+    // EACH REWRITE (R-STAMP-4; OBJ-CLUB-BASELINE, FILE-SESS-04: "the frozen baseline, its rule version, and each
+    // rewrite (when, what it read)"; DEC-46; refactor step 3.6, the Session's freeze from its predecessors' summaries,
+    // DEC-172): when, and the earlier sessions it read (folder names, newest first). The rule version is the file's
+    // `schema`. Written only when there is one, so a first freeze — the old model's or the Session's — is written as before.
+    struct Rewrite {
+        QString     at;     // ISO UTC
+        QStringList read;
+    };
+    std::vector<Rewrite> rewrites;   // oldest first
 };
 
 // The baseline for one club from its window.
@@ -475,7 +495,25 @@ inline QJsonObject clubBaselineToJson(const ClubBaselineSnapshot &snap)
     root[QStringLiteral("schema")]   = snap.schema;
     root[QStringLiteral("frozenAt")] = snap.frozenAt;
     root[QStringLiteral("clubs")]    = clubs;
+    QJsonArray rewrites;
+    for (const ClubBaselineSnapshot::Rewrite &r : snap.rewrites)
+        rewrites.append(QJsonObject{ { QStringLiteral("at"), r.at }, { QStringLiteral("read"), QJsonArray::fromStringList(r.read) } });
+    if (!rewrites.isEmpty()) root[QStringLiteral("rewrites")] = rewrites;
     return root;
+}
+
+// The rewrites an older file recorded (any schema: the history is kept across a rule change).
+inline std::vector<ClubBaselineSnapshot::Rewrite> clubBaselineRewritesFromJson(const QJsonObject &root)
+{
+    std::vector<ClubBaselineSnapshot::Rewrite> out;
+    for (const QJsonValue &v : root.value(QStringLiteral("rewrites")).toArray()) {
+        const QJsonObject o = v.toObject();
+        ClubBaselineSnapshot::Rewrite r;
+        r.at = o.value(QStringLiteral("at")).toString();
+        for (const QJsonValue &f : o.value(QStringLiteral("read")).toArray()) r.read << f.toString();
+        out.push_back(std::move(r));
+    }
+    return out;
 }
 
 // A snapshot written under an older rule for what goes in the pool: the one case a frozen baseline is
@@ -498,6 +536,7 @@ inline ClubBaselineSnapshot clubBaselineFromJson(const QJsonObject &root, bool *
     if (!good) return snap;
 
     snap.frozenAt = root.value(QStringLiteral("frozenAt")).toString();
+    snap.rewrites = clubBaselineRewritesFromJson(root);
     const QJsonObject clubs = root.value(QStringLiteral("clubs")).toObject();
     for (auto it = clubs.constBegin(); it != clubs.constEnd(); ++it) {
         const QJsonObject o = it.value().toObject();
@@ -631,7 +670,7 @@ inline ClubDistanceItem clubDistanceItemFromWindow(const ClubDistanceWindow &win
     if (const LmFieldStats *carry = clubStat(stats, "lm.carryDistance")) item.shots = carry->n;
     item.sessions = int(window.sessions.size());
     item.mishits  = window.mishits;
-    item.fewShots = item.shots < kClubBaselineMinShots;
+    item.fewShots = !clubUsualEarned(item.shots);
     if (std::isfinite(item.carrySd)) item.shortBelow = item.carryMean - kClubShortBelowSds * item.carrySd;
 
     for (const ClubWindowSession &s : window.sessions) {
@@ -672,12 +711,11 @@ inline void applyClubGaps(std::vector<ClubDistanceItem> &items)
 
 // One row per club with at least one qualifying shot, in `bagOrder` (the canonical order when empty,
 // and any club not in it follows, alphabetically). A club with no carry reported has no row.
-inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
-                                                         const QStringList &bagOrder = QStringList(),
-                                                         const FlightNorms &norms = shippedFlightNorms())
+// From each club's pools already made, oldest first (refactor step 3.6: the athlete level's distances
+// from the session summaries' club windows, DEC-172 — the pools a summary holds are poolSessionByClub's).
+inline std::vector<ClubDistanceItem> clubDistancesFromPools(const QHash<QString, std::vector<ClubSessionPool>> &pools,
+                                                            const QStringList &bagOrder = QStringList())
 {
-    const QHash<QString, std::vector<ClubSessionPool>> pools = poolsByClub(sessionsByDay(sessions), norms);
-
     std::vector<ClubDistanceItem> items;
     for (auto it = pools.constBegin(); it != pools.constEnd(); ++it) {
         const ClubDistanceWindow window = clubWindow(it.key(), it.value());
@@ -695,6 +733,13 @@ inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubD
     });
     applyClubGaps(items);
     return items;
+}
+
+inline std::vector<ClubDistanceItem> reduceClubDistances(const std::vector<ClubDistanceSession> &sessions,
+                                                         const QStringList &bagOrder = QStringList(),
+                                                         const FlightNorms &norms = shippedFlightNorms())
+{
+    return clubDistancesFromPools(poolsByClub(sessionsByDay(sessions), norms), bagOrder);
 }
 
 } // namespace pinpoint::analysis

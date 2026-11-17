@@ -537,18 +537,8 @@ ShotWarp warpOnto(const ShotSeries &ref, const ShotSeries &picked)
     return warpAgainst(ref, al);
 }
 
-// "shot 3, 18 Aug 2026": which swing the ★ is, from its folder and its session folder's date.
-QString referenceLabelOf(const QString &dir)
-{
-    const QFileInfo fi(dir);
-    const int id = SessionSeriesModel::folderShotId(dir);
-    const QString session = QFileInfo(fi.absolutePath()).fileName();
-    const QDate d = QDate::fromString(session.left(10), QStringLiteral("yyyy-MM-dd"));
-    QStringList parts;
-    if (id >= 0) parts << QStringLiteral("shot %1").arg(id);
-    if (d.isValid()) parts << QLocale(QLocale::English).toString(d, QStringLiteral("d MMM yyyy"));
-    return parts.join(QStringLiteral(", "));
-}
+// "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
+QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
 
 // The reference swing, read on the worker: the session's own copy when it is one of the session's
 // shots, else SwingStore::loadAnalysis → SessionSeriesModel::extractShot (the loader's own path, never
@@ -620,6 +610,13 @@ struct Ctx {
     std::shared_ptr<const ShotSeries> shot;
     QHash<QString, QVariantMap> seriesMaps;
     int index = -1, ordinal = 0, shotId = -1;
+    // "shot N" in words is the swing number (step 2.7b; words::shotNumber): the picked shot's, and that of the
+    // session's shot at `ord` (a place in the snapshot: a medoid, the previous, the most typical).
+    int no() const { return W::shotNumber(shotId, ordinal); }
+    int no(int ord) const
+    {
+        return snap && ord >= 1 && size_t(ord) <= snap->shots.size() ? W::shotNumber(snap->shots[size_t(ord - 1)]->shotId, ord) : ord;
+    }
     QString swingDir;
     ShotWarp warp;
     bool aligned = false;
@@ -1659,8 +1656,8 @@ void buildThisShot(Ctx &c, ChartsTracesPresenter::Result &R)
     out.insert(QStringLiteral("shotId"), c.shotId);
     out.insert(QStringLiteral("swingDir"), c.swingDir);
     out.insert(QStringLiteral("inSession"), c.index >= 0);
-    QString kicker = c.index >= 0 ? QStringLiteral("Shot %1 of %2").arg(c.ordinal).arg(n)
-                                  : QStringLiteral("Shot %1").arg(c.shotId > 0 ? c.shotId : c.ordinal);
+    QString kicker = c.index >= 0 ? W::shotOfText(c.shotId, c.ordinal, n)
+                                  : QStringLiteral("Shot %1").arg(W::shotNumber(c.shotId, c.ordinal));
     if (!club.isEmpty()) kicker += QStringLiteral("  ·  ") + club;
     out.insert(QStringLiteral("kicker"), kicker);
 
@@ -2184,14 +2181,14 @@ std::vector<Group> facetGroups(Ctx &c, const QString &facet, QString *kind)
         *kind = QStringLiteral("half");
         const SessionFacet f = halfFacet(*c.snap);
         const int h = n / 2;
-        g.push_back(Group{ f.groups[0].key, QStringLiteral("Shots 1–%1").arg(h), QStringLiteral("First half"), f.groups[0].ordinals });
-        g.push_back(Group{ f.groups[1].key, QStringLiteral("Shots %1–%2").arg(h + 1).arg(n), QStringLiteral("Second half"), f.groups[1].ordinals });
+        g.push_back(Group{ f.groups[0].key, QStringLiteral("Shots %1–%2").arg(c.no(1)).arg(c.no(h)), QStringLiteral("First half"), f.groups[0].ordinals });
+        g.push_back(Group{ f.groups[1].key, QStringLiteral("Shots %1–%2").arg(c.no(h + 1)).arg(c.no(n)), QStringLiteral("Second half"), f.groups[1].ordinals });
     } else if (facet == QLatin1String("shape")) {
         const ShapeSplit &sp = shapeOf(c);
         if (const auto f = shapeFacet(sp)) {
             *kind = QStringLiteral("shape");
-            g.push_back(Group{ QStringLiteral("a"), QStringLiteral("Shaped like shot %1").arg(sp.medoidA), QStringLiteral("Like shot %1").arg(sp.medoidA), sp.groupA });
-            g.push_back(Group{ QStringLiteral("b"), QStringLiteral("Shaped like shot %1").arg(sp.medoidB), QStringLiteral("Like shot %1").arg(sp.medoidB), sp.groupB });
+            g.push_back(Group{ QStringLiteral("a"), QStringLiteral("Shaped like shot %1").arg(c.no(sp.medoidA)), QStringLiteral("Like shot %1").arg(c.no(sp.medoidA)), sp.groupA });
+            g.push_back(Group{ QStringLiteral("b"), QStringLiteral("Shaped like shot %1").arg(c.no(sp.medoidB)), QStringLiteral("Like shot %1").arg(c.no(sp.medoidB)), sp.groupB });
         }
     } else if (facet == QLatin1String("club")) {
         if (c.w->clubFacet) {
@@ -2638,15 +2635,15 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         const bool least = mode == QLatin1String("leastTypical");
         refOrd = scoreOf(c, least, c.ordinal).ordinal;
         if (refOrd <= 0) return refuse(QStringLiteral("No shot qualifies as the session's most typical."));
-        label = QStringLiteral("shot %1, the %2").arg(refOrd).arg(least ? QStringLiteral("least typical") : QStringLiteral("most typical"));
-        phrase = least ? QStringLiteral("shot %1, the least typical").arg(refOrd) : QStringLiteral("your most typical swing, shot %1").arg(refOrd);
+        label = QStringLiteral("shot %1, the %2").arg(c.no(refOrd)).arg(least ? QStringLiteral("least typical") : QStringLiteral("most typical"));
+        phrase = least ? QStringLiteral("shot %1, the least typical").arg(c.no(refOrd)) : QStringLiteral("your most typical swing, shot %1").arg(c.no(refOrd));
     } else if (mode == QLatin1String("previous") || mode == QLatin1String("next")) {
         const bool prev = mode == QLatin1String("previous");
         refOrd = prev ? c.ordinal - 1 : c.ordinal + 1;
-        if (refOrd < 1) return refuse(QStringLiteral("Shot %1 has no shot before it.").arg(c.ordinal));
-        if (refOrd > n) return refuse(QStringLiteral("Shot %1 is the last shot of the session.").arg(c.ordinal));
-        if (!c.w->alignment.shots[size_t(refOrd - 1)].aligned()) return refuse(QStringLiteral("Shot %1 has no impact to line it up on.").arg(refOrd));
-        label = QStringLiteral("shot %1, the %2").arg(refOrd).arg(prev ? QStringLiteral("previous") : QStringLiteral("next"));
+        if (refOrd < 1) return refuse(QStringLiteral("Shot %1 has no shot before it.").arg(c.no()));
+        if (refOrd > n) return refuse(QStringLiteral("Shot %1 is the last shot of the session.").arg(c.no()));
+        if (!c.w->alignment.shots[size_t(refOrd - 1)].aligned()) return refuse(QStringLiteral("Shot %1 has no impact to line it up on.").arg(c.no(refOrd)));
+        label = QStringLiteral("shot %1, the %2").arg(c.no(refOrd)).arg(prev ? QStringLiteral("previous") : QStringLiteral("next"));
         phrase = prev ? QStringLiteral("the shot before it") : QStringLiteral("the shot after it");
     } else if (mode == QLatin1String("like")) {
         if (c.index < 0) return refuse(QStringLiteral("This shot is not in the session yet, so it has no shape group."));
@@ -2676,7 +2673,7 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
         out.insert(QStringLiteral("refLabel"), c.refLabel);
     }
     else { out.insert(QStringLiteral("ordinal"), 0); out.insert(QStringLiteral("shotId"), -1); out.insert(QStringLiteral("swingDir"), QString()); }
-    out.insert(QStringLiteral("diffLabel"), QStringLiteral("shot %1 − %2").arg(c.ordinal).arg(isRef ? QStringLiteral("the reference ★") : mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(refOrd)));
+    out.insert(QStringLiteral("diffLabel"), QStringLiteral("shot %1 − %2").arg(c.no()).arg(isRef ? QStringLiteral("the reference ★") : mode == QLatin1String("median") ? QStringLiteral("session median") : mode == QLatin1String("like") ? QStringLiteral("shots like it") : QStringLiteral("shot %1").arg(c.no(refOrd))));
 
     std::vector<int> all;
     if (c.snap) for (const auto &s : c.snap->shots) all.push_back(s->ordinal);
@@ -2752,12 +2749,12 @@ void buildReference(Ctx &c, ChartsTracesPresenter::Result &R)
     out.insert(QStringLiteral("rows"), rows);
     W::Sentence head;
     if (!bestKey.isEmpty())
-        head.append(QStringLiteral("Shot %1 left %2 furthest ").arg(c.ordinal).arg(phrase))
+        head.append(QStringLiteral("Shot %1 left %2 furthest ").arg(c.no()).arg(phrase))
             .figure(W::whenImpact(bestGap.t))
             .append(QStringLiteral(", in ") + c.labelOf(bestKey).toLower() + QStringLiteral(" ("))
             .figure(W::figSigned(bestGap.diff, c.unitOf(bestKey))).append(QStringLiteral(")"));
     else
-        head.append(QStringLiteral("Shot %1 against %2").arg(c.ordinal).arg(label));
+        head.append(QStringLiteral("Shot %1 against %2").arg(c.no()).arg(label));
     out.insert(QStringLiteral("head"), head.toVariant());
     R.reference = out;
 }
@@ -3163,7 +3160,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
         if (fit) {
             const GroupFit &f0 = fitOf(c, k, groups[0].ords);
             fg(QStringLiteral("pooled"), f0.refused() ? QStringLiteral("-") : QStringLiteral("%1 samples").arg(f0.samplesPooled));
-            if (c.shot) fg(QStringLiteral("shot %1 peak").arg(c.ordinal), W::figUnit(info.mine, unit));
+            if (c.shot) fg(QStringLiteral("shot %1 peak").arg(c.no()), W::figUnit(info.mine, unit));
             QString gapText = QStringLiteral("none");
             if (!pc.empty()) {
                 for (const TimeSpan &h : coverageHoles(coverageRuns(pc), c.t0, c.t1))
@@ -3172,10 +3169,10 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                         break;
                     }
             } else gapText = QStringLiteral("-");
-            if (c.shot) fg(QStringLiteral("shot %1 gap").arg(c.ordinal), gapText);
+            if (c.shot) fg(QStringLiteral("shot %1 gap").arg(c.no()), gapText);
         } else {
             fg(QStringLiteral("median peak"), W::figUnit(medianOf(info.peaks), unit));
-            if (c.shot) fg(QStringLiteral("shot %1").arg(c.ordinal), W::fig(info.mine, dec) + QStringLiteral(", ") + placeWord(info.mine, info.peaks));
+            if (c.shot) fg(QStringLiteral("shot %1").arg(c.no()), W::fig(info.mine, dec) + QStringLiteral(", ") + placeWord(info.mine, info.peaks));
             if (info.part.found) fg(QStringLiteral("widest"), phaseWord(c, info.part.tCanonMs));
         }
         QVariantMap partMap{ { QStringLiteral("found"), info.part.found } };
@@ -3245,7 +3242,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
         if (!best) head.append(QStringLiteral("One curve for the group, fitted to every shot’s samples"));
         else {
             const QString span = bareWhen(phaseWord(c, best->h.t0)) + QStringLiteral(" to ") + bareWhen(phaseWord(c, best->h.t1));
-            if (best->share >= 0.5) head.append(QStringLiteral("The group fit spans shot %1’s gap in %2, ").arg(c.ordinal).arg(c.labelOf(best->key).toLower())).figure(span);
+            if (best->share >= 0.5) head.append(QStringLiteral("The group fit spans shot %1’s gap in %2, ").arg(c.no()).arg(c.labelOf(best->key).toLower())).figure(span);
             else head.append(QStringLiteral("No shot measured %1 ").arg(c.labelOf(best->key).toLower())).figure(span);
         }
         QStringList who;
@@ -3254,7 +3251,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
                                                                        : g.key == QLatin1String("without") ? QStringLiteral("without it") : g.label.toLower());
         stand.append(QStringLiteral("One curve per group, fitted to the pooled samples of ")
                      + (who.isEmpty() ? QStringLiteral("all ") + W::word(n) + QStringLiteral(" shots") : who.join(QStringLiteral(", and ")))
-                     + QStringLiteral(", P-positions aligned. It is the group’s curve, not shot %1’s; no figure for shot %1 is read from it.").arg(c.ordinal));
+                     + QStringLiteral(", P-positions aligned. It is the group’s curve, not shot %1’s; no figure for shot %1 is read from it.").arg(c.no()));
         if (best && best->share < 0.5) stand.append(QStringLiteral(" The fit stays empty where fewer than three shots were measured."));
     } else if (!facet.isEmpty() && groups.size() > 1) {
         head.append(groups[0].label + QStringLiteral(": ")).figure(QStringLiteral("%1 shots").arg(groups[0].ords.size()))
@@ -3280,7 +3277,7 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             .figure(W::fig(partRow->part.q1, partRow->dec) + QStringLiteral("–") + W::figUnit(partRow->part.q3, unit)).append(QStringLiteral("."));
         if (c.shot) {
             const QString place = placeWord(partRow->mine, partRow->peaks);
-            stand.append(QStringLiteral(" Shot %1’s %2 peak is ").arg(c.ordinal).arg(c.labelOf(partRow->key).toLower())
+            stand.append(QStringLiteral(" Shot %1’s %2 peak is ").arg(c.no()).arg(c.labelOf(partRow->key).toLower())
                          + (place.contains(QStringLiteral(" of ")) ? QStringLiteral("the ") : QStringLiteral("in the ")) + place + QStringLiteral("."));
         }
     } else {
@@ -3307,8 +3304,8 @@ void buildSession(Ctx &c, ChartsTracesPresenter::Result &R)
             const bool mine = std::find(lit.begin(), lit.end(), c.ordinal) != lit.end();
             ans.append(W::cap1(W::shotsList(lit)) + (lit.size() == 1 ? QStringLiteral(" lies") : QStringLiteral(" lie"))
                        + QStringLiteral(" outside the middle half there")
-                       + (c.ordinal <= 0 ? QStringLiteral(".") : mine ? QStringLiteral(", shot %1 among them.").arg(c.ordinal)
-                                                                       : QStringLiteral("; shot %1 is inside it.").arg(c.ordinal)));
+                       + (c.ordinal <= 0 ? QStringLiteral(".") : mine ? QStringLiteral(", shot %1 among them.").arg(c.no())
+                                                                       : QStringLiteral("; shot %1 is inside it.").arg(c.no())));
         }
         qs << QVariantMap{ { QStringLiteral("id"), QStringLiteral("part") },
                            { QStringLiteral("text"), c.labelOf(partRow->key) + QStringLiteral(": which shots lie outside the middle half where the curves part?") },
@@ -3423,8 +3420,8 @@ void buildChoices(Ctx &c, ChartsTracesPresenter::Result &R)
     addA(QStringLiteral("median"), QStringLiteral("the session median"), sessionOk, sessionWhy);
     const int typ = sessionOk ? scoreOf(c, false, c.ordinal).ordinal : 0;
     const int lst = sessionOk ? scoreOf(c, true, c.ordinal).ordinal : 0;
-    addA(QStringLiteral("typical"), typ > 0 ? QStringLiteral("the most typical, shot %1").arg(typ) : QStringLiteral("the most typical"), typ > 0, sessionWhy);
-    addA(QStringLiteral("leastTypical"), lst > 0 ? QStringLiteral("the least typical, shot %1").arg(lst) : QStringLiteral("the least typical"), lst > 0, sessionWhy);
+    addA(QStringLiteral("typical"), typ > 0 ? QStringLiteral("the most typical, shot %1").arg(c.no(typ)) : QStringLiteral("the most typical"), typ > 0, sessionWhy);
+    addA(QStringLiteral("leastTypical"), lst > 0 ? QStringLiteral("the least typical, shot %1").arg(c.no(lst)) : QStringLiteral("the least typical"), lst > 0, sessionWhy);
     addA(QStringLiteral("previous"), QStringLiteral("the previous shot"), sessionOk && c.ordinal > 1, QStringLiteral("there is no shot before this one"));
     addA(QStringLiteral("next"), QStringLiteral("the next shot"), sessionOk && c.ordinal < n, QStringLiteral("this is the last shot"));
     int likeN = 0;

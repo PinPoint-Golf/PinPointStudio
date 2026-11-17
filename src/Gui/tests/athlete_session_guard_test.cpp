@@ -92,7 +92,7 @@ private slots:
 
         AthleteController unset;                                  // G4 no check given = never running
         unset.setSynchronousActivity(true);
-        unset.setRepositories(lib.athletes.get(), &lib.sessions);
+        unset.setCallables(callablesOver(*lib.athletes), &lib.sessions);
         QVERIFY(!unset.sessionRunning());
         QVERIFY(unset.selectAthlete(jess));
         QCOMPARE(unset.currentUuid(), jess);

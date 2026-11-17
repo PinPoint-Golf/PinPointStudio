@@ -69,7 +69,7 @@
 
 namespace pinpoint::analysis {
 
-inline constexpr int kTendencyRuleVersion   = 17;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations; 16: a factor's bar names a value to watch (Low) as kind "watch", so every bar draws it amber; 17: each row carries its shots' flow combinations (TendencyItem::flow), for the tendency flow (Sankey)
+inline constexpr int kTendencyRuleVersion   = 18;   // 2: a left-hander's chain is glossed, and the item says whose hand; 3: a building row says what has shown up so far; 4: each row carries its shot mix; 9: each club's judged shots counted by outcome (clubOutcomes), Home's outcome filter's choices; 10: the usual miss is the most common, whatever its family; 11: a measured thin, top or fat counts only when the flight agrees (measuredStrikeFlightAgrees); 12: three factors per row, strike, direction and flight (shot_factors.h), and each club's shots counted by factor tuple; 13: a factor's usual value is the most common by plain count (faults stay recency-weighted), and a building factor names a fault only at minShare or more; 14: the ledger rows are checked against the flight (checkStrikesAgainstFlight): an overruled thin, top or fat is read, not a miss, and Sky is the flight's; 15: each row says how its factors came together (TendencyTogether): two usual faults' shared shots and where each one's shots went, and the commonest combinations; 16: a factor's bar names a value to watch (Low) as kind "watch", so every bar draws it amber; 17: each row carries its shots' flow combinations (TendencyItem::flow), for the tendency flow (Sankey); 18 (16 Nov 2026, refactor step 3.6, Stage 0.5's follow-up): every shot is read as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read), and so are Your distances
 inline constexpr int kTendencySchemaVersion = 1;
 
 // §7.1 and D5.
@@ -203,8 +203,8 @@ inline QHash<int, QString> resolvedShotIntents(QHash<int, QString> explicitInten
 // How far short of the usual this shot carried, 0 when it went past it; NaN when either number is missing.
 inline double shotCarryLoss(const ShotRecord &recorded, const ClubBaselineEntry *usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);   // a held carry loses nothing it can be judged on (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();   // a held carry loses nothing it can be judged on (#176)
     if (!usual || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean))
         return std::numeric_limits<double>::quiet_NaN();
     return std::max(0.0, usual->carryMean - shot.carry);
@@ -755,58 +755,139 @@ inline TendencyTogether tendencyTogether(const TendencyItem &item, const std::ve
 // `clubGroupOf` maps a stored club to "driver", "woods", "long_irons", "mid_irons", "short_irons", "wedges", or "" for a club left out (a
 // putter, an undeclared club). `flightNorms` is the table a shot's height is judged against (shippedFlightNorms;
 // an empty one reads no shot's flight). `cancel`, polled between sessions, leaves `.cancelled` set.
+// ── ONE SHOT AS THE TENDENCIES READ IT (refactor step 3.6, round 3; DEC-192 as Mark answered on 16 Nov, "b": the
+// session summary carries COMPACT per-shot facts, never the judged rows) ───────────────────────────────────────────
+// The shot judged by the Tendencies rule (judgeTendencyShot: composed with its session's evidence, corrections, intent
+// and frozen usual, read factor by factor) and reduced to what the reduction below reads of it. A session computes it
+// for each of its shots (SessionDiagnostics' reduction) and hands it up in its summary; reduceTendencies computes the
+// same here for a caller that still holds rows (WorkOnsController until 3.7). Ids and numbers only (R-DER-9): the
+// driver's words are made from the pack when reduced (tendencyDriverText).
+struct TendencyShotFacts {
+    int         shotId = 0;
+    QString     club;              // as judged: the board's override applied (the group and the key read it)
+    QString     handedness;        // "", "Left", "Right"
+    bool        partial = false;   // swingLength == "partial"
+    ShotFactors factors;
+    QString     driverId, driverDisplayId;
+    bool        confirmed = false; // the driver has a chain the session's statistics confirmed
+    QString     mixKey;
+    double      loss = std::numeric_limits<double>::quiet_NaN();   // carry short of the frozen usual (shotCarryLoss)
+    QStringList firedConditions;   // the swing's faults that fired (not the Ball layer), row order
+};
+
+// One session's facts, placed (its day and place in the day).
+struct TendencySessionShots {
+    SessionPlace                   place;
+    std::vector<TendencyShotFacts> shots;
+};
+
+inline TendencyShotFacts tendencyShotFacts(const TendencySessionInput &s, const ShotRecord &shot, const ShotOutcomePack &pack,
+                                           const ShotOutcomeSessionFacts &facts, const FlightNorms &flightNorms)
+{
+    TendencyShotFacts f;
+    const ClubBaselineEntry *usual = tendencyUsualEntry(s, shot);
+    ShotOutcome o;
+    f.factors = judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), s.intents.value(shot.shotId),
+                                  usual, pack, facts, flightNorms, &o);
+    f.shotId          = shot.shotId;
+    f.club            = shot.club;
+    f.handedness      = shot.handedness;
+    f.partial         = shot.swingLength == QLatin1String("partial");
+    f.driverId        = o.driver.id;
+    f.driverDisplayId = o.driver.displayId;
+    f.confirmed       = !o.driver.id.isEmpty() && s.evidence.chainConfirmed.contains(o.driver.id);
+    f.mixKey          = o.mixKey;
+    f.loss            = shotCarryLoss(shot, usual);
+    for (const ConditionRow &r : shot.rows) {
+        if (r.state != ShotState::Fired) continue;
+        const ShotConditionFacts *c = outcomeFacts(pack, r.conditionId);
+        if (c && c->layer != ShotConditionLayer::Ball) f.firedConditions << r.conditionId;
+    }
+    return f;
+}
+
+// Every shot of a session, in its order.
+inline TendencySessionShots tendencySessionShots(const TendencySessionInput &s, const ShotOutcomePack &pack,
+                                                 const FlightNorms &flightNorms)
+{
+    TendencySessionShots out;
+    out.place = s.session.place();
+    const ShotOutcomeSessionFacts facts = tendencySessionFacts(s);
+    out.shots.reserve(s.session.shots.size());
+    for (const ShotRecord &shot : s.session.shots) out.shots.push_back(tendencyShotFacts(s, shot, pack, facts, flightNorms));
+    return out;
+}
+
+// The driver's words, as composeShotOutcome makes them: the glossed condition's golfer phrase (else the row's), in the
+// golfer's hand, its clause stripped.
+inline QString tendencyDriverText(const ShotOutcomePack &pack, const TendencyShotFacts &f)
+{
+    if (f.driverId.isEmpty()) return QString();
+    const ShotConditionFacts *c = outcomeFacts(pack, f.driverDisplayId);
+    if (!c) c = outcomeFacts(pack, f.driverId);
+    if (!c) return QString();
+    return tendency_detail::stripClause(f.handedness == QLatin1String("Left") ? mirrorLeftRightWords(c->golfer) : c->golfer);
+}
+
+inline TendencySet reduceTendencyShots(std::vector<TendencySessionShots> input, const ShotOutcomePack &pack,
+                                       const std::function<QString(const QString &)> &clubGroupOf,
+                                       const TendencyOptions &opt = {}, const std::atomic<bool> *cancel = nullptr);
+
 inline TendencySet reduceTendencies(const std::vector<TendencySessionInput> &input, const ShotOutcomePack &pack,
                                     const std::function<QString(const QString &)> &clubGroupOf,
                                     const FlightNorms &flightNorms,
                                     const TendencyOptions &opt = {}, const std::atomic<bool> *cancel = nullptr)
 {
+    std::vector<TendencySessionShots> sessions;
+    sessions.reserve(input.size());
+    for (const TendencySessionInput &s : input) {
+        if (cancel && cancel->load()) { TendencySet out; out.cancelled = true; return out; }
+        sessions.push_back(tendencySessionShots(s, pack, flightNorms));
+    }
+    return reduceTendencyShots(std::move(sessions), pack, clubGroupOf, opt, cancel);
+}
+
+// The reduction over the shots as judged (above), sessions in any order (placed here).
+inline TendencySet reduceTendencyShots(std::vector<TendencySessionShots> input, const ShotOutcomePack &pack,
+                                       const std::function<QString(const QString &)> &clubGroupOf,
+                                       const TendencyOptions &opt, const std::atomic<bool> *cancel)
+{
     using namespace tendency_detail;
 
     TendencySet out;
 
-    std::vector<const TendencySessionInput *> sessions;
+    std::vector<const TendencySessionShots *> sessions;
     sessions.reserve(input.size());
-    for (const TendencySessionInput &s : input) sessions.push_back(&s);
-    std::stable_sort(sessions.begin(), sessions.end(), [](const TendencySessionInput *a, const TendencySessionInput *b) {
-        return a->session.day != b->session.day ? a->session.day < b->session.day : a->session.folder < b->session.folder;
+    for (const TendencySessionShots &s : input) sessions.push_back(&s);
+    std::stable_sort(sessions.begin(), sessions.end(), [](const TendencySessionShots *a, const TendencySessionShots *b) {
+        return sessionPlaceBefore(a->place, b->place);
     });
 
-    // Every shot that counts, composed from its row, corrections and intent, and read factor by factor.
+    // Every shot that counts: judged, a club with a tendency group.
     std::vector<JudgedShot> judged;
     QSet<int> sessionsCounted;
     QHash<QString, TendencyClubOutcomes> outcomesByClub;
     for (int si = 0; si < int(sessions.size()); ++si) {
         if (cancel && cancel->load()) { out.cancelled = true; return out; }
-        const TendencySessionInput &s = *sessions[size_t(si)];
-        const ShotOutcomeSessionFacts facts = tendencySessionFacts(s);
-        for (const ShotRecord &shot : s.session.shots) {
+        for (const TendencyShotFacts &shot : sessions[size_t(si)]->shots) {
             const QString group = clubGroupOf ? clubGroupOf(shot.club) : QString();
             if (group.isEmpty()) continue;
-
-            const ClubBaselineEntry *usual = tendencyUsualEntry(s, shot);
-            ShotOutcome o;
-            const ShotFactors factors = judgeTendencyShot(shot, s.session.corrections.value(shot.shotId), s.intents.value(shot.shotId),
-                                                          usual, pack, facts, flightNorms, &o);
-            if (!factors.judged()) continue;
-            tallyClubOutcomes(outcomesByClub, canonicalClubId(shot.club), factors);
+            if (!shot.factors.judged()) continue;
+            tallyClubOutcomes(outcomesByClub, canonicalClubId(shot.club), shot.factors);
 
             JudgedShot j;
             j.session = si;
             j.group   = group;
             j.clubId  = canonicalClubId(shot.club);
             j.handedness = shot.handedness;
-            j.key     = j.clubId + QLatin1Char('|') + (shot.swingLength == QLatin1String("partial") ? QStringLiteral("partial") : QStringLiteral("full"));
-            j.factors = factors;
-            j.driverId   = o.driver.id;
-            j.driverText = stripClause(o.driver.golfer);
-            j.confirmed  = !o.driver.id.isEmpty() && s.evidence.chainConfirmed.contains(o.driver.id);
-            j.mixKey     = o.mixKey;
-            j.loss       = shotCarryLoss(shot, usual);
-            for (const ConditionRow &r : shot.rows) {
-                if (r.state != ShotState::Fired) continue;
-                const ShotConditionFacts *f = outcomeFacts(pack, r.conditionId);
-                if (f && f->layer != ShotConditionLayer::Ball) j.firedConditions << r.conditionId;
-            }
+            j.key     = j.clubId + QLatin1Char('|') + (shot.partial ? QStringLiteral("partial") : QStringLiteral("full"));
+            j.factors = shot.factors;
+            j.driverId   = shot.driverId;
+            j.driverText = tendencyDriverText(pack, shot);
+            j.confirmed  = shot.confirmed;
+            j.mixKey     = shot.mixKey;
+            j.loss       = shot.loss;
+            j.firedConditions = shot.firedConditions;
             sessionsCounted.insert(si);
             judged.push_back(std::move(j));
         }
@@ -1258,6 +1339,25 @@ inline TendencyFactor tendencyFactorFromJson(const QJsonObject &o)
     return f;
 }
 
+// One "on the ball" entry, the one serialiser (audit D-17: the file and Home's QVariantMap, onBallFor, both read it).
+inline QJsonObject tendencyOnBallToJson(const TendencyOnBall &b)
+{
+    QJsonArray produced;
+    for (const TendencyProduced &p : b.produced)
+        produced.append(QJsonObject{ { QStringLiteral("phrase"), p.phrase }, { QStringLiteral("count"), p.count } });
+    return QJsonObject{
+        { QStringLiteral("conditionId"), b.conditionId },
+        { QStringLiteral("text"), b.text },
+        { QStringLiteral("produced"), produced },
+        { QStringLiteral("costWords"), b.costWords },
+        { QStringLiteral("tendencyKey"), b.tendencyKey },
+        { QStringLiteral("factor"), b.factor },
+        { QStringLiteral("value"), b.value },
+        { QStringLiteral("tendencyText"), b.tendencyText },
+        { QStringLiteral("onTheBall"), b.onTheBall },
+    };
+}
+
 inline QJsonObject tendencySetToJson(const TendencySet &s)
 {
     QJsonArray items;
@@ -1288,22 +1388,7 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
         });
     }
     QJsonArray onBall;
-    for (const TendencyOnBall &b : s.onBall) {
-        QJsonArray produced;
-        for (const TendencyProduced &p : b.produced)
-            produced.append(QJsonObject{ { QStringLiteral("phrase"), p.phrase }, { QStringLiteral("count"), p.count } });
-        onBall.append(QJsonObject{
-            { QStringLiteral("conditionId"), b.conditionId },
-            { QStringLiteral("text"), b.text },
-            { QStringLiteral("produced"), produced },
-            { QStringLiteral("costWords"), b.costWords },
-            { QStringLiteral("tendencyKey"), b.tendencyKey },
-            { QStringLiteral("factor"), b.factor },
-            { QStringLiteral("value"), b.value },
-            { QStringLiteral("tendencyText"), b.tendencyText },
-            { QStringLiteral("onTheBall"), b.onTheBall },
-        });
-    }
+    for (const TendencyOnBall &b : s.onBall) onBall.append(tendencyOnBallToJson(b));
     QJsonArray clubOutcomes;
     for (const TendencyClubOutcomes &c : s.clubOutcomes) {
         QJsonArray tuples;
@@ -1331,13 +1416,13 @@ inline QJsonObject tendencySetToJson(const TendencySet &s)
 }
 
 // Tendencies as of one session (the golfer report): sessions on an earlier day, and those of the same day up to and
-// including it by folder order. Undated folders have no place in the order, so one counts only as itself.
-inline bool tendencySessionCounts(const QString &folder, const QString &asOfFolder)
+// including it by their place in the day (SessionPlace: SessionIdentity's day and n-of-day, from start times — never
+// the folder's name; step 2.7a). A session with no day has no place in the order, so one counts only as itself.
+inline bool tendencySessionCounts(const SessionPlace &session, const SessionPlace &asOf)
 {
-    if (folder == asOfFolder) return true;
-    const QDate day = sessionDayOfFolder(folder), asOf = sessionDayOfFolder(asOfFolder);
-    if (!day.isValid() || !asOf.isValid()) return false;
-    return day != asOf ? day < asOf : folder < asOfFolder;
+    if (session.folder == asOf.folder) return true;
+    if (!session.day.isValid() || !asOf.day.isValid()) return false;
+    return sessionPlaceBefore(session, asOf);
 }
 
 // The usual distance a Tendencies row shows: the club's full swing carry as stored. A part swing has none.

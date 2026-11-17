@@ -35,6 +35,7 @@
 //   ctest --test-dir build/tests -R '^shared_norm_provider_test$' --output-on-failure
 
 #include "../norms/norm_provider.h"
+#include "../../Export/rule_data_store.h"   // the user norm set written through the one door, without a RuleData
 
 #include <QCoreApplication>
 #include <QDir>
@@ -79,7 +80,9 @@ static bool writeUserRow(const Norm &shipped, double mu)
     n.mu         = mu;
     pack.norms.push_back(n);
     QString why;
-    const bool ok = saveUserNormPack(pack, &why);
+    // Through the store, NOT RuleData's command: this test is the HEADLESS slot (no RuleData installed;
+    // refactor step 3.2), where a write and the reset that announces it are two steps.
+    const bool ok = pinpoint::RuleDataStore().saveUserNorms(pack, &why);
     if (!ok) std::printf("      could not write the user norm set: %s\n", qPrintable(why));
     return ok;
 }

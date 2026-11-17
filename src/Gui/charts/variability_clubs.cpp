@@ -44,33 +44,11 @@ bool wholeCurve(const std::vector<double> &curve)
     return onGrid(curve) && std::all_of(curve.begin(), curve.end(), finite);
 }
 
-// Circular only: every value of each club wrapped about that club's circular mean at each sample, so the
-// medians and residuals below are taken on one side of the seam. `values` is clubs.size() × samples.
-void centreCircular(std::vector<double> &values, int samples, const QStringList &clubs)
-{
-    std::map<QString, std::vector<int>> groups;
-    for (int i = 0; i < clubs.size(); ++i) groups[clubs.at(i)].push_back(i);
-    std::vector<double> column;
-    for (const auto &[club, rows] : groups) {
-        for (int j = 0; j < samples; ++j) {
-            column.clear();
-            for (int i : rows) {
-                const double x = values[size_t(i) * size_t(samples) + size_t(j)];
-                if (finite(x)) column.push_back(x);
-            }
-            const double centre = pv::circularMeanDeg(column);
-            for (int i : rows) {
-                double &x = values[size_t(i) * size_t(samples) + size_t(j)];
-                x = finite(centre) && finite(x) ? pv::wrapDeg(x - centre) : kNaN;
-            }
-        }
-    }
-}
-
+// The within-club residuals under the scale type: the pooling's (Metrics/variability/variability_pooling.h, moved down
+// unchanged in refactor step 3.8), circular centring first.
 std::vector<double> residualsOf(std::vector<double> values, int samples, const QStringList &clubs, pv::ScaleType type)
 {
-    if (type == pv::ScaleType::Circular) centreCircular(values, samples, clubs);
-    return consistencyResiduals(values, samples, clubs);
+    return pv::withinClubResidualsOf(std::move(values), samples, clubs, type);
 }
 
 // Each club with a reading and the indices of its swings (strike order), sorted by readings descending,
@@ -105,15 +83,7 @@ std::vector<std::pair<QString, std::vector<size_t>>> clubsByReadings(const std::
 pv::VariabilityInput pooledWithinClubInput(const std::vector<VariabilityClubValue> &swings,
                                            const pv::VariabilityInput &base)
 {
-    std::vector<double> values;
-    QStringList clubs;
-    for (const VariabilityClubValue &s : swings) { values.push_back(s.value); clubs << s.club; }
-    const std::vector<double> residuals = residualsOf(std::move(values), 1, clubs, base.scaleType);
-
-    pv::VariabilityInput in = base;
-    in.values.clear();
-    for (double r : residuals) if (finite(r)) in.values.push_back(r);
-    return in;
+    return pv::withinClubPooledInput(swings, base);   // R2a: the pooling's (step 3.8), unchanged
 }
 
 pv::VariabilityInput pooledWithinClubTraceInput(const std::vector<VariabilityClubCurve> &swings,

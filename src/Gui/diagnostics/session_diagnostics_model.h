@@ -25,11 +25,15 @@
 #include "../../Coaching/work_ons.h"
 #include "../../Diagnostics/engine/characteristic_engine.h"
 #include "../../Diagnostics/engine/relation_resolver.h"
+#include "../../DomainModel/session_input.h"
+#include "../../Export/session_diagnostics_files.h"   // GolferInput, WriteResult
 #include "session_spread.h"
 
 #include <optional>
 #include <QHash>
 #include <QJsonObject>
+#include <QDate>
+#include <QMutex>
 #include <QObject>
 #include <QSet>
 #include <QString>
@@ -39,8 +43,16 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <functional>
 #include <memory>
 #include <vector>
+
+namespace pinpoint {
+class SessionStore;
+class SwingStoreRecordingRepository;
+class ShotCommandDoor;
+struct LabelCorrectionNote;
+}
 
 namespace pinpoint::analysis {
 class ICharacteristicPackProvider;
@@ -90,10 +102,9 @@ class INormProvider;
 //    reduces, persists and announces once. A live shot with nothing else in flight is the
 //    batch of one, and behaves exactly as it always did. See applyIngested().
 //
-// 2. WHAT IS PERSISTED. diagnostics.json holds the ROWS and the intent, never the verdicts —
-//    diagnostic_ledger.h's serialisation contract, unchanged, wrapped in a thin envelope
-//    (schema tag, session meta, focus contract, declared miss, screen answers, which shots
-//    carried launch-monitor data). Review mode re-reduces and gets the identical panel by
+// 2. WHAT IS PERSISTED. diagnostics.json holds the ROWS, never the verdicts — diagnostic_ledger.h's
+//    serialisation contract, unchanged, wrapped in a thin envelope (schema tag, session meta, which
+//    shots carried launch-monitor data). Review mode re-reduces and gets the identical panel by
 //    construction, and a gate that moves in a later build re-grades an old session honestly
 //    rather than quoting a stale verdict. Written atomically after every ingest (after every
 //    BATCH while one is draining — see 1.), so a crash mid-session costs at most the shots in
@@ -101,25 +112,35 @@ class INormProvider;
 //    on disk against the swing_* directories beside it and back-fills the difference —
 //    which is also what makes the panel safe to enable half way through a session.
 //
-//    THE FILE IS HALF CACHE, HALF THE GOLFER'S ONLY COPY. The rows and session meta can be
-//    rebuilt from the swings; the golfer's keys (golferInputKeys(): intent, screens,
-//    shotIntent, intentFrom, corrections) cannot. Three rules keep them (audit H-04, Stage 0):
-//      · a file found unreadable at load, or at the catch-up's write, is not written over. One
-//        that opens but does not parse is renamed aside (diagnostics.json.unreadable-<stamp>[-n])
-//        with a ppWarn, and the session carries on as one with no file; if the rename fails,
-//        nothing is written to it this activation (setAsideUnreadableLedger). One that is there
-//        but cannot be OPENED (a share that dropped, a permission, a lock) is most likely a good
-//        file read at a bad moment: it is left where it is, untouched, and nothing is written to
-//        the session this activation, with a ppWarn (blockLedgerWrites). Either way the golfer is
-//        told on screen, not only in the log: ledgerWritesBlocked, which the panel turns into a
-//        "not being saved" notification (Stage 0.4c);
-//      · the work-ons catch-up (BaselineAuthority::Always) merges every golfer key from the
-//        file before it writes, three ways (mergeGolferInput), so what a panel saved while the
-//        catch-up held the session survives the catch-up's write;
-//      · tools/diagnostics/regrade_ledger carries the golfer keys from the file it sets aside
-//        into the one it rebuilds.
-//    Live panels do not merge: two live models writing one file (stage panel + cast window) is
-//    the open lost update the session-owned single writer removes (audit D-01, Stage 2).
+//    THE FILE IS A CACHE; THE GOLFER'S INPUT IS NOT IN IT (refactor step 2.5, audit H-04). The rows
+//    and session meta can be rebuilt from the swings at any time; what the golfer and coach said lives
+//    in its own homes, through one reader and writer (SessionDiagnosticsFiles,
+//    Export/session_diagnostics_files.h): the focus, declared miss, screen answers and run of intent
+//    in session_input.json, each shot's intent and label corrections on its review. Rules:
+//      · a session written before step 2.5 still has its input in diagnostics.json's older keys
+//        (intent, screens, shotIntent, intentFrom, corrections). Until migration M3 each field the new
+//        homes do not hold is read from them, and every write of diagnostics.json carries them over
+//        unchanged — never dropped (J-33). A new edit goes only to the new homes, all four session
+//        fields at once, and a shot whose older copy holds an answer the golfer has since cleared keeps
+//        the cleared answer explicitly on its review;
+//      · a file found unreadable at load, or at a write, is not written over. One that opens but does
+//        not parse is renamed aside (diagnostics.json.unreadable-<stamp>[-n]) with a ppWarn, and the
+//        session carries on as one with no file; if the rename fails, nothing is written to it this
+//        activation (setAsideUnreadableLedger). One that is there but cannot be OPENED (a share that
+//        dropped, a permission, a lock) is most likely a good file read at a bad moment: it is left
+//        where it is, untouched, and nothing is written to the session this activation — the golfer's
+//        input neither, since its older copy could not be read — with a ppWarn (blockLedgerWrites).
+//        One saved by a newer build is read, and the session is not written either. Each time the
+//        golfer is told on screen, not only in the log: ledgerWritesBlocked, which the panel turns
+//        into a "not being saved" notification (Stage 0.4c); a write that simply fails says so the
+//        same way (DEC-126) and the next one that lands takes it back;
+//      · the work-ons catch-up (BaselineAuthority::Always) re-reads session_input.json before it
+//        writes, so the stage it records is the one the golfer's latest focus, miss and screens give;
+//      · tools/diagnostics/regrade_ledger keeps a copy (diagnostics.json.<tag>) and rebuilds the cache
+//        in place (setRebuildCache), so the older keys are carried like any other write.
+//    Live panels writing one file twice (stage panel + cast window) is the open lost update the
+//    session-owned single writer removes (audit D-01, step 3); neither writes the golfer's input but
+//    through its commands.
 //
 // 3. WHAT THE FAULT PROFILE MAY TOUCH. `fault_profile.json` lives in the ATHLETE folder (the
 //    session directory's parent) and is read at activation and written at close. It reaches
@@ -280,8 +301,9 @@ class SessionDiagnosticsModel : public QObject
     //   "live"    a live panel: only when every predecessor's ledger is schema 11, and never while reviewing.
     //   "never"   review panels and the session report: read only. Unknown words read as "never".
     // The default is "live", so a panel left on it behaves as a live one until it reviews.
-    // "always" also decides diagnostics.json's golfer keys: before each write that model merges every
-    // one of them from the file (persist, mergeGolferInput), because a panel may hold the same session.
+    // "always" also decides the golfer's input: before each cache write that model re-reads
+    // session_input.json and adopts it (persist), because a panel may hold the same session. (The older
+    // golfer keys' merge went in step 2.5: the input lives in session_input.json and the shots' reviews.)
     Q_PROPERTY(QString baselineAuthority READ baselineAuthorityName WRITE setBaselineAuthorityName NOTIFY baselineAuthorityChanged)
 
 public:
@@ -294,31 +316,31 @@ public:
     void    setGradePolicy(const QString &name);
     bool    reviewing() const { return m_reviewing; }
     void    setReviewing(bool on);
-    // A READER that must never write the session: off, persist() is a no-op, so diagnostics.json is
-    // left exactly as it was however stale its rows, and the ledger lives only in memory. The session
+    // A READER that must never write the session: off, nothing is written — persist() is a no-op, so
+    // diagnostics.json is left exactly as it was however stale its rows, the ledger lives only in memory,
+    // and no golfer input is written to session_input.json or a shot's review either. The session
     // report reads a session this way (session_report_design.md §8.1: "the report reads; it never
     // writes diagnostics.json"). On by default — the panel and the work-ons catch-up own the file.
     bool    persistEnabled() const { return m_persistEnabled; }
     void    setPersistEnabled(bool on) { m_persistEnabled = on; }
 
-    // THE GOLFER'S HALF OF diagnostics.json. The envelope's other keys (session, ledger) are a cache any
-    // activation can rebuild from the swings; these five are the ONLY copy of what the golfer and coach
-    // said — the focus contract and declared miss (`intent`), screen answers (`screens`), per-shot intent
-    // (`shotIntent`), a run of intent (`intentFrom`) and outcome corrections (`corrections`; the athlete's
-    // outcome_corrections.jsonl is a log, never read back). Whatever rebuilds the file must carry them:
-    // the catch-up's merge re-reads them all (persist), and regrade_ledger copies them across.
-    static const QStringList &golferInputKeys();
-    // The golferInputKeys() present in an envelope, as they stand in it (no normalising).
-    static QJsonObject golferInput(const QJsonObject &envelope);
-    // The catch-up's merge (persist, BaselineAuthority::Always), entry by entry and three ways, all in
-    // the shape persist writes the golfer keys in: an entry the file still holds as this model last
-    // read or wrote it (`base`) is this model's to say (`ours` — a shot this model dropped stays
-    // dropped, its focus split stays moved); an entry the file has changed since is the file's (`theirs` — what the
-    // golfer said in a panel while this model held the session). The focus is one entry (id and
-    // split together); a shot's intent, a shot's corrections and a screen's answer are one each.
-    // Public and static so the test can pin it on hand-built envelopes.
-    static QJsonObject mergeGolferInput(const QJsonObject &base, const QJsonObject &ours,
-                                        const QJsonObject &theirs);
+    // THE GOLFER'S INPUT IS NOT IN diagnostics.json (refactor step 2.5, audit H-04; DEC-160: IM-S2-3).
+    // diagnostics.json is a cache any activation can rebuild from the swings (the ledger and the session
+    // block, MD-06). What the golfer and coach said lives in its own homes, through
+    // SessionDiagnosticsFiles (Export/session_diagnostics_files.h): the focus, declared miss, screen
+    // answers and the run of intent in session_input.json; each shot's intent and label corrections on
+    // that shot's review, through RecordingRepository. A session written before step 2.5 still holds its
+    // input in diagnostics.json's older keys: until migration M3 those are read as each field's fallback
+    // and carried over unchanged on every write of the file, never dropped (J-33).
+    //
+    // REBUILD THE CACHE: the next activation reads diagnostics.json's golfer keys (the older shape) but
+    // not its rows or session block, so every shot is graded again from its swing and the stage starts
+    // from Cold — what a missing file gives, with nothing the golfer said left behind. regrade_ledger's
+    // switch (it used to set the file aside and write a seed of the golfer keys; step 2.5 deleted the
+    // seed). Cleared by that activation.
+    void    setRebuildCache(bool on) { m_rebuildCache = on; }
+    // The golfer's input as this model holds it now (C++ only: golfer_input_test, regrade_ledger).
+    pinpoint::GolferInput golferInputHeld() const;
 
     enum class BaselineAuthority { Never, Live, Always };
     BaselineAuthority baselineAuthority() const { return m_baselineAuthority; }
@@ -335,10 +357,14 @@ public:
 
     // This model's id for a swing folder, or -1. Exact path first, then the folder's name (a
     // ledger written on another host records the same swing under a different mount), then the
-    // swing_NNN number when that is a shot this ledger holds.
+    // swing number (SwingPaths) when that is a shot this ledger holds. Neither fallback asks whether
+    // the folder is this session's (audit E-05): the selection by ShotRef is step 4's (R-APP-4).
     Q_INVOKABLE int shotIdForSwingDir(const QString &dir) const;
 
     QString sessionDir() const { return m_sessionDir; }
+    // The held session's identity: its day (the start time's; a legacy folder's name's, read by
+    // SessionIdentity) and its start time (C++ only; step 2.7a: the work-ons record's clock fallback).
+    pinpoint::SessionIdentity sessionIdentity() const { return m_sessionIdentity; }
     QString stage() const;
     bool    closed() const { return m_closed; }
     int     shotCount() const { return int(m_shots.size()); }
@@ -607,6 +633,17 @@ public:
     // loop ran. This is the whole of the concession — the code path is otherwise identical.
     Q_INVOKABLE void setSynchronous(bool on) { m_synchronous = on; }
 
+    // ── The golfer's commands forward (refactor step 3.4b-i; BRIEF.md §4.12) ─────────────────────────
+    //
+    // correctOutcome and setShotIntent FORWARD to the shot's own commands (Shot::correctLabel, EVT-06, whose
+    // Athlete appends the tuning log; Shot::setShotIntent, EVT-07); declareFocus / clearFocus, declareMiss and
+    // recordScreenResult to Session::setSessionIntent (EVT-10), setIntentFrom to Session::setIntentRun (EVT-08).
+    // This model then writes none of those facts itself (one writer, P10; DEC-94): it keeps its in-memory copy
+    // for its outcome surfaces and its notices, as a reader. THE DOOR IS PROCESS-WIDE because the panel's model
+    // is made by QML: main.cpp sets `app` (src/App/shot_command_door.h) once at launch. A session no Athlete
+    // holds — and every model in a tool or test, which sets no door — keeps today's writes (N1's interim).
+    static void setShotCommands(pinpoint::ShotCommandDoor *door);
+
     // The measurement-uncertainty switches (session_diagnostics_design.md §A8.8), for the report
     // tool that grades each stage against the others. Production leaves them at the tuned defaults.
     // Set BEFORE activateSession(): detection reads withSigma as each shot is ingested.
@@ -627,6 +664,17 @@ public:
     // ledger. A pure read with no state of its own, for the parity dump (tools/diagnostics/regrade_ledger
     // --dump); no surface reads it.
     pinpoint::analysis::ShotFactors shotFactorsOf(int shotId) const;
+    // One shot's composed outcome as this model holds it (its corrections, intent, usual and the session's evidence
+    // applied), for the parallel run's comparison and the parity dump (refactor step 3.5-ii). A pure read.
+    pinpoint::analysis::ShotOutcome composedOutcomeOf(int shotId) const;
+    // The stage ratchet's latch (rebuild): the session ever established. A pure read, for the parallel run.
+    bool reachedEstablished() const { return m_reachedEstablished; }
+    // THE PARALLEL RUN'S HOOK (refactor step 3.5-ii; BRIEF §4.9; D14: PINPOINT_DIAG_PARALLEL=1): called after each
+    // reduction this model settles and writes, so the new owner of the same session (SessionDiagnostics) can be
+    // compared with it and one line per session written to the app log. Process-wide, as setShotCommands; main.cpp
+    // sets it only with the switch on. It writes nothing (the parallel run is in memory only).
+    using ParallelHook = std::function<void(const SessionDiagnosticsModel &)>;
+    static void setParallelHook(ParallelHook hook);
     Q_INVOKABLE bool synchronous() const { return m_synchronous; }
 
     // ── Work-ons (docs/design/work_ons_design.md) ───────────────────────────────────
@@ -795,42 +843,77 @@ private:
     // ── Persistence ─────────────────────────────────────────────────────────────────
     QString      diagnosticsPath() const;
     QString      faultProfilePath() const;
-    QString      clubBaselinePath() const;
     QString      tuningLogPath() const;
-    QJsonObject  envelope() const;
-    // The golfer's half of the envelope (see golferInputKeys): ONE reader and ONE writer, so the load,
-    // the catch-up's merge and envelope() can never disagree about which keys are the golfer's.
-    // readGolferInput sets every golfer member from `root` (absent = empty); golferInputJson writes them.
-    void         readGolferInput(const QJsonObject &root);
-    QJsonObject  golferInputJson() const;
-    // A diagnostics.json that is there but does not parse holds the golfer's only copy of what they
-    // said, so where it is found (at load, at the catch-up's write) it is not written over: renamed
-    // aside to
+    // diagnostics.json's session block (the cache half beside the ledger).
+    QJsonObject  sessionBlock() const;
+    // The golfer's input, resolved (SessionDiagnosticsFiles::golferInput: the new homes first, the older
+    // keys `m_legacyGolfer` as the fallback), into every golfer member.
+    void         readGolferInput(const pinpoint::GolferInput &g);
+    // The session-level members as session_input.json holds them (all four fields).
+    pinpoint::SessionInput sessionInputOf() const;
+    // A diagnostics.json that is there but does not parse may hold golfer input from before step 2.5, so
+    // where it is found (at load, at a write) it is not written over: renamed aside to
     // diagnostics.json.unreadable-<yyyyMMdd-HHmmss>[-n], with a ppWarn naming the file, the aside
     // and `why`. If even the rename fails, writes to this session are switched off
     // (m_ledgerWriteBlocked) and that is warned too. True when the path is now free to write.
     bool         setAsideUnreadableLedger(const QString &path, const QString &why);
     // A diagnostics.json that is there but cannot be OPENED is not set aside: the failure is the
     // share's or the file system's, not the file's, and renaming a good file away would cost the
-    // session the golfer's input it holds. It stays where it is; writes to this session are switched
-    // off for this activation (m_ledgerWriteBlocked), with a ppWarn naming the file and `why`.
+    // session the golfer's input it may hold. It stays where it is; writes to this session — the cache
+    // and the golfer's input alike, whose older copy could not be read — are switched off for this
+    // activation (m_ledgerWriteBlocked), with a ppWarn naming the file and `why`.
     void         blockLedgerWrites(const QString &path, const QString &why);
     // The one place m_ledgerWriteBlocked is set: sets it and, on the change from writable to
     // blocked, emits ledgerWritesBlocked(m_sessionDir, reason) — not while the model is being
     // destroyed (the destructor's flush), when nothing is left to show it.
     void         markLedgerWritesBlocked(const QString &reason);
-    // Write diagnostics.json. `adoptMerged`: when the catch-up's merge brought a different focus,
-    // miss or screen answer in from the file, re-reduce under it (and announce intentChanged)
-    // before writing, so the written stage and what the catch-up reads next are the golfer's. Off
-    // for the two flushes of an abandoned batch (activation, destruction), which reduce nothing.
-    void         persist(bool adoptMerged = true);
+    // A write that failed and may succeed next time (a held lock, a share that dropped; DEC-126): said
+    // once (ledgerWritesBlocked, the same notice), and taken back (ledgerWritesResumed) by the next write
+    // that lands. Nothing is switched off.
+    void         reportWriteFailure(const QString &what, const QString &why);
+    void         reportWriteSuccess();
+    // Write diagnostics.json: the cache half, the older golfer keys carried (J-33). Under
+    // BaselineAuthority::Always (the catch-up) the session-level input is re-read from session_input.json
+    // first, and the reduction redone under it when a panel changed it meanwhile, so the written stage
+    // is the golfer's (`adoptInput`; off for the two flushes of an abandoned batch — activation,
+    // destruction — which reduce nothing).
+    void         persist(bool adoptInput = true);
+    // The golfer's session-level input into session_input.json (FILE-SESS-02): the field `changed` (for a
+    // screen answer, `screenId`'s entry) from this model; every other field as the file holds it, or from
+    // this model when the file holds none.
+    enum class InputField { Focus, Miss, Screen, Run };
+    void         writeSessionInput(InputField changed, const QString &screenId = QString());
+    // One shot's intent or corrections onto its review (FILE-SHOT-02), through RecordingRepository: on
+    // a single-thread pool of its own (a swing file rewrite is not done on the GUI thread), inline when
+    // synchronous. The cleared answer is written explicitly while the older copy holds one (J-33).
+    // `correction`: the label correction just made (correctOutcome), for the tuning log — the Shot's Athlete
+    // appends it on EVT-06, or this model (N1's interim) when no Session holds the shot.
+    void         writeShotInput(int shotId, bool intent, bool corrections,
+                                const pinpoint::LabelCorrectionNote *correction = nullptr);
+    // `rowCurrent`: the shot's row was graded from the document as it stood before the edit, so its stamp
+    // follows the document the edit wrote (a review edit is not a new recording).
+    void         onShotInputWritten(int generation, int shotId, bool rowCurrent, const pinpoint::WriteResult &result);
     void         loadProfile();
     void         updateProfile();
 
     // ── The frozen club baseline (Contract A) ────────────────────────────────────────
-    // Reads <session>/club_baseline.json, or freezes one when this model is allowed to. Called once per
-    // activation, before anything is queued.
-    void         prepareClubBaseline();
+    // Reads <session>/club_baseline.json (true: none, and this model may freeze one — its predecessors must
+    // be read). Called once per activation, before anything is queued.
+    bool         beginClubBaseline();
+    // The predecessors' ledgers and each of their shots' corrections (from the reviews: step 2.5). ANY THREAD:
+    // no member is touched, and the reviews are read with doors of its own.
+    struct PredecessorRead {
+        std::vector<pinpoint::analysis::ClubDistanceSession> earlier;
+        bool allCurrent = true;
+    };
+    static PredecessorRead readPredecessors(const QString &sessionDir, const QDate &day);
+    // GUI thread: the freeze itself — the snapshot, written, adopted — exactly as it was.
+    void         finishClubBaseline(const QDate &day, const PredecessorRead &r);
+    // The freeze read on m_freezePool landed (or is waited for now, by anything that acts on the session
+    // first): the freeze is made and the activation goes on (continueActivation). No-op when none is in flight.
+    void         joinFreeze();
+    // activateSession() from the reconcile on: after the baseline is frozen.
+    void         continueActivation();
     // The stamp a row graded now would carry: the content stamp, "|provisional" while unfrozen.
     QString      rowContentStamp() const;
     void         adoptClubBaseline(const QHash<QString, pinpoint::analysis::ClubBaselineEntry> &clubs);
@@ -1017,6 +1100,12 @@ private:
 
     // ── Lifecycle + intent ──────────────────────────────────────────────────────────
     QString m_sessionDir;
+    // WHERE THIS SESSION SITS: its identity (id, local day, type), read once per activation through the
+    // session store (SessionDiagnosticsFiles::identityOf; step 2.7a, audit F-06/C-11). The session's day is
+    // its start time's, and for a session without a session file its name's — read by SessionIdentity,
+    // never parsed here. Empty with no session held; a null id (and still a day) for a legacy folder no
+    // athlete can be named for.
+    pinpoint::SessionIdentity m_sessionIdentity;
     pinpoint::analysis::Stage m_stage = pinpoint::analysis::Stage::Cold;
     // DID THIS SESSION EVER ACTUALLY ESTABLISH? `m_stage` cannot answer it once the session is
     // closed, because sessionStage() returns Closing outright for a closed session and the
@@ -1030,14 +1119,26 @@ private:
     bool    m_reviewing = false;
     bool    m_persistEnabled = true;    // setPersistEnabled: off = never write diagnostics.json
     // This session's diagnostics.json could not be opened (blockLedgerWrites), or could not be
-    // parsed AND could not be set aside (setAsideUnreadableLedger): nothing is written to it until
+    // parsed AND could not be set aside (setAsideUnreadableLedger), or was saved by a newer build (read
+    // only, step 2.5): nothing is written to the session — the cache nor the golfer's input — until
     // the next activation. Reset per activation. Set only through markLedgerWritesBlocked(), which
     // tells the golfer (ledgerWritesBlocked).
     bool    m_ledgerWriteBlocked = false;
     bool    m_destroying = false;       // ~SessionDiagnosticsModel: no signals from its last flush
-    // golferInputJson() as this model last read it from, or wrote it to, diagnostics.json — the
-    // `base` of the catch-up's three-way merge (mergeGolferInput).
-    QJsonObject m_golferBase;
+    // diagnostics.json's older golfer keys as this activation read them (SessionDiagnosticsFiles; J-33):
+    // the fallback of every golfer field whose new home holds none, and what a write carries when the
+    // file has gone from under it. {} for a session written since step 2.5, or migrated by M3.
+    QJsonObject m_legacyGolfer;
+    bool    m_rebuildCache = false;      // setRebuildCache: the next activation ignores the cache half
+    bool    m_writeFailing = false;      // reportWriteFailure said so; the next good write takes it back
+    bool    m_shotInputUnflushed = false;   // a shot's input was queued; diagnostics.json not rewritten since
+    // The doors to the shot's review (FILE-SHOT-02). The model is made by QML, the work-ons catch-up,
+    // the report and the tools, none of which hands it the app's, so it holds a pair of its own (2.4's
+    // J4 precedent): a SessionStore and the swing door over it, used on the GUI thread (shotOfFolder) and
+    // by m_reviewPool (editReview: any thread). Step 3's Shot owns these writes.
+    std::unique_ptr<pinpoint::SessionStore>                  m_sessions;
+    std::unique_ptr<pinpoint::SwingStoreRecordingRepository> m_recordings;
+    QThreadPool m_reviewPool;           // maxThreadCount 1: a shot's edits land in the order they were made
     int     m_selectedShotId = -1;
     QString m_selectedSwingDir;
     // Re-points m_selectedShotId at m_selectedSwingDir without a rebuild of its own — for the
@@ -1090,12 +1191,16 @@ private:
         QString sessionDir;
         QString label;
         qint64  firstMs = 0;
+        QDate   day;          // SessionIdentity's local day (step 2.7a); invalid when it has none
+        int     nOfDay = 0;   // its place in that day; 0 when not placed
         QHash<QString, std::vector<HistoryReading>> byCondition;
     };
-    static std::vector<HistorySession> readHistory(const QString &sessionDir, int *missing);
+    // `selfNOfDay`: this session's own place in its day, from the same listing of the athlete's sessions.
+    static std::vector<HistorySession> readHistory(const QString &sessionDir, int *missing, int *selfNOfDay);
     void scanHistory();
-    void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing);
+    void applyHistory(int generation, const std::vector<HistorySession> &sessions, int missing, int selfNOfDay);
     std::vector<HistorySession> m_history;
+    int m_historySelfNOfDay = 0;
 
     // ── The frozen baseline, read at activation; the worker reads it, activateSession() waits for
     //    the worker before changing it.
@@ -1136,6 +1241,12 @@ private:
     // A second pool of one for the history scan, so reading other sessions never queues a
     // shot's detection behind a few megabytes of somebody else's JSON.
     QThreadPool m_historyPool;
+    // A freeze's predecessor read (J-44): one thread; its result handed over under the mutex.
+    QThreadPool      m_freezePool;
+    QMutex           m_freezeMutex;
+    PredecessorRead  m_freezeResult;
+    bool             m_freezing = false;
+    int              m_freezeToken = 0;
     int         m_pending = 0;
     bool        m_synchronous = false;
     // WHICH ACTIVATION A DELIVERY BELONGS TO. activateSession() waits for the workers but not for

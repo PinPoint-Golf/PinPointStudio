@@ -11952,6 +11952,10 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>セッションの終了を保存できませんでした</translation>
     </message>
     <message>
+        <source>%1 could not be saved</source>
+        <translation>%1 を保存できませんでした</translation>
+    </message>
+    <message>
         <source>Today&apos;s session could not be continued, so a new one started</source>
         <translation>本日のセッションを継続できなかったため、新しいセッションを開始しました</translation>
     </message>
@@ -13396,12 +13400,40 @@ Reports sent from this computer will come from %1.</source>
 <context>
     <name>SessionDiagnosticsModel</name>
     <message>
+        <source>It was saved by a newer version of PinPoint Studio, so this one only reads it.</source>
+        <translation>新しいバージョンの PinPoint Studio で保存されたため、このバージョンでは読み取りのみ行います。</translation>
+    </message>
+    <message>
+        <source>The session&apos;s club baseline</source>
+        <translation>セッションのクラブ基準値</translation>
+    </message>
+    <message>
+        <source>The focus, declared miss, screen answers and intent run</source>
+        <translation>フォーカス、申告ミス、スクリーニングの回答、意図の実行</translation>
+    </message>
+    <message>
+        <source>Shot %1 could not be found in this session&apos;s folder.</source>
+        <translation>このセッションのフォルダーにショット %1 が見つかりませんでした。</translation>
+    </message>
+    <message>
+        <source>A shot&apos;s intent or correction</source>
+        <translation>ショットの意図または修正</translation>
+    </message>
+    <message>
         <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
         <translation>診断ファイルを読み取ることも移動することもできませんでした。ライブラリのドライブまたは共有を確認してください。</translation>
     </message>
     <message>
         <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
         <translation>診断ファイルを開けませんでした。ライブラリのドライブまたは共有を確認してください。</translation>
+    </message>
+    <message>
+        <source>%1 could not be saved: %2</source>
+        <translation>%1 を保存できませんでした: %2</translation>
+    </message>
+    <message>
+        <source>The session&apos;s diagnostics</source>
+        <translation>セッションの診断情報</translation>
     </message>
 </context>
 <context>
@@ -15960,6 +15992,21 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.</source>
         <translation>センサーの装着の向きが正しくありません（%1）。ストラップの装着ガイドに従って付け直し、「再キャリブレーション」をクリックしてください。</translation>
+    </message>
+</context>
+<context>
+    <name>WorkOnsController</name>
+    <message>
+        <source>The session&apos;s work-ons</source>
+        <translation>セッションの課題</translation>
+    </message>
+    <message>
+        <source>The swing summary</source>
+        <translation>スイングの概要</translation>
+    </message>
+    <message>
+        <source>The athlete&apos;s tendencies</source>
+        <translation>選手の傾向</translation>
     </message>
 </context>
 <context>

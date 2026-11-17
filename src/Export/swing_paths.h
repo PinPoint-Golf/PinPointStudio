@@ -19,8 +19,12 @@
 #pragma once
 
 #include <QDate>
+#include <QDateTime>
 #include <QString>
 #include <QStringList>
+
+#include <atomic>
+#include <functional>
 
 namespace pinpoint {
 
@@ -68,6 +72,12 @@ public:
     // THE one listing of a session's swing folders: the names of its "swing_*" sub-folders, by name.
     // Read each one's number with swingNumberOf.
     static QStringList swingFolders(const QString& sessionDir);
+    // Every swing folder of a library, for a scan across it (the Diagnostic Model's gate count and corridor
+    // scan; refactor step 3.9 moved their walk here from model_browser.cpp): athlete folder by athlete folder
+    // and session by session, in name order, each session's swings as swingFolders() lists them. `visit`
+    // gets the session folder's name and the swing folder's path, and returns false to stop the walk.
+    static void visitLibrarySwings(const QString& libraryRoot,
+                                   const std::function<bool(const QString& session, const QString& swingDir)>& visit);
 
     // ⭐ DELETE = TRASH, AND THE VOLUME MAY NOT HAVE ONE (2 Sept 2026).  Every
     // delete in this application is a move to the OS trash, so it is
@@ -83,7 +93,29 @@ public:
     // (Stays with the names; step 2.3 adds the athlete case, §3.6.)
     // A swing that leaves takes its number with it: its session's high-water records it
     // (SessionFiles::raiseSwingHighWater), so the number is never issued again (DEC-91).
-    static bool trashPath(const QString& path, QString* where = nullptr);
+    // `useOsTrash` false skips the OS trash and goes straight to the library-local one: a test's seam
+    // (SessionStore::setOsTrashForTest), so a suite's trashes stay inside its temporary folder.
+    static bool trashPath(const QString& path, QString* where = nullptr, bool useOsTrash = true);
+
+    // THE LIBRARY'S OWN TRASH, LISTED AND PURGED (refactor step 3.8; FILE-LIB-01). Its entries are
+    // `<libraryRoot>/.pinpoint-trash/<athlete>/<entry>`, each a session, a swing (trashPath above) or a whole athlete
+    // (AthleteStore::trash), by path. The OS trash is not listed: what the app moved there is the OS's, and the OS
+    // emptying it is a permanent delete outside the app (Mark, 15 Nov 2026; DEC-175).
+    static QStringList trashEntries(const QString& libraryRoot);
+    // When an entry was trashed: the yyyyMMdd-HHmmss stamp trashPath puts on its name, else its modification time.
+    static QDateTime trashedAt(const QString& entry);
+    // THE ONE PURGE (MD-08: DEC-80, DEC-137), carried out here for housekeeping (src/App/housekeeping.h, the one
+    // application service that ends things for good; it reaches this through the composition root's callable, D18 (c):
+    // DEC-167): every entry trashed before `cutoff` — an invalid cutoff: every entry — deleted for good. The only code
+    // that ends a trashed thing; "Empty now" and the retention pass both come here.
+    struct Purged { int removed = 0; int failed = 0; };
+    static Purged purgeTrash(const QString& libraryRoot, const QDateTime& cutoff = QDateTime());
+
+    // THE LIBRARY'S SIZE (refactor step 3.8; DEC-188: housekeeping and the repositories report sizes): every file under
+    // `libraryRoot`, hidden ones included, the abort polled every 256 files (-1 when it stopped: half a library measured
+    // is not a smaller library). Moved unchanged from AppSettings::refreshSessionBytes; housekeeping hands it to the
+    // settings page through the composition root. Walks the tree: call it off the GUI thread.
+    static qint64 libraryBytes(const QString& libraryRoot, const std::atomic_bool* abort = nullptr);
 };
 
 } // namespace pinpoint

@@ -1,0 +1,370 @@
+/*
+ * Copyright (C) 2026 Mark Liversedge (liversedge@gmail.com)
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License as published by the Free
+ * Software Foundation; either version 2 of the License, or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+#pragma once
+
+// SessionDiagnostics — THE SESSION'S DIAGNOSTICS OWNER, one per Session, its child (refactor step 3.5-i;
+// build/refactor/step-3/BRIEF.md §4.4, §4.5; docs/developer/information_model.md CLS-SESSION-DIAG,
+// OBJ-SESSION-DIAG, FILE-SESS-03, M-SHOT-LAYERS, R-STAMP-1…3, R-CON-2…5; DEC-100, DEC-124, DEC-130, DEC-135,
+// DEC-141, DEC-190, DEC-191).
+//
+// WHAT IT DOES (run 3.5-i: the owner and the re-fire; run 3.5-ii: the diagnosis on the lane, the typed summary,
+// the persisted derived data and the parallel run):
+//   • holds THE FIRING SNAPSHOT (FiringSnapshot below): one shared_ptr<const>, OWNING the pack and norms of a
+//     RuleData snapshot (R-CON-4), the grade policy and SET-06 from that same snapshot (never a live read: audit
+//     D-12), the flight table, the session's frozen club baseline (club_baseline.json, FILE-SESS-04), the session's
+//     usuals per club, the athlete's record facts its norm cohort is read from, on each shot's own date (D6: DEC-171),
+//     and the golfer's input resolved by the one J-33 rule (golfer_input_rules.h: the new home, else the older copy).
+//     An input change builds a new one; an old one lives while a job holds it (DEC-110). The findings stamp
+//     (firingStamp over what fireFindings reads) is computed once per change of those inputs, not per shot.
+//   • KEEPS each shot's findings and derived data (DEC-135), stamped (R-STAMP-1), as the shots' asks come back.
+//   • COMPUTES THE USUALS on its own (GUI) thread from the readings in the kept findings, never from findings
+//     (DEC-130: sessionFlightUsuals), and compares them field by field after every change. ONLY A CHANGED VALUE
+//     builds a new snapshot, and a usual's change RECOMPUTES THAT CLUB'S SHOTS' DERIVED DATA ONLY, never their
+//     findings: fireFindings reads no usual (Mark, 16 Nov 2026: DEC-191). The chain ends: a derive changes no
+//     reading, so the recomputed usual has the same value and nothing more is asked.
+//   • RUNS §4.4 STEPS 1–6 AND 8–11 on the one pool (src/Core/work_pool.h; D15): each ask takes the next number of
+//     the one process-wide counter and records it on its Shot as the Shot's latest (§4.4 step 3); its job holds
+//     values only — the snapshot pointer, the ShotRef, the reader — and runs on THIS SESSION INSTANCE'S SERIAL
+//     LANE (keyed by the instance's own number), at Low priority (D24), the live session's lane in front;
+//     its result is posted to the composition root's receiver, which resolves the session by id and checks the
+//     instance, the shot and the ask (§4.4 step 6; diagnosticsWorkTarget below) before it is handed here.
+//     A FAILED READ COMES BACK UNREAD: nothing kept, the earlier kept result stays, the shot marked unread — a mark
+//     PERSISTED as one key in diagnostics.json (DEC-191) — and re-asked at the next load; one line in the app log.
+//     EVERY RESULT, KEPT OR DROPPED, SETTLES ITS BATCH (batchSettled()).
+//   • WRITES WHAT IT KEPT (§4.4 step 8) through SessionRepository's id-keyed diagnostics methods, on its own
+//     thread: debounced after a batch settles; at once when its Session is released (Athlete::releaseSession,
+//     Session::releasing); and when it is destroyed with its Athlete (the app's quit). A failed write is said
+//     (writeFailed) and logged (DEC-126). A newer build's file, or one that cannot be opened, is read and never
+//     written (R-PERS-3). ⚠ RUN 3.5-i: ONLY WITH DiagnosticsDoors::persist — the old model stays diagnostics.json's
+//     one writer until the cut-over (step 3.7); in the app nothing attaches a SessionDiagnostics yet.
+//   • LOADS (§4.4 step 10): reads diagnostics.json, puts each kept row back as fired (the file holds rows checked
+//     against the flight), rebuilds the usuals from the readings it holds BEFORE any shot is asked, then asks every
+//     shot that has no kept result, is marked unread, or whose stamp is stale (its findings stamp, or its document's
+//     size and mtime: R-STAMP-2). Each kept shot's DERIVED DATA is persisted with its findings (DEC-135, FILE-SESS-03:
+//     the session block's `derived`, ids and numbers only, R-DER-9), stamped with what it was derived from; a load
+//     takes it back when that stamp still holds and derives only the others again (run 3.5-ii).
+//   • DIAGNOSES THE SESSION (§4.4 step 7; run 3.5-ii): when a batch settles, it copies what it keeps — the rows
+//     checked against the usual flight, each shot's derived data and word, the usuals, the baseline, the golfer's
+//     session-level word, the stage held — into one immutable value and posts reduceSession()
+//     (src/Diagnostics/engine/session_reduction.h) to the same lane, under the next number of the one counter; the
+//     receiver keeps only the latest (an older reduction is dropped as superseded), and the owner applies it: the
+//     ledgers, the stage ratchet, the typed results (src/Coaching/session_results.h: work-ons, evidence, reasons,
+//     each shot's "because" (J-14 (b)), per club the usual, carry today, mix and baseline window (D7)). The session's
+//     status is read from the Session, its one writer (J-24): an ended session's diagnosis is closed.
+//   • THE SUMMARY (FILE-SESS-05, DEC-55, DEC-192): summary() is the session's typed results with their provenance
+//     (derivedFrom: its fingerprint over what it was worked out from); written to work_ons.json with what it keeps,
+//     when it persists — THIS OBJECT IS THAT FILE'S ONE WRITER (step 3.6; in the app from the catch-up's cut-over, 3.7).
+//   • THE CLUB BASELINE AT FIRST NEED (step 3.6; DEC-46, DEC-172): at load, a current club_baseline.json is read;
+//     none, or an older rule's, is frozen from the athlete level's computation over the predecessors' summaries
+//     (AthleteDiagnostics::clubBaselineFor) — through Session::freezeClubBaseline when persisting (EVT-16 on a rewrite),
+//     in memory only when not — or not at all while it is not computable (loadOrFreezeClubBaseline).
+//   • THE BOARD'S ANNOTATIONS (step 3.6; Stage 0.5's follow-up): the reduction reads each shot as the golfer annotated
+//     it on the launch monitor board (Coaching/board_annotations.h), asked of the Shot (its summary).
+//   • HEADLESS (§4.4 step 11; R-HL-2): DiagnosticsDoors::synchronous runs the same jobs on the calling thread and
+//     hands each result to WorkReceiver::accept() itself; the same checks apply.
+//
+// THE DERIVED DATA (layer 3) is the shot's alone, with the context its session hands down: its rows checked
+// against the session's usual flight (checkShotAgainstFlight), its outcome (labels, carry against the frozen usual,
+// story) and its three factors. The outcome's "because" — which habit lay behind the miss — reads the SESSION'S
+// links and tiers, so it is the session's to compose, in its diagnosis (run 3.5-ii's reasons), not the shot's: J-14
+// (b), the lead's call under Mark's three-level principle (NOTES-3.5-i.md J3). So deriveShotData is called here
+// with an empty session diagnosis.
+//
+// Ownership (information_model.md §10): owner SessionDiagnostics; level session; one writer (DEC-55, DEC-135):
+// this object; persists in FILE-SESS-03 through SessionRepository; a view reaches it through its Session
+// (Session::diagnostics()), until step 4 through the thin adapter (DEC-165).
+//
+// NEVER: fires a finding itself (the job runs the Rules ring's fireFindings), writes a shot's files, reads another
+// session (CLS-SESSION-DIAG).
+//
+// Domain model ring (src/DomainModel): names no store type.
+//
+//   cmake --build build/tests --target session_diagnostics_test -j 6
+//   ctest --test-dir build/tests -R '^session_diagnostics_test$' --output-on-failure
+
+#include "athlete.h"          // DiagnosticsDoors
+#include "firing_reader.h"
+#include "rule_data.h"
+#include "golfer_input_rules.h"
+#include "../Coaching/board_annotations.h"   // BoardAnnotation (step 3.6)
+#include "session_input.h"    // IntentRun
+#include "../Coaching/shot_outcomes_pack.h"
+#include "../Core/work_pool.h"
+#include "../Diagnostics/engine/fire_findings.h"
+#include "../Diagnostics/engine/session_reduction.h"
+#include "../Identity/identity.h"
+
+#include <QDate>
+#include <QHash>
+#include <QJsonObject>
+#include <QMap>
+#include <QObject>
+#include <QSet>
+#include <QString>
+#include <QTimer>
+#include <QVector>
+
+#include <memory>
+#include <optional>
+#include <vector>
+
+namespace pinpoint {
+
+class Session;
+class Shot;
+
+// ── §4.4 step 1: the snapshot ───────────────────────────────────────────────────────────────────────────────
+// Immutable once made; a job holds it by shared_ptr<const>. It carries no number that drops results.
+struct FiringSnapshot {
+    std::shared_ptr<const RuleDataSnapshot> rules;            // OWNS the pack and norms below (R-CON-4)
+    // pack, norms, policy, SET-06, flight, baseline, usuals, σ. Its `cohort` is NOT the shot's: each fire sets it from
+    // the record below on the shot's own date (DEC-171; cohortOnShotDate).
+    analysis::FiringInputs                  inputs;
+    std::shared_ptr<const analysis::ShotOutcomePack> outcomePack;   // from inputs.pack (3.3 review 1, note 2)
+    // The athlete's record facts the cohort is read from (D6: DEC-171), and the session's day (the fallback date).
+    QDate                                   dob;
+    QString                                 sex;
+    QDate                                   sessionDay;
+    // The golfer's input the derived data reads, resolved by golfer_input_rules.h's one rule (J-33): the session's
+    // intent run (new home, else the older copy) and diagnostics.json's older per-shot copy, which each shot's review
+    // overrides field by field in its job.
+    IntentRun                                             intentRun;
+    QHash<int, QString>                                   legacyIntents;
+    QHash<int, std::vector<analysis::ShotCorrection>>     legacyCorrections;
+    QString                                 findingsStamp;    // firingStamp over what fireFindings reads (R-STAMP-1)
+    quint64                                 derivedGeneration = 0;   // moves with every layer-3 input but the usuals
+};
+
+// THE COHORT ON THE SHOT'S DATE (DEC-171: "from the athlete record on the shot's date"): the shot's capture instant's
+// local date (FiringRead::captureMs: clock.wallclock, never the file's mtime), else (no instant) the session's day.
+QDate            shotCohortDate(qint64 timestampMs, const QDate &sessionDay);
+analysis::Cohort cohortOnShotDate(const QDate &dob, const QString &sex, qint64 timestampMs, const QDate &sessionDay);
+
+// One shot's layer 3, with what it was computed against.
+struct ShotDerived {
+    analysis::ShotRecord      checked;   // the findings' rows checked against the session's usual flight
+    analysis::ShotDerivedData data;      // outcome (without the session's "because": J-14 (b)) and the three factors
+    analysis::ClubFlightUsual usual;     // its club's usual it used (NaN where the club had none)
+    quint64                   generation = 0;   // the snapshot's derivedGeneration it used
+    // The golfer's word it was computed with, resolved (its review over the older copy; the run for the intent).
+    QString                               intent;
+    std::vector<analysis::ShotCorrection> corrections;
+};
+
+// A derive that failed (its job threw): not asked again until one of its inputs moves (review 1 of 3.5-i, C3).
+struct DeriveFailure {
+    analysis::ClubFlightUsual usual;
+    quint64                   generation = 0;
+    QString                   reason;
+};
+
+// One shot's kept result (DEC-135).
+struct KeptShot {
+    analysis::ShotRecord findings;          // AS FIRED: the rows before the flight check
+    bool                 hasLaunchMonitor = false;
+    DocumentStamp        document;          // the document's stamp, taken before its read (R-STAMP-2)
+    QString              findingsStamp;     // the snapshot's findings stamp it fired under (R-STAMP-1)
+    analysis::Cohort     cohort;            // the norm cohort it fired for (its date's; in memory only: the stamp holds its facts)
+    std::optional<ShotDerived> derived;     // none until its layer 3 is computed (never persisted)
+    // The shot's review as last read (its fire, or a derive of a result loaded from the file, which holds none):
+    // none until read, so the next derive reads it on the worker (C1).
+    std::optional<ShotReview>    review;
+    std::optional<DeriveFailure> deriveFailed;   // its last derive threw, under these inputs (C3)
+};
+
+class SessionDiagnostics : public QObject
+{
+    Q_OBJECT
+public:
+    // The Session's SessionDiagnostics, made (and loaded) on the first call: its child, one per Session instance.
+    // What DiagnosticsDoors::attach calls. Null when the doors are not usable (no receiver, rule data or reader;
+    // no pool unless synchronous).
+    static SessionDiagnostics *attach(Session *session, const DiagnosticsDoors &doors);
+    ~SessionDiagnostics() override;
+
+    SessionId sessionId() const { return m_id; }
+    // This instance's number from the one counter (§4.4 step 3), taken when it was loaded; its lane's token.
+    quint64   instance() const { return m_instance; }
+    std::shared_ptr<const FiringSnapshot> snapshot() const { return m_snapshot; }
+
+    // What it keeps (owner thread).
+    const KeptShot *kept(int swingNumber) const;
+    QList<int>      keptShots() const { return m_kept.keys(); }
+    QSet<int>       unread() const { return m_unread; }
+    const QHash<QString, analysis::ClubFlightUsual> &usuals() const { return m_usuals; }
+    int             outstanding() const { return m_outstanding; }   // asks not yet come back
+    bool            readOnly() const { return m_readOnly; }
+    bool            dirty() const { return m_dirty; }
+
+    // What was asked, in order (the tests' and the log's view of §4.4 step 2).
+    struct Ask {
+        int     swing = 0;
+        bool    derive = false;   // false: a fire (layers 4–5 and 3); true: layer 3 only
+        quint64 number = 0;
+    };
+    const std::vector<Ask> &asks() const { return m_asks; }
+    struct Counts {
+        quint64 kept = 0, unread = 0, superseded = 0, itemGone = 0, writes = 0, writeFailures = 0, deriveFailures = 0;
+        // §4.4 step 7 (run 3.5-ii): reductions asked, applied, dropped as superseded (a newer one in the lane), failed;
+        // derived data taken back from the file at a load; summaries written.
+        quint64 reductionsAsked = 0, reductions = 0, reductionsSuperseded = 0, reductionFailures = 0;
+        quint64 derivedRestored = 0, summaryWrites = 0;
+        quint64 baselineFreezes = 0;   // a club baseline computed at first need (step 3.6), written or held in memory
+    };
+    const Counts &counts() const { return m_counts; }
+    // The last write that failed, in words for the golfer's notice (DEC-126): "" when none has (the catch-up reports it).
+    QString lastWriteError() const { return m_lastWriteError; }
+
+    // ── The diagnosis (§4.4 step 7; run 3.5-ii) ──────────────────────────────────────────────────────────
+    // The latest applied, or null before the first reduction lands.
+    const analysis::SessionDiagnosis *diagnosis() const { return m_diagnosis ? &*m_diagnosis : nullptr; }
+    bool    reducing() const { return m_reductionInFlight; }
+    // Nothing asked and not come back, no reduction in flight or owed: what is kept is what the diagnosis says.
+    bool    idle() const { return m_outstanding == 0 && !m_reductionInFlight && !m_reductionOwed; }
+    quint64 latestReduction() const { return m_reductionLatest; }   // the receiver's check for the owner's own work
+    qint64  lastReductionMs() const { return m_lastReductionMs; }   // the last applied reduction's run time
+    // THE SESSION SUMMARY (OBJ-SESSION-SUMMARY, FILE-SESS-05; DEC-192): the typed results with their provenance and,
+    // when no shot had a clock, the Session's own start (its one writer, J-24). Empty before the first reduction.
+    analysis::SessionResults summary() const;
+    // The findings stamp of this snapshot (R-STAMP-1): what the parallel run shows beside the old model's stamp.
+    QString findingsStamp() const { return m_findingsStamp; }
+
+    // ── Commands (owner thread) ─────────────────────────────────────────────────────────────────────────
+    void fire(const ShotRef &shot);       // that shot (its own command's chain)
+    void fireAll();                       // every shot (a pack, norm, baseline or cohort change)
+    // EVT-16: club_baseline.json was rewritten — read it again; every shot fired when it changed. True if it did.
+    bool reloadClubBaseline();
+    // Write what is kept now, if anything is unwritten (and persisting). False on a failed write.
+    bool flush();
+
+    // The receiver's hand-off (§4.4 step 6): Kept, ItemGone or Superseded, on the owner thread.
+    void deliver(WorkVerdict verdict, WorkResult &&result);
+
+signals:
+    void resultKept(const pinpoint::ShotRef &shot);
+    void shotUnread(const pinpoint::ShotRef &shot, const QString &reason);
+    void batchSettled();                        // every ask so far has come back, kept or dropped
+    void diagnosisApplied();                    // a reduction was applied (§4.4 step 7)
+    void written();
+    void writeFailed(const QString &error);     // DEC-126: the caller shows it
+
+private:
+    SessionDiagnostics(Session *session, const DiagnosticsDoors &doors);
+
+    void load();
+    void loadOrFreezeClubBaseline();                       // step 3.6 (DEC-46)
+    analysis::BoardAnnotation boardOf(int swing) const;    // the board's word on a shot, asked of the Shot
+    QString summaryFingerprint() const;                    // what the summary was worked out from
+    void hearShot(Shot *shot);
+    void connectSession();
+    std::shared_ptr<const FiringSnapshot> makeSnapshot() const;
+    void refreshFindingsInputs();   // the stamp and the outcome pack, when a findings input changed
+    void askFire(Shot *shot);
+    void askDerive(Shot *shot, const KeptShot &kept);
+    void submit(const WorkAddress &address, std::function<std::any()> work);
+    void reconcile();               // the usuals again; every kept result whose inputs are not current asked again
+    void settleIfDone();
+    void askReduction();                                   // §4.4 step 7
+    analysis::SessionReductionInput reductionInput() const;
+    void deliverReduction(WorkVerdict verdict, WorkResult &&result);
+    void readSessionWord();                                // focus, miss, screens: the one rule (J-33)
+    QString derivedBaseStamp() const;                      // what every shot's derived stamp shares
+    bool    sessionEnded() const;                          // the Session's status, through its repository (J-24)
+    QString derivedStampOf(const QString &base, int swing, const analysis::ClubFlightUsual &usual) const;
+    void drop(int swing);
+    void retire(bool writeFirst);
+    bool write();
+    QHash<QString, analysis::ClubFlightUsual> usualsFromKept() const;
+
+    // Heard.
+    void onRulesChanged();
+    void onAthleteChanged();
+    void onIntentRunChanged();
+    void onSessionIntentChanged();   // EVT-10: the declared focus, miss or a screen answer
+
+    Session           *m_session  = nullptr;
+    SessionRepository *m_sessions = nullptr;
+    SessionId          m_id;
+    DiagnosticsDoors   m_doors;
+    quint64            m_instance = 0;
+
+    // The snapshot's parts, and the snapshot.
+    std::shared_ptr<const RuleDataSnapshot>              m_rules;
+    std::shared_ptr<const analysis::ShotOutcomePack>     m_outcomePack;
+    std::optional<QHash<QString, analysis::ClubBaselineEntry>> m_baseline;
+    QDate                                                m_dob;
+    QString                                              m_sex;
+    QDate                                                m_sessionDay;
+    IntentRun                                            m_intentRun;
+    QHash<int, QString>                                  m_legacyIntents;
+    QHash<int, std::vector<analysis::ShotCorrection>>    m_legacyCorrections;
+    QHash<QString, analysis::ClubFlightUsual>            m_usuals;
+    QString                                              m_findingsStamp;
+    quint64                                              m_derivedGeneration = 1;
+    std::shared_ptr<const FiringSnapshot>                m_snapshot;
+
+    // What is kept and what is in flight.
+    QMap<int, KeptShot> m_kept;        // by swing number
+    QSet<int>           m_unread;      // persisted (DEC-191)
+    // swing → its latest ask in flight: a derive or a fire, and (a derive) the inputs it was asked under (C3).
+    struct InFlight {
+        bool                      derive = false;
+        analysis::ClubFlightUsual usual;
+        quint64                   generation = 0;
+    };
+    QHash<int, InFlight> m_inFlight;
+    QSet<int>           m_heard;       // the shots whose events it hears (each connected once)
+    int                 m_outstanding = 0;
+    int                 m_holdReconcile = 0;
+
+    // The file as read: the session block's keys this object does not own, the older golfer keys (carried on every
+    // write: J-33), the ledger's options.
+    QJsonObject             m_sessionBlock;
+    QJsonObject             m_legacyGolfer;
+    analysis::LedgerOptions m_ledgerOptions;
+    bool                    m_readOnly = false;
+    bool                    m_dirty    = false;
+    bool                    m_retired  = false;
+    QTimer                  m_writeTimer;
+
+    std::vector<Ask> m_asks;
+    Counts           m_counts;
+    QString          m_lastWriteError;
+
+    // The diagnosis (run 3.5-ii): the golfer's session-level word, the stage ratchet held, the latest applied.
+    DeclaredFocus        m_focus;
+    QString              m_miss;
+    QHash<QString, bool> m_screens;
+    analysis::Stage      m_stage = analysis::Stage::Cold;
+    bool                 m_reachedEstablished = false;
+    bool                 m_stageHeld = false;      // false: none read or reduced yet (the ratchet replays)
+    std::optional<analysis::SessionDiagnosis> m_diagnosis;
+    quint64              m_reductionLatest = 0;
+    bool                 m_reductionInFlight = false;
+    bool                 m_reductionOwed = false;  // what is kept moved since the last reduction was asked
+    qint64               m_lastReductionMs = 0;
+};
+
+// THE COMPOSITION ROOT'S LOOKUP, for its WorkResolver (§4.4 step 6; U9: a function, no interface): what the receiver
+// needs to check `address` against `session` (the identity map's answer for the address's SessionId, null when none is
+// loaded) — its diagnostics instance's number, whether the shot is still the session's and its latest ask, and the
+// hand-off to its SessionDiagnostics.
+WorkTarget diagnosticsWorkTarget(Session *session, const WorkAddress &address);
+
+} // namespace pinpoint

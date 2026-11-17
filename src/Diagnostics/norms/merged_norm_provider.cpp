@@ -253,6 +253,8 @@ struct SharedNormSlot {
     QMutex                               lock;
     std::shared_ptr<const INormProvider> norms;
     std::atomic<quint64>                 generation{ 0 };   // moved by every reset, under `lock`
+    // RuleData's snapshot, when one owns the norms (refactor step 3.2); see the header.
+    std::function<std::shared_ptr<const INormProvider>()> source;
 };
 
 SharedNormSlot &sharedSlot()
@@ -266,7 +268,9 @@ std::shared_ptr<const INormProvider> sharedNormProvider(quint64 *generation)
 {
     SharedNormSlot &s = sharedSlot();
     QMutexLocker    lk(&s.lock);
-    if (!s.norms) s.norms = std::shared_ptr<const INormProvider>(makeNormProvider().release());
+    if (!s.norms)
+        s.norms = s.source ? s.source()
+                           : std::shared_ptr<const INormProvider>(makeNormProvider().release());
     if (generation) *generation = s.generation.load();
     return s.norms;
 }
@@ -283,6 +287,19 @@ void resetSharedNormProvider()
     std::shared_ptr<const INormProvider> retired;
     {
         QMutexLocker lk(&s.lock);
+        retired.swap(s.norms);
+        s.generation.fetch_add(1);
+    }
+}
+
+void installSharedNormSource(std::function<std::shared_ptr<const INormProvider>()> source)
+{
+    // Installing or removing the source is a reset too: whatever the slot held came from the other one.
+    SharedNormSlot                      &s = sharedSlot();
+    std::shared_ptr<const INormProvider> retired;
+    {
+        QMutexLocker lk(&s.lock);
+        s.source = std::move(source);
         retired.swap(s.norms);
         s.generation.fetch_add(1);
     }

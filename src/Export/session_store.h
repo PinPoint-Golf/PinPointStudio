@@ -33,6 +33,10 @@
 //       "status":    "inProgress" | "ended",
 //       "startedAt": "2026-11-15T10:04:05.123Z", ISO 8601 UTC with milliseconds
 //       "endedAt":   "…",                        absent while InProgress, and when the end is not known
+//       "endInferred": true,                     endedAt was inferred, not observed (J-18; Mark, 15 Nov
+//                                                2026): the latest of its swings' capture ends, for a session
+//                                                a crash left open and the next Start ended (or M2's
+//                                                backfill); absent when endedAt was observed (End)
 //       "origin":    { "kind": "captured" }      written at Start; or { "kind": "backfilled", "tool",
 //                                                "version", "at", "read" } — how an inferred start was
 //                                                inferred (P1)
@@ -41,7 +45,19 @@
 // Keys this build does not know are kept on every rewrite.
 //
 // ⚠ A READ NEVER WRITES. enumerate, todaysSession, open and openFolder only read; a session without a
-// file is read from its folder's name, in memory (D3). Only start, resume, end and allocateSwing write.
+// file is read from its folder's name, in memory (D3). Only start, resume, end, allocateSwing, archive,
+// restore, trash and trashShot write the session's own files and folders; the write* methods of its
+// diagnostics files (J-42, step 3.4a) write those, through session_diagnostics_io.h's file work.
+//
+// THE ARCHIVE AND THE TRASH (step 2.6). archive / restore check the session (held, not InProgress by a
+// FRESH read of its file — another machine's live session, or one a crash left open, is refused — and not
+// a newer build's) and hand its folder to the archive's file work, SessionArchiving: SessionArchiver
+// (session_archiver.h), set by whoever composes a store that archives (SessionArchiveRun, there). The
+// store does not link the archiver, so the many targets that compile this file need none of the swing
+// writer's sources; a store with none set refuses an archive. trash checks the same way, takes the
+// session's lock for a moment (no other PinPoint writer is mid-write), lets it go — a lock file must not
+// travel with the folder, and Windows will not move a folder holding an open file — and moves the folder
+// (SwingPaths::trashPath).
 //
 // THE ATHLETE'S FOLDER (until step 2.3): `<libraryRoot>/<sanitise(name), else sanitise(uuid)>`, with
 // `<AppDataLocation>/swings` for an empty library — today's derivation, made here only (athleteFolder).
@@ -64,6 +80,20 @@
 
 namespace pinpoint {
 
+// The archive's file work, on a session folder the store has checked (session_archiver.h implements it).
+// `stillArchivable` is the store's check run again (a fresh read of the session file): "" while the session
+// may still be archived, else why not — the archive asks it before each swing it thins (J-52).
+class SessionArchiving
+{
+public:
+    using StillArchivable = std::function<QString()>;
+    virtual ~SessionArchiving() = default;
+    virtual SessionArchiveResult archiveFolder(const QString &sessionDir, const SessionArchiveOptions &options,
+                                               const SessionArchiveProgress &progress,
+                                               const StillArchivable &stillArchivable) = 0;
+    virtual SessionArchiveResult restoreFolder(const QString &sessionDir, const SessionArchiveProgress &progress) = 0;
+};
+
 class SessionStore final : public SessionRepository
 {
 public:
@@ -75,9 +105,7 @@ public:
                              const QString &namingPattern) override;
     SessionId          todaysSession(const SessionOwner &owner, const QString &type) override;
     WriteResult        resume(const SessionId &id, const QString &type) override;
-    WriteResult        end(const SessionId &id, bool discardIfEmpty) override;
-    SessionStartResult restartInLibrary(const SessionId &running, const SessionOwner &owner,
-                                        const QString &namingPattern, QString *oldEndProblem = nullptr) override;
+    WriteResult        end(const SessionId &id) override;
     QList<SessionIndexEntry>         enumerate(const SessionOwner &owner) override;
     std::optional<SessionIndexEntry> open(const SessionId &id) const override;
     SessionId       openFolder(const QString &folder, const AthleteId &legacyAthlete = {}) override;
@@ -85,6 +113,46 @@ public:
     SwingAllocation allocateSwing(const SessionId &id) override;
     QList<ShotRef>  shots(const SessionId &id) const override;
     QString         swingFolder(const ShotRef &shot) const override;
+    bool            folderPresent(const SessionId &id) const override;
+    SessionArchiveResult archive(const SessionId &id, const SessionArchiveOptions &options,
+                                 const SessionArchiveProgress &progress = {}) override;
+    SessionArchiveResult restore(const SessionId &id, const SessionArchiveProgress &progress = {}) override;
+    WriteResult          trash(const SessionId &id, QString *where = nullptr) override;
+    WriteResult          trashShot(const ShotRef &shot, QString *where = nullptr) override;
+
+    // The session's diagnostics files by its id (J-42): session_diagnostics_io.h's file work on the held
+    // session's folder.
+    DiagnosticsRead  readDiagnostics(const SessionId &id) override;
+    WriteResult      writeDiagnostics(const SessionId &id, const QJsonObject &session, const QJsonObject &ledger,
+                                      const QJsonObject &legacyFallback,
+                                      DiagnosticsRead::State *state = nullptr) override;
+    WriteResult      backupDiagnostics(const SessionId &id, const QString &tag, QString *backupPath = nullptr) override;
+    WriteResult      setAsideDiagnostics(const SessionId &id, QString *asidePath = nullptr) override;
+    SessionInputRead readSessionInput(const SessionId &id) override;
+    WriteResult      writeSessionInput(const SessionId &id, const SessionInput &input) override;
+    JsonFileRead     readClubBaseline(const SessionId &id) override;
+    WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) override;
+    JsonFileRead     readWorkOns(const SessionId &id) override;
+    WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) override;
+
+    // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,
+    // the work-ons controller and their tools, until step 3 keys them by SessionId; refactor step 2.7a). Every
+    // session folder in `athleteDir`, its day and its place in the day by start time (SessionIdentity), each one
+    // held as enumerate holds it. `legacyAthlete` names the D3 ids of the sessions without a session file
+    // (J-39: the folder's owner). With it null such a session cannot be named: it is still LISTED, placed
+    // by its name (SessionIdentity::placeOfLegacyFolder: its day, type and n-of-day), with a null id, and
+    // is never held — so no command can reach it, and a caller that needs only the order still has it.
+    QList<SessionIndexEntry> enumerateFolder(const QString &athleteDir, const AthleteId &legacyAthlete);
+
+    // The archive's file work (not owned; outlives the store's use of it). Null: archive and restore refuse.
+    void setArchiving(SessionArchiving *archiving) { m_archiving = archiving; }
+    // The worker-safe archive job's file work (refactor step 3.8): today's archive of a session folder in a run of its own
+    // (SessionArchiveRun::archiveInOwnRun), set by the composition root. Null: archiveJob refuses.
+    using ArchiveJobs = std::function<SessionArchiveResult(const QString &sessionDir, const SessionArchiveOptions &options,
+                                                           const SessionArchiveProgress &progress)>;
+    void setArchiveJobs(ArchiveJobs jobs) { m_archiveJobs = std::move(jobs); }
+    SessionArchiveJob archiveJob(const SessionId &id, const SessionArchiveOptions &options) override;
+    void              archiveLanded(const SessionId &id) override;
 
     // Today's athlete-folder derivation (until 2.3's Athlete::folder()).
     static QString athleteFolder(const SessionOwner &owner);
@@ -92,16 +160,40 @@ public:
     // "" for none (the name then says "session").
     static QString folderTypeLabel(const QString &type);
 
+    // A TOOL MEETS A LIVE SESSION (D11: DEC-158; audit H-14). Whether `sessionFolder`'s session file says the
+    // session is in progress, read afresh (a read only: no lock, nothing written). False for a session without
+    // a file (older than step 2: never in progress) and for an unreadable one. Every tool that writes into a
+    // session refuses one in progress — being recorded here or on the other machine — unless the user passes
+    // `--allow-in-progress` (for one a crash left open, which the athlete's next Start would end: DEC-73);
+    // a dry run or a read-only mode needs no check. The archive and the trash use the store's own check.
+    static bool fileSaysInProgress(const QString &sessionFolder);
+    // The refusal a tool prints, naming the session and the override.
+    static QString inProgressRefusal(const QString &sessionFolder);
+    // The session folder a swing folder belongs to (its parent), for a tool handed a swing.
+    static QString sessionFolderOfSwing(const QString &swingFolder);
+
+    // When one swing's capture ended (UTC; invalid when its document records none): the swing door's
+    // captureEndOf (SwingStoreRecordingRepository), set by the composition root. The store reads no swing
+    // document itself (it links none of the swing store). With none set, a session a crash left open is
+    // ended with its end not known, as before J-18.
+    using CaptureEndOf = std::function<QDateTime(const QString &swingDir)>;
+    void setCaptureEndReader(CaptureEndOf reader) { m_captureEndOf = std::move(reader); }
+
     // Tests: the clock (UTC) and the zone "today" is read in; how long a write waits for a held lock.
     void setClockForTest(std::function<QDateTime()> nowUtc) { m_now = std::move(nowUtc); }
     void setTimeZoneForTest(const QTimeZone &zone) { m_zone = zone; }
     void setLockWaitForTest(int ms) { m_lockWaitMs = ms; }
+    // Tests: never use the OS trash — trash and trashShot (and so Session::end's empty discard) move into the library's own
+    // `.pinpoint-trash` (FILE-LIB-01) instead, inside the test's temporary folder (AthleteStore's seam).
+    void setOsTrashForTest(bool on) { m_osTrash = on; }
 
 private:
     struct Held {
         SessionIndexEntry entry;
         QJsonObject       file;              // the session file as read (unknown keys kept)
-        bool              createdHere = false;   // start() made it this run: the empty discard may take it
+        bool              createdHere = false;   // start() made it this run and nothing has ended it: the session
+                                                 // capture writes into (the running one's folder is kept, and a
+                                                 // trash or archive of it refused)
     };
     enum class FileState { Missing, Read, Unreadable };
 
@@ -114,8 +206,15 @@ private:
                                  bool requireSessionName) const;
     // Write `h`'s entry into its folder's session file (merged over h.file), under the folder's lock.
     WriteResult write(Held &h);
-    // End every other InProgress session in `athleteDir` (their end time: unknown).
+    // Why `h`'s session may not be archived, restored or trashed now — "" when it may. Reads its session
+    // file afresh: the held entry may be older than another writer's change.
+    WriteResult checkNotLive(const Held &h, bool refuseReadOnly) const;
+    // End every other InProgress session in `athleteDir`: its end inferred from its swings (J-18).
     void endOthersInProgress(const QString &athleteDir, const SessionId &except);
+    // The latest capture end of `folder`'s swings (m_captureEndOf); invalid when none records one.
+    QDateTime inferredEnd(const QString &folder) const;
+    // The held session's folder; "" when `id` is not held.
+    QString heldFolder(const SessionId &id) const;
     // Bring an entry read from disk into the identity map, keeping what only the map knows.
     Held &hold(const SessionIndexEntry &entry, const QJsonObject &file);
     // The folder of a held session, for swingFolder on any thread.
@@ -128,6 +227,10 @@ private:
     std::function<QDateTime()>  m_now;
     QTimeZone                   m_zone = QTimeZone::systemTimeZone();
     int                         m_lockWaitMs = -1;   // -1: FolderLock::kWaitMs
+    bool                        m_osTrash    = true;
+    SessionArchiving           *m_archiving  = nullptr;
+    ArchiveJobs                 m_archiveJobs;
+    CaptureEndOf                m_captureEndOf;
 };
 
 } // namespace pinpoint

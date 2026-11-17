@@ -51,6 +51,7 @@
 //         typicality (null | the row's typicality `values`, for a golfer-layer badge: the word, no figures) }
 //  See charts/charts_consistency_presenter.h, THE GRADES, for the templates and the headline's kinds.
 
+#include "report_swing_no.h"   // a swing's number: the swing number, never a rank (step 2.7b)
 #include "report_words.h"   // lmLabel — a launch monitor reading's one name in the report
 
 #include <QDir>
@@ -134,7 +135,7 @@ inline QVariant consistencyReportBlock(const QVariantMap &payload, const QHash<Q
     QString note;
     for (const QVariant &sv : payload.value(QStringLiteral("flagged")).toList()) {
         const QVariantMap shot = sv.toMap();
-        const int swing = swingNoOfDir.value(QDir::cleanPath(shot.value(QStringLiteral("swingDir")).toString()), shot.value(QStringLiteral("ordinal")).toInt());
+        const int swing = reportSwingNo(swingNoOfDir, shot);
         if (flagged.size() >= kConsistencyReportSwingCap) { past << QString::number(swing); continue; }
 
         // ball first: the presenter's groups run ball, club, swing, so the cap falls on the swing's own readings

@@ -6,6 +6,7 @@
 # the Analysis suite's pp_norm_env). Listing a source a target already lists is harmless (CMake keeps one).
 # Included from each charts_*_tests.cmake (GUI, SRC set by src/Gui/tests/CMakeLists.txt).
 set(CHARTS_WRIST_SRC
+    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/session_wrist.cpp
     # The Posture section's core (session_posture.{h,cpp}, posture_chart_design.md stage 2a) rides with
     # the wrist profile: it reads each cell through the measure engine's own sampler (measure_sample.cpp).
@@ -26,6 +27,10 @@ set(CHARTS_WRIST_SRC
     ${SRC}/Diagnostics/packs/characteristic_pack.cpp
     ${SRC}/Diagnostics/packs/reference_pack.cpp
     ${SRC}/Diagnostics/measures/measure_facets.cpp
-    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp)
+    ${SRC}/Diagnostics/measures/anatomy_vocabulary.cpp
+    # A session's day and place (SessionDiagnosticsFiles::identityOf / sessionPlaces, step 2.7b): the session store
+    # reads the session file, SessionIdentity a legacy folder's name, SwingPaths the swing numbers and the listing.
+    ${SRC}/Export/session_store.cpp ${SRC}/DomainModel/session_identity.cpp ${SRC}/Export/swing_paths.cpp
+    ${SRC}/Core/folder_lock.cpp)
 set(CHARTS_NORM_ENV
     "PINPOINT_CORE_NORMS=${SRC}/Resources/diagnostics/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${SRC}/Resources/diagnostics/flight_norms.json;PINPOINT_CORE_CONTEXTS=${SRC}/Resources/diagnostics/contexts.json")

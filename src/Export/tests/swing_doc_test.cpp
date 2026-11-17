@@ -17,9 +17,6 @@
 #include "../../Body/address_marks_json.h"  // dtlPhaseMarksPayload — the /1 and /2 readers
 #include "../../Body/dtl_ruler_json.h"      // dtlRulerPayload — analysis.dtlRuler's reader
 
-// Stub — avoids linking swing_paths.cpp (which pulls in the PpLogStream logging deps).
-// SwingDocReader::latestSessionDir() (the only sanitise() user) isn't exercised here.
-QString pinpoint::SwingPaths::sanitise(const QString &raw) { return raw; }
 
 #include <cmath>
 #include <QDateTime>

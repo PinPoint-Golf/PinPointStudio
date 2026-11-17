@@ -18,6 +18,7 @@
 
 #include "session_store.h"
 
+#include "session_diagnostics_io.h"   // the diagnostics files' file work (J-42)
 #include "session_files.h"
 #include "swing_paths.h"
 
@@ -106,6 +107,14 @@ WriteResult readOnly(const QString &folder)
                  .arg(folder) };
 }
 
+SessionArchiveResult archiveRefused(const WriteResult &why)
+{
+    SessionArchiveResult r;
+    r.status = why.status;
+    r.error  = why.error;
+    return r;
+}
+
 } // namespace
 
 // ── The athlete's folder (until step 2.3) ────────────────────────────────────────────────────────
@@ -175,8 +184,10 @@ SessionStore::FileState SessionStore::readFile(const QString &folder, SessionInd
                              ? SessionStatus::InProgress : SessionStatus::Ended;
     out.startedAtUtc   = started;
     out.endedAtUtc     = parseUtc(o.value(QStringLiteral("endedAt")));
+    out.endInferred    = out.endedAtUtc.isValid() && o.value(QStringLiteral("endInferred")).toBool();
     out.hasSessionFile = true;
     out.readOnly       = version > 1;
+    out.archived       = QFileInfo::exists(SessionFiles::archiveMarker(folder));
     file = o;
     return FileState::Read;
 }
@@ -204,6 +215,7 @@ SessionIndexEntry SessionStore::readFolder(const QString &folder, const AthleteI
     e.hasSessionFile = false;
     // A session file that cannot be read is kept as it is for someone to look at: never overwritten.
     e.readOnly       = state == FileState::Unreadable;
+    e.archived       = QFileInfo::exists(SessionFiles::archiveMarker(folder));
     return e;
 }
 
@@ -245,18 +257,37 @@ SessionStore::Held &SessionStore::hold(const SessionIndexEntry &entry, const QJs
 
 QList<SessionIndexEntry> SessionStore::enumerate(const SessionOwner &owner)
 {
-    const QString athleteDir = athleteFolder(owner);
     QList<SessionIndexEntry> entries;
-    QList<QJsonObject>       files;
-    const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-    for (const QString &name : names) {
-        QJsonObject             file;
-        const SessionIndexEntry e = readFolder(athleteDir + QLatin1Char('/') + name, owner.athlete, file, true);
+    for (const SessionIndexEntry &e : enumerateFolder(athleteFolder(owner), owner.athlete)) {
         if (e.identity.isNull())
-            continue;
+            continue;   // a legacy session with no athlete to name it (no athlete selected): as before step 2.7a
         if (e.hasSessionFile && !owner.athlete.isNull() && !e.athlete.isNull() && e.athlete != owner.athlete)
             ppWarn() << "[SessionStore] the session file of" << e.folder << "names another athlete ("
                      << e.athlete.toString() << ") - listed, not re-owned";
+        entries.append(e);
+    }
+    return entries;
+}
+
+QList<SessionIndexEntry> SessionStore::enumerateFolder(const QString &athleteDir, const AthleteId &legacyAthlete)
+{
+    QList<SessionIndexEntry> entries;
+    QList<QJsonObject>       files;
+    if (athleteDir.isEmpty())
+        return entries;
+    const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QString &name : names) {
+        QJsonObject             file;
+        SessionIndexEntry e = readFolder(athleteDir + QLatin1Char('/') + name, legacyAthlete, file, true);
+        if (e.identity.isNull()) {
+            // Not a session folder (readFolder gave nothing), or a legacy session no athlete can be named for:
+            // with no owner it is still placed — its day and order — but has no id, and is never held.
+            if (e.folder.isEmpty() || !legacyAthlete.isNull())
+                continue;
+            e.identity = SessionIdentity::placeOfLegacyFolder(e.folder, {}, m_zone);
+            if (e.identity.folder().isEmpty())
+                continue;
+        }
         entries.append(e);
         files.append(file);
     }
@@ -270,7 +301,8 @@ QList<SessionIndexEntry> SessionStore::enumerate(const SessionOwner &owner)
 
     for (qsizetype i = 0; i < entries.size(); ++i) {
         entries[i].identity = ids.at(i);
-        entries[i]          = hold(entries.at(i), files.at(i)).entry;
+        if (!entries.at(i).identity.isNull())      // an unnamed legacy session (no owner) is placed, never held
+            entries[i] = hold(entries.at(i), files.at(i)).entry;
     }
     return entries;
 }
@@ -296,6 +328,12 @@ SessionId SessionStore::todaysSession(const SessionOwner &owner, const QString &
             best = &e;
     }
     return best ? best->id() : SessionId();
+}
+
+QString SessionStore::heldFolder(const SessionId &id) const
+{
+    const auto it = m_held.constFind(id);
+    return it == m_held.constEnd() ? QString() : it->entry.folder;
 }
 
 std::optional<SessionIndexEntry> SessionStore::open(const SessionId &id) const
@@ -329,6 +367,12 @@ QList<ShotRef> SessionStore::shots(const SessionId &id) const
             out.append(ref);
     std::sort(out.begin(), out.end());
     return out;
+}
+
+bool SessionStore::folderPresent(const SessionId &id) const
+{
+    const auto it = m_held.constFind(id);
+    return it != m_held.constEnd() && QFileInfo(it->entry.folder).isDir();
 }
 
 ShotRef SessionStore::openSwingFolder(const QString &swingFolder, const AthleteId &legacyAthlete)
@@ -401,6 +445,10 @@ WriteResult SessionStore::write(Held &h)
     set("status", statusName(h.entry.status));
     set("startedAt", isoUtc(h.entry.startedAtUtc));
     set("endedAt", h.entry.status == SessionStatus::Ended ? isoUtc(h.entry.endedAtUtc) : QString());
+    if (h.entry.status == SessionStatus::Ended && h.entry.endedAtUtc.isValid() && h.entry.endInferred)
+        o.insert(QStringLiteral("endInferred"), true);   // J-18: an inferred end says so (P1)
+    else
+        o.remove(QStringLiteral("endInferred"));
     if (!o.value(QStringLiteral("origin")).isObject())
         o.insert(QStringLiteral("origin"), QJsonObject{ { QStringLiteral("kind"), QStringLiteral("captured") } });
 
@@ -428,6 +476,42 @@ WriteResult SessionStore::write(Held &h)
     return written();
 }
 
+bool SessionStore::fileSaysInProgress(const QString &sessionFolder)
+{
+    if (sessionFolder.isEmpty())
+        return false;
+    const SessionStore reader;   // a read of the file as it stands now, through the one reader
+    SessionIndexEntry  e;
+    QJsonObject        file;
+    return reader.readFile(QDir::cleanPath(sessionFolder), e, file) == FileState::Read
+        && e.status == SessionStatus::InProgress;
+}
+
+QString SessionStore::inProgressRefusal(const QString &sessionFolder)
+{
+    return QStringLiteral("%1 is in progress (its session.json says so: it is being recorded here or on another "
+                          "computer) - not written. A session a crash left open can be passed with "
+                          "--allow-in-progress (D11).").arg(QDir::cleanPath(sessionFolder));
+}
+
+QString SessionStore::sessionFolderOfSwing(const QString &swingFolder)
+{
+    return QFileInfo(QDir::cleanPath(swingFolder)).path();
+}
+
+QDateTime SessionStore::inferredEnd(const QString &folder) const
+{
+    if (!m_captureEndOf)
+        return {};
+    QDateTime latest;   // the latest of every swing's: the rule M2 uses for a session older than step 2
+    for (const QString &name : SwingPaths::swingFolders(folder)) {
+        const QDateTime t = m_captureEndOf(folder + QLatin1Char('/') + name);
+        if (t.isValid() && (!latest.isValid() || t > latest))
+            latest = t.toUTC();
+    }
+    return latest;
+}
+
 void SessionStore::endOthersInProgress(const QString &athleteDir, const SessionId &except)
 {
     const QStringList names = QDir(athleteDir).entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
@@ -440,11 +524,14 @@ void SessionStore::endOthersInProgress(const QString &athleteDir, const SessionI
             continue;
         Held &h = hold(e, file);
         const SessionIndexEntry before = h.entry;
-        // Its real end is not known (a crash, or a session the app never ended): no end time is written
-        // rather than a made-up one (P1). One InProgress session per athlete (DEC-78, DEC-73).
-        h.entry.status     = SessionStatus::Ended;
-        h.entry.endedAtUtc = {};
-        h.createdHere      = false;
+        // Its real end is not known (a crash, or a session the app never ended). J-18 (Mark, 15 Nov 2026):
+        // its end is its last swing's capture end, MARKED AS INFERRED (`endInferred`, P1); when no swing
+        // records a capture time, no end time is written rather than a made-up one. One InProgress session
+        // per athlete (DEC-78, DEC-73).
+        h.entry.status      = SessionStatus::Ended;
+        h.entry.endedAtUtc  = inferredEnd(h.entry.folder);
+        h.entry.endInferred = h.entry.endedAtUtc.isValid();
+        h.createdHere       = false;
         if (const WriteResult r = write(h); r.ok()) {
             ppInfo() << "[SessionStore] ended a session still in progress:" << folder;
         } else {
@@ -524,21 +611,22 @@ WriteResult SessionStore::resume(const SessionId &id, const QString &type)
                                                      "creation times (the start)") },
         });
     }
-    h.entry.status     = SessionStatus::InProgress;
-    h.entry.endedAtUtc = {};
+    h.entry.status      = SessionStatus::InProgress;
+    h.entry.endedAtUtc  = {};
+    h.entry.endInferred = false;
     const WriteResult r = write(h);
     if (!r.ok()) {
         h.entry = before;
         h.file  = fileBefore;
         return r;
     }
-    h.createdHere = false;   // somebody's earlier work: never the empty discard's
+    h.createdHere = false;   // somebody's earlier work, not the folder this run's start() made
     ppInfo() << "[SwingExport] begin session:" << h.entry.folder << "(extend)"
              << "holding" << SwingPaths::swingFolders(h.entry.folder).size() << "swing(s)";
     return r;
 }
 
-WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
+WriteResult SessionStore::end(const SessionId &id)
 {
     const auto it = m_held.find(id);
     if (it == m_held.end())
@@ -547,55 +635,21 @@ WriteResult SessionStore::end(const SessionId &id, bool discardIfEmpty)
     if (!h.entry.hasSessionFile && !h.entry.readOnly)
         return unchanged();   // a session older than step 2 that nothing resumed: nothing is in progress
 
-    // ⚠ THE EMPTY DISCARD TAKES ONLY A FOLDER THIS RUN'S start() MADE, and only while it holds no swing
-    // (DEC-93; unchanged). A resumed session is somebody's earlier work, whatever its count did.
-    if (discardIfEmpty && h.createdHere && QFileInfo::exists(h.entry.folder)
-        && SwingPaths::swingFolders(h.entry.folder).isEmpty()) {
-        QString where;
-        if (SwingPaths::trashPath(h.entry.folder, &where)) {
-            ppInfo() << "[SwingExport] discarded session (to" << where << "):" << h.entry.folder;
-            unpublish(id);
-            m_held.erase(it);
-            return written();
-        }
-        ppWarn() << "[SwingExport] could not trash empty session:" << h.entry.folder;
-    }
+    // ⚠ NO EMPTY DISCARD HERE (refactor step 3.4a-ii): the store ends the session and nothing more. Whether an
+    // empty session is discarded instead is the Session's rule (Session::end, which then asks
+    // Athlete::trashSession: DEC-143; the rule itself DEC-93's, unchanged).
     h.createdHere = false;
     if (h.entry.readOnly)
         return readOnly(h.entry.folder);
 
     const SessionIndexEntry before = h.entry;
-    h.entry.status     = SessionStatus::Ended;
-    h.entry.endedAtUtc = nowUtc();
+    h.entry.status      = SessionStatus::Ended;
+    h.entry.endedAtUtc  = nowUtc();
+    h.entry.endInferred = false;   // observed: the End
     const WriteResult r = write(h);
     if (!r.ok())
         h.entry = before;   // still in progress, as its file says (DEC-73)
     return r;
-}
-
-SessionStartResult SessionStore::restartInLibrary(const SessionId &running, const SessionOwner &owner,
-                                                  const QString &namingPattern, QString *oldEndProblem)
-{
-    QString type;
-    QString was;
-    if (oldEndProblem)
-        oldEndProblem->clear();
-    if (const auto it = m_held.constFind(running); it != m_held.constEnd()) {
-        type = it->entry.identity.type();
-        was  = it->entry.folder;
-        if (const WriteResult r = end(running, /*discardIfEmpty=*/true); !r.ok()) {
-            ppWarn() << "[SessionStore] the session in the old library could not be ended (it stays in progress"
-                        " until the athlete's next session there):" << was << "-" << r.error;
-            // A folder still there (a held lock, a read-only file) is a failure to report; a library that
-            // has gone (a dropped share) is the expected case, and the "not being saved" notices cover it.
-            if (oldEndProblem && QFileInfo::exists(was))
-                *oldEndProblem = r.error;
-        }
-    }
-    SessionStartResult s = start(owner, type, namingPattern);
-    ppWarn() << "[SwingExport] the library changed during a session: the session" << was
-             << "ended, and a new one started in" << s.folder;
-    return s;
 }
 
 SwingAllocation SessionStore::allocateSwing(const SessionId &id)
@@ -651,6 +705,282 @@ SwingAllocation SessionStore::allocateSwing(const SessionId &id)
     out.sessionFolderName = it->entry.identity.folderName();
     out.result            = written();
     return out;
+}
+
+// ── The archive and the trash (step 2.6) ─────────────────────────────────────────────────────────
+
+WriteResult SessionStore::checkNotLive(const Held &h, bool refuseReadOnly) const
+{
+    const QString &folder = h.entry.folder;
+    const auto live = [&folder] {
+        return failed(QStringLiteral("The session %1 is still in progress (being recorded here or on another "
+                                     "computer, or left open by a crash until its athlete's next session); "
+                                     "it was not changed.").arg(folder));
+    };
+    if (h.createdHere && h.entry.status == SessionStatus::InProgress)
+        return live();   // this run's own running session
+    // Afresh: the held entry may be older than another writer's change (the other machine's Start).
+    SessionIndexEntry fresh;
+    QJsonObject       file;
+    const FileState   state = readFile(folder, fresh, file);
+    if (state == FileState::Read && fresh.status == SessionStatus::InProgress)
+        return live();
+    if (refuseReadOnly && (state == FileState::Unreadable || (state == FileState::Read && fresh.readOnly)))
+        return readOnly(folder);
+    return unchanged();
+}
+
+SessionArchiveResult SessionStore::archive(const SessionId &id, const SessionArchiveOptions &options,
+                                           const SessionArchiveProgress &progress)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return archiveRefused(failed(QStringLiteral("That session is not known.")));
+    // A newer build's (or an unreadable) session file: the stubs and the marker are writes this build does
+    // not make into it, like every other write (DEC-126 read-only rule).
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/true); !c.ok())
+        return archiveRefused(c);
+    if (!m_archiving)
+        return archiveRefused(failed(QStringLiteral("Archiving is not available here.")));
+    const QString folder = it->entry.folder;
+    // Asked again before each swing is thinned (J-52): another machine may resume the session meanwhile. By
+    // id, not by `it`: the run's own reads may grow the identity map under it.
+    const auto stillArchivable = [this, id]() -> QString {
+        const auto h = m_held.constFind(id);
+        if (h == m_held.constEnd())
+            return QStringLiteral("That session is not known.");
+        const WriteResult c = checkNotLive(*h, /*refuseReadOnly=*/true);
+        return c.ok() ? QString() : c.error;
+    };
+    SessionArchiveResult r = m_archiving->archiveFolder(folder, options, progress, stillArchivable);
+    if (const auto h = m_held.find(id); h != m_held.end())   // found again: the run may have grown the map
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(folder));
+    return r;
+}
+
+SessionArchiveJob SessionStore::archiveJob(const SessionId &id, const SessionArchiveOptions &options)
+{
+    SessionArchiveJob job;
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd()) {
+        job.refused = archiveRefused(failed(QStringLiteral("That session is not known.")));
+        return job;
+    }
+    // The same refusals as archive(): in progress (here, or by its session file read afresh), or a newer build's file.
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/true); !c.ok()) {
+        job.refused = archiveRefused(c);
+        return job;
+    }
+    if (!m_archiveJobs) {
+        job.refused = archiveRefused(failed(QStringLiteral("Archiving is not available here.")));
+        return job;
+    }
+    // Values only: the folder, the options and the file work, which opens its own repositories (it re-checks the
+    // session's status from its file before each swing is thinned, J-52).
+    const QString folder = it->entry.folder;
+    const ArchiveJobs work = m_archiveJobs;
+    job.run = [work, folder, options](const SessionArchiveProgress &progress) { return work(folder, options, progress); };
+    return job;
+}
+
+void SessionStore::archiveLanded(const SessionId &id)
+{
+    if (const auto h = m_held.find(id); h != m_held.end())
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(h->entry.folder));
+}
+
+SessionArchiveResult SessionStore::restore(const SessionId &id, const SessionArchiveProgress &progress)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return archiveRefused(failed(QStringLiteral("That session is not known.")));
+    // Not refused for a newer build's session file: a restore puts the session's own bytes back as they
+    // were archived and writes nothing of this build's into it (the review merge goes through the swing
+    // door, which refuses a newer document by itself).
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/false); !c.ok())
+        return archiveRefused(c);
+    if (!m_archiving)
+        return archiveRefused(failed(QStringLiteral("Restoring is not available here.")));
+    const QString folder = it->entry.folder;
+    SessionArchiveResult r = m_archiving->restoreFolder(folder, progress);
+    if (const auto h = m_held.find(id); h != m_held.end())
+        h->entry.archived = QFileInfo::exists(SessionFiles::archiveMarker(folder));
+    return r;
+}
+
+WriteResult SessionStore::trash(const SessionId &id, QString *where)
+{
+    const auto it = m_held.constFind(id);
+    if (it == m_held.constEnd())
+        return failed(QStringLiteral("That session is not known."));
+    const QString folder = it->entry.folder;
+    if (!QFileInfo::exists(folder))
+        return failed(QStringLiteral("The session %1 is no longer there.").arg(folder));
+    // Not refused for a read-only session file: moving the folder writes nothing into it, and the trash
+    // is recoverable.
+    if (const WriteResult c = checkNotLive(*it, /*refuseReadOnly=*/false); !c.ok()) {
+        ppWarn() << "[SessionStore] not moved to the trash:" << c.error;
+        return c;
+    }
+    {
+        // No other PinPoint writer is mid-write in it (a tool, the other machine): taken for a moment and
+        // let go BEFORE the move — a lock file must not travel into the trash with the folder, and Windows
+        // will not move a folder that holds an open file. A folder where no lock can be made at all is
+        // left to the move to decide (allocateSwing's rule).
+        FolderLock lock(folder);
+        if (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
+            ppWarn() << "[SessionStore] not moved to the trash, the folder is locked by" << lock.holder() << ":" << folder;
+            return locked(folder, lock.holder());
+        }
+    }
+    QString to;
+    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: a network share has no OS trash (2 Sept 2026).
+    if (!SwingPaths::trashPath(folder, &to, m_osTrash)) {
+        ppWarn() << "[SessionStore] could not move the session to the trash:" << folder;
+        return failed(QStringLiteral("The session %1 could not be moved to the trash.").arg(folder));
+    }
+    ppInfo() << "[SessionStore] session moved to the trash (" << to << "):" << folder;
+    if (where)
+        *where = to;
+    unpublish(id);
+    m_held.remove(id);
+    return written();
+}
+
+// ── One shot to the trash (step 3.4a; J-24) ──────────────────────────────────────────────────────────
+
+WriteResult SessionStore::trashShot(const ShotRef &shot, QString *where)
+{
+    const QString folder = heldFolder(shot.session());
+    if (shot.isNull() || folder.isEmpty())
+        return failed(QStringLiteral("That shot's session is not open."));
+    const QString swingDir = folder + QLatin1Char('/') + SwingPaths::swingFolderName(shot.swingNumber());
+    if (!QFileInfo::exists(swingDir))
+        return failed(QStringLiteral("The swing %1 is no longer there.").arg(swingDir));
+    // One write under the session's lock: the number recorded, then the folder moved (allocateSwing's rule
+    // for a folder where no lock file can be made: the move decides).
+    FolderLock lock(folder);
+    if (lock.lock(m_lockWaitMs < 0 ? FolderLock::kWaitMs : m_lockWaitMs) == FolderLock::Result::Locked) {
+        ppWarn() << "[SessionStore] swing not moved to the trash, the session folder is locked by" << lock.holder()
+                 << ":" << swingDir;
+        return locked(folder, lock.holder());
+    }
+    // ⚠ THE NUMBER FIRST (DEC-91): a swing leaving its session takes its number with it, never back into
+    // circulation; a session recorded before the high-water existed has none, so this records it. Best
+    // effort, as the allocation's: a failed write costs only the never-reissued guarantee, and is logged.
+    if (const AtomicWriteResult w = SessionFiles::raiseSwingHighWater(folder, shot.swingNumber()); !w.ok)
+        ppWarn() << "[SessionStore] could not record the last swing number in" << folder << "-" << w.detail;
+    QString to;
+    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash: a network share has no OS trash (2 Sept 2026). Its own
+    // high-water raise for a swing folder (kept for the carousel's trash until step 3.4b moves it here) finds
+    // the number already recorded and writes nothing.
+    if (!SwingPaths::trashPath(swingDir, &to, m_osTrash)) {
+        ppWarn() << "[SessionStore] could not move the swing to the trash:" << swingDir;
+        return failed(QStringLiteral("The swing %1 could not be moved to the trash.").arg(swingDir));
+    }
+    ppInfo() << "[SessionStore] swing moved to the trash (" << to << "):" << swingDir;
+    if (where)
+        *where = to;
+    return written();
+}
+
+// ── The session's diagnostics files by its id (step 3.4a; J-42) ──────────────────────────────────────
+
+namespace {
+const QString kNotHeld = QStringLiteral("That session is not known.");
+}
+
+DiagnosticsRead SessionStore::readDiagnostics(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        DiagnosticsRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readDiagnostics(folder);
+}
+
+WriteResult SessionStore::writeDiagnostics(const SessionId &id, const QJsonObject &session, const QJsonObject &ledger,
+                                           const QJsonObject &legacyFallback, DiagnosticsRead::State *state)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeDiagnostics(folder, session, ledger, legacyFallback, state);
+}
+
+WriteResult SessionStore::backupDiagnostics(const SessionId &id, const QString &tag, QString *backupPath)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::backupDiagnostics(folder, tag, backupPath);
+}
+
+WriteResult SessionStore::setAsideDiagnostics(const SessionId &id, QString *asidePath)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::setAsideDiagnostics(folder, asidePath);
+}
+
+SessionInputRead SessionStore::readSessionInput(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        SessionInputRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readSessionInput(folder);
+}
+
+WriteResult SessionStore::writeSessionInput(const SessionId &id, const SessionInput &input)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeSessionInput(folder, input);
+}
+
+JsonFileRead SessionStore::readClubBaseline(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        JsonFileRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readClubBaseline(folder);
+}
+
+WriteResult SessionStore::writeClubBaseline(const SessionId &id, const QJsonObject &root)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeClubBaseline(folder, root);
+}
+
+JsonFileRead SessionStore::readWorkOns(const SessionId &id)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty()) {
+        JsonFileRead r;
+        r.error = kNotHeld;
+        return r;
+    }
+    return session_diagnostics_io::readWorkOns(folder);
+}
+
+WriteResult SessionStore::writeWorkOns(const SessionId &id, const QJsonObject &root)
+{
+    const QString folder = heldFolder(id);
+    if (folder.isEmpty())
+        return failed(kNotHeld);
+    return session_diagnostics_io::writeWorkOns(folder, root);
 }
 
 } // namespace pinpoint

@@ -214,7 +214,7 @@ Item {
     function _edgeAt(x, y) {
         for (var i = 0; i < _edges.length; i++) {
             var e = _edges[i]
-            if (e.rowId === undefined) continue
+            if (!e.rowId) continue
             var lx = (e.labelX || 0) + root._edgeLabelDX(e, root._nudgeRev)
             var ly = (e.labelY || 0) + root._edgeLabelDY(e, root._nudgeRev)
             if (Math.abs(x - lx) <= Theme.sp(16) && Math.abs(y - ly) <= Theme.sp(9)) return e
@@ -369,15 +369,14 @@ Item {
     property real   _dragX:     0
     property real   _dragY:     0
     property string _dragTarget: ""
-    // A plain JS object for the life of the drag, cleared on release. Never re-queried per
-    // positionChanged — that is the shape this replaces.
-    property var    _refusals:  ({})
+    // A modelLinkRefusals (model_browser.h) for the life of the drag, cleared on release. Never
+    // re-queried per positionChanged — that is the shape this replaces.
+    property var    _refusals:  null
 
     readonly property bool _dragging: _armKind !== ""
 
     function _refusalOf(id) {
-        var r = root._refusals ? root._refusals[id] : null
-        return r ? r : null
+        return root._refusals && root._refusals.refuses(id) ? root._refusals.refusalOf(id) : null
     }
 
     property bool _firstHoldOfSession: true
@@ -471,7 +470,7 @@ Item {
                 z: selected ? 3 : 1
 
                 readonly property bool selected:
-                    modelData.rowId !== undefined
+                    !!modelData.rowId
                     && (modelData.rowId === root.selectedEdgeId
                         || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0)
                 // The selected edge must be identifiable ON THE CANVAS: drawn heavier, with the
@@ -556,10 +555,11 @@ Item {
                 required property var modelData
 
                 readonly property bool selected:
-                    modelData.rowId === root.selectedEdgeId
-                    || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0
+                    !!modelData.rowId
+                    && (modelData.rowId === root.selectedEdgeId
+                        || root.selectedEdgeIds.indexOf(modelData.rowId) >= 0)
 
-                visible: modelData.rowId !== undefined
+                visible: !!modelData.rowId
                 // Follows the line it names. `_nudgeRev` is passed as an ARGUMENT rather than read
                 // as a bare statement — a mention would be compiled away and this would subscribe
                 // to nothing, which is exactly the failure qml_reactivity_test exists to catch.
@@ -1739,7 +1739,7 @@ Item {
         root._armEnd    = end
         root._armEdgeId = edgeId
         root._refusals  = root.refusalsProbe
-                              ? root.refusalsProbe(fixed, root._conditionIds(), end) : ({})
+                              ? root.refusalsProbe(fixed, root._conditionIds(), end) : null
         var a = root._armAnchor()
         root._dragX = a.x
         root._dragY = a.y
@@ -1763,7 +1763,7 @@ Item {
         root._armKind = ""
         root._armFixed = ""
         root._armEdgeId = ""
-        root._refusals = ({})
+        root._refusals = null
         root._dragTarget = ""
         input.mode = "idle"
     }
@@ -1876,7 +1876,7 @@ Item {
         var edges = []
         for (var j = 0; j < root._edges.length; j++) {
             var e = root._edges[j]
-            if (e.rowId === undefined) continue
+            if (!e.rowId) continue
             // Nudged, exactly as the nodes above already are and as the label is drawn. A marquee
             // that swept the layout's original label points would take links whose word is no
             // longer inside the band and miss the ones that are.

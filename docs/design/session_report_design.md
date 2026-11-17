@@ -93,7 +93,15 @@ The mock is the reference for this section. Page numbers refer to it.
 nothing else.
 - Masthead: studio monogram or logo, studio name, coach and title, "Session report".
 - Kicker: date · club(s) · number of swings · "Session 3 of 3 today", when there were sibling
-  sessions that day. Then the golfer's name in display type.
+  sessions that day. Then the golfer's name in display type. The day and the session's place in it are
+  the session's own (`SessionIdentity`: its start time, or for a session older than step 2 the day its
+  folder's name records, under every naming pattern), never a folder name's first ten characters (step 2.7b,
+  F-06).
+- **Swing numbers.** Every swing the report names — the work-on runs, the swing grid's columns, the stills'
+  captions, the Posture, Wrist, Club delivery and Consistency pages, the launch monitor tables and notes — is
+  named by its **swing number**, the number on its carousel card and in the diagnostics panel (ID-SWING-NUMBER,
+  DEC-91; step 2.7b). A trashed swing leaves a gap: a session of swings 1, 2, 4, 5 reads "swing 4", never
+  "swing 3". Its place among the report's swings only lays the pages out.
 - **Headline:** one sentence from a template: *"{N} habits showed on {every/almost every} swing.
   We start with {part of the swing}: {goal of work-on 1}."* There are variants for a session
   with one habit, for a clean session, and for a session with too few swings (§3.1).

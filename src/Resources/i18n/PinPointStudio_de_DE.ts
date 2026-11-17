@@ -12001,6 +12001,10 @@ hier ist der Bericht zu deiner Session. Auf Seite 1 steht die Kurzfassung, deine
         <translation>Das Ende der Session konnte nicht gespeichert werden</translation>
     </message>
     <message>
+        <source>%1 could not be saved</source>
+        <translation>%1 konnte nicht gespeichert werden</translation>
+    </message>
+    <message>
         <source>Today&apos;s session could not be continued, so a new one started</source>
         <translation>Die heutige Session konnte nicht fortgesetzt werden, daher wurde eine neue gestartet</translation>
     </message>
@@ -13445,12 +13449,40 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
 <context>
     <name>SessionDiagnosticsModel</name>
     <message>
+        <source>It was saved by a newer version of PinPoint Studio, so this one only reads it.</source>
+        <translation>Sie wurde von einer neueren Version von PinPoint Studio gespeichert, daher liest diese sie nur.</translation>
+    </message>
+    <message>
+        <source>The session&apos;s club baseline</source>
+        <translation>Die Schläger-Basislinie der Session</translation>
+    </message>
+    <message>
+        <source>The focus, declared miss, screen answers and intent run</source>
+        <translation>Der Fokus, der angegebene Fehlschlag, die Screening-Antworten und der Intent-Lauf</translation>
+    </message>
+    <message>
+        <source>Shot %1 could not be found in this session&apos;s folder.</source>
+        <translation>Schlag %1 wurde im Ordner dieser Session nicht gefunden.</translation>
+    </message>
+    <message>
+        <source>A shot&apos;s intent or correction</source>
+        <translation>Die Absicht oder Korrektur eines Schlags</translation>
+    </message>
+    <message>
         <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
         <translation>Die Diagnosedatei konnte nicht gelesen oder beiseitegelegt werden. Prüfe das Laufwerk oder die Freigabe der Bibliothek.</translation>
     </message>
     <message>
         <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
         <translation>Die Diagnosedatei konnte nicht geöffnet werden. Prüfe das Laufwerk oder die Freigabe der Bibliothek.</translation>
+    </message>
+    <message>
+        <source>%1 could not be saved: %2</source>
+        <translation>%1 konnte nicht gespeichert werden: %2</translation>
+    </message>
+    <message>
+        <source>The session&apos;s diagnostics</source>
+        <translation>Die Diagnosedaten der Session</translation>
     </message>
 </context>
 <context>
@@ -16013,6 +16045,21 @@ Berichte, die von diesem Computer gesendet werden, kommen von %1.</translation>
     <message>
         <source>Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.</source>
         <translation>Sensor falsch angelegt (%1) – lege ihn nach der Gurtanleitung neu an und klicke auf „Neu kalibrieren“.</translation>
+    </message>
+</context>
+<context>
+    <name>WorkOnsController</name>
+    <message>
+        <source>The session&apos;s work-ons</source>
+        <translation>Die Work-ons der Session</translation>
+    </message>
+    <message>
+        <source>The swing summary</source>
+        <translation>Die Schwungzusammenfassung</translation>
+    </message>
+    <message>
+        <source>The athlete&apos;s tendencies</source>
+        <translation>Die Tendenzen des Athleten</translation>
     </message>
 </context>
 <context>

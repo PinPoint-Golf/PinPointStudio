@@ -182,42 +182,41 @@ static void testTrashPath()
     check(QStringLiteral("T2 a path that does not exist is refused"),
           !SwingPaths::trashPath(QStringLiteral("/no/such/path/anywhere-12345")));
 
+    // ⚠ NEVER THE OS TRASH: every trash here passes useOsTrash = false (step 3.4a, review round 3), so a run
+    // never puts a folder in the trash of the machine that runs it. The library-local trash is the very route a
+    // share without an OS trash takes, so it is the one tested: <root>/.pinpoint-trash/<athlete>/<stamp>_[<session>_]<name>.
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("T3"), QStringLiteral("no temp dir")); return; }
         const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 2);
         const QString swing   = session + QStringLiteral("/swing_0001");
         QString where;
-        const bool ok = SwingPaths::trashPath(swing, &where);
+        const bool ok = SwingPaths::trashPath(swing, &where, /*useOsTrash=*/false);
         check(QStringLiteral("T3 a swing folder can be trashed (to %1)").arg(where), ok);
         if (ok) {
             check(QStringLiteral("T4 it leaves its original location"), !TempLibrary::exists(swing));
             checkEqInt(QStringLiteral("T5 and its session keeps the others"),
                        TempLibrary::countSwings(session), 1);
+            const QString trash = lib.root() + QStringLiteral("/.pinpoint-trash/") + kToken + QLatin1Char('/');
+            check(QStringLiteral("T5b it is in the library's own trash, named for its session"),
+                  where.startsWith(trash) && TempLibrary::exists(where)
+                      && where.endsWith(QLatin1Char('_') + QFileInfo(session).fileName() + QStringLiteral("_swing_0001")));
         }
     }
 
     // The share case: no OS trash on the volume, so the folder must move into
     // the library-local .pinpoint-trash rather than being lost or left in place.
-    // Reachable only where the platform has no trash for the temp volume, so
-    // this reports SKIP rather than a false pass when the OS trash worked.
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("T6"), QStringLiteral("no temp dir")); return; }
         const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_02"), 1);
         QString where;
-        if (!SwingPaths::trashPath(session, &where)) {
-            check(QStringLiteral("T6 a session that cannot be trashed stays put"),
-                  TempLibrary::exists(session));
-        } else if (where == QStringLiteral("the system trash")) {
-            skip(QStringLiteral("T6 library-local trash fallback"),
-                 QStringLiteral("this volume has an OS trash, so the fallback never runs"));
-        } else {
-            check(QStringLiteral("T6 the fallback lands under .pinpoint-trash"),
-                  where.contains(QStringLiteral("/.pinpoint-trash/")));
-            check(QStringLiteral("T7 and the folder is recoverable there"),
-                  TempLibrary::exists(where));
-        }
+        const bool ok = SwingPaths::trashPath(session, &where, /*useOsTrash=*/false);
+        check(QStringLiteral("T6 the session lands under the library's own .pinpoint-trash (to %1)").arg(where),
+              ok && where.startsWith(lib.root() + QStringLiteral("/.pinpoint-trash/") + kToken + QLatin1Char('/'))
+                  && where.endsWith(QLatin1Char('_') + QFileInfo(session).fileName()));
+        check(QStringLiteral("T7 and the folder is recoverable there, gone from the library"),
+              ok && TempLibrary::exists(where) && !TempLibrary::exists(session));
     }
 }
 
@@ -287,6 +286,47 @@ static void testNames()
                SwingPaths::nextSessionCounter(lib.root() + QStringLiteral("/") + kToken, QStringLiteral("s")), 2);
 }
 
+// visitLibrarySwings (refactor step 3.9): the Diagnostic Model's library scans walk through it.
+static void testLibraryWalk()
+{
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("W1–W4"), QStringLiteral("no temp dir")); return; }
+    const QString root = lib.root();
+    // Two athletes, made out of order; sessions with swings out of order, a non-swing folder, a FILE named
+    // like a swing, an empty session, and a hidden folder at the top (the library's trash).
+    for (const char *d : { "zed/s_02/swing_0001", "ann/s_02/swing_0003", "ann/s_02/swing_0001", "ann/s_02/notes",
+                           "ann/s_01/swing_0002", "ann/s_03", ".pinpoint-trash/x/swing_0001" })
+        QDir().mkpath(root + QLatin1Char('/') + QLatin1String(d));
+    QFile f(root + QStringLiteral("/ann/s_01/swing_0004"));
+    check(QStringLiteral("W1 (setup) a file named swing_0004"), f.open(QIODevice::WriteOnly));
+    f.close();
+
+    QStringList seen;
+    SwingPaths::visitLibrarySwings(root, [&](const QString &session, const QString &swingDir) {
+        seen << session + QLatin1Char(':') + QDir(root).relativeFilePath(swingDir);
+        return true;
+    });
+    checkEq(QStringLiteral("W2 athlete, then session, then swing, each by name; only swing folders"),
+            seen.join(QLatin1Char(',')),
+            QStringLiteral("s_01:ann/s_01/swing_0002,s_02:ann/s_02/swing_0001,s_02:ann/s_02/swing_0003,"
+                           "s_02:zed/s_02/swing_0001"));
+
+    QStringList first;
+    SwingPaths::visitLibrarySwings(root, [&](const QString &, const QString &swingDir) {
+        first << QDir(root).relativeFilePath(swingDir);
+        return first.size() < 2;
+    });
+    checkEq(QStringLiteral("W3 the walk stops when the visitor says so"), first.join(QLatin1Char(',')),
+            QStringLiteral("ann/s_01/swing_0002,ann/s_02/swing_0001"));
+
+    int none = 0;
+    SwingPaths::visitLibrarySwings(root + QStringLiteral("/gone"), [&](const QString &, const QString &) {
+        ++none;
+        return true;
+    });
+    checkEqInt(QStringLiteral("W4 a missing library has no swings"), none, 0);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // QStandardPaths / QTemporaryDir
@@ -294,6 +334,7 @@ int main(int argc, char **argv)
     testSanitise();
     testTrashPath();
     testNames();
+    testLibraryWalk();
     std::printf("\n%d checks, %d failed, %d skipped\n", g_run, g_fail, g_skip);
     return g_fail == 0 ? 0 : 1;
 }

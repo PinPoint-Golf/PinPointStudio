@@ -46,7 +46,7 @@ import PinPointStudio
 Item {
     id: root
 
-    // Column specs and row maps, straight from the façade.
+    // Column specs and rows (ModelColumn, ModelRow), straight from the façade.
     property var columns: []
     property var rows:    []
 

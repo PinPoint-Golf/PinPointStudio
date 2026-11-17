@@ -232,7 +232,7 @@ private:
     void startSessionLoad();
     void adoptSession(std::shared_ptr<const SessionData> data, bool synchronous);
     void clearSessionFacts();
-    static std::shared_ptr<const SessionData> prepareSession(const QString &sessionDir, const QString &shotFolder,
+    static std::shared_ptr<const SessionData> prepareSession(const QString &sessionDir, int shotNumber,
                                                              std::shared_ptr<const SessionData> previous);
     void adopt(std::shared_ptr<const Prepared> p, quint64 generation);
     void evaluate();

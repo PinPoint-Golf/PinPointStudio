@@ -12001,6 +12001,10 @@ Voici le rapport de votre séance. La page 1 en donne l&apos;essentiel&#xa0;; vo
         <translation>La fin de la séance n&apos;a pas pu être enregistrée</translation>
     </message>
     <message>
+        <source>%1 could not be saved</source>
+        <translation>%1&#xa0;: enregistrement impossible</translation>
+    </message>
+    <message>
         <source>Today&apos;s session could not be continued, so a new one started</source>
         <translation>La séance du jour n&apos;a pas pu être reprise&#xa0;; une nouvelle séance a donc démarré</translation>
     </message>
@@ -13445,12 +13449,40 @@ Les rapports envoyés depuis cet ordinateur auront pour expéditeur %1.</transla
 <context>
     <name>SessionDiagnosticsModel</name>
     <message>
+        <source>It was saved by a newer version of PinPoint Studio, so this one only reads it.</source>
+        <translation>Il a été enregistré par une version plus récente de PinPoint Studio, cette version-ci ne fait donc que le lire.</translation>
+    </message>
+    <message>
+        <source>The session&apos;s club baseline</source>
+        <translation>La référence de club de la séance</translation>
+    </message>
+    <message>
+        <source>The focus, declared miss, screen answers and intent run</source>
+        <translation>Le focus, l&apos;erreur déclarée, les réponses aux écrans et l&apos;intention de la séance</translation>
+    </message>
+    <message>
+        <source>Shot %1 could not be found in this session&apos;s folder.</source>
+        <translation>Le coup %1 est introuvable dans le dossier de cette séance.</translation>
+    </message>
+    <message>
+        <source>A shot&apos;s intent or correction</source>
+        <translation>L&apos;intention ou la correction d&apos;un coup</translation>
+    </message>
+    <message>
         <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
         <translation>Son fichier de diagnostics n&apos;a pas pu être lu ou mis de côté. Vérifiez le lecteur ou le partage de la bibliothèque.</translation>
     </message>
     <message>
         <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
         <translation>Son fichier de diagnostics n&apos;a pas pu être ouvert. Vérifiez le lecteur ou le partage de la bibliothèque.</translation>
+    </message>
+    <message>
+        <source>%1 could not be saved: %2</source>
+        <translation>%1&#xa0;: enregistrement impossible (%2)</translation>
+    </message>
+    <message>
+        <source>The session&apos;s diagnostics</source>
+        <translation>Les diagnostics de la séance</translation>
     </message>
 </context>
 <context>
@@ -16013,6 +16045,21 @@ Les rapports envoyés depuis cet ordinateur auront pour expéditeur %1.</transla
     <message>
         <source>Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.</source>
         <translation>Capteur mal positionné (%1)&#xa0;: repositionnez-le selon le guide de fixation et cliquez sur «&#xa0;Réétalonner&#xa0;».</translation>
+    </message>
+</context>
+<context>
+    <name>WorkOnsController</name>
+    <message>
+        <source>The session&apos;s work-ons</source>
+        <translation>Les points de travail de la séance</translation>
+    </message>
+    <message>
+        <source>The swing summary</source>
+        <translation>Le résumé des swings</translation>
+    </message>
+    <message>
+        <source>The athlete&apos;s tendencies</source>
+        <translation>Les tendances de l&apos;athlète</translation>
     </message>
 </context>
 <context>

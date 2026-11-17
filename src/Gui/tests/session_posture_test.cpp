@@ -36,6 +36,7 @@
 //     butt line is refused it falls back to the hip joints under the ⚠, and the trust fold says which source.
 
 #include "charts/session_posture.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_series_model.h"
 #include "charts/session_series_types.h"
 #include "charts/session_wrist.h"
@@ -156,6 +157,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         warmWristBands();
         m_env = postureSharedEnv();
         QVERIFY(m_env->pack);

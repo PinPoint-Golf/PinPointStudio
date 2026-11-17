@@ -43,6 +43,10 @@ struct ClubBaselineEntry {
     double smashMean = std::numeric_limits<double>::quiet_NaN();           // for the waterfall
     double shaftAngleP4Mean = std::numeric_limits<double>::quiet_NaN();    // for swing length
     int    n = 0;              // qualifying shots
+
+    // EARNED (audit B-22, G-08; refactor step 3.5-ii): enough qualifying shots behind it to be a yardstick — the one
+    // rule every consumer of an entry asks (the carry waterfall, carry today, the reasons' cost, the history measures).
+    bool earned() const;
 };
 
 class IClubBaselineProvider {
@@ -52,6 +56,10 @@ public:
 };
 
 inline constexpr int kClubBaselineMinShots = 10;
+
+// The one "earned" rule over a count of qualifying shots (B-22): a usual behind fewer is not shown as one.
+inline constexpr bool clubUsualEarned(int qualifyingShots) { return qualifyingShots >= kClubBaselineMinShots; }
+inline bool ClubBaselineEntry::earned() const { return clubUsualEarned(n); }
 
 namespace detail {
 

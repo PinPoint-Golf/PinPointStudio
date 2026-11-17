@@ -31,6 +31,8 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QDir>
+#include <functional>
+#include <memory>
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
@@ -89,6 +91,9 @@
 #include "report/session_report_list_model.h"
 #include "report/report_mailer.h"
 #include "../Diagnostics/packs/pack_provider.h"
+#include "../DomainModel/rule_data.h"     // RuleData: the packs and norms, one per machine (step 3.2)
+#include "../Export/rule_data_install.h" // the process's one RuleData, over its store
+#include "../Metrics/metric_catalogue.h"
 #include "shot_controller.h"
 #include "shot_list_model.h"
 #include "../Export/swing_doc.h"
@@ -98,6 +103,14 @@
 #include "../Export/session_store.h"        // SessionRepository's adapter (step 2.2)
 #include "../Export/recording_loader.h"     // SwingStoreRecordingReader (by ShotRef, step 2.4)
 #include "../Export/athlete_store.h"        // AthleteRepository's adapter (step 2.3)
+#include "../App/housekeeping.h"             // the one application service that ends things for good (DEC-80)
+#include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
+#include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
+#include "../DomainModel/session.h"
+#include "../DomainModel/session_diagnostics.h"   // SessionDiagnostics::attach, diagnosticsWorkTarget (3.5-ii)
+#include "../Export/firing_reader_store.h"
+#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14)
+#include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
 #include "current_swing.h"
@@ -309,6 +322,19 @@ int main(int argc, char *argv[])
         }
     }
 
+    // THE PACKS AND NORMS, ONE OWNER (RuleData, refactor step 3.2; D5: DEC-170). Made here, on the GUI
+    // thread, before anything grades, so no reader ever builds them first on a worker (audit B-03); its
+    // store is the one door to <AppData>/diagnostics/, the shipped content and SET-06 / SET-15. Installed
+    // as the process's one for the readers not yet handed it (they read RuleData::current()), and as the
+    // source of the shared norm slot the analysis passes read. The metric catalogue rides in its snapshot
+    // (A-19). NEVER DESTROYED, as in the tools: a worker still holding a snapshot's reference when main
+    // returns (the global pool drains in ~QCoreApplication, after main's locals) must not read freed memory.
+    pinpoint::RuleData &ruleData = pinpoint::installProcessRuleData(
+        std::make_shared<const pinpoint::analysis::MetricCatalogue>(pinpoint::analysis::makeMetricCatalogue()));
+    // SET-06 and SET-15 stay where they are stored (the v1.9 reviewer's condition), and the settings page's
+    // two AppSettings properties become a view of RuleData: read from its snapshot, written through its
+    // commands, notified on its EVT-12 — so its repository is their only reader and writer.
+    appSettings.bindRuleData(&ruleData);
     // THE ONE DOOR TO A SESSION'S OWN FILES AND ITS SWING NUMBERS (SessionRepository, step 2.2): the
     // session file, Start / resume / End, and the one swing allocator (D10) — handed to the capture
     // pipeline and the launch monitor below. GUI thread only, except swingFolder (any thread), which
@@ -323,10 +349,20 @@ int main(int argc, char *argv[])
     // THE READING DOOR (RecordingReader, step 1.5; by ShotRef since 2.4): what re-analysis reads a
     // stored shot through.
     static pinpoint::SwingStoreRecordingReader recordingReader(sessionStore);
+    // A session a crash left in progress, ended by the athlete's next Start, gets its last swing's capture
+    // end, marked as inferred (J-18: Mark, 15 Nov 2026): read through the swing door, which owns the format.
+    sessionStore.setCaptureEndReader(&pinpoint::SwingStoreRecordingRepository::captureEndOf);
     // Storage panel: convert a JSON-era library to swing.ppsw, verified swing by swing.
     LibraryConverter         libraryConverter(&appSettings);
-    // Archiving tab: move sessions out of the library and back, the trash, hours of capture left.
+    // Archiving tab: move sessions out of the library and back, the trash, hours of capture left. Its "Empty now" and
+    // the startup pass forward to housekeeping (below, once the athlete callables exist).
     ArchiveController        archiveController(&appSettings);
+    // The session repository's worker-safe archive job (step 3.8): Session::archiveJob hands it out, housekeeping runs it.
+    // ⚠ A LINT DODGE, recorded for Mark with J-9 (3.8-i NOTES, round 3): the job is the archiver's
+    // (SessionArchiveRun::archiveInOwnRun), and the honest wiring is this file naming src/Export/session_archiver.h —
+    // lint A5's count for main.cpp 8 → 9, an allowlist change only Mark makes. Until he decides, it comes through the
+    // Archiving tab, which already includes the archiver.
+    sessionStore.setArchiveJobs(ArchiveController::archiveJobs());
     // Read-only app/build/dependency info for the About box (appInfo context property).
     AppInfo                  appInfo;
     SecretsBridge            secrets;
@@ -336,13 +372,97 @@ int main(int argc, char *argv[])
     LlmController           llmController(&appSettings);
     CameraManager           cameraManager(&eventBuffer, &appSettings);
     BufferController        bufferController(&eventBuffer);
+    // THE PARALLEL RUN (refactor step 3.5-ii; BRIEF §4.9; D14: DEC-179, off by default): with PINPOINT_DIAG_PARALLEL=1
+    // every session an Athlete loads (a live one, one a view opens) gets its new diagnostics owner, SessionDiagnostics,
+    // IN MEMORY ONLY (persist false: diagnostics.json and work_ons.json keep the old model as their one writer until
+    // the cut-over, 3.7), on the one pool (D15; J-3's size) with the GUI thread's receiver; after each reduction the
+    // old model settles, the two are compared and one line per session goes to the app log ("[DiagParallel]").
+    // Declared BEFORE the athlete store, so the receiver and the pool outlive every Athlete (DiagnosticsDoors).
+    const bool diagParallel = pinpoint::parallel::enabledByEnvironment();
+    std::function<pinpoint::WorkTarget(const pinpoint::WorkAddress &)> diagLookup;   // set once the store exists
+    std::unique_ptr<pinpoint::WorkReceiver> diagReceiver;   // made before the pool, destroyed after it
+    std::unique_ptr<pinpoint::WorkPool>     diagPool;
+    if (diagParallel) {
+        diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
+            return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
+        });
+        diagPool = std::make_unique<pinpoint::WorkPool>();
+    }
     // THE ONE DOOR TO THE ATHLETE'S RECORD (AthleteRepository, step 2.3): athlete.json in each athlete's
     // folder, or this machine's settings record until migration M1. GUI thread only; declared before the
     // controller, so it outlives every Athlete the controller holds.
     pinpoint::AthleteStore  athleteStore([&appSettings] { return appSettings.athleteLibraryPath(); }, &sessionStore);
+    // The doors the Athletes' sessions hand their shots (refactor step 3.4a): the one swing door and the one
+    // reading door above, shared, never owned (both are static and outlive every Athlete).
+    athleteStore.setShotDoors({ &recordingRepository,
+                                std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
+    if (diagParallel) {
+        diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
+            return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
+        };
+        pinpoint::DiagnosticsDoors doors;
+        doors.pool     = diagPool.get();
+        doors.receiver = diagReceiver.get();
+        doors.ruleData = &ruleData;
+        // IN MEMORY ONLY (§4.9): no diagnostics file (persist false) and no sidecar either (the reader writes none),
+        // so the old model stays the only writer of every file of the session during the parallel run.
+        doors.reader   = std::make_shared<pinpoint::SwingStoreFiringReader>(sessionStore, recordingRepository,
+                                                                            /*writeSidecars=*/false);
+        doors.persist  = false;
+        doors.attach   = &pinpoint::SessionDiagnostics::attach;
+        athleteStore.setDiagnosticsDoors(doors);
+    }
+    // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
+    // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library
+    // re-pointed needs no new ones). AthleteController takes them (run 3.4a-ii); the catch-up in step 3.6; housekeeping
+    // in step 3.8 (with its purge and size doors, below).
+    const pinpoint::AthleteCallables athleteCallables{
+        [&athleteStore] { return athleteStore.list(); },
+        [&athleteStore](const pinpoint::AthleteId &id) { return athleteStore.load(id); },
+        [&athleteStore](const pinpoint::AthleteRecord &record, pinpoint::WriteResult *result) {
+            const pinpoint::AthleteCreateResult made = athleteStore.create(record);
+            if (result)
+                *result = made.result;
+            return made.athlete;
+        },
+        [&athleteStore](const pinpoint::SessionOwner &owner) { return athleteStore.readActivity(owner); },   // thread-safe
+    };
+    // HOUSEKEEPING (refactor step 3.8; DEC-80, DEC-137): the one application service that ends things for good — the one
+    // purge, the startup pass (a session an Athlete holds archived through its Session) — and the library's size for the
+    // settings page (DEC-188). Its doors are the composition root's callables (D18 (c): DEC-167): the athlete callables
+    // above, and the purge and the size, carried out in Export (SwingPaths). The Archiving tab keeps a pointer (it is
+    // stopped after exec, before this goes); the settings page keeps a copy of the size door.
+    const pinpoint::Housekeeping housekeeping(pinpoint::HousekeepingDoors{
+        athleteCallables,
+        [](const QString &root, const QDateTime &cutoff) {
+            const pinpoint::SwingPaths::Purged p = pinpoint::SwingPaths::purgeTrash(root, cutoff);
+            return pinpoint::TrashPurge{ p.removed, p.failed };
+        },
+        [](const QString &root, const std::atomic_bool *abort) { return pinpoint::SwingPaths::libraryBytes(root, abort); },
+    });
+    appSettings.setLibrarySizer(housekeeping.librarySize());
+    archiveController.setHousekeeping(&housekeeping);
     AthleteController       athleteController;
-    athleteController.setRepositories(&athleteStore, &sessionStore);
-    // A legacy session's owner, for the swing door's edge translation (J-39, proposed, for Mark): the current
+    athleteController.setCallables(athleteCallables, &sessionStore);
+    // `app` (D1: DEC-164): app.sessionAt(folder), the Session of a folder a view still chooses itself, asked of
+    // the current athlete. No QML calls it yet (the panels move in step 3.7).
+    pinpoint::App           appObject([&athleteController] { return athleteController.currentAthlete(); });
+    // THE SHOT'S AND THE SESSION'S COMMANDS (refactor step 3.4b-i): today's writers of a shot's facts forward to
+    // them through `app` (ShotCommandDoor) and write nothing themselves. The diagnostics panel's model is made by
+    // QML, so its door is process-wide; reset after exec (it outlives this local).
+    SessionDiagnosticsModel::setShotCommands(&appObject);
+    if (diagParallel) {
+        pinpoint::parallel::install(
+            [&appObject](const QString &folder) { return appObject.sessionAt(folder); },
+            [&athleteController](const QString &folder) -> pinpoint::Session * {
+                pinpoint::Athlete *a = athleteController.currentAthlete();
+                if (!a) return nullptr;
+                for (pinpoint::Session *s : a->loadedSessions())
+                    if (const auto e = s->entry(); e && QDir::cleanPath(e->folder) == QDir::cleanPath(folder)) return s;
+                return nullptr;
+            });
+    }
+    // A legacy session's owner, for the swing door's edge translation (J-39; confirmed by Mark, 15 Nov 2026): the current
     // athlete when the folder is theirs — the athlete the session list derives the same D3 id from.
     // Reset before the controller goes (the door is static).
     recordingRepository.setOwnerOf([&athleteController](const QString &athleteFolder) {
@@ -389,6 +509,7 @@ int main(int argc, char *argv[])
     cameraManager.applyCaptureIntent();
     ShotListModel             shotModel;
     shotModel.setRecordingRepository(&recordingRepository);   // rating / note / club / board edits
+    shotModel.setShotCommands(&appObject);                     // … forwarded to the row's Shot (step 3.4b-i)
     // Bulk "export selected shots to a zip" for the carousel ⋯ menu — derives
     // everything from the shot dirs it is handed, so it needs no dependencies.
     pinpoint::SwingZipExporter swingZipExporter;
@@ -396,8 +517,7 @@ int main(int argc, char *argv[])
     // restart (read-only for now — SwingDocReader parses the unified swing.json;
     // rating/note aren't persisted yet so they come back cleared).
     {
-        const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName());
+        const QString sessionDir = pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder());
         shotModel.loadSessionDir(sessionDir);   // one disk-load path (also used on wrist entry)
         if (shotModel.activeCount())
             ppInfo() << "[Reload] restored" << shotModel.activeCount() << "shots from" << sessionDir;
@@ -495,19 +615,21 @@ int main(int argc, char *argv[])
         QObject::connect(&sessionController, &SessionController::activeSessionTypeChanged,
                          &sessionReportList, followLive);
         followLive();
-        sessionReportList.setGoalResolver(
-            [pack = std::shared_ptr<pinpoint::analysis::ICharacteristicPackProvider>()](const QString &id) mutable {
-                if (!pack) pack = pinpoint::analysis::makeCharacteristicPackProvider();
-                const pinpoint::analysis::Condition *c = pack->pack().condition(id);
-                return c ? c->goal : QString();
-            });
+        // The goal from the CURRENT snapshot, so a saved edit to a condition's goal reaches the list as it
+        // reaches a report made after it (audit B-02: this used to freeze a private pack at first use).
+        sessionReportList.setGoalResolver([&ruleData](const QString &id) {
+            const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = ruleData.snapshot();
+            const pinpoint::analysis::Condition *c = rules->pack->pack().condition(id);
+            return c ? c->goal : QString();
+        });
         QObject::connect(&workOns, &WorkOnsController::itemsChanged, &sessionReportList, &SessionReportListModel::refresh);
         QObject::connect(&workOns, &WorkOnsController::tendenciesLanded, &athleteController, &AthleteController::clubDistancesChanged);
         QTimer::singleShot(3'500, &sessionReportList, repoint);
     }
 
     // The startup housekeeping pass (trash retention, archive by age / below a floor), every part
-    // of it off until set. Deferred so it never competes with the launch itself.
+    // of it off until set — housekeeping's, run on the Archiving tab's worker. Deferred so it never competes with the
+    // launch itself.
     QTimer::singleShot(60'000, &archiveController, &ArchiveController::runHousekeeping);
     // Sessions and the live carousel are both athlete-scoped, but the reload above only
     // ever ran once, at startup — so switching athlete left BOTH showing the previous
@@ -517,9 +639,8 @@ int main(int argc, char *argv[])
     // currentAthleteChanged fires on a SWITCH only (step 2.3): a record edit never reloads the live
     // carousel mid-session (E-03), so no gate is needed.
     QObject::connect(&athleteController, &AthleteController::currentAthleteChanged,
-                     &shotModel, [&shotModel, &appSettings, &athleteController]() {
-        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(
-            appSettings.athleteLibraryPath(), QFileInfo(athleteController.currentFolder()).fileName()));
+                     &shotModel, [&shotModel, &athleteController]() {
+        shotModel.loadSessionDir(pinpoint::SwingDocReader::latestSessionDir(athleteController.currentFolder()));
     });
     // THE WRIST REFERENCE ★ ON THE ATHLETE'S RECORD (D5: DEC-152). The Charts views still carry it as
     // a swing folder (appSettings.wristReferenceSwingDir); the controller translates at its edge. A ★
@@ -568,7 +689,7 @@ int main(int argc, char *argv[])
                                             &appSettings, &athleteController,
                                             &sessionController, &shotModel);
     shotProcessor.setRecordingRepository(&recordingRepository);   // the live join's first write (step 1.5)
-    shotProcessor.setSessionRepository(&sessionStore);            // Start, End, every swing number (step 2.2)
+    shotProcessor.setSessionRepository(&sessionStore);            // the interim: a session no Athlete holds (3.4a-ii)
     // D7 (DEC-154): a library re-pointed mid-session ends the session and starts a new one, same type and
     // club, the declared focus carried — applying from the new session's first shot.
     QObject::connect(&shotProcessor, &ShotProcessor::sessionRestartedForLibrary, &sessionController,
@@ -597,9 +718,19 @@ int main(int argc, char *argv[])
                                                       &athleteController, &sessionController,
                                                       &cameraManager);
     launchMonitorController.setRecordingRepository(&recordingRepository);
-    // One allocator (D10): a standalone device-only shot goes into the running session.
-    launchMonitorController.setSessionRepository(&sessionStore);
-    launchMonitorController.setCaptureSession([&shotProcessor] { return shotProcessor.captureSession(); });
+    launchMonitorController.setShotCommands(&appObject);   // a late reading is its Shot's completeCapture (3.4b-i)
+    // One allocator (D10): a standalone device-only shot goes into the running session, added by the capture
+    // service to the Session it captures into (Session::addShot: DEC-142); its document's landing is EVT-01's
+    // moment (D19), reported back to that Session.
+    launchMonitorController.setShotMaker([&shotProcessor] {
+        pinpoint::SwingAllocation a;
+        shotProcessor.addDeviceOnlyShot(&a);
+        return LaunchMonitorController::NewShot{ a.ok() ? a.shot : pinpoint::ShotRef(), a.swingFolder, a.swingName,
+                                                 a.sessionFolderName, a.result.error };
+    });
+    launchMonitorController.setDocumentWritten([&shotProcessor](const pinpoint::ShotRef &shot) {
+        shotProcessor.shotDocumentWritten(shot);
+    });
     // Disk-backed replay of saved shots (MP4 + swing.json) — independent of the
     // live SwingWindow that ShotProcessor owns for the just-captured shot.
     ShotReplayController      shotReplay(&appSettings);
@@ -627,6 +758,9 @@ int main(int argc, char *argv[])
     ReanalysisController      reanalysisController;
     reanalysisController.setRecordingRepository(&recordingRepository);
     reanalysisController.setRecordingReader(&recordingReader);
+    // A held shot is read through its Shot's RecordingSource and written back by Shot::applyAnalysis (EVT-02;
+    // refactor step 3.4b-ii); a shot no Session holds keeps the two doors above (N1).
+    reanalysisController.setShotCommands(&appObject);
     // Storage → Save pose keypoints, honoured by the write-back as by the live save (asked at each
     // write, on the GUI thread).
     reanalysisController.setPersistOptions([&appSettings] {
@@ -643,6 +777,7 @@ int main(int argc, char *argv[])
     // queue still owes a write is refused with the reason.
     for (ShotListModel *m : { &shotModel, qobject_cast<ShotListModel *>(sessionReviewController.shots()) }) {
         if (!m) continue;
+        m->setShotCommands(&appObject);   // the rating, note, club and board edits go to the row's Shot (3.4b-i)
         m->setFolderReleaser([&shotReplay](const QString &dir) {
             if (shotReplay.active() && QDir::cleanPath(shotReplay.swingDir()) == QDir::cleanPath(dir)) {
                 ppInfo() << "[ShotListModel] stopping the replay to release" << dir;
@@ -858,6 +993,18 @@ int main(int argc, char *argv[])
             n.kind     = N::Event;
             n.title    = QObject::tr("The session's end could not be saved");
             n.detail   = error;
+            notificationCenter.post(n);
+        });
+        // A session's work-ons record, or the athlete's swing summary or tendencies, could not be saved
+        // (DEC-126; step 2.5): said, one notice per folder, so a failure that repeats is one notice.
+        QObject::connect(&workOns, &WorkOnsController::storageProblem, &notificationCenter,
+                         [&notificationCenter](const QString &what, const QString &where, const QString &why) {
+            N::Notification n;
+            n.id       = QStringLiteral("storage.workons.failed:") + where;
+            n.severity = N::Warn;
+            n.kind     = N::Event;
+            n.title    = QObject::tr("%1 could not be saved").arg(what);
+            n.detail   = why;
             notificationCenter.post(n);
         });
         // "Continue today's session" refused or not saved (DEC-126): a new session started instead, and
@@ -1162,6 +1309,7 @@ int main(int argc, char *argv[])
     auto *markupProvider = new MarkupImageProvider();
     markupController.setImageProvider(markupProvider);
     markupController.setRecordingRepository(&recordingRepository);   // the truth through the door (2.4)
+    markupController.setShotCommands(&appObject);   // … saved by the swing's Shot when a Session holds it (3.4b-i)
     engine.addImageProvider(QStringLiteral("markup"), markupProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("appSettings"),       &appSettings);
     engine.rootContext()->setContextProperty(QStringLiteral("libraryConverter"),  &libraryConverter);
@@ -1169,6 +1317,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("appInfo"),           &appInfo);
     engine.rootContext()->setContextProperty(QStringLiteral("secrets"),           &secrets);
     engine.rootContext()->setContextProperty(QStringLiteral("athleteController"), &athleteController);
+    engine.rootContext()->setContextProperty(QStringLiteral("app"),               &appObject);
     engine.rootContext()->setContextProperty(QStringLiteral("navController"),     &navController);
     engine.rootContext()->setContextProperty(QStringLiteral("imuManager"),       &imuManager);
     engine.rootContext()->setContextProperty(QStringLiteral("trunkCeremony"),    &trunkCeremony);
@@ -1262,6 +1411,7 @@ int main(int argc, char *argv[])
     static PpcpClipFiler ppcpClipFiler;
     ppcpClipFiler.setLedger(&ppcpHost.ledger());
     ppcpClipFiler.setRecordingRepository(&recordingRepository);
+    ppcpClipFiler.setShotCommands(&appObject);   // a clip's late part is its Shot's completeCapture (3.4b-i)
     // MSG 8.4a — the owed `capture_committed` goes out on the next tick, but a
     // clip that has just been flushed to disk should not wait 20 ms to be
     // acknowledged when the link is right here.
@@ -1523,6 +1673,11 @@ int main(int argc, char *argv[])
     });
 
     exitCode = QCoreApplication::exec();
+    archiveController.stopJobs();         // its housekeeping pass reaches the Athletes: stopped before they go (step 3.8)
     recordingRepository.setOwnerOf({});   // the controller it asks is a local of main (J-39 resolver)
+    SessionDiagnosticsModel::setShotCommands(nullptr);   // `app` is a local of main (step 3.4b-i)
+    pinpoint::parallel::uninstall();                     // `app` and the controller are locals of main (3.5-ii)
+    diagLookup = {};                                     // a result still queued finds no owner (the store goes first)
+    ppcpClipFiler.setShotCommands(nullptr);              // a static: it outlives `app`
     return exitCode;
 }

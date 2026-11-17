@@ -239,9 +239,14 @@ public:
     // (§6.1 "sized for 50+ shots") and the app-log line; not an allocator's figure.
     static qint64 approxBytes(const ShotSeries &shot);
 
-    // The ledger's shot id for a swing folder (swing_0007 → 7), −1 when the name carries none.
-    // The same rule SessionDiagnosticsModel's folderShotId() applies.
+    // The ledger's shot id for a swing folder — its swing number (swing_0007 → 7), −1 when it is not a
+    // swing folder: SwingPaths::swingNumberOf, the rule SessionDiagnosticsModel applies (step 2.7a/b).
     static int folderShotId(const QString &swingDir);
+    // "shot 3, 18 Aug 2026": which swing a swing folder is, for a label (the Charts reference ★): its swing
+    // number and its session's day — SessionIdentity's (the session file's start, else the day a legacy
+    // folder's name records, under every naming pattern: F-06), never a folder name parsed here (step 2.7b).
+    // A part that is unknown is left out.
+    static QString swingLabelOf(const QString &swingDir);
 
 signals:
     void sessionChanged();

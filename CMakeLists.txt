@@ -713,8 +713,12 @@ qt_add_executable(PinPointStudio
     $<$<BOOL:${APPLE}>:${CMAKE_CURRENT_SOURCE_DIR}/src/Resources/icons/PinPointStudio.icns>
     $<$<BOOL:${WIN32}>:${CMAKE_CURRENT_SOURCE_DIR}/PinPointStudio.rc>
     src/Gui/app/app_settings.h               src/Gui/app/app_settings.cpp
+    src/Gui/app/app_settings_rule_data.cpp   # SET-06 / SET-15 as a view over RuleData (step 3.2)
     src/Gui/settings/library_converter.h     src/Gui/settings/library_converter.cpp
     src/Gui/settings/archive_controller.h    src/Gui/settings/archive_controller.cpp
+    # Housekeeping, the one application service that ends things for good (refactor step 3.8; DEC-80), over the
+    # composition root's callables (D18 (c): DEC-167). The Archiving tab forwards to it.
+    src/App/housekeeping.h                   src/App/housekeeping.cpp
     src/Gui/app/notification_center.h        src/Gui/app/notification_center.cpp
     src/Gui/shot/ppcp_clip_filer.h           src/Gui/shot/ppcp_clip_filer.cpp
     src/Gui/imu/imu_manager.h                src/Gui/imu/imu_manager.cpp
@@ -2810,6 +2814,10 @@ target_sources(PinPointStudio PRIVATE
     src/Export/session_store.h
     src/Export/session_store.cpp
     src/Export/session_files.h
+    # The session's diagnostics files and the golfer's input, one reader and writer (refactor step 2.5).
+    src/Export/session_diagnostics_files.h
+    src/Export/session_diagnostics_io.h   # its file work, shared with the session store (step 3.4a, J-42)
+    src/DomainModel/session_input.h
     # The athlete's record and its one door (refactor step 2.3): AthleteRepository's adapter and the
     # athlete files' names; the Athlete (Domain model) below.
     src/Export/athlete_store.h
@@ -2948,6 +2956,7 @@ target_sources(PinPointStudio PRIVATE
     # The analysis service and the one integrity rule (refactor step 1.5), the reading interface the
     # service loads a stored shot through, and the pipeline's one rebase to window time.
     src/DomainModel/recording_reader.h
+    src/DomainModel/recording_source.h
     src/Analysis/analysis_service.h
     src/Analysis/analysis_service.cpp
     src/Analysis/recording_integrity.h
@@ -2966,6 +2975,40 @@ target_sources(PinPointStudio PRIVATE
     src/DomainModel/athlete.h
     src/DomainModel/athlete.cpp
     src/DomainModel/athlete_repository.h
+    # The Session and its Shots (refactor step 3.4a; Domain model) and `app` (D1; Application, src/App).
+    src/DomainModel/session.h
+    src/DomainModel/session.cpp
+    src/DomainModel/shot.h
+    src/DomainModel/shot.cpp
+    # The session's diagnostics owner (refactor step 3.5; Domain model), its firing reader (Adapters), the pure
+    # session reduction (Rules), the typed results (Rules) and the one pool (Platform, D15) — the app runs them only
+    # with PINPOINT_DIAG_PARALLEL=1 until the cut-over (3.7).
+    src/DomainModel/session_diagnostics.h
+    src/DomainModel/session_diagnostics.cpp
+    src/DomainModel/firing_reader.h
+    src/DomainModel/golfer_input_rules.h
+    src/Export/firing_reader_store.h
+    src/Export/firing_reader_store.cpp
+    src/Diagnostics/engine/session_reduction.h
+    src/Diagnostics/engine/session_reduction.cpp
+    src/Coaching/session_results.h
+    src/Core/work_pool.h
+    src/Core/work_pool.cpp
+    # The athlete level's derived owner (refactor step 3.6; Domain model: the club baseline a session freezes, the
+    # athlete work-ons, the distances, from the summaries) and the catch-up service (Application) — wired to Home at
+    # the catch-up's cut-over (3.7). The launch monitor board's annotations, read by every reduction (Rules).
+    src/DomainModel/athlete_diagnostics.h
+    src/DomainModel/athlete_diagnostics.cpp
+    src/App/athlete_catch_up.h
+    src/App/athlete_catch_up.cpp
+    src/Coaching/board_annotations.h
+    # The parallel run (refactor 3.5-ii; D14: PINPOINT_DIAG_PARALLEL=1): the two engines' form and their difference.
+    # The app's (and regrade_ledger's) only — NOT a QML type, so not in PP_QML_SOURCES: the QML suites, which compile
+    # the module's C++ without the session diagnostics owner, need none of it.
+    src/Gui/diagnostics/diag_parallel_run.h
+    src/Gui/diagnostics/diag_parallel_run.cpp
+    src/App/app.h
+    src/App/app.cpp
     src/Analysis/effective_context.h
     src/Analysis/effective_context.cpp
     src/Analysis/reuse_gate.h
@@ -3311,6 +3354,31 @@ if(PINPOINT_BUILD_STORAGE_TOOLS)
         src/Buffer src/Export src/LaunchMonitor src/Core)
     target_link_libraries(backfill_analysis_context PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
     message(STATUS "Storage tools: backfill_analysis_context enabled")
+
+    # pps_migrate_step2: the step-2 data migrations M1-M4 (refactor step 2.8a; build/refactor/step-2/BRIEF.md
+    # §5.1) — athlete.json, session.json, the golfer's input out of diagnostics.json, the Wrist ★. A dry run
+    # unless --write, which refuses a library outside the share's scratch folder without Mark's approval flag.
+    # Its engine (migrate_step2.*) is shared with migrate_step2_test (the tests tree, Analysis suite).
+    add_executable(pps_migrate_step2
+        tools/migrate/pps_migrate_step2.cpp
+        tools/migrate/migrate_step2.cpp tools/migrate/migrate_step2.h
+        src/DomainModel/athlete.h src/DomainModel/athlete.cpp src/Export/athlete_store.cpp   # AthleteRecord
+        src/DomainModel/session.h src/DomainModel/session.cpp src/DomainModel/shot.h src/DomainModel/shot.cpp   # the Athlete's sessions (3.4a)
+        src/Export/session_store.cpp src/DomainModel/session_identity.cpp src/Core/folder_lock.cpp
+        src/Identity/identity.h
+        src/Export/swing_doc_writer.cpp src/Export/swing_store_repository.cpp
+        src/Export/swing_doc_reader.cpp
+        src/Export/swing_doc_analysis.cpp
+        src/Export/recording_header.cpp src/Analysis/effective_context.cpp
+        src/Export/swing_paths.cpp
+        src/LaunchMonitor/launch_monitor_reading.cpp
+        src/Core/pp_log_stream.cpp
+        src/Core/PpMessageLog.cpp
+    )
+    target_include_directories(pps_migrate_step2 PRIVATE
+        src src/Buffer src/Export src/LaunchMonitor src/Core src/Analysis)
+    target_link_libraries(pps_migrate_step2 PRIVATE Qt6::Core Qt6::Gui pinpoint_swingstore)
+    message(STATUS "Storage tools: pps_migrate_step2 enabled")
 endif()
 
 # ── SwingLab offline tools (docs/implementation/swinglab_impl.md) ─────────────
@@ -3340,6 +3408,7 @@ if(PINPOINT_BUILD_TOOLS)
         src/Analysis/analysis_service.cpp   # the analysis service (step 1.5)
         src/Analysis/recording_integrity.cpp   # the one integrity rule (step 1.5)
         src/Export/recording_loader.cpp     # the swing folder → the Recording (step 1.2)
+        src/Export/swing_folder_reanalysis.cpp   # a folder re-analysed by its path (refactor step 3.4b-ii)
         src/Export/session_store.cpp        # the session store SwingLab names its ShotRef through (2.4)
         src/DomainModel/session_identity.cpp
         src/Core/folder_lock.cpp

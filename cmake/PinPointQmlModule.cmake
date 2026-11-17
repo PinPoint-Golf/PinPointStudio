@@ -690,6 +690,8 @@ set(PP_QML_SOURCES
     src/Diagnostics/engine/characteristic_engine.cpp
     src/Diagnostics/engine/relation_resolver.h
     src/Diagnostics/engine/relation_resolver.cpp
+    src/Diagnostics/engine/fire_findings.h
+    src/Diagnostics/engine/fire_findings.cpp
     src/Diagnostics/engine/dag_layout.h
     src/Diagnostics/engine/dag_layout.cpp
     src/Diagnostics/norms/norm.h
@@ -717,8 +719,15 @@ set(PP_QML_SOURCES
     src/Diagnostics/norms/resource_norm_provider.cpp
     src/Diagnostics/norms/file_norm_provider.cpp
     src/Diagnostics/norms/merged_norm_provider.cpp
-    src/Gui/diagnostics/wrist_diagnostics_model.h
-    src/Gui/diagnostics/wrist_diagnostics_model.cpp
+    src/Diagnostics/packs/layered_set.h
+    # The packs and norms under one owner (refactor step 3.2; D5: DEC-170): RuleData, its repository
+    # interface, and the store that is the one door to their files.
+    src/DomainModel/rule_data_repository.h
+    src/DomainModel/rule_data.h
+    src/DomainModel/rule_data.cpp
+    src/Export/rule_data_store.h
+    src/Export/rule_data_store.cpp
+    src/Export/rule_data_install.h
     src/Gui/diagnostics/session_diagnostics_model.h
     src/Gui/diagnostics/session_spread.h
     src/Gui/diagnostics/session_diagnostics_model.cpp

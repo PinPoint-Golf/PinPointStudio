@@ -127,10 +127,11 @@ public:
     Q_INVOKABLE QVariantList swingDirsForSession(const QString &sessionId) const;
 
     // Move a whole saved session folder to the OS trash (recoverable there — the
-    // same recovery path as the carousel's per-shot trash) and rebuild the list.
-    // No-op (false) for the live row, the live session's own folder (logged) or a
-    // path that can't be trashed; if the trashed session was being reviewed,
-    // falls back to live. Returns true on success.
+    // same recovery path as the carousel's per-shot trash) and rebuild the list,
+    // through SessionRepository::trash by the session's SessionId (step 2.6).
+    // No-op (false) for the live row, the live session's own folder (logged), a
+    // session its session file says is in progress, or one that can't be trashed;
+    // if the trashed session was being reviewed, falls back to live. True on success.
     Q_INVOKABLE bool trashSession(const QString &sessionId);
 
 public slots:

@@ -23,7 +23,6 @@
 #include "analysis_service.h"      // the run and the integrity verdicts (step 1.5)
 #include "effective_context.h"
 #include "reuse_gate.h"           // the one reuse gate (step 1.6)
-#include "../Export/recording_loader.h"   // the swing folder → the Recording (step 1.2)
 #include "../Ball/ball_runner.h"
 #include "../Pose/pose_runner.h"
 
@@ -40,7 +39,7 @@ namespace pinpoint::analysis {
 namespace {
 
 // The job from a loaded Recording, through the ONE builder, and the LoadedSwing around it.
-LoadedSwing fromRecording(LoadedRecording lr)
+LoadedSwing jobFromRecording(LoadedRecording lr)
 {
     LoadedSwing out;
     if (!lr.ok) {
@@ -55,7 +54,7 @@ LoadedSwing fromRecording(LoadedRecording lr)
     // ladder while its pose and ball are reused.
     const EffectiveContext effective = effectiveContext(lr.recording.context, lr.review);
     RunOptions run;
-    run.origin = QStringLiteral("replay");   // reanalyzeSwingDir says otherwise for itself
+    run.origin = QStringLiteral("replay");   // reanalyzeLoaded says otherwise for itself
     out.job = buildAnalysisJob(lr.recording, effective, run);
     out.clubCorrected = effective.club.corrected;
 
@@ -80,7 +79,9 @@ LoadedSwing fromRecording(LoadedRecording lr)
     return out;
 }
 
-RecordingLoadOptions recordingLoadOptions(const SwingLoadOptions& opts)
+} // namespace
+
+RecordingLoadOptions SwingDiskLoader::loadOptions(const SwingLoadOptions& opts)
 {
     RecordingLoadOptions ro;
     ro.faceOnSubstring = opts.faceOnSubstring;
@@ -89,44 +90,27 @@ RecordingLoadOptions recordingLoadOptions(const SwingLoadOptions& opts)
     return ro;
 }
 
-} // namespace
-
-// The Recording loader is the store's (src/Export/recording_loader.*, step 1.2); this builds the job
-// from the Recording through the ONE builder.
-LoadedSwing SwingDiskLoader::load(const QString& swingDir, const SwingLoadOptions& opts)
+LoadedSwing SwingDiskLoader::fromRecording(LoadedRecording loaded)
 {
-    return fromRecording(loadRecording(swingDir, recordingLoadOptions(opts)));
+    return jobFromRecording(std::move(loaded));
 }
 
-
-LoadedSwing SwingDiskLoader::load(RecordingReader& reader, const ShotRef& shot, const SwingLoadOptions& opts)
+// Through the shot's RecordingSource (refactor step 3.4b-ii): the one reader, whose store adapter is the Recording
+// loader (src/Export/recording_loader.*, step 1.2); this builds the job from the Recording through the ONE builder.
+LoadedSwing SwingDiskLoader::load(const RecordingSource& source, const SwingLoadOptions& opts)
 {
-    return fromRecording(reader.load(shot, recordingLoadOptions(opts)));
+    return fromRecording(source.read(loadOptions(opts)));
 }
 
-namespace {
-// The re-analysis of a loaded swing: everything after the read, whichever door the swing came in by.
-// `label` names the swing in the log (its folder, or its ShotRef).
-ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label);
-} // namespace
-
-ReanalyzeResult reanalyzeSwingDir(const QString& swingDir, const ReanalyzeOptions& opts)
+ReanalyzeResult reanalyzeShot(const RecordingSource& source, const ReanalyzeOptions& opts)
 {
     // The overrides reach the loader too: the MP4 readers it builds take the decode.*
     // keys (everything else in the map is applied by the stages, below).
     SwingLoadOptions lopts;
     lopts.tuningOverrides = opts.tuningOverrides;
-    return reanalyzeLoaded(SwingDiskLoader::load(swingDir, lopts), opts, swingDir);
+    return reanalyzeLoaded(SwingDiskLoader::load(source, lopts), opts, source.shot().toString());
 }
 
-ReanalyzeResult reanalyzeShot(RecordingReader& reader, const ShotRef& shot, const ReanalyzeOptions& opts)
-{
-    SwingLoadOptions lopts;
-    lopts.tuningOverrides = opts.tuningOverrides;
-    return reanalyzeLoaded(SwingDiskLoader::load(reader, shot, lopts), opts, shot.toString());
-}
-
-namespace {
 ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, const QString& label)
 {
     ReanalyzeResult out;
@@ -288,6 +272,5 @@ ReanalyzeResult reanalyzeLoaded(LoadedSwing ls, const ReanalyzeOptions& opts, co
 
     return out;
 }
-} // namespace
 
 } // namespace pinpoint::analysis

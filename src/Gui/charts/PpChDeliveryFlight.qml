@@ -44,15 +44,16 @@ Column {
     // a degree figure by the house rules (PpTypeset's figure / figureSigned + withUnit, figure_format.h's twins):
     // "+3.2°", "−3°", "0°" (rounds to zero: no sign), "-" when missing
     function deg(v, dp, signed) { return ok ? roles.withUnit(signed ? roles.figureSigned(v, dp) : roles.figure(v, dp), "°") : "-" }
-    // the session a dot of another session came from: its folder's trailing number ("…_Wrist_02" → "session 2")
-    function sessionWord(name) { const m = String(name || "").match(/_(\d+)$/); return m ? "session " + Number(m[1]) : "another session" }
     readonly property var sc: ok ? (flight.scatter || null) : null
     readonly property bool xSigned: !!sc && String(sc.xLabel || "").toLowerCase().indexOf("steepening") >= 0
     readonly property var adapted: {
         if (!sc || sc.xLo === null || sc.xLo === undefined || sc.yLo === null || sc.yLo === undefined) return null
         const pts = (sc.points || []).filter(function (p) { return p.x !== null && p.y !== null && p.x !== undefined && p.y !== undefined })
             .map(function (p) {
-                const who = p.thisSession ? "Shot " + p.ordinal : fb.sessionWord(p.session) + ", shot " + p.ordinal
+                // "Shot N" is the swing number (p.shotNo); another session is named by its place in the day (p.sessionLabel,
+                // "session 2": SessionIdentity's n-of-day) — the presenter's words, never read off a folder name here (step 2.7b)
+                const no = p.shotNo || p.ordinal
+                const who = p.thisSession ? "Shot " + no : (p.sessionLabel || "another session") + ", shot " + no
                 return { ordinal: p.thisSession ? p.ordinal : -1, x: p.x, y: p.y, faint: p.thisSession !== true, ring: p.picked === true,
                          label: who + "   " + fb.deg(p.x, 0, fb.xSigned) + " → " + fb.deg(p.y, 1, true) }
             })

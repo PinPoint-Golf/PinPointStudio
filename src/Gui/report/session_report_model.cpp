@@ -17,6 +17,7 @@
  */
 
 #include "session_report_model.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "report_meta.h"
 #include "report_lm.h"
@@ -59,6 +60,7 @@
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Export/swing_paths.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/session_diagnostics_files.h"   // work_ons.json's one reader (step 2.5)
 #include "../../LaunchMonitor/launch_monitor_reading.h"
 #include "../../LaunchMonitor/lm_session_reductions.h"
 
@@ -145,7 +147,7 @@ QVector<DocFacts> readDocs(const QString &sessionDir)
 {
     QVector<DocFacts> out;
     const QDir d(sessionDir);
-    const QStringList swings = d.entryList(QStringList{ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
     for (const QString &name : swings) {
         const QString dir = d.filePath(name);
         if (!pinpoint::SwingStore::hasDocument(dir)) continue;
@@ -219,14 +221,26 @@ int checkCode(R::CouldBeCheck c)
     }
 }
 
-QDate dateOfFolder(const QString &sessionDir)
+// The session's day: SessionIdentity's (step 2.7b, F-06) — its session file's start, in the local zone, or for a
+// session older than step 2 the day its folder's name records, under every naming pattern; never the name's first
+// ten characters read here (which `name-date-type` never starts with, so its report had no day). Invalid when
+// neither is known.
+QDate sessionDayOf(const QString &sessionDir)
 {
-    return QDate::fromString(QFileInfo(sessionDir).fileName().left(10), Qt::ISODate);
+    return pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir).localDay();
 }
 
+// An athlete folder as a lookup key: absolute and cleaned ("" for none), so the folder an Athlete holds and the
+// parent of a session folder compare as the same place however each was spelled.
+QString athleteFolderKey(const QString &folder)
+{
+    return folder.trimmed().isEmpty() ? QString() : QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
+}
+
+// SET-15 as RuleData holds it (refactor step 3.2: its repository is the one reader of the settings key).
 QString gradePolicyName()
 {
-    const QString p = ppSettings().value(QStringLiteral("ui/diagnosticsGradePolicy"), QStringLiteral("standard")).toString();
+    const QString p = pinpoint::RuleData::current()->gradePolicy;
     return p.isEmpty() ? QStringLiteral("standard") : p;
 }
 
@@ -314,30 +328,16 @@ QString SessionReportModel::contentStamp() const
 
 // ── Cheap reads: preflight, state, the fingerprint ───────────────────────────────────────────────
 
-QVariantMap SessionReportModel::athleteFor(const QString &sessionDir, const QString &uuid, const QString &name) const
+QVariantMap SessionReportModel::athleteFor(const QString &sessionDir) const
 {
-    if (!m_athletes) return {};
-    if (!uuid.isEmpty()) {
-        const QVariantMap d = m_athletes->reportDetails(uuid);
-        if (!d.isEmpty()) return d;
-    }
-    if (!name.isEmpty()) {
-        const QVariantMap d = m_athletes->reportDetails(name);
-        if (!d.isEmpty()) return d;
-    }
-    // The library names the athlete's folder after the sanitised name.
-    const QString folder = QFileInfo(QFileInfo(sessionDir).absolutePath()).fileName();
-    for (const QVariant &v : m_athletes->athletes()) {
-        const QVariantMap a = v.toMap();
-        const QString n = a.value(QStringLiteral("name")).toString();
-        if (!n.isEmpty() && pinpoint::SwingPaths::sanitise(n) == folder)
-            return m_athletes->reportDetails(a.value(QStringLiteral("uuid")).toString());
-    }
-    return {};
+    // The athlete whose folder the session is in, by the folder each Athlete holds (D4), and only that (E-02;
+    // J-66, step 2.8b). Not the name a folder or a swing spells — a RENAMED athlete's old name can be another
+    // athlete's now — and not the uuid a swing recorded, which may be the capturing machine's (H-09).
+    return m_athletes ? m_athletes->reportDetailsForSession(sessionDir) : QVariantMap();
 }
 
-// The photo decision for a session (§7.3), off the folder's date so that state() can answer without a
-// swing document: the date in a session folder's name IS its first swing's day (SwingPaths names it so).
+// The photo decision for a session (§7.3), off the session's day (sessionDayOf) so that state() can answer
+// without a swing document: a session's day IS its first swing's day.
 static R::PhotoDecision photoDecisionFor(const QVariantMap &athlete, const QDate &sessionDate)
 {
     const QDate dob = QDate::fromString(athlete.value(QStringLiteral("dob")).toString().trimmed(), Qt::ISODate);
@@ -348,7 +348,7 @@ static R::PhotoDecision photoDecisionFor(const QVariantMap &athlete, const QDate
 // copy fingerprintFunction() hands to another thread.
 static QString inputsStampOf(const QString &studioStamp, const QVariantMap &athlete, const QString &sessionDir)
 {
-    const R::PhotoDecision p = photoDecisionFor(athlete, dateOfFolder(sessionDir));
+    const R::PhotoDecision p = photoDecisionFor(athlete, sessionDayOf(sessionDir));
     return studioStamp + QStringLiteral("|photos:%1:%2").arg(p.included ? 1 : 0).arg(int(p.reason));
 }
 
@@ -364,21 +364,19 @@ QString SessionReportModel::fingerprintOf(const QString &sessionDir) const
 
 M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
 {
-    // athleteFor(dir)'s folder lookup, done for every athlete now: the first whose sanitised name is
-    // the folder's wins, as there.
+    // athleteFor(dir)'s folder lookup (AthleteController::reportDetailsForSession), done for every athlete now:
+    // by the folder each Athlete holds (J-29, J-66), the first athlete listed for a folder winning, as there.
     QHash<QString, QVariantMap> byFolder;
     if (m_athletes) {
         for (const QVariant &v : m_athletes->athletes()) {
-            const QVariantMap a = v.toMap();
-            const QString n = a.value(QStringLiteral("name")).toString();
-            if (n.isEmpty()) continue;
-            const QString folder = pinpoint::SwingPaths::sanitise(n);
-            if (!byFolder.contains(folder))
-                byFolder.insert(folder, m_athletes->reportDetails(a.value(QStringLiteral("uuid")).toString()));
+            const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
+            const QString folder = uuid.isEmpty() ? QString() : athleteFolderKey(m_athletes->folderOf(uuid));
+            if (!folder.isEmpty() && !byFolder.contains(folder))
+                byFolder.insert(folder, m_athletes->reportDetails(uuid));
         }
     }
     return [studio = m_studio ? m_studio->stamp() : QString(), content = contentStamp(), byFolder](const QString &dir) {
-        const QVariantMap athlete = byFolder.value(QFileInfo(QFileInfo(dir).absolutePath()).fileName());
+        const QVariantMap athlete = byFolder.value(athleteFolderKey(QFileInfo(dir).absolutePath()));
         return M::reportFingerprint(dir, kWorkOnRuleVersion, content, inputsStampOf(studio, athlete, dir));
     };
 }
@@ -408,11 +406,11 @@ QVariantMap SessionReportModel::preflight(const QString &sessionDir) const
 {
     const QDir d(sessionDir);
     int swings = 0;
-    for (const QString &name : d.entryList(QStringList{ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot))
+    for (const QString &name : pinpoint::SwingPaths::swingFolders(sessionDir))
         if (pinpoint::SwingStore::hasDocument(d.filePath(name))) ++swings;
 
     const QVariantMap athlete = athleteFor(sessionDir);
-    const R::PhotoDecision p = photoDecisionFor(athlete, dateOfFolder(sessionDir));
+    const R::PhotoDecision p = photoDecisionFor(athlete, sessionDayOf(sessionDir));
     QString first = athlete.value(QStringLiteral("greeting")).toString();
     if (first.isEmpty()) first = QStringLiteral("The golfer");
     const QDate approvedOn = QDate::fromString(athlete.value(QStringLiteral("photosApprovedOn")).toString(), Qt::ISODate);
@@ -590,7 +588,16 @@ struct Ctx {
     SessionWorkOns workOns;
 
     struct Swing { int idx = -1; int shotId = -1; QString dir; QString club; qint64 wallMs = 0; };
-    std::vector<Swing> swings;          // in the order hit (folder order); the report's swing n = index + 1
+    std::vector<Swing> swings;          // in the order hit (folder order)
+    // THE REPORT NUMBERS A SWING BY ITS SWING NUMBER (ID-SWING-NUMBER, DEC-91; step 2.7b, audit E-06/F-07): the
+    // number on the carousel's card, in the diagnostics panel and in Charts — the ledger's shot id, which is the
+    // swing folder's number (2.7a) — never its place among the swings the report reads, which a trashed swing or
+    // one with no document moves. Its place (index k) stays where things are laid out by position.
+    int no(int k) const
+    {
+        if (k < 0 || size_t(k) >= swings.size()) return k + 1;
+        return pinpoint::charts::words::shotNumber(swings[size_t(k)].shotId, k + 1);   // Charts' one rule
+    }
     int N = 0;
     bool hasLm = false;                 // the launch monitor read at least one swing (lm.has())
     int  lmSwings = 0;                  // swings it read (lm.measured)
@@ -758,7 +765,7 @@ QVariant figureOf(const Ctx &x, const Run &r)
         const double raw = r.h.values[size_t(k)];
         const ConditionLedger *l = x.ledger(r.h.id);
         const QString state = l ? x.markOn(*l, k) : QStringLiteral("notAssessable");
-        QVariantMap p{ { QStringLiteral("swing"), k + 1 }, { QStringLiteral("state"), state } };
+        QVariantMap p{ { QStringLiteral("swing"), x.no(k) }, { QStringLiteral("state"), state } };
         if (std::isfinite(raw)) {
             ++judged;
             p[QStringLiteral("value")] = raw * r.sign;
@@ -847,12 +854,10 @@ void SessionReportModel::build()
     x.pack    = &packProv->pack();
     x.drills  = &sharedDrillSet();
     // The gate words as they stand now, for the same reason as the pack: a studio's edit on the Gates
-    // page reaches the next report. The Diagnostic Model drops this cache when it saves, but so does
-    // every make, because the user layer is a file in the data directory and nothing else watches it.
-    // The drills are left to save(): the work-ons controller holds that set too, and a reset here is not
-    // this builder's to make. The gate words have no reader but this one, on this (the UI) thread, so
-    // dropping them cannot pull the set out from under anything. One small file, read once per report.
-    resetSharedGateWordSet();
+    // page reaches the next report. No re-read here (refactor step 3.2): the Gates page's save is
+    // RuleData's command, which publishes the new set at once, so this make already reads it. A re-read
+    // per make would publish a snapshot (and an EVT-13) on every report, for nothing. A gate-words file
+    // edited by hand outside the app is read at the next launch, as every other rule-data file is.
     x.gateWords = &sharedGateWordSet();
     x.rpack   = R::reportPackOf(*x.pack);
     x.model   = m;
@@ -912,8 +917,9 @@ void SessionReportModel::build()
         lmModel.setShotModel(&lmShots);          // rebuilds now
         lmGraphics = lmModel.graphics();
         QStringList dirs, clubs;
-        for (const Ctx::Swing &s : x.swings) { dirs << s.dir; clubs << s.club; }
-        x.lm = M::lmFiguresOf(lmModel.boardShots(), dirs, clubs, x.lmDevice, x.leftHanded);
+        QList<int> numbers;
+        for (int k = 0; k < int(x.swings.size()); ++k) { dirs << x.swings[size_t(k)].dir; clubs << x.swings[size_t(k)].club; numbers << x.no(k); }
+        x.lm = M::lmFiguresOf(lmModel.boardShots(), dirs, clubs, x.lmDevice, x.leftHanded, numbers);
         lmModel.setShotModel(nullptr);
     }
     x.lmSwings = x.lm.measured;
@@ -921,15 +927,16 @@ void SessionReportModel::build()
 
     qint64 firstMs = 0;
     for (const Ctx::Swing &s : x.swings) if (s.wallMs > 0) firstMs = firstMs == 0 ? s.wallMs : std::min(firstMs, s.wallMs);
-    x.sessionDate  = firstMs > 0 ? QDateTime::fromMSecsSinceEpoch(firstMs).date() : dateOfFolder(job.dir);   // §8.4: local zone
+    x.sessionDate  = firstMs > 0 ? QDateTime::fromMSecsSinceEpoch(firstMs).date() : sessionDayOf(job.dir);   // §8.4: local zone
     job.preparedMs = QDateTime::currentMSecsSinceEpoch();
     x.preparedDate = QDateTime::fromMSecsSinceEpoch(job.preparedMs).date();
     if (x.name.isEmpty()) x.name = QFileInfo(QFileInfo(job.dir).absolutePath()).fileName().replace(QLatin1Char('-'), QLatin1Char(' '));
 
-    const QVariantMap athlete = athleteFor(job.dir, x.uuid, x.name);
+    const QVariantMap athlete = athleteFor(job.dir);
     QString first = athlete.value(QStringLiteral("greeting")).toString();
     if (first.isEmpty()) first = x.name.section(QLatin1Char(' '), 0, 0);
-    const R::PhotoDecision photo = photoDecisionFor(athlete, dateOfFolder(job.dir).isValid() ? dateOfFolder(job.dir) : x.sessionDate);
+    const QDate sessionDay = sessionDayOf(job.dir);
+    const R::PhotoDecision photo = photoDecisionFor(athlete, sessionDay.isValid() ? sessionDay : x.sessionDate);
     job.photos = photo.included;
     job.fingerprint = fingerprintOf(job.dir);
 
@@ -947,22 +954,38 @@ void SessionReportModel::build()
     for (const WorkOnEntry *e : wos) runs.push_back(x.sessionLevel(e->id) ? Run{} : runOf(x, e->id));
 
     // ── same-day siblings (the kicker's "Session 3 of 3", and Earlier today) ──
+    // The day's sessions are the athlete's sessions whose local day is this one's, in their order in the day:
+    // SessionIdentity's day and n-of-day, by start time (step 2.7b, F-06) — never a folder name's date prefix,
+    // which `name-date-type` never starts with (such a session was "Session 1 of 1" on a day of three).
     struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
     std::vector<Sibling> day;
     {
-        const QString prefix = QFileInfo(job.dir).fileName().left(10);
-        const QDir lib(QFileInfo(job.dir).absolutePath());
-        for (const QFileInfo &fi : lib.entryInfoList(QStringList{ prefix + QStringLiteral("_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        const QList<pinpoint::SessionIndexEntry> index =
+            pinpoint::SessionDiagnosticsFiles::sessionPlaces(QFileInfo(job.dir).absolutePath());
+        const QDate today = pinpoint::SessionDiagnosticsFiles::placeOf(index, job.dir).day;
+        std::vector<pinpoint::SessionIndexEntry> ofDay;
+        for (const pinpoint::SessionIndexEntry &e : index)
+            if (today.isValid() && e.identity.localDay() == today) ofDay.push_back(e);
+        std::stable_sort(ofDay.begin(), ofDay.end(), [](const pinpoint::SessionIndexEntry &a, const pinpoint::SessionIndexEntry &b) {
+            return a.identity.nOfDay() < b.identity.nOfDay();
+        });
+        if (ofDay.empty()) {   // not listed (no day known): the session alone, as before
+            pinpoint::SessionIndexEntry self;
+            self.folder = job.dir;
+            ofDay.push_back(self);
+        }
+        for (const pinpoint::SessionIndexEntry &e : ofDay) {
             Sibling s;
-            s.dir = QDir::cleanPath(fi.absoluteFilePath());
+            s.dir = QDir::cleanPath(QFileInfo(e.folder).absoluteFilePath());
             s.self = s.dir == job.dir;
             if (!s.self) {
-                QFile f(QDir(s.dir).filePath(QStringLiteral("work_ons.json")));
+                const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(s.dir);
                 // A record from an earlier rule or schema is still that session's EVIDENCE (state, fired,
                 // assessable are the ledger's, not the order's), and "Earlier today" reads only that and the
-                // ids — so it is read as it stands rather than waiting for the catch-up to re-derive it.
-                if (f.open(QIODevice::ReadOnly)) {
-                    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+                // ids — so it is read as it stands rather than waiting for the catch-up to re-derive it. A
+                // NEWER schema is not read as ours (H-08; step 2.5): it is left out, as a session with none.
+                if (f.exists && f.root.value(QStringLiteral("schemaVersion")).toInt(0) <= kWorkOnSchemaVersion) {
+                    QJsonObject root = f.root;
                     if (!root.isEmpty()) {
                         root[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion;
                         root[QStringLiteral("ruleVersion")]   = kWorkOnRuleVersion;
@@ -971,7 +994,7 @@ void SessionReportModel::build()
                 }
                 s.swings = s.ok ? s.rec.shotCount : 0;
                 if (s.swings <= 0) {      // no record yet: count the swings so the session still numbers
-                    s.swings = QDir(s.dir).entryList(QStringList{ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot).size();
+                    s.swings = pinpoint::SwingPaths::swingFolders(s.dir).size();
                 }
                 if (s.swings <= 0) continue;
             } else {
@@ -1125,7 +1148,7 @@ void SessionReportModel::build()
     const QString stillsDir = [&] {
         const QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
         const QString h = QString::fromLatin1(QCryptographicHash::hash((job.dir + job.fingerprint).toUtf8(), QCryptographicHash::Sha1).toHex().left(12));
-        return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(QStringLiteral("report-stills/") + h);
+        return QDir(base.isEmpty() ? QDir::tempPath() : base).filePath(pinpoint::SessionFiles::reportStillsFolderName() + QLatin1Char('/') + h);
     }();
     const bool wantStills = job.stills && photo.included && !isNote;
     const QString defaultCamera = [&] {
@@ -1211,7 +1234,7 @@ void SessionReportModel::build()
         for (const WorkOnEntry *e : wos) if (x.sessionLevel(e->id)) sessionNotes << W::sessionLevelGridNote(x.label(e->id), e->rank);
 
         QVariantList swingNos;
-        for (int k = 0; k < x.N; ++k) swingNos << k + 1;
+        for (int k = 0; k < x.N; ++k) swingNos << x.no(k);
 
         QVariantMap grid{
             { QStringLiteral("title"), W::gridTitle(everyOnEvery, int(perSwingIds.size()), !isReport) },
@@ -1221,11 +1244,11 @@ void SessionReportModel::build()
             { QStringLiteral("carryText"), M::lmGridCarryText(x.lm) },
             { QStringLiteral("carryLabel"), x.hasLm ? W::gridCarryLabel() : QString() },
             { QStringLiteral("sessionNote"), sessionNotes.join(QLatin1Char(' ')) },
-            { QStringLiteral("best"), ref.index >= 0 ? ref.index + 1 : 0 },
+            { QStringLiteral("best"), ref.index >= 0 ? ref.index + 1 : 0 },   // its PLACE (1-based): the grid lays out by place
             { QStringLiteral("bestText"), QString() }, { QStringLiteral("bestStills"), QVariantList() }, { QStringLiteral("bestLabels"), QVariantList() } };
         if (ref.index >= 0) {
             const Ctx::Swing &s = x.swings[size_t(ref.index)];
-            grid[QStringLiteral("bestText")] = W::referenceText(ref.index + 1, x.hasLm, M::lmReferenceFigure(x.lm, ref.index, QStringLiteral("lm.carryDistance")),
+            grid[QStringLiteral("bestText")] = W::referenceText(x.no(ref.index), x.hasLm, M::lmReferenceFigure(x.lm, ref.index, QStringLiteral("lm.carryDistance")),
                                                                M::lmReferenceFigure(x.lm, ref.index, QStringLiteral("lm.ballSpeed")), ref.longest,
                                                                int(ref.inside.size()), ref.judgedOn);
             job.refShotId = s.shotId;
@@ -1465,10 +1488,10 @@ void SessionReportModel::build()
             } else {
                 QString lead;
                 if (e.resolving && l) {
-                    int last = 0, quiet = 0;
+                    int last = 0, quiet = 0;   // `last`: one past the place of the last swing it showed on
                     for (int k = 0; k < x.N; ++k) if (x.stateOn(*l, k) == ShotState::Fired) last = k + 1;
                     for (int k = last; k < x.N; ++k) if (x.stateOn(*l, k) != ShotState::NotAssessable) ++quiet;
-                    lead = W::sawResolving(x.golfer(e.id), e.fired, e.assessable, last, quiet);
+                    lead = W::sawResolving(x.golfer(e.id), e.fired, e.assessable, last > 0 ? x.no(last - 1) : 0, quiet);
                 } else {
                     lead = W::sawLead(x.golfer(e.id), W::swingsOn(e.fired, e.assessable),
                                       l ? W::trendWords(l->trendKnown, int(l->trend), l->trendPoints) : QString());
@@ -1521,9 +1544,9 @@ void SessionReportModel::build()
                     if (ch.kind == R::StillKind::Change) {
                         const QString lw = lineWords(line);
                         stills << QVariantMap{ { QStringLiteral("src"), planStill(int(i), 0, ch.first, cam, ch.firstPhase, line, false) },
-                                               { QStringLiteral("caption"), QStringLiteral("Address, swing %1").arg(ch.first + 1) },
+                                               { QStringLiteral("caption"), QStringLiteral("Address, swing %1").arg(x.no(ch.first)) },
                                                { QStringLiteral("value"), QString() },
-                                               { QStringLiteral("note"), QStringLiteral("Your typical swing (swing %1).").arg(ch.first + 1)
+                                               { QStringLiteral("note"), QStringLiteral("Your typical swing (swing %1).").arg(x.no(ch.first))
                                                                          + (lw.isEmpty() ? QString() : QStringLiteral(" The line is %1.").arg(lw)) } };
                         stills << QVariantMap{ { QStringLiteral("src"), planStill(int(i), 1, ch.second, cam, ch.secondPhase, line, ch.addressLine) },
                                                { QStringLiteral("caption"), W::positionCaption(ch.secondPhase) },
@@ -1531,14 +1554,14 @@ void SessionReportModel::build()
                                                { QStringLiteral("note"), ch.addressLine ? QStringLiteral("White dashes: the same swing at address.") : QString() } };
                     } else if (ch.kind == R::StillKind::Pair) {
                         stills << QVariantMap{ { QStringLiteral("src"), planStill(int(i), 0, ch.first, cam, ch.firstPhase, line, false) },
-                                               { QStringLiteral("caption"), QStringLiteral("Closest, swing %1").arg(ch.first + 1) },
+                                               { QStringLiteral("caption"), QStringLiteral("Closest, swing %1").arg(x.no(ch.first)) },
                                                { QStringLiteral("value"), value(ch.first) }, { QStringLiteral("note"), QString() } };
                         stills << QVariantMap{ { QStringLiteral("src"), planStill(int(i), 1, ch.second, cam, ch.secondPhase, line, false) },
-                                               { QStringLiteral("caption"), QStringLiteral("Furthest, swing %1").arg(ch.second + 1) },
+                                               { QStringLiteral("caption"), QStringLiteral("Furthest, swing %1").arg(x.no(ch.second)) },
                                                { QStringLiteral("value"), value(ch.second) }, { QStringLiteral("note"), QString() } };
                     } else {
                         stills << QVariantMap{ { QStringLiteral("src"), planStill(int(i), 0, ch.first, cam, ch.firstPhase, line, false) },
-                                               { QStringLiteral("caption"), QStringLiteral("%1, swing %2").arg(W::positionCaption(ch.firstPhase)).arg(ch.first + 1) },
+                                               { QStringLiteral("caption"), QStringLiteral("%1, swing %2").arg(W::positionCaption(ch.firstPhase)).arg(x.no(ch.first)) },
                                                { QStringLiteral("value"), value(ch.first) },
                                                { QStringLiteral("note"), ch.fellBack ? QStringLiteral("Every swing looked much like this one.")
                                                                                      : QStringLiteral("Your typical swing.") } };
@@ -1639,7 +1662,7 @@ void SessionReportModel::build()
             map[QStringLiteral("posture")] = kNull;
         } else {
             QHash<QString, int> swingNoOfDir;
-            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
             QVariant po = M::postureReportBlock(job.posture, swingNoOfDir);
             // the picture strip's stills (posture_chart_design.md §5.4): made in the stills pass below, cut at the
             // picture's own crop; with no photos in this report the strip is left out and the page says so
@@ -1687,7 +1710,7 @@ void SessionReportModel::build()
             map[QStringLiteral("wrist")] = kNull;
         } else {
             QHash<QString, int> swingNoOfDir;
-            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
             map[QStringLiteral("wrist")] = M::wristReportBlock(job.wrist, swingNoOfDir);
         }
 
@@ -1698,7 +1721,7 @@ void SessionReportModel::build()
             map[QStringLiteral("delivery")] = kNull;
         } else {
             QHash<QString, int> swingNoOfDir;
-            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
             map[QStringLiteral("delivery")] = M::deliveryReportBlock(job.delivery, swingNoOfDir,
                 [](double lo, double hi, int n, const QString &unit) { return pinpoint::charts::ChartsRelationsPresenter::axisTicks(lo, hi, n, unit); });
         }
@@ -1714,7 +1737,7 @@ void SessionReportModel::build()
             map[QStringLiteral("consistency")] = kNull;
         } else {
             QHash<QString, int> swingNoOfDir;
-            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), k + 1);
+            for (int k = 0; k < x.N; ++k) swingNoOfDir.insert(QDir::cleanPath(x.swings[size_t(k)].dir), x.no(k));
             map[QStringLiteral("consistency")] = M::consistencyReportBlock(job.consistency, swingNoOfDir);
         }
 
@@ -1928,7 +1951,7 @@ void SessionReportModel::printFinished(bool ok, const QString &path, int pages, 
     meta.sha256 = M::fileSha256(path);
     meta.sizeBytes = QFileInfo(path).size();
     meta.fingerprint = job.fingerprint;
-    if (!M::writeReportMeta(dir, meta)) ppWarn() << "[Report] could not write report_meta.json in" << dir;
+    if (!M::writeReportMeta(dir, meta)) ppWarn() << "[Report] could not write the report's meta file in" << dir;
     // A golfer renamed since the last make: the old file would sit beside the new one forever.
     if (!oldPdf.isEmpty() && QDir::cleanPath(oldPdf) != QDir::cleanPath(path) && QFileInfo::exists(oldPdf)) QFile::remove(oldPdf);
     ppInfo() << "[Report] wrote" << path << "(" << pages << "pages," << meta.sizeBytes << "bytes)";

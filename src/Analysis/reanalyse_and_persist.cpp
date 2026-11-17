@@ -20,13 +20,20 @@
 
 namespace pinpoint::analysis {
 
-PersistedReanalysis persistReanalysis(RecordingRepository &repo, const ShotRef &shot,
-                                      const ReanalyzeResult *result, const PersistOptions &options)
+namespace {
+WriteResult noWrite()
+{
+    return { WriteResult::Status::Failed, QStringLiteral("no write-back for this shot") };
+}
+} // namespace
+
+PersistedReanalysis persistReanalysis(const AnalysisWrite &write, const ReanalyzeResult *result,
+                                      const PersistOptions &options)
 {
     PersistedReanalysis out;
     if (!result) {
         out.deviceOnly = true;
-        out.write = repo.writeAnalysis(shot, AnalysisOutcome{}, options);
+        out.write = write ? write(AnalysisOutcome{}, options) : noWrite();
         return out;
     }
     if (!result->ok || !result->analysis.detail) {
@@ -40,19 +47,17 @@ PersistedReanalysis persistReanalysis(RecordingRepository &repo, const ShotRef &
     outcome.analysis         = result->analysis.detail.get();
     outcome.imuIntegrity     = result->imuIntegrity ? &*result->imuIntegrity : nullptr;
     outcome.captureIntegrity = result->captureIntegrity ? &*result->captureIntegrity : nullptr;
-    out.write = repo.writeAnalysis(shot, outcome, options);
+    out.write = write ? write(outcome, options) : noWrite();
     return out;
 }
 
-PersistedReanalysis reanalyseAndPersist(RecordingRepository &repo, RecordingReader &reader, const ShotRef &shot,
+PersistedReanalysis reanalyseAndPersist(const AnalysisWrite &write, const RecordingSource &source, bool deviceOnly,
                                         const PersistOptions &options, const ReanalyzeOptions &reanalyse)
 {
-    if (repo.isDeviceOnly(shot))
-        return persistReanalysis(repo, shot, nullptr, options);
-    const ReanalyzeResult r = reanalyzeShot(reader, shot, reanalyse);
-    return persistReanalysis(repo, shot, &r, options);
+    if (deviceOnly)
+        return persistReanalysis(write, nullptr, options);
+    const ReanalyzeResult r = reanalyzeShot(source, reanalyse);
+    return persistReanalysis(write, &r, options);
 }
-
-
 
 } // namespace pinpoint::analysis

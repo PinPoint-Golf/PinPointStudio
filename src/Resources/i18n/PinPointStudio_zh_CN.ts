@@ -11952,6 +11952,10 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>训练结束未能保存</translation>
     </message>
     <message>
+        <source>%1 could not be saved</source>
+        <translation>%1 无法保存</translation>
+    </message>
+    <message>
         <source>Today&apos;s session could not be continued, so a new one started</source>
         <translation>今天的训练无法继续，已开始新的训练</translation>
     </message>
@@ -13396,12 +13400,40 @@ Reports sent from this computer will come from %1.</source>
 <context>
     <name>SessionDiagnosticsModel</name>
     <message>
+        <source>It was saved by a newer version of PinPoint Studio, so this one only reads it.</source>
+        <translation>它由较新版本的 PinPoint Studio 保存，因此当前版本只能读取。</translation>
+    </message>
+    <message>
+        <source>The session&apos;s club baseline</source>
+        <translation>训练中的球杆基线</translation>
+    </message>
+    <message>
+        <source>The focus, declared miss, screen answers and intent run</source>
+        <translation>重点、自述失误、筛查回答和意图序列</translation>
+    </message>
+    <message>
+        <source>Shot %1 could not be found in this session&apos;s folder.</source>
+        <translation>在本次训练的文件夹中找不到击球 %1。</translation>
+    </message>
+    <message>
+        <source>A shot&apos;s intent or correction</source>
+        <translation>击球的意图或修正</translation>
+    </message>
+    <message>
         <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
         <translation>其诊断文件无法读取或移开。请检查资料库所在的磁盘或共享。</translation>
     </message>
     <message>
         <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
         <translation>其诊断文件无法打开。请检查资料库所在的磁盘或共享。</translation>
+    </message>
+    <message>
+        <source>%1 could not be saved: %2</source>
+        <translation>%1 无法保存：%2</translation>
+    </message>
+    <message>
+        <source>The session&apos;s diagnostics</source>
+        <translation>训练的诊断</translation>
     </message>
 </context>
 <context>
@@ -15960,6 +15992,21 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.</source>
         <translation>传感器佩戴不正确（%1）。请按绑带指南重新佩戴，然后点击“重新校准”。</translation>
+    </message>
+</context>
+<context>
+    <name>WorkOnsController</name>
+    <message>
+        <source>The session&apos;s work-ons</source>
+        <translation>训练的改进重点</translation>
+    </message>
+    <message>
+        <source>The swing summary</source>
+        <translation>挥杆总结</translation>
+    </message>
+    <message>
+        <source>The athlete&apos;s tendencies</source>
+        <translation>球员的倾向</translation>
     </message>
 </context>
 <context>

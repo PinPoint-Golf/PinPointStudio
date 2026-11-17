@@ -22,6 +22,7 @@
 // budgets of build/charts-build/STEP2A.md are MEASURED and reported, not asserted.
 
 #include "charts_maths_fixture.h"
+#include "../../Export/rule_data_install.h"
 
 #include "charts/charts_traces_presenter.h"
 #include "charts/charts_words.h"
@@ -83,6 +84,23 @@ std::shared_ptr<SessionSnapshot> fixtureSession(const charts_test::Fixture &fx)
         auto c = std::make_shared<ShotSeries>(*sh);
         c->swingDir = s->sessionDir + QStringLiteral("/swing_%1").arg(c->ordinal, 4, 10, QLatin1Char('0'));
         c->shotId = c->ordinal;
+        s->shots.push_back(c);
+    }
+    return s;
+}
+
+// The same session after a gap (step 2.7b, audit E-06): swing 4 was trashed, so the 15 analysed shots are swings 1–3
+// and 5–16 — the 8th shot is swing 9. Its folders carry the swing numbers, as the carousel's do.
+std::shared_ptr<SessionSnapshot> gapSession(const charts_test::Fixture &fx)
+{
+    auto s = std::make_shared<SessionSnapshot>();
+    s->sessionDir = QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01");
+    s->conditions = fx.session.conditions;
+    s->revision = 1;
+    for (const auto &sh : fx.session.shots) {
+        auto c = std::make_shared<ShotSeries>(*sh);
+        c->shotId = c->ordinal + (c->ordinal > 3 ? 1 : 0);
+        c->swingDir = s->sessionDir + QStringLiteral("/swing_%1").arg(c->shotId, 4, 10, QLatin1Char('0'));
         s->shots.push_back(c);
     }
     return s;
@@ -217,6 +235,7 @@ private slots:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+        pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
         m_fx = charts_test::loadFixture(QStringLiteral(CHARTS_MATHS_DATA "/session_0704.json"));
         QVERIFY(m_fx.ok);
         QCOMPARE(int(m_fx.session.shots.size()), 15);
@@ -765,6 +784,34 @@ private slots:
         q.setReferenceSwingDir(QStringLiteral("/nonexistent/2026-01-01_X/swing_0001"));
         QVERIFY(q.reference().value(QStringLiteral("refused")).toBool());
         QCOMPARE(text(q.reference().value(QStringLiteral("why"))), QStringLiteral("The reference swing is no longer on disk."));
+    }
+
+    // ── "Shot N" is the swing number (step 2.7b, audit E-06/F-07; words::shotOfText) ─────────────
+    void shotNumberAfterAGap()
+    {
+        ChartsTracesPresenter p;
+        p.setSynchronous(true);
+        p.setSnapshot(gapSession(m_fx));
+        p.setPickedSwingDir(QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01/swing_0009"));
+        p.setRegisterName(QStringLiteral("analyse"));
+        const QVariantMap s = p.thisShot();
+        QVERIFY(s.value(QStringLiteral("available")).toBool());
+        QCOMPARE(s.value(QStringLiteral("ordinal")).toInt(), 8);   // the place: an axis position, never printed as "shot N"
+        QCOMPARE(s.value(QStringLiteral("shotId")).toInt(), 9);
+        QCOMPARE(s.value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 9 · 8 of 15  ·  7 iron"));
+        // the words name it, and the shot before it, by their swing numbers (the previous shot is swing 8)
+        p.setAgainst(QStringLiteral("previous"));
+        QCOMPARE(p.reference().value(QStringLiteral("ordinal")).toInt(), 7);
+        QCOMPARE(p.reference().value(QStringLiteral("label")).toString(), QStringLiteral("shot 8, the previous"));
+        QVERIFY2(p.reference().value(QStringLiteral("diffLabel")).toString().startsWith(QStringLiteral("shot 9 ")),
+                 qPrintable(p.reference().value(QStringLiteral("diffLabel")).toString()));
+        // before the gap the number and the place agree: today's text
+        p.setPickedSwingDir(QStringLiteral("/fx/2026-07-04_Mark-Liversedge_Wrist_01/swing_0003"));
+        QCOMPARE(p.thisShot().value(QStringLiteral("kicker")).toString(), QStringLiteral("Shot 3 of 15  ·  7 iron"));
+        // the rule itself
+        QCOMPARE(words::shotOfText(9, 8, 15), QStringLiteral("Shot 9 · 8 of 15"));
+        QCOMPARE(words::shotOfText(-1, 8, 15), QStringLiteral("Shot 8 of 15"));   // no swing number: its place
+        QCOMPARE(words::shotNumber(0, 4), 4);
     }
 
     void againstRefusals()

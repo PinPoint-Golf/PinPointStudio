@@ -35,9 +35,9 @@ import PinPointStudio
 Item {
     id: root
 
-    // The map from ModelBrowser.inspect().
+    // ModelBrowser.inspect()'s answer (a ModelInspection), or `({})` with nothing selected.
     property var detail: ({})
-    // The map from ModelBrowser.corridorPlot(), when a corridor is selected. Empty otherwise.
+    // ModelBrowser.corridorPlot()'s answer (a ModelCorridorPlot), when a corridor is selected. Empty otherwise.
     // Asks for the corridor picture at whatever size the plot decides it needs —
     // see ModelCorridorPlot.plotSource.
     property var corridorPlotSource: null
@@ -582,14 +582,15 @@ Item {
 
                                     // ── The loader's verdict on the words (#60) ──────────────────
                                     //
-                                    // A field the façade can check arrives with `issues` (empty or
-                                    // not); any other field has none, and nothing below runs for it.
+                                    // A field the façade can check arrives with `wordingChecked` and
+                                    // its `issues` (empty or not); any other field has neither, and
+                                    // nothing below runs for it.
                                     // `liveIssues` is the verdict on the text IN THE BOX while it
                                     // differs from what the row holds, and null otherwise — so the
                                     // line falls back to the row's own findings the moment the text
                                     // matches again, and after a commit rebuilds the row with fresh
                                     // ones.
-                                    readonly property bool checkable: hubRow.modelData.issues !== undefined
+                                    readonly property bool checkable: hubRow.modelData.wordingChecked === true
                                     property var liveIssues: null
                                     readonly property var shownIssues:
                                         liveIssues !== null ? liveIssues : (hubRow.modelData.issues || [])
@@ -834,7 +835,7 @@ Item {
                                     ModelEnumField {
                                         id: strengthControl
                                         visible: root.editable
-                                                 && hubRow.modelData.options !== undefined
+                                                 && (hubRow.modelData.options || []).length > 0
                                         Layout.preferredWidth: Theme.sp(168)
                                         Layout.minimumWidth:   Theme.sp(140)
                                         options: hubRow.modelData.options || []

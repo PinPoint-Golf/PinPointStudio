@@ -95,12 +95,16 @@ double standardLengthOf(const QString &clubName, ClubSet set, double heightM)
     return st.valid ? double(st.lengthMm) : 0.0;
 }
 
-// The session's date, read from session.dir's first 10 characters, as today's re-analysis read it
-// (A3: step 2's SessionIdentity becomes the one place). Invalid when the document names no session.
+// The swing's date: the local day of its own capture instant, `clock.wallclock` (refactor step 2.7a). Before
+// step 2.7a it was read off the first ten characters of `session.dir`, the folder's name, which held no date
+// under the name-date-type pattern (F-06); a folder's name is provenance, never read as a fact (P7, lint A3).
+// The same day as the folder's whenever the swing was captured on the day its session started (a session
+// that runs past midnight is the one difference). Invalid when the document records no wallclock.
 QDate sessionDateOf(const QJsonObject &root)
 {
-    const QString sessionDir = root.value(QStringLiteral("session")).toObject().value(QStringLiteral("dir")).toString();
-    return QDate::fromString(sessionDir.left(10), Qt::ISODate);
+    const QDateTime wallclock = QDateTime::fromString(
+        root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("wallclock")).toString(), Qt::ISODateWithMs);
+    return wallclock.isValid() ? wallclock.toLocalTime().date() : QDate();
 }
 
 } // namespace
@@ -362,11 +366,9 @@ rec::AnalysisContext legacyAnalysisContext(const QJsonObject &root)
     const QJsonObject ath = root.value(QStringLiteral("athlete")).toObject();
     c.handedness = rec::handednessFromName(ath.value(QStringLiteral("handedness")).toString());
     c.heightM    = ath.value(QStringLiteral("heightM")).toDouble(0.0);
-    // The club set as today's re-analysis derived it: athlete.sex and athlete.dob on the session's
-    // date (the first 10 characters of session.dir). No writer has ever put sex or dob in a
-    // document, so in practice this is the men's set — "unknown → men's, as today".
-    // The session's date is read from its folder name, as today's re-analysis did (A3, step 2's
-    // SessionIdentity is the one place).
+    // The club set as today's re-analysis derived it: athlete.sex and athlete.dob on the swing's
+    // date (its capture's local day, clock.wallclock: step 2.7a). No writer has ever put sex or dob in
+    // a document, so in practice this is the men's set — "unknown → men's, as today".
     const QDate on = sessionDateOf(root);
     c.clubSet = clubSetOn(ath.value(QStringLiteral("sex")).toString(),
                           QDate::fromString(ath.value(QStringLiteral("dob")).toString(), Qt::ISODate), on);
@@ -415,11 +417,8 @@ rec::AnalysisContext backfilledAnalysisContext(const QJsonObject &root, double h
     const bool docSays = !ath.value(QStringLiteral("sex")).toString().isEmpty()
                       || !ath.value(QStringLiteral("dob")).toString().isEmpty();
     if (!docSays) {
-        // The swing's date: the session's, as the legacy context reads it, else the capture's wallclock.
-        QDate on = sessionDateOf(root);
-        if (!on.isValid())
-            on = QDateTime::fromString(root.value(QStringLiteral("clock")).toObject()
-                                           .value(QStringLiteral("wallclock")).toString(), Qt::ISODateWithMs).date();
+        // The swing's date, as the legacy context reads it (its capture's local day: step 2.7a).
+        const QDate on = sessionDateOf(root);
         c.clubSet = clubSetOn(sex, QDate::fromString(dobIso, Qt::ISODate), on);
     }
     c.club.standardLengthMm = standardLengthOf(c.club.name, c.clubSet, c.heightM);

@@ -70,17 +70,24 @@ QString missingReasonText(MissingKind k)
 
 // ── Construction ────────────────────────────────────────────────────────────
 
-LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
-                                     bool writeSidecar, const PhaseGridConfig &cfg,
-                                     SwingStore::LazyDocument *parsed)
-    : m_grid(readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed)),
-      m_pack(pack)
+SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack, bool writeSidecar,
+                                 const PhaseGridConfig &cfg, SwingStore::LazyDocument *parsed)
 {
+    SwingPhaseGrid grid = readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed);
     // readPhaseGrid() sets swingDir on every path it returns a grid from, but not on the empty
     // grid it returns for a missing or unreadable document — and a source that cannot say which
     // swing it failed on is unloggable.
-    if (m_grid.swingDir.isEmpty())
-        m_grid.swingDir = swingDir;
+    if (grid.swingDir.isEmpty())
+        grid.swingDir = swingDir;
+    return grid;
+}
+
+LiveMeasureSource::LiveMeasureSource(const QString &swingDir, const CharacteristicPack &pack,
+                                     bool writeSidecar, const PhaseGridConfig &cfg,
+                                     SwingStore::LazyDocument *parsed)
+    : m_grid(readLivePhaseGrid(swingDir, pack, writeSidecar, cfg, parsed)),
+      m_pack(pack)
+{
 }
 
 LiveMeasureSource::LiveMeasureSource(SwingPhaseGrid grid, const CharacteristicPack &pack)
@@ -223,7 +230,7 @@ std::optional<IMeasureValueSource::Value> LiveMeasureSource::historyValue(const 
         m_clubBaseline ? m_clubBaseline->forClub(pinpoint::canonicalClubId(m_grid.club)) : std::nullopt;
     const double mean = !usual ? std::nan("") : carry ? usual->carryMean : usual->ballSpeedMean;
     const double sd   = !usual ? std::nan("") : carry ? usual->carrySd : usual->ballSpeedSd;
-    if (!usual || usual->n < kClubBaselineMinShots || !std::isfinite(mean) || !std::isfinite(sd) || !(sd > 0.0)) {
+    if (!usual || !usual->earned() || !std::isfinite(mean) || !std::isfinite(sd) || !(sd > 0.0)) {
         note(m.id, MissingKind::ClubBaselineNotEarned);
         return std::nullopt;
     }

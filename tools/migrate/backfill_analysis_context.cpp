@@ -28,7 +28,7 @@
 //
 //   backfill_analysis_context --library <root> --settings <PinPointStudio.ini>
 //                             [--athlete <folder> ...] [--report <file.md>]
-//                             [--write --backup-dir <dir>]
+//                             [--write --backup-dir <dir> [--allow-in-progress]]
 //
 // A DRY RUN BY DEFAULT: it reads every swing document and the settings file, asks the one door
 // (RecordingRepository::backfillAnalysisContext with PersistOptions::dryRun) what it would write,
@@ -41,7 +41,9 @@
 // --report path must not be inside the library; --write refuses while PinPoint Studio runs on this
 // machine (pgrep -x PinPointStudio / tasklist), and prints a hard warning when it cannot tell — and
 // always warns that no app on ANY machine may have the library open (the share is not locked; the
-// folder lock is step 2's). A JSON-era swing.json that is written becomes swing.ppsw (SwingStore::save
+// folder lock is step 2's: each write takes the session's lock). A session whose session.json says it is in
+// progress (being recorded here or on another computer) is REFUSED by --write, its swings not written (D11:
+// DEC-158), unless --allow-in-progress — for one a crash left open; a dry run reads it as any other. A JSON-era swing.json that is written becomes swing.ppsw (SwingStore::save
 // removes the JSON and its sidecar): the report counts them, and the backup holds the original.
 //
 // What each swing gets (the store's rule, backfilledAnalysisContext in Export/recording_header.h):
@@ -261,7 +263,7 @@ void visitSwing(RecordingRepository &repo, const QVector<AthleteRecord> &recs, c
 
     // THE TOOL'S EDGE (DEC-90): the folder it was given becomes the shot's ShotRef here, once, over
     // a session reader of its own (a legacy session: D3's id from the athlete who owns its folder, by its athlete.json, else the
-    // athlete the swing records; J-39, proposed, for Mark).
+    // athlete the swing records; J-39; confirmed by Mark, 15 Nov 2026).
     const ShotRef shot = repo.shotOfFolder(swingDir);
     if (shot.isNull()) {
         ++t.failed;
@@ -350,7 +352,9 @@ int main(int argc, char *argv[])
     const QCommandLineOption repOpt(QStringLiteral("report"), QStringLiteral("write the Markdown report here"), QStringLiteral("file"));
     const QCommandLineOption writeOpt(QStringLiteral("write"), QStringLiteral("WRITE the documents (needs --backup-dir)"));
     const QCommandLineOption bakOpt(QStringLiteral("backup-dir"), QStringLiteral("copy each document here before its rewrite"), QStringLiteral("dir"));
-    p.addOptions({ libOpt, iniOpt, athOpt, repOpt, writeOpt, bakOpt });
+    const QCommandLineOption liveOpt(QStringLiteral("allow-in-progress"),
+                                     QStringLiteral("--write also a session whose session.json says it is in progress (one a crash left open)"));
+    p.addOptions({ libOpt, iniOpt, athOpt, repOpt, writeOpt, bakOpt, liveOpt });
     p.process(app);
 
     const QString library = QDir::cleanPath(p.value(libOpt));
@@ -359,7 +363,7 @@ int main(int argc, char *argv[])
     const QString backup = p.isSet(bakOpt) ? QDir::cleanPath(p.value(bakOpt)) : QString();
     if (library.isEmpty() || !QDir(library).exists() || ini.isEmpty() || !QFileInfo::exists(ini)) {
         out() << "usage: backfill_analysis_context --library <root> --settings <ini> [--athlete <folder>] "
-                 "[--report <md>] [--write --backup-dir <dir>]\n";
+                 "[--report <md>] [--write --backup-dir <dir> [--allow-in-progress]]\n";
         return 2;
     }
     if (write) {
@@ -445,6 +449,17 @@ int main(int argc, char *argv[])
             const QStringList swings = SwingDocReader::findSwingDirs(QDir(athleteDir).filePath(s));
             if (swings.isEmpty()) continue;
             SessionTally t;
+            // A session in progress is never written by a tool (D11: DEC-158); a dry run reads it as any other.
+            const QString sessionDir = QDir(athleteDir).filePath(s);
+            if (write && !p.isSet(liveOpt) && SessionStore::fileSaysInProgress(sessionDir)) {
+                t.swings = int(swings.size());
+                t.failed = int(swings.size());
+                t.notes << QStringLiteral("REFUSED: ") + SessionStore::inProgressRefusal(sessionDir);
+                out() << athlete << "/" << s << ": REFUSED — " << SessionStore::inProgressRefusal(sessionDir) << "\n";
+                total.add(t);
+                rows.emplace_back(s, std::move(t));
+                continue;
+            }
             for (const QString &sw : swings)
                 visitSwing(repo, recs, athlete, s, sw, write, backup, t);
             out() << athlete << "/" << s << ": " << t.swings << " swings, " << t.change

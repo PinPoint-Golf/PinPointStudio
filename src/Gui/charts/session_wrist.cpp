@@ -39,7 +39,7 @@ namespace {
 
 namespace pa = pinpoint::analysis;
 
-// The display order (WristDiagnosticsModel's kDisplayOrder): lag → face → forearm roll → trail tray →
+// The display order (the retired WristDiagnosticsModel's kDisplayOrder): lag → face → forearm roll → trail tray →
 // the grid-only lead elbow.
 const pa::PpJointDof kDisplayOrder[] = {
     pa::PpJointDof::LeadWristRadUln,

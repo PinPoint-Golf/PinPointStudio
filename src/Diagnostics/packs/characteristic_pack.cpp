@@ -43,15 +43,16 @@ namespace {
 // at all, is false: an unresolvable citation is a different fault with its own check, and folding
 // the two together would make both harder to read and neither easy to fix.
 //
-// This is the one place the pack loader consults process-global state, and it is worth being
-// explicit about the trade. Where no bibliography is on the path — most standalone test binaries —
-// the shared set is empty, nothing resolves, and the gate below is a no-op. That is the SAFE
+// The bibliography is HANDED IN (loadPack's `refs`), not read from a process-wide registry: the rule
+// data's repository passes the snapshot's assembled references (refactor step 3.2; audit B-03, B-12).
+// Where none is handed in — most standalone test binaries — nothing resolves, and the gate below is a
+// no-op. That is the SAFE
 // direction: the gate can only ever soften a claim, never harden one, so an absent registry
 // under-corrects rather than inventing a tier nobody authored.
-bool bookOnlyCitation(const QString &citation)
+bool bookOnlyCitation(const QString &citation, const ReferenceSet *refs)
 {
-    if (citation.isEmpty()) return false;
-    const Reference *ref = sharedReferenceSet().byCitation(citation);
+    if (citation.isEmpty() || !refs) return false;
+    const Reference *ref = refs->byCitation(citation);
     return ref && ref->doi.isEmpty() && ref->pmid.isEmpty() && !ref->isbn.isEmpty();
 }
 
@@ -64,10 +65,10 @@ bool bookOnlyCitation(const QString &citation)
 // does. The distinction is the whole point: a missing citation means nobody has shown their
 // working, while a book citation is a REAL source that supports the reasoning and simply does not
 // test the named pair — which is precisely what `Indirect` was added to record.
-bool demoteBookCitation(ProvenanceTier &tier, const QString &citation)
+bool demoteBookCitation(ProvenanceTier &tier, const QString &citation, const ReferenceSet *refs)
 {
     if (tier != ProvenanceTier::Supported && tier != ProvenanceTier::Established) return false;
-    if (!bookOnlyCitation(citation)) return false;
+    if (!bookOnlyCitation(citation, refs)) return false;
     tier = ProvenanceTier::Indirect;
     return true;
 }
@@ -1122,10 +1123,20 @@ std::vector<ValidationIssue> validateMeasureDomains(const CharacteristicPack &pa
     return r.issues;
 }
 
-ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomainFn &domainFor)
-{
-    ValidationReport r;
+namespace {
 
+// validatePack's four passes (audit B-11: the 739-line function is split here, by the entity each pass
+// checks, with no rule moved, reworded or reordered — the issues come out in the order they always
+// did). What one pass learns and a later one needs is this index, built by the first.
+struct PackIndex {
+    QSet<QString> measureSet, signalSet, conditionSet;
+    bool          kindsAuthored = false;   // set by the conditions pass; the graph pass reads it
+};
+
+// The cross-registry domain pass, unique ids, the index, and every measure on its own.
+void validateMeasuresPass(const CharacteristicPack &pack, const MetricDomainFn &domainFor,
+                          ValidationReport &r, PackIndex &ix)
+{
     // ── The cross-registry domain pass ──────────────────────────────────────
     //
     // Its own function (above) and its own code, because it is the one check here that fires or not
@@ -1161,13 +1172,15 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     checkUnique(signalIds, QStringLiteral("signal"));
     checkUnique(conditionIds, QStringLiteral("condition"));
 
-    const QSet<QString> measureSet(measureIds.begin(), measureIds.end());
-    const QSet<QString> signalSet(signalIds.begin(), signalIds.end());
-    const QSet<QString> conditionSet(conditionIds.begin(), conditionIds.end());
+    ix.measureSet = QSet<QString>(measureIds.begin(), measureIds.end());
+    ix.signalSet = QSet<QString>(signalIds.begin(), signalIds.end());
+    ix.conditionSet = QSet<QString>(conditionIds.begin(), conditionIds.end());
 
     // Which tails a corridor signal already watches, per measure. Built up here rather than inside
     // the signals loop below because the measure that CLAIMS a tail is unwatched is checked against
     // it, and splitting one three-rule family across two loops reads worse than one early pass.
+    const QSet<QString> &measureSet = ix.measureSet;
+
     QHash<QString, QSet<int>> watchedTails;
     for (const Signal &s : pack.signalDefs) {
         if (s.test != SignalTest::OutsideCorridor || !s.direction.has_value()) continue;
@@ -1286,6 +1299,12 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                                 "change from address cancels where the camera stands, so the flag "
                                 "belongs on the absolute reading, not on this one.").arg(m.id));
     }
+}
+
+// Every signal, which measures are used, and two measures that are one number.
+void validateSignalsPass(const CharacteristicPack &pack, ValidationReport &r, const PackIndex &ix)
+{
+    const QSet<QString> &measureSet = ix.measureSet;
 
     // --- signals -------------------------------------------------------------
     QSet<QString> usedMeasures;
@@ -1411,6 +1430,13 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                      .arg(m.id, m.metricKey, it.value()));
         }
     }
+}
+
+// Every condition, one term per condition, the axes, and both tails on one condition.
+void validateConditionsPass(const CharacteristicPack &pack, ValidationReport &r, PackIndex &ix)
+{
+    const QSet<QString> &signalSet    = ix.signalSet;
+    const QSet<QString> &conditionSet = ix.conditionSet;
 
     // --- conditions ----------------------------------------------------------
     //
@@ -1424,9 +1450,10 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     // The stated cost, so nobody rediscovers it as a bug: a pack whose conditions genuinely are ALL
     // Faults escapes these four rules. That is acceptable and arguably correct — a pack where
     // everything is a fault has nothing for a kind rule to compare.
-    const bool kindsAuthored =
+    ix.kindsAuthored =
         std::any_of(pack.conditions.begin(), pack.conditions.end(),
                     [](const Condition &c) { return c.kind != ConditionKind::Fault; });
+    const bool kindsAuthored = ix.kindsAuthored;
 
     for (const Condition &c : pack.conditions) {
         for (const QString &sid : c.detectedBy)
@@ -1638,6 +1665,13 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
                      .arg(c.id, it.key()));
         }
     }
+}
+
+// The edges, the causal graph's shape and corroboration, and the golfer wording.
+void validateGraphPass(const CharacteristicPack &pack, ValidationReport &r, const PackIndex &ix)
+{
+    const QSet<QString> &conditionSet  = ix.conditionSet;
+    const bool           kindsAuthored = ix.kindsAuthored;
 
     // --- edges ---------------------------------------------------------------
     for (const Edge &e : pack.edges) {
@@ -1859,46 +1893,31 @@ ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomain
     for (const Measure &m : pack.measures)
         for (const ReportFieldIssue &i : reportFieldIssues(m))
             add(r, i.severity, i.code, m.id, i.message);
+}
 
+} // namespace
+
+ValidationReport validatePack(const CharacteristicPack &pack, const MetricDomainFn &domainFor)
+{
+    ValidationReport r;
+    PackIndex        ix;
+    validateMeasuresPass(pack, domainFor, r, ix);
+    validateSignalsPass(pack, r, ix);
+    validateConditionsPass(pack, r, ix);
+    validateGraphPass(pack, r, ix);
     return r;
 }
 
 // ── Load / save ─────────────────────────────────────────────────────────────
 
-PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
+namespace {
+
+// loadPack's readers, one per array of the file (audit B-11: the 529-line function is split here with
+// nothing moved between them, so a load raises the same issues in the same order). Each appends to
+// `out.pack` and reports into `out.report`.
+void readPackMeasures(const QJsonObject &root, PackLoadResult &out)
 {
-    PackLoadResult out;
     ValidationReport &r = out.report;
-
-    out.pack.id            = root.value(QStringLiteral("id")).toString();
-    out.pack.version       = root.value(QStringLiteral("version")).toString();
-    out.pack.schemaVersion = root.value(QStringLiteral("schemaVersion")).toInt(kPackSchemaVersion);
-    out.pack.sourceLabel   = sourceLabel;
-    const bool currentGroups = packHasCurrentGroups(root);
-
-    // Its own code, not `duplicateId`. A pack with no id is not a collision — it is content that
-    // cannot be namespaced, layered, or named in any issue it goes on to raise, and an author
-    // hunting the word "duplicate" for a file that has exactly one of everything is being sent the
-    // wrong way by the only word the message gave them.
-    if (out.pack.id.isEmpty()) {
-        err(r, QStringLiteral("noPackId"), QString(), QStringLiteral("Pack has no id."));
-        return out;
-    }
-
-    // A newer schema is refused outright rather than partially read. Dropping fields this build
-    // does not understand would let a newer pack round-trip through an older one and lose content
-    // silently — the worst possible failure for authored content.
-    //
-    // `schemaTooNew`, which is what the norm set has always called it, rather than `schemaVersion`:
-    // the version field being ABSENT or malformed is a different fault with a different fix, and
-    // one code for both left a reader unable to tell "your build is old" from "your file is wrong".
-    if (out.pack.schemaVersion > kPackSchemaVersion) {
-        err(r, QStringLiteral("schemaTooNew"), out.pack.id,
-            QStringLiteral("Pack '%1' declares schema version %2; this build understands %3. "
-                           "Refusing to load rather than silently dropping content.")
-                .arg(out.pack.id).arg(out.pack.schemaVersion).arg(kPackSchemaVersion));
-        return out;
-    }
 
     // --- measures ------------------------------------------------------------
     for (const QJsonValue &v : root.value(QStringLiteral("measures")).toArray()) {
@@ -2094,6 +2113,11 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
 
         out.pack.measures.push_back(std::move(m));
     }
+}
+
+void readPackSignals(const QJsonObject &root, PackLoadResult &out)
+{
+    ValidationReport &r = out.report;
 
     // --- signals -------------------------------------------------------------
     for (const QJsonValue &v : root.value(QStringLiteral("signals")).toArray()) {
@@ -2124,6 +2148,12 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
 
         out.pack.signalDefs.push_back(std::move(s));
     }
+}
+
+void readPackConditions(const QJsonObject &root, PackLoadResult &out, bool currentGroups,
+                        const ReferenceSet *refs)
+{
+    ValidationReport &r = out.report;
 
     // --- conditions ----------------------------------------------------------
     for (const QJsonValue &v : root.value(QStringLiteral("conditions")).toArray()) {
@@ -2290,7 +2320,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                      .arg(c.id));
         }
         // …and a citation is only as good as what it points AT. See demoteBookCitation().
-        if (demoteBookCitation(c.provenance.tier, c.provenance.citation))
+        if (demoteBookCitation(c.provenance.tier, c.provenance.citation, refs))
             warn(r, QStringLiteral("bookCitationAtPeerTier"), c.id,
                  QStringLiteral("'%1' claims a peer-reviewed tier on a citation that resolves to a "
                                 "book; demoted to indirect.").arg(c.id));
@@ -2321,6 +2351,11 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
 
         out.pack.conditions.push_back(std::move(c));
     }
+}
+
+void readPackEdges(const QJsonObject &root, PackLoadResult &out, const ReferenceSet *refs)
+{
+    ValidationReport &r = out.report;
 
     // --- edges ---------------------------------------------------------------
     for (const QJsonValue &v : root.value(QStringLiteral("edges")).toArray()) {
@@ -2358,7 +2393,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
                                 "demoted to proposed.").arg(e.from, e.to));
         }
         // …and a citation is only as good as what it points AT. See demoteBookCitation().
-        if (demoteBookCitation(e.provenance.tier, e.provenance.citation))
+        if (demoteBookCitation(e.provenance.tier, e.provenance.citation, refs))
             warn(r, QStringLiteral("bookCitationAtPeerTier"), e.from,
                  QStringLiteral("The edge '%1' -> '%2' claims a peer-reviewed tier on a citation "
                                 "that resolves to a book; demoted to indirect.").arg(e.from, e.to));
@@ -2384,6 +2419,49 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
         edgeTypeFromName(o.value(QStringLiteral("type")).toString(QStringLiteral("causes")), e.type);
         if (!e.from.isEmpty() && !e.to.isEmpty()) out.pack.retiredEdges.push_back(std::move(e));
     }
+}
+
+} // namespace
+
+PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel, const ReferenceSet *refs)
+{
+    PackLoadResult out;
+    ValidationReport &r = out.report;
+
+    out.pack.id            = root.value(QStringLiteral("id")).toString();
+    out.pack.version       = root.value(QStringLiteral("version")).toString();
+    out.pack.schemaVersion = root.value(QStringLiteral("schemaVersion")).toInt(kPackSchemaVersion);
+    out.pack.sourceLabel   = sourceLabel;
+    const bool currentGroups = packHasCurrentGroups(root);
+
+    // Its own code, not `duplicateId`. A pack with no id is not a collision — it is content that
+    // cannot be namespaced, layered, or named in any issue it goes on to raise, and an author
+    // hunting the word "duplicate" for a file that has exactly one of everything is being sent the
+    // wrong way by the only word the message gave them.
+    if (out.pack.id.isEmpty()) {
+        err(r, QStringLiteral("noPackId"), QString(), QStringLiteral("Pack has no id."));
+        return out;
+    }
+
+    // A newer schema is refused outright rather than partially read. Dropping fields this build
+    // does not understand would let a newer pack round-trip through an older one and lose content
+    // silently — the worst possible failure for authored content.
+    //
+    // `schemaTooNew`, which is what the norm set has always called it, rather than `schemaVersion`:
+    // the version field being ABSENT or malformed is a different fault with a different fix, and
+    // one code for both left a reader unable to tell "your build is old" from "your file is wrong".
+    if (out.pack.schemaVersion > kPackSchemaVersion) {
+        err(r, QStringLiteral("schemaTooNew"), out.pack.id,
+            QStringLiteral("Pack '%1' declares schema version %2; this build understands %3. "
+                           "Refusing to load rather than silently dropping content.")
+                .arg(out.pack.id).arg(out.pack.schemaVersion).arg(kPackSchemaVersion));
+        return out;
+    }
+
+    readPackMeasures(root, out);
+    readPackSignals(root, out);
+    readPackConditions(root, out, currentGroups, refs);
+    readPackEdges(root, out, refs);
 
     out.parsed = true;
 
@@ -2396,7 +2474,7 @@ PackLoadResult loadPack(const QJsonObject &root, const QString &sourceLabel)
     return out;
 }
 
-PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel)
+PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel, const ReferenceSet *refs)
 {
     QJsonParseError pe{};
     const QJsonDocument doc = QJsonDocument::fromJson(json, &pe);
@@ -2406,7 +2484,7 @@ PackLoadResult loadPack(const QByteArray &json, const QString &sourceLabel)
             QStringLiteral("Could not parse pack '%1': %2").arg(sourceLabel, pe.errorString()));
         return out;
     }
-    return loadPack(doc.object(), sourceLabel);
+    return loadPack(doc.object(), sourceLabel, refs);
 }
 
 // ── Retired group tokens ────────────────────────────────────────────────────

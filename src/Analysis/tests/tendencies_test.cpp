@@ -808,7 +808,7 @@ int main()
         thirteen[QStringLiteral("rule")] = 13;
         bool thirteenOk = true;
         tendencySetFromJson(thirteen, &thirteenOk);
-        check(kTendencyRuleVersion == 17 && !thirteenOk, "rule 17: a file of rule 13 is not read");
+        check(kTendencyRuleVersion == 18 && !thirteenOk, "rule 18: a file of rule 13 is not read");
         QJsonObject fourteen = json;
         fourteen[QStringLiteral("rule")] = 14;
         bool fourteenOk = true;
@@ -824,6 +824,11 @@ int main()
         bool sixteenOk = true;
         tendencySetFromJson(sixteen, &sixteenOk);
         check(!sixteenOk, "rule 17: a file of rule 16 (no flow combinations) is not read");
+        QJsonObject seventeen = json;
+        seventeen[QStringLiteral("rule")] = 17;
+        bool seventeenOk = true;
+        tendencySetFromJson(seventeen, &seventeenOk);
+        check(!seventeenOk, "rule 18: a file of rule 17 (the board's annotations not read) is not read");
 
         TendencySessionEvidence ev;
         ev.tiers.insert(QStringLiteral("over_the_top"), Tier::Pattern);
@@ -864,14 +869,25 @@ int main()
     }
 
     {
-        // As of a session: earlier days, and the same day up to and including it.
-        const auto counts = [](const char *f, const char *asOf) { return tendencySessionCounts(QString::fromLatin1(f), QString::fromLatin1(asOf)); };
-        const char *asOf = "2026-10-05_M_Wrist_02";
-        check(counts("2026-10-04_M_Wrist_01", asOf), "an earlier day counts");
-        check(counts("2026-10-05_M_Wrist_01", asOf) && counts(asOf, asOf), "the same day counts up to and including the session");
-        check(!counts("2026-10-05_M_Wrist_03", asOf), "a later session the same day doesn't");
-        check(!counts("2026-10-06_M_Wrist_01", asOf), "a later day doesn't");
-        check(!counts("notes", asOf) && counts("notes", "notes"), "an undated folder counts only as itself");
+        // As of a session: earlier days, and the same day up to and including it — by the place SessionIdentity
+        // gives each (its day and n-of-day, from start times; step 2.7a), never the folder's name.
+        const QDate d5(2026, 10, 5);
+        const SessionPlace asOf{ QStringLiteral("2026-10-05_M_Wrist_02"), d5, 2 };
+        check(tendencySessionCounts({ QStringLiteral("2026-10-04_M_Wrist_01"), d5.addDays(-1), 1 }, asOf), "an earlier day counts");
+        check(tendencySessionCounts({ QStringLiteral("2026-10-05_M_Wrist_01"), d5, 1 }, asOf) && tendencySessionCounts(asOf, asOf),
+              "the same day counts up to and including the session");
+        check(!tendencySessionCounts({ QStringLiteral("2026-10-05_M_Wrist_03"), d5, 3 }, asOf), "a later session the same day doesn't");
+        check(!tendencySessionCounts({ QStringLiteral("2026-10-06_M_Wrist_01"), d5.addDays(1), 1 }, asOf), "a later day doesn't");
+        check(!tendencySessionCounts({ QStringLiteral("notes"), QDate(), 0 }, asOf)
+                  && tendencySessionCounts({ QStringLiteral("notes"), QDate(), 0 }, { QStringLiteral("notes"), QDate(), 0 }),
+              "a session with no day counts only as itself");
+        // The place, not the name: "…_03" started before "…_02" is 1st of the day, so it counts as of "…_02".
+        check(tendencySessionCounts({ QStringLiteral("2026-10-05_M_Wrist_03"), d5, 1 }, asOf),
+              "a session started earlier the same day counts, whatever its name");
+        // Under name-date-type no folder starts with its date: the day handed in is what counts.
+        check(tendencySessionCounts({ QStringLiteral("M_2026-10-04_Wrist_01"), d5.addDays(-1), 1 },
+                                    { QStringLiteral("M_2026-10-05_Wrist_01"), d5, 1 }),
+              "a name-date-type folder is placed by its day, not its name");
     }
     {
         // The report's block.

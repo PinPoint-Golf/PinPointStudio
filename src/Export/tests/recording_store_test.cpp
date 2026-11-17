@@ -337,6 +337,8 @@ QJsonObject legacyDoc(const QString &capturedName, double lengthMm, const QJsonO
         { QStringLiteral("athlete"), QJsonObject{ { QStringLiteral("handedness"), QStringLiteral("Left") },
                                                   { QStringLiteral("heightM"), 1.78 } } },
         { QStringLiteral("session"), QJsonObject{ { QStringLiteral("dir"), QStringLiteral("2026-07-04_Golfer_Wrist_01") } } },
+        // The swing's date is its capture's (clock.wallclock; step 2.7a), no longer read off session.dir.
+        { QStringLiteral("clock"), QJsonObject{ { QStringLiteral("wallclock"), QStringLiteral("2026-07-04T11:00:00.000Z") } } },
         { QStringLiteral("capture"), QJsonObject{ { QStringLiteral("club"), club } } },
     };
     if (!review.isEmpty()) root[QStringLiteral("review")] = review;
@@ -412,7 +414,7 @@ void testLegacyContext()
     check(readAnalysisContext(female).context.clubSet == ClubSet::Women, "athlete.sex female: the women's set");
     female[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("dob"), QStringLiteral("2010-01-01") } };
     check(readAnalysisContext(female).context.clubSet == ClubSet::Junior,
-          "under 18 on the session's date: the junior set");
+          "under 18 on the swing's date (its clock.wallclock): the junior set");
     // Through the loader: the synthetic swing written WITHOUT its block (as before step 1.2) loads
     // with the legacy context built from athlete.* and capture.club.
     QTemporaryDir dir;

@@ -18,6 +18,8 @@
 //   ctest --test-dir build/analyzer-tests -R seed_conversion --output-on-failure
 
 #include "../engine/characteristic.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/norm.h"
 #include "../norms/norm_provider.h"
 #include "../packs/pack_provider.h"
@@ -39,6 +41,7 @@ static void check(bool c, const char *label)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("seed_conversion_test\n");
 
     const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();

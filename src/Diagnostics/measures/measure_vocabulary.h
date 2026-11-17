@@ -131,7 +131,7 @@ enum class MeasureStatus {
 //   * the session model's own reads outside the engine: the placed peak times the session's timing
 //     spread is graded from, and the swing length (a part swing is excused the club-baseline faults);
 //   * the shot's launch-monitor readings (ShotRecord, diagnostic_ledger.h): kept as recorded, with
-//     the non-live ones named in ShotRecord::ungradedReadings, and read through gradedReadings() by
+//     the non-live ones named in ShotRecord::ungradedReadings, and read through GradedReadings by
 //     every verdict made from them — the strike and Sky checks against the flight, the session's
 //     usual flight, the flight band, the strike factor, the carry lost, which shots leave the club
 //     distances (shotMishitKind, "far short" included) and the carry block's breakdown.

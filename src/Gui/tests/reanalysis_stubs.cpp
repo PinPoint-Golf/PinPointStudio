@@ -17,7 +17,7 @@
  */
 
 // Link stubs for the ReanalysisController seam test. The controller calls into the full offline
-// analysis pipeline (reanalyzeSwingDir); pulling that in would drag the whole analyzer + OpenCV +
+// analysis pipeline (reanalyzeShot, through the shot's RecordingSource: refactor step 3.4b-ii); pulling that in would drag the whole analyzer + OpenCV +
 // pose stack into what is deliberately a thin funnel test. The write-back goes through the real
 // reanalyse_and_persist.cpp and a RecordingRepository the test never wires (step 1.4), so nothing
 // of the swing-file writer is linked or stubbed. The seam test only exercises queue/de-dupe/signal
@@ -28,15 +28,9 @@
 
 namespace pinpoint::analysis {
 
-ReanalyzeResult reanalyzeSwingDir(const QString & /*swingDir*/, const ReanalyzeOptions & /*opts*/)
+ReanalyzeResult reanalyzeShot(const pinpoint::RecordingSource & /*source*/, const ReanalyzeOptions & /*opts*/)
 {
     return {};   // ok == false; never observed by the seam test
-}
-
-ReanalyzeResult reanalyzeShot(pinpoint::RecordingReader & /*reader*/, const pinpoint::ShotRef & /*shot*/,
-                              const ReanalyzeOptions & /*opts*/)
-{
-    return {};   // the same, for the ShotRef door (step 2.4)
 }
 
 } // namespace pinpoint::analysis

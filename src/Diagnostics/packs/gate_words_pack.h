@@ -21,6 +21,7 @@
 // The issue vocabulary and `LoadResult<T>` — the only things this registry shares with the packs.
 // pack_io.h rather than characteristic_pack.h, because nothing here reads a characteristic.
 #include "../engine/pack_io.h"
+#include "layered_set.h"
 
 #include <QByteArray>
 #include <QString>
@@ -119,25 +120,16 @@ using GateWordLoadResult = LoadResult<GateWordSet>;
 GateWordLoadResult loadGateWordSet(const QByteArray &json, const QString &sourceLabel);
 QByteArray         saveGateWordSet(const GateWordSet &set);
 
-// The ASSEMBLED set: core, with the user layer's entries replacing core's by id (each list on its own)
-// and any id core does not carry appended. What the report reads. Cached; resetSharedGateWordSet()
-// drops the cache so the next read sees a saved edit — the Diagnostic Model's save() calls it, as it
-// calls resetSharedDrillSet(), and the report builder calls it before every make, as it re-reads the
-// pack. Both on the UI thread: a reset frees the set, so no reference to it may be held across one,
-// and nothing may read it from a worker.
-const GateWordSet &sharedGateWordSet();
-void               resetSharedGateWordSet();
+// The shipped words and the user's own, apart and ASSEMBLED (core, with the user layer's entries
+// replacing core's by id, each list on its own, and any id core does not carry appended): what the
+// rule data's repository builds the snapshot from (refactor step 3.2). Pure. The assembled set, what
+// the report reads, is RuleData's (src/DomainModel/rule_data.h). The user layer holds only what the
+// user changed or added, so an override of one clause is a file with one entry in it.
+ContentLayers<GateWordSet> assembleGateWordLayers(const RuleFile &core, const RuleFile &user);
 
-// The layers apart, for the editor. See screen_pack.h.
-//
-// coreGateWordSet() reads `:/diagnostics/gate_words.json`, or the file PINPOINT_CORE_GATE_WORDS names
-// (a standalone test binary has no Qt resource), and is cached for the life of the process — the
-// shipped words do not change under it. The user layer is `gate_words.json` in diagnosticsDataDir()
-// and is read fresh on every call; it holds only what the user changed or added, so an override of
-// one clause is a file with one entry in it.
-const GateWordSet &coreGateWordSet();
-GateWordSet        loadUserGateWordSet();
-QString            userGateWordSetPath();
-bool               saveUserGateWordSet(const GateWordSet &set, QString *whyNot = nullptr);
+// The user layer's file (a path; the repository reads and writes it) and its name in the shared
+// directory, which the pack enumeration's skip list reads (audit B-13).
+inline constexpr const char kGateWordSetFileName[] = "gate_words.json";
+QString userGateWordSetPath();
 
 } // namespace pinpoint::analysis

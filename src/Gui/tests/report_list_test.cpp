@@ -194,6 +194,18 @@ static void makeDocSession(const QString &dir, int n, qint64 startMs)
 
 static QVariant role(const SessionReportListModel &m, int row, int role) { return m.data(m.index(row), role); }
 
+// The archive through SessionRepository, by SessionId, in a run of its own (step 2.6), as the Archiving tab does.
+static pinpoint::SessionArchiveResult archiveIt(const QString &session, const QString &root)
+{
+    pinpoint::SessionArchiveRun run;
+    return run.sessions().archive(run.openSession(session), pinpoint::SessionArchiveOptions{ root, true });
+}
+static pinpoint::SessionArchiveResult restoreIt(const QString &session)
+{
+    pinpoint::SessionArchiveRun run;
+    return run.sessions().restore(run.openSession(session));
+}
+
 int main(int argc, char **argv)
 {
     qputenv("PINPOINT_MAIL_DRYRUN", "0");
@@ -626,13 +638,13 @@ int main(int argc, char **argv)
         check(stateIs(a) == QLatin1String("current") && stateIs(b) == QLatin1String("stale"), "before: current and stale");
 
         const QByteArray identityBefore = swingsIdentity(a);
-        const auto ra = keepReportCurrent(a, fpFn, [&] { return pinpoint::SessionArchiver::archive(a, archiveRoot); });
+        const auto ra = keepReportCurrent(a, fpFn, [&] { return archiveIt(a, archiveRoot); });
         check(ra.ok && pinpoint::SessionArchiver::isArchived(a), "archived for real (verified copy, stubs, marker)");
         check(swingsIdentity(a) != identityBefore, "the stubs moved the swings' identity");
         check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
-        const auto rb = keepReportCurrent(b, fpFn, [&] { return pinpoint::SessionArchiver::archive(b, archiveRoot); });
+        const auto rb = keepReportCurrent(b, fpFn, [&] { return archiveIt(b, archiveRoot); });
         check(rb.ok && stateIs(b) == QLatin1String("stale"), "an out-of-date report stays out of date");
-        const auto rc = pinpoint::SessionArchiver::archive(c, archiveRoot);
+        const auto rc = archiveIt(c, archiveRoot);
         check(rc.ok && stateIs(c) == QLatin1String("stale"), "control: without the re-stamp, archiving reads out of date");
 
         SessionReportListModel il;
@@ -649,7 +661,7 @@ int main(int argc, char **argv)
         auto m = readReportMeta(a);
         m->sends.append({ at(10, 23, 9, 0), QStringLiteral("smtp"), m->sha256 });
         writeReportMeta(a, *m);
-        const auto r2 = keepReportCurrent(a, fpFn, [&] { return pinpoint::SessionArchiver::restore(a); });
+        const auto r2 = keepReportCurrent(a, fpFn, [&] { return restoreIt(a); });
         check(r2.ok && !pinpoint::SessionArchiver::isArchived(a), "restored for real");
         check(stateIs(a) == QLatin1String("current"), "…and the report still reads current");
         const auto after = readReportMeta(a);

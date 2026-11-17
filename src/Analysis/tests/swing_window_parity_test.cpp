@@ -86,6 +86,7 @@
 #include "recording_integrity.h"
 #include "../../Export/capture_export_facts.h"
 #include "../../Export/recording_loader.h"
+#include "../../Export/swing_folder_reanalysis.h"   // a folder re-analysed by its path (refactor step 3.4b-ii)
 #include "analysis_pipeline.h"
 
 using namespace pinpoint;
@@ -918,14 +919,14 @@ void testExportHoldsFrozenInputs(const RamSwing &ram)
     CHECK(r.integrity.hostOrientationFilter.compare(QStringLiteral("Madgwick"), Qt::CaseInsensitive) == 0);
 
     // A LoadedSwing moved, and moved again inside a growing vector: the Recording still reads its window.
-    LoadedSwing a = SwingDiskLoader::load(dir.path());
+    LoadedSwing a = loadSwingFolder(dir.path());
     CHECK(a.ok && a.window && a.recording.window == a.window.get());
     const SwingWindow *w = a.window.get();
     LoadedSwing b = std::move(a);
     CHECK(b.window.get() == w && b.recording.window == w);
     std::vector<LoadedSwing> many;
     many.push_back(std::move(b));
-    for (int i = 0; i < 8; ++i) many.push_back(SwingDiskLoader::load(dir.path()));
+    for (int i = 0; i < 8; ++i) many.push_back(loadSwingFolder(dir.path()));
     CHECK(many.front().recording.window == many.front().window.get() && many.front().window.get() == w);
     CHECK(!many.front().recording.window->entries().empty());
     const IntegrityVerdicts v = integrityFor(many.front().recording);
@@ -949,7 +950,7 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "FATAL: raw export failed\n");
         return 1;
     }
-    LoadedSwing diskRaw = SwingDiskLoader::load(rawDir.path());
+    LoadedSwing diskRaw = loadSwingFolder(rawDir.path());
     CHECK(diskRaw.ok);
     CHECK(diskRaw.usedRaw);
     if (diskRaw.ok && diskRaw.window) {
@@ -964,7 +965,7 @@ int main(int argc, char** argv)
     QTemporaryDir mp4Dir;
     CHECK(mp4Dir.isValid());
     if (exportSwing(*ram.window, baseExportJob(ram, mp4Dir.path(), /*saveRaw=*/false))) {
-        LoadedSwing diskMp4 = SwingDiskLoader::load(mp4Dir.path());
+        LoadedSwing diskMp4 = loadSwingFolder(mp4Dir.path());
         CHECK(diskMp4.ok);
         CHECK(!diskMp4.usedRaw);
         if (diskMp4.ok && diskMp4.window)

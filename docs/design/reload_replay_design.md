@@ -18,7 +18,7 @@
 ### Reload — read-only, works
 - `SwingDocReader` (`src/Export/swing_doc.{h,cpp}`): `readSwingJson(swingDir) →
   PersistedShot {ok, swingDir, ordinal, timestampLabel, club, hasVideo, thumbnailPath, score,
-  metrics, analysisDetail}`; `findSwingDirs(sessionDir)`; `latestSessionDir(root, athlete)`.
+  metrics, analysisDetail}`; `findSwingDirs(sessionDir)`; `latestSessionDir(athleteDir)`.
 - `ShotListModel::addPersistedShot(...)` prepends a reloaded shot; the `Shot` struct carries a
   **`swingDir`** field — the on-disk folder, the key to everything below.
 - `main.cpp` startup reloads the **current athlete's most recent session** into the carousel.

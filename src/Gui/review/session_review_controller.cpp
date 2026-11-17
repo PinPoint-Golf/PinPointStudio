@@ -23,6 +23,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include "../../Export/swing_paths.h"
+#include "../../Export/session_diagnostics_files.h"   // SessionIdentity of a folder (step 2.7b)
 #include "../../Export/session_archiver.h"
 #include <QTime>
 #include <QTimer>
@@ -34,7 +35,10 @@
 #include "session_summary.h"
 #include "../Core/pp_debug.h"
 #include "../Export/swing_doc.h"
+#include "../DomainModel/athlete.h"
+#include "../DomainModel/session.h"    // the Session its Athlete holds (the drawer's delete, refactor step 3.4b-ii)
 #include "../DomainModel/recording_repository.h"
+#include "../DomainModel/session_repository.h"
 
 namespace {
 
@@ -178,17 +182,19 @@ SessionListModel::Row SessionReviewController::buildDiskRow(const QString &sessi
         // indexes the session and the next refresh fills in the rest.
         row.shotCount = swingDirs.size();
         if (row.dayLabel.isEmpty()) {
-            // Prefer the date the session folder is named for. The dir's mtime is its LAST
-            // write (the final swing), while an indexed row's dayLabel comes from the
-            // EARLIEST shot — those disagree across midnight, and the label would then
-            // change as the session finished indexing. The naming pattern is
-            // user-configurable, so fall back to the mtime when there is no leading date.
-            const QDate named =
-                QDate::fromString(QFileInfo(sessionDir).fileName().left(10),
-                                  QStringLiteral("yyyy-MM-dd"));
+            // Prefer the session's own start time, else its day: SessionIdentity's (step 2.7b,
+            // F-06) — the session file's start, or for a session older than step 2 the day its
+            // folder's name records, under every naming pattern (it was read here as the name's
+            // first ten characters, which `name-date-type` never starts with). The dir's mtime is
+            // its LAST write (the final swing), while an indexed row's dayLabel comes from the
+            // EARLIEST shot — those disagree across midnight, and the label would then change as
+            // the session finished indexing; so the mtime only when neither is known.
+            const pinpoint::SessionIdentity id =
+                pinpoint::SessionDiagnosticsFiles::identityOf(sessionDir);
             const qint64 anchorMs =
-                named.isValid() ? QDateTime(named, QTime(0, 0)).toMSecsSinceEpoch()
-                                : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
+                id.startedAtUtc().isValid() ? id.startedAtUtc().toMSecsSinceEpoch()
+                : id.localDay().isValid()   ? QDateTime(id.localDay(), QTime(0, 0)).toMSecsSinceEpoch()
+                                            : QFileInfo(sessionDir).lastModified().toMSecsSinceEpoch();
             row.dayLabel = pinpoint::relativeDayLabel(anchorMs, nowMs);
             // Leave timeLabel blank: the drawer renders "day · time" only when time is
             // non-empty, so an unknown fact reads honestly instead of showing a dir mtime
@@ -206,11 +212,10 @@ void SessionReviewController::refresh()
     rows.append(buildLiveRow(nowMs));        // live session pinned first
 
     const QString liveDir = liveSessionDir();
-    const QString root    = m_settings ? m_settings->athleteLibraryPath() : QString();
-    // The athlete's folder by its own name (D4: chosen once, kept on a rename), which the reader joins
-    // to the library as it always has.
-    const QString athlete = m_athlete  ? QFileInfo(m_athlete->currentFolder()).fileName() : QString();
-    for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(root, athlete)) {
+    // The athlete's folder itself (D4: chosen once, kept on a rename; step 2.7a: no longer re-joined to
+    // the library from its name).
+    const QString athleteDir = m_athlete ? m_athlete->currentFolder() : QString();
+    for (const QString &sessionDir : pinpoint::SwingDocReader::sessionDirs(athleteDir)) {
         // Skip the live session's own dir — it's already the synthesized row.
         if (!liveDir.isEmpty() && QFileInfo(sessionDir).absoluteFilePath() == liveDir)
             continue;
@@ -258,14 +263,16 @@ void SessionReviewController::loadSession(const QString &sessionId)
         });
 
     QVector<pinpoint::ShotSummaryInput> ins;
-    for (const pinpoint::PersistedShot &ps : parsed) {
+    for (int i = 0; i < parsed.size(); ++i) {
+        const pinpoint::PersistedShot &ps = parsed.at(i);
         if (!ps.ok)
             continue;
         m_reviewModel.addPersistedShot(
             ps.swingDir, ps.ordinal, ps.timestampLabel, ps.club, ps.hasVideo,
             ps.thumbnailPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(ps.thumbnailPath),
             ps.score, ps.rating, ps.note, ps.metrics, ps.analysisDetail, ps.dataWarning,
-            ps.lmDevice, ps.dataWarningDetail, ps.excluded, ps.clubOverride);
+            ps.lmDevice, ps.dataWarningDetail, ps.excluded, ps.clubOverride,
+            swings.at(i).second);   // the ShotRef translated above, once (blockingMapped keeps the order)
         ins.append({ ps.score, ps.hasVideo, ps.wallclockMs, ps.club, ps.thumbnailPath, ps.devices });
     }
 
@@ -349,13 +356,42 @@ bool SessionReviewController::trashSession(const QString &sessionId)
         ppWarn() << "[SessionReviewController] refused: the live session cannot be trashed:" << sessionId;
         return false;
     }
-    // Move the whole session folder to the OS trash (recoverable there). On
-    // failure keep everything in place — the files are still on disk.
-    // ⚠ SwingPaths::trashPath, not QFile::moveToTrash — see its note: a
-    // network share has no OS trash, and this is where every session delete
-    // on the SwingData share was failing (2 Sept 2026).
-    if (!pinpoint::SwingPaths::trashPath(sessionId)) {
-        ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId;
+    // THROUGH THE SESSION REPOSITORY, BY SessionId (refactor step 2.6; brief §4.4): the row's folder is
+    // translated once, here at the edge (DEC-90) — its session file's id, or, for a session older than
+    // step 2, D3's from the athlete whose sessions the drawer lists (the id the athlete's index holds it
+    // under, J-39). The repository refuses a session its session file says is in progress (here, on the
+    // other computer, or left open by a crash) and one another writer holds locked; it moves the whole
+    // folder to the OS trash, else the library's own (a share has none), recoverable either way. On a
+    // refusal or a failure everything stays in place.
+    pinpoint::SessionRepository *sessions = m_athlete ? m_athlete->sessionRepository() : nullptr;
+    pinpoint::Athlete           *athlete  = m_athlete ? m_athlete->currentAthlete() : nullptr;
+    const QString                folder   = QDir::cleanPath(QFileInfo(sessionId).absoluteFilePath());
+    // A SESSION ITS ATHLETE HOLDS IS TRASHED BY ITS ATHLETE (refactor step 3.4b-ii; DEC-71: Athlete::trashSession,
+    // EVT-20): the same refusals and the same move, through the same repository, and the Athlete lets its Session
+    // (and its Shots) go. A session no Athlete holds — another golfer's folder — keeps the path below (N1).
+    if (pinpoint::Session *held = athlete ? athlete->sessionAt(folder) : nullptr) {
+        QString where;
+        const pinpoint::WriteResult t = athlete->trashSession(held->id(), &where);
+        if (!t.ok()) {
+            ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId << "-" << t.error;
+            return false;
+        }
+        if (m_reviewActive && QFileInfo(sessionId).absoluteFilePath() == m_loadedSessionDir)
+            resumeLive();
+        refresh();
+        return true;
+    }
+    if (!sessions) {
+        ppWarn() << "[SessionReviewController] no session repository: cannot trash" << sessionId;
+        return false;
+    }
+    const pinpoint::SessionId id = sessions->openFolder(folder, athlete ? athlete->id() : pinpoint::AthleteId());
+    const pinpoint::WriteResult r = id.isNull()
+        ? pinpoint::WriteResult{ pinpoint::WriteResult::Status::Failed,
+                                 QStringLiteral("the session cannot be named (no session file, and no athlete)") }
+        : sessions->trash(id);
+    if (!r.ok()) {
+        ppWarn() << "[SessionReviewController] could not move session to trash:" << sessionId << "-" << r.error;
         return false;
     }
     // If we just trashed the session being reviewed, drop back to live so the

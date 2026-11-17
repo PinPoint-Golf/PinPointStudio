@@ -116,6 +116,31 @@ inline void appendIssues(ValidationReport &into, const ValidationReport &from)
     for (const ValidationIssue &i : from.issues) into.issues.push_back(i);
 }
 
+// The same two answers, for bytes the rule data's repository has already read (RuleFile, pack_io.h).
+// The characteristic-pack leaves take their content this way (refactor step 3.2: the repository is
+// the one door to the pack files, FILE-APP-01, 04, 05), so the words a broken file earns are the
+// ones above, spelled once.
+inline std::optional<QByteArray> shippedBytes(const RuleFile &f, const QString &what,
+                                              ValidationReport &report)
+{
+    if (f.state == RuleFile::State::Read) return f.bytes;
+    report.issues.push_back(ValidationIssue{
+        IssueSeverity::Error, QStringLiteral("parse"), f.path,
+        QStringLiteral("Could not open the core %1 at '%2'.").arg(what, f.path) });
+    return std::nullopt;
+}
+
+inline std::optional<QByteArray> layerBytes(const RuleFile &f, const QString &what,
+                                            ValidationReport &report)
+{
+    if (f.state == RuleFile::State::Read) return f.bytes;
+    if (f.state == RuleFile::State::Unreadable)
+        report.issues.push_back(ValidationIssue{
+            IssueSeverity::Warning, QStringLiteral("parse"), f.path,
+            QStringLiteral("Could not read %1 '%2'.").arg(what, QFileInfo(f.path).fileName()) });
+    return std::nullopt;
+}
+
 // ── What differs between the two registries ─────────────────────────────────
 //
 // The traits ARE the statement of the difference, which is why both live on one page: side by side,
@@ -134,7 +159,11 @@ struct PackTraits {
     static QString shippedNoun() { return QStringLiteral("pack"); }
     static QString layerNoun() { return QStringLiteral("user pack"); }
 
-    static PackLoadResult   load(const QByteArray &b, const QString &src) { return loadPack(b, src); }
+    // `refs` is the bibliography the pack loader's book gate reads (loadPack()).
+    static PackLoadResult load(const QByteArray &b, const QString &src, const ReferenceSet *refs)
+    {
+        return loadPack(b, src, refs);
+    }
     static ValidationReport validate(const Pack &p) { return validatePack(p); }
 
     // Keep every issue for the health list, but drop the REFERENTIAL ones: an overlay pack's edges
@@ -170,7 +199,7 @@ struct NormTraits {
     static QString shippedNoun() { return QStringLiteral("norm set"); }
     static QString layerNoun() { return QStringLiteral("user norm set"); }
 
-    static NormPackLoadResult load(const QByteArray &b, const QString &src)
+    static NormPackLoadResult load(const QByteArray &b, const QString &src, const ReferenceSet *)
     {
         return loadNormPack(b, src);
     }
@@ -207,11 +236,17 @@ protected:
 
         const std::optional<QByteArray> bytes = readShipped(path, Traits::shippedNoun(), m_report);
         if (!bytes) return;
+        adoptShipped(*bytes, path, nullptr);
+    }
 
-        LoadResult<typename Traits::Pack> res = Traits::load(*bytes, path);
-        m_pack                                = std::move(res.pack);
-        m_pack.readOnly                       = true;   // never edited in place
-        appendIssues(m_report, res.report);
+    // The shipped copy, from bytes the repository read (refactor step 3.2).
+    void loadShipped(const RuleFile &file, const ReferenceSet *refs)
+    {
+        m_label  = file.path;
+        m_origin = PackOrigin::Core;
+        const std::optional<QByteArray> bytes = shippedBytes(file, Traits::shippedNoun(), m_report);
+        if (!bytes) return;
+        adoptShipped(*bytes, file.path, refs);
     }
 
     // ONE layer file. The caller has already decided the path and the origin; what this adds is the
@@ -223,8 +258,30 @@ protected:
 
         const std::optional<QByteArray> bytes = readLayer(path, Traits::layerNoun(), m_report);
         if (!bytes) return;
+        adoptLayer(*bytes, path, nullptr);
+    }
 
-        LoadResult<typename Traits::Pack> res = Traits::load(*bytes, path);
+    // ONE layer file, from bytes the repository read (refactor step 3.2). The same containment.
+    void loadLayer(const RuleFile &file, const ReferenceSet *refs)
+    {
+        m_label = file.path;
+        if (file.path.isEmpty()) return;
+        const std::optional<QByteArray> bytes = layerBytes(file, Traits::layerNoun(), m_report);
+        if (!bytes) return;
+        adoptLayer(*bytes, file.path, refs);
+    }
+
+    void adoptShipped(const QByteArray &bytes, const QString &path, const ReferenceSet *refs)
+    {
+        LoadResult<typename Traits::Pack> res = Traits::load(bytes, path, refs);
+        m_pack                                = std::move(res.pack);
+        m_pack.readOnly                       = true;   // never edited in place
+        appendIssues(m_report, res.report);
+    }
+
+    void adoptLayer(const QByteArray &bytes, const QString &path, const ReferenceSet *refs)
+    {
+        LoadResult<typename Traits::Pack> res = Traits::load(bytes, path, refs);
         for (ValidationIssue &i : res.report.issues)
             if (Traits::admitLayerIssue(i)) m_report.issues.push_back(std::move(i));
 

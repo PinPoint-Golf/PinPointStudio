@@ -148,9 +148,9 @@ private:
     // The report's other inputs, as one stamp (the studio's details and the photo rule's), so a
     // studio edit or a change of approval puts the report out of date (§8.2).
     QString inputsStamp(const QString &sessionDir) const;
-    // The athlete a session belongs to: by the first swing's uuid when known, else by the session
-    // folder's parent (the library names an athlete's folder after their sanitised name).
-    QVariantMap athleteFor(const QString &sessionDir, const QString &uuid = QString(), const QString &name = QString()) const;
+    // The athlete a session belongs to: the athlete whose folder holds it (D4), and only that — never by a
+    // name or a swing's recorded uuid (E-02; J-66, step 2.8b). {} when no athlete's folder holds it.
+    QVariantMap athleteFor(const QString &sessionDir) const;
     QString contentStamp() const;
 
     QPointer<StudioProfile>     m_studio;

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "characteristic_pack.h"
+#include "layered_set.h"
 
 #include <QString>
 #include <QStringList>
@@ -106,25 +107,16 @@ using ScreenLoadResult = LoadResult<ScreenSet>;
 ScreenLoadResult loadScreenSet(const QByteArray &json, const QString &sourceLabel);
 QByteArray       saveScreenSet(const ScreenSet &set);
 
-// The assembled registry: the shipped set, with the user's own layered over it by id.
-//
-// `PINPOINT_CORE_SCREENS` overrides the shipped path, for the same reason the pack and norm
-// providers have their own override — the Qt resource exists only inside the app binary, so without
-// it no standalone test or offline tool could reach shipped content.
-const ScreenSet &sharedScreenSet();
-void             resetSharedScreenSet();   // after writing a user set; call from the UI thread
+// The shipped set and the user's own, apart and assembled (the shipped set, with the user's own
+// layered over it by id): what the rule data's repository builds the snapshot from (refactor step
+// 3.2). Pure. The assembled registry is RuleData's (src/DomainModel/rule_data.h). An editor needs the
+// layers apart: it must write back the user's own entries and never a flattened copy of the shipped
+// set, and it has to be able to answer "does this ship?" — which the merge cannot.
+ContentLayers<ScreenSet> assembleScreenLayers(const RuleFile &core, const RuleFile &user);
 
-// ── The two layers, separately ──────────────────────────────────────────────
-//
-// sharedScreenSet() is the MERGE, which is the right answer for everybody who only reads. An editor
-// needs the layers apart: it must write back the user's own entries and never a flattened copy of
-// the shipped set, and it has to be able to answer "does this ship?" — which the merge cannot.
-//
-// The same split the pack and norm registries already have (userPackPath / saveUserPack), arriving
-// here for the same reason: the Diagnostic Model panel writes screens now.
-const ScreenSet &coreScreenSet();          // shipped only, cached like the merge
-ScreenSet        loadUserScreenSet();      // the user layer alone; empty when there is no file
-QString          userScreenSetPath();
-bool             saveUserScreenSet(const ScreenSet &set, QString *whyNot = nullptr);
+// The user layer's file (a path; the repository reads and writes it) and its name in the shared
+// directory, which the pack enumeration's skip list reads (audit B-13).
+inline constexpr const char kScreenSetFileName[] = "screens.json";
+QString userScreenSetPath();
 
 } // namespace pinpoint::analysis

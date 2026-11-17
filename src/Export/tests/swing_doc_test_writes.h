@@ -57,16 +57,31 @@ public:
     SessionStartResult start(const SessionOwner &, const QString &, const QString &) override { return {}; }
     SessionId   todaysSession(const SessionOwner &, const QString &) override { return {}; }
     WriteResult resume(const SessionId &, const QString &) override { return {}; }
-    WriteResult end(const SessionId &, bool) override { return {}; }
-    SessionStartResult restartInLibrary(const SessionId &, const SessionOwner &, const QString &, QString *) override
-    {
-        return {};
-    }
+    WriteResult end(const SessionId &) override { return {}; }
+    bool        folderPresent(const SessionId &) const override { return false; }
     QList<SessionIndexEntry>         enumerate(const SessionOwner &) override { return {}; }
     std::optional<SessionIndexEntry> open(const SessionId &) const override { return std::nullopt; }
     SessionId       openFolder(const QString &, const AthleteId &) override { return {}; }
     SwingAllocation allocateSwing(const SessionId &) override { return {}; }
     QList<ShotRef>  shots(const SessionId &) const override { return {}; }
+    SessionArchiveResult archive(const SessionId &, const SessionArchiveOptions &, const SessionArchiveProgress &) override
+    {
+        return {};
+    }
+    SessionArchiveResult restore(const SessionId &, const SessionArchiveProgress &) override { return {}; }
+    WriteResult          trash(const SessionId &, QString *) override { return {}; }
+    WriteResult          trashShot(const ShotRef &, QString *) override { return {}; }
+    DiagnosticsRead  readDiagnostics(const SessionId &) override { return {}; }
+    WriteResult      writeDiagnostics(const SessionId &, const QJsonObject &, const QJsonObject &, const QJsonObject &,
+                                      DiagnosticsRead::State *) override { return {}; }
+    WriteResult      backupDiagnostics(const SessionId &, const QString &, QString *) override { return {}; }
+    WriteResult      setAsideDiagnostics(const SessionId &, QString *) override { return {}; }
+    SessionInputRead readSessionInput(const SessionId &) override { return {}; }
+    WriteResult      writeSessionInput(const SessionId &, const SessionInput &) override { return {}; }
+    JsonFileRead     readClubBaseline(const SessionId &) override { return {}; }
+    WriteResult      writeClubBaseline(const SessionId &, const QJsonObject &) override { return {}; }
+    JsonFileRead     readWorkOns(const SessionId &) override { return {}; }
+    WriteResult      writeWorkOns(const SessionId &, const QJsonObject &) override { return {}; }
 
     ShotRef openSwingFolder(const QString &swingFolder, const AthleteId & = {}) override
     {

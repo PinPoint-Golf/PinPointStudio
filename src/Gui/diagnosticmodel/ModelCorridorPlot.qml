@@ -46,7 +46,7 @@ import PinPointStudio
 Item {
     id: root
 
-    // The map from ModelBrowser.corridorPlot().
+    // ModelBrowser.corridorPlot()'s answer (a ModelCorridorPlot).
     property var plot: ({})
     property bool editable: true
 

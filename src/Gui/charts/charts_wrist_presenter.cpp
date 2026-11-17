@@ -17,6 +17,7 @@
  */
 
 #include "charts_wrist_presenter.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "charts_relations_presenter.h"     // movesWith(): the Relations ledger, asked our own question
 #include "box_map.h"
@@ -370,16 +371,8 @@ std::shared_ptr<const ShotSeries> referenceShot(ChartsWristPresenter::Worker &w,
     return w.refShot;
 }
 
-QString referenceLabelOf(const QString &dir)
-{
-    const QFileInfo fi(dir);
-    const int id = SessionSeriesModel::folderShotId(dir);
-    const QDate d = QDate::fromString(QFileInfo(fi.absolutePath()).fileName().left(10), QStringLiteral("yyyy-MM-dd"));
-    QStringList parts;
-    if (id >= 0) parts << QStringLiteral("shot %1").arg(id);
-    if (d.isValid()) parts << QLocale(QLocale::English).toString(d, QStringLiteral("d MMM yyyy"));
-    return parts.join(QStringLiteral(", "));
-}
+// "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
+QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
 
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
@@ -1078,7 +1071,7 @@ void buildThisShot(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter
     out.insert(QStringLiteral("swingDir"), s.swingDir);
     out.insert(QStringLiteral("inSession"), inSession);
     const QString club = s.club.toLower();
-    out.insert(QStringLiteral("kicker"), (inSession ? QStringLiteral("Shot %1 of %2").arg(s.ordinal).arg(c.n) : QStringLiteral("This swing"))
+    out.insert(QStringLiteral("kicker"), (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
                                              + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Wrist"));
 
     const Verdicts v = verdictsOf(c, s);
@@ -1652,7 +1645,7 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
             { QStringLiteral("rowGrades"), wristRowCellGrades(grades, a.id) } });
     }
     out.insert(QStringLiteral("rows"), rows);
-    const QString pickedWord = c.index >= 0 ? QStringLiteral("%1 %2’s").arg(c.one).arg(c.shot->ordinal) : QStringLiteral("this swing’s");
+    const QString pickedWord = c.index >= 0 ? QStringLiteral("%1 %2’s").arg(c.one).arg(W::shotNumber(c.shot->shotId, c.shot->ordinal)) : QStringLiteral("this swing’s");
     out.insert(QStringLiteral("caption"), wash == &c.pick
         ? QStringLiteral("Shaded: %1 %2 band. ").arg(pickedWord, c.pick.archetypeName)
               + (c.in.archetype < 0 ? QStringLiteral("Each %1 is graded against its own style’s band on This shot.").arg(c.one)
@@ -1687,8 +1680,8 @@ void buildSession(Ctx &c, const std::vector<DofAgg> &aggs, ChartsWristPresenter:
     for (int i = 0; i < c.n; ++i) {
         const ShotSeries &s = *c.snap->shots[size_t(i)];
         cols.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("shotId"), s.shotId }, { QStringLiteral("swingDir"), s.swingDir },
-                                 { QStringLiteral("label"), W::cap1(c.one) + QStringLiteral(" %1").arg(s.ordinal) },
-                                 { QStringLiteral("short"), QString::number(s.ordinal) },   // the header when columns are narrow
+                                 { QStringLiteral("label"), W::cap1(c.one) + QStringLiteral(" %1").arg(W::shotNumber(s.shotId, s.ordinal)) },
+                                 { QStringLiteral("short"), QString::number(W::shotNumber(s.shotId, s.ordinal)) },   // the header when columns are narrow
                                  { QStringLiteral("picked"), i == c.index } });
     }
     bool anyIndex = false;
@@ -2222,7 +2215,7 @@ bool ChartsWristPresenter::waitForIdle(int msTimeout)
 }
 
 // The playhead's checkpoint: the latest present checkpoint at or before it, else the first present one
-// (WristDiagnosticsModel::recomputeSelected's rule). Fires only when it moves to another checkpoint.
+// (the retired WristDiagnosticsModel's rule, recomputeSelected). Fires only when it moves to another checkpoint.
 void ChartsWristPresenter::updateSelected(bool force)
 {
     int best = -1;

@@ -140,9 +140,34 @@ namespace pinpoint::analysis {
 // do well" may praise an unheld Setup by the same in-range rule as an unheld Fault
 // (ConditionRole::praisable). A rule-4 file never praised a set-up, so it is re-derived. (Mark's second
 // half — praise only what is graded Repeatable or Grooved — is NOT in this rule: the consistency grade
-// is the GUI's (WorkOnsController's consistency marks), not reachable from this reduction.)
+// is the GUI's (WorkOnsController's consistency marks), not reachable from this reduction. It is THE PRAISE
+// RULE below, applied to the stored result before the view: the stored file and its rule are unchanged.)
 inline constexpr int kThemeSchemaVersion = 3;
 inline constexpr int kThemeRuleVersion   = 5;
+
+// THE PRAISE RULE (refactor step 3.6; 04 step 3 item 5, Mark 14 Nov 2026: "praise only what is in range AND
+// Repeatable or Grooved"; D23: DEC-181). "What you do well" (SwingThemes::doWell, already the in-range rule above)
+// keeps a condition only when its consistency grade (the golfer layer's: 5 Grooved, 4 Repeatable … 1 Scattered,
+// 0 "Not enough swings"; src/Gui/components/ConsistencyVocabulary.qml) is Repeatable or Grooved. UNGRADED IS NOT
+// PRAISED (D23): no grade, too few swings (grade 0), or a measurement-limited grade — the golfer layer shows that
+// one as "Checking" (variability_facade.h), so praising it as repeatable would contradict the badge beside it. The
+// condition is still shown in range wherever it is today (Your swing's areas): only the praise goes. Applied to the
+// reduction's ranked, uncapped list, so the view's family check and cap work on what is left (swingSummaryView).
+// 1 (16 Nov 2026).
+inline constexpr int kPraiseRuleVersion = 1;
+inline constexpr int kPraiseMinGrade    = 4;   // Repeatable
+
+struct PraiseGrade {
+    bool graded = false;
+    int  grade  = 0;
+    bool measurementLimited = false;
+};
+
+inline bool praisedForConsistency(const PraiseGrade &g)
+{
+    return g.graded && !g.measurementLimited && g.grade >= kPraiseMinGrade;
+}
+
 
 // One seed per replicate, from a base and a stream, so replicates are independent of each other
 // and of the order they run in. Unsigned arithmetic wraps, which is the "mod 2^64" the Python
@@ -287,9 +312,35 @@ struct ThemeConditionInfo {
     int         when       = 0;
 };
 
+// ONE SHOT AS THE THEMES READ IT (refactor step 3.6, round 3; DEC-192 as Mark answered on 16 Nov, "b": the session
+// summary carries COMPACT per-shot facts, never the judged rows). Its ASSESSED rows, in row order, each as the layers
+// read it — fired or not, in band (rowInBand: 1 in, 0 out, −1 not counted) — and the shot's cells of the swing-by-measure
+// table (the first finite non-composite reading per measure over its assessed rows). Each row also keeps what the
+// consistency grades read of it (its driving measure, value, context, no-band: variability_ledger.h's reading), so the
+// summary already carries them when that rule moves to the Rules ring (3.6 NOTES F7). Ids and numbers only.
+struct ThemeRow {
+    QString conditionId;
+    bool    fired = false;
+    int     inBand = -1;
+    QString measureId;                                              // the driving measure
+    double  value = std::numeric_limits<double>::quiet_NaN();
+    QString contextId;                                              // the row's, else the shot's
+    bool    noBand = false;                                         // faultAt, no band, or a composite's reading
+};
+struct ThemeShot {
+    int                    shotId = 0;
+    QString                club;
+    qint64                 timestampMs = 0;
+    std::vector<ThemeRow>  rows;       // assessed rows only
+    QHash<QString, double> readings;   // measure id -> the table's cell
+};
+
 struct ThemeSessionInput {
     QString                 name;       // the session directory name; sessions are taken in name order
     std::vector<ShotRecord> shots;      // ledger order
+    // The same shots as facts (above), when the caller holds no rows (AthleteDiagnostics, from the summaries); a
+    // session given rows has its facts made from them (themeShotOf) before it is reduced.
+    std::vector<ThemeShot>  facts;
 };
 
 // Runs body(0..n−1), in any order and on any threads. Empty = serial. Each replicate writes only
@@ -408,6 +459,16 @@ struct SwingThemes {
     std::vector<DoWellRow>   doWell;    // rule v1 after the needs-work exclusion, ranked, uncapped
     std::vector<FocusGroup>  focusOrder;    // every needs-work fault, grouped and ranked (focus rule v1)
 };
+
+// THE PRAISE RULE (above, kPraiseRuleVersion) on a list of praised rows. `gradeOf(conditionId)`: the condition's
+// consistency grade as the golfer is shown it (a PraiseGrade).
+template <typename GradeOf>
+inline void applyPraiseRule(std::vector<DoWellRow> &doWell, const GradeOf &gradeOf)
+{
+    doWell.erase(std::remove_if(doWell.begin(), doWell.end(),
+                                [&gradeOf](const DoWellRow &r) { return !praisedForConsistency(gradeOf(r.conditionId)); }),
+                 doWell.end());
+}
 
 // THE LISTING TEST, said once: a session "sees" a fault when it fired on at least presentShare of the
 // swings that session judged. seenMost() lists a fault when its LATEST judged session sees it, and
@@ -1305,6 +1366,8 @@ struct Table {
 // One row per shot, sessions in the order given; one column per measure any row read. A row the
 // capture could not assess contributes nothing; otherwise every reading behind it (rowReadings),
 // the first finite value per measure winning.
+inline const std::vector<ThemeShot> &themeShotsOf(const ThemeSessionInput &s, std::vector<ThemeShot> &scratch);   // below
+
 inline Table buildTable(const std::vector<const ThemeSessionInput *> &sessions)
 {
     Table t;
@@ -1313,20 +1376,12 @@ inline Table buildTable(const std::vector<const ThemeSessionInput *> &sessions)
     for (int si = 0; si < int(sessions.size()); ++si) {
         const ThemeSessionInput &s = *sessions[size_t(si)];
         t.sessionNames.append(s.name);
-        for (const ShotRecord &shot : s.shots) {
-            QHash<QString, double> rec;
-            for (const ConditionRow &row : shot.rows) {
-                if (row.state == ShotState::NotAssessable) continue;
-                for (const MeasureRow &m : rowReadings(row)) {
-                    // A COMPOSITE's reading stays out (posture_metrics_design.md §8): it has no golfer-facing
-                    // unit, and as a column it would count its own parts — already columns — a second time.
-                    if (m.composite.present()) continue;
-                    if (m.measureId.isEmpty() || !std::isfinite(m.value) || rec.contains(m.measureId)) continue;
-                    rec.insert(m.measureId, m.value);
-                    seen.insert(m.measureId);
-                }
-            }
-            cells.push_back(std::move(rec));
+        std::vector<ThemeShot> scratch;
+        for (const ThemeShot &shot : themeShotsOf(s, scratch)) {
+            // A COMPOSITE's reading stays out (posture_metrics_design.md §8; themeShotOf): it has no golfer-facing
+            // unit, and as a column it would count its own parts — already columns — a second time.
+            for (auto it = shot.readings.constBegin(); it != shot.readings.constEnd(); ++it) seen.insert(it.key());
+            cells.push_back(shot.readings);
             t.session.push_back(si);
             t.shotId.push_back(shot.shotId);
         }
@@ -1478,13 +1533,13 @@ inline std::vector<SeenMostRow> seenMost(const std::vector<const ThemeSessionInp
     for (const ThemeSessionInput *s : sessions) {
         std::vector<QString> sOrder;
         QHash<QString, Judged> acc;
-        for (const ShotRecord &shot : s->shots)
-            for (const ConditionRow &r : shot.rows) {
-                if (r.state == ShotState::NotAssessable) continue;
+        std::vector<ThemeShot> scratch;
+        for (const ThemeShot &shot : themeShotsOf(*s, scratch))
+            for (const ThemeRow &r : shot.rows) {
                 if (!acc.contains(r.conditionId)) sOrder.push_back(r.conditionId);
                 Judged &j = acc[r.conditionId];
                 ++j.assessed;
-                if (r.state == ShotState::Fired) ++j.fired;
+                if (r.fired) ++j.fired;
             }
         for (const QString &id : sOrder) {
             if (!per.contains(id)) order.push_back(id);
@@ -1562,6 +1617,43 @@ inline int rowInBand(const ConditionRow &r)
     return inside ? 1 : 0;
 }
 
+// A shot's facts (ThemeShot above), from its row.
+inline ThemeShot themeShotOf(const ShotRecord &shot)
+{
+    ThemeShot t;
+    t.shotId      = shot.shotId;
+    t.club        = shot.club;
+    t.timestampMs = shot.timestampMs;
+    for (const ConditionRow &row : shot.rows) {
+        if (row.state == ShotState::NotAssessable) continue;
+        ThemeRow r;
+        r.conditionId = row.conditionId;
+        r.fired       = row.state == ShotState::Fired;
+        r.inBand      = rowInBand(row);
+        r.measureId   = row.drivingMeasureId;
+        r.value       = row.value;
+        r.contextId   = row.contextId.isEmpty() ? shot.contextId : row.contextId;
+        r.noBand      = std::isfinite(row.faultAt) || row.corridorShape == CorridorShape::None || row.composite.present();
+        t.rows.push_back(std::move(r));
+        for (const MeasureRow &m : rowReadings(row)) {
+            if (m.composite.present()) continue;
+            if (m.measureId.isEmpty() || !std::isfinite(m.value) || t.readings.contains(m.measureId)) continue;
+            t.readings.insert(m.measureId, m.value);
+        }
+    }
+    return t;
+}
+
+// A session's shots as facts: its own, else made from its rows into `scratch` (a caller of the layers that hands rows).
+inline const std::vector<ThemeShot> &themeShotsOf(const ThemeSessionInput &s, std::vector<ThemeShot> &scratch)
+{
+    if (!s.facts.empty() || s.shots.empty()) return s.facts;
+    scratch.clear();
+    scratch.reserve(s.shots.size());
+    for (const ShotRecord &shot : s.shots) scratch.push_back(themeShotOf(shot));
+    return scratch;
+}
+
 // theme_summary.do_well, rule v1. Per session per condition: good = rows in band, counted = rows
 // counted. Candidates are praisable conditions (an unheld Fault or Setup, rule v5), detection Any / First, prominence wellMinProminence and up; a
 // session is judged on minAssessed counted rows; wellMinSessions judged sessions and wellMinSwings
@@ -1584,9 +1676,10 @@ inline std::vector<DoWellRow> doWell(const std::vector<const ThemeSessionInput *
     for (const ThemeSessionInput *s : sessions) {
         std::vector<QString> sOrder;
         QHash<QString, Counted> acc;
-        for (const ShotRecord &shot : s->shots)
-            for (const ConditionRow &r : shot.rows) {
-                const int in = rowInBand(r);
+        std::vector<ThemeShot> scratch;
+        for (const ThemeShot &shot : themeShotsOf(*s, scratch))
+            for (const ThemeRow &r : shot.rows) {
+                const int in = r.inBand;
                 if (in < 0) continue;
                 if (!acc.contains(r.conditionId)) sOrder.push_back(r.conditionId);
                 Counted &c = acc[r.conditionId];
@@ -1963,11 +2056,31 @@ inline void finishSummary(SwingThemes &out, const std::vector<const ThemeSession
                           const QHash<QString, ThemeConditionInfo> &conditions, const ThemeOptions &opt)
 {
     for (const ThemeSessionInput *s : sorted) {
-        out.allSwings += int(s->shots.size());
-        if (!s->shots.empty()) ++out.allSessions;
+        std::vector<ThemeShot> scratch;
+        const std::vector<ThemeShot> &shots = themeShotsOf(*s, scratch);
+        out.allSwings += int(shots.size());
+        if (!shots.empty()) ++out.allSessions;
     }
     out.doWell = doWell(sorted, conditions, out.seenMost, opt);
     out.focusOrder = focusOrder(out.seenMost, conditions);
+}
+// Each session as facts (themeShotOf over its rows, unless it came as facts); the rows are not copied.
+inline std::vector<ThemeSessionInput> withFacts(const std::vector<ThemeSessionInput> &sessions)
+{
+    std::vector<ThemeSessionInput> out;
+    out.reserve(sessions.size());
+    for (const ThemeSessionInput &s : sessions) {
+        ThemeSessionInput f;
+        f.name = s.name;
+        if (!s.facts.empty() || s.shots.empty()) {
+            f.facts = s.facts;
+        } else {
+            f.facts.reserve(s.shots.size());
+            for (const ShotRecord &shot : s.shots) f.facts.push_back(themeShotOf(shot));
+        }
+        out.push_back(std::move(f));
+    }
+    return out;
 }
 } // namespace themes
 
@@ -1977,7 +2090,8 @@ inline SwingThemes reduceSwingThemes(const std::vector<ThemeSessionInput> &sessi
                                      const ThemeOptions &opt = {}, const ThemeParallelFor &pf = {},
                                      const std::atomic<bool> *cancel = nullptr)
 {
-    const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(sessions);
+    const std::vector<ThemeSessionInput> facts = themes::withFacts(sessions);
+    const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(facts);
     SwingThemes out = themes::reduceLayers(sorted, measures, conditions, opt, pf, cancel);
     themes::finishSummary(out, sorted, conditions, opt);
     return out;
@@ -1989,7 +2103,8 @@ inline SwingThemes reduceSwingSummary(const std::vector<ThemeSessionInput> &sess
                                       const QHash<QString, ThemeConditionInfo> &conditions,
                                       const ThemeOptions &opt = {})
 {
-    const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(sessions);
+    const std::vector<ThemeSessionInput> facts = themes::withFacts(sessions);
+    const std::vector<const ThemeSessionInput *> sorted = themes::sortedSessions(facts);
     SwingThemes out;
     for (const ThemeSessionInput *s : sorted) out.sessionNames.append(s->name);
     out.seenMost = themes::seenMost(sorted, conditions, opt);

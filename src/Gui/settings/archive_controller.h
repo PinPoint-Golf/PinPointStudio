@@ -21,14 +21,25 @@
 // ArchiveController — the Archiving settings tab (swing_storage_impl.md, Phase 2 stage 6).
 //
 //   · the library's sessions, with their size and whether they are archived;
-//   · archive / restore one session (SessionArchiver: verified copy, stubs, marker);
+//   · archive / restore one session — through SessionRepository::archive / restore BY ITS SessionId (step
+//     2.6): each job makes a SessionArchiveRun of its own (it runs on a worker, never the app's identity
+//     map), translates the row's folder to the SessionId once, at this edge, and the repository refuses a
+//     session its session file says is in progress (SessionArchiver: verified copy, stubs, marker);
 //   · space: the free space as HOURS of capture at the swing size THIS library actually records
 //     (measured over its most recent swings, not assumed);
-//   · housekeeping at startup, every piece of it OFF until the user sets it: empty the library's
-//     .pinpoint-trash of entries older than N days; archive sessions older than N days; archive
-//     the oldest sessions while free space is below a floor.
+//   · housekeeping at startup and "Empty now" FORWARD TO HOUSEKEEPING (refactor step 3.8; src/App/housekeeping.h, the
+//     one application service that ends things for good: DEC-80, DEC-137), which the composition root hands in
+//     (setHousekeeping). Every piece of the pass is OFF until the user sets it: empty the library's .pinpoint-trash of
+//     entries older than N days; archive sessions older than N days; archive the oldest sessions while free space is
+//     below a floor — a session an Athlete holds through its Session (the app's instance, Session::archiveJob on this
+//     thread, the job on the worker, the result posted back: EVT-18), a folder no Athlete holds through today's archive
+//     in a run of its own (Mark's N1). The trash is emptied by ONE purge
+//     (Housekeeping::purge), for "Empty now" and the retention pass alike. This controller reads the settings, runs
+//     the pass on its worker and words the outcome; it decides nothing.
 //
 // Every file operation runs on a worker thread, one at a time.
+
+#include "../../App/housekeeping.h"
 
 #include <QFutureWatcher>
 #include <QObject>
@@ -80,10 +91,24 @@ public:
     Q_INVOKABLE void restoreSession(const QString &sessionDir);
     Q_INVOKABLE void emptyTrash();                       // everything in the library trash, now
     Q_INVOKABLE void cancel();                           // stop between files
+    // At quit, before the composition root's other locals go (refactor step 3.8): a running job is asked to stop and
+    // waited for, so the housekeeping pass never reaches an Athlete after the athlete repository is gone.
+    void stopJobs();
+    // THE APP'S SESSION REPOSITORY'S ARCHIVE JOB (refactor step 3.8; SessionStore::setArchiveJobs): today's archive of a
+    // session folder in a run of its own (SessionArchiveRun::archiveInOwnRun), the code this tab's own archive runs.
+    // ⚠ A LINT DODGE, recorded for Mark with J-9 (3.8-i NOTES, round 3): it is handed out here only so main.cpp need not
+    // name session_archiver.h (its A5 count 8 → 9, Mark's call). A Gui controller is not where the store's wiring belongs.
+    using ArchiveJobs = std::function<pinpoint::SessionArchiveResult(const QString &sessionDir,
+                                                                     const pinpoint::SessionArchiveOptions &options,
+                                                                     const pinpoint::SessionArchiveProgress &progress)>;
+    static ArchiveJobs archiveJobs();
     // The startup pass: trash retention, then archive-by-age, then archive-below-floor. Each is a
     // no-op while its setting is 0 / no archive location is set.
     Q_INVOKABLE void runHousekeeping();
 
+    // Housekeeping (step 3.8): the composition root's, which outlives this controller. Without it, "Empty now" and the
+    // startup pass do nothing (logged).
+    void setHousekeeping(const pinpoint::Housekeeping *housekeeping) { m_housekeeping = housekeeping; }
     // The running session's folder (main.cpp's, as the session list is told it); empty when none.
     // Archiving it is refused, by hand or by housekeeping.
     void setLiveSessionDir(const QString &dir);
@@ -117,6 +142,7 @@ private:
     std::function<QString(const QString &)> reportFingerprint() const;
 
     AppSettings *m_settings = nullptr;
+    const pinpoint::Housekeeping *m_housekeeping = nullptr;
     QString      m_liveDir;
     std::function<std::function<QString(const QString &)>()> m_fingerprint;
     QVariantList m_sessions;

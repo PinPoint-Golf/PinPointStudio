@@ -3,7 +3,9 @@ rem studio-build.cmd - the ONE way to build on GOLFSIMPC from the Mac. Lives in 
 rem is never retyped through ssh quoting. ASCII ONLY: a multi-byte character (an em dash on line 2,
 rem 11 Oct) makes cmd misread the lines after it under a UTF-8 console, so the cd into the Release
 rem tree failed and cmake configured in-source in the repo root. Run it by file:
-rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy] [pull|nopull]"
+rem   ssh developer@GOLFSIMPC.local "cmd /c C:\Users\developer\Projects\PinPointStudio\tools\studio\studio-build.cmd [app|tool|both|deploy|migrate] [pull|nopull]"
+rem "migrate" builds only pps_migrate_step2 (refactor step 2.8a, the step-2 migrations) in the same tree, in a mode
+rem of its own, so a failure there can never fail "tool" or "both". Log: migrate_build.log; exit 6 on failure.
 rem Defaults: both, pull. Pulls origin/main fast-forward (refuses on a dirty tree) and builds in
 rem build\Release-Installer, the studio's one Release tree: the app (cmake . first so the embedded
 rem sha is HEAD's), copied over the installed PinPointStudio.exe so the Start menu runs it, and
@@ -41,7 +43,7 @@ if "%WHAT%"=="deploy" set PULL=nopull
 set PFILE=
 if "%~3"=="" goto argsdone
 if not "%~3"=="patch" (
-  echo USAGE: studio-build.cmd [app^|tool^|both^|deploy] [pull^|nopull] [patch C:\...\wip.patch]
+  echo USAGE: studio-build.cmd [app^|tool^|both^|deploy^|migrate] [pull^|nopull] [patch C:\...\wip.patch]
   exit /b 8
 )
 if "%~4"=="" ( echo PATCH: no patch file given & exit /b 8 )
@@ -97,6 +99,7 @@ call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\v
 set PATH=%PATH%;C:\Qt\Tools\QtCreator\bin\jom;C:\Qt\Tools\CMake_64\bin
 if "%WHAT%"=="deploy" goto deploy
 if "%WHAT%"=="tool" goto tool
+if "%WHAT%"=="migrate" goto migrate
 echo app: cmake %TIME%
 cd /d "%RI%"
 C:\Qt\Tools\CMake_64\bin\cmake.exe . > "%LOGS%\app_cmake.log" 2>&1
@@ -126,6 +129,15 @@ set RC=%ERRORLEVEL%
 echo tool: build exit %RC% %TIME%
 if not "%RC%"=="0" ( type "%LOGS%\tool_build.log" | findstr /i "error" & set "EXITRC=6" & goto fail )
 echo tool: %RI%\swinglab_run.exe
+goto done
+:migrate
+echo migrate: jom pps_migrate_step2 %TIME%
+cd /d "%RI%"
+jom -j8 pps_migrate_step2 > "%LOGS%\migrate_build.log" 2>&1
+set RC=%ERRORLEVEL%
+echo migrate: build exit %RC% %TIME%
+if not "%RC%"=="0" ( type "%LOGS%\migrate_build.log" | findstr /i "error" & set "EXITRC=6" & goto fail )
+echo migrate: %RI%\pps_migrate_step2.exe
 :done
 cd /d "%REPO%"
 if defined PATCHED call :restore

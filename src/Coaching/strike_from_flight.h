@@ -98,8 +98,8 @@ inline QHash<QString, ClubFlightUsual> sessionFlightUsuals(const std::vector<Sho
     struct Pool { std::vector<double> launch, smash, attack, carry; };
     QHash<QString, Pool> pools;
     for (const ShotRecord &recorded : shots) {
-        ShotRecord scratch;
-        const ShotRecord &s = gradedReadings(recorded, scratch);   // a held reading never sets a usual (#176)
+        const GradedReadings graded(recorded);
+        const ShotRecord &s = graded.record();   // a held reading never sets a usual (#176)
         if (s.swingLength == QLatin1String("partial")) continue;
         const QString club = canonicalClubId(s.club);
         if (club.isEmpty()) continue;
@@ -136,8 +136,8 @@ inline bool strikeHeightUnread(const ShotRecord &s)
 // rule's alone (flightSaysSky), so this never names it.
 inline QString strikeFromFlight(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings judge (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &s = graded.record();       // only live readings judge (#176)
     if (s.swingLength == QLatin1String("partial")) return QString();
     if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return QString();
 
@@ -178,8 +178,8 @@ inline QString strikeFromFlight(const ShotRecord &s, const QHash<QString, ClubFl
 // are never mirrored, so a left-hander is judged the same way.
 inline bool measuredStrikeFlightAgrees(const ShotRecord &recorded, const QString &conditionId, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &s = gradedReadings(recorded, scratch);       // only live readings overrule (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &s = graded.record();       // only live readings overrule (#176)
     if (s.swingLength == QLatin1String("partial")) return true;
     if (conditionId == QLatin1String("thin") || conditionId == QLatin1String("top")) {
         if (!std::isfinite(s.launchAngle) || !std::isfinite(usual.launch) || !(usual.launch > 0.0)) return true;
@@ -386,8 +386,8 @@ inline double modelledDescentAngle(const ShotRecord &shot)
 // category, or nothing the shot has that a method reads.
 inline std::optional<FlightReading> classifyFlight(const ShotRecord &recorded, const FlightNorms &norms)
 {
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);    // a flight band is a verdict (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();    // a flight band is a verdict (#176)
     FlightReading r;
     r.category = flightClubCategory(norms, shot.club);
     if (r.category.isEmpty()) return std::nullopt;
@@ -482,8 +482,8 @@ inline bool isSkyClub(const QString &clubId)
 // usual. Every reading has to be there; with one missing it stays High. `usual` is the shot's own club's.
 inline bool flightSkied(const ShotRecord &recorded, const ClubFlightUsual &usual)
 {
-    ShotRecord scratch;
-    const ShotRecord &shot = gradedReadings(recorded, scratch);    // only live readings call a sky (#176)
+    const GradedReadings graded(recorded);
+    const ShotRecord &shot = graded.record();    // only live readings call a sky (#176)
     if (!isSkyClub(shot.club)) return false;
     if (!std::isfinite(shot.attackAngle) || !std::isfinite(usual.attack)) return false;
     if (!std::isfinite(shot.carry) || !std::isfinite(usual.carry) || !(usual.carry > 0.0)) return false;
@@ -551,34 +551,53 @@ inline const QString &skyOverruledReason()
     return k;
 }
 
+// ONE SHOT, BOTH HALVES (refactor step 3.5-i): the session's owner (SessionDiagnostics, src/DomainModel) keeps each
+// shot's findings AS FIRED and checks them against the usuals it holds, one shot at a time, in its layer-3 job; the
+// session-wide pass below is the same two halves over every shot. One rule, so the two can never judge differently.
+//   uncheckShotAgainstFlight   puts every overruled row back as detected (a fired row has no reason). A ledger read
+//                              from disk holds checked rows: this gives the findings as fired back.
+//   checkShotAgainstFlight     judges the shot's FIRED rows against `usuals` (its club's, by canonical club). Returns
+//                              how many it overruled. Call it on rows as fired (unchecked).
+inline void uncheckShotAgainstFlight(ShotRecord &s)
+{
+    for (ConditionRow &r : s.rows)
+        if (r.overruled) {
+            r.state = ShotState::Fired;     // only a fired row is ever overruled, and a fired row has no reason
+            r.notAssessableReason.clear();
+            r.overruled = false;
+        }
+}
+
+inline int checkShotAgainstFlight(ShotRecord &s, const QHash<QString, ClubFlightUsual> &usuals, const FlightNorms &norms)
+{
+    int overruled = 0;
+    for (ConditionRow &r : s.rows) {
+        if (r.state != ShotState::Fired) continue;
+        const QString *why = nullptr;
+        if (r.conditionId == QLatin1String("thin") || r.conditionId == QLatin1String("top")
+            || r.conditionId == QLatin1String("chunk")) {
+            if (!measuredStrikeFlightAgrees(s, r.conditionId, usuals)) why = &strikeOverruledReason();
+        } else if (r.conditionId == QLatin1String("sky")) {
+            if (!flightSaysSky(s, usuals, norms)) why = &skyOverruledReason();
+        }
+        if (!why) continue;
+        r.state = ShotState::NotAssessable;
+        r.notAssessableReason = *why;
+        r.overruled = true;
+        ++overruled;
+    }
+    return overruled;
+}
+
 inline int checkStrikesAgainstFlight(std::vector<ShotRecord> &shots, const FlightNorms &norms)
 {
     for (ShotRecord &s : shots)
-        for (ConditionRow &r : s.rows)
-            if (r.overruled) {
-                r.state = ShotState::Fired;     // only a fired row is ever overruled, and a fired row has no reason
-                r.notAssessableReason.clear();
-                r.overruled = false;
-            }
+        uncheckShotAgainstFlight(s);
 
     const QHash<QString, ClubFlightUsual> usuals = sessionFlightUsuals(shots);
     int overruled = 0;
     for (ShotRecord &s : shots)
-        for (ConditionRow &r : s.rows) {
-            if (r.state != ShotState::Fired) continue;
-            const QString *why = nullptr;
-            if (r.conditionId == QLatin1String("thin") || r.conditionId == QLatin1String("top")
-                || r.conditionId == QLatin1String("chunk")) {
-                if (!measuredStrikeFlightAgrees(s, r.conditionId, usuals)) why = &strikeOverruledReason();
-            } else if (r.conditionId == QLatin1String("sky")) {
-                if (!flightSaysSky(s, usuals, norms)) why = &skyOverruledReason();
-            }
-            if (!why) continue;
-            r.state = ShotState::NotAssessable;
-            r.notAssessableReason = *why;
-            r.overruled = true;
-            ++overruled;
-        }
+        overruled += checkShotAgainstFlight(s, usuals, norms);
     return overruled;
 }
 

@@ -77,12 +77,12 @@ PpExpandRow {
     // An earned fault: says how often beneath it.
     function fault(f) { return !!tendencyRow.factor(f).fault && !tendencyRow.building(f) }
     // Any fault, building or earned: wears the fault tone. A value never does.
-    function faultTone(f) { return !!tendencyRow.factor(f).fault && tendencyRow.factorLabel(f) !== "—" }
+    function faultTone(f) { return !!tendencyRow.factor(f).fault && tendencyRow.factorLabel(f) !== "-" }
     // A value to watch (Low flight): not a fault, not where you want to be. Amber, where a fault is red.
     function watchTone(f) { return !tendencyRow.faultTone(f) && !!tendencyRow.factor(f).watch }
     function factorLabel(f) {
         const l = tendencyRow.factor(f).label
-        return l === undefined || l === "" || l === "-" ? "—" : String(l)
+        return l === undefined || l === "" || l === "-" ? "-" : String(l)
     }
     function factorWords(f) {
         const x = tendencyRow.factor(f)
@@ -143,7 +143,7 @@ PpExpandRow {
             font.pixelSize: Theme.fontSzBody
             font.weight:    Theme.fontBodyWeight
             color: cell.fault ? Theme.colorWarn : cell.watch ? Theme.toneColor("watch")
-                 : cell.label === "—" ? Theme.colorText3 : Theme.colorText
+                 : cell.label === "-" ? Theme.colorText3 : Theme.colorText
         }
         Row {
             visible: cell.words !== ""
@@ -388,7 +388,7 @@ PpExpandRow {
     Text {                                      // usual distance: average ± spread
         objectName: "tendencyDistance"
         width: tendencyRow.columnWidth(2)
-        text:  tendencyRow.distance !== "" ? tendencyRow.distance : "—"
+        text:  tendencyRow.distance !== "" ? tendencyRow.distance : "-"
         elide: Text.ElideRight
         font.family:    Theme.fontData
         font.pixelSize: Theme.fontSzBody2

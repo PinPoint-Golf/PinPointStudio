@@ -16,14 +16,20 @@
  * Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-// SessionRepository (SessionStore) — the session file, Start / resume / End, the empty discard, the
-// identity map, enumerate, and the one swing allocator (refactor step 2.2; brief §4.3, §4.4, §4.13).
+// SessionRepository (SessionStore) — the session file, Start / resume / End (which never discards: the empty
+// discard is Session::end's from step 3.4a-ii, session_test S3), the identity map, enumerate, and the one swing
+// allocator (refactor step 2.2; brief §4.3, §4.4, §4.13).
 //
 // ⚠ EVERY EXPECTATION COMES FROM A STATED CONTRACT OR FROM THE FILESYSTEM, NEVER FROM RUNNING THE CODE.
 // The contracts: src/DomainModel/session_repository.h and src/Export/session_store.h (the file's keys),
 // and the decisions they cite — DEC-91 (a swing number is never reissued), DEC-93 (the empty discard),
 // DEC-134 (resume: today's session of the same type, same id), DEC-78/DEC-73 (one InProgress per
-// athlete), DEC-136 (the typed entry), DEC-150 (an old session's id), DEC-154 (D7).
+// athlete), DEC-136 (the typed entry), DEC-150 (an old session's id), DEC-154 (D7), and J-18 (Mark, 15 Nov
+// 2026, build/refactor/step-2/JUDGEMENT-ANSWERS.md: a crash-left session's end inferred and marked so; J).
+//
+// EVERY TRASH STAYS IN THE TEMPORARY FOLDER: each store is set with setOsTrashForTest(false), so a session's
+// and a swing's trash land in the library's own .pinpoint-trash (asserted in R5, S14), never in the OS trash of
+// the machine that runs the suite (step 3.4a, review 1).
 //
 // Sections N, A, R, B, E and K are swing_paths_test's allocator sections, moved here with the allocator
 // (they were written against SwingPaths' instance half, deleted in this step); F, L, I, O, D, X are new.
@@ -40,6 +46,8 @@
 
 #include <QCoreApplication>
 #include <QDate>
+#include <QDateTime>
+#include <QTimeZone>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -112,6 +120,18 @@ static QByteArray bytesOf(const QString &path)
     return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
 }
 static QJsonObject sessionFile(const QString &dir) { return readJson(SessionFiles::sessionFile(dir)); }
+// What the library's own trash holds for the suite's athlete (FILE-LIB-01: <root>/.pinpoint-trash/<athlete>/),
+// where every trash of this suite goes (SessionStore::setOsTrashForTest(false)), never the OS trash.
+static QStringList libraryTrash(const TempLibrary &lib)
+{
+    return QDir(lib.root() + QStringLiteral("/.pinpoint-trash/") + kToken).entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+}
+static bool trashedAs(const TempLibrary &lib, const QString &suffix)
+{
+    const QStringList in = libraryTrash(lib);
+    return in.size() == 1 && in.first().endsWith(QLatin1Char('_') + suffix);
+}
+
 static QString folderOf(SessionStore &store, const SessionId &id)
 {
     const auto e = store.open(id);
@@ -127,6 +147,7 @@ static void testStartWritesTheFile()
     TempLibrary lib;
     if (!lib.valid()) { skip(QStringLiteral("F"), QStringLiteral("no temp dir")); return; }
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     const QDateTime t0 = QDateTime(QDate(2026, 11, 15), QTime(10, 4, 5, 123), QTimeZone::UTC);
     store.setClockForTest([t0] { return t0; });
     store.setTimeZoneForTest(QTimeZone::UTC);
@@ -151,7 +172,7 @@ static void testStartWritesTheFile()
           !TempLibrary::exists(s.folder + QLatin1Char('/') + SessionFiles::lockFileName()));
 
     store.setClockForTest([t0] { return t0.addSecs(3600); });
-    const WriteResult e = store.end(s.id, /*discardIfEmpty=*/false);
+    const WriteResult e = store.end(s.id);
     const QJsonObject g = sessionFile(s.folder);
     check(QStringLiteral("F13 End writes"), e.changed());
     checkEq(QStringLiteral("F14 status ended"), g.value("status").toString(), QStringLiteral("ended"));
@@ -181,7 +202,7 @@ static void testStartWritesTheFile()
     const SessionId id3 = third.openFolder(s.folder);
     check(QStringLiteral("F19 a newer file is read (its id)"), id3 == s.id && third.open(id3)->readOnly);
     check(QStringLiteral("F20 End refuses it (ReadOnly)"),
-          third.end(id3, false).status == WriteResult::Status::ReadOnly);
+          third.end(id3).status == WriteResult::Status::ReadOnly);
     check(QStringLiteral("F21 resume refuses it"), !third.resume(id3, QStringLiteral("wrist")).ok());
     check(QStringLiteral("F22 allocate refuses it"), !third.allocateSwing(id3).ok());
     check(QStringLiteral("F23 and the file is byte-identical"), bytesOf(SessionFiles::sessionFile(s.folder)) == newerBytes);
@@ -204,6 +225,7 @@ static void testNamingPatterns()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("N %1").arg(c.pattern), QStringLiteral("no temp dir")); continue; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(lib), kType, QString::fromLatin1(c.pattern));
         checkEq(QStringLiteral("N %1 folder name").arg(c.pattern), QFileInfo(s.folder).fileName(),
                 c.want + QStringLiteral("_01"));
@@ -212,6 +234,7 @@ static void testNamingPatterns()
         TempLibrary lib;
         if (lib.valid()) {
             SessionStore store;
+            store.setOsTrashForTest(false);   // every trash into the library's own
             const QString name = QFileInfo(store.start(owner(lib), QString(), kPat).folder).fileName();
             check(QStringLiteral("N5 an untyped session leaves no dangling separator (\"%1\")").arg(name),
                   !name.contains(QStringLiteral("__")) && !name.endsWith(QLatin1Char('_')));
@@ -234,6 +257,7 @@ static void testAllocate()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("A1"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(lib), kType, kPat);
         const SwingAllocation a1 = store.allocateSwing(s.id);
         checkEq(QStringLiteral("A1 the first swing is swing_0001"), a1.swingName, QStringLiteral("swing_0001"));
@@ -261,6 +285,7 @@ static void testAllocate()
             skip(QStringLiteral("A10 unwritable library"), QStringLiteral("the platform will not make a directory unwritable here"));
         } else {
             SessionStore store;
+            store.setOsTrashForTest(false);   // every trash into the library's own
             const SessionStartResult s = store.start(owner(lib), kType, kPat);
             check(QStringLiteral("A10 an unwritable library starts no session"), !s.ok() && s.id.isNull());
             makeWritable(lib.root());
@@ -271,6 +296,7 @@ static void testAllocate()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("A11"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult a = store.start(owner(lib), kType, kPat);
         const SessionStartResult b = store.start(
             { AthleteId::fromString(u"a1b2c3d4-0000-4000-8000-000000000002"), QStringLiteral("Other Golfer"), lib.root() },
@@ -292,6 +318,7 @@ static void testNumberingAfterDelete()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("R1"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionId id = store.start(owner(lib), kType, kPat).id;
         SwingAllocation a;
         for (int i = 0; i < 3; ++i) a = store.allocateSwing(id);
@@ -303,6 +330,7 @@ static void testNumberingAfterDelete()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("R2"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionId id = store.start(owner(lib), kType, kPat).id;
         QStringList dirs;
         for (int i = 0; i < 5; ++i) dirs << store.allocateSwing(id).swingFolder;
@@ -320,12 +348,14 @@ static void testNumberingAfterDelete()
         QString newest;
         {
             SessionStore store;
+            store.setOsTrashForTest(false);   // every trash into the library's own
             const SessionId id = store.start(owner(lib), kType, kPat).id;
             for (int i = 0; i < 2; ++i) newest = store.allocateSwing(id).swingFolder;
-            store.end(id, false);
+            store.end(id);
         }
         QDir(newest).removeRecursively();
         SessionStore again;
+        again.setOsTrashForTest(false);   // every trash into the library's own
         const SessionId id = again.todaysSession(owner(lib), kType);
         check(QStringLiteral("R4a today's session is found again"), !id.isNull() && again.resume(id, kType).ok());
         checkEq(QStringLiteral("R4 a resumed session after a restart does not reuse it either"),
@@ -336,14 +366,17 @@ static void testNumberingAfterDelete()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("R5"), QStringLiteral("no temp dir")); return; }
         const QString session = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 3);
-        if (!SwingPaths::trashPath(session + QStringLiteral("/swing_0003"))) {
+        if (!SwingPaths::trashPath(session + QStringLiteral("/swing_0003"), nullptr, /*useOsTrash=*/false)) {
             skip(QStringLiteral("R5"), QStringLiteral("the temp volume refused the move"));
         } else {
             SessionStore store;
+            store.setOsTrashForTest(false);   // every trash into the library's own
             const SessionId id = store.todaysSession(owner(lib), kType);
             store.resume(id, kType);
             checkEq(QStringLiteral("R5 an older session's trashed newest swing keeps its number"),
                     store.allocateSwing(id).swingName, QStringLiteral("swing_0004"));
+            check(QStringLiteral("R5b the swing is in the library's own trash, named for its session"),
+                  trashedAs(lib, QFileInfo(session).fileName() + QStringLiteral("_swing_0003")));
         }
     }
 }
@@ -358,15 +391,16 @@ static void testStartAndResume()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("B1"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         check(QStringLiteral("B1 no session today before the first Start"), store.todaysSession(owner(lib), kType).isNull());
         const SessionStartResult s1 = store.start(owner(lib), kType, kPat);
         checkEq(QStringLiteral("B2 the first session is _01"), QFileInfo(s1.folder).fileName(), baseDefault() + QStringLiteral("_01"));
         check(QStringLiteral("B3 it is on disk"), TempLibrary::exists(s1.folder));
-        store.end(s1.id, false);
+        store.end(s1.id);
         const SessionStartResult s2 = store.start(owner(lib), kType, kPat);
         checkEq(QStringLiteral("B4 a second new session is _02"), QFileInfo(s2.folder).fileName(), baseDefault() + QStringLiteral("_02"));
         check(QStringLiteral("B5 a new session has a new id"), s1.id != s2.id);
-        store.end(s2.id, false);
+        store.end(s2.id);
 
         // Resume keeps the id (DEC-77).
         const SessionId latest = store.todaysSession(owner(lib), kType);
@@ -386,10 +420,11 @@ static void testStartAndResume()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("B14"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const QDateTime now = QDateTime::currentDateTimeUtc();
         store.setClockForTest([now] { return now.addDays(-1); });
         const SessionStartResult y = store.start(owner(lib), kType, kPat);
-        store.end(y.id, false);
+        store.end(y.id);
         store.setClockForTest([now] { return now; });
         check(QStringLiteral("B14 yesterday's session is not today's"), store.todaysSession(owner(lib), kType).isNull());
         check(QStringLiteral("B15 and resume refuses it"), !store.resume(y.id, kType).ok());
@@ -404,6 +439,7 @@ static void testStartAndResume()
         lib.makeSession(kToken, baseDefault() + QStringLiteral("_02"), 1);
         const QString third = lib.makeSession(kToken, baseDefault() + QStringLiteral("_03"), 1);
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         checkEq(QStringLiteral("B17 the most recent legacy session is today's"), folderOf(store, store.todaysSession(owner(lib), kType)), third);
         checkEq(QStringLiteral("B18 a new session continues the counter"),
                 QFileInfo(store.start(owner(lib), kType, kPat).folder).fileName(), baseDefault() + QStringLiteral("_04"));
@@ -425,6 +461,7 @@ static void testLegacy()
     const QString name    = baseDefault() + QStringLiteral("_01");
     const QString session = lib.makeSession(kToken, name, 2);
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     const QList<SessionIndexEntry> all = store.enumerate(owner(lib));
     check(QStringLiteral("L1 enumerate lists it"), all.size() == 1);
     if (all.size() != 1) return;
@@ -439,7 +476,7 @@ static void testLegacy()
     check(QStringLiteral("L6 enumerate / todaysSession / openFolder / shots wrote nothing"),
           !TempLibrary::exists(SessionFiles::sessionFile(session)));
     check(QStringLiteral("L7 End of a session nothing resumed writes nothing"),
-          store.end(e.id(), true).status == WriteResult::Status::Unchanged && !TempLibrary::exists(SessionFiles::sessionFile(session))
+          store.end(e.id()).status == WriteResult::Status::Unchanged && !TempLibrary::exists(SessionFiles::sessionFile(session))
               && TempLibrary::countSwings(session) == 2);
     checkEqInt(QStringLiteral("L8 its shots are its swing folders"), int(store.shots(e.id()).size()), 2);
     checkEq(QStringLiteral("L9 openFolder gives the same id"), store.openFolder(session, kAthlete).toString(), e.id().toString());
@@ -459,7 +496,7 @@ static void testLegacy()
         SessionStore s2;
         const SessionId id = s2.openFolder(other, kAthlete);
         check(QStringLiteral("L16 a corrupt file is read as its folder (D3), read-only"), !id.isNull() && s2.open(id)->readOnly);
-        s2.end(id, false);
+        s2.end(id);
         s2.resume(id, kType);
         check(QStringLiteral("L17 and no write replaces it"), bytesOf(SessionFiles::sessionFile(other)) == "{ not json");
     }
@@ -479,22 +516,118 @@ static void testOneInProgress()
         crashed = store.start(owner(lib), kType, kPat).folder;
     }
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     const SessionStartResult s = store.start(owner(lib), QStringLiteral("wrist"), kPat);
     const QJsonObject f = sessionFile(crashed);
     checkEq(QStringLiteral("I1 the athlete's next Start ends the crash-left session"), f.value("status").toString(), QStringLiteral("ended"));
-    check(QStringLiteral("I2 with no made-up end time"), !f.contains("endedAt"));
+    check(QStringLiteral("I2 no swing records a capture time: no made-up end time"), !f.contains("endedAt") && !f.contains("endInferred"));
     int inProgress = 0;
     for (const SessionIndexEntry &e : store.enumerate(owner(lib)))
         inProgress += e.status == SessionStatus::InProgress ? 1 : 0;
     checkEqInt(QStringLiteral("I3 one session in progress"), inProgress, 1);
     // A resume ends the other one too.
-    store.end(s.id, false);
+    store.end(s.id);
     const SessionStartResult s3 = store.start(owner(lib), QStringLiteral("wrist"), kPat);
     store.resume(store.openFolder(crashed), kType);
     checkEq(QStringLiteral("I4 resuming one session ends the other in progress"),
             sessionFile(s3.folder).value("status").toString(), QStringLiteral("ended"));
     checkEq(QStringLiteral("I5 and the resumed one is in progress"), sessionFile(crashed).value("status").toString(),
             QStringLiteral("inProgress"));
+}
+
+// ---------------------------------------------------------------------------
+// G — a tool meets a live session (D11: DEC-158; H-14): SessionStore::fileSaysInProgress, the one check every
+// writing tool asks before it writes into a session
+// ---------------------------------------------------------------------------
+static void testToolGuard()
+{
+    std::printf("\nG — the tools' in-progress check (D11)\n");
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("G"), QStringLiteral("no temp dir")); return; }
+    SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
+    const SessionStartResult s = store.start(owner(lib), kType, kPat);
+    const SwingAllocation a = store.allocateSwing(s.id);
+    check(QStringLiteral("G1 a session being recorded: in progress"), SessionStore::fileSaysInProgress(s.folder));
+    check(QStringLiteral("G2 its swing's session folder is the session"),
+          QDir::cleanPath(SessionStore::sessionFolderOfSwing(a.swingFolder)) == QDir::cleanPath(s.folder));
+    const QByteArray before = bytesOf(SessionFiles::sessionFile(s.folder));
+    check(QStringLiteral("G3 the check writes nothing (no lock file, the session file byte-identical)"),
+          !TempLibrary::exists(s.folder + QLatin1Char('/') + SessionFiles::lockFileName())
+              && bytesOf(SessionFiles::sessionFile(s.folder)) == before);
+    const QString refusal = SessionStore::inProgressRefusal(s.folder);
+    check(QStringLiteral("G4 the refusal names the session and the override"),
+          refusal.contains(QDir::cleanPath(s.folder)) && refusal.contains(QStringLiteral("--allow-in-progress")));
+    store.end(s.id);
+    check(QStringLiteral("G5 ended: not in progress"), !SessionStore::fileSaysInProgress(s.folder));
+    const QString legacy = lib.makeSession(kToken, baseDefault() + QStringLiteral("_09"), 1);
+    check(QStringLiteral("G6 a session older than step 2 (no file): not in progress"), !SessionStore::fileSaysInProgress(legacy));
+    const QString broken = lib.makeSession(kToken, baseDefault() + QStringLiteral("_10"), 1);
+    plant(SessionFiles::sessionFile(broken), "{ \"status\": \"inProgress\"");
+    check(QStringLiteral("G7 an unreadable file: not in progress (read as nothing)"), !SessionStore::fileSaysInProgress(broken));
+    check(QStringLiteral("G8 no folder: not in progress"), !SessionStore::fileSaysInProgress(QString()));
+}
+
+// ---------------------------------------------------------------------------
+// J — J-18 (Mark, 15 Nov 2026): a crash-left session ended by the next Start gets its last swing's capture
+// end, MARKED AS INFERRED (`endInferred`); an observed End is never marked
+// ---------------------------------------------------------------------------
+static void testInferredEnd()
+{
+    std::printf("\nJ — the inferred end of a crash-left session (J-18)\n");
+    TempLibrary lib;
+    if (!lib.valid()) { skip(QStringLiteral("J"), QStringLiteral("no temp dir")); return; }
+    const QDateTime t1 = QDateTime(QDate(2026, 11, 14), QTime(10, 4, 5, 123), QTimeZone::UTC);
+    const QDateTime t3 = QDateTime(QDate(2026, 11, 14), QTime(10, 31, 0, 500), QTimeZone::UTC);
+    // The swings' capture ends as the swing door reads them: swing 2 records none (a crash mid-write).
+    const auto reader = [&](const QString &swingDir) -> QDateTime {
+        const QString name = QFileInfo(swingDir).fileName();
+        if (name == QLatin1String("swing_0001")) return t1;
+        if (name == QLatin1String("swing_0003")) return t3;
+        return {};
+    };
+    QString crashed;
+    {
+        SessionStore store;   // a run that crashed: started, three swings, never ended
+        const SessionStartResult s = store.start(owner(lib), kType, kPat);
+        crashed = s.folder;
+        for (int i = 0; i < 3; ++i) store.allocateSwing(s.id);
+    }
+    SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
+    store.setCaptureEndReader(reader);
+    const SessionStartResult next = store.start(owner(lib), QStringLiteral("wrist"), kPat);
+    const QJsonObject f = sessionFile(crashed);
+    checkEq(QStringLiteral("J1 the next Start ends it"), f.value("status").toString(), QStringLiteral("ended"));
+    checkEq(QStringLiteral("J2 endedAt = the latest swing capture end (swing 3; swing 2 records none)"),
+            f.value("endedAt").toString(), QStringLiteral("2026-11-14T10:31:00.500Z"));
+    check(QStringLiteral("J3 marked as inferred"), f.value("endInferred").toBool());
+    SessionStore reader2;
+    const auto e = reader2.open(reader2.openFolder(crashed));
+    check(QStringLiteral("J4 read back: endInferred, the end time"), e && e->endInferred && e->endedAtUtc == t3);
+    // An observed End is never marked inferred, even over a file that was.
+    store.end(next.id);
+    store.resume(store.openFolder(crashed), kType);
+    check(QStringLiteral("J5 resumed: in progress, no end, no mark"),
+          sessionFile(crashed).value("status").toString() == QLatin1String("inProgress") && !sessionFile(crashed).contains("endedAt")
+              && !sessionFile(crashed).contains("endInferred"));
+    store.end(store.openFolder(crashed));
+    check(QStringLiteral("J6 ended by End: endedAt observed, no endInferred"),
+          sessionFile(crashed).contains("endedAt") && !sessionFile(crashed).contains("endInferred"));
+    // A crash-left session none of whose swings records a capture time: no end, no mark (as I2, with a reader).
+    QString bare;
+    {
+        SessionStore s0;
+        const SessionStartResult s = s0.start(owner(lib), QStringLiteral("grf"), kPat);
+        bare = s.folder;
+        s0.allocateSwing(s.id);   // a swing folder whose document (if any) records no capture time
+    }
+    SessionStore store2;
+    store2.setCaptureEndReader([](const QString &) { return QDateTime(); });
+    store2.start(owner(lib), QStringLiteral("grf"), kPat);
+    check(QStringLiteral("J7 no capture time anywhere: ended, end not known, not marked"),
+          sessionFile(bare).value("status").toString() == QLatin1String("ended") && !sessionFile(bare).contains("endedAt")
+              && !sessionFile(bare).contains("endInferred"));
 }
 
 // ---------------------------------------------------------------------------
@@ -506,10 +639,11 @@ static void testEnumerate()
     TempLibrary lib;
     if (!lib.valid()) { skip(QStringLiteral("O"), QStringLiteral("no temp dir")); return; }
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     const QDateTime t = QDateTime::currentDateTimeUtc();
     store.setClockForTest([t] { return t; });
     const SessionStartResult a = store.start(owner(lib), kType, QStringLiteral("name-date-type"));
-    store.end(a.id, false);
+    store.end(a.id);
     store.setClockForTest([t] { return t.addSecs(60); });
     const SessionStartResult b = store.start(owner(lib), QStringLiteral("wrist"), QStringLiteral("name-date-type"));
     QDir().mkpath(lib.athleteDir(kToken) + QStringLiteral("/not-a-session"));   // no name, no swing, no file
@@ -530,27 +664,32 @@ static void testEnumerate()
 }
 
 // ---------------------------------------------------------------------------
-// E — End: the empty discard takes only what this run's Start made (DEC-93, unchanged)
+// E — End: the store ends the session and NEVER discards it (step 3.4a-ii: the empty discard, DEC-93, is
+//     Session::end's, which asks Athlete::trashSession: DEC-143; session_test S3)
 // ---------------------------------------------------------------------------
 static void testEnd()
 {
-    std::printf("\nE — ending a session discards only what it created\n");
+    std::printf("\nE — ending a session ends it and never discards it\n");
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("E1"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);
         const SessionStartResult s = store.start(owner(lib), kType, kPat);
-        store.end(s.id, true);
-        check(QStringLiteral("E1 an empty new session is discarded"), !TempLibrary::exists(s.folder));
-        check(QStringLiteral("E2 and is no longer held"), !store.open(s.id).has_value());
+        check(QStringLiteral("E1 the store's End of an empty new session keeps it (the discard is Session::end's)"),
+              store.end(s.id).ok() && TempLibrary::exists(s.folder));
+        checkEq(QStringLiteral("E1b it is ended"), sessionFile(s.folder).value("status").toString(), QStringLiteral("ended"));
+        check(QStringLiteral("E2 and still held, with nothing in the library's trash"),
+              store.open(s.id).has_value() && !TempLibrary::exists(lib.root() + QStringLiteral("/.pinpoint-trash")));
     }
     {
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("E3"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(lib), kType, kPat);
         store.allocateSwing(s.id);
-        store.end(s.id, true);
+        store.end(s.id);
         check(QStringLiteral("E3 a new session with a swing survives"), TempLibrary::exists(s.folder));
         checkEqInt(QStringLiteral("E4 with its swing"), TempLibrary::countSwings(s.folder), 1);
     }
@@ -560,10 +699,11 @@ static void testEnd()
         if (!lib.valid()) { skip(QStringLiteral("E5"), QStringLiteral("no temp dir")); return; }
         const QString existing = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 20);
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionId id = store.todaysSession(owner(lib), kType);
         checkEq(QStringLiteral("E5 today's session is this morning's folder"), folderOf(store, id), existing);
         store.resume(id, kType);
-        store.end(id, true);
+        store.end(id);
         check(QStringLiteral("E6 a resumed session that captured nothing is NOT discarded"), TempLibrary::exists(existing));
         checkEqInt(QStringLiteral("E7 and this morning's 20 swings survive"), TempLibrary::countSwings(existing), 20);
         checkEq(QStringLiteral("E7b it is ended"), sessionFile(existing).value("status").toString(), QStringLiteral("ended"));
@@ -573,12 +713,13 @@ static void testEnd()
         if (!lib.valid()) { skip(QStringLiteral("E8"), QStringLiteral("no temp dir")); return; }
         const QString existing = lib.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 5);
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionId id = store.todaysSession(owner(lib), kType);
         store.resume(id, kType);
         const SwingAllocation a = store.allocateSwing(id);
         check(QStringLiteral("E8 the new swing landed in the resumed session"), a.ok() && QFileInfo(a.swingFolder).path() == existing);
         QDir(existing + QStringLiteral("/swing_0001")).removeRecursively();
-        store.end(id, true);
+        store.end(id);
         check(QStringLiteral("E9 a session that captured a swing is never discarded"), TempLibrary::exists(existing));
         check(QStringLiteral("E10 and its swing is still there"), TempLibrary::exists(a.swingFolder));
     }
@@ -586,13 +727,14 @@ static void testEnd()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("E11"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(lib), kType, kPat);
-        store.end(s.id, false);
-        check(QStringLiteral("E11 end(false) keeps an empty session"), TempLibrary::exists(s.folder));
-        store.end(s.id, true);   // again
-        check(QStringLiteral("E12 a second End does not discard the ended one"), TempLibrary::exists(s.folder));
+        store.end(s.id);
+        check(QStringLiteral("E11 End keeps an empty session"), TempLibrary::exists(s.folder));
+        check(QStringLiteral("E12 a second End keeps it too"),
+              store.end(s.id).ok() && TempLibrary::exists(s.folder));
         check(QStringLiteral("E13 End of an unknown session touches nothing"),
-              store.end(SessionId::create(), true).status == WriteResult::Status::Unchanged);
+              store.end(SessionId::create()).status == WriteResult::Status::Unchanged);
     }
 }
 
@@ -606,6 +748,7 @@ static void testFolderFixedAndD7()
         TempLibrary lib;
         if (!lib.valid()) { skip(QStringLiteral("K1"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const QDateTime t = QDateTime(QDate(2026, 11, 15), QTime(23, 59), QTimeZone::UTC);
         store.setClockForTest([t] { return t; });
         store.setTimeZoneForTest(QTimeZone::UTC);
@@ -618,19 +761,24 @@ static void testFolderFixedAndD7()
         // A rename: the session keeps its folder (allocation takes no name); the next Start uses the new name.
         const SwingAllocation c = store.allocateSwing(s.id);
         checkEq(QStringLiteral("K3 the session keeps its folder"), QFileInfo(c.swingFolder).path(), s.folder);
-        store.end(s.id, false);
+        store.end(s.id);
         const SessionStartResult n = store.start({ kAthlete, QStringLiteral("Mark L"), lib.root() }, kType, kPat);
         check(QStringLiteral("K4 the next session goes under the new name"), QFileInfo(n.folder).path() == lib.athleteDir(QStringLiteral("Mark-L")));
         checkEqInt(QStringLiteral("K5 one session folder under the old name"), TempLibrary::countSessions(lib.athleteDir(kToken)), 1);
     }
-    // D7: the library re-pointed mid-session.
+    // D7: the library re-pointed mid-session. From step 3.4a-ii the capture service makes it from two
+    // commands — the running session's End (Session::end, its empty discard included: session_test S3) and
+    // a Start in the new library — so these check the store's half: the old session ends where it is,
+    // and a session of the same type starts under the new library.
     {
         TempLibrary oldLib, newLib;
         if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K6"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(oldLib), QStringLiteral("wrist"), kPat);
         store.allocateSwing(s.id);
-        const SessionStartResult n = store.restartInLibrary(s.id, owner(newLib), kPat);
+        check(QStringLiteral("K6a the old one ends"), store.end(s.id).ok());
+        const SessionStartResult n = store.start(owner(newLib), store.open(s.id)->identity.type(), kPat);
         check(QStringLiteral("K6 a new session started"), n.ok() && n.id != s.id);
         check(QStringLiteral("K7 under the new library"), QFileInfo(n.folder).path() == newLib.athleteDir(kToken));
         checkEq(QStringLiteral("K8 of the same type"), sessionFile(n.folder).value("type").toString(), QStringLiteral("wrist"));
@@ -640,64 +788,101 @@ static void testFolderFixedAndD7()
         checkEqInt(QStringLiteral("K11 the old session gained nothing"), TempLibrary::countSwings(s.folder), 1);
         checkEq(QStringLiteral("K12 and its folder never moved"), folderOf(store, s.id), s.folder);
     }
-    // D7 with the old library gone (a share dropped): the old session stays in progress; a new one starts.
+    // D7 with the old session's folder unwritable: its End fails and it stays in progress; the folder is still
+    // there (folderPresent, the capture service's test), so it is reported.
     {
         TempLibrary oldLib, newLib;
         if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K13"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(oldLib), kType, kPat);
         store.allocateSwing(s.id);
         if (!makeUnwritable(s.folder)) {
             skip(QStringLiteral("K13 unreachable old library"), QStringLiteral("the platform will not make a directory unwritable here"));
         } else {
-            QString problem;
-            const SessionStartResult n = store.restartInLibrary(s.id, owner(newLib), kPat, &problem);
+            const WriteResult ended = store.end(s.id);
+            const bool stillThere = store.folderPresent(s.id);
+            const SessionStartResult n = store.start(owner(newLib), kType, kPat);
             makeWritable(s.folder);
             check(QStringLiteral("K13 the new session still starts"), n.ok());
-            check(QStringLiteral("K13b the old folder is still there, so its failed end is reported (%1)").arg(problem),
-                  !problem.isEmpty());
+            check(QStringLiteral("K13b the old End fails and its folder is still there, so it is reported (%1)").arg(ended.error),
+                  !ended.ok() && stillThere);
             checkEq(QStringLiteral("K14 the old one stays in progress (DEC-73)"), sessionFile(s.folder).value("status").toString(),
                     QStringLiteral("inProgress"));
         }
     }
-    // D7 with the old library gone (moved away): expected, not reported; the new session starts.
+    // D7 with the old folder present but its session file unreadable as well as the folder unwritable (review 2
+    // of 3.4a-ii; DEC-140): the End fails and the failure is still reported — the test is the folder, not the
+    // session file (before step 3.4a-ii: QFileInfo::exists in restartInLibrary).
+    {
+        TempLibrary oldLib;
+        if (!oldLib.valid()) { skip(QStringLiteral("K13c"), QStringLiteral("no temp dir")); return; }
+        SessionStore store;
+        store.setOsTrashForTest(false);
+        const SessionStartResult s = store.start(owner(oldLib), kType, kPat);
+        store.allocateSwing(s.id);
+        const QString file = SessionFiles::sessionFile(s.folder);
+        if (!QFile::setPermissions(file, QFileDevice::Permissions()) || QFile(file).open(QIODevice::ReadOnly)
+            || !makeUnwritable(s.folder)) {
+            QFile::setPermissions(file, QFile::ReadOwner | QFile::WriteOwner);
+            skip(QStringLiteral("K13c unreadable session file"), QStringLiteral("the platform will not make a file unreadable here"));
+        } else {
+            const WriteResult ended = store.end(s.id);
+            const bool reported = !ended.ok() && store.folderPresent(s.id);
+            const bool fileReads = !store.openFolder(s.folder).isNull();
+            makeWritable(s.folder);
+            QFile::setPermissions(file, QFile::ReadOwner | QFile::WriteOwner);
+            check(QStringLiteral("K13c an unreadable session file in a present folder: the failed End is still reported (%1)")
+                      .arg(ended.error),
+                  reported);
+            check(QStringLiteral("K13d (the case: the session file does not read)"), !fileReads);
+        }
+    }
+    // D7 with the old library gone (moved away): its End fails, the folder is not there — expected, not
+    // reported; the new session starts.
     {
         TempLibrary oldLib, newLib;
         if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K16"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(oldLib), kType, kPat);
         store.allocateSwing(s.id);
         const QString away = oldLib.root() + QStringLiteral("/away");
         QDir().rename(oldLib.athleteDir(kToken), away);
-        QString problem = QStringLiteral("unset");
-        const SessionStartResult n = store.restartInLibrary(s.id, owner(newLib), kPat, &problem);
+        const WriteResult ended = store.end(s.id);
+        const SessionStartResult n = store.start(owner(newLib), kType, kPat);
         check(QStringLiteral("K16 a gone library: the new session starts"), n.ok());
-        check(QStringLiteral("K17 and the old session's end is not reported (%1)").arg(problem), problem.isEmpty());
+        check(QStringLiteral("K17 and the old session's folder is not there, so its end is not reported (%1)").arg(ended.error),
+              !ended.ok() && !store.folderPresent(s.id));
     }
-    // D7 with the old session's folder locked by another writer: reported.
+    // D7 with the old session's folder locked by another writer: its End is Locked, and the folder reads: reported.
     {
         TempLibrary oldLib, newLib;
         if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K18"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         store.setLockWaitForTest(200);
         const SessionStartResult s = store.start(owner(oldLib), kType, kPat);
         store.allocateSwing(s.id);
         FolderLock other(s.folder);
         other.lock(0);
-        QString problem;
-        const SessionStartResult n = store.restartInLibrary(s.id, owner(newLib), kPat, &problem);
+        const WriteResult ended = store.end(s.id);
+        const SessionStartResult n = store.start(owner(newLib), kType, kPat);
         check(QStringLiteral("K18 a locked old session: the new session starts"), n.ok());
-        check(QStringLiteral("K19 and the old session's failed end is reported"), !problem.isEmpty());
+        check(QStringLiteral("K19 and the old session's failed end is reported"),
+              ended.status == WriteResult::Status::Locked && store.folderPresent(s.id));
         other.unlock();
     }
-    // D7 on a session that captured nothing: discarded like an empty End, not left behind.
+    // D7 on a session that captured nothing: the store's End keeps it (Session::end discards it: session_test
+    // S3, the capture service's D7 calls it).
     {
         TempLibrary oldLib, newLib;
         if (!oldLib.valid() || !newLib.valid()) { skip(QStringLiteral("K15"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);
         const SessionStartResult s = store.start(owner(oldLib), kType, kPat);
-        store.restartInLibrary(s.id, owner(newLib), kPat);
-        check(QStringLiteral("K15 an empty session left by a library change is discarded"), !TempLibrary::exists(s.folder));
+        store.end(s.id);
+        check(QStringLiteral("K15 the store's End of an empty session keeps it"), TempLibrary::exists(s.folder));
     }
 }
 
@@ -726,11 +911,12 @@ static void testCopiedSession()
         TempLibrary a, b;
         if (!a.valid() || !b.valid()) { skip(QStringLiteral("C ") + tag, QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         QString inA;
         if (withFile) {
             const SessionStartResult s = store.start(owner(a), kType, kPat);
             store.allocateSwing(s.id);
-            store.end(s.id, false);
+            store.end(s.id);
             inA = s.folder;
         } else {
             inA = a.makeSession(kToken, baseDefault() + QStringLiteral("_01"), 2);
@@ -751,7 +937,7 @@ static void testCopiedSession()
         const SwingAllocation next = store.allocateSwing(idB);
         check(QStringLiteral("C6 %1: the next swing goes under B").arg(tag), QFileInfo(next.swingFolder).path() == inB);
         // The discard can never take the copy: it is not the folder this run's start() made.
-        store.end(idB, true);
+        store.end(idB);
         check(QStringLiteral("C7 %1: End keeps the copy").arg(tag), TempLibrary::exists(inB));
     }
     // The running session this run started keeps its folder, whatever else holds its id.
@@ -759,6 +945,7 @@ static void testCopiedSession()
         TempLibrary a, b;
         if (!a.valid() || !b.valid()) { skip(QStringLiteral("C8"), QStringLiteral("no temp dir")); return; }
         SessionStore store;
+        store.setOsTrashForTest(false);   // every trash into the library's own
         const SessionStartResult s = store.start(owner(a), kType, kPat);
         store.allocateSwing(s.id);
         const QString inB = b.athleteDir(kToken) + QLatin1Char('/') + QFileInfo(s.folder).fileName();
@@ -781,6 +968,7 @@ static void testSwingFolders()
 
     // A session with a file: the ref carries its file's id.
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     const SessionStartResult s = store.start(owner(lib), kType, kPat);
     const SwingAllocation    a = store.allocateSwing(s.id);
     const ShotRef ref = store.openSwingFolder(a.swingFolder);
@@ -826,12 +1014,16 @@ static void testSwingFolders()
     worker.join();
     checkEq(QStringLiteral("S12 a worker resolves the shot while the map changes"), fromWorker, a.swingFolder);
 
-    // A discarded session's folders are no longer published.
+    // A trashed session's folders are no longer published (the empty discard's path: Session::end ends it,
+    // then its Athlete trashes it).
     const SessionStartResult empty = store.start(owner(lib), kType, kPat);
     const QString emptyFolder = store.swingFolder(ShotRef(empty.id, 1));
     check(QStringLiteral("S13 a started session's folder is published"), !emptyFolder.isEmpty());
-    store.end(empty.id, /*discardIfEmpty=*/true);
-    check(QStringLiteral("S14 once discarded, no folder"), store.swingFolder(ShotRef(empty.id, 1)).isEmpty());
+    store.setOsTrashForTest(false);
+    store.end(empty.id);
+    store.trash(empty.id);
+    check(QStringLiteral("S14 once trashed, no folder"), store.swingFolder(ShotRef(empty.id, 1)).isEmpty());
+    check(QStringLiteral("S14b into the library's own trash"), trashedAs(lib, QFileInfo(empty.folder).fileName()));
 }
 
 // ---------------------------------------------------------------------------
@@ -843,11 +1035,12 @@ static void testLock()
     TempLibrary lib;
     if (!lib.valid()) { skip(QStringLiteral("D"), QStringLiteral("no temp dir")); return; }
     SessionStore store;
+    store.setOsTrashForTest(false);   // every trash into the library's own
     store.setLockWaitForTest(200);
     const SessionStartResult s = store.start(owner(lib), kType, kPat);
     FolderLock other(s.folder);
     check(QStringLiteral("D1 another writer holds the session folder"), other.lock(0) == FolderLock::Result::Acquired);
-    const WriteResult e = store.end(s.id, false);
+    const WriteResult e = store.end(s.id);
     check(QStringLiteral("D2 End is refused"), !e.ok() && !e.error.isEmpty());
     check(QStringLiteral("D2b ... as Locked (J-22), in the lock's own words"),
           e.status == WriteResult::Status::Locked && e.error.contains(QStringLiteral("being changed by")));
@@ -857,7 +1050,7 @@ static void testLock()
     check(QStringLiteral("D4b ... as Locked, naming the holder"),
           a.result.status == WriteResult::Status::Locked && a.result.error.contains(QStringLiteral("being changed by")));
     other.unlock();
-    check(QStringLiteral("D5 once let go, End writes"), store.end(s.id, false).ok());
+    check(QStringLiteral("D5 once let go, End writes"), store.end(s.id).ok());
 }
 
 int main(int argc, char **argv)
@@ -871,6 +1064,8 @@ int main(int argc, char **argv)
     testStartAndResume();
     testLegacy();
     testOneInProgress();
+    testInferredEnd();
+    testToolGuard();
     testEnumerate();
     testEnd();
     testFolderFixedAndD7();

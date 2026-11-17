@@ -18,9 +18,9 @@
 
 #include "pack_io.h"
 
-#include "../../Core/atomic_write.h"
-
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSet>
 #include <QStandardPaths>
 
@@ -119,6 +119,8 @@ QStringList readStringList(const QJsonValue &v)
 
 QString diagnosticsDataDir()
 {
+    const QString forced = qEnvironmentVariable("PINPOINT_DIAGNOSTICS_DIR");
+    if (!forced.isEmpty()) return forced;
     const QString base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     return base.isEmpty() ? QString() : base + QStringLiteral("/diagnostics");
 }
@@ -129,16 +131,10 @@ QString diagnosticsFilePath(const QString &fileName)
     return dir.isEmpty() ? QString() : dir + QLatin1Char('/') + fileName;
 }
 
-bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot)
+int declaredSchemaVersion(const QByteArray &bytes)
 {
-    if (path.isEmpty()) {   // diagnosticsFilePath()'s meaning of empty, said in its own words
-        if (whyNot) *whyNot = QStringLiteral("No writable application data location.");
-        return false;
-    }
-    const pinpoint::AtomicWriteResult r = pinpoint::atomicWrite(path, bytes);
-    if (!r.ok && whyNot)
-        *whyNot = r.error;
-    return r.ok;
+    const QJsonDocument doc = QJsonDocument::fromJson(bytes);
+    return doc.isObject() ? doc.object().value(QStringLiteral("schemaVersion")).toInt(0) : 0;
 }
 
 } // namespace pinpoint::analysis

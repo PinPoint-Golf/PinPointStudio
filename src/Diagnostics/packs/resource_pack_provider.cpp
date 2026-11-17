@@ -29,19 +29,21 @@ namespace {
 // time. That split is what lets a community contribution arrive as a pull request against readable
 // content rather than a binary blob.
 //
-// Nothing else to say, which is the point: loadShipped() carries the PINPOINT_CORE_PACK seam, the
-// open-or-report-an-error, the read-only mark and the Core origin, and it carries the identical
-// versions of all four for the norm set beside it. See provider_leaf_p.h.
+// Nothing else to say, which is the point: loadShipped() carries the open-or-report-an-error, the
+// read-only mark and the Core origin, identical to the norm set beside it (provider_leaf_p.h). The
+// bytes, and the PINPOINT_CORE_PACK seam that picks the file, are the rule data's repository's
+// (src/Export/rule_data_store.cpp; refactor step 3.2).
 class ResourcePackProvider final : public detail::PackLeaf {
 public:
-    explicit ResourcePackProvider(const QString &resourcePath) { loadShipped(resourcePath); }
+    ResourcePackProvider(const RuleFile &core, const ReferenceSet *refs) { loadShipped(core, refs); }
 };
 
 } // namespace
 
-std::unique_ptr<ICharacteristicPackProvider> makeResourcePackProvider(const QString &resourcePath)
+std::unique_ptr<ICharacteristicPackProvider> makeResourcePackProvider(const RuleFile &core,
+                                                                      const ReferenceSet *refs)
 {
-    return std::make_unique<ResourcePackProvider>(resourcePath);
+    return std::make_unique<ResourcePackProvider>(core, refs);
 }
 
 } // namespace pinpoint::analysis

@@ -5,6 +5,8 @@
 // except these two — so it is asserted across the whole shipped pack, not assumed.
 
 #include "../measures/live_measure_source.h"
+#include "../../Export/rule_data_store.h"   // the pack factories by path (refactor step 3.2)
+#include "../../Export/rule_data_install.h"
 #include "../packs/pack_provider.h"
 
 #include <QCoreApplication>
@@ -78,6 +80,7 @@ static ClubBaselineEntry earnedEntry()
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     std::printf("club_baseline_provider_test\n");
 
     const std::unique_ptr<ICharacteristicPackProvider> packProv = makeResourcePackProvider();

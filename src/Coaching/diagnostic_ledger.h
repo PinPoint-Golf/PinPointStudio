@@ -232,7 +232,7 @@ inline constexpr double kDiagSharpExcess = 1000.0;
 // every shot. Such a row is NotAssessable under rule.diag.notLive and carries ConditionRow / SignalRow
 // `notLiveStatus` (the measure's status); and ShotRecord::ungradedReadings names the shot's launch-monitor
 // and swing-length readings whose measure is not live, so the flight checks never judge on them
-// (gradedReadings). The row shape gains those fields, and the bump is what makes a
+// (GradedReadings). The row shape gains those fields, and the bump is what makes a
 // stored ledger regrade on first open (the content stamp carries this version), so verdicts graded off a
 // held measure go away. A file at 14 reads back with no status on any row; the regrade re-reads each
 // swing's stored readings and never re-runs pose, ball or shaft.
@@ -766,13 +766,13 @@ struct ShotRecord {
     // Schema 15 (#176): the measures behind the readings above (shotReadingFields) that are NOT LIVE in the
     // pack this shot was graded with — held, planned… The readings are kept as recorded, because a reading
     // is still shown (club distances, the consistency and delivery charts); but nothing JUDGES on them:
-    // every verdict made from these fields reads them through gradedReadings(), which hides these. Empty on
+    // every verdict made from these fields reads them through GradedReadings, which hides these. Empty on
     // every shot whose readings are all live, and on every file older than schema 15.
     QStringList ungradedReadings;
 };
 
 // The readings above, by the measure each is read from — the ONE table detectShot fills them from
-// and gradedReadings() hides them by, so the two cannot name different measures.
+// and GradedReadings hides them by, so the two cannot name different measures.
 struct ShotReadingField {
     const char *measureId;
     double ShotRecord::*field;
@@ -799,19 +799,36 @@ inline const std::array<ShotReadingField, 14> &shotReadingFields()
 }
 
 // THE SHOT'S READINGS AS A VERDICT MAY USE THEM (#176): those whose measure is not live are NaN — "not
-// read", the state every verdict below already handles. Returns `s` itself when nothing is hidden (every
-// shot today), else fills `scratch` and returns that. Every function that judges from these fields — the
+// read", the state every verdict below already handles. Every function that judges from these fields — the
 // strike and Sky checks against the flight, the session's usual flight, the flight band, the strike
 // factor, the carry lost, the swing length — reads through this; display reads the fields plainly.
-inline const ShotRecord &gradedReadings(const ShotRecord &s, ShotRecord &scratch)
-{
-    if (s.ungradedReadings.isEmpty()) return s;
-    scratch = s;
-    for (const ShotReadingField &f : shotReadingFields())
-        if (s.ungradedReadings.contains(QLatin1String(f.measureId)))
-            scratch.*(f.field) = std::numeric_limits<double>::quiet_NaN();
-    return scratch;
-}
+//
+// THE OWNER OF WHAT IT HANDS OUT (audit C-16; refactor step 3.3). It reads the shot in place when nothing is
+// hidden (every shot today: nothing is copied), and otherwise keeps the masked copy itself, so record() lives
+// as long as this value and the shot it was made from — never in a scratch copy the caller had to supply and
+// keep in scope. Made from a named shot only: a temporary would leave record() pointing at nothing.
+//
+//   const GradedReadings graded(recorded);
+//   const ShotRecord &s = graded.record();
+class GradedReadings {
+public:
+    explicit GradedReadings(const ShotRecord &s) : m_shot(&s)
+    {
+        if (s.ungradedReadings.isEmpty()) return;
+        m_masked = s;
+        for (const ShotReadingField &f : shotReadingFields())
+            if (s.ungradedReadings.contains(QLatin1String(f.measureId)))
+                (*m_masked).*(f.field) = std::numeric_limits<double>::quiet_NaN();
+    }
+    explicit GradedReadings(ShotRecord &&) = delete;
+
+    const ShotRecord &record() const { return m_masked ? *m_masked : *m_shot; }
+    bool              masked() const { return m_masked.has_value(); }   // a reading was hidden
+
+private:
+    const ShotRecord         *m_shot;
+    std::optional<ShotRecord> m_masked;
+};
 
 // The row for `conditionId` on this shot, or nullptr. Linear — a shot carries tens of
 // rows, not thousands.

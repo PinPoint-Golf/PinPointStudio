@@ -317,9 +317,8 @@ PostureEnv postureEnv(const analysis::CharacteristicPack *pack,
 // A SNAPSHOT: hold the pointer for the whole pass, so one pass reads one norm set. The pack is built
 // once for the process; the norm half is made again when the shared norm set has moved (a corridor
 // saved in the Diagnostic Model), so the next pass after a save reads the new corridors. The norm half
-// is safe on any thread. The FIRST call also assembles the pack, whose loader reads the unsynchronised
-// flat registries (audit B-03, open): that first build is not safe against another first build of
-// them on a different thread (consistency_env.h states the same rule).
+// is safe on any thread, and so is the pack half since refactor step 3.2: the pack is a view of RuleData's
+// snapshot, built at launch, so nothing is first built here on a worker (audit B-03 closed for the pack).
 std::shared_ptr<const PostureEnv> postureSharedEnv();
 
 PostureBandGrid  postureBands(const PostureEnv &env, PosturePattern p);

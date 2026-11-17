@@ -20,7 +20,8 @@
 
 // A scratch athlete library for the athlete tests (refactor step 2.3): a temporary library folder, the
 // session store and the athlete store over it (the OS trash never used: deletes land in the library's own
-// trash, inside the temporary folder), and an AthleteController wired to both — as main.cpp wires the app.
+// trash, inside the temporary folder), and an AthleteController wired to both — through the callables over
+// the athlete store (callablesOver), as main.cpp wires the app.
 // The caller points QSettings at a scratch folder first (QSettings::setPath), so nothing here can reach
 // the real settings file or the real library.
 
@@ -31,6 +32,22 @@
 #include <QTemporaryDir>
 
 #include <memory>
+
+// The composition root's callables (D18 (c)) over a test's athlete store, as main.cpp makes them.
+inline pinpoint::AthleteCallables callablesOver(pinpoint::AthleteStore &store)
+{
+    return {
+        [&store] { return store.list(); },
+        [&store](const pinpoint::AthleteId &id) { return store.load(id); },
+        [&store](const pinpoint::AthleteRecord &record, pinpoint::WriteResult *result) {
+            const pinpoint::AthleteCreateResult made = store.create(record);
+            if (result)
+                *result = made.result;
+            return made.athlete;
+        },
+        [&store](const pinpoint::SessionOwner &owner) { return store.readActivity(owner); },
+    };
+}
 
 struct AthleteTestLibrary {
     QTemporaryDir                         dir;
@@ -44,6 +61,7 @@ struct AthleteTestLibrary {
         athletes->setOsTrashForTest(false);
         athletes->setLockWaitForTest(200);
         sessions.setLockWaitForTest(200);
+        sessions.setOsTrashForTest(false);   // a discarded empty session goes to the library's own trash, never ~/.Trash
     }
 
     QString root() const { return dir.path(); }
@@ -53,7 +71,7 @@ struct AthleteTestLibrary {
     {
         controller = std::make_unique<AthleteController>();
         controller->setSynchronousActivity(true);
-        controller->setRepositories(athletes.get(), &sessions);
+        controller->setCallables(callablesOver(*athletes), &sessions);
         return *controller;
     }
 };

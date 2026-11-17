@@ -31,7 +31,9 @@
 
 #include "../../Identity/identity.h"   // ShotRef (the row's key for the swing door, step 2.4)
 
-namespace pinpoint { class RecordingRepository; }
+namespace pinpoint {
+class RecordingRepository; class ShotCommandDoor; struct ForwardResult; struct ShotSummary; enum class SummaryRead;
+}
 
 // ShotListModel — the session-global list of captured shots, shared by every
 // mode screen's PpShotCarousel.  Exposed in main.cpp as the QML context
@@ -48,6 +50,21 @@ namespace pinpoint { class RecordingRepository; }
 //
 // Shots arrive via ShotProcessor::maybeJoin() → addShot() at the
 // analysis+export join of each detected shot.
+//
+// THE ROWS OVER THE SHOTS (refactor step 3.4b-ii; build/refactor/step-3/BRIEF.md §3.3 row 1; 04 step 3 item 1: the
+// Shot "replaces the row structs … as the source of shot facts"; P10, DEC-94/103). For a shot a Session holds —
+// reached through `app` (setShotCommands; shot_command_door.h) — the row is a VIEW of its Shot, never a source:
+//   - loading a session lists the Session's Shots, each row made from its Shot's summary (Shot::summary; the
+//     cheap read the carousel has always made, now made by the Shot through its repository);
+//   - the review facts a row shows — rating, note, club, the board's exclusion and club correction — are the
+//     Shot's: an edit is the Shot's command (Shot::rate …), and the row then shows what the Shot holds, so a save
+//     that failed leaves the row showing what the shot still is (the failure is logged, as before);
+//   - a refresh (re-analysis, a late reading) and a live shot's row take those facts from the Shot too;
+//   - the carousel's delete is the Session's (Session::trashShot, EVT-03), so its collection follows.
+// The row keeps only what a view needs: its id, the thumbnail's URL, a live shot's trace, the analysis detail's
+// payload (the multi-MB detail the Shot never keeps: qml_payload.h), and the folder it still carries until step 4.
+// A row whose session no Athlete holds — or with no door (the tests, the tools) — keeps today's path: its own
+// read, its in-memory edit and write-through, its own trash (N1's interim, Mark's "keep today's path").
 
 class ShotListModel : public QAbstractListModel
 {
@@ -119,14 +136,16 @@ public:
                 const QVariantMap &dataWarningDetail = {});
 
     // Reload a shot from disk (SwingDocReader): uses the stored ordinal and links the
-    // row to its swingDir; rating/note are restored from the persisted "review" block.
+    // row to its swingDir; rating/note are restored from the persisted "review" block. `shot`: the row's ShotRef when
+    // the caller has translated the folder already (SessionReviewController), so it is not translated twice.
     void addPersistedShot(const QString &swingDir, int ordinal, const QString &timestampLabel,
                           const QString &club, bool hasVideo, const QUrl &thumbnailSource,
                           int score, int rating, const QString &note,
                           const QVariantMap &metrics, const QVariantMap &analysisDetail,
                           bool dataWarning = false, const QString &lmDevice = {},
                           const QVariantMap &dataWarningDetail = {},
-                          bool lmExcluded = false, const QString &lmClubOverride = {});
+                          bool lmExcluded = false, const QString &lmClubOverride = {},
+                          const pinpoint::ShotRef &shot = {});
 
     // Re-read <swingDir>/swing.json (SwingDocReader) and update the matching row's
     // score / metrics / analysisDetail in place — emits dataChanged for just those
@@ -211,6 +230,12 @@ public:
     // club and board annotations write through it. Without one a row with a folder keeps its edits
     // in memory and says so in the log.
     void setRecordingRepository(pinpoint::RecordingRepository *repo) { m_repo = repo; }
+    // THE SHOT'S COMMANDS (refactor step 3.4b-i; src/App/shot_command_door.h): the rating, note and declared club
+    // and the board's club and exclusion FORWARD to the row's Shot (Shot::rate, note, setDeclaredClub, correctClub,
+    // excludeReading), which saves them and emits EVT-21 / 04 / 05; this model then writes nothing itself (one
+    // writer, P10). A row whose session no Athlete holds — or no door (the tests) — keeps today's write-through
+    // above (N1's interim). main.cpp sets `app`.
+    void setShotCommands(pinpoint::ShotCommandDoor *door) { m_commands = door; }
     void setFolderBusyCheck(ReasonFn fn) { m_busyCheck = std::move(fn); }
     void setTrashFunction(TrashFn fn)    { m_trashFn = std::move(fn); }
     // The retry's first interval (it doubles) and how long a refused folder is
@@ -279,6 +304,8 @@ private:
         QString      lmDevice;        // which device measured it (lm_device.h key); only reloaded shots carry it
         bool         lmExcluded = false;   // the launch monitor board's annotations (review block)
         QString      lmClubOverride;
+        // A Session holds this row's shot (refactor step 3.4b-ii): its facts above are its Shot's, as last shown.
+        bool         held = false;
     };
 
 public:
@@ -292,16 +319,34 @@ private:
 
     int  rowForId(int id) const;
     pinpoint::ShotRef shotOf(int row);   // the row's ShotRef (translated on first use, then kept)
-    void persistReview(int row);   // write-through rating/note/club to swing.json
-    void persistLmAnnotations(int row);   // write-through excluded/clubOverride
+    void persistReview(int row);   // write-through rating/note/club to swing.json (N1's interim)
+    void persistLmAnnotations(int row);   // write-through excluded/clubOverride (N1's interim)
+    // What became of a golfer's edit of a row: its Shot took the command (Shot; a failed save is logged, and the row
+    // then shows what the Shot holds), no Session holds it (NotHeld: today's in-memory edit and write-through), or
+    // the row has no folder (InMemory: the row is all there is, as today).
+    enum class Edit { Shot, NotHeld, InMemory };
+    using Forward = std::function<pinpoint::ForwardResult(pinpoint::ShotCommandDoor &, const QString &sessionFolder,
+                                                          const pinpoint::ShotRef &)>;
+    Edit forwarded(int row, const char *what, const Forward &command);
+    // The Shot's summary for the shot in `swingDir` (`ref` translated if null), read as `how` says: true when a
+    // Session holds it (`out` is then its Shot's; `out.ok` false when it has none to give now).
+    bool shotFacts(const QString &swingDir, pinpoint::ShotRef &ref, pinpoint::SummaryRead how,
+                   pinpoint::ShotSummary &out);
+    // The review facts of a held row from its Shot.
+    void showShotReview(Shot &s, const pinpoint::ShotSummary &f);
+    void takeShotReview(int row, pinpoint::SummaryRead how);
+    // A row made from a Shot's summary (the session load over its Session's Shots).
+    void addHeldRow(const QString &swingDir, const pinpoint::ShotRef &ref, const pinpoint::ShotSummary &f);
     pinpoint::RecordingRepository *m_repo = nullptr;
-    bool trashFolder(const QString &dir) const;   // m_trashFn, or SwingPaths::trashPath
+    pinpoint::ShotCommandDoor     *m_commands = nullptr;
+    // A held shot: Session::trashShot (through `app`); else m_trashFn, or SwingPaths::trashPath (N1).
+    bool trashFolder(const QString &dir, const pinpoint::ShotRef &shot) const;
     void removeTrashedRow(int id, const QString &dir);
     void attemptPendingTrash();
     void finishTrash();
 
     // trashShots() state: the folders still to move, and the request's tally.
-    struct PendingTrash { int id = 0; int ordinal = 0; QString dir; int attempts = 0; };
+    struct PendingTrash { int id = 0; int ordinal = 0; QString dir; int attempts = 0; pinpoint::ShotRef shot; };
     QVector<PendingTrash> m_trashPending;
     int           m_trashRequested = 0;
     int           m_trashMoved     = 0;

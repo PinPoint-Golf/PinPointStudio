@@ -550,13 +550,13 @@ public:
     static bool writeSwingSummary(const PersistedShot &shot, QString *error = nullptr);
     // swing_*/ directories under sessionDir, ascending (swing_0001 .. swing_NNNN).
     static QStringList findSwingDirs(const QString &sessionDir);
-    // Most recent session dir for an athlete, by directory modification time
-    // (folder names embed the naming pattern, so a name sort isn't reliable);
-    // empty if the library/athlete has none.
-    static QString latestSessionDir(const QString &libraryRoot, const QString &athleteName);
-    // All session dirs for an athlete, most-recently-modified first (same recency
-    // basis as latestSessionDir). Empty list if the library/athlete has none.
-    static QStringList sessionDirs(const QString &libraryRoot, const QString &athleteName);
+    // Most recent session dir in an athlete's folder (Athlete::folder(); never derived from a
+    // name: step 2.7a), by directory modification time (folder names embed the naming pattern, so
+    // a name sort isn't reliable); empty if the athlete has none.
+    static QString latestSessionDir(const QString &athleteDir);
+    // All session dirs in an athlete's folder, most-recently-modified first (same recency basis
+    // as latestSessionDir). Empty list if the athlete has none.
+    static QStringList sessionDirs(const QString &athleteDir);
 };
 
 } // namespace pinpoint

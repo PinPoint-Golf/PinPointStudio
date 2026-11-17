@@ -44,6 +44,22 @@
 
 namespace pinpoint::charts::words {
 
+// "SHOT N" IS THE SWING NUMBER (ID-SWING-NUMBER, DEC-91; step 2.7b, audit E-06/F-07): the number on the
+// carousel's card and in the diagnostics panel, never the shot's rank among the session's analysed shots,
+// which a trashed swing, or one with no document or no analysis, moves. The rank stays what it is — a
+// position on an axis, the shot's place in a box or a strip — and is never printed as "shot N".
+// shotNumber: the swing number, else (a shot with none: a caller's own id, a fixture) its place.
+inline int shotNumber(int swingNumber, int ordinal) { return swingNumber > 0 ? swingNumber : ordinal; }
+// "Shot 8 of 15" where the swing number and the place agree (every session with no gap: today's text);
+// "Shot 8 · 6 of 7" where they differ — the number names the shot, the place counts the session's shots
+// (the diagnostics' rule, the lead's J-54, step 2.7a).
+inline QString shotOfText(int swingNumber, int ordinal, int n)
+{
+    const int no = shotNumber(swingNumber, ordinal);
+    return no == ordinal ? QStringLiteral("Shot %1 of %2").arg(no).arg(n)
+                         : QStringLiteral("Shot %1 · %2 of %3").arg(no).arg(ordinal).arg(n);
+}
+
 // The figures (figure_format.h), as words::fig, words::figUnit… for every presenter.
 using pinpoint::figures::decimalsFor;
 using pinpoint::figures::fig;

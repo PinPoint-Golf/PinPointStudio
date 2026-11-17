@@ -49,6 +49,7 @@
 
 #include "../../../src/Core/PpMessageLog.h"
 #include "../../../src/Analysis/swing_reanalyzer.h"
+#include "../../../src/Export/swing_folder_reanalysis.h"   // a folder by its path (refactor step 3.4b-ii)
 #include "../../../src/Export/swing_exporter.h"
 #include "../../../src/Export/swing_store.h"
 
@@ -95,7 +96,7 @@ int main(int argc, char **argv)
     SwingLoadOptions lopts;
     lopts.faceOnSubstring = cli.value(optFace);
     lopts.faceOnExplicit  = cli.isSet(optFace);
-    LoadedSwing ls = SwingDiskLoader::load(swingDir, lopts);
+    LoadedSwing ls = loadSwingFolder(swingDir, lopts);
     if (!ls.ok || !ls.window)
         return fail(QStringLiteral("load failed: ") + ls.error);
     if (!ls.usedRaw)

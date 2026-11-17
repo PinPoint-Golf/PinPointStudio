@@ -19,6 +19,7 @@
 #pragma once
 
 #include "characteristic_pack.h"
+#include "layered_set.h"
 
 #include <QString>
 #include <QStringList>
@@ -77,13 +78,13 @@ using DrillLoadResult = LoadResult<DrillSet>;
 DrillLoadResult loadDrillSet(const QByteArray &json, const QString &sourceLabel);
 QByteArray      saveDrillSet(const DrillSet &set);
 
-const DrillSet &sharedDrillSet();
-void            resetSharedDrillSet();
+// The shipped set and the user's own, assembled: what the rule data's repository builds the snapshot
+// from (refactor step 3.2; the assembled registry is RuleData's, src/DomainModel/rule_data.h). Pure.
+ContentLayers<DrillSet> assembleDrillLayers(const RuleFile &core, const RuleFile &user);
 
-// The layers apart, for the editor. See screen_pack.h.
-const DrillSet &coreDrillSet();
-DrillSet        loadUserDrillSet();
-QString         userDrillSetPath();
-bool            saveUserDrillSet(const DrillSet &set, QString *whyNot = nullptr);
+// The user layer's file (a path; the repository reads and writes it) and its name in the shared
+// directory, which the pack enumeration's skip list reads (audit B-13).
+inline constexpr const char kDrillSetFileName[] = "drills.json";
+QString userDrillSetPath();
 
 } // namespace pinpoint::analysis

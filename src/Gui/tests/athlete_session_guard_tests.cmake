@@ -17,6 +17,8 @@
 set(ATHLETE_TEST_SOURCES
     ${GUI}/athlete/athlete_controller.cpp
     ${SRC}/DomainModel/athlete.h ${SRC}/DomainModel/athlete.cpp
+    ${SRC}/DomainModel/session.h ${SRC}/DomainModel/session.cpp   # the Athlete's sessions (step 3.4a)
+    ${SRC}/DomainModel/shot.h ${SRC}/DomainModel/shot.cpp
     ${SRC}/Export/athlete_store.cpp
     ${SRC}/Export/session_store.cpp
     ${SRC}/DomainModel/session_identity.cpp

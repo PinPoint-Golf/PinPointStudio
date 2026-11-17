@@ -104,7 +104,8 @@ std::vector<ValidationIssue> diagnosticsHealth(const CharacteristicPack &pack,
                                                const INormProvider      &norms,
                                                const MetricCatalogue    &catalogue,
                                                const ScreenSet          &screens,
-                                               const DrillSet           &drills)
+                                               const DrillSet           &drills,
+                                               const ReferenceSet       *references)
 {
     std::vector<ValidationIssue> out;
 
@@ -318,7 +319,10 @@ std::vector<ValidationIssue> diagnosticsHealth(const CharacteristicPack &pack,
     // The one place the other direction IS reported, and the reason is the flag: a bibliography can
     // say out loud that a record is here for its own sake, so a record that says neither is a record
     // nobody has accounted for. See referenceHealth() for the argument.
-    for (const ValidationIssue &i : referenceHealth(pack, sharedReferenceSet())) out.push_back(i);
+    // The bibliography is handed in, like the screens and drills (refactor step 3.2: no process-wide
+    // registry is read here, audit B-03/B-12). None handed in, nothing to account for.
+    if (references)
+        for (const ValidationIssue &i : referenceHealth(pack, *references)) out.push_back(i);
 
     // ── Your own corridors, seated on nothing ───────────────────────────────
     //

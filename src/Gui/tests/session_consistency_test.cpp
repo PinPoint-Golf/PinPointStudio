@@ -21,6 +21,7 @@
 // fixture, then the 5 Oct fixture on the production env: its timing and its golden.
 
 #include "charts/consistency_env.h"
+#include "../../Export/rule_data_install.h"
 #include "charts/session_consistency.h"
 #include "charts/session_traces.h"
 #include "charts_maths_fixture.h"
@@ -161,6 +162,7 @@ std::shared_ptr<ShotSeries> ladderShot(int ordinal, double p8Ms, const QString &
 class SessionConsistencyTest : public QObject {
     Q_OBJECT
 private slots:
+    void initTestCase() { pinpoint::installProcessRuleData(); }   // this process's packs and norms (step 3.2)
     // ── the rules ───────────────────────────────────────────────────────────────────────────────
     void residualsAreAgainstTheClub();
     void spreadNeedsFiveFinite();

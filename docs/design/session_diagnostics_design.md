@@ -61,7 +61,7 @@ order-chain fallback links and `requiresBeforeImpact` companions; the session mo
 peak times the timing spread is graded from, the swing length); and the shot's launch-monitor readings,
 which every flight verdict (the strike and Sky checks, the session's usual flight, the flight band, the
 strike factor, the carry lost, which shots leave the club distances — "far short" included — and the
-carry block's breakdown) reads through `gradedReadings()` — the non-live ones are named in
+carry block's breakdown) reads through `GradedReadings` — the non-live ones are named in
 `ShotRecord::ungradedReadings`. The ledger row carries the measure's status (`notLiveStatus`, ledger
 schema 15), and the row's reason says "held back until it is trusted to grade" for `held`, "not graded
 yet" otherwise — never "not measured". **Display is the named exception:** a held reading is still

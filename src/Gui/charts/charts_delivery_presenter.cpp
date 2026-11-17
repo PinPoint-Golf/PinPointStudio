@@ -26,6 +26,8 @@
 
 #include "../../Core/pp_debug.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
+#include "../../Export/session_diagnostics_files.h"   // the day's sessions, by SessionIdentity (step 2.7b)
 
 #include <QCoreApplication>
 #include <QDeadlineTimer>
@@ -193,18 +195,28 @@ QString sessionDirOf(const SessionSnapshot &snap, const QString &picked)
     return picked.isEmpty() ? QString() : cleanDir(QFileInfo(picked).absolutePath());
 }
 
-// The day's sibling session folders: under the golfer folder, the same "yyyy-MM-dd" prefix, not this one.
-QStringList daySiblings(const QString &sessionDir, QString *date)
+// The day's other sessions: the golfer's sessions whose local day is this one's — SessionIdentity's day, by start
+// time (or, for a session older than step 2, the day its folder's name records, under every naming pattern: F-06) —
+// never a folder name's first ten characters, which `name-date-type` never starts with (step 2.7b). Each with its
+// place in the day (n-of-day), in that order; `date` is the day ("yyyy-MM-dd"), "" when this session has none.
+struct DaySibling { QString dir; int nOfDay = 0; };
+std::vector<DaySibling> daySiblings(const QString &sessionDir, QString *date)
 {
-    const QFileInfo fi(sessionDir);
-    const QString name = fi.fileName();
-    const QString d = name.left(10);
-    if (date) *date = QDate::fromString(d, QStringLiteral("yyyy-MM-dd")).isValid() ? d : QString();
-    if (!date || date->isEmpty()) return {};
-    QStringList out;
-    const QDir golfer(fi.absolutePath());
-    for (const QString &n : golfer.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name))
-        if (n != name && n.startsWith(d)) out << golfer.filePath(n);
+    if (date) date->clear();
+    const QString athleteDir = QFileInfo(sessionDir).absolutePath();
+    const QList<pinpoint::SessionIndexEntry> index = pinpoint::SessionDiagnosticsFiles::sessionPlaces(athleteDir);
+    const pinpoint::analysis::SessionPlace self = pinpoint::SessionDiagnosticsFiles::placeOf(index, sessionDir);
+    if (!self.day.isValid()) return {};
+    if (date) *date = self.day.toString(QStringLiteral("yyyy-MM-dd"));
+    std::vector<DaySibling> out;
+    const QString me = cleanDir(QFileInfo(sessionDir).absoluteFilePath());
+    for (const pinpoint::SessionIndexEntry &e : index) {
+        if (e.identity.localDay() != self.day) continue;
+        const QString dir = cleanDir(QFileInfo(e.folder).absoluteFilePath());
+        if (dir == me) continue;
+        out.push_back(DaySibling{ dir, e.identity.nOfDay() });
+    }
+    std::stable_sort(out.begin(), out.end(), [](const DaySibling &a, const DaySibling &b) { return a.nOfDay < b.nOfDay; });
     return out;
 }
 
@@ -212,15 +224,16 @@ QStringList daySiblings(const QString &sessionDir, QString *date)
 // swing document (size and mtime, a stat each — never a read). A folder's own mtime moves only when a swing folder comes
 // or goes; a grid rebuilt by a regrade, or a swing re-analysed, changes only the files inside a swing folder, so those
 // are stamped too (issue #174: the day used to keep a count of stale grids the regrade had since rebuilt).
-QString dayStamp(const QStringList &siblings)
+QString dayStamp(const std::vector<DaySibling> &siblings)
 {
     QStringList parts;
     const auto stat = [](const QFileInfo &f) { return f.exists() ? QStringLiteral("%1:%2").arg(f.size()).arg(f.lastModified().toMSecsSinceEpoch())
                                                                  : QStringLiteral("-"); };
-    for (const QString &s : siblings) {
-        parts << QStringLiteral("%1@%2").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch());
+    for (const DaySibling &sib : siblings) {
+        const QString &s = sib.dir;
+        parts << QStringLiteral("%1@%2#%3").arg(QFileInfo(s).fileName()).arg(QFileInfo(s).lastModified().toMSecsSinceEpoch()).arg(sib.nOfDay);
         const QDir dir(s);
-        for (const QString &sw : dir.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        for (const QString &sw : pinpoint::SwingPaths::swingFolders(s)) {
             const QString swingDir = dir.filePath(sw);
             const SwingStore::DocInfo doc = SwingStore::info(swingDir);
             parts << QStringLiteral("%1 %2 %3:%4").arg(sw, stat(QFileInfo(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")))))
@@ -234,7 +247,7 @@ QString dayStamp(const QStringList &siblings)
 // swing_phasegrid.json, its staleness judged by a stat of the document beside it, by THE stamp rule the grid's own
 // reader uses (SwingStore::sameDocumentStamp), so a grid the reader would serve is never counted as stale and a grid
 // it would rebuild always is.
-DeliveryDay readDay(const QStringList &siblings, const QString &date)
+DeliveryDay readDay(const std::vector<DaySibling> &siblings, const QString &date)
 {
     DeliveryDay day;
     day.date = date;
@@ -242,10 +255,11 @@ DeliveryDay readDay(const QStringList &siblings, const QString &date)
     QElapsedTimer t;
     t.start();
     int files = 0, unread = 0;
-    for (const QString &sd : siblings) {
+    for (const DaySibling &sib : siblings) {
+        const QString &sd = sib.dir;
         const QDir dir(sd);
         bool any = false;
-        for (const QString &sw : dir.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+        for (const QString &sw : pinpoint::SwingPaths::swingFolders(sd)) {
             const QString swingDir = dir.filePath(sw);
             QFile f(QDir(swingDir).filePath(QStringLiteral("swing_phasegrid.json")));
             if (!f.open(QIODevice::ReadOnly)) continue;
@@ -256,6 +270,7 @@ DeliveryDay readDay(const QStringList &siblings, const QString &date)
             if (!ok) { ++unread; continue; }
             if (!in.hasPlane() && !in.hasMonitor()) continue;
             in.session = QFileInfo(sd).fileName();
+            in.sessionOfDay = sib.nOfDay;
             in.thisSession = false;
             if (in.ordinal <= 0) in.ordinal = SessionSeriesModel::folderShotId(swingDir);
             in.shotId = SessionSeriesModel::folderShotId(swingDir);
@@ -281,10 +296,10 @@ DeliveryDay readDay(const QStringList &siblings, const QString &date)
 DeliveryDay dayOf(ChartsDeliveryPresenter::Worker *w, const QString &sessionDir)
 {
     QString date;
-    const QStringList siblings = sessionDir.isEmpty() ? QStringList{} : daySiblings(sessionDir, &date);
+    const std::vector<DaySibling> siblings = sessionDir.isEmpty() ? std::vector<DaySibling>{} : daySiblings(sessionDir, &date);
     DeliveryDay day;
     day.sessions = 0;   // the other sessions with a reading; this one is added below
-    if (!siblings.isEmpty()) {
+    if (!siblings.empty()) {
         if (w) {
             const QString stamp = dayStamp(siblings);   // only a cached day pays the stats; the report reads afresh
             auto it = w->days.find(sessionDir);
@@ -350,9 +365,15 @@ QVariantMap scatterMap(const DeliveryFit &f, const std::vector<DeliveryShotInput
         const double x = deliveryXOf(s, f.x), y = deliveryYOf(s, f.y);
         if (!fin(x) || !fin(y)) continue;
         span(xl, xh, x); span(yl, yh, y);
+        // shotNo: the swing number its label prints (step 2.7b); sessionLabel: another session's place in the day,
+        // by SessionIdentity's n-of-day ("session 2"), never parsed out of its folder's name in the view.
         pts.append(QVariantMap{ { QStringLiteral("ordinal"), s.ordinal }, { QStringLiteral("swingDir"), s.swingDir },
+                                { QStringLiteral("shotNo"), W::shotNumber(s.shotId, s.ordinal) },
                                 { QStringLiteral("x"), x }, { QStringLiteral("y"), y },
                                 { QStringLiteral("thisSession"), s.thisSession }, { QStringLiteral("session"), s.session },
+                                { QStringLiteral("sessionLabel"), s.thisSession ? QString()
+                                                                  : s.sessionOfDay > 0 ? QStringLiteral("session %1").arg(s.sessionOfDay)
+                                                                                       : QStringLiteral("another session") },
                                 { QStringLiteral("picked"), !pickDir.isEmpty() && cleanDir(s.swingDir) == pickDir } });
     }
     QVariant picked = nullv();
@@ -615,7 +636,7 @@ void buildThisShot(Ctx &c, ChartsDeliveryPresenter::Result &R)
     out.insert(QStringLiteral("swingDir"), s.swingDir);
     out.insert(QStringLiteral("inSession"), inSession);
     const QString club = s.club.trimmed().isEmpty() ? QString() : deliveryClubWords(s.club);
-    out.insert(QStringLiteral("kicker"), (inSession ? QStringLiteral("Shot %1 of %2").arg(s.ordinal).arg(c.n) : QStringLiteral("This swing"))
+    out.insert(QStringLiteral("kicker"), (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
                                              + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Club delivery"));
     out.insert(QStringLiteral("mode"), v.mode);
     out.insert(QStringLiteral("hasPlane"), v.hasPlane);
@@ -708,6 +729,7 @@ QVariantMap sessionMapOf(const std::vector<DeliveryShotInput> &inputs, const Del
     for (size_t i = 0; i < inputs.size() && i < sv.shapes.size(); ++i) {
         const DeliveryShape &sh = sv.shapes[i];
         marks.append(QVariantMap{ { QStringLiteral("ordinal"), inputs[i].ordinal }, { QStringLiteral("swingDir"), inputs[i].swingDir },
+                                  { QStringLiteral("shotNo"), W::shotNumber(inputs[i].shotId, inputs[i].ordinal) },   // its label's number (2.7b)
                                   { QStringLiteral("available"), sh.available }, { QStringLiteral("start"), sh.start },
                                   { QStringLiteral("curve"), sh.curve }, { QStringLiteral("word"), sh.word },
                                   { QStringLiteral("fromBall"), sh.fromBall },

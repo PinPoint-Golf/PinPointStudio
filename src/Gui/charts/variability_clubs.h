@@ -22,6 +22,7 @@
 #include "session_series_types.h"                             // kNaN
 
 #include "../../Metrics/variability/variability_grader.h"     // VariabilityInput
+#include "../../Metrics/variability/variability_pooling.h"    // ClubReading, the within-club pooling (R2a)
 
 #include <QString>
 
@@ -47,11 +48,9 @@
 
 namespace pinpoint::charts {
 
-// One swing's scalar reading. A non-finite value is a missing reading.
-struct VariabilityClubValue {
-    QString club;
-    double  value = kNaN;
-};
+// One swing's scalar reading. A non-finite value is a missing reading. The pooling's own type (moved down with the
+// within-club maths in refactor step 3.8: src/Metrics/variability/variability_pooling.h).
+using VariabilityClubValue = variability::ClubReading;
 
 // One swing's time series on the variability::kTraceGridPoints grid (top → impact) and its time-to-peak in
 // real ms. A curve off the grid is a missing reading here (not the grader's MalformedInput: one bad swing

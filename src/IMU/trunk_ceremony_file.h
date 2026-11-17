@@ -89,7 +89,6 @@
 namespace trunk_ceremony_file {
 
 inline constexpr const char *kFormat   = "pinpoint.trunk_ceremony/1";
-inline constexpr const char *kFileName = "trunk_ceremony.json";
 
 inline QString stepStandTall()   { return QStringLiteral("standTall"); }
 inline QString stepTurnAway()    { return QStringLiteral("turnAway"); }

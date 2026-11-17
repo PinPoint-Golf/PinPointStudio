@@ -16,6 +16,8 @@
 // No ids are pinned: the pack is being authored as this test is written.
 
 #include "measure_dump_core.h"
+#include "../../src/Export/rule_data_install.h"
+#include "../../src/DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "Diagnostics/norms/norm_measure_source.h"
 #include "Diagnostics/packs/pack_provider.h"
@@ -79,6 +81,9 @@ static QMap<QString, QByteArray> snapshot(const QString &dir)
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
+    // The packs and norms: this process's one RuleData, over the files the PINPOINT_CORE_* seams name
+    // (refactor step 3.2). Made here, on the main thread, before anything grades.
+    pinpoint::installProcessRuleData();
     if (qEnvironmentVariableIsEmpty("PINPOINT_CORE_PACK")) {
         std::printf("measure_dump_test: PINPOINT_CORE_PACK unset - run through ctest\n");
         return 1;

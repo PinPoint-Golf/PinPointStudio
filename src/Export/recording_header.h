@@ -100,6 +100,26 @@ inline constexpr const char *kSwingDocSchema = "pinpoint.swing/2";
 // The version a document says it is ("pinpoint.swing/<n>" → n); 0 when it says nothing readable.
 int swingDocSchemaVersionOf(const QJsonObject &root);
 
+// ── When a shot's capture ended (step 2.8b; J-18) ─────────────────────────────────────────────
+// The end of the swing's captured window: its `clock.wallclock` (the window start, UTC) plus the window's
+// length (`window.start_us` … `end_us`; a device-only shot has none, so its wallclock). Invalid when the
+// document records no wallclock. THE rule for a session's INFERRED end — the latest of its swings' — used by
+// the app when the next Start ends a session a crash left in progress, and by the step-2 migration M2 for a
+// session older than step 2 (JUDGEMENT-ANSWERS.md, J-18; the session file marks it `endInferred`).
+inline QDateTime captureEndUtcOf(const QJsonObject &root)
+{
+    const QDateTime start = QDateTime::fromString(
+        root.value(QStringLiteral("clock")).toObject().value(QStringLiteral("wallclock")).toString(), Qt::ISODateWithMs);
+    if (!start.isValid())
+        return {};
+    const QJsonObject w = root.value(QStringLiteral("window")).toObject();
+    const qint64 a = qint64(w.contains(QStringLiteral("start_us")) ? w.value(QStringLiteral("start_us")).toDouble()
+                                                                    : w.value(QStringLiteral("startUs")).toDouble());
+    const qint64 b = qint64(w.contains(QStringLiteral("end_us")) ? w.value(QStringLiteral("end_us")).toDouble()
+                                                                  : w.value(QStringLiteral("endUs")).toDouble());
+    return start.toUTC().addMSecs(b > a ? (b - a) / 1000 : 0);
+}
+
 inline constexpr int kAnalysisContextSchemaVersion = 1;
 inline constexpr const char *kAnalysisContextSchema = "pinpoint.analysisContext/1";
 

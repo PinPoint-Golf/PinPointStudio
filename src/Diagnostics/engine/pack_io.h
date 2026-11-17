@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "../../Core/atomic_write.h"   // pinpoint::atomicWrite, for the callers that wrote through the old wrapper
+
 #include <QByteArray>
 #include <QJsonValue>
 #include <QString>
@@ -180,28 +182,40 @@ QStringList readStringList(const QJsonValue &v);
 //
 // Empty when there is no writable location at all, which is a real state on a locked-down system
 // and is why every caller has to check.
+//
+// PINPOINT_DIAGNOSTICS_DIR overrides it (refactor step 3.9), as PINPOINT_STUDIO_DIR does the studio
+// profile's: the one way a probe of the running app reaches SCRATCH user files on macOS, where the app
+// data location ignores XDG_DATA_HOME. Read at each call, like the location it replaces.
 QString diagnosticsDataDir();
 
 // One file in that directory, or empty when the directory is. The isEmpty() dance was written out
 // six times and is the whole reason a registry's path function can now be one line.
 QString diagnosticsFilePath(const QString &fileName);
 
-// Write `bytes` to `path` via a temporary file and a rename, creating the directory if it does not
-// exist. False on failure, with `whyNot` set to something a user can act on.
+// ONE FILE'S BYTES, as the rule data's repository read them (refactor step 3.2, Q-02: DEC-170).
 //
-// The rename is the point: an interrupted save must not truncate content the author has spent time
-// on. A half-written pack is worse than no pack, because the app loads it, reports what survived,
-// and looks like it has merely lost the rest — which it has. The same holds for the session and
-// athlete caches that go through here (diagnostics.json, club_baseline.json, the fault profile,
-// work_ons.json, the swing themes, tendencies.json).
-//
-// A FORWARDING CALL, not an implementation: the mechanism is pinpoint::atomicWrite()
-// (src/Core/atomic_write.h, Platform ring; refactor step 2.0, R-PERS-2), whose comment says what it
-// guarantees. What stays here is the one thing that is Diagnostics' own: an EMPTY path is what
-// diagnosticsFilePath() returns when there is no writable application data location, so it is
-// reported as exactly that. The user's pack and content sets (packs/*, norms/file_norm_provider)
-// and the session/athlete caches (Gui/diagnostics, refactor step 2.5) call this; it goes when they
-// write through their repositories.
-bool atomicWrite(const QString &path, const QByteArray &bytes, QString *whyNot = nullptr);
+// The loaders here compute; they do not open files. `RuleDataRepository` (src/Export/rule_data_store)
+// is the one door to the shipped and user rule data (FILE-APP-01…05), so it reads each file and hands
+// the providers this value: where the bytes came from, and whether there were any. The three states
+// are the three a provider has always told apart, because a missing file means opposite things at
+// the two ends of the layer stack: an absent SHIPPED file is an error (the build is broken), an
+// absent LAYER is the normal case (nobody authored one), and a layer that is there but unreadable is
+// a warning against its own name. See provider_leaf_p.h for what each provider says about each.
+struct RuleFile {
+    enum class State { Absent, Unreadable, Read };
+
+    QString    path;                    // what the provider labels itself with and names in a fault
+    State      state = State::Absent;
+    QByteArray bytes;                   // only when state == Read
+
+    static RuleFile absent(const QString &path) { return { path, State::Absent, {} }; }
+    static RuleFile read(const QString &path, QByteArray b) { return { path, State::Read, std::move(b) }; }
+};
+
+// The schema version a rule file DECLARES, read from its top-level `schemaVersion` (0 when the bytes
+// are not a JSON object or carry none). The repository checks it on read (audit B-20): a user file
+// written by a newer build is kept read-only, so this build's next save cannot overwrite content it
+// does not understand.
+int declaredSchemaVersion(const QByteArray &bytes);
 
 } // namespace pinpoint::analysis

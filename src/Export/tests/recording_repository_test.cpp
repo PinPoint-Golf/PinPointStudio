@@ -89,21 +89,14 @@
 #include <cstdio>
 #include <cstdlib>
 
-// Stub — avoids linking swing_paths.cpp (and its logging deps), as swing_doc_test does.
-
-// THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeSwingDir, which needs the
+// THE ANALYZER, STUBBED: reanalyseAndPersist's analysis half is reanalyzeShot, which needs the
 // whole pipeline. This test is about the write half, so the analysis it gets is the one set here.
 namespace {
 pinpoint::analysis::ReanalyzeResult g_reanalysis;
 int g_reanalysisCalls = 0;
 }
 namespace pinpoint::analysis {
-ReanalyzeResult reanalyzeSwingDir(const QString &, const ReanalyzeOptions &)
-{
-    ++g_reanalysisCalls;
-    return g_reanalysis;
-}
-ReanalyzeResult reanalyzeShot(RecordingReader &, const ShotRef &, const ReanalyzeOptions &)
+ReanalyzeResult reanalyzeShot(const RecordingSource &, const ReanalyzeOptions &)
 {
     ++g_reanalysisCalls;
     return g_reanalysis;
@@ -120,9 +113,28 @@ struct NullReader final : pinpoint::RecordingReader {
         std::abort();
     }
 } g_reader;
+
+// The write-back as a tool makes it (refactor step 3.4b-ii: reanalyseAndPersist takes the shot's write, its
+// RecordingSource and its kind): the repository's writeAnalysis by the ShotRef, the shot read through `g_reader`.
+pinpoint::analysis::PersistedReanalysis reanalyseThrough(pinpoint::RecordingRepository &repo,
+                                                         const pinpoint::ShotRef &ref,
+                                                         const pinpoint::PersistOptions &options)
+{
+    const pinpoint::analysis::AnalysisWrite write = [&repo, ref](const pinpoint::AnalysisOutcome &o,
+                                                                const pinpoint::PersistOptions &opt) {
+        return repo.writeAnalysis(ref, o, opt);
+    };
+    const pinpoint::RecordingSource source(
+        ref, std::shared_ptr<pinpoint::RecordingReader>(&g_reader, [](pinpoint::RecordingReader *) {}));
+    return pinpoint::analysis::reanalyseAndPersist(write, source, repo.isDeviceOnly(ref), options);
 }
-namespace pinpoint::analysis {
-} // namespace pinpoint::analysis
+pinpoint::analysis::AnalysisWrite writeTo(pinpoint::RecordingRepository &repo, const pinpoint::ShotRef &ref)
+{
+    return [&repo, ref](const pinpoint::AnalysisOutcome &o, const pinpoint::PersistOptions &opt) {
+        return repo.writeAnalysis(ref, o, opt);
+    };
+}
+}
 
 using namespace pinpoint;
 
@@ -631,7 +643,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     PersistOptions off;
     off.savePose = false;
     g_reanalysisCalls = 0;
-    const PersistedReanalysis p = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), off);
+    const PersistedReanalysis p = reanalyseThrough(repo, testdoc::ref(t.path()), off);
     check(g_reanalysisCalls == 1 && p.ok() && p.analysed && !p.deviceOnly && p.score == 91, "re-analysed and persisted");
     const QJsonObject root = doc(t.path());
     check(overallScoreFromAnalysis(root.value(QStringLiteral("analysis")).toObject()) == 91, "the new analysis on disk");
@@ -644,7 +656,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     g_reanalysis = ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no frames");
     const QByteArray before = bytesOf(SwingStore::ppswPath(t.path()));
-    const PersistedReanalysis failed = reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
+    const PersistedReanalysis failed = reanalyseThrough(repo, testdoc::ref(t.path()), PersistOptions{});
     check(!failed.ok() && !failed.analysed && failed.analysisError == QLatin1String("no frames")
               && bytesOf(SwingStore::ppswPath(t.path())) == before,
           "an analysis that fails writes nothing");
@@ -654,7 +666,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     meta.swingId = QStringLiteral("swing_0002");
     check(repo.create(testdoc::ref(lmOnly.path()), reading(70.0), meta).ok(), "a launch-monitor-only shot");
     g_reanalysisCalls = 0;
-    const PersistedReanalysis d = reanalyseAndPersist(repo, g_reader, testdoc::ref(lmOnly.path()), PersistOptions{});
+    const PersistedReanalysis d = reanalyseThrough(repo, testdoc::ref(lmOnly.path()), PersistOptions{});
     check(d.ok() && d.deviceOnly && g_reanalysisCalls == 0 && d.write.status == WriteResult::Status::Unchanged,
           "...is not analysed: its rows are checked (current, Unchanged)");
 
@@ -662,7 +674,7 @@ void testReanalyseAndPersist(RecordingRepository &repo)
     ReanalyzeResult r;
     r.ok = true;
     r.analysis.detail = std::make_shared<SwingAnalysis>(poseAnalysis(10));
-    const PersistedReanalysis g = persistReanalysis(repo, testdoc::ref(gone.path()), &r, PersistOptions{});
+    const PersistedReanalysis g = persistReanalysis(writeTo(repo, testdoc::ref(gone.path())), &r, PersistOptions{});
     check(!g.ok() && g.analysed && g.write.status == WriteResult::Status::NoDocument
               && !SwingStore::hasDocument(gone.path()),
           "the document went missing mid-batch: NoDocument, nothing written");
@@ -827,13 +839,17 @@ void testLowPointTakesTheEffectiveClub(RecordingRepository &repo)
 
 
 // ── Test 13 ───────────────────────────────────────────────────────────────────────────────────
-// A pre-step-1 camera shot: no analysisContext block, its session folder dated 20 Oct 2026.
+// A pre-step-1 camera shot: no analysisContext block, captured on 20 Oct 2026 (its clock.wallclock: the swing's
+// date since step 2.7a, which no longer reads session.dir's name).
 QJsonObject legacyShot(const QString &club = QStringLiteral("7 IRON"))
 {
     QJsonObject h = cameraHeader(club);
     h[QStringLiteral("athlete")] = QJsonObject{ { QStringLiteral("name"), QStringLiteral("Jess Ratcliffe") },
                                                 { QStringLiteral("handedness"), QStringLiteral("Right") } };
     h[QStringLiteral("session")] = QJsonObject{ { QStringLiteral("dir"), QStringLiteral("2026-10-20_Jess-Ratcliffe_Wrist_01") } };
+    QJsonObject clock = h.value(QStringLiteral("clock")).toObject();
+    clock[QStringLiteral("wallclock")] = QStringLiteral("2026-10-20T10:00:00.000Z");
+    h[QStringLiteral("clock")] = clock;
     return h;
 }
 
@@ -909,7 +925,8 @@ void testBackfillAnalysisContext(RecordingRepository &repo)
               && ctxBlock(j.path()).value(QStringLiteral("club")).toObject().value(QStringLiteral("standardLengthMm")).toDouble()
                      == double(standardClub(QStringLiteral("7 IRON"), ClubSet::Junior, 1.50).lengthMm),
           "...the junior set, its standard length from the height");
-    // No session folder: the capture's wallclock date. 18 on 2 Jun 2027 → the men's set.
+    // No session folder (and the folder's name is never read anyway): the capture's wallclock date. 18 on 2 Jun
+    // 2027 → the men's set.
     QTemporaryDir w;
     QJsonObject noSession = legacyShot();
     noSession.remove(QStringLiteral("session"));
@@ -959,7 +976,7 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
           "now device-only by today's content rule, its lm. rows written");
 
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis p = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(t.path()), PersistOptions{});
+    const analysis::PersistedReanalysis p = reanalyseThrough(repo, testdoc::ref(t.path()), PersistOptions{});
     check(p.ok() && p.deviceOnly && !p.analysed && g_reanalysisCalls == 0
               && p.write.status == WriteResult::Status::Unchanged,
           "re-analysis: not analysed, its launch monitor rows checked (current) — as today");
@@ -984,7 +1001,7 @@ void testAnalysisOnlyShotGetsAReading(RecordingRepository &repo)
     g_reanalysis = analysis::ReanalyzeResult{};
     g_reanalysis.error = QStringLiteral("no video streams in swing.json");   // the clip has not landed
     g_reanalysisCalls = 0;
-    const analysis::PersistedReanalysis r = analysis::reanalyseAndPersist(repo, g_reader, testdoc::ref(rescue.path()), PersistOptions{});
+    const analysis::PersistedReanalysis r = reanalyseThrough(repo, testdoc::ref(rescue.path()), PersistOptions{});
     check(g_reanalysisCalls == 1 && !r.deviceOnly,
           "re-analysis takes the capture path (the analyzer is called), as today");
 
@@ -1174,7 +1191,7 @@ void testUnresolvedShot()
           "and every read answers empty");
 }
 
-// ── Test 20 (step 2.4 round 2; J-39, proposed, for Mark) ─────────────────────────────────────
+// ── Test 20 (step 2.4 round 2; J-39; confirmed by Mark, 15 Nov 2026) ─────────────────────────────────────
 // A legacy session's D3 id is derived from the athlete who OWNS its folder, not the uuid its swings
 // recorded (they were minted on the capturing machine, H-09): the tool path reads the athlete folder's
 // athlete.json; the app path asks its resolver (the current athlete); the header only when neither knows.

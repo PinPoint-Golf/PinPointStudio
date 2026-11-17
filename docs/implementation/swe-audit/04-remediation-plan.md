@@ -230,6 +230,18 @@ built (reference §11.1, R-REC-8).
 
 ### Step 2 · Identity and repositories (~1 day)
 
+**Status (15 Nov 2026, item 2.8b, the close):** items 2.0–2.7b and 2.8a are committed (`528aaaf1`, `d0292bba`,
+`7efab713`, `640c1bf5`, `b5c0e6f8`, `1a5e6dfe`, `3c5da388`, `6a5b328c`, `45e32f36`, `78efbf74`); 2.8b closes the code
+(the swing file's writes under the session's lock, the archive's per-swing re-check, one reader of `athlete.json`,
+lint A4 over every session and athlete file name, J-18's inferred end, the report's athlete by its folder only, and
+every writing tool refusing a session in progress unless `--allow-in-progress`: D11, DEC-158).
+Parity, the Mac half (`build/refactor/step-2/parity-step2-vs-G.md`): run A (unmigrated copies) and run B (M1–M3
+written on scratch copies first) both agree with `stageG-aa5aee15` and with step 1's closing run exactly; the expected
+set of run B was empty. Still to do before the step is done: the cabin PC's dry run and export, Mark's id picks
+(J-58: answered — each athlete keeps the id its swings record) and the **real migrations** on the Mac and the cabin
+PC, each after Mark reads its dry run (`build/refactor/step-2/MIGRATION-DRY-RUN.md`); and J-55's
+`PpTypeset.shotNo` sheets (a design-system change, waiting for Mark).
+
 - **Before this step's brief** Mark decided the reference's open questions MD-01…MD-12 (§14), from the final re-audit
   (15 Nov 2026; reference v1.8, DEC-130…DEC-140); MD-05 (resume: DEC-134), MD-07 (the index entry: DEC-136) and MD-08
   (the purge: DEC-137) shape this step's repositories.
@@ -303,6 +315,33 @@ built (reference §11.1, R-REC-8).
   D-16, F-13, H-10, and the June review's schema string literal ×4 (triage, Mark 14 Nov 2026).
 
 ### Step 3 · Session and SessionDiagnostics, by parallel run (3–4 days)
+
+**Split in two** (Mark, 15 Nov 2026; DEC-162): **3A** = items 3.0–3.4b, **3B** = items 3.5–3.10, as numbered in step 3's
+brief (`build/refactor/step-3/BRIEF.md` §6; approved 15 Nov 2026, its §8 answered as DEC-162…DEC-189).
+
+#### Step 3.0 · Migrated data only: the corpus and archive copies migrated, then the tool and the legacy-read paths deleted
+Mark, 15 Nov 2026: "the only user is me, so the migration tool is a one off right now" … "yes, put it in the plan at the
+start of step 3- so long as we know the migration works and no data is lost".
+
+**Entry gate — all must hold first, each shown to Mark:**
+1. The real M1–M4 runs on the Mac and on GOLFSIMPC are done, each after its dry-run report and Mark's approval.
+2. **The migration works:** each run's read-back check passes; the written counts match the dry run's; a second run writes
+   nothing; the app opens every migrated session and the parity dumps of the live library (analysis, diagnostics, athlete)
+   are identical before and after the migration.
+3. **No data is lost:** every golfer key moved by M3 is present at its new home, field by field, before any is removed
+   (H-04); every athlete record's fields are present in `athlete.json`; the backups (`step2-backup-<stamp>`) are kept on the
+   share until Mark says they can go.
+
+**Then:**
+- The corpus and the archive mirror are migrated the same way (dry run → Mark's OK → write → the same checks).
+- Deleted: `pps_migrate_step2` and its tests; the J-33 golfer-input fallback and carry-over; reading athletes from settings
+  (J-27); the legacy D3 id derivation and folder-name day/order for sessions without `session.json` (J-56) — each only once
+  no folder anywhere still needs it (a check over the library, archive and corpus proves it). The JSON-era library
+  converter (`Gui/settings/library_converter.cpp`, allowlist A5 ×5, P11) goes with the legacy-read paths (Mark, 15 Nov
+  2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint").
+- Tests: the legacy-read tests go with their code; a guard test proves a folder without `session.json` is reported, not guessed.
+
+#### Step 3 itself
 
 1. **`Session`** (aggregate root, commands and events), the **`Shot`** entity it owns (one per `ShotRef`: its
    Recording, review facts and the read-only `ShotDiagnostics`; it replaces the row structs in `ShotListModel` and the
@@ -411,17 +450,24 @@ built (reference §11.1, R-REC-8).
      still drops input) goes with the single writer;
    - the work-ons catch-up's write blocks are reported through `AthleteDiagnostics`, not only logged;
    - flight norms and the metric catalogue become immutable snapshots with the packs (03 §8);
-   - `Diagnostics/packs` joins lint A5 once its loader is a repository;
+   - the packs' lint A5 lines (`Diagnostics/packs`, in A5 since step 2's S1-g, and `Diagnostics/engine/pack_io`) go once
+     their loader is a repository;
+   - the analysis services read a shot's Recording through the `Shot`, not `RecordingReader` / the loader
+     (`Analysis/analysis_service.h`, `swing_reanalyzer.h`, `swing_reanalyzer.cpp`, allowlist A5, P11) (Mark, 15 Nov 2026:
+     `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint");
    - the pack loader's two long functions (`validatePack`, `loadPack`, allowlist A7) are split with B-11;
    - the pack and corridor editor (`Gui/diagnosticmodel/model_browser.h`, allowlist A6 ×73): it edits and saves the
      user pack and the user norm set (`user.json`, `user.norms.json`), so its writes go with the packs and norms
-     owner and repository (item 7, B-02) and its QML API is typed here (the lead's call, 14 Nov 2026).
+     owner and repository (item 7, B-02) and its QML API is typed here (the lead's call, 14 Nov 2026; kept by Mark against
+     the brief's recommendation, 15 Nov 2026; DEC-177).
 
 - **Closes:** D-01…D-07, D-13, H-03, H-11, C-05, G-03/C-01, B-02 (one pack snapshot), B-03 (the pack registries'
   lazy singletons go with the one snapshot; the norm set's half was Stage 0.4), the session half of E-13, B-05 (a norm's standing
   typed; Mark, 14 Nov 2026), and the follow-up noted in 0.5 (Tendencies, Consistency, the kicker and work-on facts honour the board's annotations);
   A-19, B-04, B-11, B-13, B-20, B-22, C-10, C-15, C-16, D-12, D-14, D-15, D-17, D-18, D-19, E-12, E-13 (the athlete
-  half), G-08, G-09, G-10, G-14, H-06 (triage, Mark 14 Nov 2026).
+  half), G-08, G-09, G-10, G-14 (triage, Mark 14 Nov 2026); H-06 in part (Mark, 15 Nov 2026; DEC-183): the re-fires and
+  the diagnosis leave the GUI thread, and the commands' whole-document rewrites stay on it, recorded open
+  (`information_model.md` §11.1) for Mark to place.
 - **Re-run:** a re-fire of the findings, if the stamps change.
 
 ### Step 4 · AppState, the selection, the carousel summary (~½ day)
@@ -445,6 +491,8 @@ built (reference §11.1, R-REC-8).
 - **The QML APIs of the carousel, the replay and the shot controller** are typed with the selection (allowlist A6:
   `shot_list_model.h`, `shot_filter_proxy_model.h`, `shot_replay_controller.h`, `shot_controller.h`) (triage, Mark
   14 Nov 2026).
+- **The athlete controller's QML API** (allowlist A6: `athlete_controller.h`) is typed when `app.athlete` arrives, not in
+  step 3 (Mark, 15 Nov 2026; DEC-176, D12, reversing J-68).
 - **Closes:** E-04, E-05, E-08, E-14, E-01 (the switch half); E-15, H-07 (triage, Mark 14 Nov 2026).
 
 ### Step 5 · Charts and the report onto the session (~2 days; can overlap step 3's cut-over)
@@ -502,7 +550,10 @@ built (reference §11.1, R-REC-8).
 ### Step 7 · Rules down, words, namespaces (1–2 days; can overlap step 5)
 
 - **Domain code moves out of `src/Gui`**, about 5,000 lines (F-11, D-09, C-08).
-- **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06).
+- **File I/O leaves Coaching and Diagnostics;** norms are loaded by repositories (C-07, B-12, B-06). Ball and Pose too:
+  their stages' pinned inputs and baselines and the pose model fingerprint are read outside the rules
+  (`Ball/ball_baseline_io.h`, `Ball/ball_runner.cpp`, `Pose/pose_runner.cpp`, allowlist A5, P11) (Mark, 15 Nov 2026:
+  `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint").
 - **One words module;** domain reductions persist ids and numbers (C-04, B-10). The report's own frequency words (`everyWords` in
   `report_words.h`) fold into the one rule in `frequency_words.h` (Stage 0.13).
 - **One namespace per layer** (C-14, B-15, A-20). `src/Export` is renamed for the Recording contract.

@@ -39,7 +39,6 @@ namespace pinpoint {
 namespace {
 
 const QString kSettingsGroup = QStringLiteral("athletes");
-const QString kSchemaPrefix  = QStringLiteral("pinpoint.athlete/");
 
 WriteResult failed(const QString &why) { return { WriteResult::Status::Failed, why }; }
 WriteResult written() { return { WriteResult::Status::Written, {} }; }
@@ -94,26 +93,19 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     const QDir lib(libraryDir());
     for (const QString &name : lib.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
         const QString dir = lib.filePath(name);
-        QFile f(AthleteFiles::athleteFile(dir));
-        if (!f.exists())
+        // The one reader of the file (AthleteFiles::read; R-PERS-1, J-40).
+        const AthleteFiles::Read rd = AthleteFiles::read(dir);
+        if (rd.state == AthleteFiles::Read::State::Missing)
             continue;   // not an athlete's folder (yet): a settings athlete's, the corpus, a scratch folder
-        if (!f.open(QIODevice::ReadOnly)) {
-            ppWarn() << "[AthleteStore] cannot read" << f.fileName() << "-" << f.errorString();
-            continue;
-        }
-        QJsonParseError pe{};
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-        const QJsonObject   o   = doc.object();
-        const QString       schema  = o.value(QStringLiteral("schema")).toString();
-        const int           version = schema.startsWith(kSchemaPrefix) ? schema.mid(kSchemaPrefix.size()).toInt() : 0;
-        const AthleteId     id      = AthleteId::fromString(o.value(QStringLiteral("athleteId")).toString());
-        if (pe.error != QJsonParseError::NoError || !doc.isObject() || version < 1 || id.isNull()) {
+        if (!rd.isRead()) {
             // Kept as it is for someone to look at: never listed, never overwritten.
-            ppWarn() << "[AthleteStore] not an athlete file (schema" << schema << "):" << f.fileName();
+            ppWarn() << "[AthleteStore]" << rd.why;
             continue;
         }
+        const QJsonObject &o  = rd.json;
+        const AthleteId    id = rd.id;
         if (seen.contains(id)) {
-            ppWarn() << "[AthleteStore]" << f.fileName() << "names athlete" << id.toString()
+            ppWarn() << "[AthleteStore]" << AthleteFiles::athleteFile(dir) << "names athlete" << id.toString()
                      << "whose record is already in another folder - not listed twice";
             continue;
         }
@@ -128,7 +120,7 @@ QList<AthleteStore::Found> AthleteStore::scan() const
         fd.folder   = SessionStore::athleteFolder(fd.owner);
         fd.record   = AthleteRecord::fromMap(o.value(QStringLiteral("record")).toObject().toVariantMap());
         fd.source   = Athlete::Source::Library;
-        fd.readOnly = version > 1;
+        fd.readOnly = rd.readOnly;
         fd.file     = o;
         out.append(fd);
     }
@@ -159,12 +151,36 @@ QList<AthleteStore::Found> AthleteStore::scan() const
     return out;
 }
 
+void AthleteStore::setShotDoors(const ShotDoors &doors)
+{
+    m_shotDoors = doors;
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        a->setShotDoors(doors);
+}
+
+void AthleteStore::setDiagnosticsDoors(const DiagnosticsDoors &doors)
+{
+    m_diagnosticsDoors = doors;
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        a->setDiagnosticsDoors(doors);
+}
+
+Session *AthleteStore::loadedSession(const SessionId &id) const
+{
+    for (const std::unique_ptr<Athlete> &a : m_owned)
+        if (Session *s = a->loadedSession(id))
+            return s;
+    return nullptr;
+}
+
 Athlete *AthleteStore::hold(const Found &f)
 {
     Athlete *a = m_held.value(f.id);
     if (!a) {
         m_owned.push_back(std::make_unique<Athlete>(this, m_sessions, f.id));
         a = m_owned.back().get();
+        a->setShotDoors(m_shotDoors);
+        a->setDiagnosticsDoors(m_diagnosticsDoors);
         m_held.insert(f.id, a);
     }
     if (f.source == Athlete::Source::Library) {
@@ -396,10 +412,7 @@ AthleteRemoval AthleteStore::trash(const AthleteId &id)
     if (hasFolder) {
         // J-30 (a): the folder's athlete.json names ANOTHER athlete — never move someone else's folder.
         if (QFileInfo::exists(file)) {
-            QFile f(file);
-            const AthleteId owner = f.open(QIODevice::ReadOnly)
-                ? AthleteId::fromString(QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("athleteId")).toString())
-                : AthleteId();
+            const AthleteId owner = AthleteFiles::read(folder).id;   // the one reader (J-40); null if unreadable
             if (owner != id) {
                 QString other = QStringLiteral("another athlete");
                 if (const Athlete *o = m_held.value(owner)) other = o->record().name;
@@ -470,6 +483,13 @@ WriteResult AthleteStore::appendTuningLog(const QString &logFile, const QByteArr
 {
     const AtomicWriteResult w = AthleteFiles::appendTuningLine(logFile, line, lockWaitMs);
     return w.ok ? written() : failed(w.detail.isEmpty() ? w.error : w.error + QStringLiteral(" (") + w.detail + QLatin1Char(')'));
+}
+
+WriteResult AthleteStore::appendTuningLine(const Athlete &athlete, const QByteArray &line)
+{
+    if (athlete.folder().isEmpty())
+        return failed(QStringLiteral("The athlete has no folder for its tuning log."));
+    return appendTuningLog(AthleteFiles::tuningLogFile(athlete.folder()), line, lockWait());
 }
 
 } // namespace pinpoint

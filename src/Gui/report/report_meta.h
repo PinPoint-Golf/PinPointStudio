@@ -41,7 +41,9 @@
 // Pure apart from the file system; header-only; report_meta_test.
 
 #include "../../Core/atomic_write.h"
+#include "../../Export/session_files.h"   // the report documents' names (D9)
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
 
 #include <QCryptographicHash>
 #include <QDate>
@@ -87,10 +89,11 @@ struct ReportMeta {
 
 enum class ReportState { None, Current, Stale };
 
-inline QString reportDir(const QString &sessionDir) { return QDir(sessionDir).filePath(QStringLiteral("report")); }
+// The names are SessionFiles' (D9: names now, writes in step 5; lint A4).
+inline QString reportDir(const QString &sessionDir) { return QDir(sessionDir).filePath(pinpoint::SessionFiles::reportFolderName()); }
 inline QString reportMetaPath(const QString &sessionDir)
 {
-    return QDir(reportDir(sessionDir)).filePath(QStringLiteral("report_meta.json"));
+    return QDir(reportDir(sessionDir)).filePath(pinpoint::SessionFiles::reportMetaFileName());
 }
 
 // "2026-10-20_Nick-Henn_session-report.pdf": the SESSION date, so a coach's folder sorts by session (§8.4).
@@ -103,15 +106,14 @@ inline QString reportFileName(const QDate &sessionDate, const QString &golferNam
         if (c.isLetterOrNumber() || c == QLatin1Char('-') || c == QLatin1Char('_')) safe += c;
     if (safe.isEmpty()) safe = QStringLiteral("Golfer");
     return sessionDate.toString(QStringLiteral("yyyy-MM-dd")) + QLatin1Char('_') + safe
-           + QStringLiteral("_session-report.pdf");
+           + pinpoint::SessionFiles::reportPdfSuffix();
 }
 
 // Each swing document's identity, as WorkOnsController::scan hashes it.
 inline QByteArray swingsIdentity(const QString &sessionDir)
 {
     const QDir d(sessionDir);
-    const QStringList swings = d.entryList(QStringList{ QStringLiteral("swing_*") },
-                                           QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
     QByteArray out;
     for (const QString &name : swings) {
         const pinpoint::SwingStore::DocInfo doc = pinpoint::SwingStore::info(d.filePath(name));
@@ -238,7 +240,7 @@ inline bool restampReportFingerprint(const QString &sessionDir, const QString &f
 // every document's size and mtime, so swingsIdentity — and the fingerprint with it — moves while every
 // sentence of the report still holds. A report that was current before `rewrite` is re-stamped after it
 // succeeds; one already out of date stays so, and a failed rewrite re-stamps nothing. `rewrite` returns
-// something with `ok` (SessionArchiver::Result); with no fingerprint function it simply runs.
+// something with `ok` (SessionArchiveResult); with no fingerprint function it simply runs.
 template <typename Rewrite>
 auto keepReportCurrent(const QString &sessionDir, const ReportFingerprintFn &fingerprint, Rewrite &&rewrite)
 {

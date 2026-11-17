@@ -17,6 +17,7 @@
  */
 
 #include "model_browser.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot and commands (refactor steps 3.2, 3.9)
 
 #include "../../Diagnostics/norms/corridor_plot.h"
 #include "../../Diagnostics/engine/dag_layout.h"
@@ -26,19 +27,20 @@
 #include "../../Diagnostics/packs/reference_pack.h"
 #include "../../Diagnostics/packs/screen_pack.h"
 #include "../../Metrics/gate_catalogue.h"
+#include "../../Export/swing_paths.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
-#include <QDir>
 #include <cmath>
 #include <QStandardPaths>
 #include <QtConcurrent/QtConcurrent>
 #include <QJsonDocument>
 
 #include <algorithm>
+#include <utility>
 
 using namespace pinpoint::analysis;
 
@@ -91,74 +93,71 @@ bool splitEdgeId(const QString &id, QString &from, QString &to, EdgeType &t)
 // one-click list, "int" is a spin field, "none" cannot be edited. `own` says the value is the
 // user's own rather than the shipped one, which is what the per-field "yours vs shipped" marker
 // keys off.
-QVariantMap cell(const QString &text, const QString &tone = QString(), bool mono = false,
-                 const QString &align = QStringLiteral("left"))
+ModelCell cell(const QString &text, const QString &tone = QString(), bool mono = false,
+               const QString &align = QStringLiteral("left"))
 {
-    QVariantMap c;
-    c.insert(QStringLiteral("text"), text);
-    c.insert(QStringLiteral("tone"), tone);
-    c.insert(QStringLiteral("mono"), mono);
-    c.insert(QStringLiteral("align"), align);
-    c.insert(QStringLiteral("kind"), QStringLiteral("none"));
-    c.insert(QStringLiteral("editable"), false);
-    c.insert(QStringLiteral("own"), false);
-    return c;
+    ModelCell c;
+    c.text  = text;
+    c.tone  = tone;
+    c.mono  = mono;
+    c.align = align;
+    return c;   // kind "none", not editable, not own: the gadget's defaults
 }
 
 // Make a cell editable. Separate from cell() so that a read-only surface reads as read-only in the
 // source: a cell is inert unless somebody says otherwise.
-QVariantMap &editable(QVariantMap &c, const QString &field, const QString &kind,
-                      const QVariant &value, const QVariantList &options = {})
+ModelCell &editable(ModelCell &c, const QString &field, const QString &kind,
+                    const QVariant &value, const QList<ModelOption> &options = {})
 {
-    c.insert(QStringLiteral("field"), field);
-    c.insert(QStringLiteral("kind"), kind);
-    c.insert(QStringLiteral("value"), value);
-    c.insert(QStringLiteral("options"), options);
-    c.insert(QStringLiteral("editable"), true);
+    c.field    = field;
+    c.kind     = kind;
+    c.value    = value;
+    c.options  = options;
+    c.editable = true;
     return c;
 }
 
-QVariantMap option(const QString &value, const QString &label)
+// One choice of a closed vocabulary, as QML reads it (ModelOption; refactor step 3.9-ii).
+ModelOption option(const QString &value, const QString &label)
 {
-    QVariantMap o;
-    o.insert(QStringLiteral("value"), value);
-    o.insert(QStringLiteral("label"), label);
+    ModelOption o;
+    o.value = value;
+    o.label = label;
     return o;
 }
 
-QVariantMap column(const QString &key, const QString &title, int width, bool flex = false,
+ModelColumn column(const QString &key, const QString &title, int width, bool flex = false,
                    const QString &align = QStringLiteral("left"), bool mono = false)
 {
-    QVariantMap c;
-    c.insert(QStringLiteral("key"), key);
-    c.insert(QStringLiteral("title"), title);
-    c.insert(QStringLiteral("width"), width);
-    c.insert(QStringLiteral("flex"), flex);
-    c.insert(QStringLiteral("align"), align);
-    c.insert(QStringLiteral("mono"), mono);
-    c.insert(QStringLiteral("sortable"), true);
-    return c;
+    ModelColumn c;
+    c.key   = key;
+    c.title = title;
+    c.width = width;
+    c.flex  = flex;
+    c.align = align;
+    c.mono  = mono;
+    return c;   // sortable: the gadget's default
 }
 
 // The enum vocabularies, as option lists. From C++ so a picker cannot invent a token that the
 // loader will then refuse.
-QVariantList groupOptions()
+QList<ModelOption> groupOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ConditionGroup g : allConditionGroups())
         l.append(option(conditionGroupName(g), conditionGroupLabel(g)));
     return l;
 }
-QVariantList kindOptions()
+QList<ModelOption> kindOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ConditionKind k : allConditionKinds())
         l.append(option(conditionKindName(k), conditionKindLabel(k)));
     return l;
 }
-QVariantList prominenceOptions()
+QList<ModelOption> prominenceOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (Prominence p : allProminences())
         l.append(option(prominenceName(p), prominenceLabel(p)));
     return l;
@@ -179,41 +178,41 @@ QString kindHint(ConditionKind k)
     }
     return QString();
 }
-QVariantList reachOptions()
+QList<ModelOption> reachOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ConfirmedBy c : { ConfirmedBy::Measured, ConfirmedBy::Screened, ConfirmedBy::Asserted })
         l.append(option(confirmedByName(c), reachLabel(c)));
     return l;
 }
-QVariantList tierOptions()
+QList<ModelOption> tierOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ProvenanceTier t : { ProvenanceTier::Proposed, ProvenanceTier::NoSourceFound,
                               ProvenanceTier::Practice, ProvenanceTier::Indirect,
                               ProvenanceTier::Supported, ProvenanceTier::Established })
         l.append(option(provenanceTierName(t), provenanceTierLabel(t)));
     return l;
 }
-QVariantList strengthOptions()
+QList<ModelOption> strengthOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (Strength s : allStrengths())
         l.append(option(strengthName(s), strengthLabel(s)));
     return l;
 }
-QVariantList relationOptions()
+QList<ModelOption> relationOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     l.append(option(QStringLiteral("causes"), QObject::tr("causes")));
     l.append(option(QStringLiteral("corroborates"), QObject::tr("corroborates")));
     l.append(option(QStringLiteral("excludes"), QObject::tr("excludes")));
     l.append(option(QStringLiteral("leadsTo"), QObject::tr("leads to")));
     return l;
 }
-QVariantList statusOptions()
+QList<ModelOption> statusOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (MeasureStatus s : { MeasureStatus::Live, MeasureStatus::Held, MeasureStatus::Planned,
                              MeasureStatus::NoProducer,
                              MeasureStatus::ExternalDevice, MeasureStatus::NotCapturable })
@@ -222,25 +221,25 @@ QVariantList statusOptions()
 }
 // Both the token and the label come from norm.h — normSourceName() writes the file and
 // normSourceLabel() is the UI's own words. Only the option LIST is assembled here.
-QVariantList normSourceOptions()
+QList<ModelOption> normSourceOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (NormSource s : { NormSource::Heuristic, NormSource::Seated, NormSource::Literature,
                           NormSource::Imported })
         l.append(option(normSourceName(s), normSourceLabel(s)));
     return l;
 }
 
-QVariantList directionOptionList()
+QList<ModelOption> directionOptionList()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     l.append(option(QStringLiteral("high"), QObject::tr("Too much")));
     l.append(option(QStringLiteral("low"), QObject::tr("Too little")));
     return l;
 }
-QVariantList stateOptions()
+QList<ModelOption> stateOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ConditionState s : { ConditionState::Draft, ConditionState::Candidate, ConditionState::Active,
                               ConditionState::NeedsRevalidation, ConditionState::Superseded,
                               ConditionState::Retired })
@@ -251,9 +250,9 @@ QVariantList stateOptions()
 // Which of the four tests a signal applies. Enum-table driven, like groupOptions() and unlike
 // directionOptionList() — the labels beside each token were already authored in characteristic.cpp
 // and spelling them again here is how the two would come to disagree.
-QVariantList testOptions()
+QList<ModelOption> testOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (SignalTest t : allSignalTests())
         l.append(option(signalTestName(t), signalTestLabel(t)));
     return l;
@@ -284,9 +283,9 @@ QString signalTestHint(SignalTest t)
 
 // How a condition combines its signals. Two values, so a picker is overkill in a table cell and
 // exactly right in the inspector — see the ALL semantics in characteristic_engine.cpp.
-QVariantList detectionOptions()
+QList<ModelOption> detectionOptions()
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (DetectionMode d : allDetectionModes())
         l.append(option(detectionModeName(d), detectionModeLabel(d)));
     return l;
@@ -314,11 +313,13 @@ QString statusTone(MeasureStatus s)
 // type's own `dot`), so this is written against them and must change WITH them: one entry per tone
 // a type's rows can carry, in the order a reader ranks them. A type whose rows carry no dot
 // (references) has no legend.
-QVariantList dotLegendFor(const QString &type)
+QList<ModelLegendEntry> dotLegendFor(const QString &type)
 {
     const auto entry = [](const char *tone, const QString &label) {
-        return QVariantMap{ { QStringLiteral("tone"), QString::fromLatin1(tone) },
-                            { QStringLiteral("label"), label } };
+        ModelLegendEntry e;
+        e.tone  = QString::fromLatin1(tone);
+        e.label = label;
+        return e;
     };
     // A characteristic or cause takes the WEAKEST of its measures' statuses; a measure its own.
     if (type == kCharacteristics || type == kCauses || type == kMeasures)
@@ -807,11 +808,18 @@ private:
 
 // ── Construction ────────────────────────────────────────────────────────────
 
-ModelBrowser::ModelBrowser(QObject *parent)
+ModelBrowser::ModelBrowser(QObject *parent) : ModelBrowser(pinpoint::RuleData::installed(), parent) {}
+
+ModelBrowser::ModelBrowser(pinpoint::RuleData *ruleData, QObject *parent)
     : QObject(parent)
-    , m_core(makeResourcePackProvider())
-    , m_coreNorms(makeResourceNormProvider())
-    , m_norms(sharedNormProvider())
+    , m_ruleData(ruleData)
+    // EVERY READ OF THE PACKS, NORMS AND CONTENT SETS IS THIS SNAPSHOT'S (refactor step 3.9; DEC-170,
+    // R-CON-4): the shipped layers, the user's own layers as parsed, the bibliography. No file is read
+    // here. Without a RuleData (a process that installed none) it is the empty snapshot.
+    , m_snap(ruleData ? ruleData->snapshot() : pinpoint::RuleData::current())
+    , m_core(m_snap->shippedPack)
+    , m_coreNorms(m_snap->shippedNorms)
+    , m_norms(m_snap->norms)
     , m_cat(makeMetricCatalogue())
     , m_policyName(QStringLiteral("standard"))
     , m_corridorWatcher(new QFutureWatcher<QVariantList>(this))
@@ -834,17 +842,27 @@ ModelBrowser::ModelBrowser(QObject *parent)
     connect(m_gateWatcher, &QFutureWatcher<ModelGateCounts>::finished,
             this, &ModelBrowser::onGateScanFinished);
 
-    // The user's override file, read separately from the merged view — saving must write back the
-    // user's own entries and never a flattened copy of the shipped pack.
-    //
-    // `parsed`, NOT `loaded`. An overlay routinely fails STANDALONE referential validation because
-    // its edges point at core conditions it does not contain; keying off `loaded` would start with
-    // an empty working copy and the first save would erase every override the user had.
-    QFile f(userPackPath());
-    if (f.open(QIODevice::ReadOnly)) {
-        PackLoadResult res = loadPack(f.readAll(), userPackPath());
-        if (res.parsed) m_savedUser = std::move(res.pack);
+    // EVT-12 / EVT-13 refresh the editor (refactor step 3.9): a snapshot published by anyone else — a
+    // reload, another editor's save — is taken here; the editor's own saves take it once, at their end
+    // (WriteScope). Nothing here resets or re-reads anything of its own.
+    if (m_ruleData) {
+        connect(m_ruleData, &pinpoint::RuleData::normsChanged, this, [this]() { onRuleDataPublished(); });
+        connect(m_ruleData, &pinpoint::RuleData::packChanged, this, [this]() { onRuleDataPublished(); });
     }
+
+    takeUserLayers(*m_snap);
+    rebuild();
+}
+
+const ReferenceSet &ModelBrowser::refs() const { return m_snap->references->merged; }
+
+// The user's own layers, as the snapshot parsed them, become both the saved baseline and the working
+// copy. `parsed`, NOT `loaded` (the store's RulePacks / RuleNorms say why): keying off a validated read
+// would start with an empty working copy, and the first save would erase every override and corridor
+// the user had. A layer that is absent or unparseable starts as an empty one named "user".
+void ModelBrowser::takeUserLayers(const pinpoint::RuleDataSnapshot &snap)
+{
+    m_savedUser = *snap.userPack;
     if (m_savedUser.id.isEmpty()) {
         m_savedUser.id            = QStringLiteral("user");
         m_savedUser.version       = QStringLiteral("1");
@@ -852,15 +870,7 @@ ModelBrowser::ModelBrowser(QObject *parent)
     }
     m_working = m_savedUser;
 
-    // The user norm set, read the same way and for the same reason. `parsed`, not `loaded`: a user
-    // layer routinely fails standalone referential checks because its rows name measures it does
-    // not itself contain, and keying off `loaded` would start with an empty set and let the first
-    // save erase every corridor the user had authored.
-    QFile nf(userNormPath());
-    if (nf.open(QIODevice::ReadOnly)) {
-        NormPackLoadResult res = loadNormPack(nf.readAll(), userNormPath());
-        if (res.parsed) m_savedNorms = std::move(res.pack);
-    }
+    m_savedNorms = *snap.userNorms;
     if (m_savedNorms.id.isEmpty()) {
         m_savedNorms.id      = QStringLiteral("user");
         m_savedNorms.version = QStringLiteral("1");
@@ -868,14 +878,14 @@ ModelBrowser::ModelBrowser(QObject *parent)
     m_workingNorms = m_savedNorms;
 
     // The screen and drill layers, read the same way and for the same reason.
-    m_savedScreens = loadUserScreenSet();
+    m_savedScreens = snap.screens->user;
     if (m_savedScreens.id.isEmpty()) {
         m_savedScreens.id      = QStringLiteral("user");
         m_savedScreens.version = QStringLiteral("1");
     }
     m_workingScreens = m_savedScreens;
 
-    m_savedDrills = loadUserDrillSet();
+    m_savedDrills = snap.drills->user;
     if (m_savedDrills.id.isEmpty()) {
         m_savedDrills.id      = QStringLiteral("user");
         m_savedDrills.version = QStringLiteral("1");
@@ -884,14 +894,124 @@ ModelBrowser::ModelBrowser(QObject *parent)
 
     // The gate words, read the same way and for the same reason (#60) — the fifth layer, and the only
     // part of a gate this panel writes.
-    m_savedGateWords = loadUserGateWordSet();
+    m_savedGateWords = snap.gateWords->user;
     if (m_savedGateWords.id.isEmpty()) {
         m_savedGateWords.id      = QStringLiteral("user");
         m_savedGateWords.version = QStringLiteral("1");
     }
     m_workingGateWords = m_savedGateWords;
+}
 
+// A snapshot someone else published (EVT-12 / EVT-13). The editor's own writes are inside a
+// WriteScope, which takes the snapshot once when they are done.
+void ModelBrowser::onRuleDataPublished()
+{
+    if (m_writing || !m_ruleData) return;
+    adoptSnapshot(m_ruleData->snapshot(), /*userLayersToo*/ true, /*announce*/ true);
+}
+
+// Takes `next` as the editor's snapshot. The shipped layers and the content sets' cores are re-taken
+// when they changed. The user's own layers are re-taken only when asked, when the editor holds no
+// unsaved edit (a draft is never thrown away by somebody else's publish), and when their CONTENT differs
+// from the editor's saved layers: a byte-identical save elsewhere takes nothing. A publish that changed
+// nothing this editor shows (SET-06 / SET-15, the flight norms) costs a pointer compare and no rebuild.
+//
+// THE UNDO STACK IS NEVER TOUCHED HERE (3.9-i review 2; J-38). Adopting somebody else's layers neither
+// clears nor rewrites the history, so undo, redo and revert behave exactly as before step 3.9 and no
+// draft or undo step is lost. The theoretical cost — undoing past the adoption and saving reverts the
+// other editor's save — is today's last-save-wins, unreachable in the app (one editor, no in-app reload).
+//
+// Returns whether it rebuilt. `announce` emits libraryChanged when it did — a publish by anyone else;
+// the editor's own writes announce once themselves, after this (WriteScope::finish).
+bool ModelBrowser::adoptSnapshot(std::shared_ptr<const pinpoint::RuleDataSnapshot> next, bool userLayersToo,
+                                 bool announce)
+{
+    if (!next || next == m_snap) return false;
+    const std::shared_ptr<const pinpoint::RuleDataSnapshot> prev = std::exchange(m_snap, std::move(next));
+
+    bool changed = prev->shippedPack != m_snap->shippedPack || prev->shippedNorms != m_snap->shippedNorms
+                   || prev->references != m_snap->references || prev->screens != m_snap->screens
+                   || prev->drills != m_snap->drills || prev->gateWords != m_snap->gateWords;
+    const bool userMoved = prev->userPack != m_snap->userPack || prev->userNorms != m_snap->userNorms
+                           || prev->screens != m_snap->screens || prev->drills != m_snap->drills
+                           || prev->gateWords != m_snap->gateWords;
+    if (userLayersToo && userMoved && !dirty() && !savedLayersMatch(*m_snap)) {
+        takeUserLayers(*m_snap);
+        changed = true;
+    }
+    if (!changed) return false;
+
+    m_core      = m_snap->shippedPack;
+    m_coreNorms = m_snap->shippedNorms;
     rebuild();
+    if (announce) emit libraryChanged();
+    return true;
+}
+
+// Whether the snapshot's user layers hold what the editor's saved layers hold, compared as dirtyIds()
+// compares a draft: entity by entity, through the serialisers a save uses.
+bool ModelBrowser::savedLayersMatch(const pinpoint::RuleDataSnapshot &snap) const
+{
+    const auto normsOf = [](const NormPack &p) {
+        QHash<QString, QJsonObject> h;
+        for (const Norm &n : p.norms) h.insert(corridorId(n.measureId, n.contextId), normJson(n));
+        return h;
+    };
+    return entitiesOf(*snap.userPack) == entitiesOf(m_savedUser) && normsOf(*snap.userNorms) == normsOf(m_savedNorms)
+           && screenEntities(snap.screens->user) == screenEntities(m_savedScreens)
+           && drillEntities(snap.drills->user) == drillEntities(m_savedDrills)
+           && gateWordEntities(snap.gateWords->user) == gateWordEntities(m_savedGateWords);
+}
+
+// The editor's own writes (save, reset): RuleData publishes after each command that lands, and the
+// editor takes the result ONCE, when the last write is done, instead of once per publish (five per
+// save). Its user layers are its own working copy by then, so only the rest is re-taken, and the
+// caller announces the one refresh itself (finish() emits nothing).
+ModelBrowser::WriteScope::WriteScope(ModelBrowser *b) : m_b(b) { m_b->m_writing = true; }
+ModelBrowser::WriteScope::~WriteScope() { finish(); }
+
+// Ends the scope and takes the published snapshot. True when that rebuilt the panel (which then has
+// re-derived everything: the caller need not invalidate again).
+bool ModelBrowser::WriteScope::finish()
+{
+    if (m_done) return false;
+    m_done           = true;
+    m_b->m_writing   = false;
+    if (!m_b->m_ruleData) return false;
+    return m_b->adoptSnapshot(m_b->m_ruleData->snapshot(), /*userLayersToo*/ false, /*announce*/ false);
+}
+
+// The five commands the editor writes through: RuleData's (DEC-170). With no RuleData the write is
+// refused in the words the interim accessors used.
+bool ModelBrowser::writeUserPack(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserPack(m_working, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserNorms(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserNorms(m_workingNorms, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserScreens(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserScreens(m_workingScreens, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserDrills(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserDrills(m_workingDrills, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
+}
+bool ModelBrowser::writeUserGateWords(QString *whyNot)
+{
+    if (m_ruleData) return m_ruleData->saveUserGateWords(m_workingGateWords, whyNot);
+    if (whyNot) *whyNot = QStringLiteral("No rule data is open.");
+    return false;
 }
 
 ModelBrowser::~ModelBrowser()
@@ -948,14 +1068,14 @@ void ModelBrowser::rebuild()
     // Screens and drills, assembled the same way: core, then the working layer over it by id. A user
     // row REPLACES the shipped one rather than merging field by field — half a protocol from one
     // movement with another's pass criterion would be worse than either.
-    m_screens = coreScreenSet();
+    m_screens = m_snap->screens->core;
     for (const Screen &s : m_workingScreens.screens) {
         auto it = std::find_if(m_screens.screens.begin(), m_screens.screens.end(),
                                [&](const Screen &x) { return x.id == s.id; });
         if (it != m_screens.screens.end()) *it = s;
         else                                m_screens.screens.push_back(s);
     }
-    m_drills = coreDrillSet();
+    m_drills = m_snap->drills->core;
     for (const Drill &d : m_workingDrills.drills) {
         auto it = std::find_if(m_drills.drills.begin(), m_drills.drills.end(),
                                [&](const Drill &x) { return x.id == d.id; });
@@ -966,7 +1086,7 @@ void ModelBrowser::rebuild()
     // The gate words, the same again — and PER LIST, because a gate's clause and a reading's words
     // are two lists that happen to share a file. The same overlay sharedGateWordSet() assembles for
     // the report, so the Gates page and the next report read one answer.
-    m_gateWords = coreGateWordSet();
+    m_gateWords = m_snap->gateWords->core;
     const auto overlayWords = [](std::vector<GateWord> &into, const std::vector<GateWord> &from) {
         for (const GateWord &w : from) {
             auto it = std::find_if(into.begin(), into.end(),
@@ -1141,14 +1261,14 @@ QString ModelBrowser::sourceOf(const QString &id) const
     // Screens and drills live in their own flat sets, so they cannot be answered from the pack
     // either. Same three states, read off the same two layers the rows are assembled from.
     if (id.startsWith(QStringLiteral("screen."))) {
-        const bool shipped = coreScreenSet().screen(id) != nullptr;
+        const bool shipped = m_snap->screens->core.screen(id) != nullptr;
         const bool mine    = m_workingScreens.screen(id) != nullptr;
         if (mine && shipped) return QStringLiteral("both");
         if (mine)            return QStringLiteral("yours");
         return QStringLiteral("shipped");
     }
     if (id.startsWith(QStringLiteral("drill."))) {
-        const bool shipped = coreDrillSet().drill(id) != nullptr;
+        const bool shipped = m_snap->drills->core.drill(id) != nullptr;
         const bool mine    = m_workingDrills.drill(id) != nullptr;
         if (mine && shipped) return QStringLiteral("both");
         if (mine)            return QStringLiteral("yours");
@@ -1180,7 +1300,7 @@ QString ModelBrowser::sourceOf(const QString &id) const
 // the pack about it would be asking the wrong registry.
 QString ModelBrowser::gateWordsSourceOf(const QString &id) const
 {
-    const GateWordSet &core    = coreGateWordSet();
+    const GateWordSet &core    = m_snap->gateWords->core;
     const bool         shipped = core.gate(id) != nullptr || core.subject(id) != nullptr;
     const bool         mine    = m_workingGateWords.gate(id) != nullptr
                               || m_workingGateWords.subject(id) != nullptr;
@@ -1191,7 +1311,7 @@ QString ModelBrowser::gateWordsSourceOf(const QString &id) const
 
 // ── Census ──────────────────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::types() const
+QList<ModelTypeEntry> ModelBrowser::types() const
 {
     if (m_typesValid) return m_typesCache;   // until the next modelChanged (model_browser.h)
     struct T { QString key; QString label; QString hint; };
@@ -1210,19 +1330,19 @@ QVariantList ModelBrowser::types() const
         { kHealth,          tr("Health"),          tr("what is wrong with this draft") },
     };
 
-    QVariantList out;
+    QList<ModelTypeEntry> out;
     for (const T &t : defs) {
-        QVariantMap m;
-        m.insert(QStringLiteral("key"), t.key);
-        m.insert(QStringLiteral("label"), t.label);
-        m.insert(QStringLiteral("hint"), t.hint);
+        ModelTypeEntry m;
+        m.key   = t.key;
+        m.label = t.label;
+        m.hint  = t.hint;
         // What ONE of these is called, for the context bar's `+ New drill`. The rail labels a
         // collection and the button names an object, and typeLabelFor() already draws that
         // distinction — so the button reads it rather than keeping a second table in QML.
-        m.insert(QStringLiteral("one"), typeLabelFor(t.key));
+        m.one = typeLabelFor(t.key);
         // Counted by asking the row list. Two counts derived independently is how a badge ends up
         // disagreeing with the page it links to.
-        m.insert(QStringLiteral("count"), rawRows(t.key).size());
+        m.count = int(rawRows(t.key).size());
         out.append(m);
     }
     m_typesCache = out;
@@ -1235,10 +1355,9 @@ int ModelBrowser::totalObjects() const
     // Summed, never hardcoded. Health is excluded: it is a view of what is WRONG with the objects,
     // not an object, and counting it would make the total move when somebody fixed something.
     int n = 0;
-    for (const QVariant &v : types()) {
-        const QVariantMap t = v.toMap();
-        if (t.value(QStringLiteral("key")).toString() == kHealth) continue;
-        n += t.value(QStringLiteral("count")).toInt();
+    for (const ModelTypeEntry &t : types()) {
+        if (t.key == kHealth) continue;
+        n += t.count;
     }
     return n;
 }
@@ -1251,9 +1370,9 @@ QString ModelBrowser::packLabel() const
 
 // ── Columns ─────────────────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::columns(const QString &type) const
+QList<ModelColumn> ModelBrowser::columns(const QString &type) const
 {
-    QVariantList c;
+    QList<ModelColumn> c;
     if (type == kCharacteristics) {
         c.append(column(QStringLiteral("name"), tr("Name"), 240, /*flex*/ true));
         c.append(column(QStringLiteral("group"), tr("Group"), 120));
@@ -1421,7 +1540,7 @@ QVariantList ModelBrowser::columns(const QString &type) const
 
 // ── Rows ────────────────────────────────────────────────────────────────────
 
-QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
+ModelRow ModelBrowser::conditionRow(const Condition &c, bool asCause) const
 {
     const CharacteristicPack &p = pack();
 
@@ -1442,35 +1561,35 @@ QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
     }
     if (!anyMeasure) status = MeasureStatus::NoProducer;
 
-    QVariantMap nameCell = cell(c.label.isEmpty() ? c.id : c.label);
+    ModelCell nameCell = cell(c.label.isEmpty() ? c.id : c.label);
     editable(nameCell, QStringLiteral("label"), QStringLiteral("text"), c.label);
 
-    QVariantMap groupCell = cell(conditionGroupLabel(c.group));
+    ModelCell groupCell = cell(conditionGroupLabel(c.group));
     editable(groupCell, QStringLiteral("group"), QStringLiteral("enum"),
              conditionGroupName(c.group), groupOptions());
 
-    QVariantMap kindCell = cell(conditionKindLabel(c.kind));
+    ModelCell kindCell = cell(conditionKindLabel(c.kind));
     editable(kindCell, QStringLiteral("kind"), QStringLiteral("enum"),
              conditionKindName(c.kind), kindOptions());
 
-    QVariantMap prominenceCell = cell(prominenceLabel(c.prominence));
+    ModelCell prominenceCell = cell(prominenceLabel(c.prominence));
     editable(prominenceCell, QStringLiteral("prominence"), QStringLiteral("enum"),
              prominenceName(c.prominence), prominenceOptions());
 
-    QVariantMap reachCell = cell(reachLabel(c.confirmedBy));
+    ModelCell reachCell = cell(reachLabel(c.confirmedBy));
     editable(reachCell, QStringLiteral("reach"), QStringLiteral("enum"),
              confirmedByName(c.confirmedBy), reachOptions());
 
     // Blank on `any`, and blank means "the ordinary thing" rather than "unset" — every condition has
     // a mode. Editable even while blank, so the column is how you MAKE a conjunction as well as how
     // you spot one; the enum editor supplies both words when it opens.
-    QVariantMap detectionCell = cell(detectionModeLabel(c.detection),
+    ModelCell detectionCell = cell(detectionModeLabel(c.detection),
                                      c.detection != DetectionMode::Any ? QString()
                                                                        : QStringLiteral("dim"));
     editable(detectionCell, QStringLiteral("detection"), QStringLiteral("enum"),
              detectionModeName(c.detection), detectionOptions());
 
-    QVariantMap tierCell = cell(provenanceTierLabel(c.provenance.tier),
+    ModelCell tierCell = cell(provenanceTierLabel(c.provenance.tier),
                                 c.provenance.tier == ProvenanceTier::Proposed
                                     ? QStringLiteral("warn") : QString());
     editable(tierCell, QStringLiteral("tier"), QStringLiteral("enum"),
@@ -1483,7 +1602,7 @@ QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
     // as with it. Count parity is not enough: transposing two cells in ONE branch keeps the count
     // identical, nothing throws, and the facet reads the wrong column's text — with the filter
     // agreeing, because both read the same wrong index. model_browser_test checks the label sets.
-    QVariantList cells;
+    QList<ModelCell> cells;
     cells.append(nameCell);
     cells.append(groupCell);
     cells.append(kindCell);
@@ -1516,12 +1635,12 @@ QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
         cells.append(tierCell);
     }
 
-    QVariantMap r;
-    r.insert(QStringLiteral("id"), c.id);
-    r.insert(QStringLiteral("type"), asCause ? kCauses : kCharacteristics);
-    r.insert(QStringLiteral("label"), c.label.isEmpty() ? c.id : c.label);
-    r.insert(QStringLiteral("dot"), statusTone(status));
-    r.insert(QStringLiteral("cells"), cells);
+    ModelRow r;
+    r.id = c.id;
+    r.type = asCause ? kCauses : kCharacteristics;
+    r.label = c.label.isEmpty() ? c.id : c.label;
+    r.dot = statusTone(status);
+    r.cells = cells;
     // Sort keys the display strings cannot provide: a group must sort in SWING ORDER, which is what
     // the enum order is, and sorting the labels alphabetically would put Ball flight first.
     QVariantMap keys;
@@ -1546,20 +1665,19 @@ QVariantMap ModelBrowser::conditionRow(const Condition &c, bool asCause) const
     // The axis pair, so the two tails of one measure sort adjacent rather than as near-duplicates
     // scattered through the group.
     keys.insert(QStringLiteral("axis"), c.axis);
-    r.insert(QStringLiteral("sortKeys"), keys);
+    r.sortKeys = keys;
     // The KIND label joins the haystack; the prominence label deliberately does NOT. "Common" and
     // "Rare" appear in consequence prose all over the pack, so adding them would make searching for
     // either term useless — it would match half the library on the wrong field. The prominence rail
     // is how that question gets asked.
-    r.insert(QStringLiteral("searchText"),
-             QStringList{ c.label, c.id, c.axis, conditionGroupLabel(c.group),
-                          conditionKindLabel(c.kind),
-                          c.aliases.join(QLatin1Char(' ')), c.consequence.text() }
-                 .join(QLatin1Char(' ')));
+    r.searchText = QStringList{ c.label, c.id, c.axis, conditionGroupLabel(c.group),
+                                conditionKindLabel(c.kind),
+                                c.aliases.join(QLatin1Char(' ')), c.consequence.text() }
+                   .join(QLatin1Char(' '));
     return r;
 }
 
-QVariantMap ModelBrowser::measureRow(const Measure &m) const
+ModelRow ModelBrowser::measureRow(const Measure &m) const
 {
     // The derived name. Nine shipped measures carry an empty label and eight of them are planned or
     // noProducer — exactly the rows an author is hunting for, so they must not render blank. One
@@ -1596,13 +1714,13 @@ QVariantMap ModelBrowser::measureRow(const Measure &m) const
                : (m.reducer.sense == ExtremumSense::Min ? QStringLiteral("min %1") : QStringLiteral("max %1")).arg(span);
     }
 
-    QVariantMap nameCell = cell(label);
+    ModelCell nameCell = cell(label);
     editable(nameCell, QStringLiteral("label"), QStringLiteral("text"), m.label);
 
-    QVariantMap unitCell = cell(m.unit, m.unit.isEmpty() ? QStringLiteral("dim") : QString());
+    ModelCell unitCell = cell(m.unit, m.unit.isEmpty() ? QStringLiteral("dim") : QString());
     editable(unitCell, QStringLiteral("unit"), QStringLiteral("text"), m.unit);
 
-    QVariantMap statusCell = cell(measureStatusLabel(m.status), statusTone(m.status));
+    ModelCell statusCell = cell(measureStatusLabel(m.status), statusTone(m.status));
     editable(statusCell, QStringLiteral("status"), QStringLiteral("enum"),
              measureStatusName(m.status), statusOptions());
 
@@ -1612,11 +1730,11 @@ QVariantMap ModelBrowser::measureRow(const Measure &m) const
     // catalogue key at all — it is built from facets — and says so rather than showing an empty
     // cell that would read as an unfilled one.
     const QStringList ladder = measureKeyLadder(m);
-    QVariantMap readsCell = cell(ladder.isEmpty() ? tr("built from facets")
+    ModelCell readsCell = cell(ladder.isEmpty() ? tr("built from facets")
                                                   : ladder.join(QStringLiteral(" → ")),
                                  ladder.isEmpty() ? QStringLiteral("dim") : QString(), true);
 
-    QVariantList cells;
+    QList<ModelCell> cells;
     cells.append(nameCell);
     cells.append(unitCell);
     cells.append(cell(anchor, QStringLiteral("dim"), true));
@@ -1635,12 +1753,12 @@ QVariantMap ModelBrowser::measureRow(const Measure &m) const
         cells.append(swingCell(m, swingValue));
     }
 
-    QVariantMap r;
-    r.insert(QStringLiteral("id"), m.id);
-    r.insert(QStringLiteral("type"), kMeasures);
-    r.insert(QStringLiteral("label"), label);
-    r.insert(QStringLiteral("dot"), statusTone(m.status));
-    r.insert(QStringLiteral("cells"), cells);
+    ModelRow r;
+    r.id = m.id;
+    r.type = kMeasures;
+    r.label = label;
+    r.dot = statusTone(m.status);
+    r.cells = cells;
 
     QVariantMap keys;
     keys.insert(QStringLiteral("name"), label);
@@ -1654,15 +1772,14 @@ QVariantMap ModelBrowser::measureRow(const Measure &m) const
     // to the bottom under a descending sort (-1), below every graded one, rather than to the top
     // where a dash would outrank a genuine fault.
     keys.insert(QStringLiteral("swingValue"), swingDeviation(m, swingValue));
-    r.insert(QStringLiteral("sortKeys"), keys);
-    r.insert(QStringLiteral("searchText"),
-             QStringList{ label, m.id, m.unit, m.metricKey, m.highMeans,
-                          m.aliases.join(QLatin1Char(' ')) }
-                 .join(QLatin1Char(' ')));
+    r.sortKeys = keys;
+    r.searchText = QStringList{ label, m.id, m.unit, m.metricKey, m.highMeans,
+                                m.aliases.join(QLatin1Char(' ')) }
+                   .join(QLatin1Char(' '));
     return r;
 }
 
-QVariantMap ModelBrowser::signalRow(const Signal &s) const
+ModelRow ModelBrowser::signalRow(const Signal &s) const
 {
     const CharacteristicPack &p = pack();
 
@@ -1684,14 +1801,14 @@ QVariantMap ModelBrowser::signalRow(const Signal &s) const
         directionText = directionPhrase(*s.direction, m ? m->highMeans : QString()).label;
     }
 
-    QVariantMap dirCell = cell(directionText, s.direction.has_value() ? QString() : QStringLiteral("dim"));
+    ModelCell dirCell = cell(directionText, s.direction.has_value() ? QString() : QStringLiteral("dim"));
     if (s.direction.has_value())
         editable(dirCell, QStringLiteral("direction"), QStringLiteral("enum"),
                  directionName(*s.direction), directionOptionList());
 
     // The test, in words rather than as its token, and EDITABLE — the four kinds were readable here
     // long before any of them could be chosen.
-    QVariantMap testCell = cell(signalTestLabel(s.test));
+    ModelCell testCell = cell(signalTestLabel(s.test));
     editable(testCell, QStringLiteral("test"), QStringLiteral("enum"),
              signalTestName(s.test), testOptions());
 
@@ -1699,7 +1816,7 @@ QVariantMap ModelBrowser::signalRow(const Signal &s) const
     // "nothing to state here" instead of "nobody has filled this in". Editable only on the two tests
     // that author one: an author who types into a corridor signal's cell is told why it cannot take
     // one, which is a better answer than a cell that silently accepts and discards.
-    QVariantMap thresholdCell = cell(s.threshold.has_value() ? QString::number(*s.threshold)
+    ModelCell thresholdCell = cell(s.threshold.has_value() ? QString::number(*s.threshold)
                                                              : tr("—"),
                                      s.threshold.has_value() ? QString() : QStringLiteral("dim"),
                                      true, QStringLiteral("right"));
@@ -1707,7 +1824,7 @@ QVariantMap ModelBrowser::signalRow(const Signal &s) const
         editable(thresholdCell, QStringLiteral("threshold"), QStringLiteral("number"),
                  s.threshold.has_value() ? QString::number(*s.threshold) : QString());
 
-    QVariantList cells;
+    QList<ModelCell> cells;
     cells.append(cell(s.id, QString(), true));
     cells.append(testCell);
     cells.append(dirCell);
@@ -1716,12 +1833,12 @@ QVariantMap ModelBrowser::signalRow(const Signal &s) const
     cells.append(cell(QString::number(users), users == 0 ? QStringLiteral("warn") : QString(), true,
                       QStringLiteral("right")));
 
-    QVariantMap r;
-    r.insert(QStringLiteral("id"), s.id);
-    r.insert(QStringLiteral("type"), kSignals);
-    r.insert(QStringLiteral("label"), s.id);
-    r.insert(QStringLiteral("dot"), users == 0 ? QStringLiteral("watch") : QStringLiteral("good"));
-    r.insert(QStringLiteral("cells"), cells);
+    ModelRow r;
+    r.id = s.id;
+    r.type = kSignals;
+    r.label = s.id;
+    r.dot = users == 0 ? QStringLiteral("watch") : QStringLiteral("good");
+    r.cells = cells;
 
     QVariantMap keys;
     keys.insert(QStringLiteral("name"), s.id);
@@ -1729,36 +1846,35 @@ QVariantMap ModelBrowser::signalRow(const Signal &s) const
     keys.insert(QStringLiteral("direction"), directionText);
     keys.insert(QStringLiteral("measures"), measureLabels.join(QLatin1Char(' ')));
     keys.insert(QStringLiteral("usedBy"), users);
-    r.insert(QStringLiteral("sortKeys"), keys);
-    r.insert(QStringLiteral("searchText"),
-             QStringList{ s.id, measureLabels.join(QLatin1Char(' ')), signalTestName(s.test) }
-                 .join(QLatin1Char(' ')));
+    r.sortKeys = keys;
+    r.searchText = QStringList{ s.id, measureLabels.join(QLatin1Char(' ')), signalTestName(s.test) }
+                   .join(QLatin1Char(' '));
     return r;
 }
 
-QVariantMap ModelBrowser::edgeRow(const Edge &e) const
+ModelRow ModelBrowser::edgeRow(const Edge &e) const
 {
     const CharacteristicPack &p    = pack();
     const Condition          *from = p.condition(e.from);
     const Condition          *to   = p.condition(e.to);
 
-    QVariantMap relCell = cell(edgeTypeName(e.type));
+    ModelCell relCell = cell(edgeTypeName(e.type));
     editable(relCell, QStringLiteral("relation"), QStringLiteral("enum"), edgeTypeName(e.type),
              relationOptions());
 
     // Strength is a RANKING WEIGHT and never a probability — words, never a percentage, and the
     // vocabulary comes from strengthLabel() rather than being spelled here.
-    QVariantMap strengthCell = cell(strengthLabel(e.strength));
+    ModelCell strengthCell = cell(strengthLabel(e.strength));
     editable(strengthCell, QStringLiteral("strength"), QStringLiteral("enum"),
              strengthName(e.strength), strengthOptions());
 
-    QVariantMap tierCell = cell(provenanceTierLabel(e.provenance.tier),
+    ModelCell tierCell = cell(provenanceTierLabel(e.provenance.tier),
                                 e.provenance.tier == ProvenanceTier::Proposed
                                     ? QStringLiteral("warn") : QString());
     editable(tierCell, QStringLiteral("tier"), QStringLiteral("enum"),
              provenanceTierName(e.provenance.tier), tierOptions());
 
-    QVariantList cells;
+    QList<ModelCell> cells;
     cells.append(cell(from ? from->label : e.from));
     cells.append(cell(to ? to->label : e.to));
     cells.append(relCell);
@@ -1767,11 +1883,11 @@ QVariantMap ModelBrowser::edgeRow(const Edge &e) const
     cells.append(!isSymmetricEdge(e.type) ? strengthCell : cell(tr("—"), QStringLiteral("dim")));
     cells.append(tierCell);
 
-    QVariantMap r;
-    r.insert(QStringLiteral("id"), edgeId(e.from, e.to, e.type));
-    r.insert(QStringLiteral("type"), kLinks);
-    r.insert(QStringLiteral("label"), tr("%1 → %2").arg(from ? from->label : e.from,
-                                                        to ? to->label : e.to));
+    ModelRow r;
+    r.id = edgeId(e.from, e.to, e.type);
+    r.type = kLinks;
+    r.label = tr("%1 → %2").arg(from ? from->label : e.from,
+                                to ? to->label : e.to);
     // Three dot colours over five rungs: the outer pair reads with the neighbour it is a stronger
     // form of, because the dot is a scan cue down a column and not a second copy of the word in the
     // cell beside it.
@@ -1785,11 +1901,11 @@ QVariantMap ModelBrowser::edgeRow(const Edge &e) const
         }
         return QStringLiteral("none");
     };
-    r.insert(QStringLiteral("dot"), !isSymmetricEdge(e.type) ? dotFor(e.strength)
-                                                             : QStringLiteral("none"));
-    r.insert(QStringLiteral("cells"), cells);
-    r.insert(QStringLiteral("fromId"), e.from);
-    r.insert(QStringLiteral("toId"), e.to);
+    r.dot = !isSymmetricEdge(e.type) ? dotFor(e.strength)
+                                     : QStringLiteral("none");
+    r.cells = cells;
+    r.fromId = e.from;
+    r.toId = e.to;
 
     QVariantMap keys;
     keys.insert(QStringLiteral("from"), from ? from->label : e.from);
@@ -1797,18 +1913,17 @@ QVariantMap ModelBrowser::edgeRow(const Edge &e) const
     keys.insert(QStringLiteral("relation"), int(e.type));
     keys.insert(QStringLiteral("strength"), int(e.strength));
     keys.insert(QStringLiteral("evidence"), int(e.provenance.tier));
-    r.insert(QStringLiteral("sortKeys"), keys);
-    r.insert(QStringLiteral("searchText"),
-             QStringList{ from ? from->label : e.from, to ? to->label : e.to, e.from, e.to,
-                          edgeTypeName(e.type) }
-                 .join(QLatin1Char(' ')));
+    r.sortKeys = keys;
+    r.searchText = QStringList{ from ? from->label : e.from, to ? to->label : e.to, e.from, e.to,
+                                edgeTypeName(e.type) }
+                   .join(QLatin1Char(' '));
     return r;
 }
 
-QVariantList ModelBrowser::rawRows(const QString &type) const
+QList<ModelRow> ModelBrowser::rawRows(const QString &type) const
 {
     const CharacteristicPack &p = pack();
-    QVariantList              out;
+    QList<ModelRow>           out;
 
     if (type == kCharacteristics) {
         for (const Condition &c : p.conditions)
@@ -1835,7 +1950,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             const QStringList needs    = metricNeeds(*d);
             const QStringList improves = metricImproves(*d);
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(d->label.isEmpty() ? d->key : d->label));
             cells.append(cell(d->key, QStringLiteral("dim"), true));
             cells.append(cell(d->unit));
@@ -1861,15 +1976,15 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                               readers.isEmpty() ? QStringLiteral("warn") : QString(), true,
                               QStringLiteral("right")));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), d->key);
-            r.insert(QStringLiteral("type"), kMetrics);
-            r.insert(QStringLiteral("label"), d->label.isEmpty() ? d->key : d->label);
+            ModelRow r;
+            r.id = d->key;
+            r.type = kMetrics;
+            r.label = d->label.isEmpty() ? d->key : d->label;
             // Planned means the catalogue describes it and nothing produces it yet — the same
             // distinction the measure roadmap draws, and worth the same dot.
-            r.insert(QStringLiteral("dot"), d->planned() ? QStringLiteral("watch")
-                                                         : QStringLiteral("good"));
-            r.insert(QStringLiteral("cells"), cells);
+            r.dot = d->planned() ? QStringLiteral("watch")
+                                 : QStringLiteral("good");
+            r.cells = cells;
 
             QVariantMap keys;
             keys.insert(QStringLiteral("name"), d->label);
@@ -1887,14 +2002,14 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             keys.insert(QStringLiteral("stereo"), stereo);
             keys.insert(QStringLiteral("stereoTags"),
                         stereo.isEmpty() ? QStringList{} : QStringList{ stereo });
-            r.insert(QStringLiteral("sortKeys"), keys);
+            r.sortKeys = keys;
             // Route summaries are searchable. They are where a metric says how it is actually got,
             // so "inter-ear" and "triangulated" are terms a reader will reach for.
             QStringList haystack{ d->label, d->shortLabel, d->key, d->unit, d->group,
                                   d->description, d->howToRead };
             for (const MetricRoute &rt : d->routes)
                 haystack << rt.summary;
-            r.insert(QStringLiteral("searchText"), haystack.join(QLatin1Char(' ')));
+            r.searchText = haystack.join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kSignals) {
@@ -1909,16 +2024,16 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             for (const Condition &c : p.conditions)
                 if (c.screenRef == s.id) settles << c.label;
 
-            QVariantMap nameCell = cell(s.label);
+            ModelCell nameCell = cell(s.label);
             editable(nameCell, QStringLiteral("name"), QStringLiteral("text"), s.label);
-            QVariantMap regionCell = cell(s.bodyRegion);
+            ModelCell regionCell = cell(s.bodyRegion);
             editable(regionCell, QStringLiteral("region"), QStringLiteral("text"), s.bodyRegion);
-            QVariantMap passCell = cell(s.passCriterion,
+            ModelCell passCell = cell(s.passCriterion,
                                         s.passCriterion.isEmpty() ? QStringLiteral("warn") : QString());
             editable(passCell, QStringLiteral("passCriterion"), QStringLiteral("text"),
                      s.passCriterion);
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(nameCell);
             cells.append(regionCell);
             cells.append(passCell);
@@ -1930,25 +2045,24 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                               settles.isEmpty() ? QStringLiteral("warn") : QString(), true,
                               QStringLiteral("right")));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), s.id);
-            r.insert(QStringLiteral("type"), kScreens);
-            r.insert(QStringLiteral("label"), s.label);
+            ModelRow r;
+            r.id = s.id;
+            r.type = kScreens;
+            r.label = s.label;
             // A screen that settles nothing is not a fault — it may be newly authored — but it IS
             // what an author is hunting for, so it is toned rather than left as an ordinary row.
-            r.insert(QStringLiteral("dot"), settles.isEmpty() ? QStringLiteral("watch")
-                                                              : QStringLiteral("good"));
-            r.insert(QStringLiteral("cells"), cells);
+            r.dot = settles.isEmpty() ? QStringLiteral("watch")
+                                      : QStringLiteral("good");
+            r.cells = cells;
             QVariantMap keys;
             keys.insert(QStringLiteral("name"), s.label);
             keys.insert(QStringLiteral("region"), s.bodyRegion);
             keys.insert(QStringLiteral("pass"), s.passCriterion);
             keys.insert(QStringLiteral("settles"), settles.join(QLatin1Char(' ')));
             keys.insert(QStringLiteral("settlesCount"), settles.size());
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ s.label, s.id, s.bodyRegion, s.protocol, s.passCriterion }
-                         .join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ s.label, s.id, s.bodyRegion, s.protocol, s.passCriterion }
+                           .join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kDrills) {
@@ -1957,19 +2071,19 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             for (const Condition &c : p.conditions)
                 if (c.drills.contains(d.id)) answers << c.label;
 
-            QVariantMap nameCell = cell(d.label);
+            ModelCell nameCell = cell(d.label);
             editable(nameCell, QStringLiteral("name"), QStringLiteral("text"), d.label);
-            QVariantMap targetsCell = cell(d.targets,
+            ModelCell targetsCell = cell(d.targets,
                                            d.targets.isEmpty() ? QStringLiteral("warn") : QString());
             editable(targetsCell, QStringLiteral("targets"), QStringLiteral("text"), d.targets);
             // Typed as a ` · `-joined line, split back on the way in. A chip editor in a table cell
             // would be a control nothing else in the table has, for a field most drills leave empty.
-            QVariantMap equipCell = cell(d.equipment.join(QStringLiteral(" · ")),
+            ModelCell equipCell = cell(d.equipment.join(QStringLiteral(" · ")),
                                          d.equipment.isEmpty() ? QStringLiteral("dim") : QString());
             editable(equipCell, QStringLiteral("equipment"), QStringLiteral("text"),
                      d.equipment.join(QStringLiteral(" · ")));
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(nameCell);
             cells.append(targetsCell);
             cells.append(equipCell);
@@ -1979,26 +2093,25 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                               answers.isEmpty() ? QStringLiteral("warn") : QString(), true,
                               QStringLiteral("right")));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), d.id);
-            r.insert(QStringLiteral("type"), kDrills);
-            r.insert(QStringLiteral("label"), d.label);
-            r.insert(QStringLiteral("dot"), answers.isEmpty() ? QStringLiteral("watch")
-                                                              : QStringLiteral("good"));
-            r.insert(QStringLiteral("cells"), cells);
+            ModelRow r;
+            r.id = d.id;
+            r.type = kDrills;
+            r.label = d.label;
+            r.dot = answers.isEmpty() ? QStringLiteral("watch")
+                                      : QStringLiteral("good");
+            r.cells = cells;
             QVariantMap keys;
             keys.insert(QStringLiteral("name"), d.label);
             keys.insert(QStringLiteral("targets"), d.targets);
             keys.insert(QStringLiteral("equipment"), d.equipment.join(QLatin1Char(' ')));
             keys.insert(QStringLiteral("answers"), answers.join(QLatin1Char(' ')));
             keys.insert(QStringLiteral("answersCount"), answers.size());
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ d.label, d.id, d.instruction, d.targets }.join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ d.label, d.id, d.instruction, d.targets }.join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kReferences) {
-        for (const Reference &ref : sharedReferenceSet().references) {
+        for (const Reference &ref : refs().references) {
             // The citation joins against ANY of the three identifiers: a handful of journals issue
             // no DOI, a book never had one, and a strict DOI match would render "cited by nothing"
             // on a paper the library leans on.
@@ -2035,7 +2148,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                 : names.size() == 2 ? tr("%1 & %2").arg(names.at(0).trimmed(), names.at(1).trimmed())
                                     : tr("%1 et al.").arg(names.at(0).trimmed());
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(ref.title.isEmpty() ? ref.id : ref.title));
             cells.append(cell(author));
             cells.append(cell(ref.year > 0 ? QString::number(ref.year) : QString(),
@@ -2047,11 +2160,11 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                                        : (ref.generalReading ? tr("General reading") : tr("Uncited")),
                               anyClaim ? QString() : QStringLiteral("dim")));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), ref.id);
-            r.insert(QStringLiteral("type"), kReferences);
-            r.insert(QStringLiteral("label"), ref.title.isEmpty() ? ref.id : ref.title);
-            r.insert(QStringLiteral("cells"), cells);
+            ModelRow r;
+            r.id = ref.id;
+            r.type = kReferences;
+            r.label = ref.title.isEmpty() ? ref.id : ref.title;
+            r.cells = cells;
             QVariantMap keys;
             keys.insert(QStringLiteral("author"), ref.authors);
             keys.insert(QStringLiteral("year"), ref.year);
@@ -2061,11 +2174,10 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             // the paper four claims rest on is a different kind of object from the one cited once.
             keys.insert(QStringLiteral("supports"), supports.size());
             keys.insert(QStringLiteral("tier"), anyClaim ? int(best) : -1);
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ ref.title, ref.authors, ref.journal, ref.publisher, ref.id,
-                                  ref.identifierLabel(), ref.establishes }
-                         .join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ ref.title, ref.authors, ref.journal, ref.publisher, ref.id,
+                                        ref.identifierLabel(), ref.establishes }
+                           .join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kCorridors) {
@@ -2081,28 +2193,28 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             const int dp = corridorPrecisionFor(n.unit.isEmpty() ? (meas ? meas->unit : QString())
                                                                  : n.unit).decimals;
 
-            QVariantMap muCell = cell(QString::number(n.mu, 'f', dp), QString(), true,
+            ModelCell muCell = cell(QString::number(n.mu, 'f', dp), QString(), true,
                                       QStringLiteral("right"));
             editable(muCell, QStringLiteral("mu"), QStringLiteral("number"), n.mu);
 
-            QVariantMap loCell = cell(QString::number(n.sigmaLo, 'f', dp), QString(), true,
+            ModelCell loCell = cell(QString::number(n.sigmaLo, 'f', dp), QString(), true,
                                       QStringLiteral("right"));
             editable(loCell, QStringLiteral("sigmaLo"), QStringLiteral("number"), n.sigmaLo);
 
-            QVariantMap hiCell = cell(QString::number(n.sigmaHi, 'f', dp), QString(), true,
+            ModelCell hiCell = cell(QString::number(n.sigmaHi, 'f', dp), QString(), true,
                                       QStringLiteral("right"));
             editable(hiCell, QStringLiteral("sigmaHi"), QStringLiteral("number"), n.sigmaHi);
 
-            QVariantMap unitCell = cell(n.unit);
+            ModelCell unitCell = cell(n.unit);
             editable(unitCell, QStringLiteral("unit"), QStringLiteral("text"), n.unit);
 
-            QVariantMap srcCell = cell(normSourceLabel(n.source));
+            ModelCell srcCell = cell(normSourceLabel(n.source));
             editable(srcCell, QStringLiteral("source"), QStringLiteral("enum"),
                      normSourceName(n.source), normSourceOptions());
 
             const ContextNode *node = m_norms->contexts().node(n.contextId);
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(label));
             cells.append(cell(node ? node->label : n.contextId));
             cells.append(muCell);
@@ -2111,19 +2223,19 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             cells.append(unitCell);
             cells.append(srcCell);
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), corridorId(n.measureId, n.contextId));
-            r.insert(QStringLiteral("type"), kCorridors);
-            r.insert(QStringLiteral("label"), tr("%1 · %2").arg(label,
-                                                                node ? node->label : n.contextId));
-            r.insert(QStringLiteral("measureId"), n.measureId);
-            r.insert(QStringLiteral("contextId"), n.contextId);
+            ModelRow r;
+            r.id = corridorId(n.measureId, n.contextId);
+            r.type = kCorridors;
+            r.label = tr("%1 · %2").arg(label,
+                                        node ? node->label : n.contextId);
+            r.measureId = n.measureId;
+            r.contextId = n.contextId;
             // A heuristic figure is an authored starting point that everybody expects to move; a
             // seated or published one has been earned. Toning them alike would hide which corridors
             // are still guesses.
-            r.insert(QStringLiteral("dot"), n.source == NormSource::Heuristic
-                                                ? QStringLiteral("watch") : QStringLiteral("good"));
-            r.insert(QStringLiteral("cells"), cells);
+            r.dot = n.source == NormSource::Heuristic
+                        ? QStringLiteral("watch") : QStringLiteral("good");
+            r.cells = cells;
 
             QVariantMap keys;
             keys.insert(QStringLiteral("name"), label);
@@ -2133,10 +2245,9 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             keys.insert(QStringLiteral("sigmaHi"), n.sigmaHi);
             keys.insert(QStringLiteral("unit"), n.unit);
             keys.insert(QStringLiteral("source"), int(n.source));
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ label, n.measureId, n.contextId, n.unit, n.citation }
-                         .join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ label, n.measureId, n.contextId, n.unit, n.citation }
+                           .join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kGates) {
@@ -2170,7 +2281,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
                 }
             }
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(e.title));
             cells.append(cell(e.area));
             cells.append(cell(e.rule ? tr("Rule") : tr("Gate"), e.rule ? QStringLiteral("dim") : QString()));
@@ -2180,12 +2291,12 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             cells.append(cell(firedText, firedTone, true, QStringLiteral("right")));
             cells.append(cell(e.id, QStringLiteral("dim"), true));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), e.id);
-            r.insert(QStringLiteral("type"), kGates);
-            r.insert(QStringLiteral("label"), e.title);
-            r.insert(QStringLiteral("dot"), e.rule ? QStringLiteral("none") : QStringLiteral("good"));
-            r.insert(QStringLiteral("cells"), cells);
+            ModelRow r;
+            r.id = e.id;
+            r.type = kGates;
+            r.label = e.title;
+            r.dot = e.rule ? QStringLiteral("none") : QStringLiteral("good");
+            r.cells = cells;
 
             QVariantMap keys;
             keys.insert(QStringLiteral("order"), order++);
@@ -2197,14 +2308,14 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             keys.insert(QStringLiteral("threshold"), thresholds);
             keys.insert(QStringLiteral("fired"), firedKey);
             keys.insert(QStringLiteral("id"), e.id);
-            r.insert(QStringLiteral("sortKeys"), keys);
+            r.sortKeys = keys;
 
             QStringList haystack{ e.id, e.title, e.shortText, e.area, e.explain,
                                   gateReadableTemplate(e.evidenceText),
                                   gateWordsFor(m_gateWords, e.id) };
             haystack << effects;
             for (const G::GateTuning &t : e.tuning) haystack << t.key;
-            r.insert(QStringLiteral("searchText"), haystack.join(QLatin1Char(' ')));
+            r.searchText = haystack.join(QLatin1Char(' '));
             out.append(r);
         }
 
@@ -2223,7 +2334,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
         for (const GateWord &w : m_gateWords.subjects) {
             const QString label = G::subjectLabel(w.id);
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(label));
             cells.append(cell(tr("Readings")));
             cells.append(cell(tr("Reading"), QStringLiteral("dim")));
@@ -2232,13 +2343,13 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             cells.append(cell(tr("—"), QStringLiteral("dim"), true, QStringLiteral("right")));
             cells.append(cell(w.id, QStringLiteral("dim"), true));
 
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), w.id);
-            r.insert(QStringLiteral("type"), kGates);
-            r.insert(QStringLiteral("label"), label);
-            r.insert(QStringLiteral("dot"), QString());
-            r.insert(QStringLiteral("reading"), true);
-            r.insert(QStringLiteral("cells"), cells);
+            ModelRow r;
+            r.id = w.id;
+            r.type = kGates;
+            r.label = label;
+            r.dot = QString();
+            r.reading = true;
+            r.cells = cells;
 
             QVariantMap keys;
             keys.insert(QStringLiteral("order"), order++);
@@ -2250,9 +2361,8 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             keys.insert(QStringLiteral("threshold"), QString());
             keys.insert(QStringLiteral("fired"), -1.0);
             keys.insert(QStringLiteral("id"), w.id);
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ w.id, label, w.golfer }.join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ w.id, label, w.golfer }.join(QLatin1Char(' '));
             out.append(r);
         }
     } else if (type == kHealth) {
@@ -2268,7 +2378,7 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
             // files, so a drill written here a minute ago and attached to a habit read as a dangling
             // reference until it was saved — the strip accusing the author of a fault the save they
             // had not yet made would cure.
-            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills))
+            for (const ValidationIssue &i : diagnosticsHealth(p, *m_norms, m_cat, m_screens, m_drills, &refs()))
                 issues.push_back(i);
         }
         // The gate words the draft holds (#60): a clause left empty, or one with a capital or a number
@@ -2280,32 +2390,31 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
         int n = 0;
         for (const ValidationIssue &i : issues) {
             const bool err = i.severity == IssueSeverity::Error;
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(err ? tr("Error") : tr("Warning"),
                               err ? QStringLiteral("error") : QStringLiteral("warn")));
             cells.append(cell(i.code, QStringLiteral("dim"), true));
             cells.append(cell(i.subject, QString(), true));
             cells.append(cell(i.message));
 
-            QVariantMap r;
+            ModelRow r;
             // Health rows are findings, not objects, so they carry a positional id. The SUBJECT is
             // what the strip filters the table by, and it travels separately for exactly that.
-            r.insert(QStringLiteral("id"), QStringLiteral("health:%1").arg(n++));
-            r.insert(QStringLiteral("type"), kHealth);
-            r.insert(QStringLiteral("label"), i.message);
-            r.insert(QStringLiteral("subject"), i.subject);
-            r.insert(QStringLiteral("code"), i.code);
-            r.insert(QStringLiteral("severity"), err ? QStringLiteral("error") : QStringLiteral("warning"));
-            r.insert(QStringLiteral("dot"), err ? QStringLiteral("fault") : QStringLiteral("watch"));
-            r.insert(QStringLiteral("cells"), cells);
+            r.id = QStringLiteral("health:%1").arg(n++);
+            r.type = kHealth;
+            r.label = i.message;
+            r.subject = i.subject;
+            r.code = i.code;
+            r.severity = err ? QStringLiteral("error") : QStringLiteral("warning");
+            r.dot = err ? QStringLiteral("fault") : QStringLiteral("watch");
+            r.cells = cells;
             QVariantMap keys;
             keys.insert(QStringLiteral("severity"), err ? 0 : 1);
             keys.insert(QStringLiteral("code"), i.code);
             keys.insert(QStringLiteral("subject"), i.subject);
             keys.insert(QStringLiteral("message"), i.message);
-            r.insert(QStringLiteral("sortKeys"), keys);
-            r.insert(QStringLiteral("searchText"),
-                     QStringList{ i.code, i.subject, i.message }.join(QLatin1Char(' ')));
+            r.sortKeys = keys;
+            r.searchText = QStringList{ i.code, i.subject, i.message }.join(QLatin1Char(' '));
             out.append(r);
         }
     }
@@ -2314,29 +2423,26 @@ QVariantList ModelBrowser::rawRows(const QString &type) const
     // unsaved. The Source column and the dirty gutter both read these, and deriving them here means
     // no type has to remember to.
     const QSet<QString> &dirtySet = dirtyIds();
-    for (QVariant &v : out) {
-        QVariantMap  r      = v.toMap();
-        const QString id    = r.value(QStringLiteral("id")).toString();
+    for (ModelRow &r : out) {
+        const QString id    = r.id;
         // A gate is part of the analysis and never in the pack sourceOf() reads; what can be yours is
         // its golfer words, so its source is read off those layers.
         const QString src   = type == kGates ? gateWordsSourceOf(id) : sourceOf(id);
-        r.insert(QStringLiteral("source"), src);
-        r.insert(QStringLiteral("sourceLabel"),
-                 src == QStringLiteral("yours")   ? tr("Yours")
-                 : src == QStringLiteral("both")  ? tr("Yours, over shipped")
-                                                  : tr("Shipped"));
-        r.insert(QStringLiteral("dirty"), dirtySet.contains(id));
-        v = r;
+        r.source = src;
+        r.sourceLabel = src == QStringLiteral("yours")   ? tr("Yours")
+                      : src == QStringLiteral("both")    ? tr("Yours, over shipped")
+                                                         : tr("Shipped");
+        r.dirty = dirtySet.contains(id);
     }
     return out;
 }
 
-QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters) const
+QList<ModelRow> ModelBrowser::rows(const QString &type, const ModelRowQuery &query) const
 {
-    QVariantList out = rawRows(type);
+    QList<ModelRow> out = rawRows(type);
 
     // ── Facets ──────────────────────────────────────────────────────────────
-    const QVariantMap facetFilters = filters.value(QStringLiteral("facets")).toMap();
+    const QList<ModelFacetPick> &facetFilters = query.facets;
     if (!facetFilters.isEmpty()) {
         // The QUANTILE buckets, as the facet rail advertised them. Read back from the same call the
         // chips were built by rather than re-derived here: two derivations of one percentile is how
@@ -2344,38 +2450,36 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
         // facets keep by matching cell text and this kind has to keep some other way.
         //
         // Keyed on the facet key, then the bucket value, so the lookup below is O(1) per row.
-        QHash<QString, QHash<QString, QVariantMap>> qBuckets;
-        for (const QVariant &fv : quantileFacets(type)) {
-            const QVariantMap f = fv.toMap();
-            QHash<QString, QVariantMap> byValue;
-            for (const QVariant &ov : f.value(QStringLiteral("options")).toList()) {
-                const QVariantMap o = ov.toMap();
-                byValue.insert(o.value(QStringLiteral("value")).toString(), o);
+        QHash<QString, QHash<QString, ModelFacetOption>> qBuckets;
+        for (const ModelFacet &f : quantileFacets(type)) {
+            QHash<QString, ModelFacetOption> byValue;
+            for (const ModelFacetOption &o : f.options) {
+                byValue.insert(o.value, o);
             }
-            qBuckets.insert(f.value(QStringLiteral("key")).toString(), byValue);
+            qBuckets.insert(f.key, byValue);
         }
 
-        QVariantList kept;
-        for (const QVariant &v : out) {
-            const QVariantMap r    = v.toMap();
-            const QVariantMap keys = r.value(QStringLiteral("sortKeys")).toMap();
-            bool              ok   = true;
+        const QList<ModelColumn> cols = columns(type);
+        QList<ModelRow> kept;
+        for (const ModelRow &r : out) {
+            const QVariantMap &keys = r.sortKeys;
+            bool               ok   = true;
             for (auto it = facetFilters.constBegin(); it != facetFilters.constEnd() && ok; ++it) {
-                const QStringList wanted = it.value().toStringList();
+                const QStringList &wanted = it->values;
                 if (wanted.isEmpty()) continue;
 
                 // A numeric facet: the row's SORT KEY against the bucket's range. Several buckets
                 // of one facet are OR'd, exactly as several values of a vocabulary facet are.
-                const auto qb = qBuckets.constFind(it.key());
+                const auto qb = qBuckets.constFind(it->key);
                 if (qb != qBuckets.constEnd()) {
-                    const int n   = keys.value(it.key()).toInt();
+                    const int n   = keys.value(it->key).toInt();
                     bool      hit = false;
                     for (const QString &w : wanted) {
                         const auto b = qb.value().constFind(w);
                         if (b == qb.value().constEnd()) continue;
-                        const int  lo    = b.value().value(QStringLiteral("lo")).toInt();
-                        const int  hi    = b.value().value(QStringLiteral("hi")).toInt();
-                        const bool hasHi = b.value().value(QStringLiteral("hasHi")).toBool();
+                        const int  lo    = b.value().lo;
+                        const int  hi    = b.value().hi;
+                        const bool hasHi = b.value().hasHi;
                         if (n >= lo && (!hasHi || n <= hi)) { hit = true; break; }
                     }
                     ok = hit;
@@ -2386,9 +2490,9 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
                 // off the same list the rail counted.
                 bool isTagFacet = false;
                 for (const TagFacetDef &def : tagFacetsFor(type))
-                    if (it.key() == QLatin1String(def.sortKey)) isTagFacet = true;
+                    if (it->key == QLatin1String(def.sortKey)) isTagFacet = true;
                 if (isTagFacet) {
-                    const QStringList tags = keys.value(it.key()).toStringList();
+                    const QStringList tags = keys.value(it->key).toStringList();
                     bool hit = false;
                     for (const QString &w : wanted)
                         if (tags.contains(w)) { hit = true; break; }
@@ -2399,37 +2503,36 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
                 // Facet values are matched against the CELL TEXT of the facet's column, which is
                 // what the rail counted — one source for the count and the filter, so a chip can
                 // never say 12 and return 9.
-                const QVariantList cells = r.value(QStringLiteral("cells")).toList();
-                const QVariantList cols  = columns(type);
-                QString            value;
+                const QList<ModelCell> &cells = r.cells;
+                QString                 value;
                 for (int i = 0; i < cols.size() && i < cells.size(); ++i)
-                    if (cols.at(i).toMap().value(QStringLiteral("key")).toString() == it.key())
-                        value = cells.at(i).toMap().value(QStringLiteral("text")).toString();
-                if (value.isEmpty() && keys.contains(it.key()))
-                    value = keys.value(it.key()).toString();
+                    if (cols.at(i).key == it->key)
+                        value = cells.at(i).text;
+                if (value.isEmpty() && keys.contains(it->key))
+                    value = keys.value(it->key).toString();
                 ok = wanted.contains(value);
             }
-            if (ok) kept.append(v);
+            if (ok) kept.append(r);
         }
         out = kept;
     }
 
     // ── Explicit id set (the validation strip's "show me the offending rows") ─
-    const QStringList ids = filters.value(QStringLiteral("ids")).toStringList();
+    const QStringList &ids = query.ids;
     if (!ids.isEmpty()) {
-        QVariantList kept;
-        for (const QVariant &v : out)
-            if (ids.contains(v.toMap().value(QStringLiteral("id")).toString())) kept.append(v);
+        QList<ModelRow> kept;
+        for (const ModelRow &r : out)
+            if (ids.contains(r.id)) kept.append(r);
         out = kept;
     }
 
     // ── Search ──────────────────────────────────────────────────────────────
-    const QString search = filters.value(QStringLiteral("search")).toString().trimmed();
+    const QString search = query.search.trimmed();
     if (!search.isEmpty()) {
-        QVariantList kept;
-        for (const QVariant &v : out)
-            if (matches(v.toMap().value(QStringLiteral("searchText")).toString(), search))
-                kept.append(v);
+        QList<ModelRow> kept;
+        for (const ModelRow &r : out)
+            if (matches(r.searchText, search))
+                kept.append(r);
         out = kept;
     }
 
@@ -2437,8 +2540,8 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
     //
     // The default per type answers the question the author actually arrived with, rather than being
     // alphabetical for its own sake.
-    QString sortKey   = filters.value(QStringLiteral("sort")).toString();
-    bool    descending = filters.value(QStringLiteral("descending")).toBool();
+    QString sortKey    = query.sort;
+    bool    descending = query.descending;
     const bool explicitSort = !sortKey.isEmpty();
 
     if (!explicitSort) {
@@ -2487,9 +2590,9 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
     const bool charsDefault    = (type == kCharacteristics && !explicitSort);
     const bool causesDefault   = (type == kCauses && !explicitSort);
 
-    std::stable_sort(out.begin(), out.end(), [&](const QVariant &av, const QVariant &bv) {
-        const QVariantMap a = av.toMap().value(QStringLiteral("sortKeys")).toMap();
-        const QVariantMap b = bv.toMap().value(QStringLiteral("sortKeys")).toMap();
+    std::stable_sort(out.begin(), out.end(), [&](const ModelRow &ar, const ModelRow &br) {
+        const QVariantMap &a = ar.sortKeys;
+        const QVariantMap &b = br.sortKeys;
 
         // ANY numeric type, not just Int. This tested `typeId() == Int` and nothing else, so every
         // count inserted as a container's `.size()` — which is a qsizetype, i.e. LongLong — fell
@@ -2552,7 +2655,7 @@ QVariantList ModelBrowser::rows(const QString &type, const QVariantMap &filters)
 
 // ── Facets ──────────────────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::facets(const QString &type) const
+QList<ModelFacet> ModelBrowser::facets(const QString &type) const
 {
     // Which column each type facets on. Deliberately few: a rail of every column is a filter nobody
     // reads. These are the questions authors actually arrive with.
@@ -2591,8 +2694,8 @@ QVariantList ModelBrowser::facets(const QString &type) const
     else if (type == kGates)       keys = { QStringLiteral("area"), QStringLiteral("kind") };
     else return {};
 
-    const QVariantList all  = rawRows(type);
-    const QVariantList cols = columns(type);
+    const QList<ModelRow>    all  = rawRows(type);
+    const QList<ModelColumn> cols = columns(type);
 
     // The numeric facets go FIRST, above the vocabularies.
     //
@@ -2601,13 +2704,13 @@ QVariantList ModelBrowser::facets(const QString &type) const
     // ahead of them are long — `group` alone is nine values — and anything past the fold is not a
     // lower priority, it is invisible. Ranking is what an author opens this rail for now, so it goes
     // where it can be seen without scrolling.
-    QVariantList out = quantileFacets(type);
+    QList<ModelFacet> out = quantileFacets(type);
     for (const QString &key : keys) {
         QString title;
         int     colIndex = -1;
         for (int i = 0; i < cols.size(); ++i)
-            if (cols.at(i).toMap().value(QStringLiteral("key")).toString() == key) {
-                title    = cols.at(i).toMap().value(QStringLiteral("title")).toString();
+            if (cols.at(i).key == key) {
+                title    = cols.at(i).title;
                 colIndex = i;
             }
         if (colIndex < 0) continue;
@@ -2617,10 +2720,10 @@ QVariantList ModelBrowser::facets(const QString &type) const
         // "Almost everyone" before "Common" before "Occasional" would read as noise.
         QStringList         seen;
         QHash<QString, int> counts;
-        for (const QVariant &v : all) {
-            const QVariantList cells = v.toMap().value(QStringLiteral("cells")).toList();
+        for (const ModelRow &r : all) {
+            const QList<ModelCell> &cells = r.cells;
             if (colIndex >= cells.size()) continue;
-            const QString value = cells.at(colIndex).toMap().value(QStringLiteral("text")).toString();
+            const QString value = cells.at(colIndex).text;
             if (value.isEmpty()) continue;
             if (!counts.contains(value)) seen << value;
             counts[value] += 1;
@@ -2628,20 +2731,20 @@ QVariantList ModelBrowser::facets(const QString &type) const
         if (seen.size() < 2) continue;   // a facet with one value filters nothing
         applyCanonicalOrder(seen, valueFacetOrder(key));
 
-        QVariantList options;
+        QList<ModelFacetOption> options;
         for (const QString &value : seen) {
-            QVariantMap o;
-            o.insert(QStringLiteral("value"), value);
-            o.insert(QStringLiteral("label"), value);
-            o.insert(QStringLiteral("count"), counts.value(value));
+            ModelFacetOption o;
+            o.value = value;
+            o.label = value;
+            o.count = counts.value(value);
             options.append(o);
         }
 
-        QVariantMap f;
-        f.insert(QStringLiteral("key"), key);
-        f.insert(QStringLiteral("label"), title);
-        f.insert(QStringLiteral("kind"), QStringLiteral("value"));
-        f.insert(QStringLiteral("options"), options);
+        ModelFacet f;
+        f.key = key;
+        f.label = title;
+        f.kind = QStringLiteral("value");
+        f.options = options;
         out.append(f);
     }
 
@@ -2652,9 +2755,8 @@ QVariantList ModelBrowser::facets(const QString &type) const
 
         QStringList         seen;
         QHash<QString, int> counts;
-        for (const QVariant &v : all) {
-            const QStringList tags =
-                v.toMap().value(QStringLiteral("sortKeys")).toMap().value(key).toStringList();
+        for (const ModelRow &r : all) {
+            const QStringList tags = r.sortKeys.value(key).toStringList();
             for (const QString &t : tags) {
                 if (!counts.contains(t)) seen << t;
                 counts[t] += 1;
@@ -2664,20 +2766,20 @@ QVariantList ModelBrowser::facets(const QString &type) const
 
         applyCanonicalOrder(seen, tagFacetOrder(key));
 
-        QVariantList options;
+        QList<ModelFacetOption> options;
         for (const QString &value : seen) {
-            QVariantMap o;
-            o.insert(QStringLiteral("value"), value);
-            o.insert(QStringLiteral("label"), value);
-            o.insert(QStringLiteral("count"), counts.value(value));
+            ModelFacetOption o;
+            o.value = value;
+            o.label = value;
+            o.count = counts.value(value);
             options.append(o);
         }
 
-        QVariantMap f;
-        f.insert(QStringLiteral("key"), key);
-        f.insert(QStringLiteral("label"), tr(def.label));
-        f.insert(QStringLiteral("kind"), QStringLiteral("tags"));
-        f.insert(QStringLiteral("options"), options);
+        ModelFacet f;
+        f.key = key;
+        f.label = tr(def.label);
+        f.kind = QStringLiteral("tags");
+        f.options = options;
         out.append(f);
     }
     return out;
@@ -2685,7 +2787,7 @@ QVariantList ModelBrowser::facets(const QString &type) const
 
 // ── Facets cut from the data ────────────────────────────────────────────────
 
-QVariantList ModelBrowser::quantileFacets(const QString &type) const
+QList<ModelFacet> ModelBrowser::quantileFacets(const QString &type) const
 {
     // Which numeric sort key each type offers a bucketed facet on, and what a ZERO reads as in that
     // key's own words. Deliberately few, and per list rather than everywhere: a cause is interesting
@@ -2730,7 +2832,7 @@ QVariantList ModelBrowser::quantileFacets(const QString &type) const
         return {};
     }
 
-    const QVariantList all = rawRows(type);
+    const QList<ModelRow> all = rawRows(type);
 
     // Nearest rank, NO interpolation. An interpolated percentile over integer counts produces a
     // fractional cut, and a chip reading "≥ 11.75" is one nobody can act on. Taken over the NON-ZERO
@@ -2742,13 +2844,12 @@ QVariantList ModelBrowser::quantileFacets(const QString &type) const
         return sortedAsc[size_t(std::clamp(k, 0, int(sortedAsc.size()) - 1))];
     };
 
-    QVariantList out;
+    QList<ModelFacet> out;
     for (const Def &d : defs) {
         std::vector<int> values, nonZero;
         values.reserve(size_t(all.size()));
-        for (const QVariant &v : all) {
-            const int n = v.toMap().value(QStringLiteral("sortKeys")).toMap()
-                              .value(d.key).toInt();
+        for (const ModelRow &r : all) {
+            const int n = r.sortKeys.value(d.key).toInt();
             values.push_back(n);
             if (n > 0) nonZero.push_back(n);
         }
@@ -2777,7 +2878,7 @@ QVariantList ModelBrowser::quantileFacets(const QString &type) const
                                 tr("%1 (1–%2)").arg(d.low).arg(p75 - 1), 1, p75 - 1, true });
         buckets.push_back({ QStringLiteral("none"), d.zero, 0, 0, true });
 
-        QVariantList options;
+        QList<ModelFacetOption> options;
         int          live = 0;
         for (const Bucket &b : buckets) {
             int n = 0;
@@ -2788,29 +2889,29 @@ QVariantList ModelBrowser::quantileFacets(const QString &type) const
             if (n == 0) continue;
             ++live;
 
-            QVariantMap o;
-            o.insert(QStringLiteral("value"), b.value);
-            o.insert(QStringLiteral("label"), b.label);
-            o.insert(QStringLiteral("count"), n);
+            ModelFacetOption o;
+            o.value = b.value;
+            o.label = b.label;
+            o.count = n;
             // The bounds travel WITH the option, and rows() filters by reading them back from here
             // rather than re-deriving the percentiles. That is what makes "a chip cannot say twelve
             // and return nine" true by construction for a facet whose values are ranges. QML binds
             // only value/label/count and ignores these.
-            o.insert(QStringLiteral("lo"), b.lo);
-            o.insert(QStringLiteral("hi"), b.hi);
-            o.insert(QStringLiteral("hasHi"), b.hasHi);
+            o.lo = b.lo;
+            o.hi = b.hi;
+            o.hasHi = b.hasHi;
             options.append(o);
         }
         // The same rule the vocabularies follow: one bucket filters nothing. A pack where every
         // condition reaches the same amount offers no chips rather than one that means "all".
         if (live < 2) continue;
 
-        QVariantMap f;
-        f.insert(QStringLiteral("key"), d.key);
-        f.insert(QStringLiteral("label"), d.label);
-        f.insert(QStringLiteral("kind"), QStringLiteral("quantile"));
-        f.insert(QStringLiteral("max"), max);
-        f.insert(QStringLiteral("options"), options);
+        ModelFacet f;
+        f.key = d.key;
+        f.label = d.label;
+        f.kind = QStringLiteral("quantile");
+        f.max = max;
+        f.options = options;
         out.append(f);
     }
     return out;
@@ -2818,7 +2919,7 @@ QVariantList ModelBrowser::quantileFacets(const QString &type) const
 
 // ── Cross-type search ───────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::searchAll(const QString &query) const
+QList<ModelRow> ModelBrowser::searchAll(const QString &query) const
 {
     const QString q = query.trimmed();
     if (q.isEmpty()) return {};
@@ -2829,13 +2930,12 @@ QVariantList ModelBrowser::searchAll(const QString &query) const
     const QStringList order = { kCharacteristics, kCauses, kMetrics, kMeasures, kSignals, kLinks,
                                 kScreens, kDrills, kReferences, kGates };
 
-    QVariantList out;
-    QSet<QString> seen;   // a cause is also a characteristic; one object, one row
+    QList<ModelRow> out;
+    QSet<QString>   seen;   // a cause is also a characteristic; one object, one row
     for (const QString &type : order) {
-        for (const QVariant &v : rawRows(type)) {
-            const QVariantMap r = v.toMap();
-            if (!matches(r.value(QStringLiteral("searchText")).toString(), q)) continue;
-            const QString id = r.value(QStringLiteral("id")).toString();
+        for (const ModelRow &r : rawRows(type)) {
+            if (!matches(r.searchText, q)) continue;
+            const QString id = r.id;
             if (seen.contains(id)) continue;
             seen.insert(id);
 
@@ -2845,9 +2945,9 @@ QVariantList ModelBrowser::searchAll(const QString &query) const
             // a measure's unit under a heading saying "Connected to".
             const QVariantMap extras = searchExtras(type, id);
 
-            QVariantList cells;
+            QList<ModelCell> cells;
             cells.append(cell(typeLabelFor(type), QStringLiteral("dim")));
-            cells.append(cell(r.value(QStringLiteral("label")).toString()));
+            cells.append(cell(r.label));
             cells.append(cell(id, QStringLiteral("dim"), true));
             cells.append(cell(extras.value(QStringLiteral("connected")).toString(),
                               QStringLiteral("dim")));
@@ -2856,9 +2956,9 @@ QVariantList ModelBrowser::searchAll(const QString &query) const
             cells.append(cell(extras.value(QStringLiteral("status")).toString(),
                               extras.value(QStringLiteral("statusTone")).toString()));
 
-            QVariantMap row = r;
-            row.insert(QStringLiteral("resultType"), type);
-            row.insert(QStringLiteral("cells"), cells);
+            ModelRow row   = r;
+            row.resultType = type;
+            row.cells      = cells;
             out.append(row);
         }
     }
@@ -2869,7 +2969,7 @@ QVariantList ModelBrowser::searchAll(const QString &query) const
 
 int ModelBrowser::measureUsers(const QString &measureId) const
 {
-    return measureUserRows(measureId).size();
+    return int(measureUserRows(measureId).size());
 }
 
 // The inspector row helpers, declared here rather than beside inspect() because measureUserRows()
@@ -2878,34 +2978,34 @@ int ModelBrowser::measureUsers(const QString &measureId) const
 
 namespace {
 
-QVariantMap hubRow(const QString &type, const QString &id, const QString &label,
-                   const QString &detail = QString(), const QString &tone = QString(),
-                   bool navigable = true)
+ModelInspectorRow hubRow(const QString &type, const QString &id, const QString &label,
+                         const QString &detail = QString(), const QString &tone = QString(),
+                         bool navigable = true)
 {
-    QVariantMap r;
-    r.insert(QStringLiteral("type"), type);
-    r.insert(QStringLiteral("id"), id);
-    r.insert(QStringLiteral("label"), label);
-    r.insert(QStringLiteral("detail"), detail);
-    r.insert(QStringLiteral("tone"), tone);
-    r.insert(QStringLiteral("navigable"), navigable);
+    ModelInspectorRow r;
+    r.type      = type;
+    r.id        = id;
+    r.label     = label;
+    r.detail    = detail;
+    r.tone      = tone;
+    r.navigable = navigable;
     return r;
 }
 
-QVariantMap section(const QString &title, const QVariantList &rows,
-                    const QString &note = QString(), const QString &kind = QStringLiteral("list"),
-                    const QString &action = QString())
+ModelInspectorSection section(const QString &title, const QList<ModelInspectorRow> &rows,
+                              const QString &note = QString(), const QString &kind = QStringLiteral("list"),
+                              const QString &action = QString())
 {
-    QVariantMap s;
-    s.insert(QStringLiteral("title"), title);
-    s.insert(QStringLiteral("kind"), kind);
-    s.insert(QStringLiteral("note"), note);
-    s.insert(QStringLiteral("rows"), rows);
-    s.insert(QStringLiteral("count"), rows.size());
+    ModelInspectorSection s;
+    s.title = title;
+    s.kind  = kind;
+    s.note  = note;
+    s.rows  = rows;
+    s.count = int(rows.size());
     // What can be ADDED to or REMOVED from this section, as a stable key. The view used to work
     // this out by comparing the translated title, which is a control that vanishes in any locale
     // but this one.
-    s.insert(QStringLiteral("action"), action);
+    s.action = action;
     return s;
 }
 
@@ -2915,21 +3015,15 @@ QVariantMap section(const QString &title, const QVariantList &rows,
 //
 // `kind` is text | number | enum | prose. Prose is text that wants more than one line; it exists
 // only here, because a paragraph has never belonged in a table cell.
-QVariantMap fieldRow(const QString &field, const QString &label, const QString &kind,
-                     const QVariant &value, const QVariantList &options = {},
-                     const QString &hint = QString())
+ModelInspectorRow fieldRow(const QString &field, const QString &label, const QString &kind,
+                           const QVariant &value, const QList<ModelOption> &options = {},
+                           const QString &hint = QString())
 {
-    QVariantMap r;
-    r.insert(QStringLiteral("type"), QString());
-    r.insert(QStringLiteral("id"), field);
-    r.insert(QStringLiteral("label"), label);
-    r.insert(QStringLiteral("detail"), hint);
-    r.insert(QStringLiteral("tone"), QString());
-    r.insert(QStringLiteral("navigable"), false);
-    r.insert(QStringLiteral("field"), field);
-    r.insert(QStringLiteral("kind"), kind);
-    r.insert(QStringLiteral("value"), value);
-    r.insert(QStringLiteral("options"), options);
+    ModelInspectorRow r = hubRow(QString(), field, label, hint, QString(), false);
+    r.field   = field;
+    r.kind    = kind;
+    r.value   = value;
+    r.options = options;
     return r;
 }
 
@@ -2947,15 +3041,14 @@ QVariantMap fieldRow(const QString &field, const QString &label, const QString &
 //
 // Nothing is hung on a citation that does NOT resolve. A dead link is worse than no link, and the
 // section below is where an unresolved citation is called out.
-QVariantMap citationField(const QString &citation, const QString &hint = QString())
+ModelInspectorRow citationField(const ReferenceSet &refs, const QString &citation, const QString &hint = QString())
 {
-    QVariantMap r = fieldRow(QStringLiteral("citation"), QObject::tr("Citation"),
+    ModelInspectorRow r = fieldRow(QStringLiteral("citation"), QObject::tr("Citation"),
                              QStringLiteral("text"), citation, {}, hint);
-    if (const Reference *ref = sharedReferenceSet().byCitation(citation)) {
-        r.insert(QStringLiteral("linkType"), kReferences);
-        r.insert(QStringLiteral("linkId"), ref->id);
-        r.insert(QStringLiteral("linkLabel"),
-                 ref->title.isEmpty() ? ref->identifierLabel() : ref->title);
+    if (const Reference *ref = refs.byCitation(citation)) {
+        r.linkType  = kReferences;
+        r.linkId    = ref->id;
+        r.linkLabel = ref->title.isEmpty() ? ref->identifierLabel() : ref->title;
     }
     return r;
 }
@@ -2993,9 +3086,9 @@ QString formatCitation(const Reference &ref)
 }
 
 // A prose section — one block of text rather than a list of links.
-QVariantMap prose(const QString &title, const QString &text, const QString &tone = QString())
+ModelInspectorSection prose(const QString &title, const QString &text, const QString &tone = QString())
 {
-    QVariantList rows;
+    QList<ModelInspectorRow> rows;
     if (!text.isEmpty()) rows.append(hubRow(QString(), QString(), text, QString(), tone, false));
     return section(title, rows, QString(), QStringLiteral("prose"));
 }
@@ -3014,16 +3107,17 @@ QVariantMap prose(const QString &title, const QString &text, const QString &tone
 // `onlyWhenResolved` is for the types whose `citation` doubles as a free-text note. A norm's may be
 // a paragraph explaining a provisional figure (norm.h) rather than an identifier, and rendering that
 // as a failed lookup would accuse the author of a typo they did not make.
-void appendCitation(QVariantList &sections, const QString &citation, bool onlyWhenResolved = false)
+void appendCitation(const ReferenceSet &refs, QList<ModelInspectorSection> &sections,
+                    const QString &citation, bool onlyWhenResolved = false)
 {
     if (citation.isEmpty()) return;
 
-    const Reference *ref = sharedReferenceSet().byCitation(citation);
+    const Reference *ref = refs.byCitation(citation);
     if (!ref && onlyWhenResolved) return;
 
-    QVariantList rows;
+    QList<ModelInspectorRow> rows;
     rows.append(ref ? hubRow(kReferences, ref->id, ref->title, ref->identifierLabel())
-                    : hubRow(QString(), QString(), citationLabel(citation),
+                    : hubRow(QString(), QString(), citationLabel(citation, refs),
                              QObject::tr("not in the bibliography"), QStringLiteral("warn"),
                              false));
     sections.append(section(QObject::tr("Cited from"), rows));
@@ -3098,9 +3192,9 @@ QStringList picturePhaseTokens()
 // not hold is still OFFERED when it is the row's own, and marked: a token a hand-edited file misspelt
 // has to be visible in the box beside the error that names it, not shown as an empty field that reads
 // as "not set" — which is exactly the state the error says it is not in.
-QVariantList pictureOptions(const QStringList &tokens, const QString &current)
+QList<ModelOption> pictureOptions(const QStringList &tokens, const QString &current)
 {
-    QVariantList l;
+    QList<ModelOption> l;
     l.append(option(QString(), QObject::tr("Not set")));
     for (const QString &t : tokens) l.append(option(t, pictureTokenLabel(t)));
     if (!current.isEmpty() && !tokens.contains(current))
@@ -3126,9 +3220,9 @@ QString pictureKindHint(const QString &kind)
 
 // A measure's golferSign as the two words it means. The tokens are the stored integers spelled as
 // text, because that is what the enum control compares and what setField() parses back.
-QVariantList golferSignOptions(int current)
+QList<ModelOption> golferSignOptions(int current)
 {
-    QVariantList l;
+    QList<ModelOption> l;
     l.append(option(QStringLiteral("1"), QObject::tr("Show the sign")));
     l.append(option(QStringLiteral("-1"), QObject::tr("The words carry the sign")));
     if (current != 1 && current != -1)
@@ -3151,21 +3245,20 @@ int parseGolferSign(const QString &text)
 }
 
 // One finding, in the shape the inspector draws under a field: { code, severity, message }.
-QVariantMap issueRow(const QString &code, IssueSeverity severity, const QString &message)
+ModelFieldIssue issueRow(const QString &code, IssueSeverity severity, const QString &message)
 {
-    QVariantMap m;
-    m.insert(QStringLiteral("code"), code);
-    m.insert(QStringLiteral("severity"), severity == IssueSeverity::Error ? QStringLiteral("error")
-                                                                           : QStringLiteral("warning"));
-    m.insert(QStringLiteral("message"), message);
+    ModelFieldIssue m;
+    m.code     = code;
+    m.severity = severity == IssueSeverity::Error ? QStringLiteral("error") : QStringLiteral("warning");
+    m.message  = message;
     return m;
 }
 
 // The loader's findings about one row, kept to one field. reportFieldIssues() names the field each
 // finding belongs to, so the line under "Work-on title" never carries the picture's fault.
-QVariantList issuesForField(const std::vector<ReportFieldIssue> &all, const QString &field)
+QList<ModelFieldIssue> issuesForField(const std::vector<ReportFieldIssue> &all, const QString &field)
 {
-    QVariantList out;
+    QList<ModelFieldIssue> out;
     for (const ReportFieldIssue &i : all)
         if (i.field == field) out.append(issueRow(i.code, i.severity, i.message));
     return out;
@@ -3173,10 +3266,10 @@ QVariantList issuesForField(const std::vector<ReportFieldIssue> &all, const QStr
 
 // A gate's or a reading's golfer words, checked by the registry's own rule and worded by its own
 // message — the warning validateGateWordSet() puts in Health, word for word.
-QVariantList gateWordIssues(const QString &id, const QString &text)
+QList<ModelFieldIssue> gateWordIssues(const QString &id, const QString &text)
 {
-    QVariantList  out;
-    const QString problem = gateWordsProblem(text);
+    QList<ModelFieldIssue> out;
+    const QString          problem = gateWordsProblem(text);
     if (!problem.isEmpty())
         out.append(issueRow(QStringLiteral("gateWordsWording"), IssueSeverity::Warning,
                             gateWordsMessage(id, text, problem)));
@@ -3184,22 +3277,23 @@ QVariantList gateWordIssues(const QString &id, const QString &text)
 }
 
 // A field of the REPORT group: an ordinary fieldRow() that inspect() files under its own "Report"
-// heading, carrying the findings about its current value. `issues` is present on every report field,
-// empty or not, and on no other field — which is how the inspector knows a field is one it can check
-// live as the author types, without a list of field names of its own.
-QVariantMap reportField(const QString &field, const QString &label, const QString &kind,
-                        const QVariant &value, const QVariantList &issues,
-                        const QVariantList &options, const QString &hint)
+// heading, carrying the findings about its current value. `wordingChecked` is set on every report
+// field and on no other — which is how the inspector knows a field is one it can check live as the
+// author types, without a list of field names of its own; `issues` is the verdict, empty or not.
+ModelInspectorRow reportField(const QString &field, const QString &label, const QString &kind,
+                              const QVariant &value, const QList<ModelFieldIssue> &issues,
+                              const QList<ModelOption> &options, const QString &hint)
 {
-    QVariantMap r = fieldRow(field, label, kind, value, options, hint);
-    r.insert(QStringLiteral("group"), QStringLiteral("report"));
-    r.insert(QStringLiteral("issues"), issues);
+    ModelInspectorRow r = fieldRow(field, label, kind, value, options, hint);
+    r.group          = QStringLiteral("report");
+    r.wordingChecked = true;
+    r.issues         = issues;
     return r;
 }
 
 } // namespace
 
-QVariantList ModelBrowser::measureUserRows(const QString &measureId) const
+QList<ModelInspectorRow> ModelBrowser::measureUserRows(const QString &measureId) const
 {
     const CharacteristicPack &p = pack();
 
@@ -3207,7 +3301,7 @@ QVariantList ModelBrowser::measureUserRows(const QString &measureId) const
     for (const Signal &s : p.signalDefs)
         if (s.measures.contains(measureId)) signalsUsing << s.id;
 
-    QVariantList out;
+    QList<ModelInspectorRow> out;
     for (const Condition &c : p.conditions) {
         bool uses = false;
         for (const QString &sid : c.detectedBy)
@@ -3247,8 +3341,8 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
         const Measure *m = p.measure(id);
         if (!m) return out;
         QStringList users;
-        for (const QVariant &v : measureUserRows(id))
-            users << v.toMap().value(QStringLiteral("label")).toString();
+        for (const ModelInspectorRow &r : measureUserRows(id))
+            users << r.label;
         out.insert(QStringLiteral("connected"), users.join(QStringLiteral(" · ")));
         out.insert(QStringLiteral("links"), QString::number(users.size()));
         out.insert(QStringLiteral("status"), measureStatusLabel(m->status));
@@ -3309,7 +3403,7 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
         out.insert(QStringLiteral("status"), e->rule ? tr("Rule") : tr("Gate"));
         out.insert(QStringLiteral("statusTone"), e->rule ? QStringLiteral("dim") : QString());
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return out;
         const auto cites = [ref](const QString &citation) {
             if (citation.isEmpty()) return false;
@@ -3347,10 +3441,10 @@ QVariantMap ModelBrowser::searchExtras(const QString &type, const QString &id) c
 //
 // Order is the order an author reads: what it is called, what kind of thing it is, then the prose
 // that explains it, then the provenance that justifies it.
-QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) const
+QList<ModelInspectorRow> ModelBrowser::fieldsOf(const QString &type, const QString &id) const
 {
     const CharacteristicPack &p = pack();
-    QVariantList              f;
+    QList<ModelInspectorRow>  f;
 
     if (type == kCharacteristics || type == kCauses) {
         const Condition *c = p.condition(id);
@@ -3393,7 +3487,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           provenanceTierName(c->provenance.tier), tierOptions(),
                           citationRequired(c->provenance.tier) ? tr("needs a citation")
                                                                : QString()));
-        f.append(citationField(c->provenance.citation, tr("DOI, PMID or ISBN")));
+        f.append(citationField(refs(), c->provenance.citation, tr("DOI, PMID or ISBN")));
 
         // ── What the session report prints (#60) ─────────────────────────────
         //
@@ -3410,7 +3504,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         // Filed under their own "Report" heading by inspect(), after the habit's own fields.
         const std::vector<ReportFieldIssue> issues = reportFieldIssues(*c);
         const auto rf = [&](const char *field, const QString &label, const QString &kind,
-                            const QString &value, const QVariantList &options, const QString &hint) {
+                            const QString &value, const QList<ModelOption> &options, const QString &hint) {
             const QString key = QString::fromLatin1(field);
             f.append(reportField(key, label, kind, value, issuesForField(issues, key), options, hint));
         };
@@ -3421,7 +3515,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         rf("golferWhy", tr("Why it matters"), QStringLiteral("prose"), c->golferWhy, {},
            tr("one sentence: what it costs the shot"));
         if (c->kind == ConditionKind::Outcome) {
-            QVariantList families;
+            QList<ModelOption> families;
             for (const QString &fam : conditionFamilies()) families.append(option(fam, fam));
             rf("family", tr("Family"), QStringLiteral("enum"), c->family, families,
                tr("where it goes, how you strike it, or how it flies"));
@@ -3476,7 +3570,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         // like a habit's, with the loader's findings on each.
         const std::vector<ReportFieldIssue> issues = reportFieldIssues(*m);
         const auto rf = [&](const char *field, const QString &label, const QString &kind,
-                            const QString &value, const QVariantList &options, const QString &hint) {
+                            const QString &value, const QList<ModelOption> &options, const QString &hint) {
             const QString key = QString::fromLatin1(field);
             f.append(reportField(key, label, kind, value, issuesForField(issues, key), options, hint));
         };
@@ -3535,7 +3629,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                           provenanceTierName(e->provenance.tier), tierOptions(),
                           citationRequired(e->provenance.tier) ? tr("needs a citation")
                                                                : QString()));
-        f.append(citationField(e->provenance.citation, tr("DOI, PMID or ISBN")));
+        f.append(citationField(refs(), e->provenance.citation, tr("DOI, PMID or ISBN")));
 
     } else if (type == kCorridors) {
         QString mid, ctx;
@@ -3562,7 +3656,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
         // No hint on this one, deliberately: a norm's citation doubles as the note explaining a
         // provisional figure (norm.h), so "DOI, PMID or ISBN" would be telling the author the wrong
         // thing about most of the rows in the library. It still links when it happens to be one.
-        f.append(citationField(n->citation));
+        f.append(citationField(refs(), n->citation));
 
     } else if (type == kScreens) {
         const Screen *sc = m_screens.screen(id);
@@ -3584,7 +3678,7 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
                                                           : QString()));
         f.append(fieldRow(QStringLiteral("note"), tr("What it does not settle"),
                           QStringLiteral("prose"), sc->note));
-        f.append(citationField(sc->citation, tr("DOI or PMID")));
+        f.append(citationField(refs(), sc->citation, tr("DOI or PMID")));
 
     } else if (type == kDrills) {
         const Drill *d = m_drills.drill(id);
@@ -3619,21 +3713,21 @@ QVariantList ModelBrowser::fieldsOf(const QString &type, const QString &id) cons
     return f;
 }
 
-QVariantList ModelBrowser::dotLegend(const QString &type) const
+QList<ModelLegendEntry> ModelBrowser::dotLegend(const QString &type) const
 {
     return dotLegendFor(type);
 }
 
-QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
+ModelInspection ModelBrowser::inspect(const QString &type, const QString &id) const
 {
     const CharacteristicPack &p = pack();
 
-    QVariantMap out;
-    out.insert(QStringLiteral("found"), false);
-    out.insert(QStringLiteral("type"), type);
-    out.insert(QStringLiteral("id"), id);
+    ModelInspection out;
+    out.found = false;
+    out.type = type;
+    out.id = id;
 
-    QVariantList sections;
+    QList<ModelInspectorSection> sections;
 
     // The FIELDS come first, on every type that has any. The inspector is where an author expects to
     // see and change everything an object holds; the table is the fast path for the handful of
@@ -3641,19 +3735,19 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
     //
     // Appended after the type-specific block below fills `sections`, so it lands at the TOP — see
     // the prepend at the end of this function.
-    const QVariantList editableFields = fieldsOf(type, id);
+    const QList<ModelInspectorRow> editableFields = fieldsOf(type, id);
 
     if (type == kCharacteristics || type == kCauses) {
         const Condition *c = p.condition(id);
         if (!c) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), c->label);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), QStringLiteral("%1 · %2")
-                                                   .arg(c->id, conditionGroupLabel(c->group)));
+        out.found = true;
+        out.label = c->label;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = QStringLiteral("%1 · %2")
+                           .arg(c->id, conditionGroupLabel(c->group));
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), reachLabel(c->confirmedBy), reachHint(c->confirmedBy),
                              QString(), false));
         badges.append(hubRow(QString(), QString(), provenanceTierLabel(c->provenance.tier), QString(),
@@ -3662,12 +3756,12 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                              false));
         badges.append(hubRow(QString(), QString(), conditionStateName(c->state), QString(), QString(),
                              false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
 
         // Measures, through the signals that read them. The chain the old panel made you leave the
         // page for — a metric, the measure that reads it, the corridor that judges it — starts here.
-        QVariantList measures;
+        QList<ModelInspectorRow> measures;
         for (const QString &sid : c->detectedBy) {
             const Signal *s = p.signal(sid);
             if (!s) continue;
@@ -3687,7 +3781,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                                    : QString(),
                                 QStringLiteral("list"), QStringLiteral("measure")));
 
-        QVariantList causes;
+        QList<ModelInspectorRow> causes;
         for (const QString &cid : causesOf(p, id)) {
             const Condition *o = p.condition(cid);
             if (!o) continue;
@@ -3702,7 +3796,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         sections.append(section(tr("Caused by"), causes, QString(), QStringLiteral("list"),
                                 QStringLiteral("cause")));
 
-        QVariantList effects;
+        QList<ModelInspectorRow> effects;
         for (const QString &eid : effectsOf(p, id)) {
             const Condition *o = p.condition(eid);
             if (!o) continue;
@@ -3713,7 +3807,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // The non-causal relations. Without these a corroborates or excludes edge would be authored,
         // validated, consumed by the explanation pass, and visible nowhere.
         for (EdgeType t : { EdgeType::Corroborates, EdgeType::Excludes }) {
-            QVariantList rel;
+            QList<ModelInspectorRow> rel;
             for (const Edge &e : p.edges) {
                 if (e.type != t) continue;
                 const QString other = e.from == id ? e.to : (e.to == id ? e.from : QString());
@@ -3728,7 +3822,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         }
 
         // The shot's physics links run one way, so each way is its own section.
-        QVariantList leadsTo, comesFrom;
+        QList<ModelInspectorRow> leadsTo, comesFrom;
         for (const Edge &e : p.edges) {
             if (e.type != EdgeType::LeadsTo) continue;
             const QString other = e.from == id ? e.to : (e.to == id ? e.from : QString());
@@ -3741,7 +3835,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
         if (!c->screenRef.isEmpty()) {
             const Screen *s = m_screens.screen(c->screenRef);
-            QVariantList  rows;
+            QList<ModelInspectorRow>  rows;
             // A dangling reference must read as a defect, not as a condition that happens to have
             // no screen.
             rows.append(s ? hubRow(kScreens, s->id, s->label, s->passCriterion)
@@ -3750,7 +3844,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             sections.append(section(tr("Settled by screen"), rows));
         }
 
-        QVariantList drills;
+        QList<ModelInspectorRow> drills;
         for (const QString &did : c->drills) {
             const Drill *d = m_drills.drill(did);
             drills.append(d ? hubRow(kDrills, d->id, d->label, d->targets)
@@ -3773,8 +3867,8 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // something or repeating its parent teaches the author that every row is an assertion,
         // which is the opposite of how bindings work.
         {
-            QVariantList rows;
-            for (const QVariant &v : bindingsOf(id)) {
+            QList<ModelInspectorRow> rows;
+            for (const QVariant &v : bindingsOf(id)) {   // C++ only, still maps (NOTES-3.9-ii J3)
                 const QVariantMap b = v.toMap();
                 const bool applies  = b.value(QStringLiteral("applicable")).toBool();
                 const bool material = b.value(QStringLiteral("material")).toBool();
@@ -3788,16 +3882,16 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                             : tr("%1 · from %2").arg(detail, from);
                 }
 
-                QVariantMap r = hubRow(QStringLiteral("context"),
+                ModelInspectorRow r = hubRow(QStringLiteral("context"),
                                        b.value(QStringLiteral("id")).toString(),
                                        b.value(QStringLiteral("label")).toString(), detail,
                                        applies ? (material ? QString() : QStringLiteral("dim"))
                                                : QStringLiteral("warn"),
                                        /*navigable*/ false);
-                r.insert(QStringLiteral("depth"), b.value(QStringLiteral("depth")));
-                r.insert(QStringLiteral("own"), own);
-                r.insert(QStringLiteral("applicable"), applies);
-                r.insert(QStringLiteral("material"), material);
+                r.depth = b.value(QStringLiteral("depth")).toInt();
+                r.own = own;
+                r.applicable = applies;
+                r.material = material;
                 rows.append(r);
             }
             sections.append(section(tr("Where it applies"), rows,
@@ -3806,49 +3900,45 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                     QStringLiteral("bindings"), QStringLiteral("binding")));
         }
 
-        appendCitation(sections, c->provenance.citation);
+        appendCitation(refs(), sections, c->provenance.citation);
 
     } else if (type == kMeasures) {
         const Measure *m = p.measure(id);
         if (!m) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), measureDisplayLabel(*m));
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"),
-                   m->unit.isEmpty() ? m->id : QStringLiteral("%1 · %2").arg(m->id, m->unit));
+        out.found = true;
+        out.label = measureDisplayLabel(*m);
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = m->unit.isEmpty() ? m->id : QStringLiteral("%1 · %2").arg(m->id, m->unit);
         // The metric this measure reads — the inspector draws the measure in that metric's colour
         // (a measure has no colour of its own; it is the metric, reduced). Empty for a Composed
         // measure, which reads no single metric.
-        out.insert(QStringLiteral("metricKey"), m->metricKey);
+        out.metricKey = m->metricKey;
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), measureStatusLabel(m->status), QString(),
                              statusTone(m->status), false));
         badges.append(hubRow(QString(), QString(), measureKindName(m->kind), QString(), QString(),
                              false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
         // Corridor state. A measure nothing grades is a corridor signal that can never fire, and
         // that is the single most useful thing this pane can say about it.
         // Every context that resolves, marked own or inherited — and each row NAVIGATES to the
         // corridor itself, so "what grades this" and "change what grades this" are one click apart
         // rather than in two different panels.
-        QVariantList corridors;
-        for (const QVariant &v : corridorContexts(id)) {
-            const QVariantMap ctx = v.toMap();
-            if (!ctx.value(QStringLiteral("found")).toBool()) continue;
+        QList<ModelInspectorRow> corridors;
+        for (const ModelCorridorContext &ctx : corridorContexts(id)) {
+            if (!ctx.found) continue;
 
-            const bool    own  = ctx.value(QStringLiteral("own")).toBool();
-            const QString from = ctx.value(QStringLiteral("inheritedFrom")).toString();
-            QString detail = tr("μ %1 %2").arg(ctx.value(QStringLiteral("mu")).toDouble(), 0, 'g', 4)
-                                 .arg(ctx.value(QStringLiteral("unit")).toString());
+            const bool    own  = ctx.own;
+            const QString from = ctx.inheritedFrom;
+            QString detail = tr("μ %1 %2").arg(ctx.mu, 0, 'g', 4).arg(ctx.unit);
             if (!from.isEmpty()) detail = tr("%1 · from %2").arg(detail, from);
             else if (own)        detail = tr("%1 · yours").arg(detail);
 
-            const QString ctxId = ctx.value(QStringLiteral("id")).toString();
-            QVariantMap   row   = hubRow(kCorridors, corridorId(id, ctxId),
-                                         ctx.value(QStringLiteral("label")).toString(), detail,
+            const QString ctxId = ctx.id;
+            ModelInspectorRow   row   = hubRow(kCorridors, corridorId(id, ctxId), ctx.label, detail,
                                          own ? QStringLiteral("accent") : QString());
 
             // THIS SWING, against this corridor — on the ONE row the loaded swing is graded at.
@@ -3863,9 +3953,9 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             // are two renderings of one grade and must never disagree about the colour.
             if (showSwingColumn() && !m_swingContextId.isEmpty() && ctxId == m_swingContextId) {
                 if (const std::optional<double> v = swingValueFor(*m)) {
-                    row.insert(QStringLiteral("pill"), normNumber(*v));
-                    row.insert(QStringLiteral("pillTone"), swingTone(*m, v));
-                    row.insert(QStringLiteral("pillHint"), tr("this swing"));
+                    row.pill = normNumber(*v);
+                    row.pillTone = swingTone(*m, v);
+                    row.pillHint = tr("this swing");
                 }
             }
             corridors.append(row);
@@ -3879,7 +3969,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
 
         if (!m->metricKey.isEmpty()) {
-            QVariantList rows;
+            QList<ModelInspectorRow> rows;
             // A real type key, not a singular label. It was "metric", which matched nothing and
             // landed in a toast apologising that the catalogue lived in another panel.
             const MetricDescriptor *d = m_cat.descriptor(m->metricKey);
@@ -3896,7 +3986,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // state is the thing worth knowing: a measure with no ladder reads one instrument and only
         // one, and on a paired quantity that is a decision somebody made rather than a fact.
         if (m->kind == MeasureKind::Provided) {
-            QVariantList ladder;
+            QList<ModelInspectorRow> ladder;
             for (const QString &k : m->preferKeys) {
                 const MetricDescriptor *pd = m_cat.descriptor(k);
                 ladder.append(hubRow(kMetrics, k, k,
@@ -3912,7 +4002,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                 QStringLiteral("list"), QStringLiteral("preferKey")));
         }
 
-        QVariantList sigs;
+        QList<ModelInspectorRow> sigs;
         for (const Signal &s : p.signalDefs) {
             if (!s.measures.contains(id)) continue;
             const QString tail = s.direction.has_value()
@@ -3930,26 +4020,25 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         //
         // The LIST and not only a count: a count alone does not say what is about to change, and
         // this measure may be shared.
-        const QVariantList users = measureUserRows(id);
+        const QList<ModelInspectorRow> users = measureUserRows(id);
         sections.append(section(tr("Detects"), users,
                                 tr("characteristics that would change if this measure changed")));
     } else if (type == kMetrics) {
         const MetricDescriptor *d = m_cat.descriptor(id);
         if (!d) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), d->label.isEmpty() ? d->key : d->label);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"),
-                   d->unit.isEmpty() ? d->key : QStringLiteral("%1 · %2").arg(d->key, d->unit));
+        out.found = true;
+        out.label = d->label.isEmpty() ? d->key : d->label;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = d->unit.isEmpty() ? d->key : QStringLiteral("%1 · %2").arg(d->key, d->unit);
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), d->group, QString(), QString(), false));
         if (d->planned())
             badges.append(hubRow(QString(), QString(), tr("Planned"),
                                  tr("in the catalogue, no route built yet"), QStringLiteral("warn"),
                                  false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
         if (!d->description.isEmpty()) sections.append(prose(tr("What it means"), d->description));
         // The sign convention and when to read it. Three signals shipped inverted because a
@@ -3959,7 +4048,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // The LADDER, best first — every way this metric can be got, what each needs, and how good
         // it is. A single "Needs" line could only ever describe the cheapest way, so a reader
         // deciding whether to buy a second camera learned nothing from this page.
-        QVariantList ladder;
+        QList<ModelInspectorRow> ladder;
         for (const MetricRoute &rt : d->routes) {
             const QStringList kit = deviceLabels(captureDevicesFor(rt.requirement));
             QStringList note;
@@ -3990,7 +4079,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // that curve reduced at a phase. One metric carries several measures — sway, slide and
         // hanging back are all pelvis lateral displacement — and following that chain used to mean
         // leaving the page.
-        QVariantList readers;
+        QList<ModelInspectorRow> readers;
         for (const Measure &meas : p.measures) {
             if (meas.metricKey != id) continue;
             readers.append(hubRow(kMeasures, meas.id, measureDisplayLabel(meas),
@@ -4004,7 +4093,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
         // Where the rest of the app uses it — hand-authored in the manifest, and the only place
         // this is visible.
-        QVariantList uses;
+        QList<ModelInspectorRow> uses;
         for (const QString &u : d->usedBy)
             uses.append(hubRow(QString(), QString(), u, QString(), QString(), false));
         if (!uses.isEmpty()) sections.append(section(tr("Used by"), uses));
@@ -4017,14 +4106,14 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         const GateWord *w = m_gateWords.subject(id);
         if (!w) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), G::subjectLabel(id));
-        out.insert(QStringLiteral("eyebrow"), tr("Reading"));
-        out.insert(QStringLiteral("subtitle"), id);
-        QVariantList badges;
+        out.found = true;
+        out.label = G::subjectLabel(id);
+        out.eyebrow = tr("Reading");
+        out.subtitle = id;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), tr("Named on the report"), QString(), QString(),
                              false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
         sections.append(prose(tr("What this is"),
                               tr("A reading the gates act on. When one of them keeps it from being "
@@ -4042,25 +4131,25 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         const G::GateEntry *e = G::gateEntry(id);
         if (!e) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), e->title);
-        out.insert(QStringLiteral("eyebrow"), e->rule ? tr("Rule") : tr("Gate"));
-        out.insert(QStringLiteral("subtitle"), QStringLiteral("%1 · %2").arg(e->id, e->area));
+        out.found = true;
+        out.label = e->title;
+        out.eyebrow = e->rule ? tr("Rule") : tr("Gate");
+        out.subtitle = QStringLiteral("%1 · %2").arg(e->id, e->area);
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), e->area, QString(), QString(), false));
         for (const QString &w : gateEffectWords(*e))
             badges.append(hubRow(QString(), QString(), w, QString(), QString(), false));
         if (!e->setupBound.isEmpty())
             badges.append(hubRow(QString(), QString(), tr("Set by the setup"), QString(), QString(), false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
         sections.append(prose(tr("What it is"), e->explain));
 
         // The sentence a record fills, with the numbers it would carry named in their place. A rule
         // leaves no record, so it has none.
         if (!e->evidenceText.isEmpty()) {
-            QVariantList quote;
+            QList<ModelInspectorRow> quote;
             quote.append(hubRow(QString(), QString(), gateReadableTemplate(e->evidenceText),
                                 QString(), QString(), false));
             sections.append(section(tr("What a swing's record says"), quote,
@@ -4069,14 +4158,14 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         if (!e->codes.isEmpty()) {
             QStringList codes = e->codes.keys();
             codes.sort();
-            QVariantList rows;
+            QList<ModelInspectorRow> rows;
             for (const QString &c : codes)
                 rows.append(hubRow(QString(), c, gateReadableTemplate(e->codes.value(c)),
                                    QString(), QString(), false));
             sections.append(section(tr("The reasons it gives"), rows, QString(), QStringLiteral("prose")));
         }
 
-        QVariantList thresholds;
+        QList<ModelInspectorRow> thresholds;
         for (const G::GateTuning &t : e->tuning)
             thresholds.append(hubRow(QString(), t.key, t.key, gateTuningValue(t), QString(), false));
         sections.append(section(tr("Thresholds"), thresholds,
@@ -4091,7 +4180,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                   lift.isEmpty() ? QStringLiteral("dim") : QString()));
         }
         if (!e->setupBound.isEmpty()) {
-            QVariantList bound;
+            QList<ModelInspectorRow> bound;
             for (const QString &subj : e->setupBound)
                 bound.append(hubRow(QString(), subj, G::subjectLabel(subj), QString(), QString(), false));
             sections.append(section(tr("Set by the setup"), bound,
@@ -4121,7 +4210,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             for (auto it = gc.byVersion.constBegin(); it != gc.byVersion.constEnd(); ++it)
                 recorded += it.value();
 
-            QVariantList rows;
+            QList<ModelInspectorRow> rows;
             if (m > 0) {
                 const QString pct = QStringLiteral("%1%").arg(qRound(100.0 * double(n) / double(m)));
                 rows.append(hubRow(QString(), QString(),
@@ -4164,7 +4253,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                 return a.second > b.second;
             });
             constexpr int kShown = 40;
-            QVariantList sRows;
+            QList<ModelInspectorRow> sRows;
             for (int i = 0; i < sess.size() && i < kShown; ++i)
                 sRows.append(hubRow(QString(), sess.at(i).first, sess.at(i).first,
                                     sess.at(i).second == 1 ? tr("1 swing")
@@ -4176,7 +4265,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             sections.append(section(tr("Sessions it fired in"), sRows, note));
         }
 
-        QVariantList where;
+        QList<ModelInspectorRow> where;
         if (!e->producer.isEmpty())
             where.append(hubRow(QString(), QString(), e->producer, tr("where it fires"), QString(), false));
         if (!e->design.isEmpty())
@@ -4198,12 +4287,12 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         const Signal *s = p.signal(id);
         if (!s) return out;
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), s->id);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), signalTestName(s->test));
+        out.found = true;
+        out.label = s->id;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = signalTestName(s->test);
 
-        QVariantList measures;
+        QList<ModelInspectorRow> measures;
         for (const QString &mid : s->measures) {
             const Measure *m = p.measure(mid);
             measures.append(m ? hubRow(kMeasures, mid, measureDisplayLabel(*m), m->unit,
@@ -4217,7 +4306,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             const Measure *m = s->measures.isEmpty() ? nullptr : p.measure(s->measures.first());
         }
 
-        QVariantList users;
+        QList<ModelInspectorRow> users;
         for (const Condition &c : p.conditions)
             if (c.detectedBy.contains(id))
                 users.append(hubRow(kCharacteristics, c.id, c.label, conditionGroupLabel(c.group)));
@@ -4234,12 +4323,12 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         const Condition *f = p.condition(from);
         const Condition *o = p.condition(to);
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), tr("%1 → %2").arg(f ? f->label : from, o ? o->label : to));
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), edgeTypeName(t));
+        out.found = true;
+        out.label = tr("%1 → %2").arg(f ? f->label : from, o ? o->label : to);
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = edgeTypeName(t);
 
-        QVariantList ends;
+        QList<ModelInspectorRow> ends;
         ends.append(hubRow(kCauses, from, f ? f->label : from, tr("the cause")));
         ends.append(hubRow(kCharacteristics, to, o ? o->label : to, tr("the effect")));
         sections.append(section(tr("Between"), ends));
@@ -4249,7 +4338,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         // an author who never discovers press-and-hold has to lose nothing by it. Two entrances to
         // one gesture — not two features, and never two vocabularies for the same edit.
         if (t == EdgeType::Causes) {
-            QVariantList moves;
+            QList<ModelInspectorRow> moves;
             moves.append(hubRow(QString(), QStringLiteral("repointFrom"), tr("Re-point from…"),
                                 f ? f->label : from, QString(), false));
             moves.append(hubRow(QString(), QStringLiteral("repointTo"), tr("Re-point to…"),
@@ -4261,7 +4350,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         }
 
 
-        appendCitation(sections, edge->provenance.citation);
+        appendCitation(refs(), sections, edge->provenance.citation);
 
     } else if (type == kCorridors) {
         QString mid, ctx;
@@ -4273,12 +4362,12 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         const Measure *meas = p.measure(mid);
         const ContextNode *node = m_norms->contexts().node(ctx);
 
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), meas ? measureDisplayLabel(*meas) : mid);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), node ? node->label : ctx);
+        out.found = true;
+        out.label = meas ? measureDisplayLabel(*meas) : mid;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = node ? node->label : ctx;
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(), normSourceLabel(res.norm->source), QString(),
                              res.norm->source == NormSource::Heuristic ? QStringLiteral("warn")
                                                                        : QString(),
@@ -4287,9 +4376,9 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         if (normIsWeak(*res.norm))
             badges.append(hubRow(QString(), QString(), tr("weak"), normWeakReason(*res.norm),
                                  QStringLiteral("warn"), false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
-        QVariantList band;
+        QList<ModelInspectorRow> band;
         band.append(hubRow(QString(), QString(), tr("Ideal"),
                            tr("%1 to %2").arg(res.norm->mu - res.norm->sigmaLo)
                                          .arg(res.norm->mu + res.norm->sigmaHi),
@@ -4307,7 +4396,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                    "that asks whether the number is REAL, which is a different "
                                    "question from whether the swing is good.")));
 
-        QVariantList meas2;
+        QList<ModelInspectorRow> meas2;
         if (meas) meas2.append(hubRow(kMeasures, mid, measureDisplayLabel(*meas), meas->unit,
                                       statusTone(meas->status)));
         sections.append(section(tr("Grades"), meas2));
@@ -4321,36 +4410,32 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
         // The other contexts, so driver-against-iron-against-wedge is one glance rather than five
         // navigations — that comparison is the whole reason the context tree exists.
-        QVariantList siblings;
-        for (const QVariant &v : corridorContexts(mid)) {
-            const QVariantMap c2 = v.toMap();
-            if (!c2.value(QStringLiteral("found")).toBool()) continue;
-            if (c2.value(QStringLiteral("id")).toString() == ctx) continue;
-            siblings.append(hubRow(kCorridors,
-                                   corridorId(mid, c2.value(QStringLiteral("id")).toString()),
-                                   c2.value(QStringLiteral("label")).toString(),
-                                   tr("μ %1").arg(c2.value(QStringLiteral("mu")).toDouble(),
-                                                  0, 'g', 4)));
+        QList<ModelInspectorRow> siblings;
+        for (const ModelCorridorContext &c2 : corridorContexts(mid)) {
+            if (!c2.found) continue;
+            if (c2.id == ctx) continue;
+            siblings.append(hubRow(kCorridors, corridorId(mid, c2.id), c2.label,
+                                   tr("μ %1").arg(c2.mu, 0, 'g', 4)));
         }
         sections.append(section(tr("Same measure, other contexts"), siblings));
 
         // Only when it resolves. A norm's `citation` doubles as the note explaining a provisional
         // figure — most of the shipped ones are a paragraph, not an identifier — and running those
         // through the failed-lookup row would report a typo on every corridor in the library.
-        appendCitation(sections, res.norm->citation, /*onlyWhenResolved*/ true);
+        appendCitation(refs(), sections, res.norm->citation, /*onlyWhenResolved*/ true);
 
     } else if (type == kScreens) {
         // From the ASSEMBLY, so an unsaved edit is what the pane shows.
         const Screen *s = m_screens.screen(id);
         if (!s) return out;
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), s->label);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), s->bodyRegion);
+        out.found = true;
+        out.label = s->label;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = s->bodyRegion;
         // The screen's own fields — protocol, pass criterion, note — are in the Fields section at
         // the top of the pane now, as editors. They used to be repeated here as read-only prose,
         // which is what an author reached for and could not type into.
-        QVariantList settles;
+        QList<ModelInspectorRow> settles;
         for (const Condition &c : p.conditions)
             if (c.screenRef == id)
                 settles.append(hubRow(kCauses, c.id, c.label,
@@ -4363,16 +4448,16 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                 QStringLiteral("list"), QStringLiteral("settles")));
         // A screen's citation IS an identifier — screen_pack.h says DOI or PMID and nothing else —
         // so an unresolved one here is a real gap and is shown as one.
-        appendCitation(sections, s->citation);
+        appendCitation(refs(), sections, s->citation);
 
     } else if (type == kDrills) {
         const Drill *d = m_drills.drill(id);
         if (!d) return out;
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), d->label);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"), d->id);
-        QVariantList answers;
+        out.found = true;
+        out.label = d->label;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = d->id;
+        QList<ModelInspectorRow> answers;
         for (const Condition &c : p.conditions)
             if (c.drills.contains(id))
                 answers.append(hubRow(kCharacteristics, c.id, c.label));
@@ -4384,13 +4469,12 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                                 QStringLiteral("list"), QStringLiteral("answers")));
 
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return out;
-        out.insert(QStringLiteral("found"), true);
-        out.insert(QStringLiteral("label"), ref->title.isEmpty() ? ref->id : ref->title);
-        out.insert(QStringLiteral("eyebrow"), typeLabelFor(type));
-        out.insert(QStringLiteral("subtitle"),
-                   QStringLiteral("%1 · %2").arg(ref->authors).arg(ref->year));
+        out.found = true;
+        out.label = ref->title.isEmpty() ? ref->id : ref->title;
+        out.eyebrow = typeLabelFor(type);
+        out.subtitle = QStringLiteral("%1 · %2").arg(ref->authors).arg(ref->year);
 
         const auto cites = [ref](const QString &citation) {
             if (citation.isEmpty()) return false;
@@ -4401,14 +4485,14 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
 
         // The claims resting on this paper — the question a reader actually has is "why does the app
         // believe this?", and the answer is the pairing. Counted first because the badge says it.
-        const QVariantList claimLinks = linksCitingReference(id);
-        QVariantList       claims;
-        for (const QVariant &v : claimLinks) claims.append(v);
+        const QList<ModelInspectorRow> claimLinks = linksCitingReference(id);
+        QList<ModelInspectorRow>       claims;
+        for (const ModelInspectorRow &v : claimLinks) claims.append(v);
         for (const Condition &c : p.conditions)
             if (cites(c.provenance.citation)) {
                 // A condition's own provenance is not an edge, so it has no strength to set — it
                 // joins the list as an ordinary navigable row and the view leaves it alone.
-                QVariantMap m = hubRow(kCharacteristics, c.id, c.label,
+                ModelInspectorRow m = hubRow(kCharacteristics, c.id, c.label,
                                        provenanceTierLabel(c.provenance.tier));
                 claims.append(m);
             }
@@ -4426,7 +4510,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             anyClaim = true;
         }
 
-        QVariantList badges;
+        QList<ModelInspectorRow> badges;
         badges.append(hubRow(QString(), QString(),
                              anyClaim ? provenanceTierLabel(best)
                                       : (ref->generalReading ? tr("General reading") : tr("Uncited")),
@@ -4434,13 +4518,13 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
         badges.append(hubRow(QString(), QString(),
                              tr("Holds up %n claim(s)", "", claims.size()), QString(),
                              claims.isEmpty() ? QStringLiteral("warn") : QString(), false));
-        out.insert(QStringLiteral("badges"), badges);
+        out.badges = badges;
 
         // The record as a citation reads, assembled HERE rather than in a delegate — which format a
         // book, a chapter and a paper each take is a rule, and a rule written in QML is a rule
         // nothing can test.
         sections.append(section(tr("Citation"),
-                                QVariantList{ hubRow(QString(), QString(), formatCitation(*ref),
+                                QList<ModelInspectorRow>{ hubRow(QString(), QString(), formatCitation(*ref),
                                                      QString(), QString(), false) },
                                 QString(), QStringLiteral("quote")));
 
@@ -4448,7 +4532,7 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
             sections.append(prose(tr("What it shows"), ref->establishes));
 
         // The identifier, with the two things anybody actually wants to do with one.
-        QVariantList idRows;
+        QList<ModelInspectorRow> idRows;
         idRows.append(hubRow(QString(), QStringLiteral("copyCitation"),
                              tr("Copy CSL-JSON"), ref->identifierLabel(), QString(), false));
         if (!ref->doi.isEmpty())
@@ -4478,18 +4562,16 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
     // author has to know whose content they are changing BEFORE they change it.
     // A gate's provenance is its golfer words', read off their own layers — they are the only part
     // of a gate that can be yours or unsaved.
-    out.insert(QStringLiteral("source"), type == kGates ? gateWordsSourceOf(id) : sourceOf(id));
-    out.insert(QStringLiteral("dirty"), dirtyIds().contains(id));
+    out.source = type == kGates ? gateWordsSourceOf(id) : sourceOf(id);
+    out.dirty = dirtyIds().contains(id);
     if (!editableFields.isEmpty()) {
         // Two headings from ONE list. fieldsOf() stays the single answer to "what can I edit"; the
         // report's words are filed under their own heading because they are read by someone else —
         // the golfer — and an author editing a habit's grading should not have to scroll through its
         // work-on page to find the next field, nor the reverse.
-        QVariantList own, report;
-        for (const QVariant &v : editableFields)
-            (v.toMap().value(QStringLiteral("group")).toString() == QStringLiteral("report") ? report
-                                                                                             : own)
-                .append(v);
+        QList<ModelInspectorRow> own, report;
+        for (const ModelInspectorRow &v : editableFields)
+            (v.group == QStringLiteral("report") ? report : own).append(v);
         const QString reportNote =
             type == kMeasures ? tr("How the session report names this number in its sentences.")
             : type == kGates  ? (pinpoint::gates::gateEntry(id)
@@ -4499,65 +4581,62 @@ QVariantMap ModelBrowser::inspect(const QString &type, const QString &id) const
                               : tr("What the session report prints for this habit: its names, and "
                                    "its work-on page.");
 
-        QVariantList withFields;
+        QList<ModelInspectorSection> withFields;
         if (!own.isEmpty())
             withFields.append(section(tr("Fields"), own, QString(), QStringLiteral("fields")));
         if (!report.isEmpty())
             withFields.append(section(tr("Report"), report, reportNote, QStringLiteral("fields")));
-        for (const QVariant &v : sections) withFields.append(v);
+        for (const ModelInspectorSection &v : sections) withFields.append(v);
         sections = withFields;
     }
 
-    out.insert(QStringLiteral("sections"), sections);
+    out.sections = sections;
     return out;
 }
 
 // ── The graph ───────────────────────────────────────────────────────────────
 
-QVariantMap ModelBrowser::dag(const QString &conditionId, const QVariantMap &options) const
+ModelGraph ModelBrowser::dag(const QString &conditionId, const ModelGraphOptions &options) const
 {
     DagLayoutOptions opt;
-    auto num = [&options](const char *key, double def) {
-        const QVariant v = options.value(QString::fromLatin1(key));
-        return v.isValid() ? v.toDouble() : def;
-    };
-    opt.nodeH      = num("nodeH", opt.nodeH);
-    opt.gapX       = num("gapX", opt.gapX);
-    opt.gapY       = num("gapY", opt.gapY);
-    opt.rowH       = num("rowH", opt.rowH);
+    // NaN / -1: not given, and the layout's own default stands.
+    const auto num = [](double v, double def) { return std::isnan(v) ? def : v; };
+    const auto whole = [](int v, int def) { return v < 0 ? def : v; };
+    opt.nodeH      = num(options.nodeH, opt.nodeH);
+    opt.gapX       = num(options.gapX, opt.gapX);
+    opt.gapY       = num(options.gapY, opt.gapY);
+    opt.rowH       = num(options.rowH, opt.rowH);
     // Read here or it silently keeps its C++ default while the QML that passed one believes it took
     // effect — the caption would then be sized in layout units the theme never chose.
-    opt.captionH   = num("captionH", opt.captionH);
-    opt.rowCharW   = num("rowCharW", opt.rowCharW);
-    opt.rowMaxW    = num("rowMaxW", opt.rowMaxW);
-    opt.padX       = num("padX", opt.padX);
-    opt.charW      = num("charW", opt.charW);
-    opt.minW       = num("minW", opt.minW);
-    opt.maxW       = num("maxW", opt.maxW);
-    opt.depth      = int(num("depth", opt.depth));
-    opt.maxPerRank = int(num("maxPerRank", opt.maxPerRank));
+    opt.captionH   = num(options.captionH, opt.captionH);
+    opt.rowCharW   = num(options.rowCharW, opt.rowCharW);
+    opt.rowMaxW    = num(options.rowMaxW, opt.rowMaxW);
+    opt.padX       = num(options.padX, opt.padX);
+    opt.charW      = num(options.charW, opt.charW);
+    opt.minW       = num(options.minW, opt.minW);
+    opt.maxW       = num(options.maxW, opt.maxW);
+    opt.depth      = whole(options.depth, opt.depth);
+    opt.maxPerRank = whole(options.maxPerRank, opt.maxPerRank);
     // The boxes the reader has opened. An id in here that is not in this neighbourhood is ignored
     // rather than refused — the list is a wish, and the layout answers with what it can, so the
     // view never has to prune it against a picture it has not seen yet.
-    opt.expanded     = options.value(QStringLiteral("expanded")).toStringList();
-    opt.maxPerExpand = int(num("maxPerExpand", opt.maxPerExpand));
-    opt.includeMeasures =
-        options.value(QStringLiteral("includeMeasures"), opt.includeMeasures).toBool();
-    opt.includeReferences =
-        options.value(QStringLiteral("includeReferences"), opt.includeReferences).toBool();
-    opt.includeScreened =
-        options.value(QStringLiteral("includeScreened"), opt.includeScreened).toBool();
+    opt.expanded     = options.expanded;
+    opt.maxPerExpand = whole(options.maxPerExpand, opt.maxPerExpand);
+    // Not given is the layout's default here too: the gadget's switches default to DagLayoutOptions'
+    // (model_browser_test holds them together).
+    opt.includeMeasures   = options.includeMeasures;
+    opt.includeReferences = options.includeReferences;
+    opt.includeScreened   = options.includeScreened;
     // The layout resolves citations against what it is HANDED — see the note on the field. This is
     // the one place that decides which bibliography the graph is drawn against, and it is the same
     // one the inspector's citation links join through.
-    opt.references = &sharedReferenceSet();
+    opt.references = &refs();
 
     // Over the WORKING assembly, so an unsaved edge is drawn. Every coordinate comes from
     // dag_layout.h; QML positions nothing.
     const DagLayout l = layoutDag(pack(), conditionId, opt);
 
-    return marshalLayout(l, options.value(QStringLiteral("hideWeak")).toBool(),
-                         options.value(QStringLiteral("hideProposed")).toBool());
+    return marshalLayout(l, options.hideWeak, options.hideProposed);
 }
 
 // ONE marshaller, for both pictures. The causal DAG and the hub are different layouts and the same
@@ -4566,78 +4645,74 @@ QVariantMap ModelBrowser::dag(const QString &conditionId, const QVariantMap &opt
 // came to declare a literal `available: true` to satisfy a contract nothing was holding it to, and
 // how its edge geometry drifted far enough to draw a line between two points that were on no box at
 // all.
-QVariantMap ModelBrowser::marshalLayout(const DagLayout &l, bool hideWeak, bool hideProposed) const
+ModelGraph ModelBrowser::marshalLayout(const DagLayout &l, bool hideWeak, bool hideProposed) const
 {
-    QVariantList nodes;
+    ModelGraph out;
     for (const DagNode &n : l.nodes) {
-        QVariantMap m;
-        m.insert(QStringLiteral("id"), n.id);
-        m.insert(QStringLiteral("kind"), dagNodeKindName(n.kind));
-        m.insert(QStringLiteral("label"), n.label);
-        m.insert(QStringLiteral("rank"), n.rank);
-        m.insert(QStringLiteral("x"), n.x);
-        m.insert(QStringLiteral("y"), n.y);
-        m.insert(QStringLiteral("w"), n.w);
-        m.insert(QStringLiteral("h"), n.h);
-        m.insert(QStringLiteral("latent"), n.latent);
-        m.insert(QStringLiteral("offeredOnly"), n.offeredOnly);
-        m.insert(QStringLiteral("reach"), n.reach);
-        m.insert(QStringLiteral("reachLabel"), n.reachLabel);
-        m.insert(QStringLiteral("available"), n.available);
-        m.insert(QStringLiteral("unavailableReason"), n.unavailableReason);
+        ModelGraphNode m;
+        m.id = n.id;
+        m.kind = dagNodeKindName(n.kind);
+        m.label = n.label;
+        m.rank = n.rank;
+        m.x = n.x;
+        m.y = n.y;
+        m.w = n.w;
+        m.h = n.h;
+        m.latent = n.latent;
+        m.offeredOnly = n.offeredOnly;
+        m.reach = n.reach;
+        m.reachLabel = n.reachLabel;
+        m.available = n.available;
+        m.unavailableReason = n.unavailableReason;
         // How the rows below combine, and what the caption above them costs. Empty and zero on an
         // `any` box — which is every box in a library that has authored no conjunctions, so the
         // view's arithmetic is unchanged there. layoutHub() emits no measures at all and therefore
         // no caption either, which is why these have to read sensibly at their defaults.
-        m.insert(QStringLiteral("detection"), n.detection);
-        m.insert(QStringLiteral("detectionLabel"), n.detectionLabel);
-        m.insert(QStringLiteral("captionH"), n.captionH);
-        m.insert(QStringLiteral("coverage"), n.coverage);
-        m.insert(QStringLiteral("hiddenCauses"), n.hiddenCauses);
-        m.insert(QStringLiteral("hiddenEffects"), n.hiddenEffects);
-        m.insert(QStringLiteral("expanded"), n.expanded);
+        m.detection = n.detection;
+        m.detectionLabel = n.detectionLabel;
+        m.captionH = n.captionH;
+        m.coverage = n.coverage;
+        m.hiddenCauses = n.hiddenCauses;
+        m.hiddenEffects = n.hiddenEffects;
+        m.expanded = n.expanded;
 
         // The measures that detect this condition, as rows INSIDE its box. Coordinates are absolute
         // and come straight from the layout — the delegate draws from these and the pane hit-tests
         // from these, so a row you can see is a row you can press.
-        QVariantList rows;
         for (const DagMeasure &dm : n.measures) {
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), dm.id);
-            r.insert(QStringLiteral("label"), dm.label);
-            r.insert(QStringLiteral("statusLabel"), dm.statusLabel);
-            r.insert(QStringLiteral("metricKey"), dm.metricKey);
+            ModelGraphMeasure r;
+            r.id = dm.id;
+            r.label = dm.label;
+            r.statusLabel = dm.statusLabel;
+            r.metricKey = dm.metricKey;
             // The chosen right-hand string, decided in the layout so the width it was sized for and
             // the width it draws at are the same string. See DagMeasure::detail.
-            r.insert(QStringLiteral("detail"), dm.detail);
-            r.insert(QStringLiteral("keyLadder"), dm.keyLadder);
-            r.insert(QStringLiteral("available"), dm.available);
-            r.insert(QStringLiteral("unavailableReason"), dm.unavailableReason);
-            r.insert(QStringLiteral("y"), dm.y);
-            r.insert(QStringLiteral("h"), dm.h);
-            rows.append(r);
+            r.detail = dm.detail;
+            r.keyLadder = dm.keyLadder;
+            r.available = dm.available;
+            r.unavailableReason = dm.unavailableReason;
+            r.y = dm.y;
+            r.h = dm.h;
+            m.measures.append(r);
         }
-        m.insert(QStringLiteral("measures"), rows);
 
         // …and what it is cited from, as one more row under those. `id` is empty when the citation
         // resolves to nothing, and that is what the view keys its hit test off — a row with no
         // reference behind it has no page to open and must not look pressable.
-        QVariantList refRows;
         for (const DagReference &dr : n.references) {
-            QVariantMap r;
-            r.insert(QStringLiteral("id"), dr.id);
-            r.insert(QStringLiteral("citation"), dr.citation);
-            r.insert(QStringLiteral("label"), dr.label);
-            r.insert(QStringLiteral("detailLabel"), dr.detailLabel);
-            r.insert(QStringLiteral("resolved"), dr.resolved);
-            r.insert(QStringLiteral("y"), dr.y);
-            r.insert(QStringLiteral("h"), dr.h);
-            refRows.append(r);
+            ModelGraphReference r;
+            r.id = dr.id;
+            r.citation = dr.citation;
+            r.label = dr.label;
+            r.detailLabel = dr.detailLabel;
+            r.resolved = dr.resolved;
+            r.y = dr.y;
+            r.h = dr.h;
+            m.references.append(r);
         }
-        m.insert(QStringLiteral("references"), refRows);
-        m.insert(QStringLiteral("groupLabel"), n.groupLabel);
-        m.insert(QStringLiteral("dirty"), dirtyIds().contains(n.id));
-        nodes.append(m);
+        m.groupLabel = n.groupLabel;
+        m.dirty = dirtyIds().contains(n.id);
+        out.nodes.append(m);
     }
 
     // "Hide weak links" means AT OR BELOW weak, not the rung spelled `weak`. Matching the one name
@@ -4649,38 +4724,37 @@ QVariantMap ModelBrowser::marshalLayout(const DagLayout &l, bool hideWeak, bool 
         return strengthFromName(name, s) && strengthWeight(s) <= strengthWeight(Strength::Weak);
     };
 
-    QVariantList edges;
     for (const DagEdge &e : l.edges) {
         if (hideWeak && atOrBelowWeak(e.strength)) continue;
 
-        QVariantMap m;
-        m.insert(QStringLiteral("from"), e.from);
-        m.insert(QStringLiteral("to"), e.to);
-        m.insert(QStringLiteral("strength"), e.strength);
-        m.insert(QStringLiteral("weight"), e.weight);
-        m.insert(QStringLiteral("offeredOnly"), e.offeredOnly);
-        m.insert(QStringLiteral("relation"), e.relation);
-        m.insert(QStringLiteral("symmetric"), e.symmetric);
-        m.insert(QStringLiteral("segment"), e.segment);
-        m.insert(QStringLiteral("segments"), e.segments);
-        m.insert(QStringLiteral("x1"), e.x1);
-        m.insert(QStringLiteral("y1"), e.y1);
-        m.insert(QStringLiteral("c1x"), e.c1x);
-        m.insert(QStringLiteral("c1y"), e.c1y);
-        m.insert(QStringLiteral("c2x"), e.c2x);
-        m.insert(QStringLiteral("c2y"), e.c2y);
-        m.insert(QStringLiteral("x2"), e.x2);
-        m.insert(QStringLiteral("y2"), e.y2);
-        m.insert(QStringLiteral("label"), e.label);
-        m.insert(QStringLiteral("labelX"), e.labelX);
-        m.insert(QStringLiteral("labelY"), e.labelY);
-        m.insert(QStringLiteral("tip"), e.tip);
-        m.insert(QStringLiteral("tipAx"), e.tipAx);
-        m.insert(QStringLiteral("tipAy"), e.tipAy);
-        m.insert(QStringLiteral("tipBx"), e.tipBx);
-        m.insert(QStringLiteral("tipBy"), e.tipBy);
-        m.insert(QStringLiteral("tipCx"), e.tipCx);
-        m.insert(QStringLiteral("tipCy"), e.tipCy);
+        ModelGraphEdge m;
+        m.from = e.from;
+        m.to = e.to;
+        m.strength = e.strength;
+        m.weight = e.weight;
+        m.offeredOnly = e.offeredOnly;
+        m.relation = e.relation;
+        m.symmetric = e.symmetric;
+        m.segment = e.segment;
+        m.segments = e.segments;
+        m.x1 = e.x1;
+        m.y1 = e.y1;
+        m.c1x = e.c1x;
+        m.c1y = e.c1y;
+        m.c2x = e.c2x;
+        m.c2y = e.c2y;
+        m.x2 = e.x2;
+        m.y2 = e.y2;
+        m.label = e.label;
+        m.labelX = e.labelX;
+        m.labelY = e.labelY;
+        m.tip = e.tip;
+        m.tipAx = e.tipAx;
+        m.tipAy = e.tipAy;
+        m.tipBx = e.tipBx;
+        m.tipBy = e.tipBy;
+        m.tipCx = e.tipCx;
+        m.tipCy = e.tipCy;
 
         // The row id, so clicking a line selects the same object the Causal links table does.
         EdgeType t = EdgeType::Causes;
@@ -4693,38 +4767,33 @@ QVariantMap ModelBrowser::marshalLayout(const DagLayout &l, bool hideWeak, bool 
                         proposed = raw.provenance.tier == ProvenanceTier::Proposed;
                 if (proposed) continue;
             }
-            m.insert(QStringLiteral("rowId"), rid);
-            m.insert(QStringLiteral("dirty"), dirtyIds().contains(rid));
-            m.insert(QStringLiteral("source"), sourceOf(rid));
+            m.rowId = rid;
+            m.dirty = dirtyIds().contains(rid);
+            m.source = sourceOf(rid);
         }
-        edges.append(m);
+        out.edges.append(m);
     }
 
-    QVariantList headings;
     for (const DagHeading &h : l.headings) {
-        QVariantMap m;
-        m.insert(QStringLiteral("label"), h.label);
-        m.insert(QStringLiteral("x"), h.x);
-        m.insert(QStringLiteral("y"), h.y);
-        m.insert(QStringLiteral("w"), h.w);
-        headings.append(m);
+        ModelGraphHeading m;
+        m.label = h.label;
+        m.x = h.x;
+        m.y = h.y;
+        m.w = h.w;
+        out.headings.append(m);
     }
 
-    QVariantMap out;
-    out.insert(QStringLiteral("nodes"), nodes);
-    out.insert(QStringLiteral("edges"), edges);
-    out.insert(QStringLiteral("headings"), headings);
-    out.insert(QStringLiteral("width"), l.width);
-    out.insert(QStringLiteral("height"), l.height);
-    out.insert(QStringLiteral("focusX"), l.focusX);
-    out.insert(QStringLiteral("focusY"), l.focusY);
-    out.insert(QStringLiteral("truncated"), l.truncated);
+    out.width = l.width;
+    out.height = l.height;
+    out.focusX = l.focusX;
+    out.focusY = l.focusY;
+    out.truncated = l.truncated;
     return out;
 }
 
 // ── Legal targets ───────────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::linkCandidates(const QString &relation, const QString &fixedId,
+QList<ModelCandidate> ModelBrowser::linkCandidates(const QString &relation, const QString &fixedId,
                                           const QString &search, const QString &end) const
 {
     const CharacteristicPack &p = pack();
@@ -4737,7 +4806,7 @@ QVariantList ModelBrowser::linkCandidates(const QString &relation, const QString
     // claim asks for: legal things that could cause this one.
     const bool fixedIsFrom = end != QStringLiteral("to");
 
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const Condition &c : p.conditions) {
         // A self-edge is refused by the validator, so it is never offered.
         if (c.id == fixedId) continue;
@@ -4778,22 +4847,22 @@ QVariantList ModelBrowser::linkCandidates(const QString &relation, const QString
             if (!matches(hay, search.trimmed())) continue;
         }
 
-        QVariantMap r;
-        r.insert(QStringLiteral("id"), c.id);
-        r.insert(QStringLiteral("label"), c.label);
-        r.insert(QStringLiteral("detail"), conditionGroupLabel(c.group));
-        r.insert(QStringLiteral("reachLabel"), reachLabel(c.confirmedBy));
+        ModelCandidate r;
+        r.id = c.id;
+        r.label = c.label;
+        r.detail = conditionGroupLabel(c.group);
+        r.reachLabel = reachLabel(c.confirmedBy);
         out.append(r);
     }
 
-    std::sort(out.begin(), out.end(), [](const QVariant &a, const QVariant &b) {
-        return a.toMap().value(QStringLiteral("label")).toString().toCaseFolded()
-             < b.toMap().value(QStringLiteral("label")).toString().toCaseFolded();
+    std::sort(out.begin(), out.end(), [](const ModelCandidate &a, const ModelCandidate &b) {
+        return a.label.toCaseFolded()
+             < b.label.toCaseFolded();
     });
     return out;
 }
 
-QVariantList ModelBrowser::measureCandidates(const QString &conditionId, const QString &search) const
+QList<ModelCandidate> ModelBrowser::measureCandidates(const QString &conditionId, const QString &search) const
 {
     const CharacteristicPack &p = pack();
     const Condition          *c = p.condition(conditionId);
@@ -4804,7 +4873,7 @@ QVariantList ModelBrowser::measureCandidates(const QString &conditionId, const Q
             if (const Signal *s = p.signal(sid))
                 for (const QString &mid : s->measures) already.insert(mid);
 
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const Measure &m : p.measures) {
         if (already.contains(m.id)) continue;
         const QString label = measureDisplayLabel(m);
@@ -4812,16 +4881,16 @@ QVariantList ModelBrowser::measureCandidates(const QString &conditionId, const Q
             const QString hay = QStringList{ label, m.id, m.unit, m.metricKey }.join(QLatin1Char(' '));
             if (!matches(hay, search.trimmed())) continue;
         }
-        QVariantMap r;
-        r.insert(QStringLiteral("id"), m.id);
-        r.insert(QStringLiteral("label"), label);
-        r.insert(QStringLiteral("detail"), measureStatusLabel(m.status));
-        r.insert(QStringLiteral("tone"), statusTone(m.status));
+        ModelCandidate r;
+        r.id = m.id;
+        r.label = label;
+        r.detail = measureStatusLabel(m.status);
+        r.tone = statusTone(m.status);
         out.append(r);
     }
-    std::sort(out.begin(), out.end(), [](const QVariant &a, const QVariant &b) {
-        return a.toMap().value(QStringLiteral("label")).toString().toCaseFolded()
-             < b.toMap().value(QStringLiteral("label")).toString().toCaseFolded();
+    std::sort(out.begin(), out.end(), [](const ModelCandidate &a, const ModelCandidate &b) {
+        return a.label.toCaseFolded()
+             < b.label.toCaseFolded();
     });
     return out;
 }
@@ -4839,7 +4908,7 @@ QVariantList ModelBrowser::measureCandidates(const QString &conditionId, const Q
 // It reads the CATALOGUE directly rather than the pack, and has to: the pack validator says in its
 // own comment that it has never been able to see the catalogue and must not start guessing at one,
 // so unit agreement between two metric keys is knowable only from this side of the join.
-QVariantList ModelBrowser::metricKeyCandidates(const QString &measureId, const QString &search) const
+QList<ModelCandidate> ModelBrowser::metricKeyCandidates(const QString &measureId, const QString &search) const
 {
     const Measure *m = pack().measure(measureId);
     if (!m) return {};
@@ -4856,7 +4925,7 @@ QVariantList ModelBrowser::metricKeyCandidates(const QString &measureId, const Q
     if (unit.isEmpty())
         if (const MetricDescriptor *own = m_cat.descriptor(m->metricKey)) unit = own->unit;
 
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const MetricDescriptor *d : m_cat.all()) {
         if (!d || already.contains(d->key)) continue;
         if (!unit.isEmpty() && d->unit != unit) continue;
@@ -4864,17 +4933,17 @@ QVariantList ModelBrowser::metricKeyCandidates(const QString &measureId, const Q
             const QString hay = QStringList{ d->key, d->label, d->group }.join(QLatin1Char(' '));
             if (!matches(hay, search.trimmed())) continue;
         }
-        QVariantMap r;
-        r.insert(QStringLiteral("id"), d->key);
+        ModelCandidate r;
+        r.id = d->key;
         // The KEY leads, because that is the identity an author is choosing and the thing that has
         // to match the catalogue exactly; the human label is the detail beside it.
-        r.insert(QStringLiteral("label"), d->key);
-        r.insert(QStringLiteral("detail"), d->label);
+        r.label = d->key;
+        r.detail = d->label;
         out.append(r);
     }
-    std::sort(out.begin(), out.end(), [](const QVariant &a, const QVariant &b) {
-        return a.toMap().value(QStringLiteral("label")).toString().toCaseFolded()
-             < b.toMap().value(QStringLiteral("label")).toString().toCaseFolded();
+    std::sort(out.begin(), out.end(), [](const ModelCandidate &a, const ModelCandidate &b) {
+        return a.label.toCaseFolded()
+             < b.label.toCaseFolded();
     });
     return out;
 }
@@ -5034,14 +5103,14 @@ void ModelBrowser::pushCommand(const QString &label, const QString &detail,
     invalidateDerived();
 }
 
-QVariantMap ModelBrowser::applyStackPosition(int newIndex)
+ModelEditResult ModelBrowser::applyStackPosition(int newIndex)
 {
-    QVariantMap r;
+    ModelEditResult r;
     const int   lo = -1;
     const int   hi = int(m_stack.size()) - 1;
     if (newIndex < lo || newIndex > hi) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Nothing to move to."));
+        r.ok = false;
+        r.message = tr("Nothing to move to.");
         return r;
     }
 
@@ -5067,10 +5136,10 @@ QVariantMap ModelBrowser::applyStackPosition(int newIndex)
     m_stackIndex = newIndex;
     rebuild();
 
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("message"),
+    r.ok = true;
+    r.message =
              newIndex >= 0 ? tr("Back to “%1”").arg(m_stack.at(size_t(newIndex)).label)
-                           : tr("Back to where you started"));
+                           : tr("Back to where you started");
     return r;
 }
 
@@ -5086,131 +5155,123 @@ QString ModelBrowser::redoLabel() const
     return canRedo() ? m_stack.at(size_t(m_stackIndex + 1)).label : QString();
 }
 
-QVariantList ModelBrowser::edits() const
+QList<ModelEditEntry> ModelBrowser::edits() const
 {
-    QVariantList out;
+    QList<ModelEditEntry> out;
     for (size_t i = 0; i < m_stack.size(); ++i) {
-        QVariantMap r;
-        r.insert(QStringLiteral("index"), int(i));
-        r.insert(QStringLiteral("label"), m_stack.at(i).label);
-        r.insert(QStringLiteral("detail"), m_stack.at(i).detail);
+        ModelEditEntry r;
+        r.index  = int(i);
+        r.label  = m_stack.at(i).label;
+        r.detail = m_stack.at(i).detail;
         // Undone entries stay in the list, greyed. A history that deleted what you stepped back
         // past would make redo undiscoverable.
-        r.insert(QStringLiteral("undone"), int(i) > m_stackIndex);
+        r.undone = int(i) > m_stackIndex;
         // Everything up to the save marker is on disk. Shown per row rather than as one boundary
         // line because the marker can be nowhere (-2) after a forked history.
-        r.insert(QStringLiteral("saved"), m_savedIndex >= 0 && int(i) <= m_savedIndex);
+        r.saved = m_savedIndex >= 0 && int(i) <= m_savedIndex;
         out.append(r);
     }
     return out;
 }
 
-QVariantMap ModelBrowser::undo()
+ModelEditResult ModelBrowser::undo()
 {
     if (!canUndo()) {
-        QVariantMap r;
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Nothing to undo."));
+        ModelEditResult r;
+        r.ok = false;
+        r.message = tr("Nothing to undo.");
         return r;
     }
     const QString what = m_stack.at(size_t(m_stackIndex)).label;
-    QVariantMap   r    = applyStackPosition(m_stackIndex - 1);
-    if (r.value(QStringLiteral("ok")).toBool())
-        r.insert(QStringLiteral("message"), tr("Undid “%1”").arg(what));
+    ModelEditResult   r    = applyStackPosition(m_stackIndex - 1);
+    if (r.ok)
+        r.message = tr("Undid “%1”").arg(what);
     return r;
 }
 
-QVariantMap ModelBrowser::redo()
+ModelEditResult ModelBrowser::redo()
 {
     if (!canRedo()) {
-        QVariantMap r;
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Nothing to redo."));
+        ModelEditResult r;
+        r.ok = false;
+        r.message = tr("Nothing to redo.");
         return r;
     }
     const QString what = m_stack.at(size_t(m_stackIndex + 1)).label;
-    QVariantMap   r    = applyStackPosition(m_stackIndex + 1);
-    if (r.value(QStringLiteral("ok")).toBool())
-        r.insert(QStringLiteral("message"), tr("Redid “%1”").arg(what));
+    ModelEditResult   r    = applyStackPosition(m_stackIndex + 1);
+    if (r.ok)
+        r.message = tr("Redid “%1”").arg(what);
     return r;
 }
 
-QVariantMap ModelBrowser::undoTo(int index) { return applyStackPosition(index); }
+ModelEditResult ModelBrowser::undoTo(int index) { return applyStackPosition(index); }
 
 // ── Save / revert ───────────────────────────────────────────────────────────
 
-QVariantMap ModelBrowser::save()
+ModelEditResult ModelBrowser::save()
 {
-    QVariantMap r;
+    ModelEditResult r;
+    // Every write below is RuleData's command, and each one that lands publishes (EVT-12 for the
+    // corridors, EVT-13 for the rest): the norm slot, the report, Charts and every other reader see it
+    // from the next read on, with no reset here (refactor step 3.9). The editor takes the published
+    // snapshot once, when the scope ends.
+    WriteScope writing(this);
+    // The writes are done: take the published snapshot, and re-derive once (a rebuild, or else this).
+    const auto settle = [this, &writing]() { if (!writing.finish()) invalidateDerived(); };
 
     QString whyNot;
-    if (!saveUserPack(m_working, &whyNot)) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), whyNot.isEmpty() ? tr("Could not save.") : whyNot);
+    if (!writeUserPack(&whyNot)) {
+        r.ok = false;
+        r.message = whyNot.isEmpty() ? tr("Could not save.") : whyNot;
         return r;
     }
     // The norm set is written second and reported separately. A half-save is the one outcome worth
     // naming precisely: the pack landed, the corridors did not, and an author told only "could not
     // save" would not know which half to redo.
-    if (!saveUserNormPack(m_workingNorms, &whyNot)) {
+    if (!writeUserNorms(&whyNot)) {
         m_savedUser = m_working;   // the half that DID land is on disk; do not claim otherwise
-        invalidateDerived();
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"),
-                 tr("Characteristics were saved; the corridors were not. %1").arg(whyNot));
+        settle();
+        r.ok = false;
+        r.message =
+                 tr("Characteristics were saved; the corridors were not. %1").arg(whyNot);
         return r;
     }
-    // The corridors are on disk from here on, whatever happens to the registries after them, so the
-    // shared norm snapshot is dropped now: the next grade anywhere in the app (the wrist grid, Charts,
-    // the report, a work-ons job) takes the provider again and assembles it from the file just
-    // written. Readers mid-pass keep the snapshot they hold (norm_provider.h), so this is safe while
-    // a worker is grading.
-    resetSharedNormProvider();
 
     // The screen and drill layers, written third and fourth. Reported the same way as the corridor
     // half: an author told only "could not save" would not know which registry to redo.
-    if (!saveUserScreenSet(m_workingScreens, &whyNot)) {
+    if (!writeUserScreens(&whyNot)) {
         m_savedUser  = m_working;
         m_savedNorms = m_workingNorms;
-        invalidateDerived();
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"),
-                 tr("Characteristics and corridors were saved; the screens were not. %1").arg(whyNot));
+        settle();
+        r.ok = false;
+        r.message =
+                 tr("Characteristics and corridors were saved; the screens were not. %1").arg(whyNot);
         return r;
     }
-    if (!saveUserDrillSet(m_workingDrills, &whyNot)) {
+    if (!writeUserDrills(&whyNot)) {
         m_savedUser    = m_working;
         m_savedNorms   = m_workingNorms;
         m_savedScreens = m_workingScreens;
-        invalidateDerived();
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"),
-                 tr("Everything but the drills and the gates' golfer words was saved. %1").arg(whyNot));
+        settle();
+        r.ok = false;
+        r.message =
+                 tr("Everything but the drills and the gates' golfer words was saved. %1").arg(whyNot);
         return r;
     }
-    // The gate words, written fifth (#60), and a failure named the same way. The two registries that
-    // DID land are dropped from their caches first: the next report would otherwise print last
-    // session's drills beside this session's characteristics.
-    if (!saveUserGateWordSet(m_workingGateWords, &whyNot)) {
-        resetSharedScreenSet();
-        resetSharedDrillSet();
+    // The gate words, written fifth (#60), and a failure named the same way. The layers that DID land
+    // were published as each landed, so the next report reads this session's drills beside this
+    // session's characteristics.
+    if (!writeUserGateWords(&whyNot)) {
         m_savedUser    = m_working;
         m_savedNorms   = m_workingNorms;
         m_savedScreens = m_workingScreens;
         m_savedDrills  = m_workingDrills;
-        invalidateDerived();
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"),
-                 tr("Everything but the gates' golfer words was saved. %1").arg(whyNot));
+        settle();
+        r.ok = false;
+        r.message =
+                 tr("Everything but the gates' golfer words was saved. %1").arg(whyNot);
         return r;
     }
-    // The rest of the app reads these three through their process-wide caches, so a write that did
-    // not drop them would be on disk and invisible until relaunch — the report builder re-takes the
-    // gate words for each report, and it would re-take the old ones. (The norms were dropped above,
-    // as soon as they landed.)
-    resetSharedScreenSet();
-    resetSharedDrillSet();
-    resetSharedGateWordSet();
 
     const int wrote = unsavedCount();
     m_savedUser      = m_working;
@@ -5221,23 +5282,23 @@ QVariantMap ModelBrowser::save()
     m_savedIndex     = m_stackIndex;
     // The stack is NOT cleared. Saving and immediately spotting the mistake is the common case, and
     // an undo that stopped at the last save would be an undo the author could not rely on.
-    invalidateDerived();
+    settle();
 
-    // Every other façade in the app caches its provider, so an edit written here is on disk and
-    // invisible until relaunch unless they re-take.
+    // ONE refresh per save, after the snapshot is taken: the panel's own readers (DiagnosticModel.qml)
+    // re-read on this; the rest of the app follows RuleData's events.
     emit libraryChanged();
 
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("message"), tr("Saved %n change(s)", "", wrote));
+    r.ok = true;
+    r.message = tr("Saved %n change(s)", "", wrote);
     return r;
 }
 
-QVariantMap ModelBrowser::revert()
+ModelEditResult ModelBrowser::revert()
 {
-    QVariantMap r;
+    ModelEditResult r;
     if (!dirty()) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Nothing to revert."));
+        r.ok = false;
+        r.message = tr("Nothing to revert.");
         return r;
     }
 
@@ -5258,8 +5319,8 @@ QVariantMap ModelBrowser::revert()
     pushCommand(tr("Revert"), tr("%n unsaved change(s) discarded", "", before), prior, priorNorms,
                 priorScreens, priorDrills, priorWords);
 
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("message"), tr("Reverted %n change(s)", "", before));
+    r.ok = true;
+    r.message = tr("Reverted %n change(s)", "", before);
     return r;
 }
 
@@ -5268,48 +5329,12 @@ namespace {
 // Every write in this file answers in the author's own terms, never with a log line — so the two
 // shapes an answer can take are written once. Declared here rather than beside the editing block
 // because the reset below is the first caller.
-QVariantMap refuse(const QString &message)
-{
-    QVariantMap r;
-    r.insert(QStringLiteral("ok"), false);
-    r.insert(QStringLiteral("message"), message);
-    return r;
-}
-QVariantMap accept(const QString &message)
-{
-    QVariantMap r;
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("message"), message);
-    return r;
-}
-
-// Copy a user layer aside before it is replaced. COPY rather than rename: the write that follows
-// goes through saveUserPack(), which writes a temporary and renames it over the original — and an
-// original that had already been moved away would leave a window with no file at all.
-//
-// A missing file is a success with nothing to do. That is the ordinary case for an install that has
-// only ever edited one of the two registries.
-bool copyAside(const QString &path, const QString &stamp, QStringList *written, QString *whyNot)
-{
-    if (path.isEmpty() || !QFile::exists(path)) return true;
-
-    QFileInfo     info(path);
-    const QString backup = info.absolutePath() + QLatin1Char('/') + info.completeBaseName()
-                           + QStringLiteral("-") + stamp + QStringLiteral(".backup.")
-                           + info.suffix();
-    QFile::remove(backup);
-    if (!QFile::copy(path, backup)) {
-        if (whyNot)
-            *whyNot = QObject::tr("Could not write the backup %1, so nothing was reset.").arg(backup);
-        return false;
-    }
-    if (written) written->append(backup);
-    return true;
-}
+ModelEditResult refuse(const QString &message) { return ModelEditResult::refused(message); }
+ModelEditResult accept(const QString &message) { return ModelEditResult::accepted(message); }
 
 } // namespace
 
-QVariantMap ModelBrowser::resetToStandard()
+ModelEditResult ModelBrowser::resetToStandard()
 {
     const int overridden = overriddenCount();
     const int authored   = authoredCount();
@@ -5318,14 +5343,12 @@ QVariantMap ModelBrowser::resetToStandard()
 
     // The copies come FIRST. If the backup cannot be written the reset does not happen at all — a
     // reset that half-succeeded would have destroyed the thing the backup existed to protect.
+    // The copies are RuleData's (its repository writes them beside the files: refactor step 3.9).
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
     QStringList   backups;
     QString       whyNot;
-    if (!copyAside(userPackPath(), stamp, &backups, &whyNot))      return refuse(whyNot);
-    if (!copyAside(userNormPath(), stamp, &backups, &whyNot))      return refuse(whyNot);
-    if (!copyAside(userScreenSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
-    if (!copyAside(userDrillSetPath(), stamp, &backups, &whyNot))  return refuse(whyNot);
-    if (!copyAside(userGateWordSetPath(), stamp, &backups, &whyNot)) return refuse(whyNot);
+    if (m_ruleData && !m_ruleData->backupUserLayers(stamp, &backups, &whyNot)) return refuse(whyNot);
+    WriteScope writing(this);
 
     const CharacteristicPack prior        = m_working;
     const NormPack           priorNorms   = m_workingNorms;
@@ -5369,46 +5392,39 @@ QVariantMap ModelBrowser::resetToStandard()
     // Written through immediately. A reset that only cleared the draft would leave the files it just
     // backed up still on disk and the panel reading "n unsaved" — which is not what "reset" means to
     // anybody who clicked it.
-    const bool wrote = saveUserPack(m_working, &whyNot) && saveUserNormPack(m_workingNorms, &whyNot)
-                       && saveUserScreenSet(m_workingScreens, &whyNot)
-                       && saveUserDrillSet(m_workingDrills, &whyNot)
-                       && saveUserGateWordSet(m_workingGateWords, &whyNot);
-    // Whatever landed of the norm set, the shared snapshot is re-read from the file on its next take:
-    // a reset only ever re-reads what is on disk, so it is right whether the write landed or not.
-    resetSharedNormProvider();
+    // Each that lands is RuleData's command and publishes, so the rest of the app reads whatever
+    // landed from its next read on, whether or not the others did.
+    const bool wrote = writeUserPack(&whyNot) && writeUserNorms(&whyNot) && writeUserScreens(&whyNot)
+                       && writeUserDrills(&whyNot) && writeUserGateWords(&whyNot);
     if (!wrote) {
         // The draft is already the standard model and the stack still holds the way back, so this is
         // a failure to PERSIST rather than a failure to reset. Say exactly that.
-        QVariantMap r = refuse(tr("Reset here, but it could not be written to disk. %1").arg(whyNot));
-        r.insert(QStringLiteral("backups"), backups);
+        ModelEditResult r = refuse(tr("Reset here, but it could not be written to disk. %1").arg(whyNot));
+        r.backups = backups;
         return r;
     }
-    resetSharedScreenSet();
-    resetSharedDrillSet();
-    resetSharedGateWordSet();
     m_savedUser      = m_working;
     m_savedNorms     = m_workingNorms;
     m_savedScreens   = m_workingScreens;
     m_savedDrills    = m_workingDrills;
     m_savedGateWords = m_workingGateWords;
     m_savedIndex     = m_stackIndex;
-    invalidateDerived();
+    if (!writing.finish()) invalidateDerived();
 
-    // Everybody else caches their provider, so without this the app keeps grading against the model
-    // that was just reset away until relaunch.
+    // ONE refresh per reset, after the snapshot is taken. The rest of the app follows RuleData's events.
     emit libraryChanged();
 
-    QVariantMap r = accept(backups.isEmpty()
+    ModelEditResult r = accept(backups.isEmpty()
                                ? tr("Back on the standard model.")
                                : tr("Back on the standard model. Your version was copied to %1.")
                                      .arg(QFileInfo(backups.first()).fileName()));
-    r.insert(QStringLiteral("backups"), backups);
+    r.backups = backups;
     return r;
 }
 
 // ── Validation ──────────────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::validation() const
+QList<ModelRow> ModelBrowser::validation() const
 {
     // The health rows of the DRAFT, which is what makes the strip worth having: it grades what you
     // are about to save, not what is already on disk. Codes and their "what to DO" come from the
@@ -5419,22 +5435,22 @@ QVariantList ModelBrowser::validation() const
 int ModelBrowser::validationErrorCount() const
 {
     int n = 0;
-    for (const QVariant &v : validation())
-        if (v.toMap().value(QStringLiteral("severity")).toString() == QStringLiteral("error")) ++n;
+    for (const ModelRow &r : validation())
+        if (r.severity == QStringLiteral("error")) ++n;
     return n;
 }
 
 int ModelBrowser::validationWarningCount() const
 {
     int n = 0;
-    for (const QVariant &v : validation())
-        if (v.toMap().value(QStringLiteral("severity")).toString() == QStringLiteral("warning")) ++n;
+    for (const ModelRow &r : validation())
+        if (r.severity == QStringLiteral("warning")) ++n;
     return n;
 }
 
 // ── Editing ─────────────────────────────────────────────────────────────────
 
-QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const QString &field,
+ModelEditResult ModelBrowser::setField(const QString &type, const QString &id, const QString &field,
                                    const QVariant &value)
 {
     // ONE field on a gate is content rather than analysis: the words a client report prints when the
@@ -6059,7 +6075,7 @@ QVariantMap ModelBrowser::setField(const QString &type, const QString &id, const
     return accept(what);
 }
 
-QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &ids,
+ModelEditResult ModelBrowser::setFieldOnAll(const QString &type, const QStringList &ids,
                                         const QString &field, const QVariant &value)
 {
     // Still refused for gates, golfer words included. Each clause is its own sentence, so one value
@@ -6085,12 +6101,12 @@ QVariantMap ModelBrowser::setFieldOnAll(const QString &type, const QStringList &
     QString firstRefusal;
     QString what;
     for (const QString &id : ids) {
-        const QVariantMap r = setField(type, id, field, value);
-        if (r.value(QStringLiteral("ok")).toBool()) {
+        const ModelEditResult r = setField(type, id, field, value);
+        if (r.ok) {
             ++done;
-            if (what.isEmpty()) what = r.value(QStringLiteral("message")).toString();
+            if (what.isEmpty()) what = r.message;
         } else if (firstRefusal.isEmpty()) {
-            firstRefusal = r.value(QStringLiteral("message")).toString();
+            firstRefusal = r.message;
         }
     }
 
@@ -6158,15 +6174,15 @@ QVariantMap ModelBrowser::linkLegality(const QString &fromId, const QString &toI
     return r;
 }
 
-QVariantList ModelBrowser::ringValues(const QString &type, const QString &id,
-                                      const QString &field) const
+QList<ModelOption> ModelBrowser::ringValues(const QString &type, const QString &id,
+                                            const QString &field) const
 {
     const CharacteristicPack &p = pack();
 
     // What this object holds now, so the collar can mark it — and so releasing on it is the no-op
     // the gesture depends on.
-    QString current;
-    QVariantList options;
+    QString            current;
+    QList<ModelOption> options;
 
     if (type == kLinks && field == QStringLiteral("strength")) {
         QString  from, to;
@@ -6190,9 +6206,8 @@ QVariantList ModelBrowser::ringValues(const QString &type, const QString &id,
         for (const Condition &o : p.conditions) uses[conditionGroupName(o.group)]++;
         options = groupOptions();
         std::stable_sort(options.begin(), options.end(),
-                         [&uses](const QVariant &a, const QVariant &b) {
-                             return uses.value(a.toMap().value(QStringLiteral("value")).toString())
-                                  > uses.value(b.toMap().value(QStringLiteral("value")).toString());
+                         [&uses](const ModelOption &a, const ModelOption &b) {
+                             return uses.value(a.value) > uses.value(b.value);
                          });
     } else if ((type == kCharacteristics || type == kCauses) && field == QStringLiteral("kind")) {
         const Condition *c = p.condition(id);
@@ -6205,9 +6220,8 @@ QVariantList ModelBrowser::ringValues(const QString &type, const QString &id,
         for (const Condition &o : p.conditions) uses[conditionKindName(o.kind)]++;
         options = kindOptions();
         std::stable_sort(options.begin(), options.end(),
-                         [&uses](const QVariant &a, const QVariant &b) {
-                             return uses.value(a.toMap().value(QStringLiteral("value")).toString())
-                                  > uses.value(b.toMap().value(QStringLiteral("value")).toString());
+                         [&uses](const ModelOption &a, const ModelOption &b) {
+                             return uses.value(a.value) > uses.value(b.value);
                          });
     } else if ((type == kCharacteristics || type == kCauses)
                && field == QStringLiteral("prominence")) {
@@ -6229,33 +6243,34 @@ QVariantList ModelBrowser::ringValues(const QString &type, const QString &id,
     // release on. Must match RingMenu's `_maxCells`.
     static constexpr int kCollarCells = 5;
 
-    QVariantList out;
-    bool         haveCurrent = false;
-    for (const QVariant &v : options) {
+    // The options are the enum cells' own (option() above), marked on the way into the collar.
+    const auto marked = [](ModelOption o, bool isCurrent) {
+        o.current = isCurrent;
+        return o;
+    };
+    QList<ModelOption> out;
+    bool               haveCurrent = false;
+    for (const ModelOption &o : options) {
         if (out.size() >= kCollarCells) break;
-        QVariantMap o = v.toMap();
-        const bool  is = o.value(QStringLiteral("value")).toString() == current;
+        const bool is = o.value == current;
         if (is) haveCurrent = true;
-        o.insert(QStringLiteral("current"), is);
-        out.append(o);
+        out.append(marked(o, is));
     }
     if (!haveCurrent && !current.isEmpty()) {
-        for (const QVariant &v : options) {
-            QVariantMap o = v.toMap();
-            if (o.value(QStringLiteral("value")).toString() != current) continue;
-            o.insert(QStringLiteral("current"), true);
+        for (const ModelOption &o : options) {
+            if (o.value != current) continue;
             if (!out.isEmpty()) out.removeLast();   // the least used of the three makes way
-            out.append(o);
+            out.append(marked(o, true));
             break;
         }
     }
     return out;
 }
 
-QVariantMap ModelBrowser::linkRefusals(const QString &fixedId, const QStringList &ids,
-                                       const QString &end) const
+ModelLinkRefusals ModelBrowser::linkRefusals(const QString &fixedId, const QStringList &ids,
+                                             const QString &end) const
 {
-    QVariantMap out;
+    ModelLinkRefusals out;
 
     const CharacteristicPack &p     = pack();
     const Condition          *fixed = p.condition(fixedId);
@@ -6278,10 +6293,10 @@ QVariantMap ModelBrowser::linkRefusals(const QString &fixedId, const QStringList
     }
 
     auto refusal = [&out](const QString &id, const char *reason, const QString &text) {
-        QVariantMap r;
-        r.insert(QStringLiteral("reason"), QString::fromLatin1(reason));
-        r.insert(QStringLiteral("text"), text);
-        out.insert(id, r);
+        ModelLinkRefusal r;
+        r.reason = QString::fromLatin1(reason);
+        r.text   = text;
+        out.byId.insert(id, r);
     };
 
     for (const QString &id : ids) {
@@ -6302,7 +6317,7 @@ QVariantMap ModelBrowser::linkRefusals(const QString &fixedId, const QStringList
     return out;
 }
 
-QVariantMap ModelBrowser::addLink(const QString &fromId, const QString &toId,
+ModelEditResult ModelBrowser::addLink(const QString &fromId, const QString &toId,
                                   const QString &relation, const QString &strength)
 {
     const CharacteristicPack &p = pack();
@@ -6344,15 +6359,15 @@ QVariantMap ModelBrowser::addLink(const QString &fromId, const QString &toId,
     rebuild();
     const QString what = tr("%1 %2 %3").arg(fromLabel, relation, toLabel);
     pushCommand(tr("Link added"), what, before, m_workingNorms);
-    QVariantMap r = accept(what);
+    ModelEditResult r = accept(what);
     // The id of what was just made, so the caller can select it. The graph's drag opens the
     // inspector on the new link — strength is one click away there, which is the whole reason the
     // drag does not stop to ask for it.
-    r.insert(QStringLiteral("edgeId"), edgeId(fromId, toId, type));
+    r.edgeId = edgeId(fromId, toId, type);
     return r;
 }
 
-QVariantMap ModelBrowser::removeLink(const QString &fromId, const QString &toId,
+ModelEditResult ModelBrowser::removeLink(const QString &fromId, const QString &toId,
                                      const QString &relation)
 {
     EdgeType type{};
@@ -6397,7 +6412,7 @@ QVariantMap ModelBrowser::removeLink(const QString &fromId, const QString &toId,
     return accept(tr("Removed: %1").arg(what));
 }
 
-QVariantMap ModelBrowser::repointCause(const QString &edgeIdIn, const QString &end,
+ModelEditResult ModelBrowser::repointCause(const QString &edgeIdIn, const QString &end,
                                        const QString &newId)
 {
     QString  oldFrom, oldTo;
@@ -6461,8 +6476,8 @@ QVariantMap ModelBrowser::repointCause(const QString &edgeIdIn, const QString &e
     const QString what = movingFrom ? tr("%1 → %2, from %3").arg(newLabel, keptLabel, oldLabel)
                                     : tr("%1 → %2, was %3").arg(keptLabel, newLabel, oldLabel);
     pushCommand(tr("Link re-pointed"), what, before, m_workingNorms);
-    QVariantMap r = accept(what);
-    r.insert(QStringLiteral("edgeId"), edgeId(newFrom, newTo, type));
+    ModelEditResult r = accept(what);
+    r.edgeId = edgeId(newFrom, newTo, type);
     return r;
 }
 
@@ -6473,7 +6488,7 @@ QVariantMap ModelBrowser::repointCause(const QString &edgeIdIn, const QString &e
 // states, so dropping them and re-pushing from `before` is what makes the whole selection a single
 // undo step rather than N of them.
 
-QVariantMap ModelBrowser::removeCause(const QStringList &edgeIds)
+ModelEditResult ModelBrowser::removeCause(const QStringList &edgeIds)
 {
     if (edgeIds.isEmpty()) return refuse(tr("Nothing selected."));
     if (edgeIds.size() == 1) return removeObject(kLinks, edgeIds.first());
@@ -6484,9 +6499,9 @@ QVariantMap ModelBrowser::removeCause(const QStringList &edgeIds)
     int     done = 0;
     QString firstRefusal;
     for (const QString &id : edgeIds) {
-        const QVariantMap r = removeObject(kLinks, id);
-        if (r.value(QStringLiteral("ok")).toBool()) ++done;
-        else if (firstRefusal.isEmpty()) firstRefusal = r.value(QStringLiteral("message")).toString();
+        const ModelEditResult r = removeObject(kLinks, id);
+        if (r.ok) ++done;
+        else if (firstRefusal.isEmpty()) firstRefusal = r.message;
     }
 
     if (done > 0) {
@@ -6501,7 +6516,7 @@ QVariantMap ModelBrowser::removeCause(const QStringList &edgeIds)
     return accept(tr("%n link(s) removed", "", done));
 }
 
-QVariantMap ModelBrowser::removeObjects(const QString &type, const QStringList &ids)
+ModelEditResult ModelBrowser::removeObjects(const QString &type, const QStringList &ids)
 {
     if (type == kGates)
         return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
@@ -6518,9 +6533,9 @@ QVariantMap ModelBrowser::removeObjects(const QString &type, const QStringList &
     int     done = 0;
     QString firstRefusal;
     for (const QString &id : ids) {
-        const QVariantMap r = removeObject(type, id);
-        if (r.value(QStringLiteral("ok")).toBool()) ++done;
-        else if (firstRefusal.isEmpty()) firstRefusal = r.value(QStringLiteral("message")).toString();
+        const ModelEditResult r = removeObject(type, id);
+        if (r.ok) ++done;
+        else if (firstRefusal.isEmpty()) firstRefusal = r.message;
     }
 
     if (done > 0) {
@@ -6536,12 +6551,12 @@ QVariantMap ModelBrowser::removeObjects(const QString &type, const QStringList &
     return accept(tr("%n object(s) removed", "", done));
 }
 
-QVariantMap ModelBrowser::setCauseStrength(const QStringList &edgeIds, const QString &strength)
+ModelEditResult ModelBrowser::setCauseStrength(const QStringList &edgeIds, const QString &strength)
 {
     return setFieldOnAll(kLinks, edgeIds, QStringLiteral("strength"), strength);
 }
 
-QVariantMap ModelBrowser::addMeasureTo(const QString &conditionId, const QString &measureId,
+ModelEditResult ModelBrowser::addMeasureTo(const QString &conditionId, const QString &measureId,
                                        const QString &direction)
 {
     const CharacteristicPack &p = pack();
@@ -6625,7 +6640,7 @@ QVariantMap ModelBrowser::addMeasureTo(const QString &conditionId, const QString
     return accept(what);
 }
 
-QVariantMap ModelBrowser::removeMeasureFrom(const QString &conditionId, const QString &measureId)
+ModelEditResult ModelBrowser::removeMeasureFrom(const QString &conditionId, const QString &measureId)
 {
     const CharacteristicPack &p = pack();
     const Measure            *m = p.measure(measureId);
@@ -6670,7 +6685,7 @@ QVariantMap ModelBrowser::removeMeasureFrom(const QString &conditionId, const QS
 // rather than hidden — with one preferred key, which is every ladder the library ships, the order is
 // fully determined and the gap costs nothing. The day a measure wants two, this is where the
 // reordering gesture goes.
-QVariantMap ModelBrowser::addPreferKey(const QString &measureId, const QString &metricKey)
+ModelEditResult ModelBrowser::addPreferKey(const QString &measureId, const QString &metricKey)
 {
     const CharacteristicPack &p = pack();
     const Measure            *m = p.measure(measureId);
@@ -6708,7 +6723,7 @@ QVariantMap ModelBrowser::addPreferKey(const QString &measureId, const QString &
     return accept(what);
 }
 
-QVariantMap ModelBrowser::removePreferKey(const QString &measureId, const QString &metricKey)
+ModelEditResult ModelBrowser::removePreferKey(const QString &measureId, const QString &metricKey)
 {
     const CharacteristicPack before = m_working;
     Measure                 *w      = workingMeasure(measureId);
@@ -6751,7 +6766,7 @@ QString mintId(const QString &fromLabel, const QString &prefix, const QString &f
 
 } // namespace
 
-QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
+ModelEditResult ModelBrowser::duplicate(const QString &type, const QString &id)
 {
     if (type == kGates)
         return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
@@ -6777,9 +6792,9 @@ QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
         rebuild();
         pushCommand(tr("Duplicated"), s.label, m_working, m_workingNorms, screensBefore,
                     m_workingDrills);
-        QVariantMap r = accept(tr("Created %1").arg(s.label));
-        r.insert(QStringLiteral("id"), s.id);
-        r.insert(QStringLiteral("type"), kScreens);
+        ModelEditResult r = accept(tr("Created %1").arg(s.label));
+        r.id = s.id;
+        r.type = kScreens;
         return r;
     }
     if (type == kDrills) {
@@ -6796,9 +6811,9 @@ QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
         rebuild();
         pushCommand(tr("Duplicated"), d.label, m_working, m_workingNorms, m_workingScreens,
                     drillsBefore);
-        QVariantMap r = accept(tr("Created %1").arg(d.label));
-        r.insert(QStringLiteral("id"), d.id);
-        r.insert(QStringLiteral("type"), kDrills);
+        ModelEditResult r = accept(tr("Created %1").arg(d.label));
+        r.id = d.id;
+        r.type = kDrills;
         return r;
     }
 
@@ -6853,13 +6868,13 @@ QVariantMap ModelBrowser::duplicate(const QString &type, const QString &id)
     rebuild();
     pushCommand(tr("Duplicated"), c.label, before, m_workingNorms);
 
-    QVariantMap r = accept(tr("Created %1").arg(c.label));
-    r.insert(QStringLiteral("id"), newId);
-    r.insert(QStringLiteral("type"), kCharacteristics);
+    ModelEditResult r = accept(tr("Created %1").arg(c.label));
+    r.id = newId;
+    r.type = kCharacteristics;
     return r;
 }
 
-QVariantMap ModelBrowser::removeObject(const QString &type, const QString &id)
+ModelEditResult ModelBrowser::removeObject(const QString &type, const QString &id)
 {
     if (type == kGates)
         return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
@@ -6880,8 +6895,8 @@ QVariantMap ModelBrowser::removeObject(const QString &type, const QString &id)
     // dangling join rather than a loose end.
     if (type == kScreens || type == kDrills) {
         const bool isScreen  = type == kScreens;
-        const bool isShipped = isScreen ? coreScreenSet().screen(id) != nullptr
-                                        : coreDrillSet().drill(id) != nullptr;
+        const bool isShipped = isScreen ? m_snap->screens->core.screen(id) != nullptr
+                                        : m_snap->drills->core.drill(id) != nullptr;
         const bool inWorking = isScreen ? m_workingScreens.screen(id) != nullptr
                                         : m_workingDrills.drill(id) != nullptr;
         if (!inWorking)
@@ -6972,7 +6987,7 @@ QVariantMap ModelBrowser::removeObject(const QString &type, const QString &id)
 // the screen, and an API that made them address the condition would be an API that matched the file
 // format rather than the work.
 
-QVariantMap ModelBrowser::addScreenSettles(const QString &screenId, const QString &conditionId)
+ModelEditResult ModelBrowser::addScreenSettles(const QString &screenId, const QString &conditionId)
 {
     const Screen *s = m_screens.screen(screenId);
     if (!s) return refuse(tr("No screen with id %1.").arg(screenId));
@@ -7008,7 +7023,7 @@ QVariantMap ModelBrowser::addScreenSettles(const QString &screenId, const QStrin
                       : tr("“%1” now settles %2").arg(screenLabel, c->label));
 }
 
-QVariantMap ModelBrowser::removeScreenSettles(const QString &screenId, const QString &conditionId)
+ModelEditResult ModelBrowser::removeScreenSettles(const QString &screenId, const QString &conditionId)
 {
     const Condition *target = pack().condition(conditionId);
     if (!target) return refuse(tr("No characteristic with id %1.").arg(conditionId));
@@ -7027,7 +7042,7 @@ QVariantMap ModelBrowser::removeScreenSettles(const QString &screenId, const QSt
     return accept(tr("No longer settles %1").arg(c->label));
 }
 
-QVariantMap ModelBrowser::addDrillAnswers(const QString &drillId, const QString &conditionId)
+ModelEditResult ModelBrowser::addDrillAnswers(const QString &drillId, const QString &conditionId)
 {
     const Drill *d = m_drills.drill(drillId);
     if (!d) return refuse(tr("No drill with id %1.").arg(drillId));
@@ -7050,7 +7065,7 @@ QVariantMap ModelBrowser::addDrillAnswers(const QString &drillId, const QString 
     return accept(tr("“%1” now answers %2").arg(drillLabel, c->label));
 }
 
-QVariantMap ModelBrowser::removeDrillAnswers(const QString &drillId, const QString &conditionId)
+ModelEditResult ModelBrowser::removeDrillAnswers(const QString &drillId, const QString &conditionId)
 {
     const Condition *target = pack().condition(conditionId);
     if (!target) return refuse(tr("No characteristic with id %1.").arg(conditionId));
@@ -7072,20 +7087,20 @@ QVariantMap ModelBrowser::removeDrillAnswers(const QString &drillId, const QStri
 namespace {
 
 // The candidate row shape linkCandidates() returns, so ModelPicker renders all of them alike.
-QVariantMap candidateRow(const QString &id, const QString &label, const QString &detail)
+ModelCandidate candidateRow(const QString &id, const QString &label, const QString &detail)
 {
-    QVariantMap m;
-    m.insert(QStringLiteral("id"), id);
-    m.insert(QStringLiteral("label"), label);
-    m.insert(QStringLiteral("detail"), detail);
+    ModelCandidate m;
+    m.id     = id;
+    m.label  = label;
+    m.detail = detail;
     return m;
 }
 
 } // namespace
 
-QVariantList ModelBrowser::screenCandidates(const QString &screenId, const QString &search) const
+QList<ModelCandidate> ModelBrowser::screenCandidates(const QString &screenId, const QString &search) const
 {
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const Condition &c : pack().conditions) {
         // Already settled by THIS screen is not a candidate. Settled by another one still is — and
         // it says so, because reassigning is a real edit and the author should see they are taking
@@ -7103,9 +7118,9 @@ QVariantList ModelBrowser::screenCandidates(const QString &screenId, const QStri
     return out;
 }
 
-QVariantList ModelBrowser::drillCandidates(const QString &drillId, const QString &search) const
+QList<ModelCandidate> ModelBrowser::drillCandidates(const QString &drillId, const QString &search) const
 {
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const Condition &c : pack().conditions) {
         if (c.drills.contains(drillId)) continue;
         if (!search.isEmpty() && !matches(c.label + QLatin1Char(' ') + c.id, search)) continue;
@@ -7117,7 +7132,7 @@ QVariantList ModelBrowser::drillCandidates(const QString &drillId, const QString
     return out;
 }
 
-QVariantList ModelBrowser::conditionDrillCandidates(const QString &conditionId,
+QList<ModelCandidate> ModelBrowser::conditionDrillCandidates(const QString &conditionId,
                                                    const QString &search) const
 {
     const CharacteristicPack &p = pack();
@@ -7127,7 +7142,7 @@ QVariantList ModelBrowser::conditionDrillCandidates(const QString &conditionId,
     // From m_drills, the DRAFT's registry — not sharedDrillSet(), which is the files. A drill written
     // in this panel a minute ago is exactly the one an author is about to attach, and the shared set
     // would not have it until the save.
-    QVariantList out;
+    QList<ModelCandidate> out;
     for (const Drill &d : m_drills.drills) {
         if (c->drills.contains(d.id)) continue;
         if (!search.isEmpty()
@@ -7147,8 +7162,8 @@ QVariantList ModelBrowser::conditionDrillCandidates(const QString &conditionId,
 // the draft: a keystroke is not an edit, and pushing one would put a command on the stack per
 // character. The field is applied to the copy exactly as setField() would store it — reportHold
 // trimmed, the sign parsed — so the line under the field describes what a commit would write.
-QVariantList ModelBrowser::fieldIssues(const QString &type, const QString &id, const QString &field,
-                                       const QVariant &value) const
+QList<ModelFieldIssue> ModelBrowser::fieldIssues(const QString &type, const QString &id,
+                                                 const QString &field, const QVariant &value) const
 {
     const QString text = value.toString();
 
@@ -7196,10 +7211,10 @@ QVariantList ModelBrowser::fieldIssues(const QString &type, const QString &id, c
     return {};
 }
 
-QVariantList ModelBrowser::linksCitingReference(const QString &refId) const
+QList<ModelInspectorRow> ModelBrowser::linksCitingReference(const QString &refId) const
 {
-    QVariantList out;
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    QList<ModelInspectorRow> out;
+    const Reference *ref = refs().reference(refId);
     if (!ref) return out;
 
     // Any of the three identifiers, as the row list joins them: a handful of journals issue no DOI,
@@ -7222,15 +7237,15 @@ QVariantList ModelBrowser::linksCitingReference(const QString &refId) const
         // section happens to read still meets every other binding in the delegate, which evaluates
         // them whether or not that section is the visible one. Three missing keys here were four
         // "Unable to assign [undefined]" warnings per repaint.
-        QVariantMap m = hubRow(kLinks, edgeId(e.from, e.to, e.type),
+        ModelInspectorRow m = hubRow(kLinks, edgeId(e.from, e.to, e.type),
                                tr("%1 → %2").arg(f ? f->label : e.from, t ? t->label : e.to),
                                provenanceTierLabel(e.provenance.tier));
-        m.insert(QStringLiteral("relation"), edgeTypeName(e.type));
+        m.relation = edgeTypeName(e.type);
         // The strength is the editable part: the citation is imported, the claim resting on it is
         // ours. QML writes it back through the ordinary setField("links", …).
-        m.insert(QStringLiteral("strength"), strengthName(e.strength));
-        m.insert(QStringLiteral("strengthLabel"), strengthLabel(e.strength));
-        m.insert(QStringLiteral("options"), strengthOptions());
+        m.strength      = strengthName(e.strength);
+        m.strengthLabel = strengthLabel(e.strength);
+        m.options       = strengthOptions();
         out.append(m);
     }
     return out;
@@ -7238,21 +7253,21 @@ QVariantList ModelBrowser::linksCitingReference(const QString &refId) const
 
 QString ModelBrowser::referenceCsl(const QString &refId) const
 {
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    const Reference *ref = refs().reference(refId);
     if (!ref) return QString();
     // A one-record set through the real exporter, so the copied text is byte-for-byte what the
     // whole-set export would have written for this entry. A second hand-rolled serialiser here would
     // drift the first time the CSL mapping changed.
     ReferenceSet one;
-    one.id      = sharedReferenceSet().id;
-    one.version = sharedReferenceSet().version;
+    one.id      = refs().id;
+    one.version = refs().version;
     one.references.push_back(*ref);
     return QString::fromUtf8(exportReferenceSetCsl(one));
 }
 
 QString ModelBrowser::referenceDoiUrl(const QString &refId) const
 {
-    const Reference *ref = sharedReferenceSet().reference(refId);
+    const Reference *ref = refs().reference(refId);
     if (!ref || ref->doi.isEmpty()) return QString();
     return QStringLiteral("https://doi.org/") + ref->doi;
 }
@@ -7295,15 +7310,21 @@ Norm *ModelBrowser::workingNorm(const QString &measureId, const QString &context
     copy.measureId = measureId;
     copy.contextId = contextId;   // seated HERE, even when it was inherited from an ancestor
     copy.cohort    = Cohort{};
+    // The shipped row's STANDING is not the user's (refactor step 3.2, DEC-127): "provisional, decided
+    // by Mark" describes the shipped figure, not the one being nudged here. Copied, it would put that
+    // decision on the user's own numbers and lift user.norms.json to schema 3 with no standing added.
+    copy.standing  = NormStanding::Unstated;
+    copy.decidedBy.clear();
+    copy.decidedOn = QDate();
     m_workingNorms.norms.push_back(copy);
     return &m_workingNorms.norms.back();
 }
 
-QVariantList ModelBrowser::corridorContexts(const QString &measureId) const
+QList<ModelCorridorContext> ModelBrowser::corridorContexts(const QString &measureId) const
 {
     const ContextTree &tree = m_norms->contexts();
 
-    QVariantList out;
+    QList<ModelCorridorContext> out;
     for (const QString &id : tree.inOrder()) {
         const ContextNode *node = tree.node(id);
         if (!node) continue;
@@ -7322,22 +7343,22 @@ QVariantList ModelBrowser::corridorContexts(const QString &measureId) const
         if (res.found() && res.inherited)
             if (const ContextNode *src = tree.node(res.contextId)) fromLabel = src->label;
 
-        QVariantMap r;
-        r.insert(QStringLiteral("id"), id);
-        r.insert(QStringLiteral("label"), node->label);
-        r.insert(QStringLiteral("depth"), tree.depth(id));
-        r.insert(QStringLiteral("found"), res.found());
-        r.insert(QStringLiteral("own"), own);
-        r.insert(QStringLiteral("inherited"), res.found() && res.inherited);
-        r.insert(QStringLiteral("inheritedFrom"), fromLabel);
-        r.insert(QStringLiteral("mu"), res.found() ? res.norm->mu : 0.0);
-        r.insert(QStringLiteral("unit"), res.found() ? res.norm->unit : QString());
+        ModelCorridorContext r;
+        r.id = id;
+        r.label = node->label;
+        r.depth = tree.depth(id);
+        r.found = res.found();
+        r.own = own;
+        r.inherited = res.found() && res.inherited;
+        r.inheritedFrom = fromLabel;
+        r.mu = res.found() ? res.norm->mu : 0.0;
+        r.unit = res.found() ? res.norm->unit : QString();
         out.append(r);
     }
     return out;
 }
 
-QVariantMap ModelBrowser::addCorridor(const QString &measureId, const QString &contextId)
+ModelEditResult ModelBrowser::addCorridor(const QString &measureId, const QString &contextId)
 {
     const Measure *m = pack().measure(measureId);
     if (!m) return refuse(tr("No measure with id %1.").arg(measureId));
@@ -7379,13 +7400,13 @@ QVariantMap ModelBrowser::addCorridor(const QString &measureId, const QString &c
     const QString what = tr("%1 at %2").arg(measureLabel, contextId);
     pushCommand(tr("Corridor added"), what, beforePack, beforeNorms);
 
-    QVariantMap r = accept(what);
-    r.insert(QStringLiteral("id"), corridorId(measureId, contextId));
-    r.insert(QStringLiteral("type"), kCorridors);
+    ModelEditResult r = accept(what);
+    r.id = corridorId(measureId, contextId);
+    r.type = kCorridors;
     return r;
 }
 
-QVariantMap ModelBrowser::adoptCorridor(const QString &measureId, const QString &contextId,
+ModelEditResult ModelBrowser::adoptCorridor(const QString &measureId, const QString &contextId,
                                         const QString &fromContextId)
 {
     const NormResolution src = m_norms->resolve(measureId, fromContextId);
@@ -7416,7 +7437,7 @@ QVariantMap ModelBrowser::adoptCorridor(const QString &measureId, const QString 
     return accept(what);
 }
 
-QVariantMap ModelBrowser::resetCorridor(const QString &measureId, const QString &contextId)
+ModelEditResult ModelBrowser::resetCorridor(const QString &measureId, const QString &contextId)
 {
     bool have = false;
     for (const Norm &n : m_workingNorms.norms)
@@ -7490,7 +7511,7 @@ QVariantList ModelBrowser::bindingsOf(const QString &conditionId) const
     return out;
 }
 
-QVariantMap ModelBrowser::setBinding(const QString &conditionId, const QString &contextId,
+ModelEditResult ModelBrowser::setBinding(const QString &conditionId, const QString &contextId,
                                      bool applicable, bool material)
 {
     const ContextTree &tree = m_norms->contexts();
@@ -7542,12 +7563,12 @@ QVariantMap ModelBrowser::setBinding(const QString &conditionId, const QString &
                 cascaded > 0 ? tr("%1 · %n narrower row(s) cleared", "", cascaded).arg(what) : what,
                 before, normsBefore);
 
-    QVariantMap r = accept(what);
-    r.insert(QStringLiteral("cascaded"), cascaded);
+    ModelEditResult r = accept(what);
+    r.cascaded = cascaded;
     return r;
 }
 
-QVariantMap ModelBrowser::clearBinding(const QString &conditionId, const QString &contextId)
+ModelEditResult ModelBrowser::clearBinding(const QString &conditionId, const QString &contextId)
 {
     const CharacteristicPack before      = m_working;
     const NormPack           normsBefore = m_workingNorms;
@@ -7602,20 +7623,23 @@ bool sameReducer(const Reducer &a, const Reducer &b)
 
 // The facet map QML hands back, as a Series + Reducer. One reader, so a key typed two ways cannot
 // mean two things in two places.
-bool readFacets(const QVariantMap &f, Series &series, Reducer &reducer, QString &whyNot)
+// The mint's four facets, as previewMeasure() and mintMeasure() take them.
+struct MintFacets { QString what, quantity, reference, anchor; };
+
+bool readFacets(const MintFacets &f, Series &series, Reducer &reducer, QString &whyNot)
 {
     AnatomyRole what{}, reference{};
     Quantity    quantity{};
 
-    if (!roleFromName(f.value(QStringLiteral("what")).toString(), what)) {
+    if (!roleFromName(f.what, what)) {
         whyNot = QObject::tr("Pick what is being measured.");
         return false;
     }
-    if (!quantityFromName(f.value(QStringLiteral("quantity")).toString(), quantity)) {
+    if (!quantityFromName(f.quantity, quantity)) {
         whyNot = QObject::tr("Pick a quantity.");
         return false;
     }
-    if (!roleFromName(f.value(QStringLiteral("reference")).toString(), reference)) {
+    if (!roleFromName(f.reference, reference)) {
         whyNot = QObject::tr("Pick what it is measured against.");
         return false;
     }
@@ -7624,7 +7648,7 @@ bool readFacets(const QVariantMap &f, Series &series, Reducer &reducer, QString 
     series.reference = reference;
 
     Phase anchor{};
-    if (!phaseFromToken(f.value(QStringLiteral("anchor"), QStringLiteral("p1")).toString(), anchor))
+    if (!phaseFromToken(f.anchor, anchor))
         anchor = Phase::Address;
     reducer.kind   = ReducerKind::At;
     reducer.anchor = anchor;
@@ -7634,63 +7658,62 @@ bool readFacets(const QVariantMap &f, Series &series, Reducer &reducer, QString 
 
 } // namespace
 
-QVariantMap ModelBrowser::previewMeasure(const QVariantMap &facets) const
+ModelMeasurePreview ModelBrowser::previewMeasure(const QString &what, const QString &quantity,
+                                                 const QString &reference, const QString &anchor) const
 {
-    QVariantMap out;
-    Series      series;
-    Reducer     reducer;
-    QString     whyNot;
+    ModelMeasurePreview out;
+    Series              series;
+    Reducer             reducer;
+    QString             whyNot;
 
-    if (!readFacets(facets, series, reducer, whyNot)) {
-        out.insert(QStringLiteral("valid"), false);
-        out.insert(QStringLiteral("reason"), whyNot);
+    if (!readFacets({ what, quantity, reference, anchor }, series, reducer, whyNot)) {
+        out.valid  = false;
+        out.reason = whyNot;
         return out;
     }
 
     // The validity table, not a guess. A measure an author can build and the loader then rejects is
     // worse than one the picker refused to offer.
     const FacetCheck check = validateSeries(series);
-    out.insert(QStringLiteral("valid"), check.valid);
-    out.insert(QStringLiteral("reason"), check.reason);
+    out.valid  = check.valid;
+    out.reason = check.reason;
     if (!check.valid) return out;
 
     const QString id    = canonicalMeasureId(series, reducer);
     const QString label = canonicalMeasureLabel(series, reducer);
-    out.insert(QStringLiteral("id"), id);
-    out.insert(QStringLiteral("label"), label);
+    out.id    = id;
+    out.label = label;
 
     // Structural identity is the SERIES tuple. An exact match means reuse it; one facet different
     // means a near-duplicate, and that has to be surfaced AT CREATION because after the fact nobody
     // merges them. This is the primary defence against a library that fills with almost-identical
     // measures inside a month.
-    QVariantList near;
     for (const Measure &m : pack().measures) {
         if (m.kind != MeasureKind::Composed) continue;
         if (m.series == series && sameReducer(m.reducer, reducer)) {
-            QVariantMap e;
-            e.insert(QStringLiteral("id"), m.id);
-            e.insert(QStringLiteral("label"), measureDisplayLabel(m));
-            out.insert(QStringLiteral("exactMatch"), e);
+            out.hasExactMatch    = true;
+            out.exactMatch.id    = m.id;
+            out.exactMatch.label = measureDisplayLabel(m);
             continue;
         }
         if (isNearDuplicate(m.series, series)) {
-            QVariantMap e;
-            e.insert(QStringLiteral("id"), m.id);
-            e.insert(QStringLiteral("label"), measureDisplayLabel(m));
-            e.insert(QStringLiteral("detail"), measureStatusLabel(m.status));
-            near.append(e);
+            ModelCandidate e;
+            e.id     = m.id;
+            e.label  = measureDisplayLabel(m);
+            e.detail = measureStatusLabel(m.status);
+            out.nearDuplicates.append(e);
         }
     }
-    out.insert(QStringLiteral("nearDuplicates"), near);
     return out;
 }
 
-QVariantMap ModelBrowser::mintMeasure(const QVariantMap &facets)
+ModelEditResult ModelBrowser::mintMeasure(const QString &what, const QString &quantity,
+                                          const QString &reference, const QString &anchor)
 {
     Series  series;
     Reducer reducer;
     QString whyNot;
-    if (!readFacets(facets, series, reducer, whyNot)) return refuse(whyNot);
+    if (!readFacets({ what, quantity, reference, anchor }, series, reducer, whyNot)) return refuse(whyNot);
 
     const FacetCheck check = validateSeries(series);
     if (!check.valid) return refuse(check.reason);
@@ -7724,17 +7747,17 @@ QVariantMap ModelBrowser::mintMeasure(const QVariantMap &facets)
     const QString label = measureDisplayLabel(m);
     pushCommand(tr("Measure created"), label, before, normsBefore);
 
-    QVariantMap r = accept(tr("Created %1").arg(label));
-    r.insert(QStringLiteral("id"), id);
-    r.insert(QStringLiteral("type"), kMeasures);
+    ModelEditResult r = accept(tr("Created %1").arg(label));
+    r.id = id;
+    r.type = kMeasures;
     return r;
 }
 
-QVariantMap ModelBrowser::seedFacetsFromPhrase(const QString &phrase) const
+ModelFacetSeed ModelBrowser::seedFacetsFromPhrase(const QString &phrase) const
 {
     // A typed phrase SEEDS the chips; it is not a query. Wrong guesses are corrected by tapping,
     // which is far easier than rephrasing a search that returned nothing.
-    QVariantMap out;
+    ModelFacetSeed out;
     const QString p = phrase.trimmed().toLower();
     if (p.isEmpty()) return out;
 
@@ -7742,59 +7765,57 @@ QVariantMap ModelBrowser::seedFacetsFromPhrase(const QString &phrase) const
         const QString label = roleLabel(r).toLower();
         if (label.isEmpty()) continue;
         if (p.contains(label)) {
-            if (!out.contains(QStringLiteral("what")))      out.insert(QStringLiteral("what"),
-                                                                       roleName(r));
-            else if (!out.contains(QStringLiteral("reference")))
-                out.insert(QStringLiteral("reference"), roleName(r));
+            if (out.what.isEmpty())           out.what      = roleName(r);
+            else if (out.reference.isEmpty()) out.reference = roleName(r);
         }
     }
     for (Quantity q : allQuantities())
         if (p.contains(quantityLabel(q).toLower()))
-            out.insert(QStringLiteral("quantity"), quantityName(q));
+            out.quantity = quantityName(q);
     return out;
 }
 
-QVariantList ModelBrowser::anatomyRoles() const
+QList<ModelOption> ModelBrowser::anatomyRoles() const
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (AnatomyRole r : allRoles())
         l.append(option(roleName(r), roleLabel(r)));
     return l;
 }
 
-QVariantList ModelBrowser::quantitiesFor(const QString &whatRole) const
+QList<ModelOption> ModelBrowser::quantitiesFor(const QString &whatRole) const
 {
     AnatomyRole what{};
     if (!roleFromName(whatRole, what)) return {};
-    QVariantList l;
+    QList<ModelOption> l;
     // Gated by the validity table, so the picker never offers something it will then reject.
     for (Quantity q : legalQuantitiesFor(what)) l.append(option(quantityName(q), quantityLabel(q)));
     return l;
 }
 
-QVariantList ModelBrowser::referencesFor(const QString &whatRole, const QString &quantity) const
+QList<ModelOption> ModelBrowser::referencesFor(const QString &whatRole, const QString &quantity) const
 {
     AnatomyRole what{};
     Quantity    q{};
     if (!roleFromName(whatRole, what) || !quantityFromName(quantity, q)) return {};
-    QVariantList l;
+    QList<ModelOption> l;
     for (AnatomyRole r : legalReferencesFor(what, q))
         l.append(option(roleName(r), roleLabel(r)));
     return l;
 }
 
-QVariantList ModelBrowser::reducerKinds() const
+QList<ModelOption> ModelBrowser::reducerKinds() const
 {
-    QVariantList l;
+    QList<ModelOption> l;
     for (ReducerKind k : { ReducerKind::At, ReducerKind::Delta, ReducerKind::Rate,
                            ReducerKind::Extremum })
         l.append(option(reducerKindName(k), reducerKindName(k)));
     return l;
 }
 
-QVariantList ModelBrowser::phases() const
+QList<ModelOption> ModelBrowser::phases() const
 {
-    QVariantList l;
+    QList<ModelOption> l;
     // The swing's own order, spelled once. There is no allPhases() to lean on, and this is the same
     // sequence the old editor's picker used — P-positions are what coaches and the content speak in.
     for (Phase p : { Phase::Address, Phase::ShaftParallelBack, Phase::MidBackswing, Phase::Top,
@@ -7806,7 +7827,7 @@ QVariantList ModelBrowser::phases() const
 
 // ── A blank object ──────────────────────────────────────────────────────────
 
-QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
+ModelEditResult ModelBrowser::createObject(const QString &type, const QString &name)
 {
     if (type == kGates)
         return refuse(tr("Gates are read-only here: each is part of the analysis and changes with it."));
@@ -7830,10 +7851,10 @@ QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
         // It lands carrying two validation warnings — no protocol, no pass criterion — and that is
         // correct: a screen nobody could run and whose answer is unrecordable is exactly what a
         // blank one is, and the health list should say so from the first second.
-        QVariantMap r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(s.label)
+        ModelEditResult r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(s.label)
                                                : tr("Created %1").arg(s.label));
-        r.insert(QStringLiteral("id"), s.id);
-        r.insert(QStringLiteral("type"), kScreens);
+        r.id = s.id;
+        r.type = kScreens;
         return r;
     }
     if (type == kDrills) {
@@ -7848,10 +7869,10 @@ QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
         rebuild();
         pushCommand(tr("Created"), d.label, m_working, m_workingNorms, m_workingScreens,
                     drillsBefore);
-        QVariantMap r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(d.label)
+        ModelEditResult r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(d.label)
                                                : tr("Created %1").arg(d.label));
-        r.insert(QStringLiteral("id"), d.id);
-        r.insert(QStringLiteral("type"), kDrills);
+        r.id = d.id;
+        r.type = kDrills;
         return r;
     }
 
@@ -7879,14 +7900,14 @@ QVariantMap ModelBrowser::createObject(const QString &type, const QString &name)
     rebuild();
     pushCommand(tr("Created"), c.label, before, normsBefore);
 
-    QVariantMap r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(c.label)
+    ModelEditResult r = accept(given.isEmpty() ? tr("Created %1 — give it a name").arg(c.label)
                                            : tr("Created %1").arg(c.label));
-    r.insert(QStringLiteral("id"), id);
-    r.insert(QStringLiteral("type"), kCharacteristics);
+    r.id = id;
+    r.type = kCharacteristics;
     return r;
 }
 
-QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &name,
+ModelEditResult ModelBrowser::createAndAttach(const QString &type, const QString &name,
                                           const QString &otherId, const QString &end)
 {
     if (type == kGates)
@@ -7919,16 +7940,16 @@ QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &na
         rebuild();
     };
 
-    const QVariantMap made = createObject(type, name);
-    if (!made.value(QStringLiteral("ok")).toBool()) return made;
-    const QString newId = made.value(QStringLiteral("id")).toString();
+    const ModelEditResult made = createObject(type, name);
+    if (!made.ok) return made;
+    const QString newId = made.id;
 
     // A screen settles the condition; a drill answers it. Neither is a causal claim, so neither
     // goes anywhere near addLink — the attachment each type actually has is the one it gets.
     if (!isCondition) {
-        const QVariantMap joined = type == kScreens ? addScreenSettles(newId, otherId)
+        const ModelEditResult joined = type == kScreens ? addScreenSettles(newId, otherId)
                                                     : addDrillAnswers(newId, otherId);
-        if (!joined.value(QStringLiteral("ok")).toBool()) { rollBack(); return joined; }
+        if (!joined.ok) { rollBack(); return joined; }
 
         const Condition *otherC = pack().condition(otherId);
         const QString  otherLbl = otherC ? otherC->label : otherId;
@@ -7936,9 +7957,9 @@ QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &na
         m_stackIndex = mark;
         pushCommand(tr("Created and attached"), tr("%1 · %2").arg(name.trimmed(), otherLbl), before,
                     normsBefore, screensBefore, drillsBefore);
-        QVariantMap r = accept(tr("Created %1 and attached it").arg(name.trimmed()));
-        r.insert(QStringLiteral("id"), newId);
-        r.insert(QStringLiteral("type"), type);
+        ModelEditResult r = accept(tr("Created %1 and attached it").arg(name.trimmed()));
+        r.id = newId;
+        r.type = type;
         return r;
     }
 
@@ -7946,8 +7967,8 @@ QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &na
     const QString fromId    = newIsFrom ? newId : otherId;
     const QString toId      = newIsFrom ? otherId : newId;
 
-    const QVariantMap linked = addLink(fromId, toId, QStringLiteral("causes"));
-    if (!linked.value(QStringLiteral("ok")).toBool()) {
+    const ModelEditResult linked = addLink(fromId, toId, QStringLiteral("causes"));
+    if (!linked.ok) {
         // Wind the create back rather than leaving a node the author did not ask for standing on
         // its own. Refusals are not expected here — a condition nothing points at has no ancestors,
         // so it cannot close a cycle — but a half-landed macro is exactly what this function exists
@@ -7970,43 +7991,43 @@ QVariantMap ModelBrowser::createAndAttach(const QString &type, const QString &na
                                    : tr("%1 → %2").arg(otherLabel, newLabel);
     pushCommand(tr("Created and linked"), what, before, m_workingNorms);
 
-    QVariantMap r = accept(tr("Created %1 and linked it").arg(newLabel));
-    r.insert(QStringLiteral("id"), newId);
-    r.insert(QStringLiteral("type"), kCharacteristics);
-    r.insert(QStringLiteral("edgeId"), linked.value(QStringLiteral("edgeId")));
+    ModelEditResult r = accept(tr("Created %1 and linked it").arg(newLabel));
+    r.id = newId;
+    r.type = kCharacteristics;
+    r.edgeId = linked.edgeId;
     return r;
 }
 
 // ── Pack-wide settings ──────────────────────────────────────────────────────
 
-QVariantList ModelBrowser::gradePolicies() const
+QList<ModelGradePolicy> ModelBrowser::gradePolicies() const
 {
-    QVariantList l;
+    QList<ModelGradePolicy> l;
     for (const GradePolicyPreset &p : gradePolicyPresets()) {
-        QVariantMap m;
-        m.insert(QStringLiteral("name"), QString::fromLatin1(p.name));
+        ModelGradePolicy m;
+        m.name  = QString::fromLatin1(p.name);
         // Marked QT_TRANSLATE_NOOP("NormModel", …) where the numbers live (norm.cpp), and
         // translated here, where they are handed to the panel that shows them.
-        m.insert(QStringLiteral("label"), QCoreApplication::translate("NormModel", p.label));
-        m.insert(QStringLiteral("hint"), QCoreApplication::translate("NormModel", p.hint));
+        m.label = QCoreApplication::translate("NormModel", p.label);
+        m.hint  = QCoreApplication::translate("NormModel", p.hint);
         l.append(m);
     }
     return l;
 }
 
-QVariantList ModelBrowser::normSets() const
+QList<ModelNormSet> ModelBrowser::normSets() const
 {
     // The LAYERS, not the assembled set. "merged" is an implementation word and must never reach a
     // user: they need to see the shipped set and their own as separate things, because that is what
     // the override relationship between them means.
-    QVariantList l;
+    QList<ModelNormSet> l;
     for (const NormSetInfo &s : m_norms->layers()) {
-        QVariantMap m;
-        m.insert(QStringLiteral("id"), s.id);
-        m.insert(QStringLiteral("label"), s.label);
-        m.insert(QStringLiteral("normCount"), s.normCount);
-        m.insert(QStringLiteral("readOnly"), s.readOnly);
-        m.insert(QStringLiteral("shipped"), s.origin == PackOrigin::Core);
+        ModelNormSet m;
+        m.id        = s.id;
+        m.label     = s.label;
+        m.normCount = s.normCount;
+        m.readOnly  = s.readOnly;
+        m.shipped   = s.origin == PackOrigin::Core;
         l.append(m);
     }
     return l;
@@ -8054,8 +8075,8 @@ QVariantList ModelBrowser::roadmap() const
             if (g.label.isEmpty()) g.label = measureDisplayLabel(m);
         }
         ++g.samples;
-        for (const QVariant &v : measureUserRows(m.id))
-            g.blocked.insert(v.toMap().value(QStringLiteral("id")).toString());
+        for (const ModelInspectorRow &r : measureUserRows(m.id))
+            g.blocked.insert(r.id);
     }
 
     QVariantList out;
@@ -8167,13 +8188,13 @@ QVariantList ModelBrowser::glossary(const QString &search) const
     return out;
 }
 
-QVariantMap ModelBrowser::exportRoadmap() const
+ModelEditResult ModelBrowser::exportRoadmap() const
 {
-    QVariantMap r;
+    ModelEditResult r;
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     if (dir.isEmpty()) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("No Documents folder to write to."));
+        r.ok = false;
+        r.message = tr("No Documents folder to write to.");
         return r;
     }
 
@@ -8213,26 +8234,26 @@ QVariantMap ModelBrowser::exportRoadmap() const
     const QString path = dir + QStringLiteral("/pinpoint-diagnostics-roadmap.md");
     QFile         f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Could not write to %1.").arg(path));
+        r.ok = false;
+        r.message = tr("Could not write to %1.").arg(path);
         return r;
     }
     f.write(md.toUtf8());
     f.close();
 
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("path"), path);
-    r.insert(QStringLiteral("message"), tr("Exported to %1").arg(path));
+    r.ok = true;
+    r.path = path;
+    r.message = tr("Exported to %1").arg(path);
     return r;
 }
 
-QVariantMap ModelBrowser::exportReferences() const
+ModelEditResult ModelBrowser::exportReferences() const
 {
-    QVariantMap r;
+    ModelEditResult r;
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     if (dir.isEmpty()) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("No Documents folder to write to."));
+        r.ok = false;
+        r.message = tr("No Documents folder to write to.");
         return r;
     }
 
@@ -8242,26 +8263,25 @@ QVariantMap ModelBrowser::exportReferences() const
     const QString path = dir + QStringLiteral("/pinpoint-references.csl.json");
     QFile         f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        r.insert(QStringLiteral("ok"), false);
-        r.insert(QStringLiteral("message"), tr("Could not write to %1.").arg(path));
+        r.ok = false;
+        r.message = tr("Could not write to %1.").arg(path);
         return r;
     }
-    f.write(exportReferenceSetCsl(sharedReferenceSet()));
+    f.write(exportReferenceSetCsl(refs()));
     f.close();
 
-    r.insert(QStringLiteral("ok"), true);
-    r.insert(QStringLiteral("path"), path);
-    r.insert(QStringLiteral("message"), tr("Exported to %1").arg(path));
+    r.ok = true;
+    r.path = path;
+    r.message = tr("Exported to %1").arg(path);
     return r;
 }
 
 // ── The corridor, as a picture ──────────────────────────────────────────────
 
-QVariantMap ModelBrowser::corridorPlot(const QString &measureId, const QString &contextId,
-                                       const QVariantMap &options) const
+ModelCorridorPlot ModelBrowser::corridorPlot(const QString &measureId, const QString &contextId,
+                                             const ModelCorridorPlotOptions &options) const
 {
-    QVariantMap out;
-    out.insert(QStringLiteral("found"), false);
+    ModelCorridorPlot out;   // found: false
 
     const NormResolution res = m_norms->resolve(measureId, contextId);
     if (!res.found()) return out;
@@ -8269,16 +8289,15 @@ QVariantMap ModelBrowser::corridorPlot(const QString &measureId, const QString &
     const Measure *meas = pack().measure(measureId);
 
     CorridorPlotOptions opt;
-    auto num = [&options](const char *key, double def) {
-        const QVariant v = options.value(QString::fromLatin1(key));
-        return v.isValid() ? v.toDouble() : def;
-    };
-    opt.width           = num("width", opt.width);
-    opt.height          = num("height", opt.height);
-    opt.curveSteps      = int(num("curveSteps", opt.curveSteps));
-    opt.maxSamplePoints = int(num("maxSamplePoints", opt.maxSamplePoints));
-    opt.windowMin       = num("windowMin", opt.windowMin);
-    opt.windowMax       = num("windowMax", opt.windowMax);
+    // NaN / -1: not given, and CorridorPlotOptions' default stands.
+    const auto num   = [](double v, double def) { return std::isnan(v) ? def : v; };
+    const auto whole = [](int v, int def) { return v < 0 ? def : v; };
+    opt.width           = num(options.width, opt.width);
+    opt.height          = num(options.height, opt.height);
+    opt.curveSteps      = whole(options.curveSteps, opt.curveSteps);
+    opt.maxSamplePoints = whole(options.maxSamplePoints, opt.maxSamplePoints);
+    opt.windowMin       = num(options.windowMin, opt.windowMin);
+    opt.windowMax       = num(options.windowMax, opt.windowMax);
 
     // Only this measure's own readings. A plot drawn over another measure's scan would be a
     // confident, wrong picture, so the values are used only when the scan says they are for this
@@ -8296,92 +8315,89 @@ QVariantMap ModelBrowser::corridorPlot(const QString &measureId, const QString &
     // SAME function that lays out the real one — so what a handle shows while it moves is exactly
     // what releasing it will store, and no command reaches the undo stack until it is let go.
     Norm preview = *res.norm;
-    if (options.contains(QStringLiteral("previewMu")))
-        preview.mu = options.value(QStringLiteral("previewMu")).toDouble();
+    if (!std::isnan(options.previewMu))
+        preview.mu = options.previewMu;
     const double z = std::max(1e-9, policy.idealMaxZ);
-    if (options.contains(QStringLiteral("previewIdealLo")))
-        preview.sigmaLo = std::abs(preview.mu
-                                   - options.value(QStringLiteral("previewIdealLo")).toDouble()) / z;
-    if (options.contains(QStringLiteral("previewIdealHi")))
-        preview.sigmaHi = std::abs(options.value(QStringLiteral("previewIdealHi")).toDouble()
-                                   - preview.mu) / z;
+    if (!std::isnan(options.previewIdealLo))
+        preview.sigmaLo = std::abs(preview.mu - options.previewIdealLo) / z;
+    if (!std::isnan(options.previewIdealHi))
+        preview.sigmaHi = std::abs(options.previewIdealHi - preview.mu) / z;
 
     const CorridorPlot plot = layoutCorridorPlot(preview, shape, values, policy, opt);
 
     auto points = [](const std::vector<CorridorPoint> &in) {
-        QVariantList l;
+        QList<ModelPlotPoint> l;
         for (const CorridorPoint &pt : in) {
-            QVariantMap m;
-            m.insert(QStringLiteral("x"), pt.x);
-            m.insert(QStringLiteral("y"), pt.y);
+            ModelPlotPoint m;
+            m.x = pt.x;
+            m.y = pt.y;
             l.append(m);
         }
         return l;
     };
 
-    QVariantList bands;
+    QList<ModelPlotBand> bands;
     for (const CorridorBand &b : plot.bands) {
-        QVariantMap m;
+        ModelPlotBand m;
         // The band's own WORD, so a delegate colours by meaning rather than by position in the
         // list — the order flips on a one-sided measure and a positional mapping would silently
         // paint Action green.
-        m.insert(QStringLiteral("grade"),
-                 b.grade == Grade::Ideal  ? QStringLiteral("ideal")
+        m.grade = b.grade == Grade::Ideal  ? QStringLiteral("ideal")
                  : b.grade == Grade::Good ? QStringLiteral("good")
                  : b.grade == Grade::Watch ? QStringLiteral("watch")
-                                           : QStringLiteral("action"));
-        m.insert(QStringLiteral("x"), b.x);
-        m.insert(QStringLiteral("w"), b.w);
+                                           : QStringLiteral("action");
+        m.x = b.x;
+        m.w = b.w;
         bands.append(m);
     }
 
-    QVariantList rug;
+    QList<double> rug;
     for (double x : plot.rug) rug.append(x);
 
-    out.insert(QStringLiteral("found"), true);
-    out.insert(QStringLiteral("width"), plot.width);
-    out.insert(QStringLiteral("height"), plot.height);
-    out.insert(QStringLiteral("xMin"), plot.xMin);
-    out.insert(QStringLiteral("xMax"), plot.xMax);
-    out.insert(QStringLiteral("unit"), plot.unit);
-    out.insert(QStringLiteral("bands"), bands);
-    out.insert(QStringLiteral("curve"), points(plot.curve));
-    out.insert(QStringLiteral("samples"), points(plot.samples));
-    out.insert(QStringLiteral("rug"), rug);
-    out.insert(QStringLiteral("muX"), plot.muX);
-    out.insert(QStringLiteral("idealLoX"), plot.idealLoX);
-    out.insert(QStringLiteral("idealHiX"), plot.idealHiX);
-    out.insert(QStringLiteral("lowOpen"), plot.lowOpen);
-    out.insert(QStringLiteral("highOpen"), plot.highOpen);
-    out.insert(QStringLiteral("n"), plot.n);
-    out.insert(QStringLiteral("ideal"), plot.ideal);
-    out.insert(QStringLiteral("good"), plot.good);
-    out.insert(QStringLiteral("watch"), plot.watch);
-    out.insert(QStringLiteral("action"), plot.action);
-    out.insert(QStringLiteral("implausible"), plot.implausible);
-    out.insert(QStringLiteral("truncated"), plot.truncated);
-    out.insert(QStringLiteral("note"), plot.note);
+    out.found = true;
+    out.width = plot.width;
+    out.height = plot.height;
+    out.xMin = plot.xMin;
+    out.xMax = plot.xMax;
+    out.unit = plot.unit;
+    out.bands = bands;
+    out.curve = points(plot.curve);
+    out.samples = points(plot.samples);
+    out.rug = rug;
+    out.muX = plot.muX;
+    out.idealLoX = plot.idealLoX;
+    out.idealHiX = plot.idealHiX;
+    out.lowOpen = plot.lowOpen;
+    out.highOpen = plot.highOpen;
+    out.n = plot.n;
+    out.ideal = plot.ideal;
+    out.good = plot.good;
+    out.watch = plot.watch;
+    out.action = plot.action;
+    out.implausible = plot.implausible;
+    out.truncated = plot.truncated;
+    out.note = plot.note;
     // The norm's own numbers, so a drag can be turned back into a value without the view holding a
     // second copy of the scale.
-    out.insert(QStringLiteral("mu"), preview.mu);
-    out.insert(QStringLiteral("sigmaLo"), preview.sigmaLo);
-    out.insert(QStringLiteral("sigmaHi"), preview.sigmaHi);
+    out.mu = preview.mu;
+    out.sigmaLo = preview.sigmaLo;
+    out.sigmaHi = preview.sigmaHi;
     // The values the two edge handles are sitting on, in the measure's own units — what a readout
     // beside a handle has to say, and what releasing it commits.
-    out.insert(QStringLiteral("idealLo"), preview.mu - policy.idealMaxZ * preview.sigmaLo);
-    out.insert(QStringLiteral("idealHi"), preview.mu + policy.idealMaxZ * preview.sigmaHi);
+    out.idealLo = preview.mu - policy.idealMaxZ * preview.sigmaLo;
+    out.idealHi = preview.mu + policy.idealMaxZ * preview.sigmaHi;
     // Absent is a real state, distinct from zero — "no bound" and "a bound at 0.0" are different
     // claims about what is believable — so the flag travels beside the number rather than a
     // sentinel standing in for it.
     const CorridorPrecision prec = corridorPrecisionFor(
         preview.unit.isEmpty() ? (meas ? meas->unit : QString()) : preview.unit);
-    out.insert(QStringLiteral("step"), prec.step);
-    out.insert(QStringLiteral("decimals"), prec.decimals);
-    out.insert(QStringLiteral("hasPlausibleLo"), preview.plausibleLo.has_value());
-    out.insert(QStringLiteral("plausibleLo"), preview.plausibleLo.value_or(0.0));
-    out.insert(QStringLiteral("hasPlausibleHi"), preview.plausibleHi.has_value());
-    out.insert(QStringLiteral("plausibleHi"), preview.plausibleHi.value_or(0.0));
-    out.insert(QStringLiteral("scanned"), m_corridorScanned == measureId);
+    out.step = prec.step;
+    out.decimals = prec.decimals;
+    out.hasPlausibleLo = preview.plausibleLo.has_value();
+    out.plausibleLo = preview.plausibleLo.value_or(0.0);
+    out.hasPlausibleHi = preview.plausibleHi.has_value();
+    out.plausibleHi = preview.plausibleHi.value_or(0.0);
+    out.scanned = m_corridorScanned == measureId;
     return out;
 }
 
@@ -8440,32 +8456,25 @@ void ModelBrowser::scanGates()
         constexpr int kMaxSwings = 20000;   // a cap, reported when it bites
         ModelGateCounts c;
         c.root = root;
-        const QDir rootDir(root);
-        for (const QString &athlete : rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDir aDir(rootDir.filePath(athlete));
-            for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-                const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : sDir.entryList({ QStringLiteral("swing_*") },
-                                                           QDir::Dirs, QDir::Name)) {
-                    if (c.swings >= kMaxSwings) {
-                        c.capped = true;
-                        c.valid  = true;
-                        return c;
-                    }
-                    const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing), /*writeSidecar*/ true);
-                    if (grid.swingDir.isEmpty()) continue;    // no readable analysis: not a swing
-                    ++c.swings;
-                    if (grid.gatesVersion <= 0) { ++c.notRecorded; continue; }
-                    c.byVersion[grid.gatesVersion] += 1;
-                    QSet<QString> once;                        // a swing counts once per gate
-                    for (const GateRecord &r : grid.gates) once.insert(r.gate);
-                    for (const QString &g : once) {
-                        c.fired[g] += 1;
-                        c.sessions[g][session] += 1;
-                    }
-                }
+        // The library's listing is SwingPaths' (refactor step 3.9; THE one swing listing, 2.7b).
+        pinpoint::SwingPaths::visitLibrarySwings(root, [&c](const QString &session, const QString &swingDir) {
+            if (c.swings >= kMaxSwings) {
+                c.capped = true;
+                return false;
             }
-        }
+            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true);
+            if (grid.swingDir.isEmpty()) return true;    // no readable analysis: not a swing
+            ++c.swings;
+            if (grid.gatesVersion <= 0) { ++c.notRecorded; return true; }
+            c.byVersion[grid.gatesVersion] += 1;
+            QSet<QString> once;                           // a swing counts once per gate
+            for (const GateRecord &r : grid.gates) once.insert(r.gate);
+            for (const QString &g : once) {
+                c.fired[g] += 1;
+                c.sessions[g][session] += 1;
+            }
+            return true;
+        });
         c.valid = true;
         return c;
     }));
@@ -8508,26 +8517,19 @@ void ModelBrowser::scanCorridor(const QString &measureId)
 
     m_corridorWatcher->setFuture(QtConcurrent::run([root, copy]() -> QVariantList {
         QVariantList out;
-        const QDir   rootDir(root);
-        for (const QString &athlete : rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-            const QDir aDir(rootDir.filePath(athlete));
-            for (const QString &session : aDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-                const QDir sDir(aDir.filePath(session));
-                for (const QString &swing : sDir.entryList({ QStringLiteral("swing_*") },
-                                                           QDir::Dirs, QDir::Name)) {
-                    if (out.size() >= kMaxScan) return out;
-                    // The expensive part is reading the phase grid, which is sidecar-cached and
-                    // pack-independent — which is exactly why measure_sample caches the grid rather
-                    // than measure values.
-                    // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
-                    const SwingPhaseGrid grid = readPhaseGrid(sDir.filePath(swing),
-                                                              /*writeSidecar*/ true,
-                                                              withMsWindows({}, msWindowsOf({ copy })));
-                    const std::optional<double> v = reduceOverGrid(grid, copy);
-                    if (v) out.append(*v);
-                }
-            }
-        }
+        // The library's listing is SwingPaths' (refactor step 3.9; THE one swing listing, 2.7b).
+        pinpoint::SwingPaths::visitLibrarySwings(root, [&out, &copy](const QString &, const QString &swingDir) {
+            if (out.size() >= kMaxScan) return false;
+            // The expensive part is reading the phase grid, which is sidecar-cached and
+            // pack-independent — which is exactly why measure_sample caches the grid rather
+            // than measure values.
+            // The measure's own millisecond span, if it reads one (metric_reducer.h windowMs).
+            const SwingPhaseGrid grid = readPhaseGrid(swingDir, /*writeSidecar*/ true,
+                                                      withMsWindows({}, msWindowsOf({ copy })));
+            const std::optional<double> v = reduceOverGrid(grid, copy);
+            if (v) out.append(*v);
+            return true;
+        });
         return out;
     }));
 }
@@ -8701,7 +8703,7 @@ QString ModelBrowser::swingTone(const Measure &m, const std::optional<double> &v
     return isDeviation(g) ? QStringLiteral("warn") : QString();
 }
 
-QVariantMap ModelBrowser::swingCell(const Measure &m, const std::optional<double> &value) const
+ModelCell ModelBrowser::swingCell(const Measure &m, const std::optional<double> &value) const
 {
     // "Not assessed" — and it says so with an em dash rather than a blank, because a blank cell in
     // a table of numbers reads as a rendering fault.
@@ -8747,7 +8749,7 @@ void ModelBrowser::onCorridorScanFinished()
 
 // ── The graph around anything ───────────────────────────────────────────────
 
-void ModelBrowser::decorateNode(QVariantMap &node, const QString &type, const QString &id) const
+void ModelBrowser::decorateNode(ModelGraphNode &node, const QString &type, const QString &id) const
 {
     // The type's colour key and glyph, decided here so every node of a kind agrees wherever it is
     // drawn — and so the delegate colours by MEANING rather than by which list it came out of.
@@ -8759,13 +8761,13 @@ void ModelBrowser::decorateNode(QVariantMap &node, const QString &type, const QS
         { kHealth,          QStringLiteral("⚠") }, { kLinks,      QStringLiteral("→") },
         { kMetrics,         QStringLiteral("∿") },
     };
-    node.insert(QStringLiteral("nodeType"), type);
-    node.insert(QStringLiteral("glyph"), glyphs.value(type));
+    node.nodeType = type;
+    node.glyph = glyphs.value(type);
     // Whose content this is, on the node itself. The graph's ring offers `Revert to shipped` and
     // `Move to trash` from the same slot depending on this answer — they are the same call, and it
     // is the source that decides which of the two it means — so the picture has to carry it rather
     // than the ring asking a second question at the moment it opens.
-    node.insert(QStringLiteral("source"), sourceOf(id));
+    node.source = sourceOf(id);
 
     // The top rung of `prominence`, and ONLY the top rung, carried onto the picture. A reader
     // scanning a causal band is asking "which of these tells me something about THIS golfer", and
@@ -8775,7 +8777,7 @@ void ModelBrowser::decorateNode(QVariantMap &node, const QString &type, const QS
     // nothing. Conditions only — a measure or a paper has no prevalence to state.
     if (type == kCharacteristics || type == kCauses) {
         if (const Condition *c = pack().condition(id))
-            node.insert(QStringLiteral("ubiquitous"), c->prominence == Prominence::Ubiquitous);
+            node.ubiquitous = c->prominence == Prominence::Ubiquitous;
     }
 
     // One line the node can say about itself. For a measure that is its corridor: the number a
@@ -8785,30 +8787,27 @@ void ModelBrowser::decorateNode(QVariantMap &node, const QString &type, const QS
         const NormResolution res = m_norms->resolve(id, QStringLiteral("any"));
         if (res.found()) {
             const int dp = corridorPrecisionFor(res.norm->unit).decimals;
-            node.insert(QStringLiteral("note"),
-                        tr("μ %1 %2").arg(QString::number(res.norm->mu, 'f', dp), res.norm->unit));
+            node.note = tr("μ %1 %2").arg(QString::number(res.norm->mu, 'f', dp), res.norm->unit);
         } else {
             // Said, not left blank: a measure nothing grades is a corridor signal that can never
             // fire, and that is the most interesting thing about it.
-            node.insert(QStringLiteral("note"), tr("no corridor"));
+            node.note = tr("no corridor");
         }
     }
 }
 
-QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
-                                        const QVariantMap &options) const
+ModelGraph ModelBrowser::neighbourhood(const QString &type, const QString &id,
+                                       const ModelGraphOptions &options) const
 {
     const CharacteristicPack &p = pack();
 
-    auto num = [&options](const char *key, double def) {
-        const QVariant v = options.value(QString::fromLatin1(key));
-        return v.isValid() ? v.toDouble() : def;
-    };
-    const double nodeH = num("nodeH", 34);
-    const double gapY  = num("gapY", 14);
-    const double gapX  = num("gapX", 90);
-    const double colW  = num("maxW", 210);
-    const double padX  = num("padX", 12);
+    // NaN: not given, and the hub's own default stands.
+    const auto num = [](double v, double def) { return std::isnan(v) ? def : v; };
+    const double nodeH = num(options.nodeH, 34);
+    const double gapY  = num(options.gapY, 14);
+    const double gapX  = num(options.gapX, 90);
+    const double colW  = num(options.maxW, 210);
+    const double padX  = num(options.padX, 12);
 
     // What points AT it, and what it points to. Two columns, because that is the only ordering a
     // one-hop relation has — and it is the same left-to-right reading the causal DAG uses, so the
@@ -8833,20 +8832,15 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
         for (const Signal &s : p.signalDefs)
             if (s.measures.contains(id))
                 rels.push_back({ kSignals, s.id, s.id, signalTestName(s.test), 1 });
-        for (const QVariant &v : measureUserRows(id)) {
-            const QVariantMap r = v.toMap();
-            if (const Condition *c = p.condition(r.value(QStringLiteral("id")).toString()))
-                addCondition(*c, 1, r.value(QStringLiteral("detail")).toString());
+        for (const ModelInspectorRow &r : measureUserRows(id)) {
+            if (const Condition *c = p.condition(r.id))
+                addCondition(*c, 1, r.detail);
         }
-        for (const QVariant &v : corridorContexts(id)) {
-            const QVariantMap c2 = v.toMap();
-            if (!c2.value(QStringLiteral("found")).toBool()) continue;
-            if (!c2.value(QStringLiteral("own")).toBool()
-                && !c2.value(QStringLiteral("inheritedFrom")).toString().isEmpty())
+        for (const ModelCorridorContext &c2 : corridorContexts(id)) {
+            if (!c2.found) continue;
+            if (!c2.own && !c2.inheritedFrom.isEmpty())
                 continue;   // an inherited row is the same corridor, not another one
-            rels.push_back({ kCorridors, corridorId(id, c2.value(QStringLiteral("id")).toString()),
-                             c2.value(QStringLiteral("label")).toString(),
-                             tr("μ %1").arg(c2.value(QStringLiteral("mu")).toDouble()), -1 });
+            rels.push_back({ kCorridors, corridorId(id, c2.id), c2.label, tr("μ %1").arg(c2.mu), -1 });
         }
     } else if (type == kMetrics) {
         const MetricDescriptor *d = m_cat.descriptor(id);
@@ -8870,10 +8864,9 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
         focusLabel = ctx;
         if (const Measure *m = p.measure(mid))
             rels.push_back({ kMeasures, mid, measureDisplayLabel(*m), m->unit, -1 });
-        for (const QVariant &v : measureUserRows(mid)) {
-            const QVariantMap r = v.toMap();
-            if (const Condition *c = p.condition(r.value(QStringLiteral("id")).toString()))
-                addCondition(*c, 1, r.value(QStringLiteral("detail")).toString());
+        for (const ModelInspectorRow &r : measureUserRows(mid)) {
+            if (const Condition *c = p.condition(r.id))
+                addCondition(*c, 1, r.detail);
         }
     } else if (type == kScreens) {
         const Screen *s = m_screens.screen(id);
@@ -8888,7 +8881,7 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
         for (const Condition &c : p.conditions)
             if (c.drills.contains(id)) addCondition(c, -1, conditionGroupLabel(c.group));
     } else if (type == kReferences) {
-        const Reference *ref = sharedReferenceSet().reference(id);
+        const Reference *ref = refs().reference(id);
         if (!ref) return {};
         focusLabel = ref->title.isEmpty() ? ref->id : ref->title;
         const auto cites = [ref](const QString &c) {
@@ -8941,8 +8934,8 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
     lopt.padX  = padX;
 
     // The same marshaller the causal DAG goes through. Nothing here re-declares a key.
-    QVariantMap out = marshalLayout(layoutHub(hub, lopt), /*hideWeak*/ false,
-                                    /*hideProposed*/ false);
+    ModelGraph out = marshalLayout(layoutHub(hub, lopt), /*hideWeak*/ false,
+                                   /*hideProposed*/ false);
 
     // ── What only this side knows ───────────────────────────────────────────
     //
@@ -8953,22 +8946,18 @@ QVariantMap ModelBrowser::neighbourhood(const QString &type, const QString &id,
     QHash<QString, const Rel *> byId;
     for (const Rel &r : rels) byId.insert(r.id, &r);
 
-    QVariantList nodes;
-    for (const QVariant &v : out.value(QStringLiteral("nodes")).toList()) {
-        QVariantMap   n   = v.toMap();
-        const QString nid = n.value(QStringLiteral("id")).toString();
+    for (ModelGraphNode &n : out.nodes) {
+        const QString nid = n.id;
         if (const Rel *r = byId.value(nid, nullptr)) {
             decorateNode(n, r->type, nid);
         } else {
             decorateNode(n, type, nid);   // the hub itself
         }
-        nodes.append(n);
     }
-    out.insert(QStringLiteral("nodes"), nodes);
     return out;
 }
 
-QVariantMap ModelBrowser::graphFocus(const QString &type, const QString &id) const
+ModelObjectRef ModelBrowser::graphFocus(const QString &type, const QString &id) const
 {
     QString focusType = type;
     QString focusId   = id;
@@ -8989,31 +8978,26 @@ QVariantMap ModelBrowser::graphFocus(const QString &type, const QString &id) con
     // A gate has no neighbourhood to draw; an empty focus keeps the graph chip and pane away.
     if (type == kGates) focusId.clear();
 
-    QVariantMap out;
-    out.insert(QStringLiteral("type"), focusType);
-    out.insert(QStringLiteral("id"), focusId);
+    ModelObjectRef out;
+    out.type = focusType;
+    out.id   = focusId;
     return out;
 }
 
-QVariantMap ModelBrowser::graph(const QString &type, const QString &id,
-                                const QVariantMap &options) const
+ModelGraph ModelBrowser::graph(const QString &type, const QString &id,
+                               const ModelGraphOptions &options) const
 {
     if (id.isEmpty()) return {};
 
     if (type == kCharacteristics || type == kCauses) {
-        QVariantMap g = dag(id, options);
+        ModelGraph g = dag(id, options);
         // The causal layout predates types and colour, so its nodes are decorated on the way out.
-        QVariantList nodes;
-        for (const QVariant &v : g.value(QStringLiteral("nodes")).toList()) {
-            QVariantMap n    = v.toMap();
+        for (ModelGraphNode &n : g.nodes) {
             // Every node in a causal layout is a condition now — the measures are rows inside them
             // and carry their own type where they are drawn.
-            const QString nt = n.value(QStringLiteral("latent")).toBool() ? kCauses
-                                                                         : kCharacteristics;
-            decorateNode(n, nt, n.value(QStringLiteral("id")).toString());
-            nodes.append(n);
+            const QString nt = n.latent ? kCauses : kCharacteristics;
+            decorateNode(n, nt, n.id);
         }
-        g.insert(QStringLiteral("nodes"), nodes);
         return g;
     }
 

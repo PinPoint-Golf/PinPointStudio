@@ -17,6 +17,8 @@
 //   ctest --test-dir build/analyzer-tests -R diagnostics_health --output-on-failure
 
 #include "../engine/diagnostics_health.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../packs/drill_pack.h"
 #include "../packs/pack_provider.h"
 #include "../packs/screen_pack.h"
@@ -234,6 +236,7 @@ CharacteristicPack fakePack()
 
 int main()
 {
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     const MetricCatalogue cat = makeMetricCatalogue();
 
     // ── A corridor signal that cannot fire ──────────────────────────────────

@@ -1,18 +1,26 @@
 # Architecture lint allow-list (architecture_lint_test.cpp; docs/implementation/swe-audit/03-target-architecture.md §2, §11).
 #
 # One line per file and rule:   path under src/ | rule | findings allowed | WHY  # step N
-# Rules: A1 include into an outer ring · A2 QML creating a scoped type · A3 folder-name parsing · A4 a session/athlete
-#        file name outside its owner · A5 file I/O in a rules directory · A6 QVariantMap/QVariantList on the QML boundary
-#        · A7 a function over 300 lines in rings 1-2 · A8 Analysis past the Recording contract.
-# The tag is the refactor step that removes the entry (04-remediation-plan.md §3): `# step 1` … `# step 8`;
-# `# unplanned` for one no step 1-8 removes (the platform layer: 05-deferred-worklist.md); `# kept` for one that is
-# deliberate (the WHY says why). Re-tagged 14 Nov 2026 from Mark's triage (build/refactor/TRIAGE-PROPOSALS.md) and step 8.
+# Rules: A1 include into an outer ring, or from an adapter outside Gui into Gui · A2 QML creating a scoped type · A3
+#        folder-name parsing · A4 a session/athlete file name outside its owner · A5 file access or a repository include
+#        outside the repositories (P11) · A6 QVariantMap/QVariantList on the QML boundary · A7 a function over 300 lines
+#        in rings 1-2 · A8 Analysis past the Recording contract.
+# The tag is the refactor step that removes the entry (04-remediation-plan.md §3): `# step 1` … `# step 8` (or a
+# sub-step, `# step 3.0`); `# platform refactor (capture)` / `# platform refactor (settings)` for one the platform
+# refactor removes (05-deferred-worklist.md §1 / §2); `# not domain (§8.3)` for a file the information model classes as
+# not domain (information_model.md §8.3), allowlisted by Mark's answer, not removed by any step; `# unplanned` for one
+# nothing places yet (a question for Mark); `# kept` or `# kept (reason)` for one that is deliberate (the WHY says why).
+# S1-g's tags are Mark's answers of 15 Nov 2026 (build/refactor/step-2/JUDGEMENT-ANSWERS.md, "P11 lint"). Re-tagged 14 Nov 2026 from Mark's triage (build/refactor/TRIAGE-PROPOSALS.md) and step 8.
 # Generated ONCE from the tree at the start of Step G (14 Nov 2026). A file that grows past its count fails the test;
 # one that drops below it is reported so the count can be lowered — the list only shrinks. Every entry needs a reason;
 # "legacy" is not one. Adding a NEW entry is an architecture decision: ask Mark first. Never add one to make the lint pass.
+# The one exception so far: step 2's S1-g widened A1 (DEC-146) and A5 (P11, DEC-161) and added today's hits of the widened
+# rules (15 Nov 2026), each tagged with the step that removes it; Mark's answers approved exactly those lines
+# (build/refactor/MORNING-ANSWERS.md S1-g; build/refactor/step-2/JUDGEMENT-ANSWERS.md "New decision"). A line's tag is
+# the step after which none of its findings is left.
 
 # ── A1 includes from an inner ring into an outer one ──
-Analysis/swing_reanalyzer.cpp | A1 | 2 | re-analysis still reaches the store: the Recording loader (moved to src/Export in step 1.2) and the recorded products' readers; step 1's repository and analysis service (1.4, 1.5) hand it a Recording instead  # step 1
+Analysis/swing_reanalyzer.cpp | A1 | 1 | re-analysis still reaches the store: the Recording loader (moved to src/Export in step 1.2) and the recorded products' readers; step 1's repository and analysis service (1.4, 1.5) hand it a Recording instead  # step 1
 Gui/shot/shot_processor.cpp | A1 | 13 | an application service (03 §2) still holding the capture half: step 1.5 moved the analysis-job half out (the store, athlete and session includes went to capture_context.h, the capture-side adapter, which it now includes); per D8 (Mark, 14 Nov 2026) the rest is the capture: the devices and the ring (camera, IMU and HackMotion instances, the event buffer and its payload sources, the device enumerator), the capture settings and capture_context.h → the platform refactor (capture); the carousel (shot_list_model.h) goes with step 3; the session folder still needs the athlete's identity, reached through capture::athleteIdentity() in capture_context.h — that part goes with step 2  # unplanned
 Gui/shot/shot_processor.h | A1 | 4 | an application service (03 §2) still holding the capture half: per D8 (Mark, 14 Nov 2026) the exporter job and HackMotion → the platform refactor (capture), the session folder (swing_paths.h) → step 2, the QML payload (qml_payload.h) with the presenters  # unplanned
 Analysis/swing_analysis.h | A1 | 9 | the shot's analysis record takes each stage's result type from the stage's own header (result types and algorithm in one file); step 7 moves the result types into the vocabulary  # step 7
@@ -20,11 +28,16 @@ Coaching/session_report.h | A1 | 1 | a coaching rule uses SessionSpread, domain 
 Diagnostics/measures/measure_sample.cpp | A1 | 1 | a diagnostics measure reads swing documents through SwingStore itself; step 7: rules lose their I/O  # step 7
 Metrics/metric_descriptor.h | A1 | 1 | a metric definition uses a wrist type / reference band declared in src/Wrist (rules); step 7 moves the types into the vocabulary  # step 7
 Metrics/metric_provider.h | A1 | 1 | a metric definition uses a wrist type / reference band declared in src/Wrist (rules); step 7 moves the types into the vocabulary  # step 7
-Metrics/variability/variability_typicality.cpp | A1 | 1 | the variability rule uses the box statistics, which live in src/Gui/typeset; step 7 moves the maths down  # step 7
 Buffer/swing_payload_source.h | A1 | 1 | the Recording's frozen window is still a view onto the capture ring (source_ring); separating the two is the platform refactor (capture), outside steps 1-8 (05 §1)  # unplanned
 Buffer/swing_window.h | A1 | 1 | the Recording's frozen window is still a view onto the capture ring (source_ring); separating the two is the platform refactor (capture), outside steps 1-8 (05 §1)  # unplanned
 Gui/shot/shot_controller.cpp | A1 | 2 | the shot trigger (an application service, 03 §2) listens to the devices and the capture ring itself; that is the platform refactor (capture), outside steps 1-8 (05 §1)  # unplanned
 Gui/shot/shot_controller.h | A1 | 1 | the shot trigger (an application service, 03 §2) listens to the devices and the capture ring itself; that is the platform refactor (capture), outside steps 1-8 (05 §1)  # unplanned
+# Added by S1-g (DEC-146): an adapter outside Gui including a Gui header.
+Pose/motion_capture_probe.cpp | A1 | 1 | DEC-146: the motion-capture probe takes the session controller (Gui/session/session_controller.h) to hold off while a session runs; a device / execution-provider probe, the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Update/linux_appimage_backend.cpp | A1 | 1 | DEC-146: the updater takes the app's settings object (Gui/app/app_settings.h); the settings' QML API is the platform refactor's (05 §2), outside steps 1-8  # platform refactor (settings)
+Update/mac_sparkle_update.mm | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
+Update/update_controller.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
+Update/win_sparkle_update.cpp | A1 | 2 | DEC-146: the updater takes the app's settings object and the session controller (Gui/app/app_settings.h, Gui/session/session_controller.h) to hold off while a session runs; the platform refactor (settings, 05 §2), outside steps 1-8  # platform refactor (settings)
 
 # ── A2 QML creating a session/athlete-scoped type ──
 Gui/diagnostics/PpSessionDiagnosticsPanel.qml | A2 | 1 | the stage panel creates a private SessionDiagnosticsModel; step 3 points it at the session's SessionDiagnostics owner  # step 3
@@ -36,51 +49,101 @@ Gui/trust/PpTrustSummaryFold.qml | A2 | 2 | a trust view creates its own Session
 Gui/session/PpLaunchMonitorPanel.qml | A2 | 1 | the LM board creates its own LmSessionModel; step 6 makes the board a presenter over the session's measurements  # step 6
 Gui/review/PpDataViewer.qml | A2 | 1 | the data viewer creates a SwingDataSource that reads a swing document itself; step 5 makes it a presenter over the shot, like the Charts panel (triage, Mark 14 Nov 2026)  # step 5
 
-# ── A3 folder-name parsing outside SwingPaths / SessionIdentity ──
-Export/recording_header.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters: the legacy context's club set, moved from swing_reanalyzer.cpp in step 1.2); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Coaching/club_distances.h | A3 | 1 | reads a swing/session folder name itself (a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Export/swing_doc_reader.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_delivery_presenter.cpp | A3 | 3 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_posture_presenter.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_traces_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/charts_wrist_presenter.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/charts/session_series_model.cpp | A3 | 2 | reads a swing/session folder name itself (the shot number after the last '_', a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnosticmodel/model_browser.cpp | A3 | 2 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnostics/session_diagnostics_model.cpp | A3 | 10 | reads a swing/session folder name itself (the shot number after the last '_', the date in the first 10 characters, a swing_ prefix test, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/diagnostics/work_ons_controller.cpp | A3 | 2 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/launchmonitor/launch_monitor_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the shot number after the last '_'); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/report_meta.h | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/session_report_list_model.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/report/session_report_model.cpp | A3 | 5 | reads a swing/session folder name itself (the date in the first 10 characters, a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/review/session_review_controller.cpp | A3 | 1 | reads a swing/session folder name itself (the date in the first 10 characters); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/settings/archive_controller.cpp | A3 | 3 | reads a swing/session folder name itself (a swing_* name glob, a date regex); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-Gui/swing3d/swing_rig_driver.cpp | A3 | 1 | reads a swing/session folder name itself (a swing_* name glob); step 2's SessionIdentity / SwingPaths are the one place  # step 2
-
 # ── A4 session/athlete file names outside their owner ──
-Gui/charts/charts_posture_presenter.cpp | A4 | 2 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/charts/session_series_model.cpp | A4 | 1 | spells diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/diagnostics/work_ons_controller.cpp | A4 | 2 | spells club_baseline.json, diagnostics.json itself to read it; step 2's Session/Athlete repositories are the one door per file  # step 2
-Gui/athlete/athlete_controller.cpp | A4 | 2 | spells diagnostics.json, tendencies.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
-Gui/report/session_report_list_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
-Gui/report/session_report_model.cpp | A4 | 1 | spells work_ons.json itself to read it; work_ons.json and tendencies.json belong to step 3's SessionDiagnostics / AthleteDiagnostics owners (and diagnostics.json to step 2's SessionRepository)  # step 3
 
-# ── A5 file I/O in a rules directory ──
-# Note: src/Diagnostics/packs is outside A5 (as briefed), but its pack LOADER does file I/O too —
-#   packs/file_pack_provider.cpp (11 lines), drill_pack.cpp, gate_words_pack.cpp, reference_pack.cpp and
-#   screen_pack.cpp (3 each). Step 3 (one pack snapshot, B-02) removes it.  # step 3
-Coaching/club_distances.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Coaching/shot_factors.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Coaching/strike_from_flight.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/engine/pack_io.cpp | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/engine/provider_leaf_p.h | A5 | 5 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/measures/measure_sample.cpp | A5 | 9 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
-Diagnostics/norms/file_norm_provider.cpp | A5 | 10 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+# ── A5 file access or a repository include outside the repositories (P11) ──
+# Before S1-g A5 read only the rules directories and counted an #include <QFile> line; S1-g stopped counting includes
+# and path text, so the six rules-directory counts below fell (Coaching/shot_factors.h's one finding was its include).
+Coaching/club_distances.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Coaching/strike_from_flight.h | A5 | 1 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/engine/provider_leaf_p.h | A5 | 2 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/measures/measure_sample.cpp | A5 | 4 | a rules directory opens files itself (and, since S1-g counts it, includes swing_store.h); step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+Diagnostics/norms/file_norm_provider.cpp | A5 | 4 | a rules directory opens files itself; step 7: file I/O leaves Coaching and Diagnostics (norms and packs loaded by repositories)  # step 7
+# Added by S1-g (P11, DEC-161): file access or a repository include outside the repositories. Grouped by tag.
+Gui/athlete/athlete_controller.cpp | A5 | 10 | P11: the athlete controller reaches the athlete and session repositories and files itself; step 3 replaces it with the Athlete object (J-68)  # step 3
+Gui/diagnosticmodel/model_browser.cpp | A5 | 2 | P11: the pack and corridor editor's two outbound exports to Documents: the bibliography's CSL-JSON (EXT-06, not domain) and the roadmap's Markdown (EXT-06, not domain: proposed, for Mark); its reads and writes of the packs, norms and content sets are RuleData's since 3.9, its library walks SwingPaths' (re-tag for 3.10: not domain, §8.3)  # step 3
+Gui/diagnostics/session_diagnostics_model.cpp | A5 | 18 | P11: the view-side diagnostics model reads and writes the session's and athlete's files through the stores and file doors itself; step 3's Session, Shot and SessionDiagnostics own them (04 step 3 items 1-3)  # step 3
+Gui/diagnostics/session_diagnostics_model.h | A5 | 1 | P11: the view-side diagnostics model reads and writes the session's and athlete's files through the stores and file doors itself; step 3's Session, Shot and SessionDiagnostics own them (04 step 3 items 1-3)  # step 3
+Gui/diagnostics/work_ons_controller.cpp | A5 | 17 | P11: the work-ons controller reads swings and writes work_ons.json, tendencies and themes itself; step 3's SessionDiagnostics (the summary) and AthleteDiagnostics own them (04 step 3 item 1)  # step 3
+Gui/markup/markup_controller.h | A5 | 1 | P11: the markup tool reads the swing and writes truth.json (FILE-SHOT-12) itself; the file is the Shot's, its command step 3's brief (DEC-103)  # step 3
+Gui/markup/markup_truth.cpp | A5 | 2 | P11: the markup tool reads the swing and writes truth.json (FILE-SHOT-12) itself; the file is the Shot's, its command step 3's brief (DEC-103)  # step 3
+Gui/review/session_review_controller.cpp | A5 | 6 | P11: review writes, the summary sidecar and a session's trash go through the repositories from the controller; step 3 makes them the Shot's commands and Athlete::trashSession (DEC-71; 04 step 3 item 1)  # step 3
+Gui/settings/archive_controller.cpp | A5 | 3 | P11: the Archiving tab still lists the library and archives or restores by hand through SessionRepository in a run of its own (SessionArchiveRun), hands housekeeping today's walk and the archive of a folder no Athlete holds (N1), and hands main.cpp the session store's archive job so main.cpp need not name the archiver (a lint dodge, recorded for Mark with J-9); housekeeping and the purge moved to src/App/housekeeping in step 3.8-i (DEC-80); the tab's by-hand archive and restore through the Session remain (04 step 3 item 7)  # step 3
+Gui/shot/capture_context.cpp | A5 | 3 | P11: capture creates and completes the shot through the repositories itself; step 3's Session::addShot creates the folder through RecordingRepository::create and the interim writers move onto the Shot's commands (DEC-142; R-REC-3)  # step 3
+Gui/shot/ppcp_clip_filer.cpp | A5 | 3 | P11: the phone-clip filer writes a clip into the shot through the repository itself; step 3's Shot replaces it as the source of shot facts (04 step 3 item 1; ShotCaptureCompleted)  # step 3
+Gui/shot/reanalysis_controller.h | A5 | 1 | P11: re-analysis persists the analysis through RecordingRepository itself; step 3 makes applyAnalysis the Shot's command (DEC-103; 04 step 3 item 1)  # step 3
+Gui/shot/shot_list_model.cpp | A5 | 3 | P11: the carousel's row structs read the swing file and trash a folder themselves; step 3's Shot replaces them as the source of shot facts, and Session::trashShot the trash (04 step 3 item 1)  # step 3
+Gui/shot/shot_processor.cpp | A5 | 1 | P11: capture creates and completes the shot through the repositories itself; step 3's Session::addShot creates the folder through RecordingRepository::create and the interim writers move onto the Shot's commands (DEC-142; R-REC-3)  # step 3
+Gui/shot/shot_processor.h | A5 | 1 | P11: capture creates and completes the shot through the repositories itself; step 3's Session::addShot creates the folder through RecordingRepository::create and the interim writers move onto the Shot's commands (DEC-142; R-REC-3)  # step 3
+Gui/shot/disk_replay_source.cpp | A5 | 2 | P11: the replay reads the recorded swing file and its streams itself; step 3's Shot holds its Recording and step 4 makes the replay AppState.replay  # step 4
+Gui/charts/charts_delivery_presenter.cpp | A5 | 9 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
+Gui/charts/charts_posture_presenter.cpp | A5 | 9 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
+Gui/charts/charts_traces_presenter.cpp | A5 | 1 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
+Gui/charts/charts_wrist_presenter.cpp | A5 | 1 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
+Gui/charts/session_series_model.cpp | A5 | 3 | P11: a Charts presenter/model reads swings, phase grids and diagnostics through the store itself; step 5 gives each session one SessionSeries and reads other sessions through session results (DEC-74)  # step 5
+Gui/report/report_mailer.cpp | A5 | 4 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
+Gui/report/report_meta.h | A5 | 8 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
+Gui/report/report_stills.cpp | A5 | 3 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
+Gui/report/session_report_list_model.cpp | A5 | 5 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
+Gui/report/session_report_model.cpp | A5 | 10 | P11: the report reads the session's files and saves its documents (meta, stills, PDF) itself; step 5 makes the report a Session command through SessionRepository (DEC-81; FILE-SESS-07…09)  # step 5
+Gui/review/swing_data_source.cpp | A5 | 5 | P11: a review view reads the swing file through the store itself; step 5 gives the review views typed presenters over the shot (triage, Mark 14 Nov 2026)  # step 5
+Gui/swing3d/swing_rig_driver.cpp | A5 | 3 | P11: a review view reads the swing file through the store itself; step 5 gives the review views typed presenters over the shot (triage, Mark 14 Nov 2026)  # step 5
+Gui/launchmonitor/launch_monitor_controller.cpp | A5 | 4 | P11: the LM board and its controller read and write the shot's readings through the repositories themselves; the writes move onto the Shot's commands in step 3 and step 6 makes the board a presenter over the session's measurements  # step 6
+Gui/launchmonitor/lm_session_model.cpp | A5 | 1 | P11: the LM board and its controller read and write the shot's readings through the repositories themselves; the writes move onto the Shot's commands in step 3 and step 6 makes the board a presenter over the session's measurements  # step 6
+Audio/audio_stream_saver.cpp | A5 | 1 | P11: an audio capture written to the Desktop (EXT-04, a tool's output, not domain); no step 1-8 moves it  # not domain (§8.3)
+Audio/audio_stream_saver.h | A5 | 1 | P11: an audio capture written to the Desktop (EXT-04, a tool's output, not domain); no step 1-8 moves it  # not domain (§8.3)
+Ball/ball_baseline_io.h | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
+Ball/ball_runner.cpp | A5 | 1 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
+Core/studio_profile.cpp | A5 | 9 | P11: the studio profile (FILE-APP-06) reads and writes its own folder; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Gui/cameras/camera_role_probe.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+Gui/charts/delivery_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
+Gui/charts/posture_picture.cpp | A5 | 1 | P11: the Charts stills cache (EXT-07, a regenerable view cache, not domain); no step 1-8 moves it  # not domain (§8.3)
+Gui/imu/hm_instance.cpp | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+Gui/imu/imu_instance.cpp | A5 | 5 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+Gui/imu/imu_instance.h | A5 | 1 | P11: a device log, dump or probe report (EXT-02, EXT-10; not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+Gui/imu/trunk_ceremony_recorder.cpp | A5 | 7 | P11: the trunk ceremony recorder writes FILE-SESS-11 itself, on a pool thread; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Gui/launchmonitor/lm_club_art.cpp | A5 | 4 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Gui/main.cpp | A5 | 8 | P11: the composition root constructs the stores and hands them to their owners; it also lists the bundled fonts and probes a folder; no step 1-8 moves it (Mark, 15 Nov 2026: kept)  # kept (composition root)
+Gui/media/llm_controller.cpp | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+Gui/media/tts_controller.cpp | A5 | 4 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+Gui/monitor/profiler_controller.cpp | A5 | 2 | P11: a settings or monitoring object sizes the library or writes the app's logs (EXT-03, not domain); the platform refactor (settings, monitoring), outside steps 1-8 (05 §2)  # not domain (§8.3)
+Gui/monitor/resource_monitor_controller.cpp | A5 | 1 | P11: a settings or monitoring object sizes the library or writes the app's logs (EXT-03, not domain); the platform refactor (settings, monitoring), outside steps 1-8 (05 §2)  # not domain (§8.3)
+Gui/print/pdf_document_writer.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Gui/settings/library_converter.cpp | A5 | 5 | P11: the JSON-era library converter reads and converts swing files through the stores from the settings page; step 3.0 deletes it with the legacy-read paths (Mark, 15 Nov 2026)  # step 3.0
+Gui/swing3d/swing_hull_geometry.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+LLM/LocalLlmEngine.cpp | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+LaunchMonitor/gcquad_monitor.cpp | A5 | 6 | P11: a launch-monitor connector reads the device's own files (EXT-01, not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+LaunchMonitor/premier_monitor.cpp | A5 | 8 | P11: a launch-monitor connector reads the device's own files (EXT-01, not domain); the platform refactor (capture), outside steps 1-8 (05 §1)  # not domain (§8.3)
+Pose/person_segmenter.cpp | A5 | 3 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_backend.cpp | A5 | 1 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_mediapipe.cpp | A5 | 5 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_movenet.cpp | A5 | 4 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_estimator_vitpose.cpp | A5 | 15 | P11: a pose back-end loads its model files or probes the machine: EXT-14, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Pose/pose_runner.cpp | A5 | 2 | P11: a rules stage reads a pinned input or baseline file (or fingerprints its model file) itself; step 7 takes file I/O out of the rules ring, Ball and Pose included (Mark, 15 Nov 2026)  # step 7
+Ppcp/ppcp_annotation_store.cpp | A5 | 4 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_bundle_transport.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_host_service.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_import_controller.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_import_ledger.cpp | A5 | 3 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_import_sink.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+Ppcp/ppcp_pairing_store.cpp | A5 | 1 | P11: the phone link's imports, ledger, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) are written by PPCP itself; the platform refactor (capture), outside steps 1-8 (05 §1)  # platform refactor (capture)
+STT/stt_processor.cpp | A5 | 1 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+Skeleton3d/skeleton3d_fit.cpp | A5 | 1 | P11: a developer dump behind a switch (EXT-10, not domain); no step 1-8 moves it  # not domain (§8.3)
+TTS/KokoroTTSEngine.cpp | A5 | 3 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+TTS/ModelDownloader.cpp | A5 | 5 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+TTS/ModelDownloader.h | A5 | 2 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+TTS/PhonemeTokenizer.cpp | A5 | 3 | P11: downloaded LLM, STT or TTS models (EXT-09, EXT-11; not domain); no step 1-8 moves it  # not domain (§8.3)
+Update/appimage_update.cpp | A5 | 6 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
+Update/cuda_runtime_controller.cpp | A5 | 2 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
+Update/linux_appimage_backend.cpp | A5 | 14 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
+Update/win_sparkle_update.cpp | A5 | 4 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
+Video/bayer_video_item.cpp | A5 | 1 | P11: reads a bundled resource (an ICC profile, artwork, a mesh, a shader): EXT-13, not domain (DEC-188); no step 1-8 moves it  # not domain (§8.3)
+Video/spinnaker_runtime.cpp | A5 | 2 | P11: update payloads and runtime installs (EXT-09, not domain); no step 1-8 moves it  # not domain (§8.3)
 
 # ── A6 QVariantMap/QVariantList on the QML boundary ──
-Gui/athlete/athlete_controller.h | A6 | 9 | athlete records reach QML as QVariantMaps; step 2's Athlete objects (AthleteRepository) replace them  # step 2
-Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
-Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
-Gui/diagnostics/wrist_diagnostics_model.h | A6 | 10 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them  # step 3
+Gui/athlete/athlete_controller.h | A6 | 9 | athlete records reach QML as QVariantMaps; step 2's Athlete objects (AthleteRepository) replace them; its QML surface goes with app.athlete (Mark, 15 Nov 2026: DEC-176, D12, reversing J-68)  # step 4
+Gui/diagnostics/session_diagnostics_model.h | A6 | 29 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
+Gui/diagnostics/work_ons_controller.h | A6 | 14 | the session/athlete diagnostics reach QML as QVariantMap/QVariantList shapes; step 3's owners and step 5's typed results replace them; a thin adapter until then (Mark, 15 Nov 2026: DEC-165, D3)  # step 5
 Gui/charts/charts_consistency_presenter.h | A6 | 7 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_delivery_presenter.h | A6 | 5 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
 Gui/charts/charts_posture_presenter.h | A6 | 4 | a presenter/model hands QML QVariantMap/QVariantList shapes; step 5: presenters move to typed results, one view at a time  # step 5
@@ -103,7 +166,6 @@ Gui/app/app_settings.h | A6 | 26 | a settings, monitoring or tool object's QML A
 Gui/cameras/buffer_controller.h | A6 | 1 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/cameras/camera_manager.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
-Gui/diagnosticmodel/model_browser.h | A6 | 73 | the pack and corridor editor's QML API (it edits and saves user.json and user.norms.json): core diagnostics persistence; step 3 types it with the packs and norms owner (B-02; the lead's call, 14 Nov 2026)  # step 3
 Gui/imu/imu_instance.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/imu/imu_manager.h | A6 | 3 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
 Gui/imu/trunk_ceremony_recorder.h | A6 | 2 | a device / capture object's QML API; no step 1-8 types it (the platform refactor (capture), 04 'Later · the platform refactor'; 05 §1)  # unplanned
@@ -150,7 +212,6 @@ Diagnostics/engine/dag_layout.cpp | A7 | 1 | layoutDag 852 lines: pixel layout i
 Diagnostics/engine/diagnostics_health.cpp | A7 | 1 | diagnosticsHealth 448 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
 Diagnostics/engine/relation_resolver.cpp | A7 | 1 | explain 374 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
 Diagnostics/measures/measure_sample.cpp | A7 | 1 | buildPhaseGrid 319 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
-Diagnostics/packs/characteristic_pack.cpp | A7 | 2 | validatePack 739, loadPack 529 lines; step 3's one pack snapshot reworks the loader and splits them (B-11) (triage, Mark 14 Nov 2026)  # step 3
 Kinematics/segment_rates.cpp | A7 | 1 | buildSegmentRates 761 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
 Pose/pose_runner.cpp | A7 | 1 | PoseRunner::run 722 lines (pose runs are non-deterministic: the split needs a control run); step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8
 Skeleton3d/skeleton3d_fit.cpp | A7 | 2 | frameResiduals 646, fitSkeleton 1390 lines; step 8 splits it under parity (0 differences against the baseline) (triage, Mark 14 Nov 2026)  # step 8

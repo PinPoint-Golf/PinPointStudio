@@ -60,6 +60,7 @@
 //               groups: [{ camera, label, frames: [{ key, camera, tag, when, caption, note, width, height, src, imageWhy,
 //                                                    still, marks: [MARK, the default sets only] }] }] } | null,
 //    pictureWhy: [string] (why there is no picture; empty with one) }
+#include "report_swing_no.h"   // a swing's number: the swing number, never a rank (step 2.7b)
 #include <QDir>
 #include <QHash>
 #include <QString>
@@ -151,8 +152,7 @@ inline QVariant postureReportBlock(const QVariantMap &payload, const QHash<QStri
     for (const QVariant &v : allMarks) {
         if (marks.size() >= kPostureStripCap) break;
         const QVariantMap m = v.toMap();
-        const QString dir = QDir::cleanPath(m.value(QStringLiteral("swingDir")).toString());
-        const int swing = swingNoOfDir.value(dir, m.value(QStringLiteral("ordinal")).toInt());
+        const int swing = reportSwingNo(swingNoOfDir, m);
         marks.append(QVariantMap{ { QStringLiteral("swing"), swing }, { QStringLiteral("ok"), m.value(QStringLiteral("ok")).toBool() },
                                   { QStringLiteral("differs"), m.value(QStringLiteral("differs")).toBool() },
                                   { QStringLiteral("between"), m.value(QStringLiteral("between")).toBool() },
@@ -198,8 +198,7 @@ inline QVariant postureReportBlock(const QVariantMap &payload, const QHash<QStri
     const QVariantMap pic = payload.value(QStringLiteral("picture")).toMap();
     const QStringList picWhy = pic.value(QStringLiteral("why")).toStringList();
     if (pic.value(QStringLiteral("available")).toBool()) {
-        const QString dir = QDir::cleanPath(pic.value(QStringLiteral("swingDir")).toString());
-        const int swing = swingNoOfDir.value(dir, pic.value(QStringLiteral("ordinal")).toInt());
+        const int swing = reportSwingNo(swingNoOfDir, pic);
         const QVariantMap sets = pic.value(QStringLiteral("defaultSets")).toMap();
         QVariantList groups;
         for (const QVariant &gv : pic.value(QStringLiteral("groups")).toList()) {

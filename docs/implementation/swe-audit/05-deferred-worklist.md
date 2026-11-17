@@ -63,8 +63,11 @@ internals as they are.
 | `Gui/cameras/buffer_controller.h` (A6 ×1), `camera_instance.h` (A6 ×2), `camera_manager.h` (A6 ×2) | As above | L108–110 | As above | platform refactor (capture) |
 | `Gui/imu/imu_instance.h` (A6 ×2), `imu_manager.h` (A6 ×3), `trunk_ceremony_recorder.h` (A6 ×2) | As above | L112–114 | As above | platform refactor (capture) |
 | `Ppcp/ppcp_host_service.h` (A6 ×6) | As above | L137 | As above | platform refactor (capture) |
+| PPCP's files, written by PPCP itself (lint A5, P11; S1-g): `Ppcp/ppcp_annotation_store.cpp` ×4, `ppcp_bundle_transport.cpp` ×1, `ppcp_host_service.cpp` ×1, `ppcp_import_controller.cpp` ×1, `ppcp_import_ledger.cpp` ×3, `ppcp_import_sink.cpp` ×1, `ppcp_pairing_store.cpp` ×1 | The import ledger, imports, annotations and pairings (FILE-LIB-03…05, FILE-SHOT-11) have no repository yet; their design is capture's (Mark, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint") | allowlist A5, `# platform refactor (capture)` | P11: another object's files written outside a repository | platform refactor (capture) |
+| The studio profile and the trunk ceremony recorder's files (lint A5, P11; S1-g): `Core/studio_profile.cpp` ×9, `Gui/imu/trunk_ceremony_recorder.cpp` ×7 | FILE-APP-06 and FILE-SESS-11 are read and written by their objects directly; Studio/Rig and the ceremony are designed here (Mark, 15 Nov 2026: `build/refactor/step-2/JUDGEMENT-ANSWERS.md`, "P11 lint") | allowlist A5, `# platform refactor (capture)` | As above | platform refactor (capture) |
+| `Pose/motion_capture_probe.cpp` (A1 ×1; S1-g, DEC-146) | The probe takes `SessionController` (a `src/Gui` header) to hold off while a session runs: an adapter outside Gui reaching the UI. A device / execution-provider probe, like its A6 line above (S1-g's placement, by Mark's rule for that line) | allowlist A1, `# platform refactor (capture)` | Low | platform refactor (capture) |
 
-## 2. QML APIs of settings, monitoring and tools (A6, 10 lines)
+## 2. Settings, monitoring and tools: their QML APIs (A6, 10 lines) and the updater's includes (A1, 4 lines)
 
 These objects are not presenters, so step 5's typed presenters don't reach them, and no step types their QML API
 (P9: the QML boundary is typed).
@@ -78,6 +81,7 @@ These objects are not presenters, so step 5's typed presenters don't reach them,
 | `LLM/LlmWorker.h` (A6 ×1) | A QVariantList slot, visible to the lint since the follow-up widened A6 to slots and signals | L135 | Low | platform refactor |
 | `Core/app_info.h` (A6 ×1) | A settings or monitoring object | L104 | Low | platform refactor |
 | `Export/swing_zip_exporter.h` (A6 ×2) | A tool. `src/Export` is renamed in step 7, but its API is not typed | L106 | Low | platform refactor |
+| `Update/linux_appimage_backend.cpp` (A1 ×1), `mac_sparkle_update.mm`, `update_controller.cpp`, `win_sparkle_update.cpp` (A1 ×2 each; S1-g, DEC-146) | The updater takes `AppSettings` and `SessionController` (`src/Gui` headers) to read its setting and hold off while a session runs: an adapter outside Gui reaching the UI. It goes with the settings object's API (S1-g's placement, beside `app_settings.h` above) | allowlist A1, `# platform refactor (settings)` | Low | platform refactor (settings) |
 | `Gui/settings/archive_controller.h` (A6 ×1) | The archive becomes a `Session` command (steps 2–3), but no step types the settings screen's controller API | L126 | Check after step 3: the line may go with the old archiver | platform refactor |
 
 ## 3. Build and test infrastructure

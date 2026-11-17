@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include "../../App/app.h"                // AthleteCallables (the composition root's, D18 (c)); Athlete
 #include "../../DomainModel/athlete.h"   // Athlete, AthleteActivity, SessionOwner (domain, inward)
 
 #include <QHash>
@@ -30,12 +31,14 @@
 
 #include <functional>
 
-namespace pinpoint { class AthleteRepository; class SessionRepository; }
+namespace pinpoint { class SessionRepository; }
 
 // AthleteController — THE QML ADAPTER OVER THE CURRENT ATHLETE (refactor step 2.3; brief §4.5). The
 // record lives on a pinpoint::Athlete, read and written through pinpoint::AthleteRepository (the one
 // writer, IM-S2-4); this class keeps today's QML surface — the same 14 properties and invokables — and
-// SET-02 (the current athlete at launch, which stays in settings: DEC-05).
+// SET-02 (the current athlete at launch, which stays in settings: DEC-05). It reaches the athletes through
+// the composition root's callables (D18 (c): DEC-167; refactor step 3.4a-ii), never the athlete repository
+// itself: list, load and create them, and read each one's activity; every edit is the Athlete's command.
 //
 // SWITCH vs EDIT (E-03, folds in Stage 0.7). currentAthleteChanged fires ONLY ON A SWITCH: another
 // athlete (or none) becomes current. An edit of any record — the form's Save, a club, the photo consent,
@@ -85,9 +88,10 @@ public:
     explicit AthleteController(QObject *parent = nullptr);
     ~AthleteController() override;   // waits for a running activity read (it posts back to this)
 
-    // The composition root hands in the two repositories (main.cpp; a test, its own over a scratch
-    // library). Until then there are no athletes. Reads the library at once.
-    void setRepositories(pinpoint::AthleteRepository *athletes, pinpoint::SessionRepository *sessions);
+    // The composition root hands in its callables over the athletes (D18 (c); main.cpp; a test, its own over
+    // a scratch library) and the session repository (the Wrist reference's edge translation, and the drawer's
+    // session delete until step 3.4b). Until then there are no athletes. Reads the library at once.
+    void setCallables(const pinpoint::AthleteCallables &athletes, pinpoint::SessionRepository *sessions);
 
     // Re-reads the library's athletes and every golfer's activity (from their SessionIndex, on a pool
     // thread; the result patches the list). The picker asks on opening; a library change asks too.
@@ -97,9 +101,23 @@ public:
 
     // ── C++ only (not QML) ───────────────────────────────────────────────────────────────────────
     pinpoint::Athlete     *currentAthlete() const { return m_current; }
+    // The session repository the composition root handed in (the app's one SessionStore), for a view
+    // controller that acts on one of the current athlete's sessions by its SessionId — the session trash
+    // (step 2.6) — until step 3's Athlete::trashSession takes it over.
+    pinpoint::SessionRepository *sessionRepository() const { return m_sessions; }
     // The current athlete's folder (D4: where its athlete.json is found; a settings athlete's: today's
     // derivation), "" when none. What the work-ons, the report list and the carousel follow.
     QString                currentFolder() const { return m_current ? m_current->folder() : QString(); }
+    // Any athlete's folder, by its uuid, through its Athlete (D4) — so a RENAMED athlete is still found in the
+    // folder it has always had, never in one derived from its name (J-29; step 2.7b: the session report). "" when
+    // there is no such athlete.
+    QString                folderOf(const QString &uuid) const;
+    // reportDetails() of the athlete a SESSION belongs to: the athlete whose folder (D4) holds the session's
+    // folder — and only that. Never by the name a folder spells, nor by the uuid a swing recorded (a swing's
+    // uuid may be the capturing machine's, H-09, or a moved session's previous athlete): E-02, J-66 (step
+    // 2.8b). The first athlete listed for the folder wins (two can resolve to one before M1: J-30). {} when no
+    // athlete's folder holds it. C++ only (the session report).
+    QVariantMap            reportDetailsForSession(const QString &sessionDir) const;
     // Who the current athlete's sessions belong to, as SessionRepository takes it (capture's session
     // folder, through capture::athleteIdentity).
     pinpoint::SessionOwner currentSessionOwner() const;
@@ -325,7 +343,7 @@ private:
     QString      m_currentInitials;
     QString      m_currentHandedness;
 
-    pinpoint::AthleteRepository *m_repo     = nullptr;
+    pinpoint::AthleteCallables   m_athletesDoor;   // the composition root's (D18 (c)); empty: no athletes
     pinpoint::SessionRepository *m_sessions = nullptr;
     QList<pinpoint::AthleteId>   m_ids;     // the last list(), in its order
     QPointer<pinpoint::Athlete>  m_current;

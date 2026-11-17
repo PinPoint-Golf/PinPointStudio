@@ -21,6 +21,7 @@
 // the pooled within-club input and the per-club windows, scalar and trace, on synthetic swings.
 
 #include "charts/variability_clubs.h"
+#include "../../Export/rule_data_install.h"
 
 #include "../../Metrics/variability/variability_grader.h"
 
@@ -53,6 +54,7 @@ class VariabilityClubsTest : public QObject {
     Q_OBJECT
 
 private slots:
+    void initTestCase() { pinpoint::installProcessRuleData(); }   // this process's packs and norms (step 3.2)
     void pooledResidualsAboutEachClubsMedian()
     {
         const std::vector<VariabilityClubValue> swings = {

@@ -59,11 +59,11 @@ namespace pinpoint::charts {
 // pack half (areas, after-the-ball keys) is built once and follows a pack edit only at the next
 // launch (audit B-02).
 //
-// WHY THE FIRST CALL IS THE GUI THREAD'S. The norm set is safe to take from any thread now, but the
-// first call also assembles the characteristic pack, and the pack loader reads the flat registries
-// (sharedReferenceSet() and its neighbours), whose first build is still not safe against a first build
-// on another thread (audit B-03). A first call from any other thread is a programming error: it
-// asserts in a debug build and writes ppError in a release one.
+// WHY THE FIRST CALL IS THE GUI THREAD'S. It was because the pack loader read the flat registries,
+// whose first build was not safe against a first build on another thread (audit B-03). Since refactor
+// step 3.2 the pack is RuleData's snapshot, built at launch, so nothing here is first built on a worker;
+// the rule is kept as it was until Charts reads the session's snapshot (step 5). A first call from any
+// other thread asserts in a debug build and writes ppError in a release one.
 ConsistencyEnv consistencyEnvFromPacks();
 
 } // namespace pinpoint::charts

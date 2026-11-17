@@ -32,6 +32,8 @@
 #include "../../Diagnostics/engine/characteristic.h"
 #include "../../Diagnostics/engine/condition_reading.h"
 #include "../../Export/swing_store.h"
+#include "../../Export/swing_paths.h"
+#include "../../Export/session_diagnostics_files.h"   // diagnostics.json's one reader (step 2.5)
 #include "../../Coaching/diagnostic_ledger.h"   // the ledger's own deserialiser: the earlier sessions' readings
 
 #include <QCoreApplication>
@@ -268,16 +270,8 @@ std::shared_ptr<ShotSeries> postureShotFromDetail(const QVariantMap &d, const QS
     return sh;
 }
 
-QString referenceLabelOf(const QString &dir)
-{
-    const QFileInfo fi(dir);
-    const int id = SessionSeriesModel::folderShotId(dir);
-    const QDate d = QDate::fromString(QFileInfo(fi.absolutePath()).fileName().left(10), QStringLiteral("yyyy-MM-dd"));
-    QStringList parts;
-    if (id >= 0) parts << QStringLiteral("shot %1").arg(id);
-    if (d.isValid()) parts << QLocale(QLocale::English).toString(d, QStringLiteral("d MMM yyyy"));
-    return parts.join(QStringLiteral(", "));
-}
+// "shot 3, 18 Aug 2026": which swing the ★ is — its swing number and its session's day (SessionIdentity).
+QString referenceLabelOf(const QString &dir) { return SessionSeriesModel::swingLabelOf(dir); }
 
 // ── the job's context ───────────────────────────────────────────────────────────────────────
 
@@ -626,7 +620,7 @@ SessionCameras camerasOf(const QString &sessionDir)
 {
     SessionCameras c;
     const QDir sd(sessionDir);
-    const QStringList swings = sd.entryList({ QStringLiteral("swing_*") }, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    const QStringList swings = pinpoint::SwingPaths::swingFolders(sessionDir);   // THE one listing (step 2.7b)
     for (const QString &sw : swings) {
         const QString dir = sd.filePath(sw);
         if (!pinpoint::SwingStore::hasDocument(dir)) continue;
@@ -682,14 +676,16 @@ QString addressHistoryStamp(const QString &sessionDir)
     QStringList parts{ fi.absoluteFilePath() };
     const QDir athlete = fi.dir();
     for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        const QFileInfo d(athlete.filePath(name) + QStringLiteral("/diagnostics.json"));
+        const QFileInfo d(pinpoint::SessionFiles::diagnosticsFile(athlete.filePath(name)));
         if (d.exists()) parts << QStringLiteral("%1:%2:%3").arg(name).arg(d.size()).arg(d.lastModified().toMSecsSinceEpoch());
     }
     return parts.join(QLatin1Char('|'));
 }
 
-// THE HISTORY: every EARLIER session in the athlete folder (the session folder's siblings whose name sorts before it —
-// a session folder starts with its date) whose diagnostics ledger reads the measure, kept per view when its camera on
+// THE HISTORY: every EARLIER session in the athlete folder — earlier by SessionIdentity's place (an earlier local day,
+// or the same day and a lower n-of-day, by start time: SessionDiagnosticsFiles::sessionPlaces, step 2.7b), never by
+// folder-name order, which `name-date-type` and a renamed athlete's folders break (F-06); a session with no day has
+// no history — whose diagnostics ledger reads the measure, kept per view when its camera on
 // that view is this session's (by serial; a serial not recorded on either side keeps it, counted as unrecorded).
 // One reading per swing: the ledger's graded value — the measure engine's own number, as Session diagnostics graded it.
 PostureAddressHistory readAddressHistory(const QString &sessionDir, const PostureEnv &env)
@@ -706,16 +702,21 @@ PostureAddressHistory readAddressHistory(const QString &sessionDir, const Postur
         h.views[size_t(c)].present = mine.present[size_t(c)];
         h.views[size_t(c)].serial = mine.serial[size_t(c)];
     }
-    const QString me = fi.fileName();
-    for (const QString &name : athlete.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        if (name >= me) continue;   // earlier sessions only
-        const QString dir = athlete.filePath(name);
-        QFile f(dir + QStringLiteral("/diagnostics.json"));
-        if (!f.open(QIODevice::ReadOnly)) continue;
-        QJsonParseError pe{};
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
-        if (pe.error != QJsonParseError::NoError || !doc.isObject()) continue;
-        const std::vector<pa::ShotRecord> shots = pa::fromJson(doc.object().value(QStringLiteral("ledger")).toObject());
+    const QList<pinpoint::SessionIndexEntry> places = pinpoint::SessionDiagnosticsFiles::sessionPlaces(athlete.absolutePath());
+    const pa::SessionPlace me = pinpoint::SessionDiagnosticsFiles::placeOf(places, fi.absoluteFilePath());
+    std::vector<std::pair<pa::SessionPlace, QString>> earlier;   // oldest first
+    if (me.day.isValid())
+        for (const pinpoint::SessionIndexEntry &e : places) {
+            const pa::SessionPlace p{ e.identity.folderName(), e.identity.localDay(), e.identity.nOfDay() };
+            if (p.day.isValid() && pa::sessionPlaceBefore(p, me)) earlier.emplace_back(p, e.folder);
+        }
+    std::stable_sort(earlier.begin(), earlier.end(), [](const auto &a, const auto &b) { return pa::sessionPlaceBefore(a.first, b.first); });
+    for (const auto &[place, dir] : earlier) {
+        Q_UNUSED(place)
+        // Through the envelope's one reader (step 2.5).
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
+        if (!read.parsed()) continue;
+        const std::vector<pa::ShotRecord> shots = pa::fromJson(read.envelope.ledger);
         QHash<QString, std::vector<double>> got;
         std::array<int, 2> swingsWith{};
         // A swing with a data warning COUNTS, as it does in this session's box (the session's shots are boxed
@@ -1254,7 +1255,7 @@ QVariantMap sessionMapOf(const PostureEnv &env, const std::vector<PostureShotInp
                                   { QStringLiteral("picked"), m.ordinal == pickedOrdinal },
                                   { QStringLiteral("dLevel"), nv(m.dLevel) }, { QStringLiteral("dSquatPush"), nv(m.dSquatPush) },
                                   { QStringLiteral("word"), word },
-                                  { QStringLiteral("label"), QStringLiteral("%1 %2: %3").arg(one).arg(m.ordinal).arg(word) } });
+                                  { QStringLiteral("label"), QStringLiteral("%1 %2: %3").arg(one).arg(W::shotNumber(idOf(m.ordinal), m.ordinal)).arg(word) } });
     }
     out.insert(QStringLiteral("strip"), QVariantMap{
         { QStringLiteral("marks"), marks }, { QStringLiteral("onPattern"), sv.onPattern },
@@ -1396,7 +1397,7 @@ void buildThisShot(Ctx &c, ChartsPosturePresenter::Result &R)
     out.insert(QStringLiteral("swingDir"), s.swingDir);
     out.insert(QStringLiteral("inSession"), inSession);
     const QString club = s.club.toLower();
-    out.insert(QStringLiteral("kicker"), (inSession ? QStringLiteral("Shot %1 of %2").arg(s.ordinal).arg(c.n) : QStringLiteral("This swing"))
+    out.insert(QStringLiteral("kicker"), (inSession ? W::shotOfText(s.shotId, s.ordinal, c.n) : QStringLiteral("This swing"))
                                              + (club.isEmpty() ? QString() : QStringLiteral("  ·  ") + club) + QStringLiteral("  ·  Posture"));
     out.insert(QStringLiteral("graded"), c.pick.graded);
     out.insert(QStringLiteral("head"), W::Sentence().append(v.headline).toVariant());

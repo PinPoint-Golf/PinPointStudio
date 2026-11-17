@@ -4,7 +4,8 @@
 // What it must do: two lock objects on one folder — the second answers Locked (naming the holder) until
 // the first lets go, then it gets the lock; a lock written by ANOTHER machine (whose process cannot be
 // asked about) is freed only by age, so a young one is Locked and one older than the stale time is taken
-// over; a folder that is not there fails and is not made; the lock file is `.pinpoint-lock`.
+// over; a folder that is not there fails and is not made; the lock file is `.pinpoint-lock`; lockOrJoin joins
+// a hold of the same folder by the same thread (the archiver's writes through the swing door) and no other.
 //
 //   cmake --build build/tests --target folder_lock_test -j 6
 //   ctest --test-dir build/tests -R '^folder_lock_test$' --output-on-failure
@@ -20,6 +21,7 @@
 #include <QTemporaryDir>
 
 #include <cstdio>
+#include <thread>
 
 using pinpoint::FolderLock;
 
@@ -125,6 +127,63 @@ int main()
         check(a.lock(0) == FolderLock::Result::Failed, "no such folder → Failed");
         check(!QFileInfo::exists(dir), "the folder was not made");
         check(a.errorString().contains(dir), "the error names the folder");
+    }
+
+    std::printf("Joining this thread's own hold (lockOrJoin, step 2.8b; J-47)\n");
+    {
+        const QString dir = tmp.filePath(QStringLiteral("session_j"));
+        QDir().mkpath(dir);
+        FolderLock outer(dir);
+        check(outer.lock(0) == FolderLock::Result::Acquired && !outer.joined(), "the outer hold takes the lock file");
+        {
+            FolderLock inner(dir + QStringLiteral("/./"));   // another spelling of the same folder
+            check(inner.lockOrJoin(0) == FolderLock::Result::Acquired && inner.joined() && inner.isHeld(),
+                  "a write inside it on the same thread joins it (no wait, no Locked)");
+            FolderLock plain(dir);
+            check(plain.lock(200) == FolderLock::Result::Locked,
+                  "lock() on the same thread still answers Locked (a second object is a second writer)");
+            FolderLock::Result other = FolderLock::Result::Acquired;
+            std::thread t([&] { FolderLock o(dir); other = o.lockOrJoin(200); });
+            t.join();
+            check(other == FolderLock::Result::Locked, "another thread's lockOrJoin never joins: it waits and answers Locked");
+        }
+        check(outer.isHeld() && QFileInfo::exists(outer.lockPath()), "the joined write's end lets nothing go");
+        outer.unlock();
+        check(!QFileInfo::exists(outer.lockPath()), "the outer hold's end lets go");
+        FolderLock fresh(dir);
+        check(fresh.lockOrJoin(0) == FolderLock::Result::Acquired && !fresh.joined(),
+              "with no hold to join, lockOrJoin takes the lock file itself");
+        FolderLock::Result after = FolderLock::Result::Acquired;
+        std::thread t2([&] { FolderLock o(dir); after = o.lockOrJoin(0); });
+        t2.join();
+        check(after == FolderLock::Result::Locked, "and holds it against another thread");
+    }
+
+    std::printf("A folder that vanishes during a hold, reached through a symlink (REVIEW-1 of 2.8b)\n");
+    {
+        // /mnt is a symlink on the Mac: the hold is taken through a link, the folder goes away mid-hold (a dropped
+        // share), the hold ends, the folder comes back. The registry entry must go with the hold: the same thread's
+        // next lockOrJoin must take the lock itself, never join a hold that no longer exists.
+        const QString real = tmp.filePath(QStringLiteral("real_session"));
+        const QString moved = tmp.filePath(QStringLiteral("real_session_away"));
+        const QString link = tmp.filePath(QStringLiteral("linked_session"));
+        QDir().mkpath(real);
+        check(QFile::link(real, link), "a symlink to the session folder");
+        {
+            FolderLock held(link);
+            check(held.lock(0) == FolderLock::Result::Acquired, "held through the symlink");
+            check(QDir().rename(real, moved), "the folder goes away mid-hold");
+            held.unlock();
+            check(!held.isHeld(), "the hold ends while the folder is away");
+        }
+        check(QDir().rename(moved, real), "the folder comes back");
+        QFile::remove(QDir(real).filePath(FolderLock::fileName()));   // the hold's own file, which its unlock could not reach
+        FolderLock again(link);
+        check(again.lockOrJoin(0) == FolderLock::Result::Acquired && !again.joined()
+                  && QFileInfo::exists(QDir(real).filePath(FolderLock::fileName())),
+              "the same thread's next lockOrJoin takes the lock file itself: no stale entry was joined");
+        again.unlock();
+        check(!QFileInfo::exists(QDir(real).filePath(FolderLock::fileName())), "and lets it go");
     }
 
     std::printf("\n%s (%d failure%s)\n", g_fail ? "FAILED" : "PASSED", g_fail, g_fail == 1 ? "" : "s");

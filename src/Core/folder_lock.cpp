@@ -20,9 +20,29 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QLockFile>
+#include <QMutex>
+#include <QThread>
 
 namespace pinpoint {
+
+namespace {
+
+// Which thread of this process holds each folder's lock file (lockOrJoin's question). Only the object that
+// took the file is here; joined objects are not.
+QMutex &registryMutex()
+{
+    static QMutex m;
+    return m;
+}
+QHash<QString, Qt::HANDLE> &registry()
+{
+    static QHash<QString, Qt::HANDLE> r;
+    return r;
+}
+
+} // namespace
 
 QString FolderLock::fileName() { return QStringLiteral(".pinpoint-lock"); }
 
@@ -37,19 +57,59 @@ FolderLock::~FolderLock() { unlock(); }
 
 QString FolderLock::lockPath() const { return QDir(m_folder).filePath(fileName()); }
 
-bool FolderLock::isHeld() const { return m_lock->isLocked(); }
+bool FolderLock::isHeld() const { return m_joined || m_lock->isLocked(); }
+
+// The folder as one key however it was spelled: its real path when it is there (symlinks and `//` resolved).
+QString FolderLock::registryKey() const
+{
+    const QFileInfo fi(m_folder);
+    const QString   canonical = fi.canonicalFilePath();
+    return canonical.isEmpty() ? QDir::cleanPath(fi.absoluteFilePath()) : canonical;
+}
 
 void FolderLock::unlock()
 {
-    if (m_lock->isLocked())
+    if (m_joined) {   // the hold belongs to the object it joined
+        m_joined = false;
+        return;
+    }
+    if (m_lock->isLocked()) {
+        {
+            // By the key taken at acquisition (REVIEW-1 of 2.8b): recomputed now, a folder that vanished during
+            // the hold (a dropped share) resolves to another spelling (/mnt is a symlink on the Mac), the entry
+            // would stay, and this thread's next lockOrJoin would join a hold that no longer exists.
+            const QMutexLocker guard(&registryMutex());
+            const auto it = registry().constFind(m_key);
+            if (it != registry().constEnd() && it.value() == QThread::currentThreadId())
+                registry().remove(m_key);
+        }
+        m_key.clear();
         m_lock->unlock();
+    }
+}
+
+FolderLock::Result FolderLock::lockOrJoin(int waitMs)
+{
+    m_holder.clear();
+    m_error.clear();
+    if (isHeld())
+        return Result::Acquired;
+    {
+        const QMutexLocker guard(&registryMutex());
+        const auto it = registry().constFind(registryKey());
+        if (it != registry().constEnd() && it.value() == QThread::currentThreadId()) {
+            m_joined = true;
+            return Result::Acquired;
+        }
+    }
+    return lock(waitMs);
 }
 
 FolderLock::Result FolderLock::lock(int waitMs)
 {
     m_holder.clear();
     m_error.clear();
-    if (m_lock->isLocked())
+    if (isHeld())
         return Result::Acquired;
 
     // Never make the folder: a lock must not bring a trashed folder back.
@@ -60,8 +120,12 @@ FolderLock::Result FolderLock::lock(int waitMs)
 
     // QLockFile takes a lock older than the stale time over (on this machine, also one whose process
     // has died) and otherwise retries until the wait runs out.
-    if (m_lock->tryLock(waitMs))
+    if (m_lock->tryLock(waitMs)) {
+        m_key = registryKey();
+        const QMutexLocker guard(&registryMutex());
+        registry().insert(m_key, QThread::currentThreadId());
         return Result::Acquired;
+    }
 
     switch (m_lock->error()) {
     case QLockFile::LockFailedError: {

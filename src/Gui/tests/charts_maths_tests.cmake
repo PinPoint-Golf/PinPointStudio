@@ -43,6 +43,7 @@ pp_add_test(trust_readings_test
 # doc, and its area column is the reference for every reading it names.
 include(${CMAKE_CURRENT_LIST_DIR}/charts_wrist_sources.cmake)      # CHARTS_NORM_ENV
 set(CONSISTENCY_ENV_SOURCES
+    ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     ${GUI}/charts/consistency_env.cpp
     ${SRC}/Metrics/metric_catalogue.cpp
     ${SRC}/Metrics/metric_resolver.cpp
@@ -71,6 +72,7 @@ set(CONSISTENCY_ENV_INCLUDE ${GUI} ${GUI}/charts ${SRC} ${SRC}/Core ${SRC}/Analy
 set(CONSISTENCY_ENV_ENV "PINPOINT_CORE_PACK=${SRC}/Resources/diagnostics/core.json;${CHARTS_NORM_ENV}")
 pp_add_test(consistency_env_test
     SOURCES consistency_env_test.cpp ${CONSISTENCY_ENV_SOURCES}
+            ${RULE_DATA_SOURCES}   # RuleData and its store (refactor step 3.2)
     INCLUDE ${CONSISTENCY_ENV_INCLUDE}
     DEFINES CONSISTENCY_READINGS_CSV="${SRC}/../docs/research/data/consistency/consistency_readings.csv"
     LINK    Qt6::Qml Qt6::Test

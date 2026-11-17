@@ -44,7 +44,7 @@ Item {
     function field(name, label, kind, value, options, issues) {
         var r = { type: "", id: name, label: label, detail: "", tone: "", navigable: false,
                   field: name, kind: kind, value: value, options: options || [], group: "report" }
-        if (issues !== undefined) r.issues = issues
+        if (issues !== undefined) { r.issues = issues; r.wordingChecked = true }
         return r
     }
 

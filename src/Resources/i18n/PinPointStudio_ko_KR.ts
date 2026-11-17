@@ -11952,6 +11952,10 @@ Here is your report from today&apos;s session. Page 1 has the short version; you
         <translation>세션 종료를 저장하지 못했습니다</translation>
     </message>
     <message>
+        <source>%1 could not be saved</source>
+        <translation>%1을(를) 저장하지 못했습니다</translation>
+    </message>
+    <message>
         <source>Today&apos;s session could not be continued, so a new one started</source>
         <translation>오늘 세션을 이어갈 수 없어 새 세션을 시작했습니다</translation>
     </message>
@@ -13396,12 +13400,40 @@ Reports sent from this computer will come from %1.</source>
 <context>
     <name>SessionDiagnosticsModel</name>
     <message>
+        <source>It was saved by a newer version of PinPoint Studio, so this one only reads it.</source>
+        <translation>PinPoint Studio의 더 새로운 버전에서 저장했으므로, 이 버전에서는 읽기만 합니다.</translation>
+    </message>
+    <message>
+        <source>The session&apos;s club baseline</source>
+        <translation>세션의 클럽 기준값</translation>
+    </message>
+    <message>
+        <source>The focus, declared miss, screen answers and intent run</source>
+        <translation>포커스, 선언한 미스, 스크리닝 응답과 인텐트 실행</translation>
+    </message>
+    <message>
+        <source>Shot %1 could not be found in this session&apos;s folder.</source>
+        <translation>이 세션의 폴더에서 샷 %1을(를) 찾을 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>A shot&apos;s intent or correction</source>
+        <translation>샷의 인텐트 또는 수정</translation>
+    </message>
+    <message>
         <source>Its diagnostics file could not be read or moved aside. Check the library&apos;s drive or share.</source>
         <translation>해당 진단 파일을 읽지 못했거나 다른 곳으로 옮기지 못했습니다. 라이브러리의 드라이브 또는 공유 폴더를 확인하세요.</translation>
     </message>
     <message>
         <source>Its diagnostics file could not be opened. Check the library&apos;s drive or share.</source>
         <translation>해당 진단 파일을 열지 못했습니다. 라이브러리의 드라이브 또는 공유 폴더를 확인하세요.</translation>
+    </message>
+    <message>
+        <source>%1 could not be saved: %2</source>
+        <translation>%1을(를) 저장하지 못했습니다: %2</translation>
+    </message>
+    <message>
+        <source>The session&apos;s diagnostics</source>
+        <translation>세션의 진단</translation>
     </message>
 </context>
 <context>
@@ -15960,6 +15992,21 @@ Reports sent from this computer will come from %1.</source>
     <message>
         <source>Sensor mounted incorrectly (%1) — re-seat per the strap guide and tap Recalibrate.</source>
         <translation>센서가 잘못 착용되었습니다 (%1). 스트랩 안내서에 따라 다시 착용한 다음 ‘다시 보정’을 누르세요.</translation>
+    </message>
+</context>
+<context>
+    <name>WorkOnsController</name>
+    <message>
+        <source>The session&apos;s work-ons</source>
+        <translation>세션의 개선 과제</translation>
+    </message>
+    <message>
+        <source>The swing summary</source>
+        <translation>스윙 요약</translation>
+    </message>
+    <message>
+        <source>The athlete&apos;s tendencies</source>
+        <translation>선수의 경향</translation>
     </message>
 </context>
 <context>

@@ -19,6 +19,7 @@
 #pragma once
 
 #include "characteristic_pack.h"
+#include "layered_set.h"
 
 #include <QString>
 
@@ -210,12 +211,10 @@ ValidationReport validateReferenceSet(const ReferenceSet &set);
 // Returns a string for DISPLAY ONLY. The stored citation stays the bare identifier — it is the
 // join key, and "PMID 30479527" joins to nothing.
 //
-// Two forms. The one-argument version reads the shared registry and is what almost every caller
-// wants; the overload takes the set explicitly, for code that has already been HANDED one and must
-// not reach for a global instead — a label that disagreed with the resolution the caller just made
-// would be the same citation rendered two ways on one screen.
+// The set is HANDED IN: a label that disagreed with the resolution the caller just made would be the
+// same citation rendered two ways on one screen. (The one-argument form, which reads RuleData's
+// snapshot, is in src/DomainModel/rule_data.h, for the callers not yet handed one; refactor step 3.2.)
 QString citationLabel(const QString &citation, const ReferenceSet &set);
-QString citationLabel(const QString &citation);
 
 using ReferenceLoadResult = LoadResult<ReferenceSet>;
 
@@ -241,25 +240,18 @@ QByteArray          saveReferenceSet(const ReferenceSet &set);
 // tempted to "fix" that should read it first: the fix is a schema change, not a serialiser change.
 QByteArray          exportReferenceSetCsl(const ReferenceSet &set);
 
-const ReferenceSet &sharedReferenceSet();
-void                resetSharedReferenceSet();
+// The shipped bibliography and the user's own, apart and assembled: what the rule data's repository
+// builds the snapshot from (refactor step 3.2). Pure. The assembled set is RuleData's
+// (src/DomainModel/rule_data.h). Anything that WRITES needs the layers apart: it must write back the
+// user's own records and never a flattened copy of the shipped bibliography, and it has to be able to
+// answer "does this ship?", which the merge cannot. The Diagnostic Model panel holds references
+// READ-ONLY on purpose — they are regenerated on every pack build, so an edit made there would be
+// overwritten — and that argument is about the panel, not about the registry.
+ContentLayers<ReferenceSet> assembleReferenceLayers(const RuleFile &core, const RuleFile &user);
 
-// ── The two layers, separately ──────────────────────────────────────────────
-//
-// sharedReferenceSet() is the MERGE, which is what everybody who only reads wants. Anything that
-// WRITES needs the layers apart: it must write back the user's own records and never a flattened
-// copy of the shipped bibliography, and it has to be able to answer "does this ship?", which the
-// merge cannot.
-//
-// The same split screens and drills already have, arriving here for parity rather than for a
-// caller: the Diagnostic Model panel holds references READ-ONLY on purpose — they are regenerated
-// on every pack build, so an edit made there would be overwritten — and that argument is about the
-// panel, not about the registry. A user layer has always been read and merged here; it simply had
-// no way to be written, which made "imported, so read-only" a property of the code rather than a
-// decision anyone had taken.
-const ReferenceSet &coreReferenceSet();          // shipped only, cached like the merge
-ReferenceSet        loadUserReferenceSet();      // the user layer alone; empty when there is no file
-QString             userReferenceSetPath();
-bool                saveUserReferenceSet(const ReferenceSet &set, QString *whyNot = nullptr);
+// The user layer's file (a path; the repository reads and writes it) and its name in the shared
+// directory, which the pack enumeration's skip list reads (audit B-13).
+inline constexpr const char kReferenceSetFileName[] = "references.json";
+QString userReferenceSetPath();
 
 } // namespace pinpoint::analysis

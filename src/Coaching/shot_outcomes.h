@@ -435,7 +435,7 @@ inline ShotCarryBlock composeCarryBlock(const ShotRecord &shot, const std::vecto
     const auto hasLabel = [&labels](const char *id) {
         return std::any_of(labels.begin(), labels.end(), [id](const ShotOutcomeLabel &l) { return l.id == QLatin1String(id); });
     };
-    if (!usual || usual->n < kClubBaselineMinShots || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean)
+    if (!usual || !usual->earned() || !std::isfinite(shot.carry) || !std::isfinite(usual->carryMean)
         || !hasLabel("carry_deficit"))
         return b;
     const double shortBy = usual->carryMean - shot.carry;
@@ -450,10 +450,10 @@ inline ShotCarryBlock composeCarryBlock(const ShotRecord &shot, const std::vecto
 
     // THE HEADLINE IS DISPLAY, THE BREAKDOWN IS A JUDGEMENT (#176). "Short by X" quotes the carry as recorded
     // (and is drawn only when carry_deficit fired, off a live carry measure or the live m_carryShortfall); each part below BLAMES a
-    // reading for the loss, so it reads the shot through gradedReadings(): a held club speed, smash or ball
+    // reading for the loss, so it reads the shot through GradedReadings: a held club speed, smash or ball
     // speed drops out of the breakdown and its share folds into the remainder, never onto the strike.
-    ShotRecord gradedScratch;
-    const ShotRecord &g = gradedReadings(shot, gradedScratch);
+    const GradedReadings graded(shot);
+    const ShotRecord &g = graded.record();
 
     const bool haveSpeed = std::isfinite(g.lmClubSpeed) && std::isfinite(usual->speedMean) && usual->speedMean > 0.0;
     const double speedRatio = haveSpeed ? g.lmClubSpeed / usual->speedMean : 1.0;

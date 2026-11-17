@@ -290,19 +290,4 @@ std::unique_ptr<ICharacteristicPackProvider> makeMergedPackProvider(
     return std::make_unique<MergedPackProvider>(std::move(core), std::move(user));
 }
 
-std::unique_ptr<ICharacteristicPackProvider> makeCharacteristicPackProvider()
-{
-    // ONE PROVIDER PER PACK FILE. This used to construct a single file provider over the whole
-    // directory, which could only ever hold one pack — so a second installed pack was opened,
-    // parsed, had its validation issues added to the health list, and then had every characteristic
-    // in it dropped on the floor. The report said the pack was there; the library did not contain
-    // it, and nothing said so.
-    //
-    // makeFilePackProviders() decides the order and the origin of each layer; see its comment for
-    // why `user.json` leads and why everything else is Community. MergedPackProvider has always
-    // taken a vector, so no generalisation was needed there — the contract simply had nobody
-    // fulfilling it.
-    return makeMergedPackProvider(makeResourcePackProvider(), makeFilePackProviders());
-}
-
 } // namespace pinpoint::analysis

@@ -42,6 +42,8 @@
 //   ctest --test-dir build/analysis-tests -R lm_corridor --output-on-failure
 
 #include "../norms/context_tree.h"
+#include "../../Export/rule_data_install.h"
+#include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "../norms/metric_corridor.h"
 #include "../packs/pack_provider.h"
 
@@ -119,6 +121,7 @@ static void checkSilent(const CharacteristicPack &pack, const INormProvider &nor
 
 int main()
 {
+    pinpoint::installProcessRuleData();   // this process's packs and norms (refactor step 3.2)
     const std::unique_ptr<ICharacteristicPackProvider> packProv = makeCharacteristicPackProvider();
     const std::shared_ptr<const INormProvider>         norms    = sharedNormProvider();
     const CharacteristicPack                          &pack     = packProv->pack();

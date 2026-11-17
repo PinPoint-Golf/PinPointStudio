@@ -20,6 +20,7 @@
 #include "markup_image_provider.h"
 
 #include "../../Core/club_vocabulary.h"
+#include "../../App/shot_command_door.h"   // the Shot's markup truth (step 3.4b-i)
 
 #include <QDir>
 #include <QImage>
@@ -150,7 +151,18 @@ pinpoint::WriteResult MarkupController::saveTruth(const TruthDoc &doc, const Vid
         none.error = QStringLiteral("no swing store is connected");
         return none;
     }
-    return m_repo->writeTruth(shotOf(currentSwingDir()), truthViewOf(view), toJson(doc, vi, view));
+    const QString           swingDir = currentSwingDir();
+    const pinpoint::ShotRef shot     = shotOf(swingDir);
+    const QJsonObject       json     = toJson(doc, vi, view);
+    // The Shot's own command (no event: DEC-187), through its Session; today's write only for a swing no Session
+    // holds (N1).
+    if (m_commands) {
+        const pinpoint::ForwardResult f =
+            m_commands->setMarkupTruth(pinpoint::sessionFolderOf(swingDir), shot, truthViewOf(view), json);
+        if (f.reached)
+            return f.result;
+    }
+    return m_repo->writeTruth(shot, truthViewOf(view), json);
 }
 
 void MarkupController::rebuildSwingsCache()
