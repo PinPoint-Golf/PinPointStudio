@@ -183,7 +183,9 @@ QString shortServerText(const QString &reply)
 QString R::sendErrorWords(SmtpError code, const QString &provider, const QString &host, int port,
                           const QString &serverReply, const QString &rejected, qint64 sizeBytes)
 {
-    const auto tr = [](const char *s) { return QCoreApplication::translate("ReportMailer", s); };
+    // translate() is spelled out at each sentence, not wrapped in a local tr(): lupdate reads the
+    // call, not what a lambda forwards to, and filed these under the namespace instead of
+    // "ReportMailer" — so a catalogue could never have matched them.
     const bool gmail = provider == QLatin1String("gmail");
     const bool icloud = provider == QLatin1String("icloud");
     switch (code) {
@@ -191,51 +193,68 @@ QString R::sendErrorWords(SmtpError code, const QString &provider, const QString
         return {};
     case SmtpError::AppPasswordRequired:
         if (gmail)
-            return tr("Gmail needs an app password here, not your normal password. Make one at "
-                      "myaccount.google.com/apppasswords (it needs 2-Step Verification on) and paste it in "
-                      "Settings → Studio.");
+            return QCoreApplication::translate("ReportMailer",
+                "Gmail needs an app password here, not your normal password. Make one at "
+                "myaccount.google.com/apppasswords (it needs 2-Step Verification on) and paste it in "
+                "Settings → Studio.");
         if (icloud)
-            return tr("iCloud needs an app-specific password here, not your Apple Account password. Make one at "
-                      "account.apple.com (Sign-In and Security → App-Specific Passwords) and paste it in "
-                      "Settings → Studio.");
-        return tr("Your mail server needs an app password here, not your normal password. Make one in your mail "
-                  "account's security settings and paste it in Settings → Studio.");
+            return QCoreApplication::translate("ReportMailer",
+                "iCloud needs an app-specific password here, not your Apple Account password. Make one at "
+                "account.apple.com (Sign-In and Security → App-Specific Passwords) and paste it in "
+                "Settings → Studio.");
+        return QCoreApplication::translate("ReportMailer",
+            "Your mail server needs an app password here, not your normal password. Make one in your mail "
+            "account's security settings and paste it in Settings → Studio.");
     case SmtpError::AuthRejected:
         if (gmail)
-            return tr("Gmail didn't accept that app password. Make a new one at myaccount.google.com/apppasswords "
-                      "and paste it in Settings → Studio.");
+            return QCoreApplication::translate("ReportMailer",
+                "Gmail didn't accept that app password. Make a new one at myaccount.google.com/apppasswords "
+                "and paste it in Settings → Studio.");
         if (icloud)
-            return tr("iCloud didn't accept that app-specific password. Make a new one at account.apple.com and "
-                      "paste it in Settings → Studio.");
+            return QCoreApplication::translate("ReportMailer",
+                "iCloud didn't accept that app-specific password. Make a new one at account.apple.com and "
+                "paste it in Settings → Studio.");
         if (provider == QLatin1String("microsoft"))
-            return tr("Microsoft 365 didn't accept the user name or password. Many Microsoft 365 accounts have "
-                      "password sign-in for sending switched off; whoever runs the account can turn it on.");
-        return tr("Your mail server didn't accept the user name or password.");
+            return QCoreApplication::translate("ReportMailer",
+                "Microsoft 365 didn't accept the user name or password. Many Microsoft 365 accounts have "
+                "password sign-in for sending switched off; whoever runs the account can turn it on.");
+        return QCoreApplication::translate("ReportMailer",
+            "Your mail server didn't accept the user name or password.");
     case SmtpError::TooBig:
-        return tr("The report is too big for your mail server (%1 MB).")
+        return QCoreApplication::translate("ReportMailer",
+            "The report is too big for your mail server (%1 MB).")
             .arg(double(sizeBytes) / (1024.0 * 1024.0), 0, 'f', 1);
     case SmtpError::Connect:
     case SmtpError::Timeout:
-        return tr("Couldn't reach %1. Check the network — some networks block port %2.").arg(host).arg(port);
+        return QCoreApplication::translate("ReportMailer",
+            "Couldn't reach %1. Check the network — some networks block port %2.").arg(host).arg(port);
     case SmtpError::Resolve:
-        return tr("Couldn't find the mail server %1. Check its name in Settings → Studio.").arg(host);
+        return QCoreApplication::translate("ReportMailer",
+            "Couldn't find the mail server %1. Check its name in Settings → Studio.").arg(host);
     case SmtpError::Tls:
-        return tr("Couldn't make a secure connection to %1.").arg(host);
+        return QCoreApplication::translate("ReportMailer",
+            "Couldn't make a secure connection to %1.").arg(host);
     case SmtpError::NoEncryption:
-        return tr("%1 doesn't offer a secure connection, so the password wasn't sent.").arg(host);
+        return QCoreApplication::translate("ReportMailer",
+            "%1 doesn't offer a secure connection, so the password wasn't sent.").arg(host);
     case SmtpError::RecipientRejected:
-        return tr("The mail server refused the address %1.").arg(rejected);
+        return QCoreApplication::translate("ReportMailer",
+            "The mail server refused the address %1.").arg(rejected);
     case SmtpError::BadConfig:
-        return tr("Sending isn't set up properly. Check it in Settings → Studio.");
+        return QCoreApplication::translate("ReportMailer",
+            "Sending isn't set up properly. Check it in Settings → Studio.");
     case SmtpError::Disconnected:
-        if (serverReply == QLatin1String("cancelled")) return tr("Sending was cancelled.");
-        return tr("%1 closed the connection part-way through. Try again.").arg(host);
+        if (serverReply == QLatin1String("cancelled")) return QCoreApplication::translate("ReportMailer",
+            "Sending was cancelled.");
+        return QCoreApplication::translate("ReportMailer",
+            "%1 closed the connection part-way through. Try again.").arg(host);
     case SmtpError::ServerRejected:
         break;
     }
     const QString why = shortServerText(serverReply);
-    return why.isEmpty() ? tr("The mail server refused the message.")
-                         : tr("The mail server refused the message: %1").arg(why);
+    return why.isEmpty() ? QCoreApplication::translate("ReportMailer", "The mail server refused the message.")
+                         : QCoreApplication::translate("ReportMailer",
+                             "The mail server refused the message: %1").arg(why);
 }
 
 void ReportMailer::ensureLoaded() const

@@ -420,15 +420,25 @@ QString StudioProfile::stamp() const { return m_stamp; }
 QVariantList StudioProfile::missingDetails() const
 {
     QVariantList out;
-    auto miss = [&out](const QString &text) {
+    // `text` says what is missing and where to add it, for the report sheet. `brief` says only what
+    // is missing, for Settings → Studio itself, where "add it in Settings → Studio" is noise. They
+    // are two sentences, not one trimmed by a pattern: a translation ends its sentence its own way.
+    auto miss = [&out](const QString &brief, const QString &text) {
         QVariantMap m;
         m.insert(QStringLiteral("text"), text);
+        m.insert(QStringLiteral("brief"), brief);
         m.insert(QStringLiteral("where"), QStringLiteral("studio"));
         out.append(m);
     };
-    if (m_studioName.isEmpty()) miss(tr("No studio name yet — add it in Settings → Studio"));
-    if (m_coachName.isEmpty())  miss(tr("No coach name yet — add it in Settings → Studio"));
-    if (m_coachEmail.isEmpty()) miss(tr("No coach email yet, so replies have nowhere to go — add it in Settings → Studio"));
+    if (m_studioName.isEmpty())
+        miss(tr("No studio name yet"),
+             tr("No studio name yet — add it in Settings → Studio"));
+    if (m_coachName.isEmpty())
+        miss(tr("No coach name yet"),
+             tr("No coach name yet — add it in Settings → Studio"));
+    if (m_coachEmail.isEmpty())
+        miss(tr("No coach email yet, so replies have nowhere to go"),
+             tr("No coach email yet, so replies have nowhere to go — add it in Settings → Studio"));
     return out;
 }
 

@@ -68,7 +68,7 @@ QtObject {
           itemId: "setting_autoDetect" },
 
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Session behaviour"),
-          label: qsTr("Swing detection sensitivity"),     subtitle: qsTr("Lower values trigger on slower movements"),
+          label: qsTr("Swing detection sensitivity"),     subtitle: qsTr("Higher values trigger on slower movements"),
           itemId: "setting_swingSensitivity" },
 
         { panelIndex: 0, panelLabel: qsTr("General"),    groupLabel: qsTr("Session behaviour"),

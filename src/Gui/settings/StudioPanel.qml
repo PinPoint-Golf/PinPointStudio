@@ -239,7 +239,7 @@ SettingsPanelBase {
         delegate: Text {
             required property var modelData
             objectName: "studioMissing"
-            text: "⚠ " + String(modelData.text).replace(/ — add it in Settings → Studio$/, "")
+            text: "⚠ " + String(modelData.brief)
             font.family: Theme.fontData; font.pixelSize: Theme.fontSzMicro; color: Theme.colorText2
             Layout.fillWidth: true; wrapMode: Text.WordWrap
         }

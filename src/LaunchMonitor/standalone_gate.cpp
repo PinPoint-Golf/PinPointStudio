@@ -34,24 +34,22 @@ StandaloneVerdict decideStandalone(const StandaloneFacts &f)
 
 QString standaloneVerdictReason(StandaloneVerdict v)
 {
-    const auto tr = [](const char *s) {
-        return QCoreApplication::translate("LaunchMonitor", s);
-    };
     switch (v) {
     case StandaloneVerdict::Record:
         return QString();
     case StandaloneVerdict::NotConfigured:
-        return tr("no launch monitor is configured");
+        return QCoreApplication::translate("LaunchMonitor", "no launch monitor is configured");
     case StandaloneVerdict::Disabled:
-        return tr("recording shots the monitor sees on its own is switched off");
+        return QCoreApplication::translate("LaunchMonitor",
+            "recording shots the monitor sees on its own is switched off");
     case StandaloneVerdict::NoLibrary:
-        return tr("no athlete library is configured");
+        return QCoreApplication::translate("LaunchMonitor", "no athlete library is configured");
     case StandaloneVerdict::NoAthlete:
-        return tr("no athlete is selected");
+        return QCoreApplication::translate("LaunchMonitor", "no athlete is selected");
     case StandaloneVerdict::NoSession:
-        return tr("no session is running");
+        return QCoreApplication::translate("LaunchMonitor", "no session is running");
     case StandaloneVerdict::CaptureInactive:
-        return tr("capture is not active");
+        return QCoreApplication::translate("LaunchMonitor", "capture is not active");
     }
     return QString();
 }
