@@ -368,12 +368,17 @@ AthleteSeen athleteFor(const QString &sessionDir, const QString &ini)
 class NewEngine
 {
 public:
-    explicit NewEngine(QString ini) : m_ini(std::move(ini))
+    // `parallelReader` (refactor 3.7-0): the app's parallel-run reader (pinpoint::parallel::doors's: parse a miss,
+    // write no sidecar) in place of the default one, which writes the sidecars it rebuilds.
+    explicit NewEngine(QString ini, bool parallelReader = false) : m_ini(std::move(ini))
     {
         m_store.setOsTrashForTest(false);   // a scratch library: nothing goes to the real Trash
         m_recordings = std::make_unique<pinpoint::SwingStoreRecordingRepository>(m_store);
         m_reader     = std::make_shared<pinpoint::SwingStoreRecordingReader>(m_store);
-        m_firing     = std::make_shared<pinpoint::SwingStoreFiringReader>(m_store, *m_recordings);
+        m_firing     = parallelReader
+                         ? pinpoint::parallel::doors(nullptr, nullptr, nullptr, m_store, *m_recordings).reader
+                         : std::shared_ptr<const pinpoint::FiringReader>(
+                               std::make_shared<const pinpoint::SwingStoreFiringReader>(m_store, *m_recordings));
         m_receiver   = std::make_unique<pinpoint::WorkReceiver>([this](const pinpoint::WorkAddress &a) {
             const pinpoint::SessionId id = pinpoint::SessionId::fromString(a.owner);
             for (auto &it : m_athletes)
@@ -423,7 +428,7 @@ private:
     pinpoint::SessionStore                                      m_store;
     std::unique_ptr<pinpoint::SwingStoreRecordingRepository>    m_recordings;
     std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
-    std::shared_ptr<pinpoint::SwingStoreFiringReader>           m_firing;
+    std::shared_ptr<const pinpoint::FiringReader>               m_firing;
     std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
     std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;   // destroyed before the receiver
 };
@@ -474,6 +479,8 @@ void printUsage(FILE *to)
         "                     either, --dump writes the parallel run's form (dumpVersion 2) for parity_diff.py\n"
         "  --athletes-ini <f> (with --engine new) a COPY of the app's settings: each athlete's sex and date of\n"
         "                     birth for the norm cohort (D6), matched by the athlete folder's or session's name\n"
+        "  --parallel-reader  (with --engine new; refactor 3.7-0) read the shots with the app's parallel-run reader\n"
+        "                     (parallel::doors): a missing or stale sidecar is parsed and NO sidecar is written\n"
         "  --help             this text\n");
 }
 
@@ -495,11 +502,13 @@ int main(int argc, char **argv)
     bool        allowInProgress = false;
     QString     engine;          // "", "old", "new" (run P)
     QString     athletesIni;
+    bool        parallelReader = false;   // 3.7-0: the app's parallel-run reader (--parallel-reader)
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("--engine") && i + 1 < argc) { engine = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a.startsWith(QLatin1String("--engine="))) { engine = a.mid(9); continue; }
         if (a == QLatin1String("--athletes-ini") && i + 1 < argc) { athletesIni = QString::fromLocal8Bit(argv[++i]); continue; }
+        if (a == QLatin1String("--parallel-reader")) { parallelReader = true; continue; }
         if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--tag") && i + 1 < argc) { tag = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--dump") && i + 1 < argc) { dumpPath = QString::fromLocal8Bit(argv[++i]); continue; }
@@ -517,7 +526,7 @@ int main(int argc, char **argv)
     }
     const bool newEngine = engine == QLatin1String("new");
     std::unique_ptr<NewEngine> ng;
-    if (newEngine) ng = std::make_unique<NewEngine>(athletesIni);
+    if (newEngine) ng = std::make_unique<NewEngine>(athletesIni, parallelReader);
     std::vector<D7Session> d7;
     if (!dumpPath.isEmpty()) {
         if (const QStringList missing = parity::missingContent(); !missing.isEmpty()) {

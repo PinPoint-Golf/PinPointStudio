@@ -23,8 +23,8 @@
 //
 // THE READ IS detectShot's, MOVED, NOT REWRITTEN (session_diagnostics_model.cpp, detectShot; refactor 3.3 left it
 // there): the document's stamp taken BEFORE the read; no document → not read ("no document yet"); one lazy parse
-// shared by the phase grid (readLivePhaseGrid, its sidecar written) and the summary (readSwingSummary, its sidecar
-// written); the capture instant from clock.wallclock, else the file's mtime; the document released straight after;
+// shared by the phase grid (readLivePhaseGrid, its sidecar written unless the policy says not) and the summary
+// (readSwingSummary, likewise); the capture instant from clock.wallclock, else the file's mtime; the document released straight after;
 // the hand and the two integrity facts. Plus the review's shot intent and label corrections, through the swing door
 // (RecordingRepository::readReview, safe from any thread: the document's root alone, never its tracks), so a re-fire
 // costs one read of the shot.
@@ -34,6 +34,7 @@
 // Safe from any thread; holds references to the two repositories, which outlive every job (the composition root's).
 
 #include "../DomainModel/firing_reader.h"
+#include "../Core/sidecar_policy.h"
 
 namespace pinpoint {
 
@@ -43,11 +44,18 @@ class SessionRepository;
 class SwingStoreFiringReader final : public FiringReader
 {
 public:
-    // `writeSidecars`: the read may write the phase-grid and summary sidecars it rebuilds (detectShot's behaviour, a
-    // known interim against R-CON-3: CARRY C5). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in memory only"),
-    // so with PINPOINT_DIAG_PARALLEL=1 the old model stays the only writer of every file of the session.
+    // `writeSidecars`: ONLY whether the read may write the phase-grid and summary sidecars it rebuilds (detectShot's
+    // behaviour, a known interim against R-CON-3: CARRY C5). The read ALWAYS parses the document when no current
+    // sidecar serves it — a firing job runs on a worker, never a GUI thread — so true is SidecarPolicy::ParseAndWrite
+    // and false is ParseNoWrite (src/Core/sidecar_policy.h). FALSE for the parallel run (refactor 3.5-ii; §4.9 "in
+    // memory only"; pinpoint::parallel::doors), so with PINPOINT_DIAG_PARALLEL=1 the old model stays the only writer of
+    // every file of the session. Until 3.7-0 false also meant "never parse" (the readers' old one bool), so the
+    // parallel run fired every live shot on an empty grid before the old model's End sweep wrote the sidecars (D22).
     SwingStoreFiringReader(const SessionRepository &sessions, RecordingRepository &recordings, bool writeSidecars = true)
-        : m_sessions(sessions), m_recordings(recordings), m_writeSidecars(writeSidecars) {}
+        : m_sessions(sessions), m_recordings(recordings),
+          m_policy(writeSidecars ? SidecarPolicy::ParseAndWrite : SidecarPolicy::ParseNoWrite) {}
+
+    SidecarPolicy policy() const { return m_policy; }
 
     FiringRead    read(const ShotRef &shot, const analysis::CharacteristicPack &pack) const override;
     DocumentStamp stamp(const ShotRef &shot) const override;
@@ -56,7 +64,7 @@ public:
 private:
     const SessionRepository &m_sessions;
     RecordingRepository     &m_recordings;
-    bool                     m_writeSidecars = true;
+    SidecarPolicy            m_policy = SidecarPolicy::ParseAndWrite;   // never CachedOnly
 };
 
 } // namespace pinpoint

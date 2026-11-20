@@ -1966,6 +1966,23 @@ set_property(TARGET regrade_ledger PROPERTY SOURCES ${_regrade_sources})
 pp_apply_sanitizers(regrade_ledger)
 # Note: intentionally NOT added to add_test() — manual run only; it rewrites diagnostics.json.
 
+# THE PARALLEL RUN AS THE APP WIRES IT, LIVE (refactor step 3.7-0, the D22 fix): the app's own doors
+# (pinpoint::parallel::doors, which main.cpp calls) over a live-shaped session on a temporary library — EVT-01 with no
+# sidecar, the late launch-monitor fold (EVT-22), End, then the old model as the catch-up runs it and the parallel
+# hook. The new owner keeps every shot with its readings and club, writes no file, and its form equals the old
+# model's. regrade_ledger's link line, less the tool.
+set(_diag_parallel_live_sources ${_regrade_sources})
+list(REMOVE_ITEM _diag_parallel_live_sources ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp)
+pp_add_test(diag_parallel_live_test
+    SOURCES ${DIAG}/tests/diag_parallel_live_test.cpp ${_diag_parallel_live_sources}
+    INCLUDE ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${OpenCV_INCLUDE_DIRS}
+    LINK    Qt6::Qml ${OpenCV_LIBS}
+    STD 20
+    COMPILE_OPTIONS -DPP_LIVE_SWINGS_DIR="${DIAG}/tests/data/live_swings"
+    AUTOMOC)
+set_tests_properties(diag_parallel_live_test PROPERTIES
+    ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
+
 # THE PARITY DUMPS (refactor Step G; docs/developer/testing_developer_guide.md "Parity dumps"). The session
 # half is regrade_ledger --dump, above. athlete_dump is the athlete half: the app's work-ons catch-up
 # (WorkOnsController, driven synchronously as work_ons_controller_test drives it) over a SCRATCH athlete

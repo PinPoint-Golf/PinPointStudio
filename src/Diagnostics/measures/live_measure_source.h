@@ -99,9 +99,13 @@ QString missingReasonText(MissingKind k);
 // (msWindowsOf) added to `cfg`, its swingDir set even on the empty grid a missing document gives. The first
 // constructor below reads exactly this; a caller that keeps the grid as a value (the firing job's readings,
 // fire_findings.h) reads it here and hands it to the second. readPhaseGrid()'s contract on `writeSidecar`
-// and `parsed` applies.
+// / `policy` and `parsed` applies: the bool is the old contract (false = CachedOnly, "never fat-parse");
+// SidecarPolicy::ParseNoWrite parses a miss and writes nothing (the parallel run's firing reader, 3.7-0).
 SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
                                  bool writeSidecar = true, const PhaseGridConfig &cfg = {},
+                                 SwingStore::LazyDocument *parsed = nullptr);
+SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack,
+                                 SidecarPolicy policy, const PhaseGridConfig &cfg = {},
                                  SwingStore::LazyDocument *parsed = nullptr);
 
 // One recorded swing, presented as measure values.

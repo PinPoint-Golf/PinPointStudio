@@ -34,6 +34,7 @@
 
 #include "launch_monitor_reading.h"
 #include "swing_store.h"
+#include "../Core/sidecar_policy.h"   // SidecarPolicy (refactor 3.7-0)
 #include "../DomainModel/recording_repository.h"   // WriteResult, ReviewEdit, StreamArrival, DeviceOnlyMeta
 
 #include <QJsonObject>
@@ -540,9 +541,17 @@ public:
     // then gets ok=false for an un-indexed swing and renders it without detail, rather than
     // stalling. The sidecar is pure cache — always safe to delete, always regenerable.
     //
+    // The SidecarPolicy form (src/Core/sidecar_policy.h; refactor 3.7-0 split the one bool): the bool is
+    // CachedOnly (false) or ParseAndWrite (true), as above; ParseNoWrite derives the summary from the
+    // document on a miss or a stale guard exactly as ParseAndWrite does, but writes no sidecar — the
+    // parallel run's firing reader, which must leave every file of the session to its one writer.
+    // (A .ppsw's own block is never written back by any policy: see the reader.)
+    //
     // `parsed`, when given, is where a fallback parse comes from (SwingStore::LazyDocument, #142): a
     // caller that also reads the swing's phase grid shares one, so a fresh swing is parsed once.
     static SwingSummary readSwingSummary(const QString &swingDir, bool writeSidecar = true,
+                                         SwingStore::LazyDocument *parsed = nullptr);
+    static SwingSummary readSwingSummary(const QString &swingDir, SidecarPolicy policy,
                                          SwingStore::LazyDocument *parsed = nullptr);
 
     // Derive a summary from an already-parsed shot and write its sidecar. Called where a

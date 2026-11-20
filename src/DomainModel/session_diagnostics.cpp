@@ -868,12 +868,14 @@ void SessionDiagnostics::loadOrFreezeClubBaseline()
     }
 }
 
-bool SessionDiagnostics::reloadClubBaseline()
+bool SessionDiagnostics::reloadClubBaseline(bool keepWhenAbsent)
 {
     if (m_retired)
         return false;
     std::optional<QHash<QString, analysis::ClubBaselineEntry>> next;
     const JsonFileRead f = m_sessions->readClubBaseline(m_id);
+    if (keepWhenAbsent && !f.exists)
+        return false;   // nothing frozen on disk: what this owner holds stands (3.7-0 round 2, review F3)
     if (f.exists && f.ok) {
         bool ok = false;
         const analysis::ClubBaselineSnapshot snap = analysis::clubBaselineFromJson(f.root, &ok);

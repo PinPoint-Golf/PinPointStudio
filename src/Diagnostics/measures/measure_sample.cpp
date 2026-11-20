@@ -831,8 +831,8 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
         held.push_back({ static_cast<Phase>(w.at(0).toInt()), w.at(1).toInt(), w.at(2).toInt() });
     }
     // A missing span refuses the guard but NOT the content: every number the sidecar holds is current,
-    // so the grid is still filled, and a caller that may not fat-parse (readPhaseGrid, writeSidecar
-    // false) can serve it — the measures reading the missing span are then unavailable, not the swing.
+    // so the grid is still filled, and a caller that may not fat-parse (readPhaseGrid,
+    // SidecarPolicy::CachedOnly) can serve it — the measures reading the missing span are then unavailable, not the swing.
     bool missingSpan = false;
     for (const PhaseGridMsWindow &w : cfg.msWindows)
         if (std::find(held.begin(), held.end(), w) == held.end())
@@ -925,6 +925,12 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
 SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const PhaseGridConfig &cfg,
                              SwingStore::LazyDocument *parsed)
 {
+    return readPhaseGrid(swingDir, sidecarPolicyOf(writeSidecar), cfg, parsed);
+}
+
+SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy, const PhaseGridConfig &cfg,
+                             SwingStore::LazyDocument *parsed)
+{
     SwingPhaseGrid grid;
 
     // The guard keys on whichever document the swing holds (swing.ppsw, or a JSON-era swing.json):
@@ -953,7 +959,7 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
             // Refused for want of a millisecond span (or stale): rebuild with the UNION of what it held
             // and what this reader asks for, so the other pack's reader is not refused next time. A
             // caller that may not fat-parse gets the current grid it holds (only the span is missing).
-            if (!writeSidecar && !cached.isEmpty()) {
+            if (!mayParse(policy) && !cached.isEmpty()) {
                 cached.swingDir = swingDir;
                 return cached;
             }
@@ -961,10 +967,10 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
         }
     }
 
-    // The caller asked never to fat-parse. Report nothing rather than stall — an unindexed swing
-    // renders as "not yet read", which is honest and recoverable, where a one-second freeze per
+    // The caller asked never to fat-parse (CachedOnly). Report nothing rather than stall — an unindexed
+    // swing renders as "not yet read", which is honest and recoverable, where a one-second freeze per
     // swing is neither.
-    if (!writeSidecar)
+    if (!mayParse(policy))
         return grid;
 
     // The shared parse when the caller has one (the summary reader may already have paid for it).
@@ -1003,6 +1009,11 @@ SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar, const P
     // older than that (another reader paid for it before a rewrite), and a rewrite can land between
     // any parse and this write: either way the grid is returned but never indexed under that guard.
     if (!doc.stillCurrent() || doc.parsedInfo().size != size || doc.parsedInfo().mtimeMs != mtimeMs)
+        return grid;
+
+    // ParseNoWrite (refactor 3.7-0): the same grid, never indexed — the caller leaves the session's files to
+    // their one writer (the parallel run's firing reader, §4.9 "in memory only").
+    if (!mayWriteSidecar(policy))
         return grid;
 
     // Best-effort: a library on read-only media still browses, it just re-parses each time. Into the

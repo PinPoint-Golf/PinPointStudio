@@ -52,10 +52,26 @@ class SessionDiagnosticsModel;
 
 namespace pinpoint {
 
+class RecordingRepository;
+class RuleData;
 class Session;
 class SessionDiagnostics;
+class SessionRepository;
+class WorkPool;
+class WorkReceiver;
+struct DiagnosticsDoors;
 
 namespace parallel {
+
+// THE PARALLEL RUN'S DOORS (refactor 3.7-0): the one place they are put together, so the app (main.cpp) and
+// diag_parallel_live_test wire the new owner identically. IN MEMORY ONLY (§4.9): `persist` false (no diagnostics.json,
+// no work_ons.json) and the firing reader built with writeSidecars=false — SidecarPolicy::ParseNoWrite: it PARSES the
+// document whenever no current sidecar serves it (live, before the old model's End sweep writes any) and writes no
+// sidecar and no file, so the old model stays the only writer of every file of the session (REVIEW-3.5-ii-1 item 5(a)).
+// On `pool` with `receiver` (never synchronous: each read is a job on the session's lane, off the GUI thread).
+// `ruleData` the process's. Every pointer and reference is borrowed and must outlive every Athlete given the doors.
+DiagnosticsDoors doors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
+                       const SessionRepository &sessions, RecordingRepository &recordings);
 
 // The form of one session, from each engine. `withStamp`: the findings stamp under "stamp" (the dump keeps it).
 QJsonObject formOf(const SessionDiagnosticsModel &model, bool withStamp = true);
@@ -70,10 +86,31 @@ QStringList differences(const QJsonValue &oldForm, const QJsonValue &newForm, do
 // (baseline authority "always") sweeps every ended session, so it is compared only for a session already loaded — the
 // live one at its End (§4.9: the live session with the panel off) — and never loads one (Q-18). uninstall() before the
 // objects the two reach are destroyed.
+//
+// WHEN IT COMPARES (refactor 3.7-0):
+//   • never while the session is being recorded HERE (Session::runningHere() and in progress): the hook runs on the
+//     GUI thread after every settle of the old model (two a shot), and a comparison builds both whole forms and every
+//     difference — O(shots) a call, 11k–20k strings a call in D22's live run (3.7/D22-STALL-NOTES.md §4 A1). While
+//     recorded here the hook does O(1) work and returns; the session is compared at its End (the catch-up's End
+//     sweep, or the panel's next settle once it has ended). A session another process left in progress (a crash, a
+//     shared library) is not being recorded here and is compared on every settle, as before;
+//   • like with like on the club baseline: before comparing, the new owner re-reads club_baseline.json when it exists
+//     (SessionDiagnostics::reloadClubBaseline(keepWhenAbsent)) — the old model freezes it at End, after the new owner
+//     loaded — and, when that moved its numbers, the owner re-fires every shot and the comparison waits for that
+//     diagnosis. An absent file changes nothing;
+//   • a session skipped while recorded here that goes away uncompared (released, its athlete or library switched, the
+//     app quit: uninstall) gets ONE line, "<session> not compared: the session was not ended" (or "… ended, but no
+//     comparison landed …"), so a missing line can never be read as a pass. No comparison is made there.
+// The comparison line itself is unchanged: one per session, written again only when what it says changes.
 bool enabledByEnvironment();   // PINPOINT_DIAG_PARALLEL=1
 void install(std::function<Session *(const QString &folder)> sessionAt,
              std::function<Session *(const QString &folder)> loadedAt);
 void uninstall();
+
+// TEST SEAMS (3.7-0 round 2): per session folder, the comparisons the hook ran, the lines it wrote, the last line.
+int     comparisonsOf(const QString &sessionFolder);
+int     linesOf(const QString &sessionFolder);
+QString lastLineOf(const QString &sessionFolder);
 
 } // namespace parallel
 } // namespace pinpoint

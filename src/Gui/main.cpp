@@ -106,9 +106,8 @@
 #include "../App/app.h"                      // `app` (D1) and the composition root's callables (D18 (c))
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
 #include "../DomainModel/session.h"
-#include "../DomainModel/session_diagnostics.h"   // SessionDiagnostics::attach, diagnosticsWorkTarget (3.5-ii)
-#include "../Export/firing_reader_store.h"
-#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14)
+#include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
+#include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14); its doors (3.7-0)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
 #include "launch_monitor_controller.h"
 #include "shot_processor.h"
@@ -374,17 +373,11 @@ int main(int argc, char *argv[])
         diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
             return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
         };
-        pinpoint::DiagnosticsDoors doors;
-        doors.pool     = diagPool.get();
-        doors.receiver = diagReceiver.get();
-        doors.ruleData = &ruleData;
-        // IN MEMORY ONLY (§4.9): no diagnostics file (persist false) and no sidecar either (the reader writes none),
-        // so the old model stays the only writer of every file of the session during the parallel run.
-        doors.reader   = std::make_shared<pinpoint::SwingStoreFiringReader>(sessionStore, recordingRepository,
-                                                                            /*writeSidecars=*/false);
-        doors.persist  = false;
-        doors.attach   = &pinpoint::SessionDiagnostics::attach;
-        athleteStore.setDiagnosticsDoors(doors);
+        // IN MEMORY ONLY (§4.9): no diagnostics file and no sidecar (the reader parses a miss and writes nothing), so
+        // the old model stays the only writer of every file of the session. Put together in ONE place (3.7-0), which
+        // diag_parallel_live_test drives too.
+        athleteStore.setDiagnosticsDoors(pinpoint::parallel::doors(diagPool.get(), diagReceiver.get(), &ruleData,
+                                                                   sessionStore, recordingRepository));
     }
     // THE COMPOSITION ROOT'S CALLABLES (D18 (c); DEC-167): how the application services and AthleteController
     // reach the athletes, over the one athlete repository, which reads SET-03 on every call (so a library

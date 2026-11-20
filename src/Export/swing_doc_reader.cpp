@@ -862,6 +862,12 @@ bool SwingDocReader::writeSwingSummary(const PersistedShot &shot, QString *error
 SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writeSidecar,
                                               SwingStore::LazyDocument *parsed)
 {
+    return readSwingSummary(swingDir, sidecarPolicyOf(writeSidecar), parsed);
+}
+
+SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, SidecarPolicy policy,
+                                              SwingStore::LazyDocument *parsed)
+{
     SwingSummary s;
     s.swingDir = swingDir;
 
@@ -885,10 +891,10 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
                                    [QStringLiteral("handedness")].toString();
             return s;
         }
-        // Missing or an older schema: derive it from the document. Not written back — a list read
-        // must never rewrite a document another writer may be about to rewrite; the next real write
-        // refreshes the block.
-        if (!writeSidecar)
+        // Missing or an older schema: derive it from the document (unless CachedOnly). Not written back
+        // by any policy — a list read must never rewrite a document another writer may be about to
+        // rewrite; the next real write refreshes the block.
+        if (!mayParse(policy))
             return s;
         return summaryFromRoot(parsed ? parsed->root() : SwingStore::load(swingDir), swingDir);
     }
@@ -920,9 +926,9 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
         }
     }
 
-    // Miss or stale. Callers that must not block say so; they get ok=false and render the
-    // swing without detail until something that is allowed to fat-parse indexes it.
-    if (!writeSidecar)
+    // Miss or stale. Callers that must not block say so (CachedOnly); they get ok=false and render
+    // the swing without detail until something that is allowed to fat-parse indexes it.
+    if (!mayParse(policy))
         return s;
 
     // Parse the source document directly rather than going through readSwingJson(): this
@@ -938,7 +944,8 @@ SwingSummary SwingDocReader::readSwingSummary(const QString &swingDir, bool writ
     // The sidecar's guard is the file's size and mtime AT WRITE TIME (writeSummaryFile). A rewrite
     // since the parse — after another reader paid for it, or during this one's own parse — would
     // index old content under the new document's guard, so the summary is returned but not indexed.
-    if (s.ok && shared.stillCurrent())
+    // ParseNoWrite (refactor 3.7-0): the same summary, never indexed.
+    if (s.ok && mayWriteSidecar(policy) && shared.stillCurrent())
         writeSummaryFile(s, nullptr);   // best-effort; a read-only library just stays slow
     return s;
 }

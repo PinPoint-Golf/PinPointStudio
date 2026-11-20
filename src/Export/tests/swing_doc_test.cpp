@@ -1134,6 +1134,11 @@ int main()
         check(!s.fromSidecar && s.ok, "unknown schema → derived from the document, still good data");
         check(!SwingDocReader::readSwingSummary(dir, /*writeSidecar=*/false).ok,
               "…and a caller that must not block gets !ok rather than a fat parse");
+        // refactor 3.7-0: ParseNoWrite derives it too, and — like every policy — never writes the block back.
+        const qint64 mtimeBefore = SwingStore::info(dir).mtimeMs;
+        check(SwingDocReader::readSwingSummary(dir, SidecarPolicy::ParseNoWrite).ok
+                  && SwingStore::info(dir).mtimeMs == mtimeBefore,
+              "…ParseNoWrite derives it from the document and rewrites nothing");
         check(pinpoint::testdoc::updateReview(dir, 3, QStringLiteral("after-index"),
                                            QStringLiteral("5 WOOD"), nullptr),
               "a real write");
@@ -1264,6 +1269,43 @@ int main()
         patchSidecar("schema", QJsonValue(QStringLiteral("pinpoint.swingsummary/99")));
         check(!SwingDocReader::readSwingSummary(dirJ).fromSidecar, "unknown schema → miss, not error");
         check(SwingDocReader::readSwingSummary(dirJ).ok,           "…and still returns good data");
+    }
+
+    // ── Parse without writing (refactor 3.7-0, the D22 fix): the one bool split into SidecarPolicy ─────────────
+    std::printf("\n=== JSON-era sidecar: ParseNoWrite parses a miss or a stale guard and writes nothing ===\n");
+    {
+        const auto sidecar = [&] {
+            QFile f(sumPath);
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        QFile::remove(sumPath);
+        check(!SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::CachedOnly).ok, "no sidecar: CachedOnly gives !ok");
+        const SwingSummary p = SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::ParseNoWrite);
+        check(p.ok && !p.fromSidecar && p.club == SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::ParseAndWrite).club,
+              "…ParseNoWrite derives it from the document, as ParseAndWrite does");
+        QFile::remove(sumPath);
+        SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::ParseNoWrite);
+        check(!QFile::exists(sumPath), "…and writes no sidecar");
+        check(SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::ParseAndWrite).ok && QFile::exists(sumPath),
+              "ParseAndWrite indexes it");
+        // Stale: the sidecar's guard no longer the document's.
+        {
+            QFile f(sumPath);
+            QJsonObject s = f.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(f.readAll()).object() : QJsonObject();
+            f.close();
+            QJsonObject src = s[QStringLiteral("source")].toObject();
+            src[QStringLiteral("size")] = 1.0;
+            s[QStringLiteral("source")] = src;
+            QFile o(sumPath);
+            if (o.open(QIODevice::WriteOnly)) o.write(QJsonDocument(s).toJson(QJsonDocument::Compact));
+        }
+        const QByteArray stale = sidecar();
+        check(!SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::CachedOnly).ok, "stale: CachedOnly gives !ok");
+        const SwingSummary q = SwingDocReader::readSwingSummary(dirJ, SidecarPolicy::ParseNoWrite);
+        check(q.ok && !q.fromSidecar, "stale: ParseNoWrite derives it from the document");
+        check(sidecar() == stale, "…and leaves the stale sidecar as it was");
+        check(SwingDocReader::readSwingSummary(dirJ).fromSidecar == false && SwingDocReader::readSwingSummary(dirJ).fromSidecar,
+              "the default (the bool's true) rewrites it, as before");
     }
 
     // ── One parse shared with the phase-grid reader (issue #142) ───────────────────────────────

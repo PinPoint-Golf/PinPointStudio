@@ -21,6 +21,7 @@
 #include "measure_vocabulary.h"    // Measure
 #include "sigma_source.h"
 #include "../../Core/pp_tuned_constants.h"
+#include "../../Core/sidecar_policy.h"   // SidecarPolicy: what a miss may cost (3.7-0)
 #include "../../Metrics/metric_reducer.h"
 #include "../../Analysis/gate_record.h"   // GateRecord — why a reading is absent (schema 8)
 
@@ -422,14 +423,22 @@ SwingPhaseGrid loadPhaseGrid(const QJsonObject &root, qint64 sourceSize, qint64 
 
 // Read one swing's grid, preferring the sidecar and falling back to a full swing.json parse.
 //
-// `writeSidecar` follows SwingDocReader::readSwingSummary's contract for the same reason: a
-// GUI-thread caller that must never fat-parse passes false and gets an empty grid for an unindexed
-// swing, rather than a one-second stall per swing. The scan runs on a worker and passes true.
+// `policy` (src/Core/sidecar_policy.h; refactor 3.7-0 split the old one bool) says what a miss or a stale
+// sidecar may cost, as SwingDocReader::readSwingSummary's does: CachedOnly — a GUI-thread caller that must
+// never fat-parse gets an empty grid for an unindexed swing (or the held grid without a missing millisecond
+// span), rather than a one-second stall per swing; ParseNoWrite — the document is parsed and the grid built
+// exactly as ParseAndWrite builds it, but no sidecar is written (the parallel run's firing reader: §4.9, "in
+// memory only"); ParseAndWrite — parsed and indexed (a scan on a worker; every default).
+// The bool form is the old contract, kept for every existing caller: `writeSidecar` true is ParseAndWrite,
+// false is CachedOnly ("never fat-parse"; it never meant only "do not write").
 //
 // `parsed`, when given, is where the fallback parse comes from (SwingStore::LazyDocument, issue #142):
 // a caller that also reads the swing's summary hands both readers the same one, so a swing whose
 // sidecars both miss is parsed once rather than twice. Null parses on its own, as before.
 SwingPhaseGrid readPhaseGrid(const QString &swingDir, bool writeSidecar = true,
+                             const PhaseGridConfig &cfg = {},
+                             SwingStore::LazyDocument *parsed = nullptr);
+SwingPhaseGrid readPhaseGrid(const QString &swingDir, SidecarPolicy policy,
                              const PhaseGridConfig &cfg = {},
                              SwingStore::LazyDocument *parsed = nullptr);
 

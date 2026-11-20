@@ -19,13 +19,16 @@
 #include "diag_parallel_run.h"
 
 #include "session_diagnostics_model.h"
+#include "../../DomainModel/athlete.h"   // DiagnosticsDoors
 #include "../../DomainModel/session.h"
 #include "../../DomainModel/session_diagnostics.h"
+#include "../../Export/firing_reader_store.h"
 #include "../../Coaching/session_results.h"
 #include "../../Coaching/strike_from_flight.h"
 #include "../../Core/club_vocabulary.h"
 #include "../../Core/pp_debug.h"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
@@ -393,6 +396,61 @@ void diffInto(const QString &path, const QJsonValue &a, const QJsonValue &b, dou
 std::function<Session *(const QString &)> g_sessionAt;
 std::function<Session *(const QString &)> g_loadedAt;
 QHash<QString, QString> g_lastLine;   // per session folder: the line last written (written again only on a change)
+QHash<QString, int>     g_lines;         // per session folder: lines written (test seam)
+QHash<QString, int>     g_comparisons;   // per session folder: comparisons run (test seam)
+
+// THE SESSIONS BEING RECORDED HERE THAT HAVE NOT BEEN COMPARED YET (3.7-0 round 2, review F4): the hook skips a
+// comparison while a session is recorded here, so a session that goes away before it is compared (released, its
+// athlete or library switched, the app quit) gets ONE line saying so — a missing line must never read as a pass.
+// One entry and two connections per such session; nothing is compared on the way out.
+struct Uncompared {
+    QString                 name;
+    bool                    ended = false;   // EVT-09 seen: it ended, but no comparison landed
+    QMetaObject::Connection destroyed, endedConn;
+};
+QHash<QString, Uncompared> g_uncompared;   // by the old model's session folder
+
+void writeLine(const QString &folder, const QString &line, const QString &measured, bool warn)
+{
+    if (g_lastLine.value(folder) == line) return;
+    g_lastLine.insert(folder, line);
+    ++g_lines[folder];
+    if (warn) ppWarn() << "[DiagParallel]" << qPrintable(line + measured);
+    else      ppInfo() << "[DiagParallel]" << qPrintable(line + measured);
+}
+
+void forgetUncompared(const QString &folder)
+{
+    const auto it = g_uncompared.find(folder);
+    if (it == g_uncompared.end()) return;
+    QObject::disconnect(it->destroyed);
+    QObject::disconnect(it->endedConn);
+    g_uncompared.erase(it);
+}
+
+// Said once, when the session goes uncompared; no comparison here (the objects may be going).
+void sayNotCompared(const QString &folder)
+{
+    const auto it = g_uncompared.find(folder);
+    if (it == g_uncompared.end()) return;
+    const QString line = it->ended
+        ? QStringLiteral("%1 not compared: the session ended, but no comparison landed before it went").arg(it->name)
+        : QStringLiteral("%1 not compared: the session was not ended").arg(it->name);
+    forgetUncompared(folder);
+    writeLine(folder, line, QString(), true);
+}
+
+void noteUncompared(const QString &folder, Session *s)
+{
+    if (g_uncompared.contains(folder)) return;
+    Uncompared u;
+    u.name      = QFileInfo(folder).fileName();
+    u.destroyed = QObject::connect(s, &QObject::destroyed, [folder] { sayNotCompared(folder); });
+    u.endedConn = QObject::connect(s, &Session::sessionEnded, s, [folder] {
+        if (const auto it = g_uncompared.find(folder); it != g_uncompared.end()) it->ended = true;
+    });
+    g_uncompared.insert(folder, u);
+}
 
 QSet<int> shotIdsOf(const SessionDiagnosticsModel &m)
 {
@@ -419,10 +477,20 @@ void compareAndLog(const SessionDiagnosticsModel &m, const SessionDiagnostics &d
     }
     const QString measured = QStringLiteral(" (new owner: reduce %1 ms, %2 asks, %3 reductions)")
                                  .arg(d.lastReductionMs()).arg(d.asks().size()).arg(d.counts().reductions);
-    if (g_lastLine.value(m.sessionDir()) == line) return;
-    g_lastLine.insert(m.sessionDir(), line);
-    if (diffs.isEmpty()) ppInfo() << "[DiagParallel]" << qPrintable(line + measured);
-    else                 ppWarn() << "[DiagParallel]" << qPrintable(line + measured);
+    ++g_comparisons[m.sessionDir()];
+    forgetUncompared(m.sessionDir());
+    writeLine(m.sessionDir(), line, measured, !diffs.isEmpty());
+}
+
+// The seams' lookup: the folder as the old model holds it, or the same folder spelled otherwise.
+template <typename T>
+T byFolder(const QHash<QString, T> &h, const QString &folder)
+{
+    if (const auto it = h.find(folder); it != h.end()) return *it;
+    const QString clean = QDir::cleanPath(folder);
+    for (auto it = h.begin(); it != h.end(); ++it)
+        if (QDir::cleanPath(it.key()) == clean) return *it;
+    return T{};
 }
 
 } // namespace
@@ -432,6 +500,21 @@ QStringList differences(const QJsonValue &oldForm, const QJsonValue &newForm, do
     QStringList out;
     diffInto(QStringLiteral("$"), oldForm, newForm, rtol, atol, out);
     return out;
+}
+
+DiagnosticsDoors doors(WorkPool *pool, WorkReceiver *receiver, RuleData *ruleData,
+                       const SessionRepository &sessions, RecordingRepository &recordings)
+{
+    DiagnosticsDoors d;
+    d.pool     = pool;
+    d.receiver = receiver;
+    d.ruleData = ruleData;
+    // IN MEMORY ONLY (§4.9): no diagnostics file (persist false) and no sidecar either — ParseNoWrite: the reader
+    // parses a miss or a stale sidecar and writes nothing (3.7-0; before it, false meant "never parse": D22).
+    d.reader   = std::make_shared<SwingStoreFiringReader>(sessions, recordings, /*writeSidecars=*/false);
+    d.persist  = false;
+    d.attach   = &SessionDiagnostics::attach;
+    return d;
 }
 
 bool enabledByEnvironment()
@@ -455,12 +538,23 @@ void install(std::function<Session *(const QString &folder)> sessionAt,
         if (!d) {
             const QString line = QStringLiteral("%1: no new owner (a session no golfer owns has none: N1)")
                                      .arg(QFileInfo(model.sessionDir()).fileName());
-            if (g_lastLine.value(model.sessionDir()) != line) {
-                g_lastLine.insert(model.sessionDir(), line);
-                ppInfo() << "[DiagParallel]" << qPrintable(line);
-            }
+            writeLine(model.sessionDir(), line, QString(), false);
             return;
         }
+        // O(1) WHILE BEING RECORDED HERE (3.7-0; D22-STALL-NOTES §4 A1): no comparison while this process records the
+        // session (started or resumed here, not ended) — it is compared at its End. Both facts are in memory (the
+        // Session's own flag and the repository's record); no document is touched. A session another process left in
+        // progress (a crash, another machine on a shared library) is NOT being recorded here, and is compared as on
+        // HEAD (review F1). A session that goes away before it is compared says so in one line (F4).
+        if (s->runningHere() && s->inProgress()) {
+            noteUncompared(model.sessionDir(), s);
+            return;
+        }
+        // LIKE WITH LIKE (3.7-0): the club baseline the old model froze (at End, after the new owner loaded) is read
+        // by the new owner too — only when the file is there (review F3: an absent file never wipes the baseline the
+        // owner computed in memory at first need). A read only (the run stays in memory); when it moved the numbers,
+        // every shot fires again and the comparison below waits for that diagnosis (the retry path).
+        d->reloadClubBaseline(/*keepWhenAbsent=*/true);
         if (d->idle() && d->diagnosis() && shotIdsOf(model) == shotIdsOf(*d)) {
             compareAndLog(model, *d);
             return;
@@ -485,6 +579,12 @@ void uninstall()
     SessionDiagnosticsModel::setParallelHook({});
     g_sessionAt = {};
     g_loadedAt  = {};
+    // The app quitting (or a test ending) with a session recorded here never compared: one line each (F4).
+    for (const QString &folder : g_uncompared.keys()) sayNotCompared(folder);
 }
+
+int     comparisonsOf(const QString &sessionFolder) { return byFolder(g_comparisons, sessionFolder); }
+int     linesOf(const QString &sessionFolder) { return byFolder(g_lines, sessionFolder); }
+QString lastLineOf(const QString &sessionFolder) { return byFolder(g_lastLine, sessionFolder); }
 
 } // namespace pinpoint::parallel

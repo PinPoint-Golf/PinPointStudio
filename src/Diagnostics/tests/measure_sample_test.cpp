@@ -1187,6 +1187,37 @@ int main()
         check(pinpoint::SwingStore::save(cp, reanalysed), "copy: then re-analysed");
         check(readPhaseGrid(cp, /*writeSidecar=*/false).isEmpty(), "copy: the re-analysed swing's old grid is stale");
         check(readPhaseGrid(cp).ordinal == 106, "copy: ...and rebuilt from the new document");
+
+        // (f) PARSE WITHOUT WRITING (refactor 3.7-0, the D22 fix): the one bool split. CachedOnly is the old false
+        // (never parse), ParseAndWrite the old true; ParseNoWrite parses a miss or a stale sidecar into the same grid
+        // and writes nothing — the parallel run's firing reader (§4.9, "in memory only").
+        using pinpoint::SidecarPolicy;
+        const QString pn = mkSwing("swing_0007");
+        check(pinpoint::SwingStore::save(pn, swingDoc), "parse-no-write: written, no sidecar");
+        check(readPhaseGrid(pn, SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads nothing for an unindexed swing");
+        const SwingPhaseGrid parsedNoWrite = readPhaseGrid(pn, SidecarPolicy::ParseNoWrite);
+        check(!parsedNoWrite.isEmpty() && parsedNoWrite.ordinal == 4, "parse-no-write: ParseNoWrite parses the document");
+        check(!QFile::exists(phaseGridPath(pn)), "parse-no-write: ...and writes no sidecar");
+        const SwingPhaseGrid indexed = readPhaseGrid(pn, SidecarPolicy::ParseAndWrite);
+        check(QFile::exists(phaseGridPath(pn))
+                  && QJsonDocument(savePhaseGrid(indexed, 1, 1)).toJson() == QJsonDocument(savePhaseGrid(parsedNoWrite, 1, 1)).toJson(),
+              "parse-no-write: the same grid ParseAndWrite builds and indexes");
+        const auto sidecarBytes = [&] {
+            QFile f(phaseGridPath(pn));
+            return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        };
+        const QByteArray sideBefore = sidecarBytes();
+        const QDateTime  sideAt     = QFileInfo(phaseGridPath(pn)).lastModified();
+        QJsonObject rewritten = swingDoc;
+        rewritten.insert(QStringLiteral("swing"), QJsonObject{ { QStringLiteral("index"), 107 },
+                                                               { QStringLiteral("padding"), QStringLiteral("a late reading folded in") } });
+        check(pinpoint::SwingStore::save(pn, rewritten), "parse-no-write: the document rewritten (its sidecar now stale)");
+        check(readPhaseGrid(pn, SidecarPolicy::CachedOnly).isEmpty(), "parse-no-write: CachedOnly reads the stale sidecar as nothing");
+        check(readPhaseGrid(pn, SidecarPolicy::ParseNoWrite).ordinal == 107, "parse-no-write: ParseNoWrite parses the rewritten document");
+        check(sidecarBytes() == sideBefore && QFileInfo(phaseGridPath(pn)).lastModified() == sideAt,
+              "parse-no-write: ...and leaves the stale sidecar untouched");
+        check(readPhaseGrid(pn, /*writeSidecar=*/false).isEmpty() && readPhaseGrid(pn, /*writeSidecar=*/true).ordinal == 107,
+              "parse-no-write: the bool form keeps its old meaning (false = CachedOnly, true = ParseAndWrite)");
     }
 
     // A curve that is already a fit is read at the phase's instant; any other curve keeps its window.

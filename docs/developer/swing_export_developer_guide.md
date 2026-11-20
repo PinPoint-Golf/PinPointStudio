@@ -694,7 +694,15 @@ Two API details matter:
   falls back to a full parse on a miss or stale guard. Pass `writeSidecar=false`
   on any GUI-thread path that must never fat-parse — the caller then gets
   `ok=false` for an un-indexed swing and renders it without detail, rather than
-  stalling.
+  stalling. The bool is two meanings at once ("may parse" and "may write the
+  sidecar"); since refactor step 3.7-0 an overload takes a `SidecarPolicy`
+  (`src/Core/sidecar_policy.h`) that names them apart: `CachedOnly` (the bool's
+  false), `ParseAndWrite` (its true) and `ParseNoWrite` — parse a miss or a stale
+  guard exactly as `ParseAndWrite` does, write nothing. `ParseNoWrite` is the
+  parallel run's firing reader (`pinpoint::parallel::doors`), which must leave
+  every file of a session to its one writer; `readPhaseGrid` /
+  `readLivePhaseGrid` take the same policy. A `.ppsw`'s own summary block is never
+  written back by any policy.
 - Both the cheap and the full path extract through **one** function
   (`summaryFromRoot`), so they cannot disagree about a score shape, a club
   fallback or a thumbnail name. `SwingSummary::fromSidecar` is provenance the

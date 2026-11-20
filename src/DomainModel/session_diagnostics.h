@@ -249,7 +249,9 @@ public:
     void fire(const ShotRef &shot);       // that shot (its own command's chain)
     void fireAll();                       // every shot (a pack, norm, baseline or cohort change)
     // EVT-16: club_baseline.json was rewritten — read it again; every shot fired when it changed. True if it did.
-    bool reloadClubBaseline();
+    // `keepWhenAbsent` (the parallel run's hook, refactor 3.7-0): no file → nothing changes (the baseline computed in
+    // memory at first need is kept); without it, an absent file reads as "no usual numbers", as before.
+    bool reloadClubBaseline(bool keepWhenAbsent = false);
     // Write what is kept now, if anything is unwritten (and persisting). False on a failed write.
     bool flush();
 

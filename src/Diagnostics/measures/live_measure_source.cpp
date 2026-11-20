@@ -73,7 +73,13 @@ QString missingReasonText(MissingKind k)
 SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack, bool writeSidecar,
                                  const PhaseGridConfig &cfg, SwingStore::LazyDocument *parsed)
 {
-    SwingPhaseGrid grid = readPhaseGrid(swingDir, writeSidecar, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed);
+    return readLivePhaseGrid(swingDir, pack, sidecarPolicyOf(writeSidecar), cfg, parsed);
+}
+
+SwingPhaseGrid readLivePhaseGrid(const QString &swingDir, const CharacteristicPack &pack, SidecarPolicy policy,
+                                 const PhaseGridConfig &cfg, SwingStore::LazyDocument *parsed)
+{
+    SwingPhaseGrid grid = readPhaseGrid(swingDir, policy, withMsWindows(cfg, msWindowsOf(pack.measures)), parsed);
     // readPhaseGrid() sets swingDir on every path it returns a grid from, but not on the empty
     // grid it returns for a missing or unreadable document — and a source that cannot say which
     // swing it failed on is unloggable.
