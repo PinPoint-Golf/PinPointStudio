@@ -76,6 +76,13 @@ pp_add_test(folder_lock_test
 pp_add_test(work_pool_test
     SOURCES work_pool_test.cpp ${CORE}/work_pool.cpp
     INCLUDE ${CORE})
+# The [PostShot] step timer (post_shot_trace.h, header-only, Platform; refactor 3.7-S / 3.7-I): the line's format,
+# begin/Scope/end, the thread gate, the 256-step cap, the quiet end, a window cut by the next begin(). Its own main
+# (a QCoreApplication: the quiet end is a QTimer).
+pp_add_test(post_shot_trace_test
+    SOURCES post_shot_trace_test.cpp
+    INCLUDE ${CORE}  LINK Qt6::Core Threads::Threads
+    GTEST_NO_MAIN)
 pp_add_test(pp_profiler_concurrency_test
     SOURCES pp_profiler_concurrency_test.cpp ${PROFILER_CORE}
     INCLUDE ${CORE}  LINK Threads::Threads

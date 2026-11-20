@@ -464,11 +464,18 @@ int main(int argc, char *argv[])
     ResourceMonitorController resourceMonitor(&eventBuffer, &cameraManager, &imuManager);
     // Resource profiler bridge — owns the single 1 s gauge sampler and the 60 s
     // stats-dump cadence. Per-session profile: reset at session start, dump at end.
+    // [GpuMem] (refactor 3.7-I): one line at each start (before the reset, so its peak is the window just closed)
+    // and each end; the sampler writes one every 30 s, and each shot's EVT-01 one (ShotProcessor's relay, below).
     ProfilerController        profilerController;
     QObject::connect(&sessionController, &SessionController::runningChanged,
                      &profilerController, [&sessionController, &profilerController]() {
-        if (sessionController.running()) profilerController.reset();
-        else                             profilerController.dumpToLog();
+        if (sessionController.running()) {
+            ProfilerController::logGpuMem(QStringLiteral("session-start"));
+            profilerController.reset();
+        } else {
+            ProfilerController::logGpuMem(QStringLiteral("session-end"));
+            profilerController.dumpToLog();
+        }
     });
     // Registers the shot-marker EventBuffer source; registering a first source
     // auto-resumes the buffer, so restore the user capture intent right after.
@@ -663,6 +670,11 @@ int main(int argc, char *argv[])
                      [&sessionController] {
         if (sessionController.focusFromShot() > 0)
             sessionController.setFocusFromShot(0);
+    });
+    // [GpuMem] (refactor 3.7-I): one app-log line at each shot's EVT-01 (a relay, not a domain event).
+    QObject::connect(&shotProcessor, &ShotProcessor::shotDocumentAnnounced, &profilerController,
+                     [](const pinpoint::ShotRef &shot) {
+        ProfilerController::logGpuMem(QStringLiteral("EVT-01 shot=") + shot.toString());
     });
     cameraManager.setShotProcessor(&shotProcessor);   // teardown stop-barrier
     imuManager.setShotProcessor(&shotProcessor);      // same barrier for IMU deselect

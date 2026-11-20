@@ -17,6 +17,7 @@
  */
 
 #include "session_series_model.h"
+#include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Analysis/swing_analysis.h"              // Phase::Impact
@@ -571,6 +572,7 @@ void SessionSeriesModel::apply(const Result &r, bool counted)
     if (r.generation == m_generation && r.changed && r.snapshot) {
         m_snapshot = r.snapshot;
         m_skipped  = r.skipped;
+        pinpoint::PostShotTrace::Scope trace("charts");   // [PostShot] (3.7-S): the charts' presenters and QML redraw
         emit snapshotChanged();
     }
     if (counted && m_pending == 0) emit busyChanged();

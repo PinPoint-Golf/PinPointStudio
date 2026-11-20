@@ -53,6 +53,10 @@ struct GpuSample {
     uint64_t    deviceUsedBytes  = 0;      // device-wide used (0 if backend can't report it)
     uint64_t    processUsedBytes = 0;      // THIS process's VRAM — the headline number
     uint64_t    peakProcessBytes = 0;      // high-water of processUsedBytes since reset()
+    // THIS process's SHARED GPU memory: system RAM the GPU maps for it (DXGI's non-local segment group — the
+    // "Shared GPU memory" of Task Manager and typeperf's `\GPU Process Memory(*)\Shared Usage`). 0 where the backend
+    // has no such figure (Metal: unified memory; NVML). Added for the [GpuMem] log line (refactor 3.7-I).
+    uint64_t    processSharedBytes = 0;
 };
 
 // Resolve the platform backend.  Idempotent and thread-safe: the first call does

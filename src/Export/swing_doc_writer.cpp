@@ -44,6 +44,7 @@
 #include <cmath>
 
 #include "swing_store.h"
+#include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S): a rewrite's read and its save
 #include "../IMU/imu_refusion_check.h"
 #include "../Analysis/capture_integrity_check.h"
 #include "../Analysis/manifest_gates.h"            // the integrity blocks → analysis.gates (shot.*)
@@ -373,7 +374,10 @@ WriteResult result(WriteResult::Status status, const QString &error = QString())
 bool loadForRewrite(const QString &swingDir, QJsonObject *root, WriteResult *out)
 {
     QString err;
-    *root = SwingStore::load(swingDir, &err);
+    {
+        PostShotTrace::Scope trace("load");   // the whole document parsed
+        *root = SwingStore::load(swingDir, &err);
+    }
     if (root->isEmpty()) {
         *out = result(WriteResult::Status::NoDocument,
                       err.isEmpty() ? QStringLiteral("no swing document in %1").arg(swingDir) : err);
@@ -386,6 +390,7 @@ bool loadForRewrite(const QString &swingDir, QJsonObject *root, WriteResult *out
 WriteResult saveAs(const QString &swingDir, QJsonObject &root)
 {
     QString err;
+    PostShotTrace::Scope trace("save");       // encoded, written, synced (file and folder) and renamed
     if (!saveDocument(swingDir, root, &err))
         return result(WriteResult::Status::Failed, err);
     return result(WriteResult::Status::Written);

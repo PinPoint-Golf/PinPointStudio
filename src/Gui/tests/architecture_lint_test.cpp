@@ -209,6 +209,8 @@ const QHash<QString, int> &fileRings()
         // The persistence mechanisms every ring may use (refactor step 2.0; R-PERS-2, R-PERS-6).
         { QStringLiteral("Core/atomic_write"), Platform },
         { QStringLiteral("Core/folder_lock"), Platform },
+        // The post-shot step timer every ring may use (refactor 3.7-S): Qt only, header-only, like atomic_write.
+        { QStringLiteral("Core/post_shot_trace"), Platform },
         // The one worker pool, its serial lanes and the post-to-owner receiver (refactor step 3.1; R-CON-5;
         // Mark, 15 Nov 2026: D15, IM-S3-8).
         { QStringLiteral("Core/work_pool"), Platform },

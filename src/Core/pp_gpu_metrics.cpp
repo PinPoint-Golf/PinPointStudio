@@ -97,16 +97,20 @@ bool backendInit()
     return true;
 }
 
-void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed)
+void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed, uint64_t &procShared)
 {
     deviceTotal = g_deviceTotal;
     deviceUsed  = 0;   // DXGI per-process query has no device-wide-used figure
     procUsed    = 0;
+    procShared  = 0;
     if (!g_adapter)
         return;
     DXGI_QUERY_VIDEO_MEMORY_INFO info{};
     if (g_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info) == S_OK)
         procUsed = uint64_t(info.CurrentUsage);   // this process, local (VRAM) segment
+    DXGI_QUERY_VIDEO_MEMORY_INFO shared{};
+    if (g_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &shared) == S_OK)
+        procShared = uint64_t(shared.CurrentUsage);   // this process, non-local (shared system RAM) segment
 }
 
 void backendShutdown()
@@ -134,11 +138,12 @@ bool backendInit()
     return true;
 }
 
-void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed)
+void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed, uint64_t &procShared)
 {
     deviceTotal = g_deviceTotal;
     deviceUsed  = 0;                          // no device-wide figure from MTLDevice
     procUsed    = detail::macProcessBytes();  // currentAllocatedSize
+    procShared  = 0;                          // unified memory: no separate shared segment
 }
 
 void backendShutdown() {}
@@ -213,9 +218,9 @@ bool backendInit()
     return true;
 }
 
-void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed)
+void backendQuery(uint64_t &deviceTotal, uint64_t &deviceUsed, uint64_t &procUsed, uint64_t &procShared)
 {
-    deviceTotal = deviceUsed = procUsed = 0;
+    deviceTotal = deviceUsed = procUsed = procShared = 0;   // NVML has no per-process shared figure
     if (!g_device)
         return;
 
@@ -285,7 +290,7 @@ GpuSample sample()
     if (!ensureInitLocked())
         return s;   // available = false, all zero
 
-    backendQuery(s.deviceTotalBytes, s.deviceUsedBytes, s.processUsedBytes);
+    backendQuery(s.deviceTotalBytes, s.deviceUsedBytes, s.processUsedBytes, s.processSharedBytes);
     bumpPeakLocked(s.processUsedBytes);
 
     s.available        = true;
@@ -301,8 +306,8 @@ uint64_t processGpuBytes()
     std::lock_guard<std::mutex> lk(g_mutex);
     if (!ensureInitLocked())
         return 0;
-    uint64_t total = 0, used = 0, proc = 0;
-    backendQuery(total, used, proc);
+    uint64_t total = 0, used = 0, proc = 0, shared = 0;
+    backendQuery(total, used, proc, shared);
     bumpPeakLocked(proc);
     return proc;
 }

@@ -17,6 +17,7 @@
  */
 
 #include "session_diagnostics_model.h"
+#include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 
 #include "../../Diagnostics/measures/live_measure_source.h"
@@ -1059,11 +1060,25 @@ void SessionDiagnosticsModel::settleBatch()
     if (!m_synchronous && m_pending > 0) return;       // more of this batch still to land
     m_owedRebuild = false;
     const int afterShot = std::exchange(m_owedAfterShot, -1);
-    rebuild();
-    persist();
-    if (afterShot >= 0) emit shotIngested(afterShot, !m_quiet);
+    // ⏱ [PostShot] (refactor 3.7-S): each settle of a live shot, step by step (post_shot_trace.h).
+    pinpoint::PostShotTrace::Scope trace("settle");
+    {
+        pinpoint::PostShotTrace::Scope t("rebuild");
+        rebuild();
+    }
+    {
+        pinpoint::PostShotTrace::Scope t("persist");
+        persist();
+    }
+    if (afterShot >= 0) {
+        pinpoint::PostShotTrace::Scope t("ingested");   // the panel's after-shot pulse (QML)
+        emit shotIngested(afterShot, !m_quiet);
+    }
     // THE PARALLEL RUN (refactor 3.5-ii; D14): the new owner of this session compared with this reduction, in memory.
-    if (g_parallelHook && !m_sessionDir.isEmpty()) g_parallelHook(*this);
+    if (g_parallelHook && !m_sessionDir.isEmpty()) {
+        pinpoint::PostShotTrace::Scope t("hook");
+        g_parallelHook(*this);
+    }
 }
 
 bool SessionDiagnosticsModel::waitForIdle(int msTimeout)
@@ -2535,6 +2550,7 @@ void SessionDiagnosticsModel::rebuild()
     // the page the golfer is reading accumulates evidence rather than going stale behind them.
     buildDetail();
 
+    pinpoint::PostShotTrace::Scope trace("emit");   // [PostShot]: the panel's bindings (QML) re-read the surface
     emit surfaceChanged();
     if (!m_detailConditionId.isEmpty()) emit detailChanged();
 }

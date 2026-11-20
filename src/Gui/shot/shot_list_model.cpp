@@ -23,6 +23,7 @@
 #include "../../App/shot_command_door.h"
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
+#include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 
 #include <QFile>
 #include <QFileInfo>
@@ -299,8 +300,13 @@ void ShotListModel::refreshShot(const QString &swingDir)
     }
     if (row < 0)
         return;
+    pinpoint::PostShotTrace::Scope trace("refresh");   // [PostShot]: the whole document read again, then the row
 
-    const pinpoint::PersistedShot p = pinpoint::SwingDocReader::readSwingJson(swingDir);
+    pinpoint::PersistedShot p;
+    {
+        pinpoint::PostShotTrace::Scope t("read");
+        p = pinpoint::SwingDocReader::readSwingJson(swingDir);
+    }
     if (!p.ok) {
         ppWarn() << "[ShotListModel] refreshShot: could not read" << swingDir;
         return;
@@ -326,7 +332,11 @@ void ShotListModel::refreshShot(const QString &swingDir)
     if (!p.club.isEmpty())
         s.club = p.club;
     // A shot a Session holds: those golfer's facts are its Shot's, read again (refactor step 3.4b-ii).
-    takeShotReview(row, pinpoint::SummaryRead::Again);
+    {
+        pinpoint::PostShotTrace::Scope t("review");
+        takeShotReview(row, pinpoint::SummaryRead::Again);
+    }
+    pinpoint::PostShotTrace::Scope traceEmit("emit");   // the carousel's delegates (QML)
     emit dataChanged(index(row), index(row),
                      { ScoreRole, MetricsRole, AnalysisDetailRole, LmDeviceRole,
                        DataWarningRole, DataWarningDetailRole,

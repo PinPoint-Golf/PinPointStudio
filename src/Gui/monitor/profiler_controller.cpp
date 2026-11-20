@@ -240,6 +240,34 @@ void ProfilerController::onSamplerTick()
     // gauge above already holds the clean 1 s value shown in the UI.
     if ((++m_tick % kDumpEveryTicks) == 0)
         pinpoint::profiling::Profiler::instance().dumpToLog();
+    if ((m_tick % kGpuMemEveryTicks) == 0)
+        logGpuMem(QStringLiteral("tick"));
+}
+
+// ── The [GpuMem] log line (refactor 3.7-I) ────────────────────────────────────
+void ProfilerController::logGpuMem(const QString &at)
+{
+    ppInfo() << qPrintable(gpuMemLine(at, pinpoint::gpumetrics::sample(), pinpoint::osmetrics::processMemory()));
+}
+
+QString ProfilerController::gpuMemLine(const QString &at, const pinpoint::gpumetrics::GpuSample &gpu,
+                                       const pinpoint::osmetrics::ProcessMemory &mem)
+{
+    // Whole MB; "-" where the platform has no figure (never a 0 that reads as a measurement).
+    const auto mb = [](bool known, quint64 bytes) {
+        return known ? QString::number(qint64((bytes + 524288) / 1048576)) : QStringLiteral("-");
+    };
+    const bool sharedKnown = gpu.available && gpu.backend == "DXGI";
+    const QString source = !gpu.available ? QStringLiteral("none")
+                         : QString::fromStdString(gpu.backend) + (gpu.unified ? QStringLiteral("(unified)") : QString());
+    return QStringLiteral("[GpuMem] at=%1 dedicated_mb=%2 shared_mb=%3 peak_dedicated_mb=%4 private_mb=%5 working_set_mb=%6 source=%7")
+        .arg(at,
+             mb(gpu.available, gpu.processUsedBytes),
+             mb(sharedKnown, gpu.processSharedBytes),
+             mb(gpu.available, gpu.peakProcessBytes),
+             mb(mem.private_bytes > 0, mem.private_bytes),
+             mb(mem.working_set_bytes > 0, mem.working_set_bytes),
+             source);
 }
 
 // ── Screen-driven table refresh (500 ms while visible) ────────────────────────

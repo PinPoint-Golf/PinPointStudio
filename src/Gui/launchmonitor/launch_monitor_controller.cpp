@@ -26,6 +26,7 @@
 #include "standalone_gate.h"
 #include "shot_list_model.h"
 #include "../../Export/swing_doc.h"
+#include "../../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 #include "../../Export/swing_paths.h"
 #include "../../DomainModel/recording_repository.h"
 #include "../../App/shot_command_door.h"   // the Shot's late part (step 3.4b-i)
@@ -549,6 +550,7 @@ bool LaunchMonitorController::createStandaloneShot(const LaunchMonitorReading &r
 
 bool LaunchMonitorController::applyToSwing(const QString &swingDir, const LaunchMonitorReading &r)
 {
+    pinpoint::PostShotTrace::Scope trace("lm.ball");   // [PostShot] (3.7-S): the reading into its swing, on this thread
     // Following Premier's club: followDeviceClub() set it as the reading arrived, which is
     // normally before the shot's analysis began (the reading lands ~0.7 s after contact, the
     // analysis ~1.25 s after detection). When the analysis won that race the swing was recorded
@@ -580,6 +582,7 @@ bool LaunchMonitorController::applyToSwing(const QString &swingDir, const Launch
     m_lastReading = summaryOf(r);
     emit lastReadingChanged();
 
+    pinpoint::PostShotTrace::Scope traceApplied("lm.applied");
     emit readingApplied(swingDir);
     return true;
 }
@@ -591,6 +594,7 @@ pinpoint::WriteResult LaunchMonitorController::completeCapture(const QString &sw
         *clubReplaced = false;
     if (!m_repo)
         return pinpoint::WriteResult{};
+    pinpoint::PostShotTrace::Scope trace("lm.write");   // [PostShot]: the Shot's command, its lock and its document
     const pinpoint::ShotRef shot = m_repo->shotOfFolder(swingDir);
     // The Shot's own command (EVT-22), through its Session; today's write only for a shot no Session holds (N1).
     if (m_commands) {
@@ -720,6 +724,7 @@ void LaunchMonitorController::flushUpdates()
         if (m_folderHeld && m_folderHeld(dir))
             continue;                   // the re-analysis write goes first; onSwingRewritten retries
         const LaunchMonitorReading r = m_heldUpdates.take(dir);
+        pinpoint::PostShotTrace::Scope trace("lm.club");   // [PostShot] (3.7-S): a late reading into an earlier swing
 
         const pinpoint::WriteResult w = completeCapture(dir, r);
         if (!w.ok()) {
@@ -732,6 +737,7 @@ void LaunchMonitorController::flushUpdates()
             m_shotModel->refreshShot(dir);
         m_lastReading = summaryOf(r);
         emit lastReadingChanged();
+        pinpoint::PostShotTrace::Scope traceRewritten("lm.rewritten");   // the carousel's refresh and regrade (QML)
         emit readingUpdatedForSwing(dir);
     }
 }

@@ -39,6 +39,7 @@
 #include "../Analysis/analysis_job_builder.h"   // the ONE job builder
 #include "../Core/pp_debug.h"
 #include "../Core/pp_os_metrics.h"
+#include "../Core/post_shot_trace.h"     // [PostShot]: the GUI thread's steps after a shot lands (3.7-S)
 #include "../DomainModel/athlete.h"            // the current Athlete, whose sessions capture writes into
 #include "../DomainModel/session.h"                // the Session capture writes into (step 3.4a-ii)
 #include "../DomainModel/session_repository.h"   // the interim: a session no Athlete holds (NOTES-3.4a-ii N1)
@@ -1430,7 +1431,8 @@ void ShotProcessor::shotDocumentWritten(const pinpoint::ShotRef &shot)
 {
     for (pinpoint::Session *s : { m_openSessionObject.data(), m_shotSession.data() })
         if (s && s->id() == shot.session()) {
-            s->shotDocumentWritten(shot);   // EVT-01, once per shot (D19)
+            if (s->shotDocumentWritten(shot))   // EVT-01, once per shot (D19)
+                emit shotDocumentAnnounced(shot);   // [GpuMem] (3.7-I): main.cpp logs a line
             return;
         }
 }
@@ -1744,6 +1746,15 @@ void ShotProcessor::onSwingDocWritten()
     if (m_state != State::Processing)
         return;                     // aborted underneath us
 
+    // ⏱ [PostShot] (refactor 3.7-S): from here every timed step the GUI thread runs for this shot — this handler, the
+    // launch monitor's writes, each row refresh, the diagnostics model's settles — goes on ONE log line, written when
+    // the next shot lands or after 4 s with no timed step (post_shot_trace.h). It times, it changes nothing.
+    pinpoint::PostShotTrace::begin(QStringLiteral("[PostShot] ") + m_shot.toString(),
+                                   [](const QString &line, const pinpoint::PostShotTrace::Window &) {
+                                       ppInfo() << qPrintable(line);
+                                   });
+    pinpoint::PostShotTrace::Scope traceJoin("join");
+
     const SwingDocWriteResult res = m_docWriteWatcher.result();
     // The manifest now carries the integrity blocks the checks added; later readers (the degraded
     // persist path, re-analysis write-back) must see them.
@@ -1772,8 +1783,17 @@ void ShotProcessor::onSwingDocWritten()
         // EVT-01's moment (D19: DEC-168): the shot's first document has landed — with or without its
         // analysis (an analysis-skipped corpus shot fires too, from what it has: BRIEF-NOTES U12). Its
         // Session announces it, once; a session no Athlete holds has no Session to (the interim).
-        if (m_shotSession)
-            m_shotSession->shotDocumentWritten(m_shot);
+        if (m_shotSession) {
+            bool announced = false;
+            {
+                pinpoint::PostShotTrace::Scope t("evt01");
+                announced = m_shotSession->shotDocumentWritten(m_shot);
+            }
+            if (announced) {   // [GpuMem] at EVT-01 (3.7-I; main.cpp logs it): timed, so the line shows what it costs
+                pinpoint::PostShotTrace::Scope t("gpumem");
+                emit shotDocumentAnnounced(m_shot);
+            }
+        }
     } else if (!res.error.isEmpty()) {
         ppError() << "[SwingDoc]" << res.error;
     }
@@ -1801,11 +1821,15 @@ void ShotProcessor::onSwingDocWritten()
     // built by the worker beside the write: window time, the reloaded shot's keys.
     m_replayAnalysisDetail.set(analysisOk ? res.analysisDetail : QVariantMap{});
     const qint64 tDetail = phase.elapsed();
-    emit replayAnalysisDetailChanged();
+    {
+        pinpoint::PostShotTrace::Scope t("notify");
+        emit replayAnalysisDetailChanged();
+    }
     const qint64 tEmit = phase.elapsed();
 
     int newShotId = -1;
     if (m_shotModel) {
+        pinpoint::PostShotTrace::Scope t("addShot");
         const QUrl thumbUrl = m_thumbnailPath.isEmpty()
                                   ? QUrl()
                                   : QUrl::fromLocalFile(m_thumbnailPath);
@@ -1837,6 +1861,7 @@ void ShotProcessor::onSwingDocWritten()
     const pinpoint::ShotJoinDecision decision = pinpoint::decideJoin(join);
     const bool reviewableOnDisk = decision.reviewableOnDisk;
 
+    pinpoint::PostShotTrace::Scope traceAnnounce("announce");   // shotProcessed and its slots, the outcome, the replay or finish
     if (decision.terminal == pinpoint::Terminal::Processed)
         emit shotProcessed(newShotId, savedSwingDir);
     else

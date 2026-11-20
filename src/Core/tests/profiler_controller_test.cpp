@@ -134,6 +134,49 @@ TEST(ProfilerController, RefreshReadsCachedGaugeWithoutResampling)
     EXPECT_DOUBLE_EQ(c.cpuPercent(), cpu0);
 }
 
+// THE [GpuMem] LINE (refactor 3.7-I): the cabin run's reader parses it, so its format is pinned here.
+TEST(ProfilerController, GpuMemLineDxgiAllFields)
+{
+    pinpoint::gpumetrics::GpuSample g;
+    g.available = true;
+    g.backend = "DXGI";
+    g.processUsedBytes   = 1712ull * 1048576ull;
+    g.processSharedBytes = 128ull * 1048576ull + 400000ull;   // rounds down
+    g.peakProcessBytes   = 1800ull * 1048576ull + 600000ull;  // rounds up
+    pinpoint::osmetrics::ProcessMemory m;
+    m.private_bytes     = 4450ull * 1048576ull;
+    m.working_set_bytes = 3900ull * 1048576ull;
+    EXPECT_EQ(ProfilerController::gpuMemLine(QStringLiteral("tick"), g, m),
+              QStringLiteral("[GpuMem] at=tick dedicated_mb=1712 shared_mb=128 peak_dedicated_mb=1801 private_mb=4450 "
+                             "working_set_mb=3900 source=DXGI"));
+}
+
+TEST(ProfilerController, GpuMemLineMetalUnifiedHasNoShared)
+{
+    pinpoint::gpumetrics::GpuSample g;
+    g.available = true;
+    g.unified = true;
+    g.backend = "Metal";
+    g.processUsedBytes   = 2ull * 1048576ull;
+    g.processSharedBytes = 99ull * 1048576ull;   // ignored: only DXGI has a shared segment
+    g.peakProcessBytes   = 2ull * 1048576ull;
+    pinpoint::osmetrics::ProcessMemory m;
+    m.private_bytes     = 1180ull * 1048576ull;
+    m.working_set_bytes = 1296ull * 1048576ull;
+    EXPECT_EQ(ProfilerController::gpuMemLine(QStringLiteral("EVT-01 shot=abc/3"), g, m),
+              QStringLiteral("[GpuMem] at=EVT-01 shot=abc/3 dedicated_mb=2 shared_mb=- peak_dedicated_mb=2 "
+                             "private_mb=1180 working_set_mb=1296 source=Metal(unified)"));
+}
+
+TEST(ProfilerController, GpuMemLineUnavailableIsDashesNeverZero)
+{
+    const pinpoint::gpumetrics::GpuSample g;      // available = false
+    const pinpoint::osmetrics::ProcessMemory m;   // nothing known
+    EXPECT_EQ(ProfilerController::gpuMemLine(QStringLiteral("session-start"), g, m),
+              QStringLiteral("[GpuMem] at=session-start dedicated_mb=- shared_mb=- peak_dedicated_mb=- private_mb=- "
+                             "working_set_mb=- source=none"));
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);   // ProfilerController owns a QTimer

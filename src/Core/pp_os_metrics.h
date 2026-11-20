@@ -55,6 +55,17 @@ struct ThreadSample {
     double      cpu_percent = 0.0;    // thread CPU over the interval since the last sampleThreads()
 };
 
+// The process's memory now, with NO delta state (unlike sampleProcess): callable from any thread, any number of
+// times, without perturbing the profiler's 1 s sampler. A couple of syscalls. For the [GpuMem] log line (3.7-I).
+//   working_set_bytes : Windows WorkingSetSize · macOS resident_size · Linux statm resident
+//   private_bytes     : Windows PrivateUsage (Task Manager's "Commit size", typeperf's `Private Bytes`)
+//                       · macOS phys_footprint (Activity Monitor's "Memory") · Linux resident − shared (statm)
+struct ProcessMemory {
+    uint64_t working_set_bytes = 0;
+    uint64_t private_bytes     = 0;
+};
+ProcessMemory processMemory();
+
 // Whole-process RSS + CPU%.  First call after construction/reset() reports
 // cpu_percent = 0 (no prior baseline to diff against) and seeds the baseline.
 ProcessSample sampleProcess();

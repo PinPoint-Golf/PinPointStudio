@@ -26,6 +26,7 @@
 
 #include "../Core/atomic_write.h"
 #include "../Core/folder_lock.h"
+#include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S): the lock wait and the document write
 #include "../DomainModel/session_repository.h"
 
 #include <QDir>
@@ -210,8 +211,12 @@ WriteResult SwingStoreRecordingRepository::completeCapture(const ShotRef &shot,
         return status(WriteResult::Status::Failed, why);
     FolderLock lock(sessionFolderOf(swingDir));
     WriteResult refused;
-    if (refusedByLock(lock, &refused))
-        return refused;
+    {
+        PostShotTrace::Scope trace("lock");   // the session folder's lock: 0 unless another holder has it
+        if (refusedByLock(lock, &refused))
+            return refused;
+    }
+    PostShotTrace::Scope trace("doc");        // the document read, rewritten and synced (SwingDocWriter)
     return completeCapture(swingDir, reading, followedClub, clubReplaced);
 }
 

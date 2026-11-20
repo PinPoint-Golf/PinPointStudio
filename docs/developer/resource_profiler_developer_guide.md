@@ -290,8 +290,14 @@ log entries, each `{ timestamp, severity, message, seq }` (severity `DEBUG`/`INF
 - **Qt** warnings and above (category-prefixed; high-volume categories like `qt.multimedia.ffmpeg`,
   `qt.bluetooth` are suppressed by default), **OpenCV** (`[OpenCV]`), and **FFmpeg** (`[FFmpeg]`).
 
-The profiler is **not** a producer here — the one exception is the `setDeepEnabled()` breadcrumb
-(`[Profiler] deep profiling enabled/disabled`), logged because it is a user action, not data.
+The profiler is **not** a producer here, with two exceptions. The `setDeepEnabled()` breadcrumb
+(`[Profiler] deep profiling enabled/disabled`) is logged because it is a user action, not data. The
+`[GpuMem]` line (refactor 3.7-I, `ProfilerController::logGpuMem`) is logged so the process's GPU
+memory sits beside the session and shot events of the one log a live run hands back: every 30 s
+from the 1 s sampler, at each session start and end, and at each shot's EVT-01. It carries
+dedicated and shared GPU MB, the dedicated peak since session start, private bytes and working set,
+with `-` for a figure the platform lacks. The format and how to read it are in
+`testing_developer_guide.md` ("The post-shot bench").
 
 In the Message Log panel, **severity chips** filter the view (`INFO` off by default — FFmpeg/OpenCV
 capture makes it noisy), **Clear** resets the view, and **Export** writes
@@ -393,7 +399,8 @@ from the delta of CPU time against wall time **since the previous call**, using 
 state. They must be called by exactly one owner at a fixed cadence (the controller's ~1 s
 timer). The 500 ms on-screen refresh reads the controller's **cached** gauge and must not
 re-sample — splitting the delta across two callers would corrupt the percentages. The first
-sample after construction or `reset()` returns 0% and seeds the baseline.
+sample after construction or `reset()` returns 0% and seeds the baseline. `osmetrics::processMemory()`
+(working set and private bytes, for the `[GpuMem]` line) keeps no state, so any caller may use it.
 
 **Watermarks and reset.** Peak RSS / peak CPU% live in the OS-metrics layer; per-scope max wall
 time lives in the record. `reset()` zeroes the cumulative scope counters and rebases the OS
@@ -453,7 +460,8 @@ platform**, each picked to match where ONNX Runtime actually uses the GPU:
 | macOS | Metal | CoreML | `MTLDevice currentAllocatedSize` / `recommendedMaxWorkingSetSize` (`pp_gpu_metrics_mac.mm`) |
 
 `GpuSample` reports `processUsedBytes` (the headline number — this process's
-VRAM), `peakProcessBytes`, the device-wide total/used where the backend can see
+VRAM), `peakProcessBytes`, `processSharedBytes` (Windows only: DXGI's non-local
+segment, the system RAM the GPU maps for this process; 0 elsewhere), the device-wide total/used where the backend can see
 them, the resolved `backend` and `deviceName`, and a `unified` flag. That flag
 matters when reading the numbers: on Apple Silicon GPU memory is unified, so it
 **overlaps RSS** rather than adding to it — do not sum the two.

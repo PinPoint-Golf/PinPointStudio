@@ -306,6 +306,37 @@ std::vector<ThreadSample> sampleThreads()
     return out;
 }
 
+ProcessMemory processMemory()
+{
+    ProcessMemory m;
+#if defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS_EX pmc{};
+    pmc.cb = sizeof(pmc);
+    if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&pmc), sizeof(pmc))) {
+        m.working_set_bytes = uint64_t(pmc.WorkingSetSize);
+        m.private_bytes     = uint64_t(pmc.PrivateUsage);
+    }
+#elif defined(__APPLE__)
+    m.working_set_bytes = processRssBytes();
+    task_vm_info_data_t vm{};
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&vm), &count) == KERN_SUCCESS)
+        m.private_bytes = uint64_t(vm.phys_footprint);
+#else
+    if (FILE *f = fopen("/proc/self/statm", "r")) {
+        unsigned long total = 0, resident = 0, shared = 0;
+        if (fscanf(f, "%lu %lu %lu", &total, &resident, &shared) == 3) {
+            static const long pageSize = sysconf(_SC_PAGESIZE);
+            const uint64_t page = uint64_t(pageSize > 0 ? pageSize : 4096);
+            m.working_set_bytes = uint64_t(resident) * page;
+            m.private_bytes     = uint64_t(resident >= shared ? resident - shared : 0) * page;
+        }
+        fclose(f);
+    }
+#endif
+    return m;
+}
+
 void reset()
 {
     std::lock_guard<std::mutex> lk(g_mutex);

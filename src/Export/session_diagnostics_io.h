@@ -90,13 +90,21 @@ inline WriteResult writeJson(const QString &sessionDir, const QString &file, con
         return failed(QStringLiteral("No session folder was given."));
     FolderLock lock(sessionDir);
     bool acquired = false;
-    const WriteResult l = lockFor(lock, sessionDir, &acquired);
+    WriteResult l;
+    {
+        PostShotTrace::Scope trace("lock");   // [PostShot] (refactor 3.7-S)
+        l = lockFor(lock, sessionDir, &acquired);
+    }
     if (!acquired) {
         ppWarn() << "[SessionFiles] not written:" << qPrintable(file) << "—" << qPrintable(l.error);
         return l;
     }
-    const AtomicWriteResult w = atomicWrite(file, QJsonDocument(root).toJson(format),
-                                            AtomicWriteOptions::intoExistingFolder());
+    QByteArray bytes;
+    {
+        PostShotTrace::Scope trace("json");
+        bytes = QJsonDocument(root).toJson(format);
+    }
+    const AtomicWriteResult w = atomicWrite(file, bytes, AtomicWriteOptions::intoExistingFolder());
     if (!w.ok) {
         ppWarn() << "[SessionFiles]" << qPrintable(w.error) << "—" << qPrintable(w.detail);
         return failed(w.error);
@@ -221,7 +229,11 @@ inline WriteResult writeDiagnostics(const QString &sessionDir, const QJsonObject
     const QString path = SessionFiles::diagnosticsFile(sessionDir);
     // What is on disk NOW: its older golfer keys are carried as they stand (J-33), and it decides whether
     // this write may be made at all.
-    const DiagnosticsRead now = readDiagnostics(sessionDir);
+    DiagnosticsRead now;
+    {
+        PostShotTrace::Scope trace("read");   // [PostShot] (refactor 3.7-S): the file on disk, parsed whole
+        now = readDiagnostics(sessionDir);
+    }
     if (state) *state = now.state;
     switch (now.state) {
     case DiagnosticsRead::State::Newer:

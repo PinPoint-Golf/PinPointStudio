@@ -26,6 +26,7 @@
 #include "../Coaching/strike_from_flight.h"    // sessionFlightUsuals, checkShotAgainstFlight
 #include "../Core/club_vocabulary.h"
 #include "../Core/pp_debug.h"
+#include "../Core/post_shot_trace.h"   // [PostShot] (refactor 3.7-S)
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -603,6 +604,7 @@ void SessionDiagnostics::deliver(WorkVerdict verdict, WorkResult &&result)
 {
     if (m_retired)
         return;
+    PostShotTrace::Scope trace("owner");   // [PostShot] (refactor 3.7-S): a result kept, on the owner's thread
     if (result.address.item.isEmpty()) {   // the owner's own work: a reduction (§4.4 step 7)
         deliverReduction(verdict, std::move(result));
         return;

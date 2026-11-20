@@ -25,6 +25,8 @@
 #include <QVariantList>
 
 #include "pp_profiler.h"   // brings PINPOINT_PROFILE_BASELINE / PINPOINT_PROFILE defaults
+#include "pp_gpu_metrics.h"  // GpuSample, for gpuMemLine (3.7-I)
+#include "pp_os_metrics.h"   // ProcessMemory, for gpuMemLine (3.7-I)
 
 // QObject bridge between the resource profiler core (Profiler + osmetrics) and
 // the monitor's PROFILER panel. Mirrors ResourceMonitorController's shape:
@@ -134,6 +136,19 @@ public:
     QVariantList analysisStages() const { return m_analysisStages; }
     QVariantList analysisRuns()   const { return m_analysisRuns; }
 
+    // THE [GpuMem] LOG LINE (refactor 3.7-I; build/refactor/step-3/3.7/NOTES-G.md §4): one ppInfo line to the app
+    // log with this process's GPU memory (dedicated = DXGI local segment, shared = DXGI non-local; Metal's
+    // currentAllocatedSize on macOS, unified), its peak since the profiler's last reset (session start), and its
+    // private bytes and working set (osmetrics::processMemory — stateless, so the 1 s sampler's deltas are untouched).
+    // `at` names the moment ("tick" every 30 s from the sampler; "session-start", "session-end", "EVT-01 shot=<ref>").
+    // Cheap (one or two driver queries and one syscall): always on, any thread. Writes nothing but the log.
+    // A field the platform cannot give is "-".
+    static void logGpuMem(const QString &at);
+    // The line itself, from given samples, with no query and no log: pure, so the format is pinned by a test
+    // (profiler_controller_test). logGpuMem = ppInfo() << gpuMemLine(at, gpumetrics::sample(), osmetrics::processMemory()).
+    static QString gpuMemLine(const QString &at, const pinpoint::gpumetrics::GpuSample &gpu,
+                              const pinpoint::osmetrics::ProcessMemory &mem);
+
     // Screen-driven (500 ms while visible): rebuilds scope/memory/stats tables.
     Q_INVOKABLE void refresh();
     // Start a fresh measurement window (counters + OS-gauge peaks/baselines).
@@ -196,5 +211,6 @@ private:
 
     static constexpr int kSamplerIntervalMs = 1000;
     static constexpr int kDumpEveryTicks    = 60;   // 60 s at 1 s cadence
+    static constexpr int kGpuMemEveryTicks  = 30;   // [GpuMem] every 30 s at 1 s cadence (3.7-I)
     static constexpr int kMaxStatsEntries   = 1000;
 };

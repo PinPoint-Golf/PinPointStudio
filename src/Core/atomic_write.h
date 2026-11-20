@@ -70,6 +70,8 @@
 #include <QSaveFile>
 #include <QString>
 
+#include "post_shot_trace.h"   // [PostShot] (refactor 3.7-S): the commit's cost, on the GUI thread only
+
 #include <functional>
 
 namespace pinpoint {
@@ -146,6 +148,9 @@ public:
             m_file.cancelWriting();
             return { false, diskFull(), why };
         }
+        // ⏱ The flush of what is still buffered, the sync to disk (FlushFileBuffers on Windows, fsync elsewhere) and
+        // the rename, as one step: the line shows it under whichever step wrote the file.
+        PostShotTrace::Scope trace("commit");
         if (!m_file.commit()) {
             return { false,
                      m_file.error() == QFileDevice::RenameError

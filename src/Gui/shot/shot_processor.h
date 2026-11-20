@@ -242,6 +242,10 @@ signals:
     // analysis+export join reached, all ok — carries the reviewable on-disk swing
     // (swingDir) and its carousel row id so the UI can promote it straight into Review.
     void shotProcessed(int shotId, const QString &swingDir);
+    // NOT a domain event (refactor 3.7-I): the shot's Session has just announced EVT-01 (Session::shotAdded) for a
+    // shot this processor reported. A relay for the app log only: main.cpp writes a [GpuMem] line on it
+    // (ProfilerController::logGpuMem). Nothing recomputes on it; nothing else may connect to it.
+    void shotDocumentAnnounced(const pinpoint::ShotRef &shot);
     void shotFailed(const QString &error);
     void swingSaved(const QString &path);
     void swingSaveFailed(const QString &error);

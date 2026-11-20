@@ -61,6 +61,23 @@ TEST(OsMetrics, ProcessGauge)
     EXPECT_GE(s1.peak_rss_bytes, s1.rss_bytes);
 }
 
+// processMemory() (refactor 3.7-I, the [GpuMem] line): real figures, and no delta state — calling it between two
+// sampleProcess() calls leaves the second's CPU% a positive measurement of the busy interval.
+TEST(OsMetrics, ProcessMemoryIsStatelessAndReal)
+{
+    const ProcessMemory m = processMemory();
+    EXPECT_GT(m.working_set_bytes, 0u);
+    EXPECT_GT(m.private_bytes, 0u);
+
+    reset();
+    (void)sampleProcess();   // seeds
+    burn(60);
+    for (int i = 0; i < 100; ++i) (void)processMemory();
+    const ProcessSample s = sampleProcess();
+    EXPECT_GT(s.cpu_percent, 0.0);   // the delta survived 100 processMemory() calls
+    EXPECT_GT(s.rss_bytes, 0u);
+}
+
 TEST(OsMetrics, ThreadCpuNonDecreasing)
 {
     const uint64_t a = threadCpuNowNs();

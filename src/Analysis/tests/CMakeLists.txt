@@ -1983,6 +1983,26 @@ pp_add_test(diag_parallel_live_test
 set_tests_properties(diag_parallel_live_test PROPERTIES
     ENVIRONMENT "PINPOINT_CORE_PACK=${DIAGRES}/core.json;PINPOINT_CORE_NORMS=${DIAGRES}/norms.json;PINPOINT_CORE_FLIGHT_NORMS=${DIAGRES}/flight_norms.json;PINPOINT_CORE_CONTEXTS=${DIAGRES}/contexts.json;PINPOINT_CORE_SCREENS=${DIAGRES}/screens.json;PINPOINT_CORE_DRILLS=${DIAGRES}/drills.json;PINPOINT_CORE_GATE_WORDS=${DIAGRES}/gate_words.json;PINPOINT_CORE_REFERENCES=${DIAGRES}/references.json")
 
+# post_shot_bench — THE POST-SHOT GUI PATH, HEADLESS, FOR A WHOLE SESSION (refactor 3.7-S, the post-shot stall;
+# build/refactor/step-3/3.7/NOTES-S.md): main.cpp's composition (the store, the swing door, an Athlete, `app`, the
+# carousel's model, the panel's diagnostics model and, with --parallel 1, the parallel run's doors and hook) driven
+# through N live-shaped shots of one session on a scratch library, printing each shot's [PostShot] line
+# (src/Core/post_shot_trace.h) and how each step's cost grows with the shot count. regrade_ledger's link line, less
+# the tool, plus `app` and the carousel's model. NOT registered with ctest: it times rather than checks, and it writes
+# the library it is given (refused unless that folder is empty or new).
+set(_post_shot_bench_sources ${_regrade_sources})
+list(REMOVE_ITEM _post_shot_bench_sources ${PP_REPO_ROOT}/tools/diagnostics/regrade_ledger.cpp)
+add_executable(post_shot_bench
+    ${PP_REPO_ROOT}/tools/diagnostics/post_shot_bench.cpp
+    ${_post_shot_bench_sources}
+    ${SRC}/App/app.h ${SRC}/App/app.cpp
+    ${SRC}/Gui/shot/shot_list_model.h ${SRC}/Gui/shot/shot_list_model.cpp
+    ${SRC}/Core/post_shot_trace.h)
+target_include_directories(post_shot_bench PRIVATE ${PP_BUFFER} ${NORM_INC} ${SRC} ${SRC}/Core ${SRC}/LaunchMonitor ${SRC}/Gui ${OpenCV_INCLUDE_DIRS})
+target_compile_definitions(post_shot_bench PRIVATE PP_DIAGRES="${DIAGRES}")
+target_link_libraries(post_shot_bench PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent pinpoint_swingstore ${OpenCV_LIBS})
+set_target_properties(post_shot_bench PROPERTIES AUTOMOC ON CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
 # THE PARITY DUMPS (refactor Step G; docs/developer/testing_developer_guide.md "Parity dumps"). The session
 # half is regrade_ledger --dump, above. athlete_dump is the athlete half: the app's work-ons catch-up
 # (WorkOnsController, driven synchronously as work_ons_controller_test drives it) over a SCRATCH athlete
