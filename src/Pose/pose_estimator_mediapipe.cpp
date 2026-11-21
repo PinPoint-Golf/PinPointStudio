@@ -22,7 +22,6 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QLibrary>
@@ -31,7 +30,6 @@
 #include <onnxruntime_cxx_api.h>
 #include "ort_log.h"
 #include <opencv2/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -706,10 +704,6 @@ PoseResult PoseEstimatorMediaPipe::runLandmarks(const cv::Mat &frame,
     const int W  = static_cast<int>(m_ort->lmInputW);
     const int fw = frame.cols, fh = frame.rows;
 
-    // Debug: save the rotated crop once so it can be visually verified.
-    // Writes to ~/mediapipe_crop_debug.jpg — remove once confirmed correct.
-    static bool sCropSaved = false;
-
     // ── Build affine: rect corners → (0,0),(W,0),(W,H) ───────────────────
     // rect_points[1]=top-left, [2]=top-right, [3]=bottom-right
     cv::Point2f srcPts[3] = { body.rect_points[1], body.rect_points[2], body.rect_points[3] };
@@ -720,16 +714,6 @@ PoseResult PoseEstimatorMediaPipe::runLandmarks(const cv::Mat &frame,
     cv::Mat rotatedCrop;
     cv::warpAffine(frame, rotatedCrop, affineExtract, cv::Size(W, H), cv::INTER_LINEAR,
                    cv::BORDER_CONSTANT, cv::Scalar(0,0,0));
-
-    if (!sCropSaved) {
-        sCropSaved = true;
-        const QString path = QDir::homePath() + QStringLiteral("/mediapipe_crop_debug.jpg");
-        cv::imwrite(path.toStdString(), rotatedCrop);
-        ppWarn() << "[MediaPipe] Rotated crop saved to" << path
-                 << " — center(" << body.cx_px << body.cy_px << ")"
-                 << " size=" << body.size_px << "px"
-                 << " rot=" << (body.rotation * 180.f / float(M_PI)) << "deg";
-    }
 
     // Preprocess: BGR→RGB, normalise [0,1], CHW if needed.
     cv::Mat rgb, f32;
