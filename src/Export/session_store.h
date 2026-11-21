@@ -133,6 +133,7 @@ public:
     JsonFileRead     readClubBaseline(const SessionId &id) override;
     WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) override;
     JsonFileRead     readWorkOns(const SessionId &id) override;
+    std::function<JsonFileRead()> deferredReadWorkOns(const SessionId &id) override;   // the folder now, the read later
     WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) override;
 
     // enumerate(), for a caller that holds an athlete's FOLDER rather than the athlete (the diagnostics model,

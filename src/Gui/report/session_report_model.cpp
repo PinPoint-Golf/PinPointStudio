@@ -23,6 +23,7 @@
 #include "report_lm.h"
 #include "report_consistency.h"
 #include "report_tendencies.h"
+#include "report_athlete_stamps.h"   // the left-out stamp off the session's own athlete level (R1-m7, R2-B1)
 #include "report_delivery.h"
 #include "report_posture.h"
 #include "report_wrist.h"
@@ -51,7 +52,7 @@
 #include "../../Coaching/swing_areas_pack.h"          // areaConditionInfoForPack: a yes/no condition has no grade
 #include "../../Coaching/shot_outcomes_pack.h"
 #include "../../Coaching/work_ons.h"
-#include "../diagnostics/work_ons_controller.h"
+#include "../../DomainModel/athlete_diagnostics.h"   // the Tendencies page as of the session; Earlier today (3.7-f)
 #include "../../Core/pp_debug.h"
 #include "../../Core/pp_settings.h"
 #include "../../Core/studio_profile.h"
@@ -78,6 +79,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QtConcurrent>
+#include <optional>
 
 #include <algorithm>
 #include <iterator>
@@ -128,11 +130,13 @@ struct DocFacts {
 // other sessions' swing_phasegrid.json). The same numbers and words the Charts Posture, Wrist and Club delivery
 // sections draw for the session. Over it too the Consistency presenter's report payload (the Consistency tab's table and
 // flagged shots, on a swings kicker); `env` and `norms` come from the GUI thread (consistency_env.h).
-// { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `lmMeasures`: the pack's launch
-// monitor measures, so the Tendencies page leaves a reading the board left out unread (step 3.6's rule; refactor 3.7-d).
+// { posture, wrist, delivery, consistency, tendencies }, each empty when nothing reads. `tendencies`: the athlete level's
+// tendencies AS OF this session (AthleteDiagnostics::tendenciesAsOf, taken on the GUI thread: refactor 3.7-f, from the
+// summaries, the board's annotations applied by each session's own reduction), null when no owner reads it; then
+// `tendenciesUnread` keeps the page with W::tendenciesUnread() as its standfirst (R1-m6), else there is none.
 QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::ConsistencyEnv &env, const QString &gradePolicy,
                             const std::shared_ptr<const INormProvider> &norms, const ShotOutcomePack &outcomePack,
-                            const QSet<QString> &lmMeasures)
+                            const std::optional<TendencySet> &tendencies, int tendenciesLeftOut, bool tendenciesUnread)
 {
     pinpoint::charts::SessionSeriesModel series;
     series.setSynchronous(true);
@@ -146,7 +150,15 @@ QVariantMap readChartsPages(const QString &sessionDir, const pinpoint::charts::C
              { QStringLiteral("wrist"), pinpoint::charts::wristSessionReportPayload(*snap, -1, QStringLiteral("swings")) },
              { QStringLiteral("delivery"), pinpoint::charts::deliverySessionReportPayload(*snap, QStringLiteral("swings")) },
              { QStringLiteral("consistency"), pinpoint::charts::consistencySessionReportPayload(snap, env, gradePolicy, norms, QStringLiteral("swings")) },
-             { QStringLiteral("tendencies"), pinpoint::report::tendenciesReportBlock(WorkOnsController::tendenciesAsOf(sessionDir, outcomePack, *norms, lmMeasures), &outcomePack) } };
+             { QStringLiteral("tendencies"), tendencies ? QVariant([&] {
+                   QVariantMap t = pinpoint::report::tendenciesReportBlock(*tendencies, &outcomePack);
+                   // J-51 (round 0c): the sessions up to this one the athlete level could not use, said after the standfirst.
+                   if (tendenciesLeftOut > 0)
+                       t[QStringLiteral("standfirst")] = t.value(QStringLiteral("standfirst")).toString() + QLatin1Char(' ')
+                                                         + W::tendenciesNotSummedUp(tendenciesLeftOut);
+                   return t;
+               }()) : tendenciesUnread ? QVariant(pinpoint::report::tendenciesUnreadBlock(W::tendenciesUnread()))   // R1-m6: kept, saying why
+                                       : kNull } };
 }
 
 QVector<DocFacts> readDocs(const QString &sessionDir)
@@ -346,14 +358,26 @@ static QString inputsStampOf(const QString &studioStamp, const QVariantMap &athl
     return studioStamp + QStringLiteral("|photos:%1:%2").arg(p.included ? 1 : 0).arg(int(p.reason));
 }
 
-QString SessionReportModel::inputsStamp(const QString &sessionDir) const
+// WHAT THE ATHLETE LEVEL COULD NOT USE (REVIEW-f R1-m7, R2-B1): report_athlete_stamps.h, off the session's own athlete
+// level (the door). GUI thread (the owner's reads).
+static std::vector<pinpoint::analysis::SessionPlace> placesOf(pinpoint::AthleteLevel *ad)
 {
-    return inputsStampOf(m_studio ? m_studio->stamp() : QString(), athleteFor(sessionDir), sessionDir);
+    std::vector<pinpoint::analysis::SessionPlace> out;
+    if (ad)
+        for (const pinpoint::AthleteSessionSummary &s : ad->summaries()) out.push_back(s.place);
+    return out;
 }
 
-QString SessionReportModel::fingerprintOf(const QString &sessionDir) const
+QString SessionReportModel::inputsStamp(const QString &sessionDir, bool atMake) const
 {
-    return M::reportFingerprint(sessionDir, kWorkOnRuleVersion, contentStamp(), inputsStamp(sessionDir));
+    const QString leftOut = m_athleteDoor
+        ? pinpoint::report::athleteLeftOutStamp(m_athleteDoor(sessionDir), QFileInfo(sessionDir).fileName(), atMake) : QString();
+    return inputsStampOf(m_studio ? m_studio->stamp() : QString(), athleteFor(sessionDir), sessionDir) + leftOut;
+}
+
+QString SessionReportModel::fingerprintOf(const QString &sessionDir, bool atMake) const
+{
+    return M::reportFingerprint(sessionDir, kWorkOnRuleVersion, contentStamp(), inputsStamp(sessionDir, atMake));
 }
 
 M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
@@ -361,17 +385,22 @@ M::ReportFingerprintFn SessionReportModel::fingerprintFunction() const
     // athleteFor(dir)'s folder lookup (AthleteController::reportDetailsForSession), done for every athlete now:
     // by the folder each Athlete holds (J-29, J-66), the first athlete listed for a folder winning, as there.
     QHash<QString, QVariantMap> byFolder;
+    // R1-m7's left-out stamps, taken now off each athlete's own athlete level (R2-B1: the door answers for any athlete).
+    pinpoint::report::AthleteLeftOutStamps leftOut;
     if (m_athletes) {
         for (const QVariant &v : m_athletes->athletes()) {
             const QString uuid = v.toMap().value(QStringLiteral("uuid")).toString();
-            const QString folder = uuid.isEmpty() ? QString() : athleteFolderKey(m_athletes->folderOf(uuid));
-            if (!folder.isEmpty() && !byFolder.contains(folder))
+            const QString real = uuid.isEmpty() ? QString() : m_athletes->folderOf(uuid);
+            const QString folder = athleteFolderKey(real);
+            if (!folder.isEmpty() && !byFolder.contains(folder)) {
                 byFolder.insert(folder, m_athletes->reportDetails(uuid));
+                if (m_athleteDoor) leftOut.take(m_athleteDoor(QDir(real).filePath(QStringLiteral("_"))), real);
+            }
         }
     }
-    return [studio = m_studio ? m_studio->stamp() : QString(), content = contentStamp(), byFolder](const QString &dir) {
+    return [studio = m_studio ? m_studio->stamp() : QString(), content = contentStamp(), byFolder, leftOut](const QString &dir) {
         const QVariantMap athlete = byFolder.value(athleteFolderKey(QFileInfo(dir).absolutePath()));
-        return M::reportFingerprint(dir, kWorkOnRuleVersion, content, inputsStampOf(studio, athlete, dir));
+        return M::reportFingerprint(dir, kWorkOnRuleVersion, content, inputsStampOf(studio, athlete, dir) + leftOut.of(dir));
     };
 }
 
@@ -501,11 +530,35 @@ void SessionReportModel::start(const QString &sessionDir, const QVariantMap &opt
     // The Tendencies page reads the sessions up to this one with the same outcome words Home uses.
     const std::unique_ptr<ICharacteristicPackProvider> outcomeProvider = makeCharacteristicPackProvider();
     const ShotOutcomePack outcomePack = shotOutcomePackFor(&outcomeProvider->pack());
-    // The board's left-out readings: the pack's monitor measures (board_annotations.h), for the Tendencies page.
-    const QSet<QString> lmMeasures = launchMonitorMeasures(outcomeProvider->pack());
+    // THE TENDENCIES AS THEY STOOD AT THIS SESSION (refactor 3.7-f; CARRY 3.7-d M5): the athlete level's read, taken here on
+    // the GUI thread and handed over by value. The door gives no owner, or the owner does not list the session (a make
+    // queued across an athlete switch): the page is kept and says why it is empty (REVIEW-f R1-m6; show with a warning,
+    // never hide). No door at all (a tool, a test: no athlete level here): no page.
+    std::optional<TendencySet> tendencies;
+    int tendenciesLeftOut = 0;   // J-51: the sessions up to this one the athlete level could not use
+    bool tendenciesUnread = false;
+    pinpoint::AthleteLevel *ad = m_athleteDoor ? m_athleteDoor(dir) : nullptr;
+    if (m_athleteDoor && !ad) {
+        ppWarn() << "[Report] no athlete level holds" << dir << "- the Tendencies page says it can't be read";
+        tendenciesUnread = true;
+    }
+    if (ad) {
+        const QString name = QFileInfo(dir).fileName();
+        for (const pinpoint::AthleteSessionSummary &s : ad->summaries())
+            if (s.place.folder == name) {
+                tendencies = ad->tendenciesAsOf(s.id);
+                tendenciesLeftOut = pinpoint::report::tendenciesLeftOutCount(placesOf(ad), ad->notSummedUp().folders, s.place);
+                break;
+            }
+        if (!tendencies) {
+            ppWarn() << "[Report] the athlete level does not list" << dir << "- the Tendencies page says it can't be read";
+            tendenciesUnread = true;
+        }
+    }
     connect(&m_job->chartsWatcher, &QFutureWatcher<QVariantMap>::finished, this, &SessionReportModel::onChartsRead);
-    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, lmMeasures] {
-        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, lmMeasures);
+    m_job->chartsWatcher.setFuture(QtConcurrent::run([dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut,
+                                                      tendenciesUnread] {
+        return readChartsPages(dir, consistencyEnv, policy, norms, outcomePack, tendencies, tendenciesLeftOut, tendenciesUnread);
     }));
 
     m_model = m;
@@ -989,7 +1042,7 @@ void SessionReportModel::build()
     const QDate sessionDay = sessionDayOf(job.dir);
     const R::PhotoDecision photo = photoDecisionFor(athlete, sessionDay.isValid() ? sessionDay : x.sessionDate);
     job.photos = photo.included;
-    job.fingerprint = fingerprintOf(job.dir);
+    job.fingerprint = fingerprintOf(job.dir, /*atMake=*/true);   // "unread" said only here (R2-B1)
 
     const QString kind = x.N < kNoteBelowSwings ? QStringLiteral("note")
                        : x.workOns.entries.empty() ? QStringLiteral("clean") : QStringLiteral("report");
@@ -1010,6 +1063,8 @@ void SessionReportModel::build()
     // which `name-date-type` never starts with (such a session was "Session 1 of 1" on a day of three).
     struct Sibling { QString dir; SessionWorkOns rec; bool ok = false; bool self = false; int swings = 0; };
     std::vector<Sibling> day;
+    int notSummedUp = 0;   // earlier sessions of the day with swings and no summary this build reads (J-51: said, below)
+    pinpoint::AthleteLevel *athleteLevel = m_athleteDoor ? m_athleteDoor(job.dir) : nullptr;
     {
         const QList<pinpoint::SessionIndexEntry> index =
             pinpoint::SessionDiagnosticsFiles::sessionPlaces(QFileInfo(job.dir).absolutePath());
@@ -1030,22 +1085,18 @@ void SessionReportModel::build()
             s.dir = QDir::cleanPath(QFileInfo(e.folder).absoluteFilePath());
             s.self = s.dir == job.dir;
             if (!s.self) {
-                const pinpoint::JsonFileRead f = pinpoint::SessionDiagnosticsFiles::readWorkOns(s.dir);
-                // A record from an earlier rule or schema is still that session's EVIDENCE (state, fired,
-                // assessable are the ledger's, not the order's), and "Earlier today" reads only that and the
-                // ids — so it is read as it stands rather than waiting for the catch-up to re-derive it. A
-                // NEWER schema is not read as ours (H-08; step 2.5): it is left out, as a session with none.
-                if (f.exists && f.root.value(QStringLiteral("schemaVersion")).toInt(0) <= kWorkOnSchemaVersion) {
-                    QJsonObject root = f.root;
-                    if (!root.isEmpty()) {
-                        root[QStringLiteral("schemaVersion")] = kWorkOnSchemaVersion;
-                        root[QStringLiteral("ruleVersion")]   = kWorkOnRuleVersion;
+                // THE EARLIER SESSION'S SUMMARY AS THE ATHLETE LEVEL READS IT (refactor 3.7-f; CARRY 3.7-d M5): this
+                // build's, read strictly (AthleteDiagnostics). One with none (an older rule's, none yet, another build's on
+                // another machine) is not a column: the block says how many (J-51), and its swings still number the day.
+                if (athleteLevel)
+                    if (const pinpoint::AthleteSessionSummary *sum = athleteLevel->summaryOf(QFileInfo(s.dir).fileName())) {
+                        s.rec = sum->results.workOns;
+                        s.ok  = true;
                     }
-                    s.rec = sessionWorkOnsFromJson(root, &s.ok);
-                }
                 s.swings = s.ok ? s.rec.shotCount : 0;
                 if (s.swings <= 0) {      // no record yet: count the swings so the session still numbers
                     s.swings = pinpoint::SwingPaths::swingFolders(s.dir).size();
+                    if (s.swings > 0 && std::none_of(day.begin(), day.end(), [](const Sibling &d) { return d.self; })) ++notSummedUp;
                 }
                 if (s.swings <= 0) continue;
             } else {
@@ -1324,7 +1375,7 @@ void SessionReportModel::build()
         QVariant today = kNull;
         std::vector<const Sibling *> cols;
         for (const Sibling &s : day) { if (s.self) { cols.push_back(&s); break; } if (s.ok && s.swings >= kNoteBelowSwings) cols.push_back(&s); }
-        if (!isNote && cols.size() > 1) {
+        if (!isNote && (cols.size() > 1 || notSummedUp > 0)) {
             const int more = std::max(0, int(cols.size()) - kTodayCap);
             if (more > 0) cols.erase(cols.begin(), cols.begin() + more);
             // the rows: today's work-ons, then habits that made an earlier list and not today's
@@ -1375,6 +1426,8 @@ void SessionReportModel::build()
                 const ConditionLedger *l = x.ledger(id);
                 note << W::todayEarlierHabit(x.label(id), l ? l->fired : 0, l ? l->assessable : 0, R::kJudgedMinSwings);
             }
+            // J-51 (show with a warning, never hide): the earlier sessions this build has not summed up, said.
+            if (notSummedUp > 0) note << W::todayNotSummedUp(notSummedUp);
             today = QVariantMap{ { QStringLiteral("sessions"), heads }, { QStringLiteral("rows"), rows },
                                  { QStringLiteral("note"), note.join(QLatin1Char(' ')) }, { QStringLiteral("more"), W::todayMore(more) } };
         }

@@ -49,6 +49,7 @@
 // Domain model ring (src/DomainModel): names no store type.
 
 #include "athlete.h"
+#include "session_repository.h"   // JsonFileRead
 #include "../Identity/identity.h"
 
 #include <QByteArray>
@@ -82,6 +83,16 @@ public:
     // added to `athlete`'s log under its folder's lock, for that one append (refactor step 3.4b-i: the
     // Athlete's own append, on EVT-06).
     virtual WriteResult appendTuningLine(const Athlete &athlete, const QByteArray &line) = 0;
+
+    // THE ATHLETE LEVEL'S DERIVED CACHES (refactor step 3.7-f; IM FILE-ATH-02, FILE-ATH-03 — their rows name this
+    // repository): tendencies.json and swing_themes.json (every club; a club scope's or shot filter's own file stays the
+    // owner's too since Mark's J-50 answer, DEC-195). Read and written by their one writer, AthleteDiagnostics. A write
+    // replaces the file whole (atomic); a read of a file that is not there is `exists` false. GUI thread.
+    enum class Cache { Tendencies, Themes };
+    // `keys`: a club scope's (and shot filter's) own swing_themes file (FILE-ATH-03's per-scope files; DEC-195), each
+    // made file-safe by the caller (clubScopeFileKey); none: every club's.
+    virtual JsonFileRead readCache(const Athlete &athlete, Cache which, const QStringList &keys = {}) = 0;
+    virtual WriteResult  writeCache(const Athlete &athlete, Cache which, const QJsonObject &root, const QStringList &keys = {}) = 0;
 };
 
 } // namespace pinpoint

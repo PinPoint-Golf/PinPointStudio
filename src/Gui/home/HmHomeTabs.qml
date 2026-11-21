@@ -167,6 +167,20 @@ Column {
         onShotFilterSelected: (key) => root.selectShotFilter(key)
     }
 
+    // SESSIONS NOT IN THESE FIGURES (refactor 3.7-f; J-51 — HARD: show with a warning, never hide): sessions with shots
+    // that this build has not summed up yet (none yet, an older rule's, another machine's) add nothing to Coaching, Your
+    // swing, Tendencies or Matchups; the controller says how many (notSummedUpNote), in the existing notice (PpNotice,
+    // its `warning` style, as Home's resource warning). Words only: no new component, variant or token.
+    PpNotice {
+        id: notSummedUp
+        objectName: "homeNotSummedUp"
+        width:   root.width
+        visible: root.current !== "sessions" && !!root.controller && (root.controller.notSummedUpNote || "") !== ""
+        style:   "warning"
+        title:   Theme.caps(qsTr("Not in these figures yet"))
+        text:    root.controller ? (root.controller.notSummedUpNote || "") : ""
+    }
+
     StackLayout {
         id: pages
         width: root.width

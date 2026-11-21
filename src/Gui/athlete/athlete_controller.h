@@ -49,6 +49,8 @@ namespace pinpoint { class SessionRepository; }
 // ACTIVITY (each golfer's session count and last session, the picker's rows and Recent order) is derived
 // from each athlete's SessionIndex (DEC-89), read off the GUI thread by AthleteRepository::readActivity;
 // refreshActivity() re-reads the library's athletes and their activity (the picker asks on opening).
+namespace pinpoint { class AthleteLevel; class Athlete; }
+
 class AthleteController : public QObject
 {
     Q_OBJECT
@@ -277,11 +279,15 @@ public:
     Q_INVOKABLE void setPhotosApproved(const QString &uuid, bool approved);
 
     Q_INVOKABLE QVariantMap clubsFor(const QString &uuid) const;
-    // "Your distances" for any golfer (shot_outcomes_design.md §7.5), from <athlete>/tendencies.json:
-    // { items: [the stored per-club rows, keys as tendencies.h clubDistanceItemToJson writes them],
-    //   stale: bool (no file, or older than the newest ledger), note: "" or why they are not current }.
+    // "Your distances" for any golfer (shot_outcomes_design.md §7.5), from that athlete's AthleteDiagnostics (the session
+    // summaries' club windows; refactor 3.7-f):
+    // { items: [the per-club rows, keys as tendencies.h clubDistanceItemToJson writes them],
+    //   stale: bool (no summary read yet, or a session with shots not summed up yet), note: "" or why they are not current }.
     // clubDistancesChanged is the cue to read again after a catch-up lands.
     Q_INVOKABLE QVariantMap clubDistances(const QString &uuid) const;
+    // The athlete level "Your distances" reads (refactor 3.7-f; main.cpp: the Athlete's AthleteDiagnostics). None: "being
+    // worked out".
+    void setAthleteLevelDoor(std::function<pinpoint::AthleteLevel *(pinpoint::Athlete *)> door) { m_athleteLevelDoor = std::move(door); }
     Q_INVOKABLE QVariantMap defaultClubRecord(const QString &clubId) const;  // factory spec defaults (loft/length/shaft)
     Q_INVOKABLE QStringList clubOptions() const;   // canonical vocabulary (club_vocabulary.h)
     // The athlete's bag: the club ids in their records, in vocabulary order (an id outside the
@@ -314,6 +320,7 @@ signals:
     void clubDistancesChanged();
 
 private:
+    std::function<pinpoint::AthleteLevel *(pinpoint::Athlete *)> m_athleteLevelDoor;
     void reload();                       // re-list the library's athletes, then rebuild()
     void rebuild();                      // the list and the current athlete, from the athletes held
     pinpoint::Athlete *athleteFor(const QString &uuid) const;

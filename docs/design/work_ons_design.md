@@ -43,6 +43,16 @@ facts are under the current rules and whose fingerprint matches is read, and not
 moving — a version bumped, a policy or norm changed, a baseline frozen, a date of birth corrected, a swing re-analysed —
 makes it stale.
 
+**The athlete level is `AthleteDiagnostics`' (refactor 3.7-f).** The list, every condition's detail, the tendencies and Your
+distances, the swing summary (every club, and under a club scope or shot filter), and the consistency marks are worked out
+by the current Athlete's `AthleteDiagnostics` from the session summaries — on its own lane of the one pool, never beside a
+live session — and it writes `tendencies.json` and every `swing_themes*.json`. Under a club scope or a shot filter it reads
+each session's judged rows through that session's own `SessionDiagnostics` (the Session held for the read, released after;
+Mark, 21 Nov 2026: DEC-195). `WorkOnsController` is its thin adapter: the scan that asks the catch-up for stale sessions,
+and the words. A session whose summary this build does not read (none yet, another rule's, another machine's), or whose
+rows cannot be read for a scoped view, is counted and said on Home ("N sessions aren't in these figures yet"): never
+left out without a word (J-51).
+
 Derivation is the session's own (refactor 3.7-e, the catch-up's cut-over): `WorkOnsController` hands the stale sessions to
 the catch-up service (`src/App/athlete_catch_up.h`), which takes each in hand, oldest first; its `Session`'s
 `SessionDiagnostics` re-judges whatever is stale, freezes the club baseline at first need, reduces, and writes
@@ -170,7 +180,7 @@ Clicking a row opens it in place (one at a time):
 
 Reproduce §3/§4 without touching the library: copy each session's `diagnostics.json` and its
 empty `swing_*` folders somewhere, then `build/run-me/verify-workons.sh <that athlete dir> 5`.
-`PINPOINT_WORKONS_DIR` points the running app's list at any folder of sessions.
+`PINPOINT_WORKONS_DIR` points the running app's list at any folder of sessions. Since refactor 3.7-f an `Athlete` is made for that folder under the athlete id in its `athlete.json` (J-56; a folder with no athlete record gets none, and Home shows its empty state; its caches kept beside its sessions, its jobs inline), so Home reads its own `AthleteDiagnostics` there; the catch-up still sums nothing up in it (3.7-e J-e7). Its users are the dev and probe scripts (`build/run-me/verify-*.sh`, `swing_themes_home.qml`).
 
 ## 7. Not done, and known limits
 

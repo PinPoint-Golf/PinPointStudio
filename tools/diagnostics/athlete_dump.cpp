@@ -67,6 +67,8 @@
 #include "../../src/DomainModel/session_diagnostics.h"
 #include "../../src/DomainModel/summary_rules.h"
 #include "../../src/Core/work_pool.h"
+#include "../../src/Diagnostics/packs/swing_themes_pack.h"   // themeMeasureInfo, themeConditionInfo (the bench)
+#include "../../src/Export/athlete_cache_repository.h"   // the athlete's own caches (FILE-ATH-02/03), as the app keeps them (3.7-f)
 #include "../../src/Export/firing_reader_store.h"
 #include "../../src/Export/recording_loader.h"
 #include "../../src/Export/rule_data_install.h"
@@ -188,6 +190,143 @@ int boardAnnotations(const QString &sessionDir)
     return int(pinpoint::SessionDiagnosticsFiles::golferInput(sessionDir, QJsonObject()).board.size());
 }
 
+// J-53's BENCH: Home's swing summary (every club; the 500 replicates) reduced from the owner's inputs three times on each
+// fan-out — WorkOnsController's until 3.7-f (a QThreadPool of every core but one, low priority) and the owner's (a job on
+// its own lane of the one pool, WorkPool::defaultThreadCount() workers, the replicates over the pool's other workers) —
+// the median of each printed. Scratch folders only, like the rest of the tool.
+void benchThemesOf(const QString &name, pinpoint::Athlete *a)
+{
+    pinpoint::AthleteDiagnostics *ad = pinpoint::AthleteDiagnostics::of(a);
+    const auto snap = pinpoint::RuleData::installed()->snapshot();
+    if (!ad || !snap || !snap->pack) return;
+    const pinpoint::analysis::CharacteristicPack &pack = snap->pack->pack();
+    const auto inputs = ad->themeInputs();
+    const auto measures = pinpoint::analysis::themeMeasureInfo(pack);
+    const auto conditions = pinpoint::analysis::themeConditionInfo(pack, snap->drills ? snap->drills->merged : pinpoint::analysis::DrillSet{});
+    QThreadPool old;
+    old.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));
+    old.setThreadPriority(QThread::LowPriority);
+    const pinpoint::analysis::ThemeParallelFor oldFor = [&old](int n, const std::function<void(int)> &body) {
+        std::atomic<int> next{ 0 };
+        const auto drain = [&]() { for (int i = next.fetch_add(1); i < n; i = next.fetch_add(1)) body(i); };
+        const int helpers = std::max(0, std::min(n - 1, old.maxThreadCount()));
+        QSemaphore done;
+        for (int h = 0; h < helpers; ++h) old.start([&]() { drain(); done.release(); });
+        drain();
+        done.acquire(helpers);
+    };
+    pinpoint::WorkPool pool;
+    std::vector<qint64> oldMs, laneMs;
+    for (int k = 0; k < 3; ++k) {
+        QElapsedTimer t;
+        t.start();
+        (void)pinpoint::analysis::reduceSwingThemes(inputs, measures, conditions, {}, oldFor);
+        oldMs.push_back(t.elapsed());
+        QSemaphore landed;
+        qint64 ms = 0;
+        pool.submit(pinpoint::nextWorkNumber(), [&]() {
+            QElapsedTimer u;
+            u.start();
+            (void)pinpoint::analysis::reduceSwingThemes(inputs, measures, conditions, {}, pinpoint::athleteLaneParallelFor(&pool));
+            ms = u.elapsed();
+            landed.release();
+        }, pinpoint::WorkPriority::Low);
+        landed.acquire();
+        laneMs.push_back(ms);
+    }
+    std::sort(oldMs.begin(), oldMs.end());
+    std::sort(laneMs.begin(), laneMs.end());
+    std::printf("%-40s BENCH themes (%d sessions): before %lld ms (QThreadPool %d threads + the caller), after %lld ms (the one "
+                "pool, %d workers, its own lane)\n",
+                qPrintable(name), int(inputs.size()), (long long)oldMs[1], old.maxThreadCount(), (long long)laneMs[1], pool.threadCount());
+}
+
+// THE CONSISTENCY MARKS HOME SHOWS (refactor 3.7-f's parity): each area item's and each listed work-on's mark, by
+// "<condition>|<measure>", as the result view QML reads (VariabilityResultView::toMap). Old and new builds dump the same way.
+QVariantMap marksDump(const WorkOnsController &c)
+{
+    QVariantMap out;
+    for (const QVariant &a : c.areaItems())
+        for (const QVariant &i : a.toMap().value(QStringLiteral("items")).toList()) {
+            const QVariantMap m = i.toMap();
+            const QString key = m.value(QStringLiteral("conditionId")).toString() + QLatin1Char('|') + m.value(QStringLiteral("measureId")).toString();
+            out.insert(key, m.value(QStringLiteral("consistency")).value<pinpoint::variability::VariabilityResultView>().toMap());
+        }
+    for (const QVariant &v : c.items()) {
+        const QString id = v.toMap().value(QStringLiteral("id")).toString();
+        out.insert(QStringLiteral("detail:") + id,
+                   c.faultDetail(id).value(QStringLiteral("consistency")).value<pinpoint::variability::VariabilityResultView>().toMap());
+    }
+    return out;
+}
+
+// THE SCOPED VIEWS HOME SHOWS (refactor 3.7-f's parity, DEC-195): under the first club group, the first club and, under every
+// club, the first direction the golfer's shots show — Your swing's summary, the areas (the scoped records' words), the
+// filter's line and note — then back to every club. Old and new builds dump the same way.
+QVariantMap scopedDump(WorkOnsController &c, int timeoutMs)
+{
+    QVariantMap out;
+    QStringList keys;
+    const QVariantList scopes = c.clubScopes();
+    if (!scopes.isEmpty()) {
+        const QVariantMap g = scopes.first().toMap();
+        keys << g.value(QStringLiteral("value")).toString();
+        const QVariantList clubs = g.value(QStringLiteral("clubs")).toList();
+        if (!clubs.isEmpty()) keys << clubs.first().toMap().value(QStringLiteral("value")).toString();
+    }
+    const auto take = [&c, timeoutMs](const QString &label, QVariantMap &into) {
+        c.waitForIdle(timeoutMs);
+        QVariantMap v{
+            { QStringLiteral("focus"),    c.focusItem() },
+            { QStringLiteral("doWell"),   c.doWellItems() },
+            { QStringLiteral("next"),     c.nextItems() },
+            { QStringLiteral("together"), c.togetherItems() },
+            { QStringLiteral("togetherNote"), c.togetherNote() },
+            { QStringLiteral("subtitle"), c.summarySubtitle() },
+            { QStringLiteral("areas"),    [&c]() {
+                  // Each mark as the result view's map (a gadget does not travel through the canonical writer).
+                  const auto plain = [](QVariantMap m) {
+                      m[QStringLiteral("consistency")] = m.value(QStringLiteral("consistency")).value<pinpoint::variability::VariabilityResultView>().toMap();
+                      return m;
+                  };
+                  QVariantList areas;
+                  for (const QVariant &a : c.areaItems()) {
+                      QVariantMap am = plain(a.toMap());
+                      QVariantList items;
+                      for (const QVariant &i : am.value(QStringLiteral("items")).toList()) items << plain(i.toMap());
+                      am[QStringLiteral("items")] = items;
+                      areas << am;
+                  }
+                  return areas;
+              }() },
+            { QStringLiteral("line"),     c.shotFilterLine() },
+            { QStringLiteral("tooFew"),   c.outcomeTooFewNote() },
+            { QStringLiteral("shown"),    c.clubScope() + QLatin1Char('|') + c.shotFilter() },
+        };
+        into.insert(label, v);
+    };
+    for (const QString &k : std::as_const(keys)) {
+        if (k.isEmpty()) continue;
+        c.setClubScope(k);
+        take(QStringLiteral("club:") + k, out);
+    }
+    c.setClubScope(QStringLiteral("all"));
+    c.waitForIdle(timeoutMs);
+    const QVariantList directions = c.shotFilterOptions().value(QStringLiteral("direction")).toList();
+    QString dir;
+    for (const QVariant &d : directions) {
+        const QString v = d.toMap().value(QStringLiteral("value")).toString();
+        if (v != QLatin1String("any") && d.toMap().value(QStringLiteral("count")).toInt() > 0) { dir = v; break; }
+    }
+    if (!dir.isEmpty()) {
+        c.setShotFilter(QStringLiteral("direction:") + dir);
+        take(QStringLiteral("filter:direction:") + dir, out);
+        c.setShotFilter(QStringLiteral("all"));
+        c.waitForIdle(timeoutMs);
+    }
+    return out;
+}
+
 // ── --engine new: the catch-up service and the new owners, headless, over a scratch library ───────────────────────
 class NewEngine
 {
@@ -216,7 +355,7 @@ public:
             .arg(QString::fromLatin1(QCryptographicHash::hash(name.toUtf8(), QCryptographicHash::Sha1).toHex().left(12))));
         auto it = m_athletes.find(id.toString());
         if (it != m_athletes.end()) return it->second.get();
-        auto a = std::make_unique<Athlete>(nullptr, &m_store, id);
+        auto a = std::make_unique<Athlete>(&m_caches, &m_store, id);
         AthleteRecord rec;
         rec.name = name;
         a->setStored(rec, dir, SessionOwner{ id, name, QFileInfo(dir).absolutePath() }, Athlete::Source::Library, false);
@@ -255,6 +394,7 @@ private:
     std::shared_ptr<pinpoint::SwingStoreRecordingReader>        m_reader;
     std::shared_ptr<pinpoint::SwingStoreFiringReader>           m_firing;
     std::unique_ptr<pinpoint::WorkReceiver>                     m_receiver;
+    pinpoint::AthleteCacheRepository                            m_caches;     // tendencies.json, swing_themes.json (3.7-f)
     std::map<QString, std::unique_ptr<pinpoint::Athlete>>       m_athletes;   // destroyed before the receiver
 };
 
@@ -272,11 +412,13 @@ int main(int argc, char **argv)
     QString     engine = QStringLiteral("old");
     bool        fresh = false;
     int         timeoutS = 1800;
+    bool        benchThemes = false;   // J-53: time Home's swing summary on the old fan-out and on the owner's lane
     QStringList dirs;
     for (int i = 1; i < argc; ++i) {
         const QString a = QString::fromLocal8Bit(argv[i]);
         if (a == QLatin1String("--help") || a == QLatin1String("-h")) { printUsage(stdout); return 0; }
         if (a == QLatin1String("--fresh")) { fresh = true; continue; }
+        if (a == QLatin1String("--bench-themes")) { benchThemes = true; continue; }
         if (a == QLatin1String("--engine") && i + 1 < argc) { engine = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--out") && i + 1 < argc) { outPath = QString::fromLocal8Bit(argv[++i]); continue; }
         if (a == QLatin1String("--timeout") && i + 1 < argc) { timeoutS = QString::fromLocal8Bit(argv[++i]).toInt(); continue; }
@@ -331,6 +473,8 @@ int main(int argc, char **argv)
         int sessionsFound = 0, sessionCount = 0;
         bool tendenciesReady = false;
         QVariantMap doWell;
+        QVariantMap marks;
+        QVariantMap scoped;
         QVariantList athleteWorkOns;
         QVariantMap newTendencies;
         QVariant themes;
@@ -344,7 +488,7 @@ int main(int argc, char **argv)
             QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::sessionCaughtUp, &c,
                              [&c, a](const pinpoint::SessionId &id, const QString &) {
                                  for (const pinpoint::SessionIndexEntry &e : a->index())
-                                     if (e.id() == id) { c.sessionCaughtUp(e.folder); break; }
+                                     if (e.id() == id) { c.sessionCaughtUp(e.identity.folderName()); break; }
                              });
             QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::finished, &c, [&c] { c.catchUpDone(); });
             // Folders to ids at the edge, as main.cpp's door does (DEC-90); a folder the index lacks is answered at once.
@@ -355,7 +499,7 @@ int main(int argc, char **argv)
                                    pinpoint::SessionId id;
                                    for (const pinpoint::SessionIndexEntry &e : a->index())
                                        if (QDir::cleanPath(e.folder) == QDir::cleanPath(k.sessionDir)) { id = e.id(); break; }
-                                   if (id.isNull()) { c.sessionCaughtUp(k.sessionDir); continue; }
+                                   if (id.isNull()) { c.sessionCaughtUp(QFileInfo(k.sessionDir).fileName()); continue; }
                                    ids << id;
                                    if (k.baselineOnly) baselineOnly.insert(id);
                                }
@@ -364,6 +508,8 @@ int main(int argc, char **argv)
                            },
                            [&catchUp](bool on) { catchUp.setPaused(on); }, [&catchUp] { catchUp.cancel(); },
                            [a] { return pinpoint::summaryCohortFacts(a->record().dob, a->record().sex); } });
+            // The athlete level Home reads (refactor 3.7-f): this folder's Athlete, as main.cpp's door hands the current one.
+            c.setAthleteDoor([a](const QString &) -> pinpoint::AthleteLevel * { return pinpoint::AthleteDiagnostics::of(a); });
             c.setAthleteDir(dir);
             settled = c.waitForIdle(timeoutS * 1000);
             QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the released sessions go
@@ -372,10 +518,50 @@ int main(int argc, char **argv)
             tendenciesReady = c.tendenciesReady();
             doWell = QVariantMap{ { QStringLiteral("themes"), c.doWellBeforePraise() },
                                   { QStringLiteral("praised"), c.doWellPraised() } };
+            marks = marksDump(c);
+            if (benchThemes) benchThemesOf(name, a);
+            scoped = scopedDump(c, timeoutS * 1000);
             bool tok = false;
             const QJsonObject stored = QJsonDocument::fromVariant(parity::readJsonFile(WorkOnsController::themesPath(dir))).object();
             const pinpoint::analysis::SwingThemes st = pinpoint::analysis::swingThemesFromJson(stored, &tok);
             if (tok) themes = pinpoint::analysis::toJson(st).toVariantMap();
+            // THE GUI-THREAD SUMMARY READ (DUTIES-f A2's gate, REVIEW-f R1-m9 a; J-57). Every session's work_ons.json read
+            // again by the owner, as a switch to this athlete or an out-of-process write makes Home do: (1) synchronously, on
+            // this thread (the round-1 shape, the reference); (2) as the app does it now, readAhead() on the owner's lane of a
+            // pool — this thread's part is the plan (ask) and the apply, each timed by the owner.
+            {
+                pinpoint::AthleteDiagnostics *ad = pinpoint::AthleteDiagnostics::of(a);
+                ad->rereadAll();
+                QElapsedTimer t;
+                t.start();
+                const size_t n = ad->summaries().size();
+                const qint64 syncMs = t.elapsed();
+                static pinpoint::WorkPool benchPool(2);   // outlives every owner that used it (an owner cancels its lane on it)
+                pinpoint::WorkReceiver receiver([a](const pinpoint::WorkAddress &w) {
+                    return pinpoint::isAthleteWorkOwner(w.owner) ? pinpoint::athleteDiagnosticsWorkTarget(a, w)
+                                                                 : pinpoint::diagnosticsWorkTarget(nullptr, w);
+                });
+                const pinpoint::DiagnosticsDoors saved = a->diagnosticsDoors();
+                pinpoint::DiagnosticsDoors lane = saved;
+                lane.pool        = &benchPool;
+                lane.receiver    = &receiver;
+                lane.synchronous = false;
+                a->setDiagnosticsDoors(lane);
+                ad->rereadAll();
+                const quint64 before = ad->counts().summariesReadAhead;
+                QElapsedTimer wall;
+                wall.start();
+                ad->readAhead();
+                while ((ad->summariesReading() || ad->stale()) && wall.elapsed() < 60000)
+                    QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+                const qint64 wallMs = wall.elapsed();
+                std::printf("%-40s summary read: %zu session(s); synchronous on this thread %lld ms; on the lane %llu read, "
+                            "this thread's part: ask %lld ms + apply %lld ms (landed after %lld ms)%s\n",
+                            qPrintable(name), n, (long long)syncMs,
+                            (unsigned long long)(ad->counts().summariesReadAhead - before), (long long)ad->counts().readAheadAskMs,
+                            (long long)ad->counts().readAheadApplyMs, (long long)wallMs, ad->stale() ? " NOT LANDED" : "");
+                a->setDiagnosticsDoors(saved);
+            }
         } else {
             NewEngine ng;
             pinpoint::Athlete *a = ng.athleteOf(dir);
@@ -428,6 +614,8 @@ int main(int argc, char **argv)
         athlete.insert(QStringLiteral("themes"), themes);
         if (engine == QLatin1String("old")) {
             athlete.insert(QStringLiteral("doWell"), doWell);
+            athlete.insert(QStringLiteral("marks"), marks);
+            athlete.insert(QStringLiteral("scoped"), scoped);
             athlete.insert(QStringLiteral("athleteWorkOns"), athleteWorkOnsFromFiles(sessions));
         } else {
             athlete.insert(QStringLiteral("athleteWorkOns"), athleteWorkOns);

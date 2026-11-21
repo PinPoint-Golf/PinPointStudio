@@ -22,8 +22,6 @@
 
 #include "session_spread.h"
 
-#include "../variability/variability_ledger.h"     // ledgerConsistencyReading/Grade: the rule Home and the report share
-#include "../variability/variability_measures.h"   // measureScaleType, isOutcomeMeasure, normCorridorHalfWidth
 
 #include "../../Coaching/board_annotations.h"   // the launch monitor board's annotations (step 3.6)
 #include "../../Coaching/club_scope.h"
@@ -38,6 +36,7 @@
 #include "../../Diagnostics/engine/fire_findings.h"   // contentStamp: the one rule (refactor 3.7-e)
 #include "../../Coaching/session_results.h"        // the summary's strict read (3.7-e)
 #include "../../DomainModel/summary_rules.h"       // the rule data as the firing reads it; summaryFingerprintOf (3.7-e round 2)
+#include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: the athlete level, which this adapts (3.7-f)
 #include <QMutex>
 #include "../../Diagnostics/packs/pack_provider.h"
 #include "../../Diagnostics/packs/swing_themes_pack.h"
@@ -79,12 +78,7 @@ namespace {
 using pinpoint::SessionDiagnosticsFiles;
 using pinpoint::SessionFiles;
 
-// THE VERSION OF THE CONSISTENCY MARKS' RULE (the window, the filters, the scale): in the marks job's
-// fingerprint, so a new rule grades again. Nothing is stored, so a bump only costs the next settle a read.
-constexpr int kConsistencyMarksRule = 3;     // 2: every shot in, data-warning shots too (R13), outcomes ungraded (R4);
-                                             // 3 (16 Nov 2026, refactor 3.6, Stage 0.5's follow-up): each shot read as
-                                             // the launch monitor board annotated it (its club override: the club a
-                                             // reading is centred under; a left-out reading not read)
+// The consistency marks' rule and its version moved with the marks to AthleteDiagnostics (refactor 3.7-f; J-52).
 
 QString dayLabel(qint64 ms)
 {
@@ -148,91 +142,10 @@ QString packLabel(const CharacteristicPack &pack, const QString &id, const QStri
 
 // tendencyClubGroup and tendencySetFromSessions: Coaching/tendencies_pack.h (one rule with AthleteDiagnostics; 3.6).
 
-// One session as the tendency reduction reads it, from its ledger file already read (`legacy`: its older golfer
-// keys) and the shots read off it. The outcome scope reads a session through here too, so the two can never
-// disagree about a shot. WORKER THREAD: the golfer's input — the run of intent from session_input.json, each
-// shot's intent and corrections from its review, the older keys as the fallback (J-33) — is read with a reader
-// of its own (SessionDiagnosticsFiles::golferInput), never the app's. `place` is where the session sits in the
-// athlete's history: SessionIdentity's day and n-of-day (SessionDiagnosticsFiles::placeOf; step 2.7a), never
-// parsed from the folder's name.
-// STAGE 0.5'S FOLLOW-UP (refactor step 3.6; board_annotations.h): every shot is read AS THE GOLFER ANNOTATED IT on the
-// launch monitor board — its club override, and a reading left out not read (`lmMeasures`: the pack's monitor
-// measures; empty: the club override only). So Tendencies, its outcome filter and Your distances follow the board, as
-// the report's ball figures do since Stage 0.5. The annotations are the review's, read with the golfer's input.
-void tendencySessionFromLedger(const QString &dir, const SessionPlace &place, const QJsonObject &legacy,
-                               std::vector<ShotRecord> shots, TendencySessionInput &out,
-                               const QSet<QString> &lmMeasures = {})
-{
-    out.session.folder = QFileInfo(dir).fileName();
-    out.session.day    = place.day;
-    out.session.nOfDay = place.nOfDay;
-    out.session.shots  = std::move(shots);
-    const pinpoint::GolferInput g = SessionDiagnosticsFiles::golferInput(dir, legacy);
-    annotateShots(out.session.shots, g.board, lmMeasures);
-    out.session.corrections = g.corrections;
-    out.intents = resolvedShotIntents(g.shotIntent, out.session.shots, g.intentRun.fromShot, g.intentRun.shape);
-
-    // The session's evidence as finishDerive() stored it. Absent on a record not re-derived yet: the words
-    // then say less, nothing more.
-    const pinpoint::JsonFileRead rec = SessionDiagnosticsFiles::readWorkOns(dir);
-    if (rec.exists)
-        out.evidence = tendencyEvidenceFromJson(rec.root.value(QStringLiteral("outcomeEvidence")).toObject());
-
-    const pinpoint::JsonFileRead base = SessionDiagnosticsFiles::readClubBaseline(dir);
-    if (base.exists) {
-        bool ok = false;
-        const ClubBaselineSnapshot snap = clubBaselineFromJson(base.root, &ok);
-        if (ok) out.baseline = snap.clubs;
-    }
-}
-
-// One session as the tendency reduction reads it. False with no readable ledger (it adds nothing).
-bool readTendencySession(const QString &dir, const SessionPlace &place, TendencySessionInput &out,
-                         const QSet<QString> &lmMeasures = {})
-{
-    const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(dir);
-    if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) return false;
-    if (!read.parsed()) {
-        ppWarn() << "[Tendencies] ledger unreadable, left out:" << qPrintable(SessionFiles::diagnosticsFile(dir)) << "—"
-                 << qPrintable(read.error);
-        return false;
-    }
-    tendencySessionFromLedger(dir, place, read.envelope.legacyGolferInput, fromJson(read.envelope.ledger), out, lmMeasures);
-    return true;
-}
-
 // "1 shot", "38 shots".
 QString outcomeCountText(int n, const QString &one, const QString &many)
 {
     return QStringLiteral("%1 %2").arg(n).arg(n == 1 ? one : many);
-}
-
-// One session's record under a club scope, from its in-scope shots. `stored` is the session's whole record: its
-// clock stands in when none of these shots carried one.
-SessionWorkOns scopedSessionRecord(const QString &dir, const std::vector<ShotRecord> &shots, const LedgerOptions &opt,
-                                   const CharacteristicPack &pack, const SessionWorkOns &stored)
-{
-    SessionWorkOns rec = sessionWorkOnsForPack(&pack, shots, conditionLedgers(shots, opt));
-    rec.sessionId = QFileInfo(dir).fileName();
-    for (WorkOnEntry &e : rec.entries) e.name = packLabel(pack, e.id);
-    if (rec.startMs <= 0) {
-        rec.startMs = stored.startMs;
-        rec.endMs   = stored.endMs;
-    }
-    return rec;
-}
-
-
-// The flight table's bytes, hashed once (as shippedFlightNorms reads it once): in the tendency fingerprint, so a
-// threshold tuned in flight_norms.json re-reduces. Empty when the file can't be read (no flight is read either).
-const QByteArray &flightNormsStamp()
-{
-    static const QByteArray k = [] {
-        QFile f(flightNormsPath());
-        if (!f.open(QIODevice::ReadOnly)) return QByteArray();
-        return QCryptographicHash::hash(f.readAll(), QCryptographicHash::Sha1).toHex();
-    }();
-    return k;
 }
 
 // One factor's values in a club's tuple; empty when it wasn't read.
@@ -263,48 +176,17 @@ int workOnStatusRank(const QString &status)
 
 } // namespace
 
-TendencySet WorkOnsController::tendenciesAsOf(const QString &sessionDir, const ShotOutcomePack &pack, const INormProvider &norms,
-                                              const QSet<QString> &lmMeasures)
-{
-    const QFileInfo session{ QDir::cleanPath(sessionDir) };
-    std::vector<TendencySessionInput> sessions;
-    // The athlete's sessions, each placed by SessionIdentity (its day and place in the day; step 2.7a).
-    const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(session.absolutePath());
-    const SessionPlace asOf = SessionDiagnosticsFiles::placeOf(index, sessionDir);
-    for (const pinpoint::SessionIndexEntry &e : index) {
-        const SessionPlace place = SessionDiagnosticsFiles::placeOf(index, e.folder);
-        if (!tendencySessionCounts(place, asOf)) continue;
-        TendencySessionInput in;
-        if (readTendencySession(e.folder, place, in, lmMeasures)) sessions.push_back(std::move(in));
-    }
-    return tendencySetFromSessions(sessions, pack, norms.contexts(), shippedFlightNorms());
-}
-
 WorkOnsController::WorkOnsController(QObject *parent)
     : QObject(parent)
 {
     m_pool.setMaxThreadCount(1);
-    m_themesPool.setMaxThreadCount(1);
-    m_marksPool.setMaxThreadCount(1);
-    m_marksPool.setThreadPriority(QThread::LowPriority);
     m_filterOptions = shotFilterOptionsFor(m_filter);      // Any alone, until there are tendencies to count
-    // The job's own thread works through the replicates too, so this plus it is every core.
-    m_replicatePool.setMaxThreadCount(std::max(1, QThread::idealThreadCount() - 1));
-    // Seconds of every core, beside a home screen being used: the screen comes first.
-    m_themesPool.setThreadPriority(QThread::LowPriority);
-    m_replicatePool.setThreadPriority(QThread::LowPriority);
 }
 
 WorkOnsController::~WorkOnsController()
 {
     // The pools' lambdas deliver back to `this`; drain them before the members go. A themes job
     // in flight is told to stop first, so quitting does not wait out a reduction.
-    if (m_themesCancel) m_themesCancel->store(true);
-    if (m_tendenciesCancel) m_tendenciesCancel->store(true);
-    if (m_marksCancel) m_marksCancel->store(true);
-    m_marksPool.waitForDone();
-    m_themesPool.waitForDone();
-    m_replicatePool.waitForDone();
     m_pool.waitForDone();
 }
 
@@ -343,20 +225,6 @@ QString WorkOnsController::tendenciesPath(const QString &athleteDir)
 // THE CONTENT STAMP and THE RULE DATA'S SUMMARY STAMP, ONCE PER RuleData SNAPSHOT (review R1-m3 of 3.7-e: each hashes the
 // whole pack and norms, ~10 ms; the refresh and every scope or filter change asked again). Both by the owner's rules
 // (fire_findings.h contentStamp; summary_rules.h + summaryRulesStamp). GUI thread (a mutex anyway: the stand-ins call it).
-QString WorkOnsController::contentStampNow()
-{
-    static QMutex lock;
-    static std::shared_ptr<const pinpoint::RuleDataSnapshot> of;
-    static QString stamp;
-    const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
-    const QMutexLocker guard(&lock);
-    if (rules != of) {
-        of    = rules;
-        stamp = rules ? pinpoint::analysis::contentStamp(rules->pack.get(), rules->norms.get()) : QString();
-    }
-    return stamp;
-}
-
 QString WorkOnsController::rulesStampNow()
 {
     static QMutex lock;
@@ -376,11 +244,149 @@ void WorkOnsController::setCatchUp(CatchUpDoor door)
     m_catchUp = std::move(door);
 }
 
+void WorkOnsController::setAthleteDoor(std::function<pinpoint::AthleteLevel *(const QString &)> door)
+{
+    m_athleteDoor = std::move(door);
+    pointAtOwner();
+}
+
+pinpoint::AthleteLevel *WorkOnsController::owner() const
+{
+    return m_ownerObject ? m_owner : nullptr;
+}
+
+int WorkOnsController::tendencyJobs() const
+{
+    return owner() ? int(owner()->counts().tendencyJobs) : 0;
+}
+
+int WorkOnsController::consistencyLedgersRead() const
+{
+    return owner() ? int(owner()->counts().consistencySessions) : 0;
+}
+
+// ── The owner (refactor 3.7-f) ──────────────────────────────────────────────────────────────────────────────────────
+
+// THE CURRENT ATHLETE'S AthleteDiagnostics, through main.cpp's door (the AthleteLevel interface: this file links no owner):
+// the one this list reads. A switch drops the old one's signals and lets its jobs go; the new one reads every summary again
+// (a file may have been written outside this process since it last read them). Its "changed" reaches this object queued
+// and coalesced (onOwnerChanged), so a run of summaries written during the catch-up publishes once it settles.
+void WorkOnsController::pointAtOwner()
+{
+    pinpoint::AthleteLevel *next = (m_athleteDoor && !m_athleteDir.isEmpty()) ? m_athleteDoor(m_athleteDir) : nullptr;
+    if (next == owner() && (next || !m_owner)) return;
+    for (const QMetaObject::Connection &c : std::as_const(m_ownerConnections)) QObject::disconnect(c);
+    m_ownerConnections.clear();
+    if (owner()) owner()->cancelJobs();
+    m_owner       = next;
+    m_ownerObject = next ? next->object() : nullptr;
+    m_ownerThemesRunning = false;
+    if (!owner()) return;
+    m_owner->setJobsPaused(m_paused);
+    m_owner->rereadAll();
+    if (!m_synchronous) m_owner->readAhead();   // its summaries read on its lane from now, beside the scan (R1-m9 a)
+    using E = pinpoint::AthleteLevel::Event;
+    m_ownerConnections = m_owner->watch(this, [this](E e, const QString &what, const QString &why) {
+        switch (e) {
+        case E::Changed:
+            if (m_ownerChangePosted) return;
+            m_ownerChangePosted = true;
+            QMetaObject::invokeMethod(this, [this] { m_ownerChangePosted = false; onOwnerChanged(); }, Qt::QueuedConnection);
+            return;
+        case E::TendenciesLanded:     applyOwnerTendencies(); return;
+        case E::ThemesLayerOneLanded: applyOwnerThemes(true); return;
+        case E::ThemesLanded:         applyOwnerThemes(false); return;
+        case E::ConsistencyLanded:    applyOwnerMarks(); return;
+        case E::ScopedWorking:        if (m_themesRunning) setScopeWorking(true); return;
+        case E::ScopedLayerOneLanded: applyOwnerScoped(true); return;
+        case E::ScopedLanded:         applyOwnerScoped(false); return;
+        case E::WriteFailed:          emit storageProblem(what, m_athleteDir, why); return;   // DEC-126: main.cpp's one route
+        }
+    });
+}
+
+// The owner went stale (a summary written, a session ended or trashed). While the scan or the catch-up runs, or a session is
+// live, it waits: they end in a publish and the reductions (catchUpDone, the pause lifting).
+void WorkOnsController::onOwnerChanged()
+{
+    if (!owner()) return;
+    if (m_scanning || m_deriving || m_paused || !m_queue.isEmpty()) { m_ownerDirty = true; return; }
+    m_ownerDirty = false;
+    publish();
+    maybeThemes();
+    maybeMarks();
+    maybeTendencies();
+}
+
+// One session's summary read again by the owner (its file moved, or the catch-up let it go); a folder it does not list yet:
+// the index again.
+void WorkOnsController::markSummaryStale(const QString &sessionDir)
+{
+    if (!owner()) return;
+    // By the owner's index, not its summaries (reading them would read every file here, on the GUI thread: R1-m9 a).
+    owner()->markStale(owner()->sessionIdOf(QFileInfo(sessionDir).fileName()));
+}
+
+QString WorkOnsController::dirOfFolder(const QString &folderName) const
+{
+    for (auto it = m_dirMtime.constBegin(); it != m_dirMtime.constEnd(); ++it)
+        if (QFileInfo(it.key()).fileName() == folderName) return it.key();
+    return QDir(m_athleteDir).absoluteFilePath(folderName);
+}
+
+// J-51: the sessions with shots the owner cannot use, said.
+// THE OWNER'S SUMMARIES ARE READ ON ITS LANE (REVIEW-f R1-m9 a; J-57): while they are, every figure here stays as it was
+// and waits — the owner's changed() after the apply brings this back (onOwnerChanged) — so no summary file is read on the
+// GUI thread. Paused (a live session): what is stale is read here, as before (the live session's own summary, at most).
+bool WorkOnsController::ownerReading()
+{
+    if (!owner() || owner()->readAhead() != pinpoint::AthleteLevel::Ask::Running) return false;
+    m_ownerDirty = true;
+    return true;
+}
+
+// WHAT A PUBLISH MAY SHOW (REVIEW-f R2-B2; DUTIES-f A8): the owner's figures when its summaries are read; while they are
+// being read, THIS owner's last figures stay (nothing returns) — but a list showing another owner's figures (a switch)
+// is emptied at once, so the previous golfer's figures never sit under this one's name. Null: publish the empty state.
+pinpoint::AthleteLevel *WorkOnsController::publishSource(bool *hold)
+{
+    *hold = false;
+    if (!ownerReading()) {
+        m_shownOwner = m_ownerObject;
+        return owner();
+    }
+    if (m_shownOwner && m_shownOwner == m_ownerObject) { *hold = true; return nullptr; }
+    m_shownOwner = nullptr;
+    return nullptr;
+}
+
+void WorkOnsController::refreshNotSummedUp()
+{
+    int n = 0;
+    bool hold = false;
+    pinpoint::AthleteLevel *src = publishSource(&hold);
+    if (hold) return;   // this owner's note as it was, until its summaries land (another owner's: cleared, R2-B2)
+    if (src) {
+        const pinpoint::AthleteLevel::NotSummedUp ns = src->notSummedUp();
+        n = ns.count;
+        // Under a club scope or a shot filter, a session whose judged rows could not be read (DEC-195) is left out too.
+        if (m_summaryScope != clubScopeAllKey())
+            for (const QString &f : src->rowsMissing())
+                if (!ns.folders.contains(f)) ++n;
+    }
+    const QString before = m_notSummedUpNote;
+    m_notSummedUpNote = n <= 0 ? QString()
+        : n == 1 ? QStringLiteral("1 session is left out: this version of PinPoint Studio can't read it in full yet.")
+                 : QStringLiteral("%1 sessions are left out: this version of PinPoint Studio can't read them in full yet.").arg(n);
+    if (m_notSummedUpNote != before) emit notSummedUpChanged();
+}
+
 void WorkOnsController::setAthleteDir(const QString &dir)
 {
     if (m_athleteDir == dir) return;
     m_athleteDir = dir;
     emit athleteDirChanged();
+    pointAtOwner();
     // The previous golfer's list must not sit under this one's name while the scan runs —
     // nor their swing summary, and a reduction of their sessions has nothing left to do.
     m_records.clear();
@@ -393,7 +399,7 @@ void WorkOnsController::setAthleteDir(const QString &dir)
     }
     cancelThemes();
     cancelTendencies();
-    // The marks are this golfer's ledgers' alone.
+    // The marks are this golfer's alone.
     cancelMarks();
     m_marks.clear();
     m_marksFingerprint.clear();
@@ -438,6 +444,9 @@ void WorkOnsController::setPaused(bool on)
     if (on) cancelTendencies();
     // Nor does reading every ledger for the consistency marks; the pause lifting grades them again.
     if (on) cancelMarks();
+    // The athlete level's jobs (refactor 3.7-f): let go, nothing asked while live.
+    if (owner()) owner()->setJobsPaused(on);
+    if (on && m_ownerThemesRunning) { m_ownerThemesRunning = false; emit summaryChanged(); }
     // NOR THE CATCH-UP IN FLIGHT (audit D-15; refactor 3.7-e): the catch-up service lets go of the session in hand at once
     // (released: what it kept is written, its waiting jobs cancelled) and keeps it at the front of its queue for the pause
     // lifting — which rescans anyway (below), so the queue is asked again then.
@@ -482,8 +491,8 @@ void WorkOnsController::refresh()
 // session_reduction.h summaryFingerprintOf, which each session's owner writes into its summary): every rule version the
 // summary is produced under, the rule data (pack, norms, grade policy, disabled sets, flight norms), the session's frozen
 // club baseline, the athlete's cohort facts, and every swing document's identity (summaryFingerprintFor). Not diagnostics.json's own stamp — the
-// owner rewrites that file for reasons that change no verdict (a focus declared, a screen answered). (The consistency
-// marks, which read the ledger itself, fingerprint it in their own job: runMarks.)
+// owner rewrites that file for reasons that change no verdict (a focus declared, a screen answered). (The athlete level's
+// own fingerprints are AthleteDiagnostics', over the summaries: refactor 3.7-f.)
 // FRESH = this build's summary (read strictly: today's schema and rule), with DEC-192's per-shot facts made under the
 // current facts' rules (`factsRules`: CARRY 3.6 review 2 — so a version bump alone stales it), whose fingerprint is the
 // one the folder gives now.
@@ -499,19 +508,10 @@ QString WorkOnsController::summaryFingerprintFor(const QString &sessionDir, cons
     }
     // The frozen club baseline as the owner holds it: a current file's clubs; none for no file, an older rule's or an
     // unreadable one.
-    std::optional<QHash<QString, ClubBaselineEntry>> baseline;
-    const pinpoint::JsonFileRead b = SessionDiagnosticsFiles::readClubBaseline(sessionDir);
-    if (b.exists && b.ok) {
-        const int schema = b.root.value(QStringLiteral("schema")).toInt(0);
-        if (!(schema > 0 && schema < kClubBaselineSchemaVersion)) {
-            bool ok = false;
-            const ClubBaselineSnapshot snap = clubBaselineFromJson(b.root, &ok);
-            if (ok) baseline = snap.clubs;
-        }
-    }
+    // (summary_rules.h frozenClubBaselineOf: the athlete level's freshness check reads it alike, REVIEW-f R1-B1.)
     SummaryRules rules;
     rules.rules    = rulesStamp;
-    rules.baseline = clubBaselineStamp(baseline);
+    rules.baseline = clubBaselineStamp(pinpoint::frozenClubBaselineOf(SessionDiagnosticsFiles::readClubBaseline(sessionDir)));
     rules.cohort   = cohort;
     return summaryFingerprintOf(rules, std::move(stamps));
 }
@@ -542,11 +542,15 @@ std::vector<WorkOnsController::Scanned> WorkOnsController::scan(const QString &a
         s.day         = place.day;
         s.nOfDay      = place.nOfDay;
 
+        const QFileInfo summaryFile(SessionFiles::workOnsFile(sessionDir));
+        if (summaryFile.exists()) {
+            s.summarySize    = summaryFile.size();
+            s.summaryMtimeMs = summaryFile.lastModified().toMSecsSinceEpoch();
+        }
         const pinpoint::JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionDir);
         if (f.exists) {
             bool ok = false;
             const SessionResults r = sessionResultsFromJson(f.root, SessionResultsRead::Strict, &ok);
-            s.record = r.workOns;
             s.fresh  = ok && r.hasFacts && r.derivedFrom.fingerprint == s.fingerprint;
         }
         out.push_back(std::move(s));
@@ -564,10 +568,21 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
         return;
     }
 
-    m_records.clear();
-    m_fingerprints.clear();
+    m_scanned.clear();
     m_dirMtime.clear();
     m_sessionsFound = int(rows.size());
+    // A SUMMARY WRITTEN OUTSIDE THIS PROCESS (another machine over the share, a library copied in; DUTIES-f A1) is heard by
+    // no signal: the owner is told to read again each one whose file moved since the last scan of this athlete.
+    QHash<QString, QString> stamps;
+    for (const Scanned &r : rows)
+        stamps.insert(r.sessionDir, QStringLiteral("%1:%2").arg(r.summarySize).arg(r.summaryMtimeMs));
+    if (owner() && m_stampsOf == m_athleteDir) {
+        for (auto it = stamps.constBegin(); it != stamps.constEnd(); ++it)
+            if (m_summaryStamps.value(it.key()) != it.value()) markSummaryStale(it.key());
+        if (stamps.size() != m_summaryStamps.size()) owner()->markStale();   // a session came or went: the index again
+    }
+    m_summaryStamps = std::move(stamps);
+    m_stampsOf      = m_athleteDir;
 
     // Newest first: the latest session is the one the golfer is about to look for. BUT while any session
     // still lacks its frozen baseline, oldest first by THE SESSION'S DAY and its place in it (Contract A;
@@ -587,10 +602,9 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
     QStringList queue;
     QList<CatchUpAsk> asks;
     for (Scanned &s : rows) {
-        m_fingerprints.insert(s.sessionDir, s.fingerprint);
+        m_scanned.insert(s.sessionDir);
         m_dirMtime.insert(s.sessionDir, s.mtimeMs);
         const bool needsDerive = !s.fresh || !s.hasBaseline;
-        if (s.fresh) m_records.insert(s.sessionDir, std::move(s.record));
         if (needsDerive) {
             queue << s.sessionDir;
             asks << CatchUpAsk{ s.sessionDir, /*baselineOnly=*/s.fresh };
@@ -624,23 +638,22 @@ void WorkOnsController::applyScan(int generation, std::vector<Scanned> rows)
 // its file, J-a3; no Session for its folder). Its work_ons.json is read again, by today's strict reader, and whatever it
 // holds is this list's record of it — the owner's new one, or the record the file already held (shown, never hidden: a
 // session no Session holds here is summed up by the machine that recorded it).
-void WorkOnsController::sessionCaughtUp(const QString &sessionDir)
+void WorkOnsController::sessionCaughtUp(const QString &answered)
 {
+    // BY FOLDER NAME, NEVER A PATH SPELLING (refactor 3.7-f round 0c and REVIEW-f R1-m10; the 2aa5bc72 double count, NOTES-f
+    // "Round 0c"): the doors answer with the session's folder name (main.cpp: the caught-up session's id looked up in the
+    // index; a folder no Session holds, the scan's own name for it). A session is this list's by that name, under the scan's
+    // own spelling (dirOfFolder). A path is still taken (a tool's door): its last part is the name, whatever its spelling.
+    const QString name = answered.section(QLatin1Char('/'), -1, -1, QString::SectionSkipEmpty);
+    const QString sessionDir = dirOfFolder(name);
+    const bool ours = !m_athleteDir.isEmpty() && m_dirMtime.contains(sessionDir);
     if (!m_queue.removeAll(sessionDir) && !m_deriving)
         return;   // not one this scan asked for (a cancelled athlete's)
-    const bool ours = !m_athleteDir.isEmpty() && QDir(QFileInfo(sessionDir).absolutePath()) == QDir(m_athleteDir);
-    if (ours) {
-        const pinpoint::JsonFileRead f = SessionDiagnosticsFiles::readWorkOns(sessionDir);
-        bool ok = false;
-        SessionWorkOns rec = f.exists ? sessionWorkOnsFromJson(f.root, &ok) : SessionWorkOns{};
-        if (ok) {
-            // The session's fingerprint is now the one its owner wrote — taken after its load, which may have frozen its
-            // club baseline (an input: R-STAMP-1) — so the swing summary's own fingerprint is the next scan's (3.7-e round 2).
-            const QString written = f.root.value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("fingerprint")).toString();
-            if (!written.isEmpty()) m_fingerprints.insert(sessionDir, written);
-            m_records.insert(sessionDir, std::move(rec));
-            publish();
-        }
+    if (ours && owner()) {
+        // Its owner wrote the summary (heard: AthleteDiagnostics marks it stale), or nothing here holds it (J-a3: its file
+        // is what it is): either way the owner reads it again, and the list is the owner's.
+        markSummaryStale(sessionDir);
+        publish();
     }
     emit updatingChanged();
 }
@@ -654,6 +667,7 @@ void WorkOnsController::catchUpDone()
     if (!m_paused) m_queue.clear();
     if (was != updating()) emit updatingChanged();
     if (!m_queue.isEmpty()) return;
+    if (m_ownerDirty) { m_ownerDirty = false; publish(); }
     maybeThemes();
     maybeMarks();
     maybeTendencies();
@@ -666,7 +680,8 @@ bool WorkOnsController::waitForIdle(int msTimeout)
     // last derivation nothing reads as busy although the reduction is about to begin.
     const auto busy = [this] {
         return (updating() && !(m_paused && !m_scanning && !m_deriving)) || m_themesRunning || m_marksRunning
-            || m_tendenciesRunning;
+            || m_tendenciesRunning || m_ownerThemesRunning || m_ownerChangePosted
+            || (owner() && owner()->summariesReading());
     };
     QDeadlineTimer deadline(msTimeout);
     while (!deadline.hasExpired()) {
@@ -677,16 +692,24 @@ bool WorkOnsController::waitForIdle(int msTimeout)
         }
         QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
         m_pool.waitForDone(20);
-        if (m_themesRunning || m_tendenciesRunning) m_themesPool.waitForDone(20);
-        if (m_marksRunning) m_marksPool.waitForDone(20);
     }
-    return !m_scanning && !m_deriving && !m_themesRunning && !m_marksRunning && !m_tendenciesRunning;
+    return !m_scanning && !m_deriving && !m_themesRunning && !m_marksRunning && !m_tendenciesRunning && !m_ownerThemesRunning;
 }
 
 // ── Publish ─────────────────────────────────────────────────────────────────────────────
 
 void WorkOnsController::publish()
 {
+    // R1-m9 a: this owner's list as it was until its summaries land; R2-B2: another owner's (a switch) emptied now.
+    bool hold = false;
+    pinpoint::AthleteLevel *src = publishSource(&hold);
+    if (hold) return;
+    // THE RECORDS ARE THE OWNER'S (refactor 3.7-f): every summary it read, by this list's session folder.
+    m_records.clear();
+    if (src)
+        for (const pinpoint::AthleteSessionSummary &sum : src->summaries())
+            if (sum.read) m_records.insert(dirOfFolder(sum.place.folder), sum.results.workOns);
+    refreshNotSummedUp();
     const SessionWorkOns *newest = nullptr;
     for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it) {
         const SessionWorkOns &r = it.value();
@@ -701,7 +724,8 @@ void WorkOnsController::publish()
             { QStringLiteral("shots"), newest->shotCount },
         };
 
-    const DescribedWorkOns all = describeWorkOns(m_records);
+    static const std::vector<WorkOnSummary> kNone;
+    const DescribedWorkOns all = describeWorkOns(m_records, src ? src->conditions() : kNone, src ? src->workOns() : kNone);
     m_items = all.items;
     m_clearedCount = all.cleared;
 
@@ -724,7 +748,20 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
 
     const QHash<QString, SessionWorkOns> &records = shownRecords();
     DescribedWorkOns scoped;
-    if (!known) { scoped = describeWorkOns(records, &m_shownOutcome); known = &scoped; }
+    if (!known) {
+        if (&records == &m_records && owner()) {
+            scoped = describeWorkOns(records, owner()->conditions(), owner()->workOns(), &m_shownOutcome);
+        } else {
+            // A scope's or a filter's records (the owner's scoped result, DEC-195): their aggregates are worked out
+            // here from those records, as before.
+            std::vector<SessionWorkOns> sessions;
+            for (auto it = records.constBegin(); it != records.constEnd(); ++it) sessions.push_back(it.value());
+            const std::vector<WorkOnSummary> every = aggregateConditions(sessions);
+            const std::vector<WorkOnSummary> agg   = aggregateWorkOns(std::move(sessions));
+            scoped = describeWorkOns(records, every, agg, &m_shownOutcome);
+        }
+        known = &scoped;
+    }
     m_details = known->details;
     ++m_detailsRevision;
     // What the consistency marks are asked for: each detail's, then each area item's below.
@@ -742,6 +779,8 @@ void WorkOnsController::publishScreens(const DescribedWorkOns *known)
 }
 
 WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHash<QString, SessionWorkOns> &records,
+                                                                      const std::vector<WorkOnSummary> &every,
+                                                                      const std::vector<WorkOnSummary> &agg,
                                                                       const ShownOutcome *outcome)
 {
     if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
@@ -762,9 +801,8 @@ WorkOnsController::DescribedWorkOns WorkOnsController::describeWorkOns(const QHa
     for (const SessionWorkOns &s : sessions) totalSwings += s.shotCount;
     QHash<QString, MarksRequest> markRequests;
 
-    // Every condition any session assessed, for the details Home opens in place; then the list.
-    const std::vector<WorkOnSummary> every = aggregateConditions(sessions);
-    const std::vector<WorkOnSummary> agg = aggregateWorkOns(std::move(sessions));
+    // Every condition any session assessed, for the details Home opens in place; then the list (the caller's aggregates:
+    // the owner's, or the scoped job's).
 
     const auto nameOf = [&pack](const QString &id, const QString &fallback = QString()) {
         return packLabel(pack, id, fallback);
@@ -1138,42 +1176,6 @@ QString WorkOnsController::outcomeContrastFor(const ShownOutcome &shown, const Q
     return outcomeContrastLine(*it, filterWords(shown.scope));
 }
 
-// The stored block: the key it was counted for, the line's counts, and each fault's [a, n1, b, n0].
-QJsonObject WorkOnsController::outcomeToJson(const ShownOutcome &shown)
-{
-    QJsonObject contrasts;
-    for (auto it = shown.contrasts.constBegin(); it != shown.contrasts.constEnd(); ++it)
-        contrasts.insert(it.key(), QJsonArray{ it->a, it->n1, it->b, it->n0 });
-    return QJsonObject{
-        { QStringLiteral("key"),       shown.scope.key() },
-        { QStringLiteral("rule"),      kOutcomeScopeRuleVersion },
-        { QStringLiteral("chosen"),    shown.chosen },
-        { QStringLiteral("sessions"),  shown.sessions },
-        { QStringLiteral("others"),    shown.others },
-        { QStringLiteral("measured"),  shown.measured },
-        { QStringLiteral("contrasts"), contrasts },
-    };
-}
-
-bool WorkOnsController::outcomeFromJson(const QJsonObject &o, ShownOutcome &shown)
-{
-    if (o.value(QStringLiteral("key")).toString() != shown.scope.key()
-        || o.value(QStringLiteral("rule")).toInt() != kOutcomeScopeRuleVersion)
-        return false;
-    shown.chosen   = o.value(QStringLiteral("chosen")).toInt();
-    shown.sessions = o.value(QStringLiteral("sessions")).toInt();
-    shown.others   = o.value(QStringLiteral("others")).toInt();
-    shown.measured = o.value(QStringLiteral("measured")).toInt();
-    shown.contrasts.clear();
-    const QJsonObject contrasts = o.value(QStringLiteral("contrasts")).toObject();
-    for (auto it = contrasts.constBegin(); it != contrasts.constEnd(); ++it) {
-        const QJsonArray a = it.value().toArray();
-        if (a.size() != 4) return false;
-        shown.contrasts.insert(it.key(), OutcomeContrast{ a.at(0).toInt(), a.at(1).toInt(), a.at(2).toInt(), a.at(3).toInt() });
-    }
-    return true;
-}
-
 // Whether a line tied to a tendency belongs to the club choice on screen. The tendency's key is its row,
 // "<club>|<length>" ("7 IRON|full"); the fault it feeds is the row's factor (TendencyOnBall::factor, ::value),
 // not in the key, so the club is the key's first part.
@@ -1293,616 +1295,214 @@ QVariant WorkOnsController::markFor(const QString &conditionId, const QString &m
     return QVariant::fromValue(m_marks.value(markKey(conditionId, measureId), pv::VariabilityResultView()));
 }
 
-// Called once the catch-up is done, beside maybeThemes. Cheap when the ledgers have not moved: the
-// job stats them and stops.
+// Called once the catch-up is done, beside maybeThemes. THE OWNER GRADES (refactor 3.7-f; J-52): this asks it for the
+// marks of what the screens show (each detail's and area item's condition and measure) under the club choice; cheap when
+// nothing moved (it answers Current).
 void WorkOnsController::maybeMarks()
 {
     if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+    if (ownerReading()) return;   // R1-m9 a: asked again when the owner's summaries land
     if (clubScopeRefreshing()) return;      // the landing asks again, for the rows it brings
-    if (m_marksRunning) { m_marksAgain = true; return; }
-    m_marksAgain = false;
-
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
-    const CharacteristicPack &pack = m_packProv->pack();
-
-    // What the pack says before a ledger is read: no measure, a yes/no condition, a composite measure, an outcome (R4).
-    const QHash<QString, AreaConditionInfo> info = areaConditionInfoForPack(pack);
-    MarksJob job;
-    QStringList keys = m_markRequests.keys();
-    keys.sort();
-    QCryptographicHash seed(QCryptographicHash::Sha1);
-    seed.addData(QByteArray::number(kConsistencyMarksRule));
-    seed.addData(contentStampNow().toUtf8());
-    seed.addData(m_scope.key.toUtf8());
-    for (const QString &key : keys) {
-        MarksRequest r = m_markRequests.value(key);
-        const Measure *m = pack.measure(r.measureId);
-        r.ungraded = r.measureId.isEmpty() || info.value(r.conditionId).binary
-                  || (m && m->kind == MeasureKind::Composite) || pv::isOutcomeMeasure(m);
-        r.scaleType = pv::measureScaleType(m);
-        seed.addData(key.toUtf8());
-        seed.addData(QByteArray::number(int(r.ungraded)));
-        seed.addData(QByteArray::number(int(r.scaleType)));
-        seed.addData(r.unit.toUtf8());
-        seed.addData(QByteArrayLiteral("\x1e"));
-        job.requests.push_back(std::move(r));
-    }
-    // Newest first by when each was played, then by name, as the aggregate orders them.
-    for (auto it = m_records.constBegin(); it != m_records.constEnd(); ++it)
-        job.sessions.push_back({ it.key(), it->startMs, std::max(it->startMs, it->endMs) });
-    std::sort(job.sessions.begin(), job.sessions.end(), [](const MarksSession &a, const MarksSession &b) {
-        return a.startMs != b.startMs ? a.startMs > b.startMs : QFileInfo(a.dir).fileName() > QFileInfo(b.dir).fileName();
-    });
-    job.generation = ++m_marksGeneration;
-    job.seed       = QString::fromLatin1(seed.result().toHex());
-    job.previous   = m_marksFingerprint;
-    job.scope      = m_scope;
-    // Taken per job: the job grades against one norm snapshot, and a corridor saved since the last job is in this
-    // one (norm_provider.h).
-    job.norms      = sharedNormProvider();
-    job.lmMeasures = launchMonitorMeasures(pack);   // the board's left-out readings (step 3.6)
-
-    auto cancel = std::make_shared<std::atomic<bool>>(false);
-    m_marksCancel = cancel;
-    m_marksRunning = true;
+    if (!owner()) return;
+    std::vector<pinpoint::AthleteLevel::ConsistencyRequest> requests;
+    for (auto it = m_markRequests.constBegin(); it != m_markRequests.constEnd(); ++it)
+        requests.push_back({ it->conditionId, it->measureId });
     ++m_marksJobs;
-
-    if (m_synchronous) {
-        applyMarks(job.generation, runMarks(job, cancel.get()));
-        return;
+    m_marksRunning = true;
+    switch (owner()->askConsistency(m_scope, requests)) {
+    case pinpoint::AthleteLevel::Ask::Current: m_marksRunning = false; applyOwnerMarks(); break;
+    case pinpoint::AthleteLevel::Ask::Paused:  m_marksRunning = false; break;
+    case pinpoint::AthleteLevel::Ask::Landed:  break;   // applied as it landed
+    case pinpoint::AthleteLevel::Ask::Running: break;
     }
-    m_marksPool.start([this, job = std::move(job), cancel]() {
-        MarksOutcome out = runMarks(job, cancel.get());
-        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
-            applyMarks(generation, std::move(out));
-        }, Qt::QueuedConnection);
-    });
 }
 
-// Stops the running job, if any. Its result, should it still arrive, is a generation behind and is
-// dropped; the marks on screen stay.
+// The marks on screen stay; one that lands for a scope no longer shown is not applied.
 void WorkOnsController::cancelMarks()
 {
-    if (m_marksCancel) m_marksCancel->store(true);
-    m_marksCancel.reset();
     m_marksRunning = false;
-    m_marksAgain = false;
-    ++m_marksGeneration;
 }
 
-// Worker thread (or inline when synchronous). Touches no member.
-WorkOnsController::MarksOutcome WorkOnsController::runMarks(const MarksJob &job, const std::atomic<bool> *cancel)
+// The owner's marks, as the screens show them: one result view per request (ungraded, no badge, for none). A landing that
+// changes a mark publishes again — and "what you do well", whose praise reads them (step 3.6).
+void WorkOnsController::applyOwnerMarks()
 {
-    QElapsedTimer clock;
-    clock.start();
-    MarksOutcome out;
-
-    // ── 1. The ledgers' identity: an unchanged library stops here ──
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(job.seed.toUtf8());
-    for (const MarksSession &s : job.sessions) {
-        const QFileInfo fi(SessionFiles::diagnosticsFile(QDir(s.dir).path()));
-        h.addData(QFileInfo(s.dir).fileName().toUtf8());
-        h.addData(QByteArrayLiteral("\x1f"));
-        h.addData(QByteArray::number(fi.exists() ? fi.size() : -1));
-        h.addData(QByteArray::number(fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : 0));
-        h.addData(QByteArray::number(s.startMs));
-        h.addData(QByteArrayLiteral("\x1e"));
+    if (!owner()) return;
+    m_marksRunning = owner()->consistencyRunning();
+    if (owner()->consistencyScopeKey() != m_scope.key) return;   // a scope since left
+    QHash<QString, pv::VariabilityResultView> marks;
+    const QHash<QString, pv::VariabilityResult> &graded = owner()->consistency();
+    for (auto it = m_markRequests.constBegin(); it != m_markRequests.constEnd(); ++it) {
+        const auto g = graded.constFind(pinpoint::AthleteLevel::consistencyKey(it->conditionId, it->measureId));
+        marks.insert(it.key(), g == graded.constEnd() ? pv::VariabilityResultView() : pv::VariabilityResultView::fromResult(*g, it->unit, 1));
     }
-    out.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
-    if (out.fingerprint == job.previous) {
-        out.unchanged = true;
-        return out;
-    }
-
-    // ── 2. Each request's window: its newest kNWindow readings across sessions ──
-    struct Reading {
-        qint64  ms = 0;         // the shot's clock, else its session's start
-        int     session = 0;    // index into job.sessions: lower is newer
-        int     shotId = 0;
-        pv::LedgerConsistencyReading reading;   // the shared rule's (variability_ledger.h)
-    };
-    const auto newer = [](const Reading &a, const Reading &b) {
-        if (a.ms != b.ms) return a.ms > b.ms;
-        if (a.session != b.session) return a.session < b.session;
-        return a.shotId > b.shotId;
-    };
-    QHash<QString, std::vector<int>> byCondition;           // conditionId -> the requests reading it
-    for (int i = 0; i < int(job.requests.size()); ++i)
-        if (!job.requests[size_t(i)].ungraded) byCondition[job.requests[size_t(i)].conditionId].push_back(i);
-    std::vector<std::vector<Reading>> windows(job.requests.size());
-
-    // The latest a reading in session i or any older one can be: past it, a full window is final.
-    std::vector<qint64> latestFrom(job.sessions.size() + 1, std::numeric_limits<qint64>::min());
-    for (int i = int(job.sessions.size()) - 1; i >= 0; --i)
-        latestFrom[size_t(i)] = std::max(latestFrom[size_t(i) + 1], job.sessions[size_t(i)].endMs);
-
-    for (int i = 0; i < int(job.sessions.size()) && !byCondition.isEmpty(); ++i) {
-        if (cancel && cancel->load()) return out;
-        bool settled = true;
-        for (const auto &ids : byCondition)
-            for (int r : ids) {
-                const std::vector<Reading> &w = windows[size_t(r)];
-                if (int(w.size()) < pv::kNWindow || w[size_t(pv::kNWindow - 1)].ms < latestFrom[size_t(i)]) settled = false;
-            }
-        if (settled) break;
-
-        const MarksSession &s = job.sessions[size_t(i)];
-        const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(s.dir);
-        // A session with no ledger has no reading to give.
-        if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) continue;
-        if (!read.parsed()) {
-            ppWarn() << "[Consistency] ledger unreadable, left out:" << qPrintable(SessionFiles::diagnosticsFile(s.dir)) << "—"
-                     << qPrintable(read.error);
-            continue;
-        }
-        ++out.ledgersRead;
-        std::vector<ShotRecord> shots = fromJson(read.envelope.ledger);
-        // Each shot as the launch monitor board annotated it (step 3.6; Stage 0.5's follow-up): its club override is the
-        // club its reading is centred under (R2a) and scoped by; a left-out reading is not read.
-        annotateShots(shots, SessionDiagnosticsFiles::golferInput(s.dir, read.envelope.legacyGolferInput).board, job.lmMeasures);
-        // Every shot, data-warning shots included (R13; variability_ledger.h): a broken recording's rows
-        // are already NotAssessable in the ledger, and the shared rule leaves those out.
-        for (const ShotRecord &shot : shots) {
-            if (!job.scope.contains(shot)) continue;
-            const qint64 ms = shot.timestampMs > 0 ? shot.timestampMs : s.startMs;
-            for (const ConditionRow &row : shot.rows) {
-                const auto ids = byCondition.constFind(row.conditionId);
-                if (ids == byCondition.constEnd()) continue;
-                for (int r : *ids) {
-                    std::optional<pv::LedgerConsistencyReading> x =
-                        pv::ledgerConsistencyReading(shot, row, job.requests[size_t(r)].measureId);
-                    if (!x) continue;
-                    windows[size_t(r)].push_back(Reading{ ms, i, shot.shotId, std::move(*x) });
-                }
-            }
-        }
-        for (std::vector<Reading> &w : windows) {
-            std::sort(w.begin(), w.end(), newer);
-            if (int(w.size()) > pv::kNWindow) w.resize(size_t(pv::kNWindow));
-        }
-    }
-
-    // ── 3. Grade each window: the shared rule (variability_ledger.h), the report's too ──
-    int graded = 0;
-    for (int r = 0; r < int(job.requests.size()); ++r) {
-        if (cancel && cancel->load()) return out;
-        const MarksRequest &req = job.requests[size_t(r)];
-        const std::vector<Reading> &w = windows[size_t(r)];
-        std::vector<pv::LedgerConsistencyReading> readings;
-        readings.reserve(w.size());
-        for (auto it = w.rbegin(); it != w.rend(); ++it) readings.push_back(it->reading);    // strike order
-        const auto *norms = job.norms.get();
-        const QString measureId = req.measureId;
-        const std::optional<pv::VariabilityResult> result = pv::ledgerConsistencyGrade(
-            readings, req.ungraded, req.scaleType,
-            [norms, measureId](const QString &context) { return pv::normCorridorHalfWidth(norms, measureId, context); });
-        pv::VariabilityResultView view;     // no result: no badge
-        if (result) {
-            view = pv::VariabilityResultView::fromResult(*result, req.unit, 1);
-            ++graded;
-        }
-        out.marks.insert(markKey(req.conditionId, req.measureId), view);
-    }
-    out.computed = true;
-    ppInfo() << qPrintable(QStringLiteral("[Consistency] marks: %1 faults, %2 graded, %3 of %4 ledgers read, %5 ms")
-                               .arg(job.requests.size()).arg(graded).arg(out.ledgersRead)
-                               .arg(job.sessions.size()).arg(clock.elapsed()));
-    return out;
-}
-
-void WorkOnsController::applyMarks(int generation, MarksOutcome out)
-{
-    if (generation != m_marksGeneration) return;       // cancelled or superseded
-    m_marksRunning = false;
-    m_marksCancel.reset();
-    m_marksLedgersRead += out.ledgersRead;
-
-    if (out.computed) {
-        m_marksFingerprint = out.fingerprint;
-        if (out.marks != m_marks) {
-            m_marks = std::move(out.marks);
-            // The marks ride on areaItems and faultDetail(): a changed one rebuilds them — and "what you do well",
-            // whose praise reads them (step 3.6).
-            if (m_summaryScope == clubScopeAllKey()) publish();
-            else publishScreens();
-            publishSummary();
-        }
-    }
-    if (m_marksAgain) maybeMarks();
+    m_marksFingerprint = m_scope.key;
+    if (marks == m_marks) return;
+    m_marks = std::move(marks);
+    if (m_summaryScope == clubScopeAllKey()) publish();
+    else publishScreens();
+    publishSummary();
 }
 
 // ── Your swing ──────────────────────────────────────────────────────────────────────────
-
-// Everything the summary depends on: the rule and the schema it was reduced and stored under, the
-// content the ledgers were graded against, which drills exist (the focus groups the faults by the
-// first of each one's drills the drill set holds, and that order is stored), and every session's
-// work-ons fingerprint — which moves whenever a swing arrives, leaves or is re-analysed, i.e.
-// whenever that session's ledger is reconciled into something new. Sessions in NAME order, the
-// order the reduction takes them in.
-QString WorkOnsController::themesFingerprint() const
-{
-    QStringList dirs = m_fingerprints.keys();
-    std::sort(dirs.begin(), dirs.end(), [](const QString &a, const QString &b) {
-        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
-    });
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(QByteArray::number(kThemeRuleVersion));
-    h.addData(QByteArray::number(kThemeSchemaVersion));
-    h.addData(contentStampNow().toUtf8());
-    QStringList drillIds;
-    for (const Drill &d : sharedDrillSet().drills) drillIds.append(d.id);
-    drillIds.sort();
-    h.addData(drillIds.join(QLatin1Char('\x1f')).toUtf8());
-    h.addData(QByteArrayLiteral("\x1d"));
-    for (const QString &d : dirs) {
-        h.addData(QFileInfo(d).fileName().toUtf8());
-        h.addData(QByteArrayLiteral("\x1f"));
-        h.addData(m_fingerprints.value(d).toUtf8());
-        h.addData(QByteArrayLiteral("\x1e"));
-    }
-    if (!m_scope.isAll()) {      // All's fingerprint stays what every stored summary was written under
-        QStringList clubs(m_scope.clubIds.begin(), m_scope.clubIds.end());
-        clubs.sort();
-        h.addData(QByteArrayLiteral("\x1d"));
-        h.addData(QByteArray::number(kClubScopeRuleVersion));
-        h.addData(m_scope.key.toUtf8());
-        h.addData(clubs.join(QLatin1Char('\x1f')).toUtf8());
-    }
-    // A shot filter reads each shot through the Tendencies rule, off corrections and intents that only touch the
-    // ledger (and the flight table): the tendency fingerprint, over every ledger's size and mtime and the table's
-    // bytes, moves with them. All's, again, is left as every stored summary was written under.
-    if (!m_filter.isAll()) {
-        h.addData(QByteArrayLiteral("\x1d"));
-        h.addData(QByteArray::number(kOutcomeScopeRuleVersion));
-        h.addData(m_filter.key().toUtf8());
-        h.addData(QByteArrayLiteral("\x1f"));
-        h.addData(m_tendencyFingerprint.toUtf8());
-    }
-    return QString::fromLatin1(h.result().toHex().left(16));
-}
 
 // Called once the catch-up is done. Cheap when the summary on screen is already current.
 void WorkOnsController::maybeThemes()
 {
     if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+    if (ownerReading()) return;   // R1-m9 a: asked again when the owner's summaries land
 
     // No session with a swing in it: nothing to sum up, and no file to write into the folder.
-    if (m_fingerprints.isEmpty()) {
+    if (m_scanned.isEmpty()) {
         cancelThemes();
         if (m_summaryReady) clearSummary();
         return;
     }
 
-    const QString fp = themesFingerprint();
-    if (m_summaryReady && fp == m_themesFingerprint) {
-        cancelThemes();         // a job for a state that has since come back to this one
+    // EVERY CLUB, EVERY SHOT: THE OWNER'S (refactor 3.7-f; J-53). A scope or a filter: the owner's scoped views (DEC-195),
+    // below.
+    if (m_scope.isAll() && m_filter.isAll()) {
+        cancelThemes();         // a scoped job for a choice since left
+        if (!owner()) return;
+        const bool announce = clubScopeRefreshing() || matchupsRefreshing();
+        m_ownerThemesRunning = true;
+        switch (owner()->askThemes(announce)) {
+        case pinpoint::AthleteLevel::Ask::Current:
+            m_ownerThemesRunning = false;
+            if (owner()->themesReady() && (!m_summaryReady || m_themesFingerprint != owner()->landedThemesFingerprint()
+                                           || m_summaryScope != clubScopeAllKey() || m_togetherScope != clubScopeAllKey()))
+                applyOwnerThemes(false);
+            else
+                emit summaryChanged();
+            break;
+        case pinpoint::AthleteLevel::Ask::Paused:
+            m_ownerThemesRunning = false;
+            emit summaryChanged();
+            break;
+        case pinpoint::AthleteLevel::Ask::Landed:
+            break;   // applied as it landed
+        case pinpoint::AthleteLevel::Ask::Running:
+            if (announce) setScopeWorking(true);   // no stored result: the screens showing another scope are in for a wait
+            emit summaryChanged();
+            break;
+        }
         return;
     }
-    if (m_themesRunning && fp == m_themesJobFingerprint) return;
-    cancelThemes();             // superseded
 
-    // The pack is marshalled here, on the GUI thread; the job sees plain values only.
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
-    const CharacteristicPack &pack = m_packProv->pack();
-
-    ThemesJob job;
-    job.generation   = ++m_themesGeneration;
-    job.athleteDir   = m_athleteDir;
-    job.fingerprint  = fp;
-    job.contentStamp = contentStampNow();
-    job.sessionDirs  = m_fingerprints.keys();
-    std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
-        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
-    });
-    job.measures   = themeMeasureInfo(pack);
-    job.conditions = themeConditionInfo(pack, sharedDrillSet());
-    job.scope      = m_scope;
-    job.outcome    = m_filter;
-    job.announce   = clubScopeRefreshing() || matchupsRefreshing();
-    if (!m_scope.isAll() || !m_filter.isAll()) {
-        job.records = m_records;
-        job.pack    = std::make_shared<const CharacteristicPack>(pack);
-    }
-    if (!m_filter.isAll()) {
-        // Marshalled here, on the GUI thread, as the tendency job's are: one norm snapshot per job (norm_provider.h),
-        // and the flight table is read here first so the worker only reads it.
-        job.outcomePack = std::make_shared<const ShotOutcomePack>(outcomePack());
-        job.norms       = sharedNormProvider();
-        job.lmMeasures  = launchMonitorMeasures(pack);   // the board's left-out readings (step 3.6)
-        (void)shippedFlightNorms();
-        for (auto it = job.conditions.constBegin(); it != job.conditions.constEnd(); ++it)
-            if (it->fault) job.faultIds.insert(it.key());
-        job.clubWords = clubScopeWords();
-    }
-
-    auto cancel = std::make_shared<std::atomic<bool>>(false);
-    m_themesCancel = cancel;
-    m_themesJobFingerprint = fp;
+    // A CLUB SCOPE OR A SHOT FILTER (refactor 3.7-f; Mark's J-50 answer, DEC-195): the owner's too, over each session's
+    // judged rows as that session's own SessionDiagnostics holds them; its stored file read back when current.
+    if (!owner()) return;
+    const bool announce = clubScopeRefreshing() || matchupsRefreshing();
     m_themesRunning = true;
-    emit summaryChanged();
-
-    if (m_synchronous) {
-        applyThemes(job.generation, runThemes(job, cancel.get()));
-        return;
+    switch (owner()->askScoped(m_scope, m_filter, announce)) {
+    case pinpoint::AthleteLevel::Ask::Current:
+        m_themesRunning = false;
+        if (owner()->scopedResult().key == scopeKey()
+            && (!m_summaryReady || m_summaryScope != scopeKey() || m_togetherScope != scopeKey()))
+            applyOwnerScoped(false);
+        else
+            emit summaryChanged();
+        break;
+    case pinpoint::AthleteLevel::Ask::Paused:
+        m_themesRunning = false;
+        emit summaryChanged();
+        break;
+    case pinpoint::AthleteLevel::Ask::Landed:
+        break;   // applied as it landed
+    case pinpoint::AthleteLevel::Ask::Running:
+        emit summaryChanged();
+        break;
     }
-    m_themesPool.start([this, job = std::move(job), cancel]() {
-        ThemesOutcome out = runThemes(job, cancel.get());
-        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
-            applyThemes(generation, std::move(out));
-        }, Qt::QueuedConnection);
-    });
 }
 
-// Stops the running job, if any. Its result, should it still arrive, is a generation behind and
-// is dropped; the summary on screen is left as it is.
+// The summary on screen is left as it is; a scoped result that lands for a choice since left is not applied.
 void WorkOnsController::cancelThemes()
 {
-    if (m_themesCancel) m_themesCancel->store(true);
-    m_themesCancel.reset();
-    ++m_themesGeneration;
     if (!m_themesRunning) return;
     m_themesRunning = false;
-    m_themesJobFingerprint.clear();
     emit summaryChanged();
 }
 
-// Worker thread (or inline when synchronous). Touches no member but the replicate pool.
-WorkOnsController::ThemesOutcome WorkOnsController::runThemes(const ThemesJob &job, const std::atomic<bool> *cancel)
+// THE OWNER'S SCOPED VIEW LANDED (refactor 3.7-f; DEC-195): Layer 1 first (Coaching and Your swing) while Matchups keeps its
+// answer, then the whole; the records (by this list's session folders) and the filter's counts, said in its words here.
+void WorkOnsController::applyOwnerScoped(bool layerOne)
 {
-    QElapsedTimer clock;
-    clock.start();
-    ThemesOutcome out;
-    out.fingerprint  = job.fingerprint;
-    out.contentStamp = job.contentStamp;
-    out.athleteDir   = job.athleteDir;
-    out.scope        = job.scope;
-    out.outcome.scope     = job.outcome;
-    out.outcome.clubWords = job.clubWords;
-    const bool scoped = !job.scope.isAll() || !job.outcome.isAll();
-    const QString combinedKey = scopeKeyOf(job.scope, job.outcome);
-
-    // ── 1. The stored summary, when it was reduced from exactly this ──
-    {
-        QFile f(themesPath(job.athleteDir, job.scope, job.outcome));
-        if (f.open(QIODevice::ReadOnly)) {
-            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-            const QString stored = root.value(QStringLiteral("derivedFrom")).toObject()
-                                       .value(QStringLiteral("fingerprint")).toString();
-            bool ok = false;
-            SwingThemes st = swingThemesFromJson(root, &ok);     // another schema or rule: not ok
-            if (ok && scoped)
-                for (const QJsonValue &v : root.value(QStringLiteral("records")).toArray()) {
-                    bool recordOk = false;
-                    SessionWorkOns rec = sessionWorkOnsFromJson(v.toObject(), &recordOk);
-                    ok = ok && recordOk;
-                    out.records.insert(QDir(job.athleteDir).filePath(rec.sessionId), std::move(rec));
-                }
-            // The contrast and the line's counts, restored as the records are.
-            if (ok && !job.outcome.isAll()) ok = outcomeFromJson(root.value(QStringLiteral("outcome")).toObject(), out.outcome);
-            if (ok && !st.cancelled && stored == job.fingerprint) {
-                out.fromDisk = true;
-                out.themes   = std::move(st);
-                out.wallMs   = clock.elapsed();
-                return out;
-            }
-            out.records.clear();
-            out.outcome.contrasts.clear();
-            out.outcome.chosen = out.outcome.sessions = out.outcome.others = out.outcome.measured = 0;
-        }
-    }
-
-    // No stored result: the screens showing another scope are in for a wait.
-    if (job.announce)
-        QMetaObject::invokeMethod(this, [this, generation = job.generation]() { applyScopeWorking(generation); }, Qt::QueuedConnection);
-
-    // ── 2. Every session's ledger ──
-    std::vector<ThemeSessionInput> sessions;
-    sessions.reserve(size_t(job.sessionDirs.size()));
-    // Each session's day and place in it (SessionIdentity's; step 2.7a), for the shot filter's tendency reads.
-    const QList<pinpoint::SessionIndexEntry> placeIndex =
-        job.outcome.isAll() ? QList<pinpoint::SessionIndexEntry>() : SessionDiagnosticsFiles::athleteSessions(job.athleteDir);
-    for (const QString &dir : job.sessionDirs) {
-        if (cancel && cancel->load()) return out;
-        const pinpoint::DiagnosticsRead read = SessionDiagnosticsFiles::readDiagnostics(dir);
-        if (!read.exists() || read.state == pinpoint::DiagnosticsRead::State::Unopenable) {
-            ppWarn() << "[SwingThemes] no ledger to read:" << qPrintable(SessionFiles::diagnosticsFile(dir)) << "—"
-                     << qPrintable(read.exists() ? read.error : QStringLiteral("no such file"));
-            continue;
-        }
-        if (!read.parsed()) {
-            ppWarn() << "[SwingThemes] ledger unreadable, left out:" << qPrintable(SessionFiles::diagnosticsFile(dir)) << "—"
-                     << qPrintable(read.error);
-            continue;
-        }
-        ThemeSessionInput in;
-        in.name  = QFileInfo(dir).fileName();
-        LedgerOptions ledgerOpt;
-        in.shots = fromJson(read.envelope.ledger, &ledgerOpt);
-        if (scoped) {
-            bool whole = wholeSessionInScope(in.shots, job.scope);
-            // The shot filter judges every shot as the tendency reduction does, factor by factor, off the whole
-            // session (its flight usuals are the session's), so it takes the ledger before the club filter.
-            std::vector<ShotRecord> sessionShots;
-            if (!job.outcome.isAll()) sessionShots = in.shots;
-            if (!whole) in.shots = shotsInScope(in.shots, job.scope);
-            if (!job.outcome.isAll() && !in.shots.empty()) {
-                TendencySessionInput tin;
-                tendencySessionFromLedger(dir, SessionDiagnosticsFiles::placeOf(placeIndex, dir), read.envelope.legacyGolferInput,
-                                          std::move(sessionShots), tin, job.lmMeasures);
-                QHash<int, ShotFactors> judged = judgedShotFactors(tin, *job.outcomePack, shippedFlightNorms());
-                // Tendencies leaves out a club with no group (a putter, an undeclared club), so its shots are
-                // judged by nothing here either: in no choice but All, and no one's other shot.
-                const ContextTree &tree = job.norms->contexts();
-                for (const ShotRecord &shot : tin.session.shots)
-                    if (tendencyClubGroup(tree, shot.club).isEmpty()) judged.insert(shot.shotId, ShotFactors{});
-
-                const QHash<QString, OutcomeContrast> contrasts = outcomeContrasts(in.shots, judged, job.outcome, job.faultIds);
-                for (auto it = contrasts.constBegin(); it != contrasts.constEnd(); ++it) out.outcome.contrasts[it.key()] += it.value();
-                for (const ShotRecord &shot : in.shots) {
-                    const ShotFactors j = judged.value(shot.shotId);
-                    if (j.judged() && !job.outcome.contains(j)) ++out.outcome.others;
-                }
-                std::vector<ShotRecord> chosen = shotsInShotFilter(in.shots, judged, job.outcome);
-                whole = whole && chosen.size() == in.shots.size();
-                in.shots = std::move(chosen);
-                if (!in.shots.empty()) {
-                    out.outcome.chosen += int(in.shots.size());
-                    ++out.outcome.sessions;
-                }
-                // Measured: a chosen shot with at least one fault row assessed. A launch-monitor-only session
-                // judges the ball and assesses no fault, so its shots are chosen and not measured.
-                for (const ShotRecord &shot : in.shots)
-                    if (std::any_of(shot.rows.begin(), shot.rows.end(), [&job](const ConditionRow &r) {
-                            return r.state != ShotState::NotAssessable && job.faultIds.contains(r.conditionId);
-                        }))
-                        ++out.outcome.measured;
-            }
-            if (in.shots.empty()) continue;
-            const SessionWorkOns stored = job.records.value(dir);
-            out.records.insert(dir, whole ? stored : scopedSessionRecord(dir, in.shots, ledgerOpt, *job.pack, stored));
-        }
-        sessions.push_back(std::move(in));
-    }
-    if (cancel && cancel->load()) return out;
-    if (!job.outcome.isAll())
-        ppInfo() << qPrintable(QStringLiteral("[OutcomeScope] %1: %2 chosen shots over %3 sessions (%4 with the swing measured), "
-                                              "%5 other judged shots, %6 faults set against them")
-                                   .arg(combinedKey).arg(out.outcome.chosen).arg(out.outcome.sessions).arg(out.outcome.measured)
-                                   .arg(out.outcome.others).arg(job.faultIds.size()));
-
-    const ThemeOptions themeOpt;
-
-    // ── 3. What Coaching and Your swing read lands first, while a screen is showing another scope ──
-    if (job.announce) {
-        SwingThemes layerOne = reduceSwingSummary(sessions, job.conditions, themeOpt);
-        ppInfo() << qPrintable(QStringLiteral("[ClubScope] %1: summary after %2 ms").arg(combinedKey).arg(clock.elapsed()));
-        if (m_synchronous) {
-            applyScopeSummary(job.generation, combinedKey, out.records, std::move(layerOne), out.outcome);
-        } else {
-            QMetaObject::invokeMethod(this, [this, generation = job.generation, key = combinedKey, records = out.records,
-                                             layerOne = std::move(layerOne), outcome = out.outcome]() mutable {
-                applyScopeSummary(generation, key, std::move(records), std::move(layerOne), std::move(outcome));
-            }, Qt::QueuedConnection);
-        }
-    }
-
-    // ── 4. Reduce, the replicates fanned out ──
-    // The calling thread works through the indices beside the pool's threads, and waits for them.
-    // Only this one job uses the pool, so its threads are free when it asks.
-    QThreadPool *pool = &m_replicatePool;
-    const ThemeParallelFor parallelFor = [pool](int n, const std::function<void(int)> &body) {
-        std::atomic<int> next{ 0 };
-        const auto drain = [&]() {
-            for (int i = next.fetch_add(1); i < n; i = next.fetch_add(1)) body(i);
-        };
-        const int helpers = std::max(0, std::min(n - 1, pool->maxThreadCount()));
-        QSemaphore done;
-        for (int h = 0; h < helpers; ++h)
-            pool->start([&]() { drain(); done.release(); });
-        drain();
-        done.acquire(helpers);
-    };
-    SwingThemes st = reduceSwingThemes(sessions, job.measures, job.conditions, themeOpt, parallelFor, cancel);
-    if (st.cancelled || (cancel && cancel->load())) return out;
-
-    out.computed = true;
-    out.themes   = std::move(st);
-    out.wallMs   = clock.elapsed();
-    return out;
-}
-
-void WorkOnsController::applyThemes(int generation, ThemesOutcome out)
-{
-    if (generation != m_themesGeneration) return;      // cancelled or superseded
-    m_themesRunning = false;
-    m_themesCancel.reset();
-    m_themesJobFingerprint.clear();
-
-    if (!out.fromDisk && !out.computed) {              // stopped part way: neither written nor shown
-        setScopeWorking(false);
-        emit summaryChanged();
-        return;
-    }
-    // A club choice, an outcome choice or both: the records and the stored file are the choice's own.
-    const bool scoped = !out.scope.isAll() || !out.outcome.scope.isAll();
-    const QString combinedKey = scopeKeyOf(out.scope, out.outcome.scope);
-
-    if (out.computed) {
-        QJsonObject root = toJson(out.themes);
-        root[QStringLiteral("derivedFrom")] = QJsonObject{
-            { QStringLiteral("fingerprint"),  out.fingerprint },
-            { QStringLiteral("contentStamp"), out.contentStamp },
-            { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
-        };
-        if (scoped) {
-            QJsonArray records;
-            for (auto it = out.records.constBegin(); it != out.records.constEnd(); ++it) records.append(toJson(it.value()));
-            root[QStringLiteral("records")] = records;
-        }
-        if (!out.outcome.scope.isAll()) root[QStringLiteral("outcome")] = outcomeToJson(out.outcome);
-        const QString path = themesPath(out.athleteDir, out.scope, out.outcome.scope);
-        QString why;
-        if (!pinpoint::atomicWrite(path, QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
-            ppWarn() << "[SwingThemes] could not write" << qPrintable(path) << "—" << qPrintable(why);
-            emit storageProblem(tr("The swing summary"), out.athleteDir, why);     // said, not only logged (DEC-126)
-        }
-
-        int firm = 0, probably = 0, possibly = 0, none = 0;
-        for (const SwingTheme &t : out.themes.themes) {
-            switch (t.tier) {
-            case ThemeTier::Firm:     ++firm;     break;
-            case ThemeTier::Probably: ++probably; break;
-            case ThemeTier::Possibly: ++possibly; break;
-            case ThemeTier::None:     ++none;     break;
-            }
-        }
-        ppInfo() << qPrintable(QStringLiteral("[SwingThemes] %1 swings over %2 sessions, k=%3, themes %4 firm / "
-                                             "%5 probably / %6 possibly / %7 not shown%8 — %9 ms")
-                                  .arg(out.themes.swings).arg(out.themes.sessions).arg(out.themes.k)
-                                  .arg(firm).arg(probably).arg(possibly).arg(none)
-                                  .arg(out.themes.enough ? QString() : QStringLiteral(" (not enough yet)"))
-                                  .arg(out.wallMs));
-    }
-
-    const bool wasOtherScope = m_summaryScope != combinedKey;
-    m_themes            = std::move(out.themes);
-    m_themesFingerprint = out.fingerprint;
-    m_summaryReady      = true;
-    if (!scoped) m_scopedRecords.clear();
-    else m_scopedRecords = std::move(out.records);
-    m_shownOutcome = std::move(out.outcome);
-    m_summaryScope = m_togetherScope = combinedKey;
-    m_scopeWorking = false;
-    emit clubScopeStateChanged();
-    publishSummary();
-    // Through publishScreens, so detailsRevision moves and an open fault re-reads its contrast.
-    if (scoped || wasOtherScope) {
+    if (!owner()) return;
+    const pinpoint::AthleteLevel::ScopedResult &r = layerOne ? owner()->scopedLayerOne() : owner()->scopedResult();
+    if (r.key != scopeKey()) return;   // a choice since left
+    QHash<QString, SessionWorkOns> records;
+    for (auto it = r.records.constBegin(); it != r.records.constEnd(); ++it) records.insert(dirOfFolder(it.key()), it.value());
+    ShownOutcome shown;
+    shown.scope     = m_filter;
+    shown.clubWords = clubScopeWords();
+    shown.chosen    = r.chosen;
+    shown.sessions  = r.sessions;
+    shown.others    = r.others;
+    shown.measured  = r.measured;
+    shown.contrasts = r.contrasts;
+    const QString key = scopeKey();
+    if (layerOne) {
+        m_scopedRecords = std::move(records);
+        m_shownOutcome  = std::move(shown);
+        m_summaryScope  = key;
+        m_themes        = r.themes;
+        m_summaryReady  = true;
+        emit clubScopeStateChanged();
+        publishSummary();
         publishScreens();
         maybeMarks();
+        return;
     }
-}
-
-// Coaching and Your swing, ahead of Matchups: Layer 1 and the records. The job carries on with the replicates.
-void WorkOnsController::applyScopeSummary(int generation, const QString &scopeKey, QHash<QString, SessionWorkOns> records,
-                                          SwingThemes layerOne, ShownOutcome outcome)
-{
-    if (generation != m_themesGeneration) return;      // cancelled or superseded
-    m_scopedRecords = std::move(records);
-    m_shownOutcome  = std::move(outcome);
-    m_summaryScope  = scopeKey;
-    m_themes        = std::move(layerOne);
+    m_themesRunning = owner()->scopedRunning();
+    m_themes        = r.themes;
+    m_themesFingerprint.clear();   // every club's is compared, not a choice's
     m_summaryReady  = true;
+    m_scopedRecords = std::move(records);
+    m_shownOutcome  = std::move(shown);
+    m_summaryScope  = m_togetherScope = key;
+    m_scopeWorking  = false;
+    refreshNotSummedUp();   // a session whose rows could not be read is said (DEC-195; J-51)
     emit clubScopeStateChanged();
     publishSummary();
     publishScreens();
     maybeMarks();
 }
 
-void WorkOnsController::applyScopeWorking(int generation)
+// THE OWNER'S SWING SUMMARY LANDED (every club; refactor 3.7-f). Layer 1 (`layerOne`: the focus, "what you do well", next)
+// first while Matchups keeps its answer, as the scoped job's early landing does; then the whole. Applied only while every
+// club is what the screens ask for.
+void WorkOnsController::applyOwnerThemes(bool layerOne)
 {
-    if (generation != m_themesGeneration || !m_themesRunning) return;
-    setScopeWorking(true);
+    if (!owner() || !m_scope.isAll() || !m_filter.isAll()) return;
+    if (layerOne) {
+        m_scopedRecords.clear();
+        m_shownOutcome = ShownOutcome();
+        m_summaryScope = clubScopeAllKey();
+        m_themes       = owner()->layerOne();
+        m_summaryReady = true;
+        emit clubScopeStateChanged();
+        publishSummary();
+        publishScreens();
+        maybeMarks();
+        return;
+    }
+    m_ownerThemesRunning = owner()->themesRunning();
+    if (!owner()->themesReady()) { emit summaryChanged(); return; }
+    const bool wasOtherScope = m_summaryScope != clubScopeAllKey();
+    m_themes            = owner()->landedThemes();
+    m_themesFingerprint = owner()->landedThemesFingerprint();
+    m_summaryReady      = true;
+    m_scopedRecords.clear();
+    m_shownOutcome  = ShownOutcome();
+    m_summaryScope  = m_togetherScope = clubScopeAllKey();
+    m_scopeWorking  = false;
+    refreshNotSummedUp();
+    emit clubScopeStateChanged();
+    publishSummary();
+    if (wasOtherScope) {
+        publishScreens();
+        maybeMarks();
+    }
 }
 
 // The words, made now from the stored structure: a phrase edited in the pack (or a drill in the
@@ -2020,14 +1620,15 @@ const ShotOutcomePack &WorkOnsController::outcomePack() const
     return *m_outcomePack;
 }
 
-// Called once the catch-up is done, beside maybeThemes and maybeMarks. Cheap when nothing moved: the
-// job stats the ledgers and stops.
+// Called once the catch-up is done, beside maybeThemes and maybeMarks. THE OWNER REDUCES (refactor 3.7-f): from the
+// summaries' per-shot facts, on its lane, and writes FILE-ATH-02; cheap when nothing moved (Current).
 void WorkOnsController::maybeTendencies()
 {
     if (m_athleteDir.isEmpty() || m_paused || m_scanning || m_deriving || !m_queue.isEmpty()) return;
+    if (ownerReading()) return;   // R1-m9 a: asked again when the owner's summaries land
 
     // No session with a swing in it: nothing to reduce, and nothing to write into the folder.
-    if (m_fingerprints.isEmpty()) {
+    if (m_scanned.isEmpty() || !owner()) {
         cancelTendencies();
         if (m_tendenciesReady) {
             clearTendencies();
@@ -2035,163 +1636,43 @@ void WorkOnsController::maybeTendencies()
         }
         return;
     }
-
-    cancelTendencies();      // superseded, if one was running
-
-    TendenciesJob job;
-    job.generation   = ++m_tendenciesGeneration;
-    job.athleteDir   = m_athleteDir;
-    job.previous     = m_tendencyFingerprint;
-    job.contentStamp = contentStampNow();
-    job.sessionDirs  = m_fingerprints.keys();
-    std::sort(job.sessionDirs.begin(), job.sessionDirs.end(), [](const QString &a, const QString &b) {
-        return QFileInfo(a).fileName() < QFileInfo(b).fileName();
-    });
-    // Marshalled here, on the GUI thread: one norm snapshot per job (norm_provider.h).
-    job.pack  = outcomePack();
-    job.norms = sharedNormProvider();
-    if (!m_packProv) m_packProv = makeCharacteristicPackProvider();
-    job.lmMeasures = launchMonitorMeasures(m_packProv->pack());   // the board's left-out readings (step 3.6)
-
-    QCryptographicHash seed(QCryptographicHash::Sha1);
-    seed.addData(QByteArray::number(kTendencyRuleVersion));
-    seed.addData(QByteArray::number(kTendencySchemaVersion));
-    seed.addData(job.contentStamp.toUtf8());
-    // The flight table every shot's height is judged against (read here first, so the worker only reads it).
-    (void)shippedFlightNorms();
-    seed.addData(QByteArrayLiteral("\x1d"));
-    seed.addData(flightNormsStamp());
-    seed.addData(QByteArrayLiteral("\x1d"));
-    for (const QString &d : std::as_const(job.sessionDirs)) {
-        seed.addData(QFileInfo(d).fileName().toUtf8());
-        seed.addData(QByteArrayLiteral("\x1f"));
-        seed.addData(m_fingerprints.value(d).toUtf8());
-        seed.addData(QByteArrayLiteral("\x1e"));
-    }
-    job.seed = QString::fromLatin1(seed.result().toHex());
-
-    auto cancel = std::make_shared<std::atomic<bool>>(false);
-    m_tendenciesCancel = cancel;
     const bool wasRunning = m_tendenciesRunning;
     m_tendenciesRunning = true;
     if (!wasRunning) emit tendenciesChanged();
-
-    if (m_synchronous) {
-        applyTendencies(job.generation, runTendencies(job, cancel.get()));
-        return;
+    switch (owner()->askTendencies()) {
+    case pinpoint::AthleteLevel::Ask::Current:
+        m_tendenciesRunning = false;
+        if (owner()->tendenciesReady() && (!m_tendenciesReady || m_tendencyFingerprint != owner()->landedTendenciesFingerprint()))
+            applyOwnerTendencies();
+        else
+            emit tendenciesChanged();   // the tendencies in hand stand
+        break;
+    case pinpoint::AthleteLevel::Ask::Paused:
+        m_tendenciesRunning = false;
+        emit tendenciesChanged();
+        break;
+    case pinpoint::AthleteLevel::Ask::Landed:
+    case pinpoint::AthleteLevel::Ask::Running:
+        break;
     }
-    m_themesPool.start([this, job = std::move(job), cancel]() {
-        TendenciesOutcome out = runTendencies(job, cancel.get());
-        QMetaObject::invokeMethod(this, [this, generation = job.generation, out = std::move(out)]() mutable {
-            applyTendencies(generation, std::move(out));
-        }, Qt::QueuedConnection);
-    });
 }
 
-// Stops the running job, if any. Its result, should it still arrive, is a generation behind and is
-// dropped; the tendencies on screen stay.
+// The tendencies on screen stay.
 void WorkOnsController::cancelTendencies()
 {
-    if (m_tendenciesCancel) m_tendenciesCancel->store(true);
-    m_tendenciesCancel.reset();
-    ++m_tendenciesGeneration;
     if (!m_tendenciesRunning) return;
     m_tendenciesRunning = false;
     emit tendenciesChanged();
 }
 
-// Worker thread (or inline when synchronous). Touches no member.
-WorkOnsController::TendenciesOutcome WorkOnsController::runTendencies(const TendenciesJob &job, const std::atomic<bool> *cancel)
+// THE OWNER'S TENDENCIES LANDED (refactor 3.7-f): written first by it (FILE-ATH-02), then said here.
+void WorkOnsController::applyOwnerTendencies()
 {
-    QElapsedTimer clock;
-    clock.start();
-    TendenciesOutcome out;
-    out.contentStamp = job.contentStamp;
-    out.athleteDir   = job.athleteDir;
-
-    // ── 1. The ledgers' identity: an unchanged library stops here ──
-    QCryptographicHash h(QCryptographicHash::Sha1);
-    h.addData(job.seed.toUtf8());
-    for (const QString &dir : job.sessionDirs) {
-        const QFileInfo fi(SessionFiles::diagnosticsFile(QDir(dir).path()));
-        h.addData(QFileInfo(dir).fileName().toUtf8());
-        h.addData(QByteArrayLiteral("\x1f"));
-        h.addData(QByteArray::number(fi.exists() ? fi.size() : -1));
-        h.addData(QByteArray::number(fi.exists() ? fi.lastModified().toMSecsSinceEpoch() : 0));
-        h.addData(QByteArrayLiteral("\x1e"));
-    }
-    out.fingerprint = QString::fromLatin1(h.result().toHex().left(16));
-    if (out.fingerprint == job.previous) {
-        out.unchanged = true;
-        return out;
-    }
-
-    // ── 2. The stored file, when it was reduced from exactly this ──
-    {
-        QFile f(tendenciesPath(job.athleteDir));
-        if (f.open(QIODevice::ReadOnly)) {
-            const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-            const QString stored = root.value(QStringLiteral("derivedFrom")).toObject()
-                                       .value(QStringLiteral("fingerprint")).toString();
-            bool ok = false;
-            TendencySet s = tendencySetFromJson(root, &ok);
-            if (ok && stored == out.fingerprint) {
-                out.fromDisk = true;
-                out.set = std::move(s);
-                return out;
-            }
-        }
-    }
-
-    // ── 3. Every session, re-composed shot by shot, each placed by SessionIdentity (step 2.7a) ──
-    std::vector<TendencySessionInput> sessions;
-    sessions.reserve(size_t(job.sessionDirs.size()));
-    const QList<pinpoint::SessionIndexEntry> index = SessionDiagnosticsFiles::athleteSessions(job.athleteDir);
-    for (const QString &dir : job.sessionDirs) {
-        if (cancel && cancel->load()) return out;
-        TendencySessionInput in;
-        if (readTendencySession(dir, SessionDiagnosticsFiles::placeOf(index, dir), in, job.lmMeasures)) sessions.push_back(std::move(in));
-    }
-
-    TendencySet set = tendencySetFromSessions(sessions, job.pack, job.norms->contexts(), shippedFlightNorms(), cancel);
-    if (set.cancelled || (cancel && cancel->load())) return out;
-
-    out.computed = true;
-    out.set = std::move(set);
-    ppInfo() << qPrintable(QStringLiteral("[Tendencies] %1 shots over %2 sessions, %3 keys, %4 ms")
-                               .arg(out.set.countedShots).arg(out.set.countedSessions)
-                               .arg(out.set.items.size()).arg(clock.elapsed()));
-    return out;
-}
-
-void WorkOnsController::applyTendencies(int generation, TendenciesOutcome out)
-{
-    if (generation != m_tendenciesGeneration) return;      // cancelled or superseded
-    m_tendenciesRunning = false;
-    m_tendenciesCancel.reset();
-
-    if (out.unchanged || (!out.fromDisk && !out.computed)) {  // the tendencies in hand stand
-        emit tendenciesChanged();
-        return;
-    }
-
-    if (out.computed) {
-        ++m_tendencyJobs;
-        QJsonObject root = tendencySetToJson(out.set);
-        root[QStringLiteral("derivedFrom")] = QJsonObject{
-            { QStringLiteral("fingerprint"),  out.fingerprint },
-            { QStringLiteral("contentStamp"), out.contentStamp },
-            { QStringLiteral("writtenAtMs"),  double(QDateTime::currentMSecsSinceEpoch()) },
-        };
-        QString why;
-        if (!pinpoint::atomicWrite(tendenciesPath(out.athleteDir), QJsonDocument(root).toJson(QJsonDocument::Compact), &why)) {
-            ppWarn() << "[Tendencies] could not write" << qPrintable(tendenciesPath(out.athleteDir)) << "—" << qPrintable(why);
-            emit storageProblem(tr("The athlete's tendencies"), out.athleteDir, why);   // said, not only logged (DEC-126)
-        }
-    }
-
-    m_tendencySet         = std::move(out.set);
-    m_tendencyFingerprint = out.fingerprint;
+    if (!owner()) return;
+    m_tendenciesRunning = owner()->tendenciesRunning();
+    if (!owner()->tendenciesReady()) { emit tendenciesChanged(); return; }
+    m_tendencySet         = owner()->landedTendencies();
+    m_tendencyFingerprint = owner()->landedTendenciesFingerprint();
     m_tendenciesReady     = true;
     // As the marks do: the tendencies ride on faultDetail() and the focus, so a landing rebuilds both. publish()
     // ends in updateClubScope, which rebuilds the shot filter's options from these counts and resolves the request.
@@ -2199,7 +1680,7 @@ void WorkOnsController::applyTendencies(int generation, TendenciesOutcome out)
     publishSummary();
     publishTendencies();
     emit tendenciesChanged();
-    emit tendenciesLanded();
+    emit tendenciesLanded();   // after the owner's write: "Your distances" reads again on this cue (main.cpp)
     // A shot filter that stayed put is still read off the tendency fingerprint (a correction, an intent):
     // cheap when that summary is current.
     if (!m_filter.isAll()) maybeThemes();

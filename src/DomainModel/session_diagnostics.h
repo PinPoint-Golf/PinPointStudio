@@ -199,6 +199,14 @@ public:
     static SessionDiagnostics *attach(Session *session, const DiagnosticsDoors &doors);
     ~SessionDiagnostics() override;
 
+    // THE FINGERPRINT A SESSION'S SUMMARY WOULD CARRY IF IT WERE WRITTEN NOW, for a session not in hand (REVIEW-f R1-B1:
+    // the athlete level's baseline freeze reads only fresh summaries, BRIEF-f 13): the session level's own rule
+    // (session_reduction.h summaryFingerprintOf, as summaryFingerprint() and the catch-up's scan take it) over its
+    // numbered swings' document stamps (the firing reader's stat), its frozen club baseline (through the repository), the
+    // rule data's summary stamp (`rulesStamp`: summaryRulesStamp, the caller's, once per snapshot) and the cohort facts.
+    static QString summaryFingerprintNow(SessionRepository &sessions, const FiringReader *reader, const SessionId &id,
+                                         const QString &rulesStamp, const QString &cohort);
+
     SessionId sessionId() const { return m_id; }
     // This instance's number from the one counter (§4.4 step 3), taken when it was loaded; its lane's token.
     quint64   instance() const { return m_instance; }

@@ -26,9 +26,8 @@
 #include "../../Diagnostics/norms/norm_pack.h" // Cohort, cohortFor(), cohortToMap()
 #include "../../DomainModel/session_repository.h"
 #include "../../Export/swing_paths.h"           // a swing folder's number, at the Wrist ★'s edge
-#include "../../Export/athlete_files.h"         // tendencies.json's name (step 2.5)
-#include "../../Export/session_files.h"         // diagnostics.json's name (step 2.5)
-#include "../../Coaching/tendencies.h"           // kTendencySchemaVersion: the schema check
+#include "../../DomainModel/athlete_diagnostics.h"   // AthleteLevel: Your distances, the athlete level's (3.7-f)
+#include "../../Coaching/tendencies.h"           // clubDistanceItemToJson
 #include <QDate>
 #include <QDir>
 #include <QFile>
@@ -688,28 +687,20 @@ QVariantMap AthleteController::clubDistances(const QString &uuid) const
                      { QStringLiteral("stale"), true },
                      { QStringLiteral("note"),  kReading } };
 
-    const Athlete *a = athleteFor(uuid);
-    if (!a || a->folder().isEmpty()) return out;
-
-    const QDir athleteDir(a->folder());
-    const QFileInfo file(pinpoint::AthleteFiles::tendenciesFile(athleteDir.path()));
-    if (!file.exists()) return out;
-
-    QFile f(file.absoluteFilePath());
-    if (!f.open(QIODevice::ReadOnly)) return out;
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-    // ITS SCHEMA CHECKED (H-08; step 2.5): a newer build's file is not read as ours — it reads as "being
-    // worked out". An older one is shown as before (the catch-up re-reduces it; the stale mark below says so).
-    if (root.value(QStringLiteral("schema")).toInt(-1) > pinpoint::analysis::kTendencySchemaVersion) return out;
-    out[QStringLiteral("items")] = root.value(QStringLiteral("clubDistances")).toArray().toVariantList();
-
-    // Older than the newest ledger: these numbers were reduced before that session was graded.
-    qint64 newestLedger = 0;
-    for (const QFileInfo &session : athleteDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        const QFileInfo ledger(pinpoint::SessionFiles::diagnosticsFile(session.absoluteFilePath()));
-        if (ledger.exists()) newestLedger = std::max(newestLedger, ledger.lastModified().toMSecsSinceEpoch());
-    }
-    const bool stale = file.lastModified().toMSecsSinceEpoch() < newestLedger;
+    // THE ATHLETE LEVEL'S OWN DISTANCES (refactor 3.7-f; J-51): AthleteDiagnostics pools them from the session summaries'
+    // club windows (D7: DEC-172), the rows tendencies.json carries, keys as clubDistanceItemToJson writes them — no longer
+    // that file, read and judged stale against the newest ledger (its writer rewrote it on every ledger write; the owner
+    // writes it only when its inputs move). Stale while a session with shots is not summed up yet (notSummedUp): those
+    // numbers leave it out, and the note says so.
+    Athlete *a = athleteFor(uuid);
+    pinpoint::AthleteLevel *ad = (a && m_athleteLevelDoor) ? m_athleteLevelDoor(a) : nullptr;
+    if (!ad) return out;
+    QVariantList items;
+    for (const pinpoint::analysis::ClubDistanceItem &it : ad->distances())
+        items.append(pinpoint::analysis::clubDistanceItemToJson(it).toVariantMap());
+    if (ad->summaries().empty()) return out;
+    out[QStringLiteral("items")] = items;
+    const bool stale = ad->notSummedUp().count > 0;
     out[QStringLiteral("stale")] = stale;
     out[QStringLiteral("note")]  = stale ? kReading : QString();
     return out;

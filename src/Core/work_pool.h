@@ -154,6 +154,7 @@ public:
     int  threadCount() const noexcept { return int(m_threads.size()); }
     int  waiting(LaneToken lane) const;   // queued, not yet started
     bool isRunning(LaneToken lane) const; // one of its jobs is on a worker now
+    int  laneCount() const;               // the lanes the pool holds now (a test's view: no lane left behind)
 
     // Block until nothing is waiting or running (or `msecs` pass; < 0 waits for ever). For tests and an
     // orderly teardown; the app never waits on the pool for one owner.

@@ -46,6 +46,7 @@
 //   CATCHUP-TRASH (3.7-e) the session in hand trashed from under the catch-up: answered as gone, the next one taken
 //   FPRINT  (3.7-e round 2) the summary's fingerprint moves with each R-STAMP-1 input on its own
 //   LIVEBASE (3.7-e round 2) old-form predecessors summed up at Start (the catch-up paused); the live session freezes then
+//   LIVEBASE g (3.7-f) the same asked at a resume of a session already loaded (no attach): AthleteCatchUp::followResumes
 //   LIVEORDER (3.7-e round 3, R2-B1) the app's order: a session in hand, Start, then the pause — frozen without End
 //   USE     (refactor 3.7-e; CARRY 3.7-a, 3.7-c R2-m2) an adapter holds a use of its Session only while a view is bound:
 //           made and not shown it holds none, so the Session can be released; shown, it cannot
@@ -775,6 +776,36 @@ static void testLiveBaselineAtStart()
     }
 }
 
+// LIVEBASE g (refactor 3.7-f; J-49's residual, CARRY 3.7-e round 2): a session RESUMED while already loaded gets no attach,
+// so the catch-up hears the athlete's resumes itself (AthleteCatchUp::followResumes — main.cpp installs it at every attach)
+// and asks for the baseline's predecessors as the attach hook does at Start. The resume's event is raised here as
+// Athlete::resumeSession raises it for a session it holds (the command itself is session_test's).
+static void testLiveBaselineAtResume()
+{
+    std::printf("\nLIVEBASE g — a session resumed while loaded, its club baseline still waiting\n");
+    Rig rig;
+    check(QStringLiteral("LIVEBASEg pre: an earlier session reduced by the old model"), earlierSession(rig));
+    AthleteCatchUp catchUp(rig.callables());
+    catchUp.setPaused(true);   // the live pause
+    int settled = 0;
+    QObject::connect(&catchUp, &AthleteCatchUp::liveBaselineSettled, &catchUp, [&settled](const SessionId &) { ++settled; });
+    catchUp.followResumes(rig.athlete.get());
+    catchUp.followResumes(rig.athlete.get());   // once per athlete, however often asked
+    Session *s = rig.athlete->startSession(QStringLiteral("swing"), kPat);
+    SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+    if (!d) { check(QStringLiteral("LIVEBASEg a live session with its owner"), false); return; }
+    spin();
+    check(QStringLiteral("LIVEBASEg1 loaded, recorded here, its baseline waiting (no attach hook in this test)"),
+          s->runningHere() && s->inProgress() && d->clubBaselineWaiting() && settled == 0);
+    emit rig.athlete->sessionResumed(s->id());   // EVT-23 for a session already held: no attach
+    check(QStringLiteral("LIVEBASEg2 the resume asks the catch-up once: its predecessors summed up while paused"),
+          pump([&settled] { return settled >= 1; }, 60000) && settled == 1);
+    Rig::settled(d);
+    spin(200);
+    check(QStringLiteral("LIVEBASEg3 the resumed session froze its baseline, still in progress"),
+          s->inProgress() && d->holdsClubBaseline() && !d->clubBaselineWaiting());
+}
+
 // LIVEORDER (review R2-B1 of 3.7-e): the app's own order — the catch-up has an ordinary session IN HAND (its launch pass),
 // then Start (its owner attaches and main.cpp's hook asks catchUpForBaseline), and only then does the live pause arrive
 // (WorkOnsController's, queued). The pause puts the session in hand back behind the waited-on predecessors, and while paused
@@ -1472,6 +1503,7 @@ int main(int argc, char **argv)
     testCatchUpTrash();
     testFingerprintInputs();
     testLiveBaselineAtStart();
+    testLiveBaselineAtResume();
     testLiveBaselineAppOrder();
     testUse();
     testPackEditRefires();

@@ -55,6 +55,8 @@
 #include "report/report_consistency.h"
 #include "report/report_delivery.h"
 #include "report/report_variability.h"
+#include "report/report_meta.h"
+#include "report/report_tendencies.h"   // the athlete level's left-out rules (3.7-f R1-m6, R1-m7)
 #include "variability/variability_ledger.h"
 #include "../../Coaching/swing_areas_pack.h"
 #include "../../Diagnostics/packs/drill_pack.h"
@@ -67,6 +69,7 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 
 #include <cstdio>
 
@@ -1290,6 +1293,60 @@ int main(int argc, char **argv)
         }
         check(clubCarry, "LM summary: a club-delivery row carries the variability map, basis string and all");
         check(ballNone, "LM summary: ball flight and smash rows carry null");
+    }
+
+    // ── TND-U / TND-S (refactor 3.7-f, REVIEW-f R1-m6 and R1-m7): the Tendencies page when no athlete level reads the
+    // session, and a report made while sessions were left out going out of date once they are summed up ──
+    std::printf("tendencies at the make — unread, and left out (3.7-f R1-m6, R1-m7)\n");
+    {
+        using pinpoint::analysis::SessionPlace;
+        const QVariantMap unread = pinpoint::report::tendenciesUnreadBlock(tendenciesUnread());
+        check(!unread.isEmpty() && unread.value(QStringLiteral("kicker")).toString() == QLatin1String("Tendencies")
+                  && unread.value(QStringLiteral("standfirst")).toString() == tendenciesUnread()
+                  && !unread.contains(QStringLiteral("rows")),
+              "TND-Ua no athlete level reads the session: the page is kept, its head saying why (no rows)");
+        eq(tendenciesUnread(), QStringLiteral("Your tendencies couldn't be read when this report was made. Make the report again to include them."),
+           "TND-Ub the sentence, verbatim");
+        const std::vector<SessionPlace> listed{ SessionPlace{ QStringLiteral("S1"), QDate(2026, 9, 1), 1 },
+                                                SessionPlace{ QStringLiteral("S2"), QDate(2026, 9, 2), 1 },
+                                                SessionPlace{ QStringLiteral("S3"), QDate(2026, 9, 3), 1 } };
+        check(pinpoint::report::tendenciesLeftOutCount(listed, { QStringLiteral("S1"), QStringLiteral("S3") }, listed[1]) == 1,
+              "TND-Sa left out up to this session only: a later session is not counted");
+        eq(pinpoint::report::tendenciesLeftOutStamp(true, listed, { QStringLiteral("S1") }, QStringLiteral("S3")),
+           QStringLiteral("|athlete:left 1"), "TND-Sb one earlier session left out: in the inputs stamp");
+        eq(pinpoint::report::tendenciesLeftOutStamp(true, listed, {}, QStringLiteral("S3")), QString(),
+           "TND-Sc none left out: nothing added (a complete report's fingerprint as it always was)");
+        eq(pinpoint::report::tendenciesLeftOutStamp(false, listed, {}, QStringLiteral("S3")), QStringLiteral("|athlete:unread"),
+           "TND-Sd no athlete level: unread");
+        eq(pinpoint::report::tendenciesLeftOutStamp(true, listed, {}, QStringLiteral("S9")), QStringLiteral("|athlete:unread"),
+           "TND-Se a session the athlete level does not list: unread");
+
+        // The report's own state rule over it: made with S1 left out, then S1 summed up -> Stale; a complete one stays Current.
+        QTemporaryDir tmp;
+        const QString dir = tmp.filePath(QStringLiteral("S3"));
+        QDir().mkpath(dir + QStringLiteral("/swing_0001"));
+        QFile sw(dir + QStringLiteral("/swing_0001/swing.json"));
+        sw.open(QIODevice::WriteOnly); sw.write("{}"); sw.close();
+        namespace M = pinpoint::report;
+        const QString inputs = QStringLiteral("studio|photos:0:0");
+        const auto fpWith = [&](const QStringList &notUsed) {
+            return M::reportFingerprint(dir, 1, QStringLiteral("content"),
+                                        inputs + pinpoint::report::tendenciesLeftOutStamp(true, listed, notUsed, QStringLiteral("S3")));
+        };
+        M::ReportMeta meta;
+        meta.pdfName = QStringLiteral("report.pdf");
+        QDir().mkpath(M::reportDir(dir));
+        QFile pdf(M::reportPdfPath(dir, meta));
+        pdf.open(QIODevice::WriteOnly); pdf.write("%PDF"); pdf.close();
+        meta.fingerprint = fpWith({ QStringLiteral("S1") });   // made while S1 was left out
+        check(M::reportState(dir, meta, fpWith({ QStringLiteral("S1") })) == M::ReportState::Current,
+              "TND-Sf made while a session was left out: current while it still is");
+        check(M::reportState(dir, meta, fpWith({})) == M::ReportState::Stale,
+              "TND-Sg … and out of date once it is summed up (failed before R1-m7: the stamp did not carry it)");
+        meta.fingerprint = fpWith({});
+        check(M::reportState(dir, meta, fpWith({})) == M::ReportState::Current
+                  && fpWith({}) == M::reportFingerprint(dir, 1, QStringLiteral("content"), inputs),
+              "TND-Sh a complete report: current, its fingerprint unchanged by the rule");
     }
 
     std::printf("%s (%d failed)\n", g_fail ? "FAILED" : "OK", g_fail);

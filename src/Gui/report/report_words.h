@@ -563,6 +563,31 @@ inline QString todayEarlierHabit(const QString &name, int fired, int judged, int
         return QStringLiteral("%1 was a habit earlier today and did not show here (%2).").arg(name, countOf(0, judged));
     return QStringLiteral("%1 was a habit earlier today and came down to %2 here.").arg(name, countOf(fired, judged));
 }
+// An earlier session of the day this build has not summed up (refactor 3.7-f; J-51): "One earlier session today isn't
+// shown: it hasn't been summed up by this version of PinPoint Studio yet."
+inline QString todayNotSummedUp(int n)
+{
+    if (n <= 0) return QString();
+    return n == 1 ? QStringLiteral("One earlier session today isn't shown: this version of PinPoint Studio can't read it in full yet.")
+                  : QStringLiteral("%1 earlier sessions today aren't shown: this version of PinPoint Studio can't read them in full yet.")
+                        .arg(cap1(numberWord(n)));
+}
+// The same on the Tendencies page (refactor 3.7-f round 0c; J-51), after its standfirst: the sessions up to this one that
+// the athlete level could not use. "One earlier session isn't counted here: this version of PinPoint Studio can't read it
+// in full yet."
+inline QString tendenciesNotSummedUp(int n)
+{
+    if (n <= 0) return QString();
+    return n == 1 ? QStringLiteral("One earlier session isn't counted here: this version of PinPoint Studio can't read it in full yet.")
+                  : QStringLiteral("%1 earlier sessions aren't counted here: this version of PinPoint Studio can't read them in full yet.")
+                        .arg(cap1(numberWord(n)));
+}
+// The Tendencies page when the athlete level could not be read for this session at the make (REVIEW-f R1-m6: a make
+// queued across an athlete switch): the page is kept, saying so.
+inline QString tendenciesUnread()
+{
+    return QStringLiteral("Your tendencies couldn't be read when this report was made. Make the report again to include them.");
+}
 // Past the six-session cap: "3 earlier sessions not shown".
 inline QString todayMore(int more)
 {

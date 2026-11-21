@@ -1368,6 +1368,26 @@ QString SessionDiagnostics::summaryFingerprint() const
     return analysis::summaryFingerprintOf(rules, std::move(swings));
 }
 
+QString SessionDiagnostics::summaryFingerprintNow(SessionRepository &sessions, const FiringReader *reader, const SessionId &id,
+                                                 const QString &rulesStamp, const QString &cohort)
+{
+    std::vector<analysis::SummarySwing> swings;
+    for (const ShotRef &ref : sessions.shots(id)) {
+        analysis::SummarySwing w;
+        w.folder = QFileInfo(sessions.swingFolder(ref)).fileName();
+        const DocumentStamp d = reader ? reader->stamp(ref) : DocumentStamp{};
+        w.exists  = d.exists;
+        w.size    = d.size;
+        w.mtimeMs = d.mtimeMs;
+        swings.push_back(std::move(w));
+    }
+    analysis::SummaryRules rules;
+    rules.rules    = rulesStamp;
+    rules.baseline = analysis::clubBaselineStamp(frozenClubBaselineOf(sessions.readClubBaseline(id)));
+    rules.cohort   = cohort;
+    return analysis::summaryFingerprintOf(rules, std::move(swings));
+}
+
 analysis::SessionResults SessionDiagnostics::summary() const
 {
     if (!m_diagnosis)

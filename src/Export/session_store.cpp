@@ -126,7 +126,10 @@ QString SessionStore::athleteFolder(const SessionOwner &owner)
         root = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/swings");
         ppWarn() << "[SwingExport] athleteLibraryPath is empty — falling back to" << root;
     }
-    return root + QLatin1Char('/') + athleteToken(owner);
+    // Cleaned (REVIEW-f R1-m10): a library path set with a trailing slash ("/mnt/swingdata/") gave "lib//<athlete>", so the
+    // index's folders disagreed with their own SessionIdentity::folder() and with every other source's spelling (the
+    // 2aa5bc72 double count). No identity moves: a legacy session's id is its athlete's and its folder NAME's.
+    return QDir::cleanPath(root + QLatin1Char('/') + athleteToken(owner));
 }
 
 QString SessionStore::folderTypeLabel(const QString &type)
@@ -973,6 +976,17 @@ JsonFileRead SessionStore::readWorkOns(const SessionId &id)
         return r;
     }
     return session_diagnostics_io::readWorkOns(folder);
+}
+
+std::function<JsonFileRead()> SessionStore::deferredReadWorkOns(const SessionId &id)
+{
+    const QString folder = heldFolder(id);   // this (the owner's) thread: the identity map
+    if (folder.isEmpty()) {
+        JsonFileRead r;
+        r.error = kNotHeld;
+        return [r] { return r; };
+    }
+    return [folder] { return session_diagnostics_io::readWorkOns(folder); };   // any thread: a file read, no member
 }
 
 WriteResult SessionStore::writeWorkOns(const SessionId &id, const QJsonObject &root)

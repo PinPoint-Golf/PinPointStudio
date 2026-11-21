@@ -82,6 +82,8 @@ class AthleteController;
 class SessionDiagnosticsModel;
 class ReportStills;
 
+namespace pinpoint { class AthleteLevel; }
+
 class SessionReportModel : public QObject
 {
     Q_OBJECT
@@ -107,6 +109,9 @@ public:
     // for the "report" surface, or the J-a3 engine model, or the empty adapter when no Session holds it (the header).
     // main.cpp: diagnosticsAdapters.of(app.sessionAt(dir), "report", dir). Never null when set.
     void setDiagnosisDoor(std::function<SessionDiagnosticsModel *(const QString &sessionDir)> door) { m_diagnosisDoor = std::move(door); }
+    // THE ATHLETE LEVEL A MAKE READS (refactor 3.7-f): the session's athlete's AthleteDiagnostics — its Tendencies page as
+    // of the session (tendenciesAsOf) and the earlier sessions of the day ("Earlier today", their summaries) — or null.
+    void setAthleteDoor(std::function<pinpoint::AthleteLevel *(const QString &sessionDir)> door) { m_athleteDoor = std::move(door); }
 
     bool    busy() const;
     QString busySession() const;
@@ -132,7 +137,7 @@ public:
 
     // The fingerprint state() compares against — the work-on record's recipe (rule version, content
     // stamp, each swing document) plus inputsStamp(). Public for the probes and the tests.
-    QString fingerprintOf(const QString &sessionDir) const;
+    QString fingerprintOf(const QString &sessionDir, bool atMake = false) const;   // atMake: the make's own (R2-B1)
     // fingerprintOf() with its inputs (the studio, the athletes, the content stamp) copied now, for a
     // thread that may not touch this model: the archiver keeps a current report current (S-D6).
     std::function<QString(const QString &sessionDir)> fingerprintFunction() const;
@@ -163,7 +168,7 @@ private:
 
     // The report's other inputs, as one stamp (the studio's details and the photo rule's), so a
     // studio edit or a change of approval puts the report out of date (§8.2).
-    QString inputsStamp(const QString &sessionDir) const;
+    QString inputsStamp(const QString &sessionDir, bool atMake = false) const;
     // The athlete a session belongs to: the athlete whose folder holds it (D4), and only that — never by a
     // name or a swing's recorded uuid (E-02; J-66, step 2.8b). {} when no athlete's folder holds it.
     QVariantMap athleteFor(const QString &sessionDir) const;
@@ -172,6 +177,7 @@ private:
     QPointer<StudioProfile>     m_studio;
     QPointer<AthleteController> m_athletes;
     std::function<SessionDiagnosticsModel *(const QString &)> m_diagnosisDoor;
+    std::function<pinpoint::AthleteLevel *(const QString &)> m_athleteDoor;
     QPointer<SessionDiagnosticsModel> m_model;          // the job's (the door's answer); null between makes
     QMetaObject::Connection     m_modelBusy;            // its busyChanged, for the job's length
     QMetaObject::Connection     m_modelGone;            // its destroyed: the session went away mid-make (B1)

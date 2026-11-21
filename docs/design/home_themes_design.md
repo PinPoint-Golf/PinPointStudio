@@ -193,9 +193,9 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   pack to zero of both. Warnings, not errors, so an older user pack still loads.
 - **Where it runs.** `src/Analysis/swing_themes.h` is the pure reduction (both layers, and the
   sentences); `src/Diagnostics/swing_themes_pack.h` marshals orientation, swing position and phrases
-  from the pack. `WorkOnsController` runs it once its catch-up has every session's record current,
-  off the GUI thread with the bootstrap replicates spread over a thread pool, and never while a
-  session is live. The result is `<athlete>/swing_themes.json`, fingerprinted by
+  from the pack. `AthleteDiagnostics` runs it (refactor 3.7-f; `WorkOnsController` asks once its catch-up has every
+  session's record current), from the session summaries' per-shot facts, on its own lane of the one pool with the
+  bootstrap replicates spread over the pool's workers, and never while a session is live. The result is `<athlete>/swing_themes.json`, fingerprinted by
   `kThemeRuleVersion`, the content stamp and every session's work-ons fingerprint, so it is
   recomputed only when a session changes. The words are made when the list is published, so a
   phrase edit needs no recompute. Cost on the library (133 swings × 46 measures, k = 9): about
@@ -278,7 +278,7 @@ Built 9 Oct 2026. What was planned under "Before it goes into the app" and how i
   that every praise — fault or set-up — needs the existing consistency grade at Repeatable (4) or
   Grooved (5), "Not enough swings" giving none: "there is no point praising something a golfer does
   not do pretty consistently (it doesn't have to be grooved but should be close)". That grade is the
-  consistency marks' (`WorkOnsController`, CONSISTENCY MARKS), worked out in the GUI after the
+  consistency marks' (`AthleteDiagnostics` since refactor 3.7-f, from the summaries' facts; `WorkOnsController` until then), worked out after the
   reduction, kept in memory per (condition, measure) and never stored, with the grader and the norm
   provider in `src/Gui/variability`; the reduction (`src/Coaching`, pure, fingerprinted on the
   ledgers) cannot read it. Mark's decision (14 Nov): set-up praise ships now on the in-range rule, and

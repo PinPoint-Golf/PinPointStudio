@@ -109,6 +109,9 @@
 #include "../Core/work_pool.h"                // the one pool and its receiver (D15), for the parallel run (3.5-ii)
 #include "../DomainModel/session.h"
 #include "../DomainModel/session_diagnostics.h"   // diagnosticsWorkTarget (3.5-ii)
+#include "../DomainModel/athlete_diagnostics.h"   // athleteDiagnosticsWorkTarget: the athlete level's lane (3.7-f)
+#include "../Export/athlete_cache_repository.h"   // PINPOINT_WORKONS_DIR's Athlete (3.7-f)
+#include "../App/dev_athlete.h"                  // …and its rule (J-56, R2-m2)
 #include "diagnostics/diag_parallel_run.h"    // PINPOINT_DIAG_PARALLEL=1 (D14); its doors (3.7-0); the app's (3.7-a)
 #include "diagnostics/session_diagnostics_adapter.h"   // diagnosticsAdapters: each Session's thin adapter (3.7-a)
 #include "diagnostics/session_diagnostics_model.h"   // its golfer commands' door (step 3.4b-i)
@@ -375,6 +378,8 @@ int main(int argc, char *argv[])
     std::function<void(pinpoint::Session *, pinpoint::SessionDiagnostics *)> diagAttached;
     // The catch-up's ask for a live session's club baseline at Start (J-49): set once the catch-up exists (below).
     std::function<void(pinpoint::Session *)> liveBaselineAsk;
+    // The catch-up's ear for a session resumed while loaded (J-49's residual, 3.7-f): set once the catch-up exists.
+    std::function<void(pinpoint::Athlete *)> followResumes;
     // made before the pool, destroyed after it
     auto diagReceiver = std::make_unique<pinpoint::WorkReceiver>([&diagLookup](const pinpoint::WorkAddress &a) {
         return diagLookup ? diagLookup(a) : pinpoint::WorkTarget{};
@@ -389,6 +394,13 @@ int main(int argc, char *argv[])
     athleteStore.setShotDoors({ &recordingRepository,
                                 std::shared_ptr<pinpoint::RecordingReader>(&recordingReader, [](pinpoint::RecordingReader *) {}) });
     diagLookup = [&athleteStore](const pinpoint::WorkAddress &a) {
+        // THE ATHLETE LEVEL'S OWN LANE (refactor 3.7-f; J-53): a Home job's result goes to that athlete's AthleteDiagnostics.
+        if (pinpoint::isAthleteWorkOwner(a.owner)) {
+            const pinpoint::AthleteId id = pinpoint::athleteOfWorkOwner(a.owner);
+            for (pinpoint::Athlete *x : athleteStore.heldAthletes())
+                if (x && x->id() == id) return pinpoint::athleteDiagnosticsWorkTarget(x, a);
+            return pinpoint::athleteDiagnosticsWorkTarget(nullptr, a);   // OwnerGone
+        }
         return pinpoint::diagnosticsWorkTarget(athleteStore.loadedSession(pinpoint::SessionId::fromString(a.owner)), a);
     };
     {
@@ -486,7 +498,7 @@ int main(int argc, char *argv[])
     // diagnostics panel is up — the owner now judges and writes with none (always fire) — one notice per session, taken back
     // by its next write that lands. A file it can only read (unopenable, or a newer build's) is said once, at its load. Set
     // before any session can be loaded (the doors above call it from every attach).
-    diagAttached = [&notificationCenter, &liveBaselineAsk](pinpoint::Session *s, pinpoint::SessionDiagnostics *owner) {
+    diagAttached = [&notificationCenter, &liveBaselineAsk, &followResumes](pinpoint::Session *s, pinpoint::SessionDiagnostics *owner) {
         using N = NotificationCenter;
         const QString id = QStringLiteral("diagnostics.writes-blocked:") + s->id().toString();
         QString name = QObject::tr("a session");
@@ -508,6 +520,9 @@ int main(int argc, char *argv[])
         if (owner->readOnly())
             post(QObject::tr("Its diagnostics file could not be opened, or was saved by a newer version of PinPoint Studio, "
                              "so it is read and not written."));
+        // A SESSION RESUMED WHILE ALREADY LOADED (J-49's residual; refactor 3.7-f): no attach then, so the catch-up hears
+        // the athlete's resumes itself (AthleteCatchUp::followResumes, once per athlete) and asks the same.
+        if (followResumes && s->athlete()) followResumes(s->athlete());
         // A SESSION STARTED HERE WITH NO CLUB BASELINE YET (J-49): a turn later (the Session is marked as recorded here
         // once its start returns), its predecessors are summed up first.
         QTimer::singleShot(0, owner, [owner, session = QPointer<pinpoint::Session>(s), &liveBaselineAsk] {
@@ -595,6 +610,10 @@ int main(int argc, char *argv[])
     // go (releasing what it loaded). WorkOnsController finds the stale sessions and asks it (its CatchUpDoor, below); its
     // write blocks go through WorkOnsController's notice route (DEC-126). Declared before workOns, so it outlives it.
     pinpoint::AthleteCatchUp catchUp(athleteCallables);
+    // PINPOINT_WORKONS_DIR's own Athlete (refactor 3.7-f; made on first need by the work-ons' door, below), its caches'
+    // repository: declared before workOns so they outlive it, after the session store so they go before it.
+    pinpoint::AthleteCacheRepository   devCaches;
+    std::unique_ptr<pinpoint::Athlete> devAthlete;
     WorkOnsController workOns;
     {
         const auto athleteDir = [&appSettings, &athleteController]() -> QString {
@@ -645,7 +664,7 @@ int main(int argc, char *argv[])
                     ids << id;
                     if (k.baselineOnly) baselineOnly.insert(id);
                 }
-                for (const QString &f : std::as_const(notHeld)) workOns.sessionCaughtUp(f);
+                for (const QString &f : std::as_const(notHeld)) workOns.sessionCaughtUp(QFileInfo(f).fileName());
                 if (ids.isEmpty()) { workOns.catchUpDone(); return; }
                 catchUp.runSessions(a->id(), ids, baselineOnly);
             },
@@ -661,7 +680,7 @@ int main(int argc, char *argv[])
                          [&workOns, &athleteController](const pinpoint::SessionId &id, const QString &) {
                              if (pinpoint::Athlete *a = athleteController.currentAthlete())
                                  for (const pinpoint::SessionIndexEntry &e : a->index())
-                                     if (e.id() == id) { workOns.sessionCaughtUp(e.folder); break; }
+                                     if (e.id() == id) { workOns.sessionCaughtUp(e.identity.folderName()); break; }   // by name (R1-m10)
                          });
         QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::finished, &workOns, [&workOns] { workOns.catchUpDone(); });
         // THE LIVE SESSION'S CLUB BASELINE AT START (J-49; review R1-B1): a session just started here whose owner could
@@ -670,6 +689,40 @@ int main(int argc, char *argv[])
         liveBaselineAsk = [&catchUp](pinpoint::Session *s) {
             if (pinpoint::Athlete *a = s ? s->athlete() : nullptr) catchUp.catchUpForBaseline(a->id(), s->id());
         };
+        followResumes = [&catchUp](pinpoint::Athlete *a) { catchUp.followResumes(a); };
+        // THE ATHLETE'S DOOR (refactor 3.7-f): Home reads the current Athlete's AthleteDiagnostics when its folder is the
+        // list's. PINPOINT_WORKONS_DIR (a dev and probe seam: swing_themes_home.qml, build/run-me/verify-swing-themes.sh)
+        // names a folder that may be no listed athlete's: an Athlete is made for it here over the one session store, its
+        // derived caches kept beside its sessions (a cache-only repository), its jobs inline (no app doors) — under THE
+        // FOLDER'S OWN ATHLETE ID, from its athlete.json (J-56: never one made up from its name, C5). A folder with no
+        // athlete record gets no Athlete: Home shows its empty state, and the app log says why.
+        workOns.setAthleteDoor([&athleteController, &athleteStore, &devAthlete, &devCaches](const QString &dir) -> pinpoint::AthleteLevel * {
+            pinpoint::Athlete *a = athleteController.currentAthlete();
+            if (a && QDir::cleanPath(a->folder()) == QDir::cleanPath(dir)) return pinpoint::AthleteDiagnostics::of(a);
+            const QString forced = qEnvironmentVariable("PINPOINT_WORKONS_DIR");
+            if (forced.isEmpty() || QDir::cleanPath(forced) != QDir::cleanPath(dir)) return nullptr;
+            // J-56 / R2-m2 (src/App/dev_athlete.h): the folder's own athlete id; one the store knows is the store's Athlete.
+            const QString folder = QDir::cleanPath(dir);
+            const pinpoint::AthleteFiles::Read r = pinpoint::AthleteFiles::read(folder);
+            const pinpoint::AthleteRecord rec = r.isRead()
+                ? pinpoint::AthleteRecord::fromMap(r.json.value(QStringLiteral("record")).toObject().toVariantMap()) : pinpoint::AthleteRecord();
+            pinpoint::DevAthleteDoors doors;
+            doors.held     = athleteStore.heldAthletes();
+            doors.listed   = athleteStore.list();
+            doors.load     = [&athleteStore](const pinpoint::AthleteId &id) { return athleteStore.load(id); };
+            doors.caches   = &devCaches;
+            doors.sessions = &sessionStore;
+            QString why;
+            pinpoint::Athlete *a2 = pinpoint::devAthleteOf(folder, r.isRead() ? r.id : pinpoint::AthleteId(), rec, doors, devAthlete, &why);
+            static QString said;
+            if (said != why) ppInfo() << "[WorkOns] PINPOINT_WORKONS_DIR" << folder << "-" << why;
+            said = why;
+            return a2 ? pinpoint::AthleteDiagnostics::of(a2) : nullptr;
+        });
+        // "Your distances" on the athlete page (refactor 3.7-f): that athlete's own athlete level.
+        athleteController.setAthleteLevelDoor([](pinpoint::Athlete *a) -> pinpoint::AthleteLevel * {
+            return pinpoint::AthleteDiagnostics::of(a);
+        });
         QObject::connect(&catchUp, &pinpoint::AthleteCatchUp::writeBlocked, &workOns, &WorkOnsController::storageProblem);
     }
 
@@ -713,6 +766,12 @@ int main(int argc, char *argv[])
             });
         }
         return m;
+    });
+    // The athlete level the report reads (refactor 3.7-f): the current athlete's, for a session in its folder.
+    // The report's athlete level: THE SESSION'S OWN golfer's (REVIEW-f R2-B1), any athlete the store holds — so the
+    // archive's re-stamp (S-D6) reads every golfer's left-out sessions from that golfer's owner, never the current one's.
+    sessionReport.setAthleteDoor([&athleteStore](const QString &dir) -> pinpoint::AthleteLevel * {
+        return pinpoint::athleteLevelOfSession(athleteStore.heldAthletes(), dir);
     });
     sessionReportList.setReportModel(&sessionReport);
     // Archive and restore re-stamp a report that was current, so it still reads current (S-D6).

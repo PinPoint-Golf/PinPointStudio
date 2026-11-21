@@ -670,7 +670,12 @@ retention mechanism to wire "keep the clearest shot" into.
 - **Session panel:** each club's mix is three bars, strike, direction and flight, each counting every value a
   shot shows.
 
-### 7.1 Tendencies — data (`WorkOnsController`)
+### 7.1 Tendencies — data (`AthleteDiagnostics`; `WorkOnsController` until refactor 3.7-f)
+
+Since refactor 3.7-f the reduction below runs in `AthleteDiagnostics` over each session summary's per-shot tendency facts
+(DEC-192 "b", made by the session's own reduction by the same rule), and it writes `<athlete>/tendencies.json`; the
+report's Tendencies page reads it as of its session (`AthleteDiagnostics::tendenciesAsOf`). The ledger path described
+here is the rule those facts are made by.
 
 New reduction in the catch-up, after the work-ons are current (same rule as `swing_themes.json`):
 `<athlete>/tendencies.json`, stamped with a fingerprint over the rule, schema, content stamp and every

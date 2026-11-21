@@ -668,6 +668,10 @@ A report is out of date when what it was made from has moved:
 - the golfer's photo approval changed;
 - the studio's details changed.
 
+Its Tendencies page reads the athlete level as of the session (`AthleteDiagnostics::tendenciesAsOf`, refactor 3.7-f), and
+"Earlier today" the earlier sessions' summaries through it (strict; one this build has not summed up is not a column, and
+the block says how many: J-51).
+
 The fingerprint is the work-on record's own (`WorkOnsController`: rule version, content stamp,
 each swing document's size and mtime), plus a stamp of the studio and photo inputs, plus the report's own rule
 versions (refactor step 3.7-d; R-STAMP-1: where it reads its diagnosis from, and the launch monitor board's rule —

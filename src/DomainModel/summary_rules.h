@@ -24,10 +24,15 @@
 // Domain model ring, header-only; no QObject, no store type.
 
 #include "rule_data.h"
+#include "session_repository.h"   // JsonFileRead
+#include "../Coaching/club_distances.h"   // the club baseline file's reader
 #include "../Diagnostics/engine/fire_findings.h"
 #include "../Diagnostics/engine/session_reduction.h"
 
+#include <QHash>
 #include <QString>
+
+#include <optional>
 
 namespace pinpoint {
 
@@ -50,6 +55,22 @@ inline analysis::FiringInputs firingInputsOf(const RuleDataSnapshot &rules)
 inline QString summaryCohortFacts(const QString &dob, const QString &sex)
 {
     return dob + QLatin1Char('|') + sex;
+}
+
+// A session's frozen club baseline as its owner holds it (SessionDiagnostics' load): a current file's clubs; none for no
+// file, an older rule's or an unreadable one. What the summary fingerprint's baseline stamp is taken over.
+inline std::optional<QHash<QString, analysis::ClubBaselineEntry>> frozenClubBaselineOf(const JsonFileRead &f)
+{
+    if (!f.exists || !f.ok)
+        return std::nullopt;
+    const int schema = f.root.value(QStringLiteral("schema")).toInt(0);
+    if (schema > 0 && schema < analysis::kClubBaselineSchemaVersion)
+        return std::nullopt;
+    bool ok = false;
+    const analysis::ClubBaselineSnapshot snap = analysis::clubBaselineFromJson(f.root, &ok);
+    if (!ok)
+        return std::nullopt;
+    return snap.clubs;
 }
 
 } // namespace pinpoint

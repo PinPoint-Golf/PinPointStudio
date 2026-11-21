@@ -101,6 +101,11 @@ public:
     AthleteActivity     readActivity(const SessionOwner &owner) const override;
     // The Athlete's own append (refactor step 3.4b-i): appendTuningLog() on its folder's log (FILE-ATH-04).
     WriteResult         appendTuningLine(const Athlete &athlete, const QByteArray &line) override;
+    // FILE-ATH-02 / FILE-ATH-03 (every club's), for their one writer AthleteDiagnostics (refactor 3.7-f).
+    JsonFileRead        readCache(const Athlete &athlete, Cache which, const QStringList &keys = {}) override;
+    WriteResult         writeCache(const Athlete &athlete, Cache which, const QJsonObject &root, const QStringList &keys = {}) override;
+    // The path each cache is kept at, in `athleteDir` (AthleteFiles' names).
+    static QString      cachePath(const QString &athleteDir, Cache which, const QStringList &keys = {});
 
     // THE TUNING LOG's append (FILE-ATH-04, append-only, never rewritten; DEC-43): one line added to
     // `logFile` under its athlete folder's lock, for that one append (brief §4.9). Static, because its

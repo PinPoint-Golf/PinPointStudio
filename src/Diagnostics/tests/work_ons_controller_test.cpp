@@ -45,6 +45,15 @@
 // The other sessions are LEDGERS ON DISK with empty swing folders beside them: the model loads the
 // rows, finds nothing to back-fill, and no swing document is ever read — the catch-up path for
 // a library that already has its ledgers, which is the one the app meets first.
+//
+// REFACTOR 3.7-f: the athlete level is AthleteDiagnostics' (the list's aggregate, the tendencies, the swing summary every
+// club, the consistency marks), which this controller adapts. Each controller here is handed an Athlete of its own over
+// the fixture folder (a session store, a cache-only athlete repository: FILE-ATH-02/03 written beside the sessions), as
+// main.cpp hands the current one — one per controller, as an app launch has one; a threaded controller's Athlete has the
+// one pool and its receiver (the owner's own lane, J-53), a synchronous one's runs its jobs inline. The catch-up's
+// stand-in writes each summary as the owner does, with the per-shot facts and club windows the athlete level reads, made
+// by the same Rules ring calls from the session's ledger. A step that edits a ledger by hand also removes that session's
+// summary, as the owner rewrites both together, so the scan asks for it again.
 
 #include "Gui/diagnostics/work_ons_controller.h"
 #include "Gui/diagnostics/session_diagnostics_model.h"   // the catch-up's stand-in (3.7-e)
@@ -54,6 +63,19 @@
 #include "../../Export/rule_data_install.h"
 #include "../../DomainModel/rule_data.h"   // the packs and norms: RuleData's snapshot (refactor step 3.2)
 #include "Gui/variability/variability_measures.h"
+#include "DomainModel/athlete.h"
+#include "DomainModel/athlete_diagnostics.h"
+#include "Export/athlete_cache_repository.h"
+#include "Export/session_store.h"
+#include "Export/swing_store_repository.h"
+#include "Export/firing_reader_store.h"
+#include "Export/recording_loader.h"
+#include "DomainModel/session.h"
+#include "DomainModel/session_diagnostics.h"
+#include "Export/session_diagnostics_files.h"
+#include "Coaching/club_distances.h"
+#include "Coaching/tendencies_pack.h"
+#include "Core/work_pool.h"
 #include "Coaching/board_annotations.h"
 #include "Coaching/frequency_words.h"
 #include "Coaching/shot_outcomes_pack.h"
@@ -61,6 +83,9 @@
 #include "Coaching/swing_areas_pack.h"
 #include "Diagnostics/packs/characteristic_pack.h"
 #include "Export/swing_store.h"
+#include "Gui/report/report_athlete_stamps.h"   // the report's left-out stamps (R2-B1)
+#include "Gui/report/report_meta.h"
+#include "App/dev_athlete.h"                   // the dev folder's Athlete (R2-m2)
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -78,6 +103,7 @@
 #include <QThread>
 
 #include <algorithm>
+#include <tuple>
 #include <cmath>
 #include <cstdio>
 #include <random>
@@ -107,6 +133,17 @@ struct FixtureCatchUp {
     int derived = 0;
     void derive(const QString &dir)
     {
+        // THE LEDGER AS IT STANDS, read first (the model may rewrite it): the per-shot facts and club windows are made from
+        // it as the owner's reduction makes them (session_reduction.cpp), the board's annotations applied.
+        const pinpoint::DiagnosticsRead read = pinpoint::SessionDiagnosticsFiles::readDiagnostics(dir);
+        std::vector<ShotRecord> shots = read.parsed() ? fromJson(read.envelope.ledger) : std::vector<ShotRecord>{};
+        const pinpoint::GolferInput g = pinpoint::SessionDiagnosticsFiles::golferInput(dir, read.envelope.legacyGolferInput);
+        const std::shared_ptr<const pinpoint::RuleDataSnapshot> rules = pinpoint::RuleData::current();
+        const CharacteristicPack &pack = rules->pack->pack();
+        annotateShots(shots, g.board, launchMonitorMeasures(pack));
+        const QList<pinpoint::SessionIndexEntry> index = pinpoint::SessionDiagnosticsFiles::athleteSessions(QFileInfo(dir).absolutePath());
+        const SessionPlace place = pinpoint::SessionDiagnosticsFiles::placeOf(index, dir);
+
         model.setSynchronous(true);
         model.setReviewing(true);
         model.setBaselineAuthority(SessionDiagnosticsModel::BaselineAuthority::Always);
@@ -124,6 +161,34 @@ struct FixtureCatchUp {
         r.outcomeEvidence = model.outcomeEvidence();
         r.hasGrowth = true;
         r.hasFacts  = true;
+        {
+            TendencySessionInput self;
+            self.session.folder      = QFileInfo(dir).fileName();
+            self.session.day         = place.day;
+            self.session.nOfDay      = place.nOfDay;
+            self.session.shots       = shots;
+            self.session.corrections = g.corrections;
+            self.intents  = resolvedShotIntents(g.shotIntent, shots, g.intentRun.fromShot, g.intentRun.shape);
+            self.evidence = r.outcomeEvidence;
+            const pinpoint::JsonFileRead base = pinpoint::SessionDiagnosticsFiles::readClubBaseline(dir);
+            if (base.exists) {
+                bool ok = false;
+                const ClubBaselineSnapshot snap = clubBaselineFromJson(base.root, &ok);
+                if (ok) self.baseline = snap.clubs;
+            }
+            r.tendencyShots = tendencySessionShots(self, shotOutcomePackFor(&pack), shippedFlightNorms()).shots;
+            for (const ShotRecord &s : shots) r.themeShots.push_back(themes::themeShotOf(s));
+            ClubDistanceSession cds;
+            cds.folder      = self.session.folder;
+            cds.day         = place.day;
+            cds.shots       = shots;
+            cds.corrections = g.corrections;
+            for (ClubSessionPool &pool : poolSessionByClub(cds, shippedFlightNorms())) {
+                pool.folder.clear();
+                pool.day = QDate();
+                r.clubWindows.push_back(std::move(pool));
+            }
+        }
         // The fingerprint as the scan computes it (one rule: WorkOnsController::summaryFingerprintFor), with no athlete record.
         r.derivedFrom.fingerprint  = WorkOnsController::summaryFingerprintFor(dir, WorkOnsController::rulesStampNow(),
                                                                               pinpoint::summaryCohortFacts(QString(), QString()));
@@ -140,12 +205,91 @@ static FixtureCatchUp &standIn()
     static FixtureCatchUp *one = new FixtureCatchUp;   // made after the RuleData install; never torn down before main ends
     return *one;
 }
-static void catchUp(WorkOnsController &c)
+// THE ATHLETE THE CONTROLLER READS (refactor 3.7-f): one per controller and folder, over one session store, its caches kept
+// beside the sessions. A threaded controller's has the one pool and its receiver (the owner's lane), which routes to it.
+// Each Session the athlete level holds for its rows (the scoped views: DEC-195) gets its SessionDiagnostics, which reads
+// the fixture's ledger back as its kept findings — in memory only (persist off): the fixtures are this suite's.
+struct TestAthletes {
+    pinpoint::SessionStore           store;
+    pinpoint::AthleteCacheRepository caches;
+    std::unique_ptr<pinpoint::SwingStoreRecordingRepository> recordings;
+    std::shared_ptr<pinpoint::RecordingReader>               reader;
+    std::shared_ptr<pinpoint::SwingStoreFiringReader>        firing;
+    QHash<QString, QPointer<pinpoint::Athlete>> byId;   // the receiver's lookup
+    pinpoint::WorkReceiver *receiver = nullptr;
+    pinpoint::WorkPool     *pool = nullptr;
+    TestAthletes()
+    {
+        store.setOsTrashForTest(false);
+        recordings = std::make_unique<pinpoint::SwingStoreRecordingRepository>(store);
+        reader     = std::make_shared<pinpoint::SwingStoreRecordingReader>(store);
+        firing     = std::make_shared<pinpoint::SwingStoreFiringReader>(store, *recordings);
+        receiver = new pinpoint::WorkReceiver([this](const pinpoint::WorkAddress &a) {
+            if (pinpoint::isAthleteWorkOwner(a.owner)) {
+                const QPointer<pinpoint::Athlete> x = byId.value(a.owner);
+                return pinpoint::athleteDiagnosticsWorkTarget(x.data(), a);
+            }
+            const pinpoint::SessionId id = pinpoint::SessionId::fromString(a.owner);
+            for (const QPointer<pinpoint::Athlete> &x : std::as_const(byId))
+                if (x && x->loadedSession(id)) return pinpoint::diagnosticsWorkTarget(x->loadedSession(id), a);
+            return pinpoint::diagnosticsWorkTarget(nullptr, a);
+        });
+        pool = new pinpoint::WorkPool();
+    }
+};
+static TestAthletes &testAthletes()
 {
-    c.setCatchUp({ [&c](const QString &, const QList<WorkOnsController::CatchUpAsk> &asks) {
+    static TestAthletes *one = new TestAthletes;   // never torn down: its pool's threads outlive main's last check
+    return *one;
+}
+static pinpoint::Athlete *makeAthlete(const QString &dir, bool onPool, std::vector<std::unique_ptr<pinpoint::Athlete>> &keep)
+{
+    using namespace pinpoint;
+    const QString name = QFileInfo(dir).fileName();
+    // One id per Athlete made (a controller's own, as an app launch has one): the receiver routes each one's results.
+    static int made = 0;
+    const AthleteId id = AthleteId::fromString(QStringLiteral("00000000-0000-4000-8000-%1")
+        .arg(QString::fromLatin1(QCryptographicHash::hash((QDir::cleanPath(dir) + QString::number(++made)).toUtf8(),
+                                                          QCryptographicHash::Sha1).toHex().left(12))));
+    auto a = std::make_unique<Athlete>(&testAthletes().caches, &testAthletes().store, id);
+    AthleteRecord rec;
+    rec.name = name;
+    a->setStored(rec, QDir::cleanPath(dir), SessionOwner{ id, name, QFileInfo(QDir::cleanPath(dir)).absolutePath() },
+                 Athlete::Source::Library, false);
+    a->setShotDoors({ testAthletes().recordings.get(), testAthletes().reader });
+    DiagnosticsDoors d;
+    d.pool         = onPool ? testAthletes().pool : nullptr;
+    d.receiver     = testAthletes().receiver;
+    d.ruleData     = RuleData::installed();
+    d.reader       = testAthletes().firing;
+    d.persist      = false;        // the fixtures' files stay as staged
+    d.writeSummary = false;
+    d.synchronous  = !onPool;
+    d.attach       = &SessionDiagnostics::attach;
+    a->setDiagnosticsDoors(d);
+    testAthletes().byId.insert(athleteWorkOwner(id), a.get());
+    keep.push_back(std::move(a));
+    return keep.back().get();
+}
+
+// `spelledTwice`: the stand-in answers each session as main.cpp's door does with a library path set with a trailing
+// slash — the session index's folder, "<athlete>//<session>" — not the scan's spelling (round 0c).
+static void catchUp(WorkOnsController &c, bool spelledTwice = false)
+{
+    auto athletes = std::make_shared<std::vector<std::unique_ptr<pinpoint::Athlete>>>();
+    auto made     = std::make_shared<QHash<QString, pinpoint::Athlete *>>();
+    c.setAthleteDoor([&c, athletes, made](const QString &dir) -> pinpoint::AthleteLevel * {
+        const QString key = QDir::cleanPath(dir);
+        if (!made->contains(key)) made->insert(key, makeAthlete(key, !c.synchronous(), *athletes));
+        return pinpoint::AthleteDiagnostics::of(made->value(key));
+    });
+    c.setCatchUp({ [&c, spelledTwice](const QString &, const QList<WorkOnsController::CatchUpAsk> &asks) {
                        for (const WorkOnsController::CatchUpAsk &k : asks) {
                            standIn().derive(k.sessionDir);
-                           c.sessionCaughtUp(k.sessionDir);
+                           // main.cpp's door answers by folder name (R1-m10); a path spelled twice is still taken (a tool's).
+                           c.sessionCaughtUp(spelledTwice ? QFileInfo(k.sessionDir).absolutePath() + QStringLiteral("//")
+                                                                + QFileInfo(k.sessionDir).fileName()
+                                                          : QFileInfo(k.sessionDir).fileName());
                        }
                        c.catchUpDone();
                    },
@@ -863,17 +1007,18 @@ static void checkConsistencyMarks(const QString &root)
     const int read = c.consistencyLedgersRead();
     c.refresh();
     check(c.waitForIdle() && c.consistencyLedgersRead() == read && markOf(area(c, "lateral").value(QStringLiteral("consistency"))) == col,
-          "a refresh with no ledger changed reads no ledger and keeps the marks");
+          "a refresh with no summary changed grades nothing again and keeps the marks (3.7-f: from the summaries)");
 
     // The newest session's ledger changes: its twelve readings go wild, and the column follows.
     std::vector<MarkShot> m3b;
     for (int i = 0; i < 14; ++i) m3b.push_back(shot(clubOf(i), wild(i), i >= 2 && i < 7));
     QThread::msleep(20);    // a new mtime, whatever the file system's resolution
     stageMarks(golfer, QStringLiteral("m3"), t0 + 2 * day, m3b);
+    QFile::remove(WorkOnsController::recordPath(QDir(golfer).filePath(QStringLiteral("m3"))));   // its owner rewrites both
     c.refresh();
     const pv::VariabilityResultView after = markOf(area(c, "lateral").value(QStringLiteral("consistency")));
     check(c.waitForIdle() && c.consistencyLedgersRead() > read && after.graded() && after.grade() == 1,
-          "a changed ledger is read again: the newest readings now scatter, and the column says so");
+          "a re-written summary is graded again: the newest readings now scatter, and the column says so");
     check(praiseRuleHolds(c, "consistency marks"),
           "the praise rule (3.6): \"what you do well\" keeps only conditions graded Repeatable or Grooved");
 }
@@ -960,8 +1105,23 @@ static void checkBoardFollowUp(const QString &root)
     const ShotOutcomePack outcomes = shotOutcomePackFor(&prov->pack());
     const std::shared_ptr<const INormProvider> norms = sharedNormProvider();
     const QSet<QString> lm = launchMonitorMeasures(prov->pack());
-    const TendencySet annotated = WorkOnsController::tendenciesAsOf(dir, outcomes, *norms, lm);
-    const TendencySet plain = WorkOnsController::tendenciesAsOf(QDir(control).filePath(name), outcomes, *norms, lm);
+    // The tendencies as of the session, as the report asks the athlete level for them (refactor 3.7-f: tendenciesAsOf, from
+    // the summaries the catch-up wrote, their facts made with the board's annotations).
+    const auto asOf = [&name](const QString &athleteDir) {
+        WorkOnsController c;
+        catchUp(c);
+        c.setSynchronous(true);
+        c.setAthleteDir(athleteDir);
+        c.waitForIdle(1000);
+        TendencySet out;
+        if (pinpoint::AthleteLevel *ad = c.owner())
+            for (const pinpoint::AthleteSessionSummary &s : ad->summaries())
+                if (s.place.folder == name) out = ad->tendenciesAsOf(s.id);
+        return out;
+    };
+    (void)outcomes; (void)norms; (void)lm;
+    const TendencySet annotated = asOf(golfer);
+    const TendencySet plain = asOf(control);
     const auto shotsOf = [](const TendencySet &t, const QString &club) {
         for (const QJsonValue &v : t.clubDistances)
             if (v.toObject().value(QStringLiteral("club")).toString() == club) return v.toObject().value(QStringLiteral("shots")).toInt();
@@ -1152,8 +1312,9 @@ static void checkTendencies(const QString &root)
                 f.write(QJsonDocument(root_).toJson(QJsonDocument::Compact));
             f.close();
         }
+        QFile::remove(WorkOnsController::recordPath(dir));   // its owner rewrites the summary with the ledger (3.7-f)
         c.refresh();
-        check(c.tendencyJobs() == jobs + 1, "a changed ledger re-reduces the tendencies");
+        check(c.tendencyJobs() == jobs + 1, "a changed ledger (and so its summary) re-reduces the tendencies");
         const QVariantMap driver = tendencyItem(c, "DRIVER|full");
         const QVariantMap dirF = driver.value(QStringLiteral("direction")).toMap();
         std::printf("    (after the fade and the corrections: %d shots, direction %s %s, mix \"%s\")\n",
@@ -1673,6 +1834,7 @@ static void checkShotFilter(const QString &root)
                                                             { QStringLiteral("to"), QStringLiteral("hook") } } } } };
         if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) f.write(QJsonDocument(doc).toJson(QJsonDocument::Compact));
         f.close();
+        QFile::remove(WorkOnsController::recordPath(QFileInfo(path).absolutePath()));   // its owner rewrites the summary too (3.7-f)
         c.refresh();
         check(c.waitForIdle() && !storedFingerprint(sliceFile).isEmpty() && storedFingerprint(sliceFile) != before,
               "a correction moves the fingerprint, and the choice is reduced again");
@@ -1740,6 +1902,232 @@ static void checkShotFilter(const QString &root)
         m.setShotFilter(QStringLiteral("all"));
         check(m.waitForIdle() && m.outcomeTooFewNote().isEmpty() && m.shotFilterLine().isEmpty(), "back to All: the note goes");
     }
+}
+
+// ── A session whose judged rows cannot be read (refactor 3.7-f, DEC-195; J-51) ────────────────────────────────────────
+// Its file names another athlete id (J-a3: the cabin's, on the Mac), so this athlete's level reads its summary but can hold
+// no Session for its rows. Under every club it counts as it is; under a club choice its rows are not read — and it is
+// never dropped without a word: the warning counts it, and every club again says nothing.
+static void checkRowsMissing(const QString &root)
+{
+    std::printf("\nrows missing under a club choice\n");
+    const qint64 day = 86'400'000LL, t0 = 1'781'000'000'000LL;
+    const QString golfer = root + QStringLiteral("/rowsMissing");
+    QDir().mkpath(golfer);
+    const QString mine = QStringLiteral("2026-06-01_M_01"), cabin = QStringLiteral("2026-06-02_M_01");
+    stageTendencySession(golfer, mine, t0, 12);
+    stageTendencySession(golfer, cabin, t0 + day, 12);
+    {
+        QFile f(QDir(golfer).filePath(cabin) + QStringLiteral("/session.json"));
+        const QJsonObject file{ { QStringLiteral("schema"), QStringLiteral("pinpoint.session/1") },
+                                { QStringLiteral("athleteId"), QStringLiteral("b389a703-0000-4000-8000-000000000001") },
+                                { QStringLiteral("sessionId"), QStringLiteral("5d0c1e2f-3a4b-4c5d-8e6f-7a8b9c0d1e2f") },
+                                { QStringLiteral("startedAt"), QStringLiteral("2026-06-02T10:00:00.000Z") },
+                                { QStringLiteral("endedAt"), QStringLiteral("2026-06-02T11:00:00.000Z") },
+                                { QStringLiteral("status"), QStringLiteral("ended") },
+                                { QStringLiteral("type"), QStringLiteral("swing") },
+                                { QStringLiteral("origin"), QJsonObject{ { QStringLiteral("kind"), QStringLiteral("captured") } } } };
+        check(f.open(QIODevice::WriteOnly) && f.write(QJsonDocument(file).toJson()) > 0, "the cabin session's file names another athlete");
+    }
+    WorkOnsController c;
+    catchUp(c);
+    c.setSynchronous(true);
+    c.setAthleteDir(golfer);
+    c.waitForIdle();
+    check(c.sessionCount() == 2 && c.notSummedUpNote().isEmpty() && c.summarySubtitle() == QStringLiteral("From 24 swings over 2 sessions"),
+          "every club: both sessions' summaries are read, and nothing is said");
+    const QVariantList scopes = c.clubScopes();
+    const QString key = scopes.isEmpty() ? QString() : scopes.first().toMap().value(QStringLiteral("value")).toString();
+    c.setClubScope(key);
+    c.waitForIdle();
+    const QStringList missing = c.owner() ? c.owner()->rowsMissing() : QStringList();
+    std::printf("      %s: missing %s; \"%s\"; %s\n", qPrintable(key), qPrintable(missing.join(QStringLiteral(", "))),
+                qPrintable(c.notSummedUpNote()), qPrintable(c.summarySubtitle()));
+    check(!key.isEmpty() && missing == QStringList{ cabin }, "a club choice: the cabin session's rows cannot be read through any Session here");
+    check(c.notSummedUpNote().startsWith(QStringLiteral("1 session ")) && c.summarySubtitle() == QStringLiteral("From 12 swings over 1 session"),
+          "…so the choice reads the one session it can, and the warning counts the other: never dropped without a word");
+    c.setClubScope(QStringLiteral("all"));
+    c.waitForIdle();
+    check(c.notSummedUpNote().isEmpty() && c.summarySubtitle() == QStringLiteral("From 24 swings over 2 sessions"),
+          "every club again: both counted, nothing said");
+}
+
+// ── One session, two spellings (refactor 3.7-f round 0c; the double count pushed in 2aa5bc72) ───────────────────────────
+// main.cpp's door answers a caught-up session with the session index's folder, which SessionStore composes as
+// `libraryRoot + '/' + token`: with the library path set with a trailing slash (Mark's INI has one) that is
+// "lib//<athlete>/<session>", where the scan has "lib/<athlete>/<session>". 2aa5bc72's controller keyed its records and
+// fingerprints by that string, so each caught-up session was there twice and every reduction over them read its ledger
+// twice ("77 swings over 11 sessions" on a library of 6 sessions and 40 swings). Answered so here, the list, the summary
+// and the counts must equal a run answered with the scan's own spelling.
+static void checkCatchUpSpelling(const QString &root)
+{
+    std::printf("\none session, two spellings (the catch-up's answer)\n");
+    const qint64 day = 86'400'000LL, t0 = 1'782'000'000'000LL;
+    const auto run = [&](const QString &golfer, bool twice) {
+        QDir().mkpath(golfer);
+        stageThemed(golfer, QStringLiteral("2026-07-01_a"), t0, 11, 12);
+        stageThemed(golfer, QStringLiteral("2026-07-02_b"), t0 + day, 12, 12);
+        stageThemed(golfer, QStringLiteral("2026-07-03_c"), t0 + 2 * day, 13, 12);
+        WorkOnsController c;
+        catchUp(c, twice);
+        c.setSynchronous(true);
+        c.setAthleteDir(golfer);
+        const int countAtCatchUp = c.sessionCount();
+        c.waitForIdle(300'000);
+        return std::make_tuple(countAtCatchUp, c.sessionCount(), c.summarySwings(), c.summarySessions(), c.summarySubtitle(), c.items().size());
+    };
+    const auto [n0, n1, sw1, ss1, sub1, items1] = run(root + QStringLiteral("/spellingOne"), false);
+    const auto [m0, m1, sw2, ss2, sub2, items2] = run(root + QStringLiteral("/spellingTwo"), true);
+    std::printf("      one spelling: %d/%d sessions, \"%s\"; two: %d/%d, \"%s\"\n", n0, n1, qPrintable(sub1), m0, m1, qPrintable(sub2));
+    check(n0 == 3 && n1 == 3 && sw1 > 0 && ss1 == 3, "answered with the scan's spelling: 3 sessions and their swings");
+    check(m0 == 3 && m1 == 3, "answered \"<athlete>//<session>\": still 3 sessions, at the catch-up and after it");
+    check(sw2 == sw1 && ss2 == ss1 && sub2 == sub1 && items2 == items1,
+          "…and the same swing summary and list: no caught-up session read twice (2aa5bc72: \"From 72 swings over 6 sessions\")");
+}
+
+// ── Round 2 (REVIEW-f R2-B2, R2-B1, R2-m2): the wiring, not only the rules ─────────────────────────────────────
+
+// R2-B2 (DUTIES-f A8): a switch to another golfer empties Home's list AT ONCE, while the new golfer's summaries are still
+// being read on the owner's lane (pool doors) — never the previous golfer's figures under this one's name.
+static void checkSwitchEmpties(const QString &root)
+{
+    std::printf("\nswitching golfer, the read on the lane (R2-B2)\n");
+    const qint64 day = 86'400'000LL, t0 = 1'783'000'000'000LL;
+    const QString a = root + QStringLiteral("/switchA"), b = root + QStringLiteral("/switchB");
+    for (const QString &g : { a, b }) {
+        QDir().mkpath(g);
+        stage(g, QStringLiteral("2026-07-01_a"), t0, { { "reverse_spine_p4", 1 }, { "sway", 1 } });
+        stage(g, QStringLiteral("2026-07-02_b"), t0 + day, { { "reverse_spine_p4", 1 }, { "pull", 1 } });
+    }
+    WorkOnsController c;
+    catchUp(c);                       // not synchronous: the golfers' Athletes get the pool's doors
+    c.setAthleteDir(a);
+    c.waitForIdle(300'000);
+    const QVariantList itemsA = c.items();
+    const QVariantMap lastA = c.lastSession();
+    c.setAthleteDir(b);
+    const bool emptyAtSwitch = c.items().isEmpty() && c.lastSession().isEmpty() && c.notSummedUpNote().isEmpty();
+    c.waitForIdle(300'000);
+    std::printf("      A: %d item(s); at the switch: %d; B once read: %d\n", int(itemsA.size()), emptyAtSwitch ? 0 : -1, int(c.items().size()));
+    check(!itemsA.isEmpty() && !lastA.isEmpty(), "the first golfer's list, read on the lane");
+    check(emptyAtSwitch, "R2-B2: right after the switch, before the new golfer's read lands: the list and the last session are empty "
+                         "(failed before: the first golfer's)");
+    check(!c.items().isEmpty() && !c.lastSession().isEmpty(), "…and the new golfer's list once it lands");
+}
+
+// R2-B1 (S-D6): the report's left-out stamp comes off each session's OWN athlete level (athleteLevelOfSession, main.cpp's
+// door), so archiving one golfer's session keeps another golfer's correct report current — through the stamps the
+// archive's fingerprint function takes (report_athlete_stamps.h) and keepReportCurrent, the archive's own re-stamp.
+static void checkReportStampsAcrossAthletes(const QString &root)
+{
+    std::printf("\nthe report's stamps across two golfers (R2-B1)\n");
+    namespace R = pinpoint::report;
+    const qint64 day = 86'400'000LL, t0 = 1'784'000'000'000LL;
+    const QString a = root + QStringLiteral("/stampA"), b = root + QStringLiteral("/stampB");
+    for (const QString &g : { a, b }) {
+        QDir().mkpath(g);
+        stage(g, QStringLiteral("2026-08-01_x"), t0, { { "reverse_spine_p4", 1 } });
+        stage(g, QStringLiteral("2026-08-02_y"), t0 + day, { { "sway", 1 } });
+        WorkOnsController sum;        // the stand-in sums each golfer up (their work_ons.json)
+        catchUp(sum);
+        sum.setSynchronous(true);
+        sum.setAthleteDir(g);
+        sum.waitForIdle(300'000);
+    }
+    std::vector<std::unique_ptr<pinpoint::Athlete>> keep;
+    pinpoint::Athlete *ga = makeAthlete(a, false, keep), *gb = makeAthlete(b, false, keep);
+    const QList<pinpoint::Athlete *> held{ ga, gb };
+    const auto ownDoor = [&held](const QString &dir) { return pinpoint::athleteLevelOfSession(held, dir); };
+    const auto currentOnly = [ga](const QString &dir) {   // the round-1 door: the current golfer's (A) owner only
+        return QDir::cleanPath(QFileInfo(dir).absolutePath()) == QDir::cleanPath(ga->folder()) ? pinpoint::AthleteDiagnostics::of(ga)
+                                                                                              : nullptr;
+    };
+    // The archive's fingerprint function, as SessionReportModel::fingerprintFunction takes its stamps: each athlete folder's
+    // owner through the door (AthleteLeftOutStamps::take), then the session's stamp (of).
+    const auto fpFn = [](const std::function<pinpoint::AthleteLevel *(const QString &)> &door) -> R::ReportFingerprintFn {
+        return [door](const QString &dir) {
+            R::AthleteLeftOutStamps st;
+            st.take(door(QDir(QFileInfo(dir).absolutePath()).filePath(QStringLiteral("_"))), QFileInfo(dir).absolutePath());
+            return R::reportFingerprint(dir, 1, QStringLiteral("content"), QStringLiteral("inputs") + st.of(dir));
+        };
+    };
+    const QString bDir = QDir(b).filePath(QStringLiteral("2026-08-02_y"));
+    const auto makeReport = [&](const R::ReportFingerprintFn &fp) {   // a report made now, as the make stamps it
+        R::ReportMeta m;
+        m.pdfName = QStringLiteral("report.pdf");
+        m.fingerprint = fp(bDir);
+        QDir().mkpath(R::reportDir(bDir));
+        QFile pdf(R::reportPdfPath(bDir, m));
+        pdf.open(QIODevice::WriteOnly); pdf.write("%PDF"); pdf.close();
+        R::writeReportMeta(bDir, m);
+    };
+    int archives = 0;
+    const auto archive = [&]() {      // the archive's rewrite: the swings' identity moves
+        QFile f(QDir(bDir).filePath(QStringLiteral("swing_0001/swing.json")));
+        f.open(QIODevice::WriteOnly); f.write(QByteArray("{}") + QByteArray(++archives, ' ')); f.close();
+        struct { bool ok = true; } r;
+        return r;
+    };
+    const auto stateOf = [&](const R::ReportFingerprintFn &fp) { return R::reportState(bDir, R::readReportMeta(bDir), fp(bDir)); };
+
+    // B's complete report (every session summed up), A current.
+    const R::ReportFingerprintFn own = fpFn(ownDoor), cur = fpFn(currentOnly);
+    makeReport(own);
+    R::keepReportCurrent(bDir, own, archive);
+    check(stateOf(own) == R::ReportState::Current, "R2-B1a another golfer's complete report: still current after its session is archived");
+    makeReport(cur);
+    R::keepReportCurrent(bDir, cur, archive);
+    check(stateOf(cur) == R::ReportState::Current,
+          "R2-B1b …even through a door with no owner for it: no owner adds nothing outside a make (round 1: \"unread\", out of date)");
+
+    // B with a session left out (its first session's summary gone): the report says so in its stamp.
+    QFile::remove(WorkOnsController::recordPath(QDir(b).filePath(QStringLiteral("2026-08-01_x"))));
+    pinpoint::AthleteDiagnostics::of(gb)->rereadAll();
+    const QString stampB = R::athleteLeftOutStamp(ownDoor(bDir), QStringLiteral("2026-08-02_y"), false);
+    makeReport(own);
+    R::keepReportCurrent(bDir, own, archive);
+    const R::ReportState withOwn = stateOf(own);
+    makeReport(own);
+    R::keepReportCurrent(bDir, cur, archive);   // the round-1 door: the archive reads B's stamp off A's owner
+    const R::ReportState withCurrentOnly = stateOf(own);
+    std::printf("      B's stamp \"%s\"; archived: own door %d, current-only door %d (0 none, 1 current, 2 stale)\n",
+                qPrintable(stampB), int(withOwn), int(withCurrentOnly));
+    check(stampB == QLatin1String("|athlete:left 1"), "R2-B1c B's report made with a session left out carries it, off B's own owner");
+    check(withOwn == R::ReportState::Current, "R2-B1d …and stays current when the session is archived (the session's own door)");
+    check(withCurrentOnly == R::ReportState::Stale, "R2-B1e (the round-1 door, the current golfer's only: out of date — the bug)");
+    check(pinpoint::athleteLevelOfSession(held, QDir(root).filePath(QStringLiteral("nobody/s"))) == nullptr,
+          "R2-B1f a session no Athlete holds: no athlete level");
+}
+
+// R2-m2 (J-56): the dev folder's Athlete never takes an id the store already holds; it uses the store's Athlete.
+static void checkDevAthlete(const QString &root)
+{
+    std::printf("\nthe PINPOINT_WORKONS_DIR folder's Athlete (J-56, R2-m2)\n");
+    std::vector<std::unique_ptr<pinpoint::Athlete>> keep;
+    const QString lib = root + QStringLiteral("/devLib"), copy = root + QStringLiteral("/devCopy");
+    QDir().mkpath(lib);
+    QDir().mkpath(copy);
+    pinpoint::Athlete *store = makeAthlete(lib, false, keep);
+    pinpoint::DevAthleteDoors doors;
+    doors.held     = { store };
+    doors.caches   = &testAthletes().caches;
+    doors.sessions = &testAthletes().store;
+    std::unique_ptr<pinpoint::Athlete> dev;
+    QString why;
+    pinpoint::Athlete *same = pinpoint::devAthleteOf(copy, store->id(), pinpoint::AthleteRecord(), doors, dev, &why);
+    check(same == store && !dev, "R2-m2a a copy whose athlete.json names a held athlete: the store's Athlete, no second one");
+    pinpoint::Athlete *listed = nullptr;
+    doors.held.clear();
+    doors.listed = { store->id() };
+    doors.load   = [store](const pinpoint::AthleteId &id) { return id == store->id() ? store : nullptr; };
+    listed = pinpoint::devAthleteOf(copy, store->id(), pinpoint::AthleteRecord(), doors, dev, &why);
+    check(listed == store && !dev, "R2-m2b …and one the store lists but has not loaded yet: loaded from the store");
+    const pinpoint::AthleteId other = pinpoint::AthleteId::fromString(u"3f1e2d4c-5b6a-4978-8a1b-2c3d4e5f6a7b");
+    pinpoint::Athlete *made = pinpoint::devAthleteOf(copy, other, pinpoint::AthleteRecord(), doors, dev, &why);
+    check(made && dev && made->id() == other && QDir::cleanPath(made->folder()) == QDir::cleanPath(copy),
+          "R2-m2c an id the store does not know: an Athlete for the folder, under that id (J-56)");
+    check(pinpoint::devAthleteOf(copy, pinpoint::AthleteId(), pinpoint::AthleteRecord(), doors, dev, &why) == nullptr,
+          "R2-m2d no athlete record: no Athlete");
 }
 
 int main(int argc, char **argv)
@@ -2228,6 +2616,11 @@ int main(int argc, char **argv)
     checkBoardFollowUp(tmp.path());
     checkClubScope(tmp.path());
     checkShotFilter(tmp.path());
+    checkRowsMissing(tmp.path());
+    checkCatchUpSpelling(tmp.path());
+    checkSwitchEmpties(tmp.path());
+    checkReportStampsAcrossAthletes(tmp.path());
+    checkDevAthlete(tmp.path());
 
     std::printf(g_fail ? "FAILED (%d)\n" : "OK\n", g_fail);
     return g_fail ? 1 : 0;

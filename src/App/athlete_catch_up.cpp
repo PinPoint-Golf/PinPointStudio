@@ -26,6 +26,8 @@
 #include "../Core/pp_debug.h"
 
 #include <QDir>
+#include <QPointer>
+#include <QSet>
 #include <QHash>
 #include <QTimer>
 
@@ -475,6 +477,26 @@ void AthleteCatchUp::retryReleases()
         m_releaseTimer.stop();
 }
 
+void AthleteCatchUp::followResumes(Athlete *athlete)
+{
+    if (!athlete || m_followed.contains(athlete))
+        return;
+    m_followed.insert(athlete);
+    connect(athlete, &QObject::destroyed, this, [this, athlete] { m_followed.remove(athlete); });
+    QPointer<Athlete> a(athlete);
+    connect(athlete, &Athlete::sessionResumed, this, [this, a](const SessionId &id) {
+        // A turn later: the resume's own work (the Session marked as recorded here) is done by then.
+        QTimer::singleShot(0, this, [this, a, id] {
+            Session *s = a ? a->loadedSession(id) : nullptr;
+            SessionDiagnostics *d = s ? s->diagnostics() : nullptr;
+            if (s && d && s->runningHere() && s->inProgress() && d->clubBaselineWaiting()) {
+                ppInfo() << "[CatchUp] a session resumed with its club baseline still waiting: its predecessors first -" << id.toString();
+                catchUpForBaseline(a->id(), id);
+            }
+        });
+    });
+}
+
 void AthleteCatchUp::finishAthlete(const AthleteId &id)
 {
     Athlete *a = m_callables.loadAthlete ? m_callables.loadAthlete(id) : nullptr;
@@ -482,7 +504,8 @@ void AthleteCatchUp::finishAthlete(const AthleteId &id)
     if (!d)
         return;
     d->markStale();
-    const WriteResult w = d->persist();   // nothing of its own yet (F1): Unchanged
+    // Its caches (FILE-ATH-02/03, refactor 3.7-f): what its jobs have landed and not written yet. It computes nothing here.
+    const WriteResult w = d->persist();
     if (!w.ok()) {
         ++m_report.blocked;
         m_report.why << a->folder() + QStringLiteral(": ") + w.error;

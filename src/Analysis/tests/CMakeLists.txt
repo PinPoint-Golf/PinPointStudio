@@ -2075,6 +2075,15 @@ get_target_property(_athlete_dump_sources athlete_dump SOURCES)
 list(REMOVE_DUPLICATES _athlete_dump_sources)
 set_property(TARGET athlete_dump PROPERTY SOURCES ${_athlete_dump_sources})
 pp_apply_sanitizers(athlete_dump)
+# work_ons_controller_test READS THE ATHLETE LEVEL (refactor 3.7-f): WorkOnsController adapts the current Athlete's
+# AthleteDiagnostics, over a session store and an Athlete of the test's own — athlete_dump's closure, less the tool.
+set(_woc_owner_sources ${ATHLETE_NEW_ENGINE_SOURCES} ${SESSION_DIAG_CATALOGUE_SOURCES})
+target_sources(work_ons_controller_test PRIVATE ${_woc_owner_sources})
+get_target_property(_woc_sources work_ons_controller_test SOURCES)
+list(REMOVE_DUPLICATES _woc_sources)
+set_property(TARGET work_ons_controller_test PROPERTY SOURCES ${_woc_sources})
+target_include_directories(work_ons_controller_test PRIVATE ${PP_BUFFER} ${OpenCV_INCLUDE_DIRS})
+target_link_libraries(work_ons_controller_test PRIVATE Qt6::Gui pinpoint_swingstore ${OpenCV_LIBS})
 pp_add_test(parity_json_test SOURCES ${PP_REPO_ROOT}/tools/diagnostics/parity_json_test.cpp)
 
 # measure_dump — every pack measure's reading per shot as a CSV, for the posture validation
@@ -2163,7 +2172,12 @@ set_tests_properties(rule_version_golden_test PROPERTIES
 # receiver, the process's RuleData and the real fireFindings, on a temporary library (every trash into its own
 # .pinpoint-trash). J-2, REVIEW-1's case, superseded and trashed results, T1–T4, a usual's change re-deriving only,
 # the real firing reader headless, and release in a sweep (Q-18). The fire_findings link line plus the session's.
-set(SESSION_DIAGNOSTICS_TEST_SOURCES ${FIRE_FINDINGS_TEST_SOURCES} ${PP_RECORDING_STORE_SOURCES})
+set(SESSION_DIAGNOSTICS_TEST_SOURCES ${FIRE_FINDINGS_TEST_SOURCES} ${PP_RECORDING_STORE_SOURCES}
+    # The athlete level's consistency marks (refactor 3.7-f; J-52): AthleteDiagnostics grades with the Rules ring's grader
+    # and a measure's scale from the metric manifest.
+    ${SRC}/Metrics/variability/variability_result.cpp ${SRC}/Metrics/variability/variability_grader.cpp
+    ${SRC}/Metrics/variability/variability_trend.cpp ${SRC}/Metrics/variability/variability_typicality.cpp
+    ${SESSION_DIAG_CATALOGUE_SOURCES})
 list(REMOVE_DUPLICATES SESSION_DIAGNOSTICS_TEST_SOURCES)   # the two lines share the swing door's sources
 pp_add_test(session_diagnostics_test
     SOURCES ${SRC}/DomainModel/tests/session_diagnostics_test.cpp ${SESSION_DIAGNOSTICS_TEST_SOURCES}

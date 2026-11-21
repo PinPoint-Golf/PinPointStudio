@@ -113,4 +113,42 @@ inline QVariantMap tendenciesReportBlock(const pinpoint::analysis::TendencySet &
     };
 }
 
+// ── What the athlete level could not use at a make (refactor 3.7-f; J-51, REVIEW-f R1-m6 and R1-m7) ─────────────────
+// Over the sessions the athlete level lists (`listed`: their places), the ones it cannot use (`notUsed`: folder names,
+// AthleteLevel::notSummedUp) and this session's name. Pure: SessionReportModel takes the values on the GUI thread.
+
+// The sessions up to and including `at` (tendencySessionCounts) that the athlete level left out.
+inline int tendenciesLeftOutCount(const std::vector<pinpoint::analysis::SessionPlace> &listed, const QStringList &notUsed,
+                                  const pinpoint::analysis::SessionPlace &at)
+{
+    int n = 0;
+    if (!notUsed.isEmpty())
+        for (const pinpoint::analysis::SessionPlace &o : listed)
+            if (notUsed.contains(o.folder) && pinpoint::analysis::tendencySessionCounts(o, at)) ++n;
+    return n;
+}
+
+// R1-m7: the report's inputs stamp carries it, so a report made then goes out of date once they are summed up — "|athlete:
+// left n", or "|athlete:unread" when no athlete level reads this session (`owner` false, or it does not list it). Empty
+// when nothing was left out: a complete report's fingerprint is what it always was.
+inline QString tendenciesLeftOutStamp(bool owner, const std::vector<pinpoint::analysis::SessionPlace> &listed,
+                                      const QStringList &notUsed, const QString &sessionName)
+{
+    if (owner)
+        for (const pinpoint::analysis::SessionPlace &p : listed)
+            if (p.folder == sessionName) {
+                const int n = tendenciesLeftOutCount(listed, notUsed, p);
+                return n > 0 ? QStringLiteral("|athlete:left %1").arg(n) : QString();
+            }
+    return QStringLiteral("|athlete:unread");
+}
+
+// R1-m6: the Tendencies page when no athlete level reads this session at the make — kept, its head saying why it is
+// empty (show with a warning, never hide). `why`: report_words.h tendenciesUnread() (not included here: this header is
+// also the Analysis suite's, which has no report words).
+inline QVariantMap tendenciesUnreadBlock(const QString &why)
+{
+    return { { QStringLiteral("kicker"), QStringLiteral("Tendencies") }, { QStringLiteral("standfirst"), why } };
+}
+
 } // namespace pinpoint::report

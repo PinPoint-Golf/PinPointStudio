@@ -500,4 +500,32 @@ WriteResult AthleteStore::appendTuningLine(const Athlete &athlete, const QByteAr
     return appendTuningLog(AthleteFiles::tuningLogFile(athlete.folder()), line, lockWait());
 }
 
+QString AthleteStore::cachePath(const QString &athleteDir, Cache which, const QStringList &keys)
+{
+    return which == Cache::Tendencies ? AthleteFiles::tendenciesFile(athleteDir) : AthleteFiles::themesFile(athleteDir, keys);
+}
+
+JsonFileRead AthleteStore::readCache(const Athlete &athlete, Cache which, const QStringList &keys)
+{
+    JsonFileRead out;
+    if (athlete.folder().isEmpty())
+        return out;
+    const AthleteFiles::CacheRead r = AthleteFiles::readCache(cachePath(athlete.folder(), which, keys));
+    out.exists = r.exists;
+    out.ok     = r.ok;
+    out.root   = r.root;
+    out.error  = r.error;
+    return out;
+}
+
+WriteResult AthleteStore::writeCache(const Athlete &athlete, Cache which, const QJsonObject &root, const QStringList &keys)
+{
+    if (athlete.folder().isEmpty())
+        return failed(QStringLiteral("The athlete has no folder for its derived files."));
+    QString why;
+    if (!AthleteFiles::writeCache(cachePath(athlete.folder(), which, keys), root, &why))
+        return failed(why);
+    return { WriteResult::Status::Written, {} };
+}
+
 } // namespace pinpoint

@@ -323,6 +323,13 @@ public:
     virtual WriteResult      writeClubBaseline(const SessionId &id, const QJsonObject &root) = 0;
     virtual JsonFileRead     readWorkOns(const SessionId &id) = 0;
     virtual WriteResult      writeWorkOns(const SessionId &id, const QJsonObject &root) = 0;
+    // THE SESSION SUMMARY'S READ, FOR ANOTHER THREAD (refactor 3.7-f, J-57: the athlete level reads its summaries on its
+    // lane): resolved here, on the repository's thread, into a read any thread may run once. The default reads now and
+    // hands the result over; a store whose reads are file reads (SessionStore) hands over the read itself.
+    virtual std::function<JsonFileRead()> deferredReadWorkOns(const SessionId &id)
+    {
+        return [r = readWorkOns(id)] { return r; };
+    }
 };
 
 } // namespace pinpoint

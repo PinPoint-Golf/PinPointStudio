@@ -151,6 +151,12 @@ int WorkPool::waiting(LaneToken lane) const
     return it == m_lanes.end() ? 0 : int(it->second.waiting.size());
 }
 
+int WorkPool::laneCount() const
+{
+    std::lock_guard<std::mutex> lk(m_mutex);
+    return int(m_lanes.size());
+}
+
 bool WorkPool::isRunning(LaneToken lane) const
 {
     std::lock_guard<std::mutex> lk(m_mutex);

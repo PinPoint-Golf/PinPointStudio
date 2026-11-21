@@ -28,10 +28,11 @@
 //     .pinpoint-lock          EXT-12: the advisory lock (FolderLock, src/Core/folder_lock.h)
 //     <session folders>/      SessionFiles (session_files.h)
 //
-//     tendencies.json         FILE-ATH-02: the athlete's tendencies and club distances (step 2.5: named here;
-//                             written by the work-ons controller until step 3's AthleteDiagnostics)
+//     tendencies.json         FILE-ATH-02: the athlete's tendencies and club distances (named here; written by
+//                             AthleteDiagnostics through AthleteRepository since refactor 3.7-f)
 //     swing_themes[.<scope>[.<filter>]].json   FILE-ATH-03: the swing summary, per club scope and shot
-//                             filter (the same: named here, written by the work-ons controller)
+//                             filter (every one: AthleteDiagnostics since 3.7-f, through AthleteRepository; a
+//                             scope's or filter's from the sessions' judged rows, DEC-195)
 //
 //     outcome_corrections.jsonl   FILE-ATH-04: the tuning log, append-only (appendTuningLine, below)
 //     fault_profile.json      FILE-ATH-05: to be deleted (H-11, D-07; step 3); the diagnostics model reads
@@ -123,6 +124,29 @@ public:
         QString name = QStringLiteral("swing_themes");
         for (const QString &k : keys) name += QLatin1Char('.') + k;
         return athleteDir + QLatin1Char('/') + name + QStringLiteral(".json");
+    }
+
+    // THE DERIVED CACHES' READ AND WRITE (FILE-ATH-02, FILE-ATH-03; refactor 3.7-f): a JSON object read whole, and written
+    // whole through atomicWrite. AthleteStore's readCache / writeCache (and the tools' cache-only repository) forward here.
+    // `exists` false for no file; `ok` false (with `error`) for one that is not a JSON object.
+    struct CacheRead { bool exists = false; bool ok = false; QJsonObject root; QString error; };
+    static CacheRead readCache(const QString &file)
+    {
+        CacheRead r;
+        QFile f(file);
+        if (!f.exists()) return r;
+        r.exists = true;
+        if (!f.open(QIODevice::ReadOnly)) { r.error = f.errorString(); return r; }
+        QJsonParseError pe{};
+        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &pe);
+        if (pe.error != QJsonParseError::NoError || !doc.isObject()) { r.error = QStringLiteral("not a JSON object"); return r; }
+        r.ok   = true;
+        r.root = doc.object();
+        return r;
+    }
+    static bool writeCache(const QString &file, const QJsonObject &root, QString *why)
+    {
+        return atomicWrite(file, QJsonDocument(root).toJson(QJsonDocument::Compact), why);
     }
 
     // "outcome_corrections.jsonl" (FILE-ATH-04: the tuning log) and "fault_profile.json" (FILE-ATH-05)

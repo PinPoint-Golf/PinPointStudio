@@ -28,7 +28,7 @@
 // whose stamp is stale, freezes the baseline at first need, reduces), waits until they settle, asks them to write
 // what they keep (diagnostics.json and the session summary, work_ons.json: SessionDiagnostics their one writer), and
 // RELEASES the Session (DEC-190's follow-up, Q-18: it holds one at a time, a use added while it works, released
-// after). Then it asks the athlete's AthleteDiagnostics to persist (nothing of its own until 3.7: WorkOnsController writes FILE-ATH-02/03 there) and marks it
+// after). Then it asks the athlete's AthleteDiagnostics to persist (FILE-ATH-02/03, what its jobs landed: refactor 3.7-f) and marks it
 // stale.
 // It writes nothing itself and includes no repository (D18 (c)): it reaches the athletes through the composition
 // root's callables (AthleteCallables) and their sessions through the Athlete (its index, then session(id) one at a
@@ -98,6 +98,10 @@ public:
     // once — even while paused for the live session — and the live owner then asked to freeze; liveBaselineSettled after.
     // False when nothing can be done (the baseline is not computable for another reason).
     bool catchUpForBaseline(const AthleteId &athlete, const SessionId &live);
+    // A SESSION RESUMED WHILE ALREADY LOADED (J-49's residual; refactor 3.7-f): no attach then, so this hears `athlete`'s
+    // resumes (EVT-23) itself — once per athlete — and a turn after one, if the session is recorded here, in progress and
+    // its owner's club baseline still waits, asks catchUpForBaseline as the attach hook does at Start.
+    void followResumes(Athlete *athlete);
     // A session someone loaded on demand and could not release because another holder had it: released once free (R1-m7).
     void releaseWhenFree(const AthleteId &athlete, const SessionId &session);
     void cancel();
@@ -163,6 +167,7 @@ private:
     QTimer               m_releaseTimer;
     QString              m_where;
     Report               m_report;
+    QSet<Athlete *>      m_followed;   // followResumes' athletes (forgotten when one goes)
 };
 
 } // namespace pinpoint

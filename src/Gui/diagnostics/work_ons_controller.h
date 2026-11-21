@@ -30,6 +30,7 @@
 #include <QList>
 #include <QJsonObject>
 #include <QObject>
+#include <QPointer>
 #include <QSet>
 #include <QString>
 #include <QStringList>
@@ -44,6 +45,7 @@
 #include <vector>
 
 namespace pinpoint::analysis { class ICharacteristicPackProvider; struct CharacteristicPack; class INormProvider; }
+namespace pinpoint { class Athlete; class AthleteLevel; }
 
 // WORK ONS — the list of the faults a golfer keeps producing (each opened in place under its row on
 // Home's Coaching and Your swing tabs, HmFaultDetail), and the thing that keeps each session's record
@@ -71,25 +73,24 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 // the one pool's lane). Sessions are derived one at a time, and never while a session is live (`paused`) — detection
 // reads whole swing documents and must not compete with capture.
 //
-// REFACTOR STEP 3.6 (build/refactor/step-3/3.6/NOTES.md). The athlete level has its owner, AthleteDiagnostics
-// (src/DomainModel/athlete_diagnostics.h: the athlete work-ons, distances, club baselines, tendencies and themes, from the
-// session summaries only), and the catch-up its service (src/App/athlete_catch_up.h); both are cut over to Home at 3.7, when
-// SessionDiagnostics writes the summaries in the app. Until then THIS object still drives Home from the ledgers, and
-// carries the two rules 3.6 makes the golfer see now:
-//   • THE PRAISE RULE (04 step 3 item 5; D23): "what you do well" praises only a condition whose consistency mark is
-//     Repeatable or Grooved (publishSummary; swing_themes.h applyPraiseRule); ungraded is not praised;
-//   • STAGE 0.5'S FOLLOW-UP: Tendencies (and its shot filter), Your distances and the Consistency marks read every shot
-//     as the launch monitor board annotated it (board_annotations.h: its club override, a left-out reading not read).
-// And D-15: a pause (a session going live) also lets go of the derivation in flight.
-// AthleteDiagnostics now reduces the tendencies and the themes from the summaries' compact per-shot facts too (DEC-192
-// as Mark amended it, "b"). REFACTOR 3.7-e cut the CATCH-UP over (the service, the owners writing every summary in the
-// app); Home's tendencies, themes and athlete work-ons are still reduced HERE, from the ledgers the owners now write, as
-// before — their move onto AthleteDiagnostics (BRIEF §4.6 "the adapter"), with the report's Tendencies page, is refactor
-// item 3.7-f (J-48), straight after 3.7-e. The consistency grader is in the Rules ring since 3.8 (J-34).
+// THE ATHLETE LEVEL IS AthleteDiagnostics' (refactor 3.7-f; BRIEF §4.6 "the adapter"; J-48). This object is its THIN
+// ADAPTER for Home until step 4 (DEC-165): it reaches the current Athlete's AthleteDiagnostics through the door main.cpp
+// hands it (setAthleteDoor), and turns what that owner holds into words and QVariant shapes. The owner reads the session
+// summaries only and works out, on its own lane of the one pool (J-53): the athlete work-ons and every condition's
+// aggregate (the list, the details), the tendencies and Your distances (FILE-ATH-02, which it writes), the swing summary
+// every club (FILE-ATH-03's every-club file, which it writes) and the consistency marks (J-52), which the praise rule
+// reads here (publishSummary; 04 step 3 item 5, D23). What stays here: the scan that finds the stale sessions and asks
+// the catch-up (below), the words (describeWorkOns, publishAreas, publishSummary with the praise rule, publishTendencies,
+// the filter's words). The themes and work-ons under a club scope or a shot filter are the owner's too (Mark's J-50 answer,
+// option (a): DEC-195): re-reduced from each session's judged rows, which the owner takes from that session's own
+// SessionDiagnostics, and written to swing_themes.<scope>[.<filter>].json by it. This object reads no ledger and writes
+// no file; its one file read is the scan's (summaries and baselines, for the catch-up's asks).
+// SESSIONS THE OWNER CANNOT USE (J-51): `notSummedUpNote` says how many sessions add nothing to these figures (no
+// summary of this build's yet, or one without its per-shot facts), so none drops out without a word.
 //
 // YOUR SWING — the same catch-up ends in the golfer's swing summary (swing_themes.h,
 // docs/design/home_themes_design.md): the one thing to practise (the focus), what they do well,
-// what is next on their list, and what rises and falls together. It is reduced from every session's ledger once the work-ons are current — a current
+// what is next on their list, and what rises and falls together. It is reduced (by AthleteDiagnostics, 3.7-f) from every session's summary once the work-ons are current — a current
 // work_ons.json means its diagnostics.json was reconciled — and kept in
 // <athlete>/swing_themes.json, stamped with a THEMES FINGERPRINT over the rule, the schema, the
 // content stamp and every session's (name, work-ons fingerprint). A matching file is read rather
@@ -110,7 +111,7 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 // grade per (condition, measure): how consistently the golfer repeats the measure behind that fault.
 //
 //   - THE WINDOW is the condition's last kNWindow (20) readings on that measure ACROSS sessions, newest
-//     first by shot time, off each session's diagnostics.json ledger. Which rows are readings, and how a
+//     first by shot time, off each session's summary (its per-shot facts; 3.7-f). Which rows are readings, and how a
 //     window is graded, is the rule the report's work-on page shares (src/Gui/variability/
 //     variability_ledger.h): rows of that condition whose driving measure is that measure, assessed
 //     (not NotAssessable), with a finite value. A shot carrying a data
@@ -134,7 +135,7 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 // the first of the shot filter's four parts (SHOT FILTER, below), and the one Tendencies reads too.
 //
 //   - ALL is the pipeline above, untouched: the records, swing_themes.json and its fingerprint.
-//   - Any other scope is the same job (maybeThemes / runThemes) with a filter on the shots. A session wholly
+//   - Any other scope is the owner's scoped job (AthleteDiagnostics::askScoped; DEC-195) with a filter on the shots. A session wholly
 //     in scope keeps its stored record; one partly in scope is re-reduced from its in-scope shots, without the
 //     session-level sequence verdict, which is the whole session's and is not in the ledger. It is stored in
 //     swing_themes.<key>.json, with its records, and read back when nothing has moved.
@@ -193,13 +194,12 @@ namespace pinpoint::analysis { class ICharacteristicPackProvider; struct Charact
 //   - WHAT DOES NOT FOLLOW IT: the work-on list, `lastSession`, the report, the Tendencies tab and `tendencyItems`,
 //     "On the ball" (which follows the club choice only) and the consistency marks (the club choice's shots).
 //
-// The job runs once the catch-up settles (where the swing summary is started), one at a time on its
-// own single-thread, low-priority pool, never while a session is live, and is cancelled by the athlete
-// changing or a session going live. It first stats every session's ledger: the job's fingerprint is the
-// rule, the content stamp, the conditions asked for and every ledger's (name, size, mtime), so an
-// unchanged library costs a stat per session and nothing else. Otherwise it reads the ledgers newest
-// session first and stops once every window is full and no unread session could hold a newer reading.
-// The grades travel back in memory; nothing is written. A landing that changes a grade publishes again
+// The marks, the tendencies and the swing summary (every club, and under a choice) are AthleteDiagnostics' jobs (refactor
+// 3.7-f; J-52, J-53): asked once the catch-up settles, on the owner's own lane of the one pool, never while a session is
+// live, let go when the athlete changes or a session goes live. The marks read each summary's per-shot facts (the
+// driving measure, value and context of every assessed row: DEC-192 "b"); their fingerprint is the rule, the content,
+// the conditions asked for and each summary's (folder, fingerprint, write time), so an unchanged library grades nothing
+// again. The grades are held by the owner; nothing is written. A landing that changes a grade publishes again
 // (areaItems and faultDetail() carry `consistency`); one that changes none moves nothing.
 class WorkOnsController : public QObject
 {
@@ -314,6 +314,10 @@ class WorkOnsController : public QObject
     Q_PROPERTY(QString tendencyNote READ tendencyNote NOTIFY tendenciesChanged)
     Q_PROPERTY(bool tendenciesReady READ tendenciesReady NOTIFY tendenciesChanged)
     Q_PROPERTY(bool tendenciesUpdating READ tendenciesUpdating NOTIFY tendenciesChanged)
+    // J-51 (HARD: show with a warning, never hide): "2 sessions are left out: …", or "" when every session
+    // with shots is summed up — and, under a club scope or a shot filter, every session whose judged rows the owner could
+    // not read through its SessionDiagnostics (DEC-195: rowsMissing) is counted too. Home shows it on Coaching, Your swing and Tendencies (PpNotice).
+    Q_PROPERTY(QString notSummedUpNote READ notSummedUpNote NOTIFY notSummedUpChanged)
 
     // ── Club scope (CLUB SCOPE, above) ──
     // "all", "group:mid_irons" or "club:7 IRON". Reads back "all" while the key names none of clubScopes.
@@ -379,7 +383,7 @@ public:
     QVariantList togetherItems() const { return m_togetherItems; }
     QString      togetherNote() const { return m_togetherNote; }
     bool summaryReady() const { return m_summaryReady; }
-    bool summaryUpdating() const { return m_themesRunning; }
+    bool summaryUpdating() const { return m_themesRunning || m_ownerThemesRunning; }
     int  summarySwings() const { return m_summaryReady ? m_themes.swings : 0; }
     int  summarySessions() const { return m_summaryReady ? m_themes.sessions : 0; }
 
@@ -387,6 +391,7 @@ public:
     QString      tendencyNote() const { return m_tendencyNote; }
     bool tendenciesReady() const { return m_tendenciesReady; }
     bool tendenciesUpdating() const { return m_tendenciesRunning; }
+    QString notSummedUpNote() const { return m_notSummedUpNote; }
     Q_INVOKABLE QVariantMap tendencyDetail(const QString &key) const;
     // tendencyFlow(group, plotHeight, gap): the tendency flow (Sankey; docs/design/tendencies_flow_design.md) of every
     // row in `group` ("" for every club), laid out by layoutTendencyFlow (tendency_flow.h) in a plot `plotHeight` high
@@ -423,6 +428,7 @@ public:
 
     // Test seam: scan and reduce the themes inline (the catch-up service's own doors say whether it runs inline).
     void setSynchronous(bool on) { m_synchronous = on; }
+    bool synchronous() const { return m_synchronous; }
 
     // THE CATCH-UP'S DOOR (refactor step 3.7-e; BRIEF §4.6; CLS-ATHLETE-DIAG): this object no longer derives a session's
     // record itself. The scan finds the stale sessions (and the ones still without a frozen club baseline: baselineOnly)
@@ -445,38 +451,42 @@ public:
         std::function<QString()>     cohortFacts;
     };
     void setCatchUp(CatchUpDoor door);
-    // The service's answers (GUI thread; main.cpp connects them).
-    void sessionCaughtUp(const QString &sessionDir);
+    // THE ATHLETE'S DOOR (refactor 3.7-f): the Athlete whose folder this list reads (main.cpp: the current one; a dev
+    // folder's own). Its AthleteDiagnostics is the owner this adapter reads; null (no door, or an athlete whose folder is not
+    // athleteDir): nothing is listed.
+    void setAthleteDoor(std::function<pinpoint::AthleteLevel *(const QString &athleteDir)> door);
+    // The service's answers (GUI thread; main.cpp connects them). `folderName`: the session's folder name, never a path
+    // spelling (REVIEW-f R1-m10); a path is taken by its last part.
+    void sessionCaughtUp(const QString &folderName);
     void catchUpDone();
-    // The content stamp the records are graded against, by the owner's rule (fire_findings.h contentStamp), and the rule
-    // data's summary stamp (summaryRulesStamp): each once per RuleData snapshot.
-    static QString contentStampNow();
+    // The rule data's summary stamp (summaryRulesStamp), once per RuleData snapshot: the scan's freshness.
     static QString rulesStampNow();
     // A session summary's fingerprint as the scan computes it, by the owner's one rule (session_reduction.h
     // summaryFingerprintOf): its numbered swings' documents, its frozen club baseline, the rule data, the cohort facts.
     static QString summaryFingerprintFor(const QString &sessionDir, const QString &rulesStamp, const QString &cohort);
     // Waits for the scan, the derivation, the swing summary AND the consistency marks.
     bool waitForIdle(int msTimeout = 60000);
-    // For the tests: marks jobs started, and ledgers they have read between them.
+    // For the tests: marks asked, and the sessions' facts the owner's graded marks have read between them (3.7-f: the
+    // owner reads summaries, not ledgers).
     int  consistencyJobs() const { return m_marksJobs; }
-    int  consistencyLedgersRead() const { return m_marksLedgersRead; }
+    int  consistencyLedgersRead() const;
 
     static QString recordPath(const QString &sessionDir);
-    // Tendencies as they stood at this session: its own folder and the ones before it in the athlete's. Reads the
-    // ledgers and writes nothing; any thread. For the golfer report, so a report remade later still says the same.
-    // `lmMeasures` (step 3.6): the pack's launch monitor measures, so a reading the board left out is not read; empty
-    // (the report, until its cut-over in 3.7): the board's club override only.
-    static pinpoint::analysis::TendencySet tendenciesAsOf(const QString &sessionDir, const pinpoint::analysis::ShotOutcomePack &pack,
-                                                          const pinpoint::analysis::INormProvider &norms,
-                                                          const QSet<QString> &lmMeasures = {});
     static QString themesPath(const QString &athleteDir);
     static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope);
     // A club × shot filter choice's: swing_themes.<club>.<filter>.json; the club scope's own file under All.
     static QString themesPath(const QString &athleteDir, const pinpoint::analysis::ClubScope &scope,
                               const pinpoint::analysis::ShotFilter &filter);
     static QString tendenciesPath(const QString &athleteDir);
-    // For the tests: tendency reductions actually run (a stored file or an unchanged library counts for none).
-    int  tendencyJobs() const { return m_tendencyJobs; }
+    // For the tests: tendency reductions the owner actually ran (an unchanged library counts for none).
+    int  tendencyJobs() const;
+    // For the tools and tests: what Your swing shows (every club, or the scope's), and the owner it reads (or null).
+    const pinpoint::analysis::SwingThemes &swingThemes() const { return m_themes; }
+    const pinpoint::analysis::TendencySet &tendencySet() const { return m_tendencySet; }
+    pinpoint::AthleteLevel *owner() const;
+    bool ownerReading();   // its summaries are being read on its lane: wait for its changed() (R1-m9 a)
+    pinpoint::AthleteLevel *publishSource(bool *hold);   // what a publish shows: the owner, nothing yet, or hold (R2-B2)
+    QPointer<QObject> m_shownOwner;   // the owner whose figures the list shows (null: the empty state)
     // THE PRAISE RULE'S LAST CALL (step 3.6), for the tests and athlete_dump: the themes' "what you do well" condition
     // ids before the rule (what Home showed until 3.6, before the view's cap) and after it.
     QStringList doWellBeforePraise() const { return m_doWellBefore; }
@@ -494,6 +504,7 @@ signals:
     void summaryChanged();
     void areasChanged();
     void tendenciesChanged();
+    void notSummedUpChanged();
     // A new set of tendencies is in hand (a reduction or the stored file), and not the busy flag moving:
     // the cue for anything that pays to read the file again.
     void tendenciesLanded();
@@ -512,7 +523,7 @@ private:
         bool    hasBaseline = false;         // <session>/club_baseline.json exists
         QDate   day;                         // the session's day (SessionIdentity's; step 2.7a): what the catch-up
         int     nOfDay = 0;                  // order goes by when a baseline is missing, with its place in the day
-        pinpoint::analysis::SessionWorkOns record;   // valid when fresh
+        qint64  summarySize = -1, summaryMtimeMs = 0;   // its work_ons.json (-1: none), so an outside write is read again
     };
     static std::vector<Scanned> scan(const QString &athleteDir, const QString &rulesStamp, const QString &cohort);
     void applyScan(int generation, std::vector<Scanned> rows);
@@ -550,53 +561,11 @@ private:
     };
     // The line under one fault: outcomeContrastLine over its counts, "" under All or with none.
     static QString outcomeContrastFor(const ShownOutcome &shown, const QString &conditionId);
-    static QJsonObject outcomeToJson(const ShownOutcome &shown);
-    // Fills `shown`'s counts from a stored file's block; false when it is not this choice's.
-    static bool outcomeFromJson(const QJsonObject &o, ShownOutcome &shown);
 
     // ── Your swing ──
-    struct ThemesJob {
-        int     generation = 0;
-        QString athleteDir;
-        QString fingerprint;
-        QString contentStamp;
-        QStringList sessionDirs;    // name order
-        QHash<QString, pinpoint::analysis::ThemeMeasureInfo>   measures;
-        QHash<QString, pinpoint::analysis::ThemeConditionInfo> conditions;
-        pinpoint::analysis::ClubScope scope;
-        bool    announce = false;   // a screen is showing another scope: land Layer 1 early and say so
-        QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only: session dir -> its stored record
-        std::shared_ptr<const pinpoint::analysis::CharacteristicPack> pack;   // scoped only
-        // A shot filter only: what judges each shot (the tendency reduction's pack, and the context tree its
-        // club groups come from), the fault conditions the contrast counts, and the words the screens say it with.
-        pinpoint::analysis::ShotFilter outcome;
-        QString clubWords;
-        std::shared_ptr<const pinpoint::analysis::ShotOutcomePack> outcomePack;
-        std::shared_ptr<const pinpoint::analysis::INormProvider>   norms;
-        QSet<QString> faultIds;
-        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6), with the outcome filter
-    };
-    struct ThemesOutcome {
-        bool    fromDisk = false;   // the stored summary was current; nothing was reduced
-        bool    computed = false;   // reduced here (and not cancelled)
-        pinpoint::analysis::SwingThemes themes;
-        QString fingerprint;        // the job's, carried back
-        QString contentStamp;
-        QString athleteDir;
-        qint64  wallMs = 0;
-        pinpoint::analysis::ClubScope scope;
-        QHash<QString, pinpoint::analysis::SessionWorkOns> records;     // scoped only
-        ShownOutcome outcome;       // the job's choice, with its counts once reduced or read
-    };
-    QString themesFingerprint() const;
     void maybeThemes();
     void cancelThemes();
-    ThemesOutcome runThemes(const ThemesJob &job, const std::atomic<bool> *cancel);
-    void applyThemes(int generation, ThemesOutcome out);
-    void applyScopeSummary(int generation, const QString &scopeKey,
-                           QHash<QString, pinpoint::analysis::SessionWorkOns> records,
-                           pinpoint::analysis::SwingThemes layerOne, ShownOutcome outcome);
-    void applyScopeWorking(int generation);
+    void applyOwnerScoped(bool layerOne);
     void publishSummary();
     void clearSummary();
 
@@ -608,27 +577,6 @@ private:
         bool    ungraded = false;       // decided from the pack: no measure, yes/no, composite, an outcome (R4)
         pinpoint::variability::ScaleType scaleType = pinpoint::variability::ScaleType::Interval;
     };
-    struct MarksSession {
-        QString dir;
-        qint64  startMs = 0, endMs = 0;
-    };
-    struct MarksJob {
-        int     generation = 0;
-        QString seed;                   // the rule, the content stamp and the requests
-        QString previous;               // the fingerprint of the grades in hand
-        std::vector<MarksSession> sessions;     // newest first
-        std::vector<MarksRequest> requests;
-        std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
-        pinpoint::analysis::ClubScope scope;
-        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6)
-    };
-    struct MarksOutcome {
-        QString fingerprint;
-        bool    unchanged = false;      // the ledgers and requests are those of the grades in hand
-        bool    computed  = false;      // graded here (and not cancelled)
-        int     ledgersRead = 0;
-        QHash<QString, pinpoint::variability::VariabilityResultView> marks;   // markKey -> mark
-    };
     // A set of records in final words: the list, every condition's detail, and the marks those ask for.
     struct DescribedWorkOns {
         QVariantList items;
@@ -637,45 +585,33 @@ private:
         int cleared = 0;
     };
     // `outcome`, when given, is the choice the records are of: each detail (never an item) carries its
-    // outcomeContrast line.
+    // outcomeContrast line. `every` and `agg` are the aggregates of `records` (every condition; the work-on list): the
+    // owner's for every club; for a scope or a filter, worked out here from the owner's scoped records (DEC-195).
     DescribedWorkOns describeWorkOns(const QHash<QString, pinpoint::analysis::SessionWorkOns> &records,
+                                     const std::vector<pinpoint::analysis::WorkOnSummary> &every,
+                                     const std::vector<pinpoint::analysis::WorkOnSummary> &agg,
                                      const ShownOutcome *outcome = nullptr);
     // What the three scoped tabs read: details and areas, from the records of the scope they show.
     // `known` is that scope's description when the caller already has it.
     void publishScreens(const DescribedWorkOns *known = nullptr);
     static QString markKey(const QString &conditionId, const QString &measureId);
-    static MarksOutcome runMarks(const MarksJob &job, const std::atomic<bool> *cancel);
     void maybeMarks();
     void cancelMarks();
-    void applyMarks(int generation, MarksOutcome out);
+    void applyOwnerMarks();
     QVariant markFor(const QString &conditionId, const QString &measureId) const;
     pinpoint::analysis::PraiseGrade praiseGradeOf(const QString &conditionId) const;   // the praise rule's read (3.6)
 
     // ── Tendencies ──
-    struct TendenciesJob {
-        int     generation = 0;
-        QString athleteDir;
-        QString seed;                   // the rule, schema, content stamp and every session's work-ons fingerprint
-        QString previous;               // the fingerprint of the tendencies in hand
-        QString contentStamp;
-        QStringList sessionDirs;        // name order
-        pinpoint::analysis::ShotOutcomePack pack;
-        std::shared_ptr<const pinpoint::analysis::INormProvider> norms;
-        QSet<QString> lmMeasures;   // the board's left-out readings (step 3.6)
-    };
-    struct TendenciesOutcome {
-        QString fingerprint;
-        QString contentStamp;
-        QString athleteDir;
-        bool    unchanged = false;      // the ledgers are those of the tendencies in hand
-        bool    fromDisk = false;       // the stored file was current
-        bool    computed = false;       // reduced here (and not cancelled)
-        pinpoint::analysis::TendencySet set;
-    };
     void maybeTendencies();
     void cancelTendencies();
-    static TendenciesOutcome runTendencies(const TendenciesJob &job, const std::atomic<bool> *cancel);
-    void applyTendencies(int generation, TendenciesOutcome out);
+    void applyOwnerTendencies();
+    // ── The owner (refactor 3.7-f) ──
+    void pointAtOwner();
+    void onOwnerChanged();
+    void applyOwnerThemes(bool layerOne = false);
+    void refreshNotSummedUp();
+    QString dirOfFolder(const QString &folderName) const;
+    void markSummaryStale(const QString &sessionDir);
     void publishTendencies();
     void clearTendencies();
     QVariantMap onBallFor(const QString &conditionId) const;
@@ -689,11 +625,21 @@ private:
 
     // session dir -> its current record. Rebuilt by every scan, added to by every derivation.
     QHash<QString, pinpoint::analysis::SessionWorkOns> m_records;
-    QHash<QString, QString> m_fingerprints;   // session dir -> what the queue will stamp
+    QSet<QString>           m_scanned;        // the session dirs the last scan found with swings (none: nothing to sum up)
+    QHash<QString, QString> m_summaryStamps;  // session dir -> its work_ons.json's size and mtime at the last scan
+    QString                 m_stampsOf;       // the athlete folder m_summaryStamps are of
     QHash<QString, qint64>  m_dirMtime;
     QStringList m_queue;                      // stale session dirs, newest first
     bool        m_deriving = false;       // the catch-up service holds this scan's ask (3.7-e)
     CatchUpDoor m_catchUp;
+    std::function<pinpoint::AthleteLevel *(const QString &)> m_athleteDoor;
+    pinpoint::AthleteLevel *m_owner = nullptr;     // valid while m_ownerObject lives (the Athlete's child)
+    QPointer<QObject>       m_ownerObject;
+    QList<QMetaObject::Connection> m_ownerConnections;
+    bool        m_ownerChangePosted = false;
+    bool        m_ownerDirty = false;      // the owner moved while the scan or the catch-up ran: publish when they settle
+    bool        m_ownerThemesRunning = false;
+    QString     m_notSummedUpNote;
     bool        m_scanning = false;
     bool        m_rescan   = false;
     int         m_generation = 0;
@@ -713,11 +659,8 @@ private:
     // ── Your swing ──
     pinpoint::analysis::SwingThemes m_themes;      // valid when m_summaryReady
     QString      m_themesFingerprint;              // what m_themes was reduced from
-    QString      m_themesJobFingerprint;           // what the running job will produce
     bool         m_summaryReady  = false;
     bool         m_themesRunning = false;
-    int          m_themesGeneration = 0;
-    std::shared_ptr<std::atomic<bool>> m_themesCancel;   // the running job's
     QString      m_summarySubtitle;
     QVariantMap  m_focusItem;
     QVariantList m_doWellItems;
@@ -725,8 +668,6 @@ private:
     QVariantList m_nextItems;
     QVariantList m_togetherItems;
     QString      m_togetherNote;
-    QThreadPool  m_themesPool;          // one job at a time
-    QThreadPool  m_replicatePool;       // that job's replicates
 
     // ── Club scope ──
     QString      m_scopeRequested = pinpoint::analysis::clubScopeAllKey();    // as asked; may name no option yet
@@ -749,9 +690,6 @@ private:
     QString      m_tendencyFingerprint;                 // what m_tendencySet was reduced from
     bool         m_tendenciesReady = false;
     bool         m_tendenciesRunning = false;
-    int          m_tendenciesGeneration = 0;
-    int          m_tendencyJobs = 0;
-    std::shared_ptr<std::atomic<bool>> m_tendenciesCancel;   // the running job's
     QVariantList m_tendencyItems;
     QString      m_tendencyNote;
     mutable std::unique_ptr<pinpoint::analysis::ShotOutcomePack> m_outcomePack;   // marshalled once, on demand
@@ -761,10 +699,5 @@ private:
     QString      m_marksFingerprint;                     // what m_marks was graded from
     QHash<QString, MarksRequest> m_markRequests;         // markKey -> what publish() asks for
     bool         m_marksRunning = false;
-    bool         m_marksAgain   = false;                 // asked while a job ran
-    int          m_marksGeneration = 0;
     int          m_marksJobs = 0;
-    int          m_marksLedgersRead = 0;
-    std::shared_ptr<std::atomic<bool>> m_marksCancel;    // the running job's
-    QThreadPool  m_marksPool;                            // one job at a time
 };

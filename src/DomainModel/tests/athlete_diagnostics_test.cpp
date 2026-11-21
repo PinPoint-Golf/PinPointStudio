@@ -47,6 +47,16 @@
 //   TND   round 2 (DEC-192 amended): the tendencies (with their distances) and the themes AthleteDiagnostics reduces from
 //         the summaries alone are the ones the ledger path gives (each session's ledger, golfer input, evidence and frozen
 //         baseline, the board applied), field for field — and reading them reads no ledger
+//   JOB   (3.7-f, J-53) Home's jobs: the tendencies, the themes and the marks asked inline equal the lazy reads; a second ask
+//         with nothing moved is Current; on the pool (the owner's own lane, routed by the receiver) they land the same
+//   PER   (3.7-f) FILE-ATH-02/03 written by the owner through its AthleteRepository, their one writer, with derivedFrom; the
+//         themes' stored file read back by a fresh owner (no reduction); a write block said (writeFailed) and persist()
+//         reporting it
+//   ASOF  (3.7-f) the tendencies as of a session: that session and the ones before it, the distances pooled the same way
+//   CNT   (3.7-f, J-51) a session with shots whose summary this build does not read is counted (notSummedUp), never silent
+//   OUT   (3.7-f) a summary written outside this process is read again after rereadAll()
+//   SCP   (3.7-f, DEC-195) a club choice's views from each session's judged rows through its own SessionDiagnostics, the
+//         sessions loaded for it released; Current when nothing moved; its own file, read back by a fresh owner
 //
 //   cmake --build build/tests --target athlete_diagnostics_test -j 6
 //   ctest --test-dir build/tests -R '^athlete_diagnostics_test$' --output-on-failure
@@ -57,6 +67,7 @@
 #include "../session_diagnostics.h"
 #include "../shot.h"
 #include "../../App/athlete_catch_up.h"
+#include "../../Export/athlete_cache_repository.h"
 #include "../../Coaching/board_annotations.h"
 #include "../../Coaching/swing_themes.h"
 #include "../../Coaching/tendencies_pack.h"
@@ -78,6 +89,9 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QPointer>
+#include <QSet>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
@@ -86,6 +100,8 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <atomic>
 
 #ifndef PP_LIVE_SWINGS_DIR
 #  define PP_LIVE_SWINGS_DIR "."
@@ -146,6 +162,9 @@ class SpyRepository final : public SessionRepository
 public:
     explicit SpyRepository(SessionStore &inner) : m(inner) {}
     mutable int diagnosticsReads = 0, inputReads = 0, baselineReads = 0, workOnsReads = 0;
+    std::atomic<int> deferredReads{ 0 };   // summary reads handed to another thread (readAhead, J-57)
+    QSet<Qt::HANDLE> deferredThreads;      // the threads they ran on (GUI thread only writes it after the job)
+    std::mutex       threadsLock;
 
     SessionStartResult start(const SessionOwner &o, const QString &t, const QString &p) override { return m.start(o, t, p); }
     SessionId todaysSession(const SessionOwner &o, const QString &t) override { return m.todaysSession(o, t); }
@@ -174,6 +193,15 @@ public:
     JsonFileRead readClubBaseline(const SessionId &id) override { ++baselineReads; return m.readClubBaseline(id); }
     WriteResult writeClubBaseline(const SessionId &id, const QJsonObject &r) override { return m.writeClubBaseline(id, r); }
     JsonFileRead readWorkOns(const SessionId &id) override { ++workOnsReads; return m.readWorkOns(id); }
+    std::function<JsonFileRead()> deferredReadWorkOns(const SessionId &id) override
+    {
+        std::function<JsonFileRead()> read = m.deferredReadWorkOns(id);
+        return [this, read] {
+            ++deferredReads;
+            { std::lock_guard<std::mutex> g(threadsLock); deferredThreads.insert(QThread::currentThreadId()); }
+            return read();
+        };
+    }
     WriteResult writeWorkOns(const SessionId &id, const QJsonObject &r) override { return m.writeWorkOns(id, r); }
 
 private:
@@ -191,6 +219,7 @@ struct Rig {
     std::shared_ptr<RecordingReader>               reader;
     std::unique_ptr<WorkReceiver>                  receiver;
     std::unique_ptr<WorkPool>                      pool;
+    AthleteCacheRepository                         caches;    // FILE-ATH-02/03 (refactor 3.7-f)
     std::unique_ptr<Athlete>                       athlete;   // destroyed first
 
     // `diagnostics`: the Athlete's sessions get their SessionDiagnostics (persisting into this library); `async`: on
@@ -203,11 +232,13 @@ struct Rig {
         recordings = std::make_unique<SwingStoreRecordingRepository>(store);
         reader     = std::make_shared<SwingStoreRecordingReader>(store);
         receiver   = std::make_unique<WorkReceiver>([this](const WorkAddress &a) {
+            if (isAthleteWorkOwner(a.owner))   // the athlete level's own lane (3.7-f, J-53)
+                return athleteDiagnosticsWorkTarget(athlete && athleteOfWorkOwner(a.owner) == athlete->id() ? athlete.get() : nullptr, a);
             return diagnosticsWorkTarget(athlete ? athlete->loadedSession(SessionId::fromString(a.owner)) : nullptr, a);
         });
         if (async) pool = std::make_unique<WorkPool>(2);
         QDir().mkpath(athleteFolder());
-        athlete = std::make_unique<Athlete>(nullptr, spy.get(), kAthlete);
+        athlete = std::make_unique<Athlete>(&caches, spy.get(), kAthlete);
         AthleteRecord r;
         r.name = kName;
         athlete->setStored(r, athleteFolder(), SessionOwner{ kAthlete, kName, dir.path() }, Athlete::Source::Library, false);
@@ -619,6 +650,37 @@ static void testCatchUpAndFreeze()
                   .arg(without).arg(with),
               without == 3 && okR && back.hasFacts && with == 5);
     }
+    // FRS (BRIEF-f 13; REVIEW-e R2-m4, REVIEW-f R1-B1): a predecessor counts only when its summary is FRESH by the one
+    // fingerprint rule. The rule data moved with no version bump (the grade policy, SET-15): the first session's summary
+    // still reads strictly, with its windows, but is stale — so the second's baseline waits on it, and is computable
+    // once the catch-up has written it again. (Failed before the fix: computable from the stale windows.)
+    {
+        AthleteDiagnostics *d = AthleteDiagnostics::of(rig.athlete.get());
+        RuleData *rules = RuleData::installed();
+        const QString policy = rules->snapshot()->gradePolicy;
+        const ClubBaselineComputation before = d->clubBaselineFor(rig.idOf(s2));
+        rules->setGradePolicy(policy == QLatin1String("strict") ? QStringLiteral("standard") : QStringLiteral("strict"));
+        bool okS = false;
+        const analysis::SessionResults stale = analysis::sessionResultsFromJson(readJson(SessionFiles::workOnsFile(s1)),
+                                                                                analysis::SessionResultsRead::Strict, &okS);
+        const ClubBaselineComputation moved = d->clubBaselineFor(rig.idOf(s2));
+        std::printf("        FRS: before computable %d; moved computable %d, waiting on %d, why [%s]\n", int(before.computable),
+                    int(moved.computable), int(moved.waitingOn.size()), qPrintable(moved.why));
+        check(QStringLiteral("FRSa the rule data moved with no version bump: the first session's summary still reads (with its "
+                             "windows) but is stale, so the second's baseline is not computable, waiting on the first"),
+              before.computable && okS && stale.hasGrowth && !moved.computable
+                  && moved.waitingOn == QList<SessionId>{ rig.idOf(s1) } && moved.why.contains(QFileInfo(s1).fileName()));
+        AthleteCatchUp again(rig.callables());
+        again.run(kAthlete);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        const ClubBaselineComputation after = d->clubBaselineFor(rig.idOf(s2));
+        check(QStringLiteral("FRSb once the catch-up has written it again, computable from it"),
+              after.computable && after.read == QStringList{ QFileInfo(s1).fileName() } && after.waitingOn.isEmpty());
+        rules->setGradePolicy(policy);
+        AthleteCatchUp back(rig.callables());
+        back.run(kAthlete);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    }
     // FRZ: frozen once; an older rule's file rewritten; not computable while an earlier session is not summed up.
     {
         const QByteArray before = [&] { QFile f(SessionFiles::clubBaselineFile(s3)); f.open(QIODevice::ReadOnly); return f.readAll(); }();
@@ -718,10 +780,256 @@ static void testPauseAndCancel()
               && other.report().interrupted == 1);
 }
 
+// ── JOB / PER / ASOF / CNT / OUT (refactor 3.7-f) ─────────────────────────────────────────────────────────────
+static void testHomeJobs(bool onPool)
+{
+    std::printf("\nJOB / PER / ASOF / CNT / OUT (%s) — Home's jobs on the athlete level\n", onPool ? "on the pool" : "inline");
+    const QString tag = onPool ? QStringLiteral(" (pool)") : QStringLiteral(" (inline)");
+    Rig rig(/*diagnostics=*/true, onPool);
+    const QString s1 = rig.legacySession(1, 2), s2 = rig.legacySession(2, 2), s3 = rig.legacySession(3, 2);
+    AthleteCatchUp catchUp(rig.callables());
+    catchUp.run(kAthlete);
+    pump([&catchUp] { return !catchUp.running(); });
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    AthleteDiagnostics *d = AthleteDiagnostics::of(rig.athlete.get());
+    d->markStale();
+    const auto land = [&](AthleteDiagnostics::Ask a, const std::function<bool()> &done) {
+        if (a == AthleteDiagnostics::Ask::Running) return pump(done, 120000);
+        return a == AthleteDiagnostics::Ask::Landed;
+    };
+
+    // JOB: the asks land what the lazy reads give.
+    const analysis::TendencySet lazy = d->tendencies();
+    const bool t1 = land(d->askTendencies(), [d] { return !d->tendenciesRunning(); });
+    check(QStringLiteral("JOBa the tendencies asked land what the lazy read gives (%1 shots)").arg(d->landedTendencies().countedShots) + tag,
+          t1 && d->tendenciesReady() && analysis::tendencySetToJson(d->landedTendencies()) == analysis::tendencySetToJson(lazy));
+    check(QStringLiteral("JOBb asked again with nothing moved: Current, nothing reduced") + tag,
+          d->askTendencies() == AthleteDiagnostics::Ask::Current && d->counts().tendencyJobs == 1);
+    const analysis::SwingThemes lazyThemes = d->themes();
+    if (rig.pool) rig.pool->waitForDone(30000);
+    const int lanesBefore = rig.pool ? rig.pool->laneCount() : 0;
+    const bool h1 = land(d->askThemes(), [d] { return !d->themesRunning(); });
+    check(QStringLiteral("JOBc the themes asked land what the lazy read gives (%1 swings)").arg(d->landedThemes().allSwings) + tag,
+          h1 && d->themesReady() && analysis::toJson(d->landedThemes()) == analysis::toJson(lazyThemes) && d->counts().themeJobs == 1);
+    if (rig.pool) {
+        // LANE (REVIEW-f R1-m2): the replicates' fan-out lets its helper lanes go once it closes (failed before: one empty
+        // lane left in the pool for good per helper, per reduction).
+        rig.pool->waitForDone(30000);
+        const int lanesAfter = rig.pool->laneCount();
+        check(QStringLiteral("LANEa the themes' fan-out leaves no lane behind in the pool (%1 lanes before, %2 after)")
+                  .arg(lanesBefore).arg(lanesAfter) + tag,
+              lanesAfter == lanesBefore);
+    }
+    std::vector<AthleteDiagnostics::ConsistencyRequest> reqs;
+    for (const analysis::WorkOnSummary &w : d->conditions())
+        reqs.push_back({ w.id, w.hasLatestEvidence ? w.latestEvidence.measureId : (w.hasLatest ? w.latest.measureId : QString()) });
+    const bool m1 = land(d->askConsistency(analysis::ClubScope(), reqs), [d] { return !d->consistencyRunning(); });
+    check(QStringLiteral("JOBd the marks are graded from the summaries' facts (%1 requests, %2 graded, %3 sessions read)")
+              .arg(reqs.size()).arg(d->consistency().size()).arg(d->counts().consistencySessions) + tag,
+          m1 && d->counts().consistencyJobs == 1 && d->counts().consistencySessions == 3 && !reqs.empty());
+    check(QStringLiteral("JOBe … and asked again with nothing moved, Current") + tag,
+          d->askConsistency(analysis::ClubScope(), reqs) == AthleteDiagnostics::Ask::Current);
+    {
+        // JOBg (REVIEW-f R1-m1): the same ask while it runs is not queued twice — Running, one job.
+        analysis::ClubScope seven;
+        seven.key     = QStringLiteral("club:7 IRON");
+        seven.clubIds = { canonicalClubId(QStringLiteral("7 IRON")) };
+        const quint64 jobs = d->counts().consistencyJobs, asked = d->counts().jobsAsked;
+        const AthleteDiagnostics::Ask first = d->askConsistency(seven, reqs);
+        const AthleteDiagnostics::Ask second = d->askConsistency(seven, reqs);
+        const quint64 queued = d->counts().jobsAsked - asked;
+        const bool landed = land(first, [d] { return !d->consistencyRunning(); });
+        check(QStringLiteral("JOBg the same marks ask while it runs answers Running (or Current once landed): one job queued, "
+                             "not two (%1)").arg(queued) + tag,
+              landed && queued == 1 && d->counts().consistencyJobs == jobs + 1
+                  && (onPool ? second == AthleteDiagnostics::Ask::Running : second == AthleteDiagnostics::Ask::Current));
+    }
+    analysis::ClubScope none;
+    none.key = QStringLiteral("club:PUTTER");
+    none.clubIds = { QStringLiteral("PUTTER") };
+    const bool m2 = land(d->askConsistency(none, reqs), [d] { return !d->consistencyRunning(); });
+    check(QStringLiteral("JOBf a club choice with no shots grades nothing") + tag,
+          m2 && d->consistency().isEmpty() && d->consistencyScopeKey() == none.key);
+
+    // PER: the one writer of FILE-ATH-02/03.
+    const QJsonObject tend = readJson(AthleteFiles::tendenciesFile(rig.athleteFolder()));
+    const QJsonObject them = readJson(AthleteFiles::themesFile(rig.athleteFolder()));
+    check(QStringLiteral("PERa tendencies.json and swing_themes.json written by the owner, each stamped with its inputs") + tag,
+          tend.value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("fingerprint")).toString() == d->landedTendenciesFingerprint()
+              && them.value(QStringLiteral("derivedFrom")).toObject().value(QStringLiteral("fingerprint")).toString() == d->landedThemesFingerprint()
+              && rig.caches.writes == 2);
+    check(QStringLiteral("PERb persist() with nothing new writes nothing") + tag,
+          d->persist().status == WriteResult::Status::Unchanged && rig.caches.writes == 2);
+    {
+        // A fresh owner (a new launch) finds the stored themes current: read, not reduced.
+        delete static_cast<QObject *>(d);   // its destructor is the Athlete's to call; through the base, as Qt's own deletes do
+        d = AthleteDiagnostics::of(rig.athlete.get());
+        const AthleteDiagnostics::Ask a = d->askThemes();
+        check(QStringLiteral("PERc a fresh owner reads the current swing_themes.json back, reducing nothing") + tag,
+              a == AthleteDiagnostics::Ask::Landed && d->counts().themeCacheReads == 1 && d->counts().themeJobs == 0
+                  && analysis::toJson(d->landedThemes()) == analysis::toJson(lazyThemes));
+        // A write block is said, and persist() reports it.
+        delete static_cast<QObject *>(d);   // its destructor is the Athlete's to call; through the base, as Qt's own deletes do
+        d = AthleteDiagnostics::of(rig.athlete.get());
+        rig.caches.failWrites = QStringLiteral("the disk is full");
+        QStringList said;
+        QObject::connect(d, &AthleteDiagnostics::writeFailed, [&said](const QString &what, const QString &why) { said << what + QStringLiteral(": ") + why; });
+        land(d->askTendencies(), [d] { return !d->tendenciesRunning(); });
+        const WriteResult again = d->persist();
+        check(QStringLiteral("PERd a failed write of tendencies.json is said (%1) and persist() reports it").arg(said.join(QStringLiteral("; "))) + tag,
+              said.size() == 1 && said.first().contains(QStringLiteral("tendencies")) && !again.ok());
+        rig.caches.failWrites.clear();
+        check(QStringLiteral("PERe … and written once it can be") + tag, d->persist().ok() && rig.caches.writes == 3);
+    }
+
+    // ASOF: as of each session.
+    const auto asOf = [&](const QString &folder) { return d->tendenciesAsOf(rig.idOf(folder)); };
+    const analysis::TendencySet a1 = asOf(s1), a3 = asOf(s3);
+    check(QStringLiteral("ASOFa as of the first session: its shots alone (%1 over %2)").arg(a1.countedShots).arg(a1.countedSessions) + tag,
+          a1.countedSessions <= 1 && a1.countedShots <= 2);
+    check(QStringLiteral("ASOFb as of the last: every session's, the athlete's own tendencies (%1 shots)").arg(a3.countedShots) + tag,
+          analysis::tendencySetToJson(a3) == analysis::tendencySetToJson(d->tendencies()));
+
+    // SCP (DEC-195): a club scope's views from each session's judged rows, read through that session's own SessionDiagnostics
+    // (the Session held for the read and released after), stored by the owner and read back by a fresh one.
+    {
+        QStringList clubs;
+        for (const auto &r : d->records()) clubs += r.clubs;
+        const std::vector<analysis::ClubScopeGroupOption> options = analysis::clubScopeOptions(clubs, [](const QString &) { return QStringLiteral("mid_irons"); });
+        const analysis::ClubScope scope = analysis::resolveClubScope(
+            options.empty() || options.front().clubs.empty() ? QString() : options.front().clubs.front().value, options);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        const bool s1ok = land(d->askScoped(scope, analysis::ShotFilter(), false), [d] { return !d->scopedRunning(); });
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        const AthleteLevel::ScopedResult &r = d->scopedResult();
+        check(QStringLiteral("SCPa a club choice (%1): every session's record and the summary from its rows (%2 sessions, %3 swings), "
+                             "the sessions loaded for it released").arg(scope.key).arg(r.records.size()).arg(r.themes.allSwings) + tag,
+              s1ok && !scope.isAll() && r.key == scope.key && r.records.size() == 3 && r.themes.allSwings == 6
+                  && d->rowsMissing().isEmpty() && rig.athlete->loadedSessions().isEmpty());
+        check(QStringLiteral("SCPb asked again with nothing moved: Current") + tag,
+              d->askScoped(scope, analysis::ShotFilter(), false) == AthleteDiagnostics::Ask::Current);
+        check(QStringLiteral("SCPc its file is the owner's: swing_themes.<club>.json, with its records") + tag,
+              readJson(AthleteFiles::themesFile(rig.athleteFolder(), { analysis::clubScopeFileKey(scope.key) }))
+                      .value(QStringLiteral("records")).toArray().size() == 3);
+        delete static_cast<QObject *>(d);
+        d = AthleteDiagnostics::of(rig.athlete.get());
+        const quint64 reads = d->counts().themeCacheReads;
+        check(QStringLiteral("SCPd a fresh owner reads the current choice back, loading no session") + tag,
+              d->askScoped(scope, analysis::ShotFilter(), false) == AthleteDiagnostics::Ask::Landed
+                  && d->counts().themeCacheReads == reads + 1 && d->scopedResult().records.size() == 3
+                  && rig.athlete->loadedSessions().isEmpty());
+
+        // SCPe (REVIEW-f R1-B2): a session the pass loaded that another holder has a use on at let-go (the catch-up, a
+        // report make, Review — none releases what it did not load) is released once that use drops, not left loaded for
+        // the run. (Failed before the fix: still loaded after the use was dropped.)
+        QFile::remove(AthleteFiles::themesFile(rig.athleteFolder(), { analysis::clubScopeFileKey(scope.key) }));
+        delete static_cast<QObject *>(d);
+        d = AthleteDiagnostics::of(rig.athlete.get());
+        d->setReleaseRetryMsForTest(20);
+        const SessionId first = rig.idOf(s1);
+        QPointer<Session> other;
+        const QMetaObject::Connection hold = QObject::connect(rig.athlete.get(), &Athlete::sessionHeld, [&other, first](Session *s) {
+            if (s && s->id() == first && !other) { s->addUse(); other = s; }   // another holder takes it as the pass loads it
+        });
+        const bool s2ok = land(d->askScoped(scope, analysis::ShotFilter(), false), [d] { return !d->scopedRunning(); });
+        QObject::disconnect(hold);
+        const bool keptForHolder = other && rig.athlete->loadedSession(first) && d->releasesOwed() == 1;
+        if (other) other->dropUse();
+        const bool released = pump([&] { return !rig.athlete->loadedSession(first); }, 10000);
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        check(QStringLiteral("SCPe a session the pass loaded, held by another use at let-go, is released once that use drops") + tag,
+              s2ok && d->scopedResult().records.size() == 3 && keptForHolder && released && d->releasesOwed() == 0
+                  && rig.athlete->loadedSessions().isEmpty());
+    }
+
+    // CNT: a session whose summary this build does not read is counted.
+    check(QStringLiteral("CNTa every session summed up: none counted") + tag, d->notSummedUp().count == 0);
+    QJsonObject old = readJson(SessionFiles::workOnsFile(s2));
+    old[QStringLiteral("ruleVersion")] = old.value(QStringLiteral("ruleVersion")).toInt() - 1;
+    writeJson(SessionFiles::workOnsFile(s2), old);
+    d->rereadAll();   // OUT: a file written outside this process
+    const AthleteDiagnostics::NotSummedUp n = d->notSummedUp();
+    check(QStringLiteral("CNTb / OUTa an older rule's summary written outside is read again, and counted (%1: %2)")
+              .arg(n.count).arg(n.folders.join(QStringLiteral(", "))) + tag,
+          n.count == 1 && n.folders == QStringList{ QFileInfo(s2).fileName() } && d->summaryOf(QFileInfo(s2).fileName()) == nullptr
+              && d->records().size() == 2);
+}
+
+// ── RDA (REVIEW-f R1-m9 a; J-57): the summaries read on the owner's lane, applied on the GUI thread, latest wins ──────
+static void testReadAhead(bool onPool)
+{
+    std::printf("\nRDA (%s) — the summaries read off the GUI thread\n", onPool ? "on the pool" : "inline");
+    const QString tag = onPool ? QStringLiteral(" (pool)") : QStringLiteral(" (inline)");
+    Rig rig(/*diagnostics=*/true, onPool);
+    const QString s1 = rig.legacySession(1, 2), s2 = rig.legacySession(2, 2), s3 = rig.legacySession(3, 2);
+    AthleteCatchUp catchUp(rig.callables());
+    catchUp.run(kAthlete);
+    pump([&catchUp] { return !catchUp.running(); });
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    AthleteDiagnostics *d = AthleteDiagnostics::of(rig.athlete.get());
+    const QByteArray syncRecords = [&] {   // what a synchronous read gives: the reference
+        QJsonObject o;
+        const QHash<QString, analysis::SessionWorkOns> recs = d->records();
+        for (auto it = recs.constBegin(); it != recs.constEnd(); ++it) o.insert(it.key(), QString::number(it->shotCount));
+        return QJsonDocument(o).toJson(QJsonDocument::Compact) + QByteArray::number(int(d->distances().size()));
+    }();
+    d->rereadAll();
+    int changed = 0;
+    QObject::connect(d, &AthleteDiagnostics::changed, [&changed] { ++changed; });
+    const int guiReads = rig.spy->workOnsReads;
+    const quint64 asked = d->counts().jobsAsked;
+    const AthleteDiagnostics::Ask a = d->readAhead();
+    if (!onPool) {
+        check(QStringLiteral("RDAa inline doors: read here at once (Current), nothing stale") + tag,
+              a == AthleteDiagnostics::Ask::Current && !d->stale());
+        return;
+    }
+    const bool outAtAsk = a == AthleteDiagnostics::Ask::Running && d->stale() && d->summariesReading();
+    check(QStringLiteral("RDAa asked: Running, the summaries out on the lane, no file read on the GUI thread") + tag,
+          outAtAsk && rig.spy->workOnsReads == guiReads);
+    check(QStringLiteral("RDAb asked again while it runs: Running, not queued twice") + tag,
+          d->readAhead() == AthleteDiagnostics::Ask::Running && d->counts().jobsAsked == asked + 1);
+    d->markStale(rig.idOf(s2));   // stale again before it lands: its result is not taken, and it asks again
+    const bool landed = pump([d] { return !d->summariesReading() && !d->stale(); }, 30000);
+    const QByteArray asyncRecords = [&] {
+        QJsonObject o;
+        const QHash<QString, analysis::SessionWorkOns> recs = d->records();
+        for (auto it = recs.constBegin(); it != recs.constEnd(); ++it) o.insert(it.key(), QString::number(it->shotCount));
+        return QJsonDocument(o).toJson(QJsonDocument::Compact) + QByteArray::number(int(d->distances().size()));
+    }();
+    bool offGui = false;
+    { std::lock_guard<std::mutex> g(rig.spy->threadsLock);
+      offGui = !rig.spy->deferredThreads.isEmpty() && !rig.spy->deferredThreads.contains(QThread::currentThreadId()); }
+    std::printf("        RDA: %d deferred read(s), %llu applied, ask %lld ms, apply %lld ms, %d changed\n",
+                rig.spy->deferredReads.load(), (unsigned long long)d->counts().summariesReadAhead,
+                (long long)d->counts().readAheadAskMs, (long long)d->counts().readAheadApplyMs, changed);
+    check(QStringLiteral("RDAc landed: every summary read on a pool thread, none on the GUI thread, then changed()") + tag,
+          landed && offGui && rig.spy->workOnsReads == guiReads && changed >= 1 && d->counts().readAheadApplyMs >= 0);
+    check(QStringLiteral("RDAd latest wins: the staleness before the landing asked again (two reads, the second taken)") + tag,
+          d->counts().jobsAsked >= asked + 2 && d->counts().summariesReadAhead >= 1);
+    check(QStringLiteral("RDAe what it applied is what a synchronous read gives (records, distances)") + tag,
+          asyncRecords == syncRecords && d->summaries().size() == 3);
+    check(QStringLiteral("RDAf read and current: Current, nothing asked") + tag,
+          d->readAhead() == AthleteDiagnostics::Ask::Current && !d->summariesReading());
+    // RDAg (REVIEW-f R2-m1): a synchronous read while the lane read is out (a reader that did not wait) leaves nothing to
+    // take — but the landing still says changed(), so the reader waiting for it (Home) reads again.
+    d->rereadAll();
+    const int changedBefore = changed;
+    const bool out = d->readAhead() == AthleteDiagnostics::Ask::Running;
+    const size_t n = d->summaries().size();   // read here, now
+    const bool settled = pump([d] { return !d->summariesReading(); }, 30000);
+    check(QStringLiteral("RDAg a synchronous read meanwhile: the landing takes nothing and still says changed() (failed before)") + tag,
+          out && n == 3 && settled && !d->stale() && changed > changedBefore);
+    Q_UNUSED(s1); Q_UNUSED(s3);
+}
+
 int main(int argc, char **argv)
 {
     QCoreApplication app(argc, argv);
     QStandardPaths::setTestModeEnabled(true);
+    // This suite's own settings (FRS sets the grade policy, SET-15): never the machine's.
+    QTemporaryDir settingsDir;
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, settingsDir.filePath(QStringLiteral("settings")));
     pinpoint::installProcessRuleData();
     std::printf("athlete_diagnostics_test\n");
     testPraise();
@@ -730,6 +1038,10 @@ int main(int argc, char **argv)
     testCatchUpAndFreeze();
     testPauseAndCancel();
     testBlockAtRelease();
+    testHomeJobs(/*onPool=*/false);
+    testHomeJobs(/*onPool=*/true);
+    testReadAhead(/*onPool=*/false);
+    testReadAhead(/*onPool=*/true);
     std::printf("\n%d checks, %d failed\n", g_run, g_fail);
     return g_fail ? 1 : 0;
 }
